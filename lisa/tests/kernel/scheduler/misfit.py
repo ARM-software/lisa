@@ -17,9 +17,9 @@
 
 import pandas as pd
 
-from devlib.utils.misc import memoized
 from devlib.module.sched import SchedDomain
 
+from lisa.utils import memoized
 from lisa.trace import Trace
 from lisa.wlgen.rta import Periodic
 from lisa.tests.kernel.test_bundle import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
@@ -153,10 +153,6 @@ class StaggeredFinishes(MisfitMigrationBase):
         self.dst_cpus = []
         for group in self.cpu_classes[1:]:
             self.dst_cpus += group
-
-        # TODO: clean me up
-        # Needed because of serialization
-        self._trace = None
 
     @classmethod
     def check_from_testenv(cls, te):

@@ -26,7 +26,7 @@ from lisa.trace import Trace
 from lisa.wlgen.rta import RTA
 from lisa.perf_analysis import PerfAnalysis
 
-from lisa.utils import Serializable
+from lisa.utils import Serializable, memoized
 from lisa.env import TestEnv, ArtifactPath
 
 class TestMetric:
@@ -224,6 +224,10 @@ class TestBundle(Serializable, abc.ABC):
     """
 
     def __init__(self, res_dir):
+        # It is important that res_dir is directly stored as an attribute, so
+        # it can be replaced by a relocated res_dir after the object is
+        # deserialized on another host.
+        # See exekall_customization.LISAAdaptor.load_db
         self.res_dir = res_dir
 
     @classmethod
@@ -332,6 +336,7 @@ class RTATestBundle(TestBundle, abc.ABC):
     """
 
     @property
+    @memoized
     def trace(self):
         """
         :returns: a Trace
@@ -340,15 +345,10 @@ class RTATestBundle(TestBundle, abc.ABC):
         trace to when it is first used. Also, this prevents it from being
         serialized when calling :meth:`to_path`
         """
-        if not self._trace:
-            self._trace = Trace(self.res_dir, events=self.ftrace_conf["events"])
-
-        return self._trace
+        return Trace(self.res_dir, events=self.ftrace_conf["events"])
 
     def __init__(self, res_dir, rtapp_profile):
         super().__init__(res_dir)
-
-        self._trace = None
         self.rtapp_profile = rtapp_profile
 
     @classmethod

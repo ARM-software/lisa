@@ -25,7 +25,7 @@ import pylab as pl
 import re
 
 from lisa.analysis.base import AnalysisBase
-from devlib.utils.misc import memoized
+from lisa.utils import memoized
 from trappy.utils import listify
 
 

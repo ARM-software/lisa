@@ -25,9 +25,10 @@ import operator
 import os
 
 from trappy.utils import listify
-from devlib.utils.misc import memoized, list_to_mask, mask_to_list
+from devlib.utils.misc import list_to_mask, mask_to_list
 
 from lisa.analysis.base import AnalysisBase, ResidencyTime, ResidencyData
+from lisa.utils import memoized
 from bart.common.Utils import area_under_curve
 from matplotlib.ticker import MaxNLocator
 

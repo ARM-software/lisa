@@ -32,14 +32,13 @@ from matplotlib.colors import to_hex
 
 from bart.common.Utils import area_under_curve
 from devlib.target import KernelVersion
-from devlib.utils.misc import memoized
 from trappy.utils import handle_duplicate_index
 
 from IPython.display import display
 
 from lisa.trace import Trace
 from lisa.git import Git
-from lisa.utils import Loggable
+from lisa.utils import Loggable, memoized
 
 class WaResultsCollector(Loggable):
     """

@@ -59,7 +59,7 @@ def memoized(callable_):
     # It is important to have one separate call to lru_cache for every call to
     # memoized, otherwise all uses of the decorator will end up using the same
     # wrapper and all hells will break loose.
-    return functools.lru_cache(maxsize=None, typed=True)
+    return functools.lru_cache(maxsize=None, typed=True)(callable_)
 
 class Serializable:
     """

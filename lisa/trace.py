@@ -31,8 +31,7 @@ import webbrowser
 from functools import reduce
 
 from lisa.analysis.proxy import AnalysisProxy
-from lisa.utils import Loggable
-from devlib.utils.misc import memoized
+from lisa.utils import Loggable, memoized
 from devlib.target import KernelVersion
 from trappy.utils import listify, handle_duplicate_index
 

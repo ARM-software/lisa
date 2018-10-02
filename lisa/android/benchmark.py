@@ -26,8 +26,8 @@ from time import sleep
 from lisa.conf import setup_logging
 from lisa.android import System, Workload
 from lisa.env import TestEnv
+from lisa.utils import memoized
 
-from devlib.utils.misc import memoized
 from devlib.utils.android import fastboot_command
 
 class LisaBenchmark(object):

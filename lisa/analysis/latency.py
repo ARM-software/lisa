@@ -27,7 +27,7 @@ import os
 
 from collections import namedtuple
 from lisa.analysis.base import AnalysisBase
-from devlib.utils.misc import memoized
+from lisa.utils import memoized
 from trappy.utils import listify
 
 # Tuple representing all IDs data of a Task

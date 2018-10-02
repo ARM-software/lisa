@@ -17,8 +17,7 @@
 
 import re
 
-from devlib.utils.misc import memoized
-
+from lisa.utils import memoized
 from lisa.wlgen.workload import Workload
 
 class SysbenchOutput(str):

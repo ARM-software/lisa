@@ -25,8 +25,8 @@ import pandas as pd
 import pylab as pl
 
 from lisa.analysis.base import AnalysisBase, ResidencyTime, ResidencyData
+from lisa.utils import memoized
 from bart.common.Utils import area_under_curve
-from devlib.utils.misc import memoized
 from matplotlib.ticker import FuncFormatter
 from trappy.utils import listify
 

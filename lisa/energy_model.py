@@ -21,12 +21,12 @@ import logging
 import operator
 import re
 
-from lisa.utils import Loggable, Serializable
+from lisa.utils import Loggable, Serializable, memoized
 
 import pandas as pd
 import numpy as np
 
-from devlib.utils.misc import memoized, mask_to_list, ranges_to_list
+from devlib.utils.misc import mask_to_list, ranges_to_list
 from devlib import TargetError
 from trappy.stats.grammar import Parser
 
