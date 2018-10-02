@@ -52,6 +52,11 @@ than one to choose from.""")
     run_parser.add_argument('--filter',
         help="""Only run the testcases with an ID matching the filter.""")
 
+    run_parser.add_argument('--restrict', action='append',
+        default=[],
+        help="""Callable names patterns. Types produced by these callables will
+only be produced by these (other callables will be excluded).""")
+
     run_parser.add_argument('--modules-root', action='append', default=[],
         help="Equivalent to setting PYTHONPATH")
 
@@ -200,6 +205,7 @@ the name of the parameter, the start value, stop value and step size.""")
     load_db_uuid_args = args.load_uuid_args
 
     user_filter = args.filter
+    restrict_list = args.restrict
 
     sys.path.extend(args.modules_root)
 
@@ -382,6 +388,32 @@ the name of the parameter, the start value, stop value and step size.""")
         ):
             op_map.setdefault(produced, set()).add(op)
     op_map = adaptor.filter_op_map(op_map)
+
+    # Restrict the production of some types to a set of operators.
+    restricted_op_set = {
+        op for op in op_pool
+        if any(
+            fnmatch.fnmatch(op.get_name(full_qual=True), pattern)
+            for pattern in restrict_list
+        )
+    }
+    def apply_restrict(produced, op_set, restricted_op_set, cls_map):
+        restricted_op_set = {
+            op for op in restricted_op_set
+            if op.value_type is produced
+        }
+        if restricted_op_set:
+            # Make sure there is no other compatible type, so the only operators
+            # that will be used to satisfy that dependency will be one of the
+            # restricted_op_set item.
+            cls_map[produced] = [produced]
+            return restricted_op_set
+        else:
+            return op_set
+    op_map = {
+        produced: apply_restrict(produced, op_set, restricted_op_set, cls_map)
+        for produced, op_set in op_map.items()
+    }
 
     # Get the list of root operators
     root_op_set = set()
