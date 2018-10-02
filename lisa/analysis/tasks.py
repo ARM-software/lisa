@@ -213,14 +213,14 @@ class TasksAnalysis(AnalysisBase):
             return df
 
         df['cluster'] = np.select(
-                [df.cpu.isin(self._trace.platform['clusters']['little'])],
+                [df.cpu.isin(self._trace.plat_info['clusters']['little'])],
                 ['LITTLE'], 'big')
 
-        if 'nrg_model' in self._trace.platform:
+        if 'nrg-model' in self._trace.plat_info:
             # Add a column which represents the max capacity of the smallest
             # clustre which can accomodate the task utilization
-            little_cap = self._trace.platform['nrg_model']['little']['cpu']['cap_max']
-            big_cap = self._trace.platform['nrg_model']['big']['cpu']['cap_max']
+            little_cap = self._trace.plat_info['nrg-model']['little']['cpu']['cap_max']
+            big_cap = self._trace.plat_info['nrg-model']['big']['cpu']['cap_max']
             df['min_cluster_cap'] = df.util_avg.map(
                 lambda util_avg: big_cap if util_avg > little_cap else little_cap
             )
@@ -705,8 +705,8 @@ class TasksAnalysis(AnalysisBase):
                                   tid, task_name)
 
         # Add Capacities data if avilable
-        if 'nrg_model' in self._trace.platform:
-            nrg_model = self._trace.platform['nrg_model']
+        if 'nrg-model' in self._trace.plat_info:
+            nrg_model = self._trace.plat_info['nrg-model']
             max_lcap = nrg_model['little']['cpu']['cap_max']
             max_bcap = nrg_model['big']['cpu']['cap_max']
             tip_lcap = 0.8 * max_lcap
@@ -755,7 +755,7 @@ class TasksAnalysis(AnalysisBase):
             if len(cdata) > 0:
                 cdata.plot(ax=axes, style=[ccolor+'+'], legend=False)
         # Y Axis - placeholders for legend, acutal CPUs. topmost empty lane
-        cpus = [str(n) for n in range(self._trace.platform['cpus_count'])]
+        cpus = [str(n) for n in range(self._trace.plat_info['cpus-count'])]
         ylabels = [''] + cpus
         axes.set_yticklabels(ylabels)
         axes.set_ylim(-1, len(cpus))

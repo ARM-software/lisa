@@ -11,7 +11,8 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 import traceback
 
-from lisa.env import TargetConfig, ArtifactPath
+from lisa.env import TargetConf, ArtifactPath
+from lisa.platform import PlatformInfo
 from lisa.utils import HideExekallID, Loggable
 from lisa.tests.kernel.test_bundle import Result, ResultBundle, CannotCreateError
 
@@ -87,14 +88,22 @@ class LISAAdaptor(AdaptorBase):
     name = 'LISA'
 
     def get_prebuilt_list(self):
-        if not self.args.target_conf:
-            return []
-        return [
-            PrebuiltOperator(TargetConfig, [
-                TargetConfig.from_path(conf)
-                for conf in self.args.target_conf
-            ])
-        ]
+        op_list = []
+        if self.args.target_conf:
+            op_list.append(
+                PrebuiltOperator(TargetConf, [
+                    TargetConf.from_yaml_map(self.args.target_conf)
+                ])
+            )
+
+        if self.args.platform_info:
+            op_list.append(
+                PrebuiltOperator(PlatformInfo, [
+                    PlatformInfo.from_yaml_map(self.args.platform_info)
+                ])
+            )
+
+        return op_list
 
     def get_hidden_callable_set(self, op_map):
         hidden_callable_set = set()
@@ -107,8 +116,11 @@ class LISAAdaptor(AdaptorBase):
 
     @staticmethod
     def register_cli_param(parser):
-        parser.add_argument('--target-conf', action='append',
+        parser.add_argument('--target-conf',
             help="Target config file")
+
+        parser.add_argument('--platform-info',
+            help="Platform info file")
 
     def get_db_loader(self):
         return self.load_db

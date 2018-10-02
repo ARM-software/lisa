@@ -19,21 +19,32 @@ from unittest import TestCase
 import tempfile
 import shutil
 
-from lisa.env import TestEnv, TargetConfig
+from devlib.target import KernelVersion
 
-HOST_TARGET_CONF = {
-    'platform': 'host',
+from lisa.env import TestEnv, TargetConf
+from lisa.platform import PlatformInfo
+
+
+HOST_TARGET_CONF = TargetConf({
+    'kind': 'host',
     # Don't load cpufreq, it usually won't work with CI targets
-    'exclude_modules': ['cpufreq'],
+    'devlib': {
+        'excluded-modules': ['cpufreq', 'hwmon'],
+    },
+})
+
+HOST_PLAT_INFO = PlatformInfo({
     # With no cpufreq, we won't be able to do calibration. Provide dummy.
-    'rtapp-calib': {c: 100 for c in list(range(64))},
-}
+    'rtapp': {
+        'calib': {c: 100 for c in list(range(64))},
+    },
+})
 
 def create_local_testenv():
     """
     :returns: A localhost :class:`lisa.env.TestEnv` instance
     """
-    return TestEnv(TargetConfig(HOST_TARGET_CONF))
+    return TestEnv(HOST_TARGET_CONF, HOST_PLAT_INFO)
 
 class StorageTestCase(TestCase):
     """

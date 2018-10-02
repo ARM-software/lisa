@@ -72,6 +72,7 @@ class EnergyMeter(Loggable):
         res_dir = res_dir if res_dir else tempfile.gettempdir()
         self._res_dir = res_dir
 
+    #TODO: cleanup force and that singleton pattern
     @classmethod
     def getInstance(cls, target, conf, force=False, res_dir=None):
 

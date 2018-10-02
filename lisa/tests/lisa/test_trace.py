@@ -20,8 +20,12 @@ import os
 from unittest import TestCase
 import numpy as np
 import pandas as pd
+import copy
+
+from devlib.target import KernelVersion
 
 from lisa.trace import Trace
+from lisa.platform import PlatformInfo
 from lisa.tests.lisa.utils import StorageTestCase
 
 class TestTrace(StorageTestCase):
@@ -42,11 +46,10 @@ class TestTrace(StorageTestCase):
         super(TestTrace, self).__init__(*args, **kwargs)
 
         self.test_trace = os.path.join(self.traces_dir, 'test_trace.txt')
-
-        self.platform = self._get_platform()
+        self.plat_info = self._get_plat_info()
 
         self.trace_path = os.path.join(self.traces_dir, 'trace.txt')
-        self.trace = Trace(self.trace_path, self.events, self.platform)
+        self.trace = Trace(self.plat_info, self.trace_path, self.events)
 
     def make_trace(self, in_data):
         """
@@ -56,7 +59,7 @@ class TestTrace(StorageTestCase):
         with open(trace_path, "w") as fout:
             fout.write(in_data)
 
-        return Trace(trace_path, self.events, self.platform,
+        return Trace(self.plat_info, trace_path, self.events,
                      normalize_time=False, plots_dir=self.res_dir)
 
     def get_trace(self, trace_name):
@@ -66,16 +69,15 @@ class TestTrace(StorageTestCase):
         dir = os.path.join(self.traces_dir, trace_name)
 
         trace_path = os.path.join(dir, 'trace.dat')
-        return Trace(trace_path, self.events,
-                     self._get_platform(trace_name))
+        return Trace(self.plat_info, trace_path, self.events)
 
-    def _get_platform(self, trace_name=None):
+    def _get_plat_info(self, trace_name=None):
         trace_dir = self.traces_dir
         if trace_name:
             trace_dir = os.path.join(trace_dir, trace_name)
 
-        with open(os.path.join(trace_dir, 'platform.json')) as f:
-            return json.load(f)
+        path = os.path.join(trace_dir, 'plat_info.yml')
+        return PlatformInfo.from_yaml_map(path)
 
     def test_getTaskByName(self):
         """TestTrace: getTaskByName() returns the list of PIDs for all tasks with the specified name"""
@@ -117,9 +119,9 @@ class TestTrace(StorageTestCase):
         """
         expected_duration = 6.676497
 
-        trace = Trace(self.trace_path,
+        trace = Trace(self.plat_info,
+                      self.trace_path,
                       self.events,
-                      self.platform,
                       normalize_time=False
         )
 
@@ -132,9 +134,9 @@ class TestTrace(StorageTestCase):
         """
         expected_duration = 4.0
 
-        trace = Trace(self.trace_path,
+        trace = Trace(self.plat_info,
+                      self.trace_path,
                       self.events,
-                      self.platform,
                       normalize_time=False,
                       window=(76.402065, 80.402065)
         )
@@ -244,9 +246,6 @@ class TestTrace(StorageTestCase):
 
     def test_deriving_cpus_count(self):
         """Test that Trace derives cpus_count if it isn't provided"""
-        if self.platform:
-            del self.platform['cpus_count']
-
         in_data = """
             father-1234  [000] 18765.018235: sched_switch: prev_comm=father prev_pid=1234 prev_prio=120 prev_state=0 next_comm=father next_pid=5678 next_prio=120
              child-5678  [002] 18765.018235: sched_switch: prev_comm=child prev_pid=5678 prev_prio=120 prev_state=1 next_comm=father next_pid=5678 next_prio=120
@@ -254,7 +253,11 @@ class TestTrace(StorageTestCase):
 
         trace = self.make_trace(in_data)
 
-        self.assertEqual(trace.platform['cpus_count'], 3)
+        plat_info = copy.copy(trace.plat_info)
+        plat_info.force_src('cpus-count', ['SOURCE THAT DOES NOT EXISTS'])
+        trace.plat_info = plat_info
+
+        self.assertEqual(trace.cpus_count, 3)
 
     def test_df_cpu_wakeups(self):
         """
@@ -293,7 +296,7 @@ class TestTrace(StorageTestCase):
         columns = ['comm', 'pid', 'load_avg', 'util_avg', 'cpu']
         if trace.has_big_little:
             columns += ['cluster']
-            if 'nrg_model' in trace.platform:
+            if 'nrg-model' in trace.plat_info:
                 columns += ['min_cluster_cap']
         for column in columns:
             msg = 'Task signals parsed from {} missing {} column'.format(
@@ -358,10 +361,11 @@ class TestTraceNoClusterData(TestTrace):
     Inherits from TestTrace, so all the tests are run again but with
     no cluster info the platform dict.
     """
-    def _get_platform(self, trace_name=None):
-        platform = super(TestTraceNoClusterData, self)._get_platform(trace_name)
-        del platform['clusters']
-        return platform
+    def _get_plat_info(self, trace_name=None):
+        plat_info = super(TestTraceNoClusterData, self)._get_plat_info(trace_name)
+        plat_info = copy.copy(plat_info)
+        plat_info.force_src('clusters', ['SOURCE THAT DOES NOT EXISTS'])
+        return plat_info
 
 class TestTraceNoPlatform(TestTrace):
     """
@@ -370,7 +374,7 @@ class TestTraceNoPlatform(TestTrace):
     Inherits from TestTrace, so all the tests are run again but with
     platform=None
     """
-    def _get_platform(self, trace_name=None):
+    def _get_plat_info(self, trace_name=None):
         return None
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

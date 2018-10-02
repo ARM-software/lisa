@@ -117,7 +117,7 @@ class EasAnalysis(AnalysisBase):
         axes = plt.subplot(gs[0, :])
         axes.set_title('Source and Destination CPUs')
         df[['src_cpu', 'dst_cpu']].plot(ax=axes, style=['bo', 'r+'])
-        axes.set_ylim(-1, self._trace.platform['cpus_count']+1)
+        axes.set_ylim(-1, self._trace.plat_info['cpus-count']+1)
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
         axes.grid(True)
         axes.set_xticklabels([])

@@ -1,0 +1,27 @@
+platform-info:
+    conf:
+        os: linux
+        abi: arm64
+        clusters:
+            big: [1, 2]
+            little: [0, 3, 4, 5]
+        cpus-count: 6
+        topology: !call:trappy.stats.Topology.Topology
+            clusters: [[0, 3, 4, 5], [1, 2]]
+        freqs:
+            big: [
+                450000,
+                625000,
+                800000,
+                950000,
+                1100000
+            ]
+            little: [
+                450000,
+                575000,
+                700000,
+                775000,
+                850000
+            ]
+        kernel-version: !call:devlib.target.KernelVersion
+            version_string: "4.11.0-rc6-00091-g48e946ac4235-dirty #67 SMP PREEMPT Mon Jul 3 16:23:08 BST 2017"

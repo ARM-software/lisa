@@ -55,8 +55,8 @@ def setup_logging(filepath='logging.conf', level=logging.INFO):
     logging.info('  %s', filepath)
 
 
-#TODO: Switch to YAML config
-class JsonConf(Loggable):
+#TODO: remove that, replaced by env.TargetConf
+class DEPRECATEDJsonConf(Loggable):
     """
     Class for parsing a JSON superset with comments.
 

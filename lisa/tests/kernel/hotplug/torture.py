@@ -28,7 +28,9 @@ from lisa.env import TestEnv, ArtifactPath
 
 class HotplugTorture(TestBundle):
 
-    def __init__(self, target_alive, hotpluggable_cpus, live_cpus):
+    def __init__(self, plat_info, target_alive, hotpluggable_cpus, live_cpus):
+        res_dir = None
+        super().__init__(res_dir, plat_info)
         self.target_alive = target_alive
         self.hotpluggable_cpus = hotpluggable_cpus
         self.live_cpus = live_cpus
@@ -147,7 +149,7 @@ class HotplugTorture(TestBundle):
 
         live_cpus = te.target.list_online_cpus() if target_alive else []
 
-        return cls(target_alive, hotpluggable_cpus, live_cpus)
+        return cls(te.plat_info, target_alive, hotpluggable_cpus, live_cpus)
 
     @classmethod
     def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None, seed=None,

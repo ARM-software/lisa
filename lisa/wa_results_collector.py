@@ -36,6 +36,7 @@ from trappy.utils import handle_duplicate_index
 
 from IPython.display import display
 
+from lisa.platform import PlatformInfo
 from lisa.trace import Trace
 from lisa.git import Git
 from lisa.utils import Loggable, memoized
@@ -399,7 +400,10 @@ class WaResultsCollector(Loggable):
         metrics = []
         events = ['irq_handler_entry', 'cpu_frequency', 'nohz_kick', 'sched_switch',
                   'sched_load_cfs_rq', 'sched_load_avg_task', 'thermal_temperature']
-        trace = Trace(trace_path, events, self.platform)
+        plat_info = PlatformInfo({
+            'kernel-version': KernelVersion(target_info['kernel_release']),
+        })
+        trace = Trace(plat_info, trace_path, events, self.platform)
 
         metrics.append(('cpu_wakeup_count', len(trace.analysis.cpus.df_cpu_wakeups()), None))
 
@@ -435,7 +439,7 @@ class WaResultsCollector(Loggable):
                                 get_cpu_time(trace, cluster), 'cpu-seconds'))
 
         metrics.append(('cpu_time_total',
-                        get_cpu_time(trace, list(range(trace.platform['cpus_count']))),
+                        get_cpu_time(trace, list(range(trace.plat_info['cpus-count']))),
                         'cpu-seconds'))
 
         event = None

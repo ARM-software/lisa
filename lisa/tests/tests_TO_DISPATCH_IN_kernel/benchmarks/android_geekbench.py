@@ -62,7 +62,7 @@ class GeekbenchTest(LisaBenchmark):
                 }
 
             try:
-                for cpu_id in range(self.te.platform['cpus_count']):
+                for cpu_id in range(self.te.plat_info['cpus-count']):
                     self.target.cpufreq.set_governor_tunables(
                         cpu_id, 'schedutil', **tunables)
             except TargetError as e:
@@ -74,7 +74,7 @@ class GeekbenchTest(LisaBenchmark):
         # Setup ondemand parameters
         if self.governor == 'ondemand':
             try:
-                for cpu_id in range(self.te.platform['cpus_count']):
+                for cpu_id in range(self.te.plat_info['cpus-count']):
                     tunables = self.target.cpufreq.get_governor_tunables(cpu_id)
                     self.target.cpufreq.set_governor_tunables(
                         cpu_id, 'ondemand',

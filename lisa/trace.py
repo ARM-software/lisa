@@ -32,6 +32,7 @@ from functools import reduce
 
 from lisa.analysis.proxy import AnalysisProxy
 from lisa.utils import Loggable, memoized
+from lisa.platform import PlatformInfo
 from devlib.target import KernelVersion
 from trappy.utils import listify, handle_duplicate_index
 
@@ -70,11 +71,11 @@ class Trace(Loggable):
     :type plots_prefix: str
     """
 
-    def __init__(self, data_dir,
+    def __init__(self,
+                 #TODO: make it default to None and swap position with data_dir
+                 plat_info,
+                 data_dir,
                  events=None,
-                 # TODO: kill this parameter
-                 platform=None,
-                 kernel_version=None,
                  window=(0, None),
                  normalize_time=True,
                  trace_format='FTrace',
@@ -82,8 +83,10 @@ class Trace(Loggable):
                  plots_prefix=''):
         logger = self.get_logger()
 
-        # The platform used to run the experiments
-        self.platform = platform or {}
+        if plat_info is None:
+            plat_info = PlatformInfo()
+        # The platform information used to run the experiments
+        self.plat_info = plat_info
 
         # TRAPpy Trace object
         self.ftrace = None
@@ -116,15 +119,6 @@ class Trace(Loggable):
         # Cluster frequency coherency flag
         self.freq_coherency = True
 
-        if not kernel_version:
-            kernel_version = KernelVersion("3.18")
-            logger.warning('Kernel version not available from platform data')
-
-        self.kernel_version = kernel_version
-
-        logger.info('Parsing trace assuming kernel v%d.%d',
-                       self.kernel_version.parts[0], self.kernel_version.parts[1])
-
         # Folder containing trace
         self.data_dir = data_dir
 
@@ -137,17 +131,19 @@ class Trace(Loggable):
         self.__registerTraceEvents(events)
         self.__parseTrace(self.data_dir, window, trace_format)
 
+        self.analysis = AnalysisProxy(self)
+
+    @property
+    @memoized
+    def cpus_count(self):
+        try:
+            return self.plat_info['cpus-count']
         # If we don't know the number of CPUs, check the trace for the
         # highest-numbered CPU that traced an event.
-        if 'cpus_count' not in self.platform:
+        except KeyError:
             max_cpu = max(int(self.df_events(e)['__cpu'].max())
                           for e in self.available_events)
-            self.platform['cpus_count'] = max_cpu + 1
-        # If a CPUs count is not available here, let's assume we are running on
-        # a unicore system and set cpus_count=1 so that the following analysis
-        # methods will not complain about the CPUs count not being available.
-        self.platform['cpus_count'] = self.platform.get('cpus_count', 1)
-        self.analysis = AnalysisProxy(self)
+            return max_cpu + 1
 
     def setXTimeRange(self, t_min=None, t_max=None):
         """
@@ -471,10 +467,10 @@ class Trace(Loggable):
 ###############################################################################
     @property
     def has_big_little(self):
-        return ('clusters' in self.platform
-                and 'big' in self.platform['clusters']
-                and 'little' in self.platform['clusters']
-                and 'nrg_model' in self.platform)
+        return ('clusters' in self.plat_info
+                and 'big' in self.plat_info['clusters']
+                and 'little' in self.plat_info['clusters']
+                and 'nrg-model' in self.plat_info)
 
     def _sanitize_SchedCpuCapacity(self):
         """
@@ -482,24 +478,24 @@ class Trace(Loggable):
         available and the platform is big.LITTLE.
         """
         if not self.hasEvents('cpu_capacity') \
-           or 'nrg_model' not in self.platform \
+           or 'nrg-model' not in self.plat_info \
            or not self.has_big_little:
             return
 
         df = self.df_events('cpu_capacity')
 
         # Add column with LITTLE and big CPUs max capacities
-        nrg_model = self.platform['nrg_model']
+        nrg_model = self.plat_info['nrg-model']
         max_lcap = nrg_model['little']['cpu']['cap_max']
         max_bcap = nrg_model['big']['cpu']['cap_max']
         df['max_capacity'] = np.select(
-                [df.cpu.isin(self.platform['clusters']['little'])],
+                [df.cpu.isin(self.plat_info['clusters']['little'])],
                 [max_lcap], max_bcap)
         # Add LITTLE and big CPUs "tipping point" threshold
         tip_lcap = 0.8 * max_lcap
         tip_bcap = 0.8 * max_bcap
         df['tip_capacity'] = np.select(
-                [df.cpu.isin(self.platform['clusters']['little'])],
+                [df.cpu.isin(self.plat_info['clusters']['little'])],
                 [tip_lcap], tip_bcap)
 
     def _sanitize_SchedLoadAvgCpu(self):
@@ -565,16 +561,16 @@ class Trace(Loggable):
         """
         logger = self.get_logger()
         if not self.hasEvents('sched_energy_diff') \
-           or 'nrg_model' not in self.platform \
+           or 'nrg-model' not in self.plat_info \
            or not self.has_big_little:
             return
-        nrg_model = self.platform['nrg_model']
+        nrg_model = self.plat_info['nrg-model']
         em_lcluster = nrg_model['little']['cluster']
         em_bcluster = nrg_model['big']['cluster']
         em_lcpu = nrg_model['little']['cpu']
         em_bcpu = nrg_model['big']['cpu']
-        lcpus = len(self.platform['clusters']['little'])
-        bcpus = len(self.platform['clusters']['big'])
+        lcpus = len(self.plat_info['clusters']['little'])
+        bcpus = len(self.plat_info['clusters']['big'])
         SCHED_LOAD_SCALE = 1024
 
         power_max = em_lcpu['nrg_max'] * lcpus + em_bcpu['nrg_max'] * bcpus + \
@@ -668,7 +664,7 @@ class Trace(Loggable):
         """
         logger = self.get_logger()
         if not self.hasEvents('cpu_frequency_devlib') \
-           or 'clusters' not in self.platform:
+           or 'clusters' not in self.plat_info:
             return
 
         devlib_freq = self.df_events('cpu_frequency_devlib')
@@ -676,7 +672,7 @@ class Trace(Loggable):
         devlib_freq.rename(columns={'state':'frequency'}, inplace=True)
 
         df = self.df_events('cpu_frequency')
-        clusters = self.platform['clusters']
+        clusters = self.plat_info['clusters']
 
         # devlib always introduces fake cpu_frequency events, in case the
         # OS has not generated cpu_frequency envets there are the only
@@ -700,8 +696,8 @@ class Trace(Loggable):
 
                 # Inject "initial" devlib frequencies
                 os_df = df
-                dl_df = devlib_freq.iloc[:self.platform['cpus_count']]
-                for _,c in self.platform['clusters'].items():
+                dl_df = devlib_freq.iloc[:self.cpus_count]
+                for _,c in self.plat_info['clusters'].items():
                     dl_freqs = dl_df[dl_df.cpu.isin(c)]
                     os_freqs = os_df[os_df.cpu.isin(c)]
                     logger.debug("First freqs for %s:\n%s", c, dl_freqs)
@@ -714,8 +710,8 @@ class Trace(Loggable):
 
                 # Inject "final" devlib frequencies
                 os_df = df
-                dl_df = devlib_freq.iloc[self.platform['cpus_count']:]
-                for _,c in self.platform['clusters'].items():
+                dl_df = devlib_freq.iloc[self.cpus_count:]
+                for _,c in self.plat_info['clusters'].items():
                     dl_freqs = dl_df[dl_df.cpu.isin(c)]
                     os_freqs = os_df[os_df.cpu.isin(c)]
                     logger.debug("Last freqs for %s:\n%s", c, dl_freqs)

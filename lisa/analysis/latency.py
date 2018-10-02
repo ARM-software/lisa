@@ -29,6 +29,7 @@ from collections import namedtuple
 from lisa.analysis.base import AnalysisBase
 from lisa.utils import memoized
 from trappy.utils import listify
+from devlib.target import KernelVersion
 
 # Tuple representing all IDs data of a Task
 TaskData = namedtuple('TaskData', ['pid', 'names', 'label'])
@@ -302,7 +303,7 @@ class LatencyAnalysis(AnalysisBase):
         :param task: the task to report runtimes for
         :type task: int or str
         """
-        cpus = list(range(self._trace.platform['cpus_count']))
+        cpus = list(range(self._trace.plat_info['cpus-count']))
         runtimes = {cpu : 0.0 for cpu in cpus}
 
         df = self.df_latency(task)
@@ -918,7 +919,13 @@ class LatencyAnalysis(AnalysisBase):
             512: "P", # TASK_PARKED
            1024: "N", # TASK_NOLOAD
         }
-        if self._trace.kernel_version.parts >= (4, 8):
+        try:
+            kernel_version = self._trace.plat_info['kernel-version']
+        except KeyError:
+            self._log.info('Parsing task states assuming 3.18 kernel')
+            kernel_version = KernelVersion('3.18')
+
+        if kernel_version.parts >= (4, 8):
             TASK_STATES[2048] = "n" # TASK_NEW
         TASK_MAX_STATE = 2 * max(TASK_STATES)
 

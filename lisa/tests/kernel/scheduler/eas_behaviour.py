@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 import pylab as pl
 
 from bart.common.Utils import area_under_curve
+from devlib.target import KernelVersion
 
 from lisa.wlgen.rta import Periodic, Ramp, Step
 from lisa.tests.kernel.test_bundle import ResultBundle, CannotCreateError, RTATestBundle
@@ -50,10 +51,9 @@ class EASBehaviour(RTATestBundle, abc.ABC):
     `here <https://developer.arm.com/open-source/energy-aware-scheduling/eas-mainline-development>`_.
     """
 
-    def __init__(self, res_dir, rtapp_profile, nrg_model):
-        super().__init__(res_dir, rtapp_profile)
-
-        self.nrg_model = nrg_model
+    @property
+    def nrg_model(self):
+        return self.plat_info['nrg-model']
 
     @classmethod
     @abc.abstractmethod
@@ -83,7 +83,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         with te.target.cpufreq.use_governor("schedutil"):
             cls._run_rtapp(te, res_dir, rtapp_profile)
 
-        return cls(res_dir, rtapp_profile, te.nrg_model)
+        return cls(res_dir, te.plat_info, rtapp_profile)
 
     @classmethod
     def min_cpu_capacity(cls, te):
@@ -259,7 +259,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         data = []
         index = []
 
-        def exp_power(row, nrg_model):
+        def exp_power(row):
             task_utils = row.to_dict()
             expected_utils = nrg_model.get_optimal_placements(task_utils)[0]
             power = nrg_model.estimate_from_cpu_util(expected_utils)
@@ -570,7 +570,7 @@ class RampDown(EASBehaviour):
         done, since there must be some hysteresis to avoid a performance cost.
         Therefore allow a larger energy usage threshold
 
-        The number below has been found by trial and error on the platforms
+        The number below has been found by trial and error on the platform
         generally used for testing EAS (at the time of writing: Juno r0, Juno r2,
         Hikey960 and TC2). It would be better to estimate the amount of energy
         'wasted' in the hysteresis (the overutilized band) and compute a threshold

@@ -21,8 +21,11 @@ import os
 import shutil
 from tempfile import mkdtemp
 
+from devlib.target import KernelVersion
+
 from lisa.energy_model import (EnergyModel, ActiveState, EnergyModelCapacityError,
                                EnergyModelNode, EnergyModelRoot, PowerDomain)
+from lisa.platform import PlatformInfo
 from lisa.trace import Trace
 from lisa.tests.lisa.utils import StorageTestCase
 
@@ -348,7 +351,9 @@ class TestEstimateFromTrace(TestCase):
         path = os.path.join(dir, 'trace.txt')
         with open(path, 'w') as f:
             f.write(trace_data)
-        trace = Trace(path, ['cpu_idle', 'cpu_frequency'],
+
+        trace = Trace(PlatformInfo(), path,
+                      ['cpu_idle', 'cpu_frequency'],
                       normalize_time=False)
         shutil.rmtree(dir)
 

@@ -97,7 +97,7 @@ class _SchedtuneHoldTest(LisaTest):
         cls.rtapp.run(out_dir=cls.env.res_dir, cgroup=cls.cgroup_name, as_root=True)
         cls.env.ftrace.stop()
         cls.env.ftrace.get_trace(cls.trace_file)
-        cls.env.platform_dump(cls.env.res_dir)
+        cls.env.plat_info[cpus-count]dump(cls.env.res_dir)
 
     @classmethod
     def setup_cpuset_cgroup(cls, cgroup, cpus, mems):

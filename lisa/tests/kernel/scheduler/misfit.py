@@ -113,8 +113,8 @@ class StaggeredFinishes(MisfitMigrationBase):
     rq->avg_idle > sysctl_sched_migration_cost
     """
 
-    def __init__(self, res_dir, rtapp_profile, cpu_capacities):
-        super().__init__(res_dir, rtapp_profile)
+    def __init__(self, res_dir, plat_info, rtapp_profile, cpu_capacities):
+        super().__init__(res_dir, plat_info, rtapp_profile)
         self.cpu_capacities = cpu_capacities
 
         cpu_classes = {}
@@ -166,7 +166,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         cls._run_rtapp(te, res_dir, rtapp_profile)
 
         cpu_capacities = te.target.sched.get_capacities()
-        return cls(res_dir, rtapp_profile, cpu_capacities)
+        return cls(res_dir, te.plat_info, rtapp_profile, cpu_capacities)
 
     @classmethod
     def get_rtapp_profile(cls, te):

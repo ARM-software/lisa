@@ -16,7 +16,7 @@
 #
 
 from collections import namedtuple, OrderedDict
-from itertools import product
+from itertools import product, groupby
 import logging
 import operator
 import re
@@ -27,7 +27,7 @@ import pandas as pd
 import numpy as np
 
 from devlib.utils.misc import mask_to_list, ranges_to_list
-from devlib import TargetError
+from devlib.exception import TargetStableError
 from trappy.stats.grammar import Parser
 
 """Classes for modeling and estimating energy usage of CPU systems"""
@@ -54,7 +54,7 @@ def read_multiple_oneline_files(target, glob_patterns):
     find_cmd = 'find ' + ' '.join(glob_patterns)
     try:
         paths = target.execute(find_cmd).split()
-    except TargetError:
+    except TargetStableError:
         return {}
 
     cmd = '{} | {} xargs cat'.format(find_cmd, target.busybox)
@@ -429,16 +429,24 @@ class EnergyModel(Serializable, Loggable):
         """
         List of lists of CPUs who share the same active state values
         """
-        groups = []
-        for node in self.cpu_nodes:
-            for group in groups:
-                group_states = self.cpu_nodes[group[0]].active_states
-                if node.active_states == group_states:
-                    group.append(node.cpu)
-                    break
-            else:
-                groups.append([node.cpu])
-        return groups
+        return [
+            [node.cpu for node in group]
+            for group in self.node_groups
+        ]
+
+    @property
+    @memoized
+    def node_groups(self):
+        """
+        List of lists of CPUs nodes who share the same active state values
+        """
+        def key(node):
+            return node.active_states
+
+        return [
+            list(group)
+            for active_states, group in groupby(self.cpu_nodes, key=key)
+        ]
 
     def _deepest_idle_idxs(self, cpus_active):
         def find_deepest(pd):
@@ -814,7 +822,7 @@ class EnergyModel(Serializable, Loggable):
                   reported by the target.
         """
         if 'cpuidle' not in target.modules:
-            raise TargetError('Requires cpuidle devlib module. Please ensure '
+            raise TargetStableError('Requires cpuidle devlib module. Please ensure '
                                '"cpuidle" is listed in your target/test modules')
 
         # Simplified EM on-disk format (for each frequency domain):
@@ -835,7 +843,7 @@ class EnergyModel(Serializable, Loggable):
         sysfs_em = target.read_tree_values(directory, depth=3)
 
         if not sysfs_em:
-            raise TargetError('Simplified Energy Model not exposed '
+            raise TargetStableError('Simplified Energy Model not exposed '
                               'at {} in sysfs.'.format(directory))
 
         cpu_to_fdom = {}
@@ -918,10 +926,10 @@ class EnergyModel(Serializable, Loggable):
                   reported by the target.
         """
         if 'cpufreq' not in target.modules:
-            raise TargetError('Requires cpufreq devlib module. Please ensure '
+            raise TargetStableError('Requires cpufreq devlib module. Please ensure '
                                '"cpufreq" is listed in your target/test modules')
         if 'cpuidle' not in target.modules:
-            raise TargetError('Requires cpuidle devlib module. Please ensure '
+            raise TargetStableError('Requires cpuidle devlib module. Please ensure '
                                '"cpuidle" is listed in your target/test modules')
 
         def sge_path(cpu, domain, group, field):
@@ -934,7 +942,7 @@ class EnergyModel(Serializable, Loggable):
         sge_file_values = read_multiple_oneline_files(target, sge_globs)
 
         if not sge_file_values:
-            raise TargetError('Energy Model not exposed in sysfs. '
+            raise TargetStableError('Energy Model not exposed in sysfs. '
                               'Check CONFIG_SCHED_DEBUG is enabled.')
 
         # These functions read the cap_states and idle_states vectors for the
@@ -948,7 +956,7 @@ class EnergyModel(Serializable, Loggable):
             try:
                 return sge_file_values[path]
             except KeyError as e:
-                raise TargetError('No such file: {}'.format(e))
+                raise TargetStableError('No such file: {}'.format(e))
 
         def read_active_states(cpu, domain_level):
             cap_states_path = sge_path(cpu, domain_level, 0, 'cap_states')
@@ -1046,39 +1054,34 @@ class EnergyModel(Serializable, Loggable):
         #    additional keys will be passed to both 'check' and 'load' functions
         #    as named parameters.
 
-        # Utility functions to determine if we should try to use a particular
-        # EM loader function.
-        def em_present_in_sd(target, filename=None):
-            cpu = target.list_online_cpus()[0]
-            f = filename.format(cpu, 0, 0, 'cap_states')
-            return target.file_exists(f)
-        def simplified_em_present_in_cpusysfs(target, directory=None):
-            return target.directory_exists(directory)
+        class SDEMLoader:
+            @staticmethod
+            def check(target):
+                filename = '/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}'
+                cpu = target.list_online_cpus()[0]
+                f = filename.format(cpu, 0, 0, 'cap_states')
+                return target.file_exists(f)
 
-        # em_loaders dictionary joins EM loaders and the identifying functions
-        # with any associated metadata
-        em_loaders = {
-            'sd'    : { 'check': em_present_in_sd,
-                        'load': cls.from_sd_target,
-                        'filename': '/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}' },
-            'sysfs' : { 'check': simplified_em_present_in_cpusysfs,
-                        'load': cls.from_simplifiedEM_target,
-                        'directory': '/sys/devices/system/cpu/energy_model' }
-                     }
+            load = cls.from_sd_target
 
-        for loader_type in em_loaders:
-            args = dict(em_loaders[loader_type])
-            check = args.pop('check')
-            load = args.pop('load')
+        class SysfsEMLoader:
+            @staticmethod
+            def check(target):
+                directory = '/sys/devices/system/cpu/energy_model'
+                return target.directory_exists(directory)
+
+            load = cls.from_simplifiedEM_target
+
+        for loader_cls in (SDEMLoader, SysfsEMLoader):
             try:
-                em_present = check(target, **args)
+                em_present = loader_cls.check(target)
             except Exception:
                 em_present = False
             if em_present:
-                logger.info('Attempting to load EM using {}'.format(load.__name__))
-                return load(target, **args)
+                logger.info('Attempting to load EM using {}'.format(loader_cls.load.__name__))
+                return loader_cls.load(target)
 
-        raise TargetError('Unable to probe for energy model on target.')
+        raise TargetStableError('Unable to probe for energy model on target.')
 
     def estimate_from_trace(self, trace):
         """

@@ -119,15 +119,11 @@ class RTA(Workload):
             pass
         elif isinstance(calibration, str):
             calibration = calibration.upper()
+        elif calibration is None:
+            calib_map = self.te.plat_info['rtapp']['calib']
+            calibration = min(calib_map.values())
         else:
-            cpus = list(range(self.te.target.number_of_cpus))
-            target_cpu = cpus[-1]
-            if 'bl'in self.te.target.modules:
-                candidates = sorted(set(self.te.target.bl.bigs).intersection(cpus))
-                if candidates:
-                    target_cpu = candidates[0]
-
-            calibration = 'CPU{0:d}'.format(target_cpu)
+            raise ValueError('Calibration value "{x}" is cannot be handled'.format(x=calibration))
 
         return calibration
 
@@ -337,7 +333,7 @@ class RTA(Workload):
 
         # Create calibration task
         max_rtprio = int(te.target.execute('ulimit -Hr').split('\r')[0])
-        cls.get_logger().debug('Max RT prio: %d', max_rtprio)
+        logger.debug('Max RT prio: %d', max_rtprio)
 
         if max_rtprio > 10:
             max_rtprio = 10
@@ -351,7 +347,7 @@ class RTA(Workload):
             # RT-app will run a calibration for us, so we just need to
             # run a dummy task and read the output
             calib_task = Periodic(duty_cycle_pct=100, duration_s=0.001, period_ms=1)
-            rta = RTA.by_profile(te, name="rta_calib_cpu{}".format(cpu),
+            rta = cls.by_profile(te, name="rta_calib_cpu{}".format(cpu),
                                  res_dir=res_dir, profile={'task1': calib_task},
                                  calibration="CPU{}".format(cpu))
             rta.run(as_root=True)
@@ -363,9 +359,7 @@ class RTA(Workload):
                 pload[cpu] = int(pload_match.group(1))
                 logger.debug('>>> cpu%d: %d', cpu, pload[cpu])
 
-        logger.info('Target RT-App calibration:')
-        logger.info("{" + ", ".join('"%r": %r' % (key, pload[key])
-                                 for key in pload) + "}")
+        logger.info('Target RT-App calibration: %s', pload)
 
         if 'sched' not in te.target.modules:
             return pload

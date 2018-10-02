@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+from lisa.platform import PlatformInfo
+
 from lisa.tests.kernel.test_bundle import TestBundle, ResultBundle
 from lisa.tests.lisa.utils import create_local_testenv, StorageTestCase
 
@@ -23,7 +25,8 @@ class DummyTestBundle(TestBundle):
     A dummy bundle that only does some simple target interaction
     """
     def __init__(self, res_dir, shell_output):
-        super().__init__(res_dir)
+        plat_info = PlatformInfo()
+        super().__init__(res_dir, plat_info)
         self.shell_output = shell_output
 
     @classmethod

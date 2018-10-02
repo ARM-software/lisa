@@ -29,8 +29,8 @@ class CapacitySanity(TestBundle):
     :type capacity_work: dict
     """
 
-    def __init__(self, res_dir, capacity_work):
-        super().__init__(res_dir)
+    def __init__(self, res_dir, plat_info, capacity_work):
+        super().__init__(res_dir, plat_info)
 
         self.capacity_work = capacity_work
 
@@ -49,7 +49,7 @@ class CapacitySanity(TestBundle):
                 capa = cpu_capacities[cpu]
                 capa_work[capa] = min(capa_work[capa], sysbench.output.nr_events)
 
-        return cls(res_dir, capa_work)
+        return cls(res_dir, te.plat_info, capa_work)
 
     def test_capacity_sanity(self) -> ResultBundle:
         """

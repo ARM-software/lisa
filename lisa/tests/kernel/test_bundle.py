@@ -19,8 +19,10 @@ import enum
 import os
 import os.path
 import abc
-
 from collections.abc import Mapping
+
+from devlib.target import KernelVersion
+
 
 from lisa.trace import Trace
 from lisa.wlgen.rta import RTA
@@ -28,6 +30,7 @@ from lisa.perf_analysis import PerfAnalysis
 
 from lisa.utils import Serializable, memoized
 from lisa.env import TestEnv, ArtifactPath
+from lisa.platform import PlatformInfo
 
 class TestMetric:
     """
@@ -223,12 +226,13 @@ class TestBundle(Serializable, abc.ABC):
     for some particular class.
     """
 
-    def __init__(self, res_dir):
+    def __init__(self, res_dir, plat_info):
         # It is important that res_dir is directly stored as an attribute, so
         # it can be replaced by a relocated res_dir after the object is
         # deserialized on another host.
         # See exekall_customization.LISAAdaptor.load_db
         self.res_dir = res_dir
+        self.plat_info = plat_info
 
     @classmethod
     @abc.abstractmethod
@@ -343,12 +347,14 @@ class RTATestBundle(TestBundle, abc.ABC):
 
         Having the trace as a property lets us defer the loading of the actual
         trace to when it is first used. Also, this prevents it from being
-        serialized when calling :meth:`to_path`
+        serialized when calling :meth:`to_path` and allows updating the
+        underlying path before it is actually loaded to match a different
+        folder structure.
         """
-        return Trace(self.res_dir, events=self.ftrace_conf["events"])
+        return Trace(self.plat_info, self.res_dir, events=self.ftrace_conf["events"])
 
-    def __init__(self, res_dir, rtapp_profile):
-        super().__init__(res_dir)
+    def __init__(self, res_dir, plat_info, rtapp_profile):
+        super().__init__(res_dir, plat_info)
         self.rtapp_profile = rtapp_profile
 
     @classmethod
@@ -365,8 +371,7 @@ class RTATestBundle(TestBundle, abc.ABC):
     @classmethod
     def _run_rtapp(cls, te, res_dir, profile):
         wload = RTA.by_profile(te, "rta_{}".format(cls.__name__.lower()),
-                               profile, res_dir=res_dir,
-                               calibration=te.get_rtapp_calibration())
+                               profile, res_dir=res_dir)
 
         trace_path = os.path.join(res_dir, "trace.dat")
         te.configure_ftrace(**cls.ftrace_conf)
@@ -379,7 +384,7 @@ class RTATestBundle(TestBundle, abc.ABC):
         rtapp_profile = cls.get_rtapp_profile(te)
         cls._run_rtapp(te, res_dir, rtapp_profile)
 
-        return cls(res_dir, rtapp_profile)
+        return cls(res_dir, te.plat_info, rtapp_profile)
 
     @classmethod
     def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'RTATestBundle':

@@ -59,7 +59,7 @@ class TestRTAProfile(RTABase):
     def _do_test(self, profile, exp_phases):
         rtapp = RTA.by_profile(
             self.te, name='test', profile=profile, res_dir=self.res_dir,
-            calibration=self.te.get_rtapp_calibration())
+            calibration=None)
 
         with open(rtapp.local_json) as f:
             conf = json.load(f, object_pairs_hook=OrderedDict)
@@ -287,14 +287,13 @@ class TestRTACustom(RTABase):
 
     def test_custom_smoke_calib(self):
         """Test RTA custom workload (providing calibration)"""
-        self._test_custom_smoke(self.te.get_rtapp_calibration())
+        calibration = min(self.te.plat_info['rtapp']['calib'].values())
+        self._test_custom_smoke(calibration)
 
     def test_custom_smoke_no_calib(self):
         """Test RTA custom workload (providing no calibration)"""
         self._test_custom_smoke(None)
 
-
-DummyBlModule = namedtuple('bl', ['bigs'])
 
 class TestRTACalibrationConf(RTABase):
     """Test setting the "calibration" field of rt-app config"""
@@ -307,24 +306,19 @@ class TestRTACalibrationConf(RTABase):
         with open(rtapp.local_json) as fh:
             return json.load(fh)['global']['calibration']
 
-    def test_calibration_conf_pload(self):
-        """Test that the smallest pload value is used, if provided"""
-        conf = self._get_calib_conf(self.te.get_rtapp_calibration())
+    def test_calibration_conf_pload_nodata(self):
+        """Test that the smallest pload value is used"""
+        conf = self._get_calib_conf(None)
         self.assertEqual(conf, 100, 'Calibration not set to minimum pload value')
 
-    def test_calibration_conf_bl(self):
-        """Test that a big CPU is used if big.LITTLE data is available"""
-        self.te.target.modules.append('bl')
-        self.te.target.bl = DummyBlModule([1, 2])
-        conf = self._get_calib_conf(None)
-        self.assertIn(conf, ['CPU{}'.format(c) for c in self.te.target.bl.bigs],
-                      'Calibration not set to use a big CPU')
+    def test_calibration_conf_pload_int(self):
+        """Test that the calibration value is returned as expected"""
+        conf = self._get_calib_conf(666)
+        self.assertEqual(conf, 666, 'Calibration value modified')
 
-    def test_calibration_conf_nodata(self):
-        """Test that the last CPU is used if no data is available"""
-        conf = self._get_calib_conf(None)
-        cpu = self.te.target.number_of_cpus - 1
-        self.assertEqual(conf, 'CPU{}'.format(cpu),
-                         'Calibration not set to highest numbered CPU')
+    def test_calibration_conf_pload_int(self):
+        """Test that the calibration value is returned as expected"""
+        conf = self._get_calib_conf('CPU0')
+        self.assertEqual(conf, 'CPU0', 'Calibration value modified')
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
