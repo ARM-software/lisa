@@ -20,6 +20,8 @@ import inspect
 import logging
 import functools
 import pickle
+import sys
+import os
 
 from ruamel.yaml import YAML
 
@@ -72,13 +74,39 @@ class Serializable:
     serialized_blacklist = []
     serialized_placeholders = dict()
 
+    YAML_ENCODING = 'utf-8'
+    "Encoding used for YAML files"
+
     DEFAULT_SERIALIZATION_FMT = 'yaml'
     "Default format used when serializing objects"
 
     _yaml = YAML(typ='unsafe')
-    _yaml.allow_unicode = True
-    _yaml.default_flow_style = False
-    _yaml.indent = 4
+
+    @classmethod
+    def _init_yaml(cls):
+        """
+        Needs to be called only once when the module is imported. Since that is
+        done at module-level, there is no need to do that from user code.
+        """
+        yaml = cls._yaml
+        # If allow_unicode=True, true unicode characters will be written to the
+        # file instead of being replaced by escape sequence.
+        yaml.allow_unicode = (cls.YAML_ENCODING == 'utf-8')
+        yaml.default_flow_style = False
+        yaml.indent = 4
+        yaml.Constructor.add_constructor('!include', cls._yaml_include_constructor)
+
+    @classmethod
+    def _yaml_include_constructor(cls, loader, node):
+        """
+        Provide a !include tag in YAML that can be used to include the content of
+        another YAML file. Environment variables are expanded in the given path.
+        """
+        path = loader.construct_scalar(node)
+        assert isinstance(path, str)
+        path = os.path.expandvars(path)
+        with open(path, 'r', encoding=cls.YAML_ENCODING) as f:
+            return cls._yaml.load(f)
 
     def to_path(self, filepath, fmt=None):
         """
@@ -90,12 +118,25 @@ class Serializable:
         :param fmt: Serialization format.
         :type fmt: str
         """
+
+        data = self
+        return self._to_path(data, filepath, fmt)
+
+    @classmethod
+    def _to_path(cls, instance, filepath, fmt):
+        # On Python >= 3.6, __init_subclass__ will take care of that
+        if sys.version_info < (3, 6):
+            # Better late than never. Doing it here avoids using a metaclass
+            # just to register the class. If we don't do that, yaml_tag class
+            # attribute will be ignored.
+            cls._yaml.register_class(type(instance))
+
         if fmt is None:
-            fmt = self.DEFAULT_SERIALIZATION_FMT
+            fmt = cls.DEFAULT_SERIALIZATION_FMT
 
         if fmt == 'yaml':
-            kwargs = dict(mode='w', encoding='utf-8')
-            dumper = self._yaml.dump
+            kwargs = dict(mode='w', encoding=cls.YAML_ENCODING)
+            dumper = cls._yaml.dump
         elif fmt == 'pickle':
             kwargs = dict(mode='wb')
             dumper = pickle.dump
@@ -103,7 +144,7 @@ class Serializable:
             raise ValueError('Unknown format "{}"'.format(fmt))
 
         with open(str(filepath), **kwargs) as fh:
-            dumper(self, fh)
+            dumper(instance, fh)
 
     @classmethod
     def from_path(cls, filepath, fmt=None):
@@ -115,12 +156,21 @@ class Serializable:
 
         :param fmt: Serialization format.
         :type fmt: str
+
+        :raises AssertionError: if the deserialized object is not an instance
+                                of the class.
         """
+        instance = cls._from_path(filepath, fmt)
+        assert isinstance(instance, cls)
+        return instance
+
+    @classmethod
+    def _from_path(cls, filepath, fmt):
         if fmt is None:
             fmt = cls.DEFAULT_SERIALIZATION_FMT
 
         if fmt == 'yaml':
-            kwargs = dict(mode='r', encoding='utf-8')
+            kwargs = dict(mode='r', encoding=cls.YAML_ENCODING)
             loader = cls._yaml.load
         elif fmt == 'pickle':
             kwargs = dict(mode='rb')
@@ -129,7 +179,9 @@ class Serializable:
             raise ValueError('Unknown format "{}"'.format(fmt))
 
         with open(str(filepath), **kwargs) as fh:
-            return loader(fh)
+            instance = loader(fh)
+
+        return instance
 
     def __getstate__(self):
        """
@@ -179,5 +231,13 @@ class Serializable:
 
     def __deepcopy__(self):
        return super().__deepcopy__()
+
+   # Will only be called with Python >= 3.6
+    def __init_subclass__(cls, **kwargs):
+        # Register the class to ensure yaml_tag will be used
+        cls._yaml.register_class(cls)
+        super().__init_subclass__(**kwargs)
+
+Serializable._init_yaml()
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
