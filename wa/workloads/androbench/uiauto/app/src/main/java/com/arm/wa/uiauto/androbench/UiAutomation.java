@@ -90,12 +90,20 @@ public class UiAutomation extends BaseUiAutomation {
             mDevice.findObject(selector.text("SQLite Update").fromParent(selector.index(1)));
         UiObject sqlDelete =
             mDevice.findObject(selector.text("SQLite Delete").fromParent(selector.index(1)));
+
+        UiScrollable scrollView = new UiScrollable(new UiSelector().scrollable(true));
         Log.d(TAG, "Sequential Read Score " + seqRead.getText());
+        scrollView.scrollIntoView(seqWrite);
         Log.d(TAG, "Sequential Write Score " + seqWrite.getText());
+        scrollView.scrollIntoView(ranRead);
         Log.d(TAG, "Random Read Score " + ranRead.getText());
+        scrollView.scrollIntoView(ranWrite);
         Log.d(TAG, "Random Write Score " + ranWrite.getText());
+        scrollView.scrollIntoView(sqlInsert);
         Log.d(TAG, "SQL Insert Score " + sqlInsert.getText());
+        scrollView.scrollIntoView(sqlUpdate);
         Log.d(TAG, "SQL Update Score " + sqlUpdate.getText());
+        scrollView.scrollIntoView(sqlDelete);
         Log.d(TAG, "SQL Delete Score " + sqlDelete.getText());
     }
 }
