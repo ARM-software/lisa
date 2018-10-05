@@ -1521,7 +1521,7 @@ class Operator:
 
     @property
     def is_genfunc(self):
-        return inspect.isgeneratorfunction(self.unwrapped_callable)
+        return inspect.isgeneratorfunction(self.resolved_callable)
 
     @property
     def is_class(self):
