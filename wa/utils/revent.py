@@ -201,7 +201,7 @@ class ReventRecording(object):
 
     def _parse_header_and_devices(self, fh):
         magic, version = read_struct(fh, header_one_struct)
-        if magic != 'REVENT':
+        if magic != b'REVENT':
             msg = '{} does not appear to be an revent recording'
             raise ValueError(msg.format(self.filepath))
         self.version = version
@@ -216,11 +216,11 @@ class ReventRecording(object):
                 raise ValueError('Unexpected recording mode: {}'.format(self.mode))
             self.num_events, = read_struct(fh, u64_struct)
             if self.version > 2:
-                ts_sec = read_struct(fh, u64_struct)
-                ts_usec = read_struct(fh, u64_struct)
+                ts_sec = read_struct(fh, u64_struct)[0]
+                ts_usec = read_struct(fh, u64_struct)[0]
                 self.start_time = datetime.fromtimestamp(ts_sec + float(ts_usec) / 1000000)
-                ts_sec = read_struct(fh, u64_struct)
-                ts_usec = read_struct(fh, u64_struct)
+                ts_sec = read_struct(fh, u64_struct)[0]
+                ts_usec = read_struct(fh, u64_struct)[0]
                 self.end_time = datetime.fromtimestamp(ts_sec + float(ts_usec) / 1000000)
 
         elif 2 > self.version >= 0:
