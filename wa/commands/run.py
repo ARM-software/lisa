@@ -112,6 +112,11 @@ class RunCommand(Command):
                       'by running "wa list workloads".'
                 raise ConfigError(msg.format(args.agenda))
 
+        # Update run info with newly parsed config values
+        output.info.project = config.run_config.project
+        output.info.project_stage = config.run_config.project_stage
+        output.info.run_name = config.run_config.run_name
+
         executor = Executor()
         executor.execute(config, output)
 
