@@ -200,7 +200,7 @@ def log_error(e, logger, critical=False):
         log_func(tb)
         command = e.cmd
         if e.args:
-            command = '{} {}'.format(command, ' '.join(e.args))
+            command = '{} {}'.format(command, ' '.join(map(str, e.args)))
         message = 'Command \'{}\' returned non-zero exit status {}\nOUTPUT:\n{}\n'
         log_func(message.format(command, e.returncode, e.output))
     elif isinstance(e, SyntaxError):
