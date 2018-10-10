@@ -212,6 +212,9 @@ define the following class attributes:
         :early: The module will be installed when a :class:`Target` is first
                 created. This should be used for modules that do not rely on a
                 live connection to the target.
+        :setup: The module will be installed after initial setup of the device
+                has been performed. This allows the module to utilize assets
+                deployed during the setup stage for example 'Busybox'.
 
 Additionally, a module must implement a static (or class) method :func:`probe`:
 

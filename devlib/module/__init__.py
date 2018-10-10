@@ -37,6 +37,9 @@ class Module(object):
     #             serial).
     #  'connected' -- installed when a connection to to the target has been
     #                 established. This is the default.
+    #   'setup' -- installed after initial setup of the device has been performed.
+    #              This allows the module to utilize assets deployed during the
+    #              setup stage for example 'Busybox'.
     stage = 'connected'
 
     @staticmethod
