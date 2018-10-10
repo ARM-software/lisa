@@ -322,7 +322,7 @@ class RTATestBundle(TestBundle, abc.ABC):
     }
     """
     The FTrace configuration used to record a trace while the synthetic workload
-    is being run.
+    is being run. Items are arguments to :meth:`lisa.env.TestEnv.configure_ftrace`.
     """
 
     TASK_PERIOD_MS=16
