@@ -78,6 +78,11 @@ EAS tests
 .. automodule:: lisa.tests.kernel.scheduler.eas_behaviour
    :members:
 
+Load tracking tests
+-------------------
+.. automodule:: lisa.tests.kernel.scheduler.load_tracking
+   :members:
+
 Misfit tests
 ------------
 
