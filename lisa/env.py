@@ -828,4 +828,21 @@ class TestEnv(Loggable):
         self.ftrace.stop()
         self.ftrace.get_trace(output_file)
 
+    @contextlib.contextmanager
+    def disable_idle_states(self):
+        """
+        Context manager that lets you disable all idle states
+        """
+        # This assumes that freq domains are tied to "idle domains"
+        # We'll have to change this if this assumption no longer holds true
+        for domain in self.target.cpufreq.iter_domains():
+            self.target.cpuidle.disable_all(domain[0])
+
+        try:
+            yield
+
+        finally:
+            for domain in self.target.cpufreq.iter_domains():
+                self.target.cpuidle.enable_all(domain[0])
+
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
