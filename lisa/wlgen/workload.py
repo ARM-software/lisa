@@ -35,10 +35,10 @@ class Workload(Loggable):
     :param res_dir: Directory into which artefacts will be stored
     :type res_dir: str
 
-    **Design notes**
+    :ivar command: Will be called in :meth:`run`. Daughter classes should
+      specify its value as needed.
 
-    :attr:`command` will be called in :meth:`run`. Daughter classes should
-    specify its value as needed.
+    **Design notes**
 
     :meth:`__init__` is there to initialize a given workload, and :meth:`run`
     can be called on it several times, with varying arguments.
@@ -47,8 +47,6 @@ class Workload(Loggable):
     creating a superfluous amount of new instances. However, when persistent
     data is involved (e.g. the workload depends on a file), then this data
     should bet set up in :meth:`__init__`.
-
-    :attr:`required_tools` defines the tools required to execute the workload.
 
     **Implementation example**::
 
@@ -72,6 +70,10 @@ class Workload(Loggable):
     """
 
     required_tools = ['taskset']
+    """
+    The tools required to execute the workload. See
+    :meth:`lisa.env.TestEnv.install_tools`.
+    """
 
     def __init__(self, te, name, res_dir=None):
         self.te = te
