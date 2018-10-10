@@ -343,7 +343,7 @@ class RTA(Workload):
             max_rtprio = 10
 
         if not res_dir:
-            res_dir = te.get_res_dir("rta_calib")
+            res_dir = te.get_res_dir("rta_calib", symlink=False)
 
         for cpu in te.target.list_online_cpus():
             logger.info('CPU%d calibration...', cpu)
