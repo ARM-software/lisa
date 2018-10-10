@@ -325,7 +325,7 @@ class RTATestBundle(TestBundle, abc.ABC):
     is being run. Items are arguments to :meth:`lisa.env.TestEnv.configure_ftrace`.
     """
 
-    TASK_PERIOD_MS=16
+    TASK_PERIOD_MS = 16
     """
     A task period you can re-use for your :class:`lisa.wlgen.rta.RTATask`
     definitions.
