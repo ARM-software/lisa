@@ -337,7 +337,7 @@ class RTA(Workload):
 
         # Create calibration task
         max_rtprio = int(te.target.execute('ulimit -Hr').split('\r')[0])
-        cls.logger.debug('Max RT prio: %d', max_rtprio)
+        cls.get_logger().debug('Max RT prio: %d', max_rtprio)
 
         if max_rtprio > 10:
             max_rtprio = 10
