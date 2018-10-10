@@ -26,10 +26,8 @@ import pylab as pl
 
 from bart.common.Utils import area_under_curve
 
-from lisa.wlgen.rta import RTA, Periodic, Ramp, Step
-from lisa.trace import Trace
-from lisa.tests.kernel.test_bundle import RTATestBundle, ResultBundle
-from lisa.perf_analysis import PerfAnalysis
+from lisa.wlgen.rta import Periodic, Ramp, Step
+from lisa.tests.kernel.test_bundle import ResultBundle, CannotCreateError, RTATestBundle
 from lisa.env import TestEnv, ArtifactPath
 
 class EASBehaviour(RTATestBundle, abc.ABC):
