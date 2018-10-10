@@ -24,8 +24,8 @@ Energy model
 .. automodule:: lisa.energy_model
    :members:
 
-Serialization
-=============
+Miscellaneous utilities
+=======================
 
-.. automodule:: lisa.serialization
+.. automodule:: lisa.utils
    :members:
