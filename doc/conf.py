@@ -274,6 +274,8 @@ texinfo_documents = [
 
 intersphinx_mapping = {
     'python' : ('https://docs.python.org/3', None),
+    'pandas' : ('https://pandas.pydata.org/pandas-docs/stable/', None),
+    'matplotlib' : ('http://matplotlib.sourceforge.net/', None),
     # XXX: Doesn't seem to work, might be due to how devlib doc is generated
     'devlib' : ('https://devlib.readthedocs.io/en/latest', None),
     'trappy' : ('https://pythonhosted.org/TRAPpy', None),
