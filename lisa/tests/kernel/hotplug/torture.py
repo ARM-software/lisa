@@ -34,12 +34,11 @@ class HotplugTorture(TestBundle):
         self.live_cpus = live_cpus
 
     @classmethod
-    def _random_cpuhp_seq(cls, seed, nr_operations,
+    def _random_cpuhp_seq(cls, nr_operations,
                           hotpluggable_cpus, max_cpus_off):
         """
         Yield a consistent random sequence of CPU hotplug operations
 
-        :param seed: Seed of the RNG
         :param nr_operations: Number of operations in the sequence
             <= 0 will encode 'no sleep'
         :param max_cpus_off: Max number of CPUs plugged-off
@@ -117,13 +116,14 @@ class HotplugTorture(TestBundle):
         if not seed:
             random.seed()
             seed = random.randint(0, sys.maxsize)
+        else:
+            random.seed(seed)
 
         te.target.hotplug.online_all()
         hotpluggable_cpus = te.target.hotplug.list_hotpluggable_cpus()
 
         sequence = cls._random_cpuhp_seq(
-            seed, nr_operations, hotpluggable_cpus, max_cpus_off
-        )
+            nr_operations, hotpluggable_cpus, max_cpus_off)
 
         script = cls._random_cpuhp_script(
             te, res_dir, sequence, sleep_min_ms, sleep_max_ms, duration_s
