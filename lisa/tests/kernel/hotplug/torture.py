@@ -115,10 +115,8 @@ class HotplugTorture(TestBundle):
         return script
 
     @classmethod
-    def _from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None, seed=None, nr_operations=100,
-            sleep_min_ms=10, sleep_max_ms=100, duration_s=10,
-            max_cpus_off=sys.maxsize) -> 'HotplugTorture':
-
+    def _from_testenv(cls, te, res_dir, seed, nr_operations, sleep_min_ms,
+                      sleep_max_ms, duration_s, max_cpus_off):
         if not seed:
             random.seed()
             seed = random.randint(0, sys.maxsize)
@@ -150,6 +148,37 @@ class HotplugTorture(TestBundle):
         live_cpus = te.target.list_online_cpus() if target_alive else []
 
         return cls(target_alive, hotpluggable_cpus, live_cpus)
+
+    @classmethod
+    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None, seed=None,
+                     nr_operations=100, sleep_min_ms=10, sleep_max_ms=100,
+                     duration_s=10, max_cpus_off=sys.maxsize) -> 'HotplugTorture':
+        """
+        :param seed: Seed of the RNG used to create the hotplug sequences
+        :type seed: int
+
+        :param nr_operations: Number of operations in the sequence
+        :type nr_operations: int
+
+        :param sleep_min_ms: Minimum sleep duration between hotplug operations
+        :type sleep_min_ms: int
+
+        :param sleep_max_ms: Maximum sleep duration between hotplug operations
+          (0 would lead to no sleep)
+        :type sleep_max_ms: int
+
+        :param duration_s: Total duration of the hotplug torture
+        :type duration_s: int
+
+        :param max_cpus_off: Maximum number of CPUs hotplugged out at any given
+          moment
+        :type max_cpus_off: int
+        """
+        # This is just boilerplate but it lets us document parameters
+        return super().from_testenv(
+            te, res_dir, seed=seed, nr_operations=nr_operations,
+            sleep_min_ms=sleep_min_ms, sleep_max_ms=sleep_max_ms,
+            duration_s=duration_s, max_cpus_off=max_cpus_off)
 
     def test_target_alive(self) -> ResultBundle:
         """
