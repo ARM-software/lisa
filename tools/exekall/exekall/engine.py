@@ -1623,7 +1623,7 @@ class Operator:
         else:
             # When we have a method, we fill the annotations of the 1st
             # parameter with the name of the class it is defined in
-            if self.is_method:
+            if self.is_method and first_param is not NoValue:
                 cls_name = self.resolved_callable.__qualname__.split('.')[0]
                 self.annotations[first_param] = cls_name
 
