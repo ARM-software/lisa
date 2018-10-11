@@ -74,7 +74,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
             raise CannotCreateError("Target doesn't have an energy model")
 
     @classmethod
-    def _from_testenv(cls, te:TestEnv, res_dir:ArtifactPath) -> 'EASBehaviour':
+    def _from_testenv(cls, te, res_dir):
         rtapp_profile = cls.get_rtapp_profile(te)
 
         # EAS doesn't make a lot of sense without schedutil,

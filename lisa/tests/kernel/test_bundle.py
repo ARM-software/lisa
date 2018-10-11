@@ -261,7 +261,7 @@ class TestBundle(Serializable, abc.ABC):
             return False
 
     @classmethod
-    def from_testenv(cls, te, res_dir=None, **kwargs):
+    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None, **kwargs) -> 'TestBundle':
         """
         Factory method to create a bundle using a live target
 
@@ -375,11 +375,20 @@ class RTATestBundle(TestBundle, abc.ABC):
             wload.run()
 
     @classmethod
-    def _from_testenv(cls, te:TestEnv, res_dir:ArtifactPath) -> 'RTATestBundle':
+    def _from_testenv(cls, te, res_dir):
         rtapp_profile = cls.get_rtapp_profile(te)
         cls._run_rtapp(te, res_dir, rtapp_profile)
 
         return cls(res_dir, rtapp_profile)
+
+    @classmethod
+    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'RTATestBundle':
+        """
+        Factory method to create a bundle using a live target
+
+        This will execute the rt-app workload described in :meth:`get_rtapp_profile`
+        """
+        return super().from_testenv(te, res_dir)
 
     def test_slack(self, negative_slack_allowed_pct=15) -> ResultBundle:
         """

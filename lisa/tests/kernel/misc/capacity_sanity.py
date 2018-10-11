@@ -36,7 +36,7 @@ class CapacitySanityCheck(TestBundle):
         self.capacity_work = capacity_work
 
     @classmethod
-    def _from_testenv(cls, te:TestEnv, res_dir:ArtifactPath) -> 'CapacitySanityCheck':
+    def _from_testenv(cls, te, res_dir):
         with te.target.cpufreq.use_governor("performance"):
             sysbench = Sysbench(te, "sysbench", res_dir)
 
