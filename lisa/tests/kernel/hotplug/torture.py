@@ -40,7 +40,6 @@ class HotplugTorture(TestBundle):
         Yield a consistent random sequence of CPU hotplug operations
 
         :param nr_operations: Number of operations in the sequence
-            <= 0 will encode 'no sleep'
         :param max_cpus_off: Max number of CPUs plugged-off
 
         "Consistent" means that a CPU will be plugged-in only if it was
@@ -55,7 +54,7 @@ class HotplugTorture(TestBundle):
         cur_off_cpus = []
         i = 0
         while i < nr_operations - len(cur_off_cpus):
-            if len(cur_on_cpus)<=1 or len(cur_off_cpus)>=max_cpus_off:
+            if not (1 < len(cur_on_cpus) < max_cpus_off):
                 # Force plug IN when only 1 CPU is on or too many are off
                 plug_way = 1
             elif not cur_off_cpus:
@@ -79,6 +78,13 @@ class HotplugTorture(TestBundle):
     @classmethod
     def _random_cpuhp_script(cls, te, res_dir, sequence, sleep_min_ms,
                              sleep_max_ms, timeout_s):
+        """
+        Generate a script consisting of a random sequence of hotplugs operations
+
+        Two consecutive hotplugs can be separated by a random sleep in the script.
+        The hotplug stress must be stopped after some time using the timeout_s
+        parameter.
+        """
         shift = '    '
         script = TargetScript(te, 'random_cpuhp.sh', res_dir)
 
@@ -126,8 +132,7 @@ class HotplugTorture(TestBundle):
             nr_operations, hotpluggable_cpus, max_cpus_off)
 
         script = cls._random_cpuhp_script(
-            te, res_dir, sequence, sleep_min_ms, sleep_max_ms, duration_s
-        )
+            te, res_dir, sequence, sleep_min_ms, sleep_max_ms, duration_s)
 
         script.push()
 
