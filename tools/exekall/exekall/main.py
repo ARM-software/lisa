@@ -323,7 +323,13 @@ the name of the parameter, the start value, stop value and step size.""")
                     engine.PrebuiltOperator(
                         type_, serial_list, id_=id_
                     ))
-                only_prebuilt_cls.add(type_)
+
+    # Make sure that the provided PrebuiltOperator will be the only ones used
+    # to provide their types
+    only_prebuilt_cls.update(
+        op.obj_type
+        for op in prebuilt_op_pool_list
+    )
 
     only_prebuilt_cls.discard(type(NoValue))
 
