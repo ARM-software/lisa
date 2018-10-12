@@ -20,7 +20,7 @@ import sys
 from lisa.tests.kernel.test_bundle import TestMetric, ResultBundle, TestBundle
 from lisa.wlgen.sysbench import Sysbench
 
-class CapacitySanityCheck(TestBundle):
+class CapacitySanity(TestBundle):
     """
     A class for making sure capacity values make sense on a given target
 
