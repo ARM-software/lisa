@@ -227,6 +227,7 @@ class JankbenchRunMonitor(threading.Thread):
                         line = line.decode(sys.stdout.encoding, 'replace')
                     if self.regex.search(line):
                         self.run_ended.set()
+        proc.terminate()
 
     def stop(self):
         self.stop_event.set()
