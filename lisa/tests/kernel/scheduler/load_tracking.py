@@ -354,7 +354,7 @@ class FreqInvarianceTest(CpuInvarianceTest):
         freqs = te.target.cpufreq.list_frequencies(cpu)
         # If we have loads of frequencies just test a cross-section so it
         # doesn't take all day
-        freqs = freqs[::len(freqs) // 8 + 1]
+        freqs = freqs[::len(freqs) // 8 + (1 if len(freqs) % 2 else 0)]
 
         with te.target.cpufreq.use_governor(**cls.cpufreq_conf):
             for freq in freqs:
