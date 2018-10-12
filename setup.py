@@ -31,8 +31,7 @@ setup(
     license='LICENSE.txt',
     description='A stick to probe the kernel with',
     long_description=long_description,
-    # obfuscated way of asking for Python >= 2.7 or >= 3.4
-    python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*, !=3.3.*',
+    python_requires='>= 3.4',
     install_requires=[
         "Cython >= 0.25.1",
         "psutil >= 4.4.2",
@@ -48,7 +47,7 @@ setup(
     ],
     extras_require={
         "notebook": [
-            "ipython < 6.0.0", # 6.0+ only supports Python 3.3
+            "ipython",
             "jupyter"
         ],
     }
