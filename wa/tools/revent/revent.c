@@ -1234,11 +1234,13 @@ void record(const char *filepath, int delay, recording_mode_t mode)
 	if (ret < 1)
 		die("Could not write event count: %s", strerror(errno));
 	dprintf("Writing recording timestamps...\n");
-	uint64_t usecs;
-	fwrite(&start_time.tv_sec, sizeof(uint64_t), 1, fout);
+	uint64_t secs, usecs;
+	secs = start_time.tv_sec;
+	fwrite(&secs, sizeof(uint64_t), 1, fout);
 	usecs = start_time.tv_nsec / 1000;
 	fwrite(&usecs, sizeof(uint64_t), 1, fout);
-	fwrite(&end_time.tv_sec, sizeof(uint64_t), 1, fout);
+	secs = end_time.tv_sec;
+	fwrite(&secs, sizeof(uint64_t), 1, fout);
 	usecs = end_time.tv_nsec / 1000;
 	ret = fwrite(&usecs, sizeof(uint64_t), 1, fout);
 	if (ret < 1)
