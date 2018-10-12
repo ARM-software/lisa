@@ -89,12 +89,13 @@ Misfit tests
 .. automodule:: lisa.tests.kernel.scheduler.misfit
    :members:
 
+Sanity tests
+------------
+
+.. automodule:: lisa.tests.kernel.scheduler.sanity
+   :members:
+
 Hotplug tests
 +++++++++++++
 .. automodule:: lisa.tests.kernel.hotplug.torture
-   :members:
-
-Miscellaneous tests
-+++++++++++++++++++
-.. automodule:: lisa.tests.kernel.misc.capacity_sanity
    :members:
