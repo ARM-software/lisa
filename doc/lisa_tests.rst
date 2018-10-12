@@ -10,11 +10,11 @@ self-tests, which is a mix of unit and behavioural tests.
 
 From the root of LISA, you can run those tests like so:
 
->>> python3 -m "nose" lisa/tests/lisa
+>>> python3 -m nose
 >>> # You can also target specific test modules
->>> python3 -m "nose" lisa/tests/lisa/test_bundle.py
+>>> python3 -m nose --tests=lisa/tests/lisa/test_test_bundle.py
 >>> # Or even specific test classes
->>> python3 -m "nose" lisa/tests/lisa/test_bundle.py:BundleCheck
+>>> python3 -m nose --tests=lisa/tests/lisa/test_test_bundle.py:BundleCheck
 
 Writing self-tests
 ==================
