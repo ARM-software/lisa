@@ -807,7 +807,6 @@ class GenericMappingMeta(GenericContainerMetaBase, type(Mapping)):
 
         k_type, v_type = cls._type
         for k, v in instance.items():
-            print(111, cls._type)
             if not isinstance(k, k_type):
                 raise ValueError('Key "{key}" of type {actual_cls} should be of type {k_type}'.format(
                     key=k,

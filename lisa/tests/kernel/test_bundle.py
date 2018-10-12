@@ -351,7 +351,7 @@ class RTATestBundle(TestBundle, abc.ABC):
         underlying path before it is actually loaded to match a different
         folder structure.
         """
-        return Trace(self.plat_info, self.res_dir, events=self.ftrace_conf["events"])
+        return Trace(self.res_dir, self.plat_info, events=self.ftrace_conf["events"])
 
     def __init__(self, res_dir, plat_info, rtapp_profile):
         super().__init__(res_dir, plat_info)

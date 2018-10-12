@@ -49,7 +49,7 @@ class TestTrace(StorageTestCase):
         self.plat_info = self._get_plat_info()
 
         self.trace_path = os.path.join(self.traces_dir, 'trace.txt')
-        self.trace = Trace(self.plat_info, self.trace_path, self.events)
+        self.trace = Trace(self.trace_path, self.plat_info, self.events)
 
     def make_trace(self, in_data):
         """
@@ -59,7 +59,7 @@ class TestTrace(StorageTestCase):
         with open(trace_path, "w") as fout:
             fout.write(in_data)
 
-        return Trace(self.plat_info, trace_path, self.events,
+        return Trace(trace_path, self.plat_info, self.events,
                      normalize_time=False, plots_dir=self.res_dir)
 
     def get_trace(self, trace_name):
@@ -69,7 +69,7 @@ class TestTrace(StorageTestCase):
         dir = os.path.join(self.traces_dir, trace_name)
 
         trace_path = os.path.join(dir, 'trace.dat')
-        return Trace(self.plat_info, trace_path, self.events)
+        return Trace(trace_path, self.plat_info, self.events)
 
     def _get_plat_info(self, trace_name=None):
         trace_dir = self.traces_dir
@@ -119,8 +119,8 @@ class TestTrace(StorageTestCase):
         """
         expected_duration = 6.676497
 
-        trace = Trace(self.plat_info,
-                      self.trace_path,
+        trace = Trace(self.trace_path,
+                      self.plat_info,
                       self.events,
                       normalize_time=False
         )
@@ -134,8 +134,8 @@ class TestTrace(StorageTestCase):
         """
         expected_duration = 4.0
 
-        trace = Trace(self.plat_info,
-                      self.trace_path,
+        trace = Trace(self.trace_path,
+                      self.plat_info,
                       self.events,
                       normalize_time=False,
                       window=(76.402065, 80.402065)

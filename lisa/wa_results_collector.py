@@ -403,7 +403,7 @@ class WaResultsCollector(Loggable):
         plat_info = PlatformInfo({
             'kernel-version': KernelVersion(target_info['kernel_release']),
         })
-        trace = Trace(plat_info, trace_path, events, self.platform)
+        trace = Trace(trace_path, plat_info, events, self.platform)
 
         metrics.append(('cpu_wakeup_count', len(trace.analysis.cpus.df_cpu_wakeups()), None))
 

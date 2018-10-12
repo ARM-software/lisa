@@ -352,8 +352,8 @@ class TestEstimateFromTrace(TestCase):
         with open(path, 'w') as f:
             f.write(trace_data)
 
-        trace = Trace(PlatformInfo(), path,
-                      ['cpu_idle', 'cpu_frequency'],
+        trace = Trace(path,
+                      events=['cpu_idle', 'cpu_frequency'],
                       normalize_time=False)
         shutil.rmtree(dir)
 

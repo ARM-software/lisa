@@ -72,9 +72,8 @@ class Trace(Loggable):
     """
 
     def __init__(self,
-                 #TODO: make it default to None and swap position with data_dir
-                 plat_info,
                  data_dir,
+                 plat_info=None,
                  events=None,
                  window=(0, None),
                  normalize_time=True,
@@ -85,6 +84,7 @@ class Trace(Loggable):
 
         if plat_info is None:
             plat_info = PlatformInfo()
+
         # The platform information used to run the experiments
         self.plat_info = plat_info
 
