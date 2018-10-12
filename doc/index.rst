@@ -7,7 +7,7 @@ LISA API Documentation
 ==============================================
 
 LISA - "Linux Integrated System Analysis" is a toolkit for interactive analysis
-and automated regression testing of Linux kernel behaviour. To get started with LISA:
+and automated regression testing of Linux kernel behaviour.
 
 - See the README on the project's `Github home page`__ for an overview.
 - Check out the project's `Github Wiki`__ for some guides to installation
@@ -18,24 +18,19 @@ and automated regression testing of Linux kernel behaviour. To get started with 
 __ https://github.com/ARM-software/lisa
 __ https://github.com/ARM-software/lisa/wiki
 
-This site contains documentation for LISA's APIs. For some parts of LISA, API
-documentation is a work-in-progress. Where the API documentation is lacking, see
-the example/tutorial notebooks provided with LISA, or just dive in and read the
-code. Contributions to LISA and its documentation are very welcome, and handled
+Contributions to LISA and its documentation are very welcome, and handled
 via Github pull requests.
 
 .. _Readme:
 
 Contents:
 
-.. TODO: due to our slightly weird package structure the index here is wildly
-   nested where it needn't be.
-
 .. TODO: Move wiki to here, wirte a proper module doc, proove Riemann's hypothesis
 
 .. toctree::
    :maxdepth: 2
 
+   overview
    kernel_tests
    wlgen
    internals
