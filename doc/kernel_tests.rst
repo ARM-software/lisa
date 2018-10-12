@@ -99,3 +99,9 @@ Hotplug tests
 +++++++++++++
 .. automodule:: lisa.tests.kernel.hotplug.torture
    :members:
+
+Cpufreq tests
++++++++++++++
+
+.. automodule:: lisa.tests.kernel.cpufreq.sanity
+   :members:
