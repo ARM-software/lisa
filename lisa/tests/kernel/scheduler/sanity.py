@@ -19,7 +19,6 @@ import sys
 
 from lisa.tests.kernel.test_bundle import TestMetric, ResultBundle, TestBundle
 from lisa.wlgen.sysbench import Sysbench
-from lisa.env import TestEnv, ArtifactPath
 
 class CapacitySanityCheck(TestBundle):
     """
