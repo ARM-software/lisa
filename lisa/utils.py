@@ -731,7 +731,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
 
     def pretty_format(self, _level=1):
         out = []
-        idt_style = 4 * ' '
+        idt_style = ' '
         idt_str = idt_style * _level
         for k, v in self.items():
             v_cls = type(v)
@@ -745,10 +745,18 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
                 v = '\n' + v
             else:
                 v = ' ' + v
-            v = v.replace('\n', '\n'+idt_str)
+
+            if is_sublevel:
+                k_str = ' + ' + k
+                v_prefix = '   '
+            else:
+                k_str = ' | ' + k
+                v_prefix = ' | '
+
+            v = v.replace('\n', '\n' + v_prefix + idt_str)
 
             out.append('{k}{src}{cls}:{v}'.format(
-                k=k,
+                k=k_str,
                 cls='' if is_sublevel else ' ('+v_cls.__qualname__+')',
                 src='' if is_sublevel else ' from '+self.resolve_src(k),
                 v=v,
