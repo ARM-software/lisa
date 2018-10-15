@@ -750,7 +750,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
                 k_str = ' + ' + k
                 v_prefix = '   '
             else:
-                k_str = ' | ' + k
+                k_str = ' |-' + k
                 v_prefix = ' | '
 
             v = v.replace('\n', '\n' + v_prefix + idt_str)
