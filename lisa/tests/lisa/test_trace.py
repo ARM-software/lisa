@@ -69,7 +69,7 @@ class TestTrace(StorageTestCase):
         dir = os.path.join(self.traces_dir, trace_name)
 
         trace_path = os.path.join(dir, 'trace.dat')
-        return Trace(trace_path, self.plat_info, self.events)
+        return Trace(trace_path, self._get_plat_info(trace_name), self.events)
 
     def _get_plat_info(self, trace_name=None):
         trace_dir = self.traces_dir
