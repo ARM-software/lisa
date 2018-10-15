@@ -207,7 +207,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         # squash_df only updates t_delta, remove t_start to make sure it's not used
         return lat_df.drop('t_start', 1)
 
-    def test_preempt_time(self, allowed_preempt_pct=1):
+    def test_preempt_time(self, allowed_preempt_pct=1) -> ResultBundle:
         """
         Test that tasks are not being preempted too much
         """
@@ -278,7 +278,8 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         return max_time, max_cpu
 
-    def _test_cpus_busy(self, latency_dfs, cpus, allowed_idle_time_s):
+    def _test_cpus_busy(self, latency_dfs, cpus, allowed_idle_time_s)\
+        -> ResultBundle:
         """
         Test that for every window in which the tasks are running, :attr:`cpus`
         are not idle for more than :attr:`allowed_idle_time_s`
@@ -302,7 +303,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         return res
 
-    def test_migration_delay(self, allowed_delay_s=0.001):
+    def test_migration_delay(self, allowed_delay_s=0.001) -> ResultBundle:
         """
         Test that big CPUs pull tasks ASAP
 
@@ -335,7 +336,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         return self._test_cpus_busy(latency_dfs, self.dst_cpus, allowed_delay_s)
 
-    def test_throughput(self, allowed_idle_time_s=0.001):
+    def test_throughput(self, allowed_idle_time_s=0.001) -> ResultBundle:
         """
         Test that big CPUs are not idle when there are misfit tasks to upmigrate
 

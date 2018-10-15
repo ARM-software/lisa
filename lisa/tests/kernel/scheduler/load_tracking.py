@@ -276,7 +276,7 @@ class CpuInvarianceTest(LoadTrackingBase):
         bundle.add_metric("Trace signals", trace_data)
         return bundle
 
-    def test_task_util_avg(self, allowed_error_pct=15):
+    def test_task_util_avg(self, allowed_error_pct=15) -> ResultBundle:
         """
         Test that the mean of the util_avg signal matched the expected value
 
@@ -400,7 +400,7 @@ class FreqInvarianceTest(CpuInvarianceTest):
         bundle.add_metric("Trace signals", trace_data)
         return bundle
 
-    def test_task_load_avg(self, allowed_error_pct=15):
+    def test_task_load_avg(self, allowed_error_pct=15) -> ResultBundle:
         """
         Test that the mean of the load_avg signal matched the expected value
 
@@ -593,7 +593,7 @@ class PELTTaskTest(LoadTrackingBase):
 
         return res
 
-    def test_util_avg_range(self, allowed_error_pct=15):
+    def test_util_avg_range(self, allowed_error_pct=15) -> ResultBundle:
         """
         Test that the util_avg value ranges (min, mean, max) are sane
 
@@ -601,7 +601,7 @@ class PELTTaskTest(LoadTrackingBase):
         """
         return self._test_range('util_avg', allowed_error_pct)
 
-    def test_load_avg_range(self, allowed_error_pct=15):
+    def test_load_avg_range(self, allowed_error_pct=15) -> ResultBundle:
         """
         Test that the load_avg value ranges (min, mean, max) are sane
 
@@ -609,7 +609,8 @@ class PELTTaskTest(LoadTrackingBase):
         """
         return self._test_range('load_avg', allowed_error_pct)
 
-    def test_util_avg_behaviour(self, error_margin_pct=5, allowed_error_pct=5):
+    def test_util_avg_behaviour(self, error_margin_pct=5, allowed_error_pct=5)\
+        -> ResultBundle:
         """
         Validate every utilization signal event
 
@@ -621,7 +622,8 @@ class PELTTaskTest(LoadTrackingBase):
         """
         return self._test_behaviour('util_avg', error_margin_pct, allowed_error_pct)
 
-    def test_load_avg_behaviour(self, error_margin_pct=5, allowed_error_pct=5):
+    def test_load_avg_behaviour(self, error_margin_pct=5, allowed_error_pct=5)\
+        -> ResultBundle:
         """
         Validate every load signal event
 
