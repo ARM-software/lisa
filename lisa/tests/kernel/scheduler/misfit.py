@@ -54,8 +54,8 @@ class MisfitMigrationBase(RTATestBundle):
 
         return False
 
-    @memoized
     @classmethod
+    @memoized
     def _get_max_lb_interval(cls, te):
         """
         Get the value of maximum_load_balance_interval.

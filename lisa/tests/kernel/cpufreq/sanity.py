@@ -28,8 +28,8 @@ class UserspaceSanity(TestBundle):
     :type cpu_work: dict
     """
 
-    def __init__(self, res_dir, cpu_work):
-        super().__init__(res_dir)
+    def __init__(self, res_dir, plat_info, cpu_work):
+        super().__init__(res_dir, plat_info)
 
         self.cpu_work = cpu_work
 
@@ -53,7 +53,7 @@ class UserspaceSanity(TestBundle):
                     sysbench.run(cpus=[cpu], max_duration_s=1)
                     cpu_work[cpu][freq] = sysbench.output.nr_events
 
-        return cls(res_dir, cpu_work)
+        return cls(res_dir, te.plat_info, cpu_work)
 
     @classmethod
     def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None,

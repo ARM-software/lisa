@@ -71,8 +71,8 @@ class EASBehaviour(RTATestBundle, abc.ABC):
                 raise CannotCreateError(
                     "Can't set schedutil governor for domain {}".format(domain))
 
-        if not te.nrg_model:
-            raise CannotCreateError("Target doesn't have an energy model")
+        if 'nrg-model' not in te.plat_info:
+            raise CannotCreateError("Energy model not available")
 
     @classmethod
     def _from_testenv(cls, te, res_dir):

@@ -39,7 +39,6 @@ from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_nam
 from lisa.platform import PlatformInfo
 
 USERNAME_DEFAULT = 'root'
-PASSWORD_DEFAULT = ''
 ADB_PORT_DEFAULT = 5555
 SSH_PORT_DEFAULT = 22
 FTRACE_EVENTS_DEFAULT = ['sched:*']
@@ -233,11 +232,11 @@ class TestEnv(Loggable):
             conn_settings['port'] = target_conf.get('port', SSH_PORT_DEFAULT)
             conn_settings['host'] = target_conf['host']
 
-        # Configure password or SSH keyfile
+            # Configure password or SSH keyfile
             if 'keyfile' in target_conf:
                 conn_settings['keyfile'] = target_conf['keyfile']
-        else:
-                conn_settings['password'] = target_conf.get('password', PASSWORD_DEFAULT)
+            else:
+                conn_settings['password'] = target_conf.get('password', None)
         elif target_kind == 'host':
             logger.debug('Setting up localhost Linux target...')
             devlib_target_cls = devlib.LocalLinuxTarget
@@ -361,12 +360,11 @@ class TestEnv(Loggable):
             res_lnk = Path(BASEPATH, LATEST_LINK)
             with contextlib.suppress(FileNotFoundError):
                 res_lnk.unlink()
-            try:
-            res_lnk.symlink_to(res_dir)
+
             # There may be a race condition with another tool trying to create
             # the link
-            except FileExistsError:
-                pass
+            with contextlib.suppress(FileExistsError):
+                res_lnk.symlink_to(res_dir)
 
         return res_dir
 

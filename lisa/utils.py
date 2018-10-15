@@ -608,9 +608,13 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
         return mapping
 
     def _resolve_prio(self, key):
+        if key not in self._key_map:
+            return []
+
         # Get the priority list from the prio override list, or just the
         # default prio list
         src_list = self._src_override.get(key, self._src_prio)
+
         # Only include a source if it holds an actual value for that key
         src_list = [
             src for src in src_list
