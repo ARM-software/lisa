@@ -216,6 +216,13 @@ the name of the parameter, the start value, stop value and step size.""")
     callable_pool = adaptor.filter_callable_pool(callable_pool)
 
     op_pool = {engine.Operator(callable_) for callable_ in callable_pool}
+    op_pool = {
+        op for op in op_pool
+        # Only select operators with non-empty parameter list. This rules out
+        # all classes __init__ that do not take parameter, as they are
+        # typically not interesting to us.
+        if op.get_prototype()[0]
+    }
 
     # Force some parameter values to be provided with a specific callable
     patch_map = dict()

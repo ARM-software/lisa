@@ -1615,7 +1615,8 @@ class Operator:
             produced = self.unwrapped_callable
             # Get rid of "self", since annotating it with the class would lead to
             # infinite recursion when computing it signature. It will be handled
-            # by execute() directly.
+            # by execute() directly. Also, "self" is not a parameter of the
+            # class when it is called, so it makes sense not to include it.
             annotation_map.pop(first_param, None)
             extra_ignored_param.add(first_param)
 
