@@ -72,8 +72,8 @@ class LoadTrackingBase(RTATestBundle):
     Items are arguments to :meth:`devlib.cpufreq.use_governor`.
     """
 
-    def __init__(self, res_dir, rtapp_profile, cpu_capacities):
-        super().__init__(res_dir, rtapp_profile)
+    def __init__(self, res_dir, plat_info, rtapp_profile, cpu_capacities):
+        super().__init__(res_dir, plat_info, rtapp_profile)
 
         self.cpu_capacities = cpu_capacities
 
@@ -94,7 +94,7 @@ class LoadTrackingBase(RTATestBundle):
                 cls._run_rtapp(te, res_dir, rtapp_profile)
 
         caps = te.target.sched.get_capacities()
-        return cls(res_dir, rtapp_profile, caps)
+        return cls(res_dir, te.plat_info, rtapp_profile, caps)
 
     @classmethod
     def get_max_capa_cpu(cls, te):
