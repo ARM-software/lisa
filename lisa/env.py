@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Copyright (C) 2015, ARM Limited and contributors.
+# Copyright (C) 2018, ARM Limited and contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License.
@@ -302,7 +302,7 @@ class TestEnv(Loggable):
         target = devlib_target_cls(
             platform = devlib_platform,
             modules = devlib_module_list,
-                    load_default_modules = False,
+            load_default_modules = False,
             connection_settings = conn_settings,
             working_directory = target_workdir,
         )
