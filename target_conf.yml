@@ -1,0 +1,59 @@
+# target configuration
+#
+# Configuration required by devlib to connect to a target.
+#
+target-conf:
+    # Kind of platform
+    # - linux   : accessed via SSH connection
+    # - android : accessed via ADB connection
+    # - host    : run on the local host
+    kind : android
+
+    # Board
+    # Optional board name used for better prettier logs
+    # board: myboard
+
+    # Target IP or domain name
+    # host: 192.168.0.20
+
+    # Target Android device ID
+    # device: 00b1346f0878ccb1
+
+    # Login username (has to be sudo enabled)
+    username: root
+
+    # Login credentials
+    # You can specify either a password or keyfile
+    # password: "mypassword"
+    # keyfile: /complete/path/of/your/keyfile
+
+    # Optional ftrace configuration
+    # ftrace:
+        # Additional ftrace events and functions collected regardless of the
+        # test configuration
+        # events: []
+        # functions: []
+        #
+        # ftrace buffer size
+        # buffsize: 42
+
+    # Optional devlib configuration
+    # devlib:
+        # Devlib modules names to enable/disbale for all the experiment
+        # excluded-modules: []
+        #
+        # devlib Platform sublcass to use, with the keyword arguments to use it
+        # platform:
+            # Defaults to devlib.platform.Platform
+            # class: devlib.platform.Platform
+            # args:
+                # arg1: foo
+                # arg2: bar
+
+    # Optional additional binary tools to install by default for all experiments
+    # Currently available tools:
+    # - binaries under ./tools/<ARCH>/
+    #   where <ARCH> is one of the supported target
+    #   architectures
+    # - shell scripts under './tools/scripts/
+    # tools: []
