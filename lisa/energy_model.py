@@ -81,16 +81,6 @@ class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
     # helpers for yaml serialization
     yaml_tag = 'em_active_state:capacity,power'
 
-    @classmethod
-    def to_yaml(cls, representer, node):
-        return representer.represent_scalar(cls.yaml_tag,
-                '{.capacity},{.power}'.format(node, node))
-
-    @classmethod
-    def from_yaml(cls, constructor, node):
-        cap, power = (int(x) for x in node.value.split(','))
-        return cls(capacity=cap, power=power)
-
 class _CpuTree(Loggable):
     """Internal class. Abstract representation of a CPU topology.
 
