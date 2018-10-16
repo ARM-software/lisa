@@ -192,13 +192,17 @@ class TestEnv(Loggable):
 
     @classmethod
     def from_default_conf(cls):
-        path = os.getenv('LISA_CONF')
+        path = os.environ['LISA_CONF']
         return cls.from_one_conf(path)
 
     @classmethod
     def from_one_conf(cls, path):
         target_conf = TargetConf.from_yaml_map(path)
-        plat_info = PlatformInfo.from_yaml_map(path)
+        try:
+            plat_info = PlatformInfo.from_yaml_map(path)
+        except Exception as e:
+            cls.get_logger().warn('No platform information could be found: {}'.format(e))
+            plat_info = None
         return cls(target_conf=target_conf, plat_info=plat_info)
 
     def _init_target(self, target_conf, res_dir):
