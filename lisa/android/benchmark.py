@@ -23,7 +23,7 @@ import select
 from subprocess import Popen, PIPE
 from time import sleep
 
-from lisa.conf import setup_logging
+from lisa.utils import setup_logging
 from lisa.android import System, Workload
 from lisa.env import TestEnv
 from lisa.utils import memoized

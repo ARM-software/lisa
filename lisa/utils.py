@@ -22,6 +22,7 @@ from collections import OrderedDict
 import contextlib
 import inspect
 import logging
+import logging.config
 import functools
 import pickle
 import sys
@@ -32,6 +33,13 @@ import operator
 
 import ruamel.yaml
 from ruamel.yaml import YAML
+
+# Do not infer the value using __file__, since it will break later on when
+# lisa package is installed in the site-package locations using pip, which
+# are typically not writable.
+LISA_HOME = os.getenv('LISA_HOME')
+if not LISA_HOME:
+    logging.getLogger(__name__).warning('LISA_HOME env var is not set, LISA may misbehave.')
 
 class Loggable:
     """
@@ -894,5 +902,31 @@ class TypedList(GenericContainerBase, list, metaclass=GenericSequenceMeta):
     @staticmethod
     def _build(types):
         return TypedList[types]
+
+def setup_logging(filepath='logging.conf', level=logging.INFO):
+    """
+    Initialize logging used for all the LISA modules.
+
+    :param filepath: the relative or absolute path of the logging
+                     configuration to use. Relative path uses
+                     :attr:`lisa.utils.LISA_HOME` as base folder.
+    :type filepath: str
+
+    :param level: the default log level to enable, INFO by default
+    :type level: logging.<level> or int in [0..50]
+    """
+
+    # Load the specified logfile using an absolute path
+    if not os.path.isabs(filepath):
+        filepath = os.path.join(LISA_HOME, filepath)
+
+    if not os.path.exists(filepath):
+        raise ValueError('Logging configuration file not found in: {}'\
+                         .format(filepath))
+    logging.config.fileConfig(filepath)
+    logging.getLogger().setLevel(level)
+
+    logging.info('Using LISA logging configuration:')
+    logging.info('  %s', filepath)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

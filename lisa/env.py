@@ -33,8 +33,7 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
 from lisa.energy_meter import EnergyMeter
-from lisa.conf import BASEPATH
-from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, TypedList
+from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, TypedList, LISA_HOME
 
 from lisa.platform import PlatformInfo
 
@@ -165,9 +164,6 @@ class TestEnv(Loggable):
         self.plat_info = plat_info
 
         logger.info('Pre-configured platform information:\n%s', self.plat_info)
-
-        # Compute base installation path
-        logger.info('Using base path: %s', BASEPATH)
 
         self.ftrace = None
         self._installed_tools = set()
@@ -357,7 +353,10 @@ class TestEnv(Loggable):
         elif append_time:
             name = "{}-{}".format(name, time_str)
 
-        res_dir = os.path.join(BASEPATH, OUT_PREFIX, name)
+        res_dir = os.path.join(LISA_HOME, OUT_PREFIX, name)
+
+        # Compute base installation path
+        self.get_logger().info('Creating result directory: %s', res_dir)
 
         try:
             os.mkdir(res_dir)
@@ -365,7 +364,7 @@ class TestEnv(Loggable):
             pass
 
         if symlink:
-            res_lnk = Path(BASEPATH, LATEST_LINK)
+            res_lnk = Path(LISA_HOME, LATEST_LINK)
             with contextlib.suppress(FileNotFoundError):
                 res_lnk.unlink()
 
@@ -391,10 +390,10 @@ class TestEnv(Loggable):
 
         tools_to_install = []
         for tool in tools:
-            binary = '{}/tools/scripts/{}'.format(BASEPATH, tool)
+            binary = '{}/tools/scripts/{}'.format(LISA_HOME, tool)
             if not os.path.isfile(binary):
                 binary = '{}/tools/{}/{}'\
-                         .format(BASEPATH, self.target.abi, tool)
+                         .format(LISA_HOME, self.target.abi, tool)
             tools_to_install.append(binary)
 
         for tool_to_install in tools_to_install:
