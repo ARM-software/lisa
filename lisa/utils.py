@@ -134,8 +134,8 @@ class Serializable:
         yaml.default_flow_style = False
         yaml.indent = 4
         yaml.Constructor.add_constructor('!include', cls._yaml_include_constructor)
+        yaml.Constructor.add_constructor('!var', cls._yaml_var_constructor)
         yaml.Constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
-        yaml.Constructor.add_multi_constructor('!var:', cls._yaml.Constructor.construct_python_name)
         #TODO: remove that once the issue is fixed
         # Workaround for ruamel.yaml bug #244:
         # https://bitbucket.org/ruamel/yaml/issues/244
@@ -147,11 +147,12 @@ class Serializable:
         """
         Provide a !call tag in YAML that can be used to call a Python
         callable with a mapping of arguments:
+        # There is no space after "call:"
         !call:package.module.Class
             arg1: foo
             arg2: bar
             arg3: 42
-        is will execute: package.module.Class(arg1='foo', arg2='bar', arg3=42)
+        will execute: package.module.Class(arg1='foo', arg2='bar', arg3=42)
         """
         # Restrict to keyword arguments to have improve stability of
         # configuration files.
@@ -163,12 +164,26 @@ class Serializable:
         """
         Provide a !include tag in YAML that can be used to include the content of
         another YAML file. Environment variables are expanded in the given path.
+
+        !include: /foo/$ENV_VAR/bar.yml
         """
         path = loader.construct_scalar(node)
         assert isinstance(path, str)
         path = os.path.expandvars(path)
         with open(path, 'r', encoding=cls.YAML_ENCODING) as f:
             return cls._yaml.load(f)
+
+    @classmethod
+    def _yaml_var_constructor(cls, loader, node):
+        """
+        Provide a !var tag in YAML that can be used to reference a module-level
+        variable:
+
+        !var: package.module.var
+        """
+        varname = loader.construct_scalar(node)
+        assert isinstance(varname, str)
+        return loader.construct_python_name(varname, node)
 
     def to_path(self, filepath, fmt=None):
         """

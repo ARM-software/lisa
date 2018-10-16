@@ -57,3 +57,16 @@ target-conf:
     #   architectures
     # - shell scripts under './tools/scripts/
     # tools: []
+
+# Platform information
+#
+# Various bits of information about the platform used by LISA
+#
+platform-info:
+    # Include a preset platform-info file, instead of defining the keys directly here.
+    # Note that you cannot use !include and define keys at the same time.
+    !include: $LISA_HOME/lisa/platforms/juno_r0.yml
+    # conf:
+        # rtapp:
+            # # Calibration mapping of CPU numbers to calibration value for rtapp
+            # calib: {}

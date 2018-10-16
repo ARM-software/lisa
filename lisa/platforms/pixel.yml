@@ -31,4 +31,4 @@
 
 platform-info:
     conf:
-        nrg-model: !var:lisa.platforms.pixel.nrg_model
+        nrg-model: !var: lisa.platforms.pixel.nrg_model

@@ -1,4 +1,4 @@
 
 platform-info:
     conf:
-        nrg-model: !var:lisa.platforms.juno_r0.nrg_model
+        nrg-model: !var: lisa.platforms.juno_r0.nrg_model

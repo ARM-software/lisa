@@ -36,5 +36,5 @@
 #
 platform-info:
     conf:
-        nrg-model: !var:lisa.platforms.hikeey60.nrg_model
+        nrg-model: !var: lisa.platforms.hikey620.nrg_model
 
