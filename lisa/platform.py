@@ -19,6 +19,8 @@ import inspect
 import contextlib
 from collections import ChainMap
 from collections.abc import Mapping
+from numbers import Real
+
 from lisa.utils import HideExekallID, MultiSrcConf, memoized, TypedDict, TypedList, DeferredValue
 from lisa.energy_model import EnergyModel
 from lisa.wlgen.rta import RTA
@@ -38,6 +40,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             'calib': TypedDict[int, int],
         },
         'nrg-model': EnergyModel,
+        'cpu-capacities': TypedDict[int, Real],
         'kernel-version': KernelVersion,
         'abi': str,
         'os': str,
@@ -58,6 +61,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         target = te.target
         info = {
             'nrg-model': self._nrg_model_from_target(target),
+            'cpu-capacities': target.sched.get_capacities(),
             'kernel-version': target.kernel_version,
             'abi': target.abi,
             'os': target.os,
