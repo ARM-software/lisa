@@ -26,17 +26,12 @@ source src/shell/lisa_colors
 DEVMODE=${DEVMODE:-1}
 
 # Get base installation path of LISA
-export LISA_HOME="$(pwd)"
+export LISA_HOME="$(readlink -f "$(dirname "$BASH_SOURCE")/../")"
 
-export PYTHONPATH=''
-export PYTHONPATH=$LISA_HOME/libs/utils:$PYTHONPATH
-export PYTHONPATH=$LISA_HOME/libs/wlgen:$PYTHONPATH
-export PYTHONPATH=$LISA_HOME:$PYTHONPATH
-
+# In devmode, we provide the lisa package and some of its dependencies within
+# the git tree
 if [ "x$DEVMODE" == "x1" ]; then
-    export PYTHONPATH=$LISA_HOME/libs/devlib:$PYTHONPATH
-    export PYTHONPATH=$LISA_HOME/libs/trappy:$PYTHONPATH
-    export PYTHONPATH=$LISA_HOME/libs/bart:$PYTHONPATH
+  export PYTHONPATH="$LISA_HOME/modules_root/:$PYTHONPATH"
 fi
 
 ################################################################################
@@ -75,9 +70,6 @@ cat <<EOF
 .:: LISA ($(git describe --all))
 
 LISA commit: $(git rev-parse --short=11 HEAD)
-Submodules version:
-$(git submodule status)
-
 
 EOF
 echo -ne "$LISASHELL_DEFAULT"
@@ -91,19 +83,18 @@ function _lisa-update-usage {
     echo "Usage: lisa-update (CMD)"
     echo "  CMD: what to update (default: all)"
     echo "       all - update lisa and all the external dependencies"
-    echo "       submodules - update external dependencies provided by submodules"
+    echo "       subtrees - update external dependencies provided by subtrees"
     echo
-    echo "Update submodules (if DEVMODE enabled)"
+    echo "Update subtrees (if DEVMODE enabled)"
 }
 
-function _lisa-update-submodules {
+function _lisa-update-subtrees {
 echo -ne "${LISASHELL_BLUE}"
 if [ "x$DEVMODE" == "x1" ]; then
     # Force update existing modules
     echo
     echo 'Developer mode ENABLED, updating local libraries...'
-    git submodule sync
-    git submodule update --init
+    "$LISA_HOME/lisa_shell/for-each-subtree.py" "$LISA_HOME/external/subtrees.conf" --fetch pull --squash
     echo 'DONE'
 fi
 echo -ne "$LISASHELL_DEFAULT"
@@ -121,7 +112,7 @@ if [ $ret -ne 0 ]; then
     return $ret
 fi
 
-git diff-index --quiet --ignore-submodules HEAD
+git diff-index --quiet HEAD
 ret=$?
 if [ $ret -ne 0 ]; then
     echo "There are outstanding uncommitted changes."
@@ -150,8 +141,6 @@ if [ $ret -ne 0 ]; then
     return $ret
 fi
 
-_lisa-update-submodules
-
 echo -ne "$LISASHELL_DEFAULT"
 }
 
@@ -159,8 +148,8 @@ function lisa-update {
 CMD=${1:-all}
 echo
 case "x${CMD^^}" in
-'xSUBMODULES')
-    _lisa-update-submodules
+'xSUBTREES')
+    _lisa-update-subtrees
     ;;
 'xALL')
     _lisa-update-all
@@ -289,15 +278,6 @@ case "x${CMD^^}" in
 esac
 echo
 echo
-}
-
-function lisa-check-submods {
-if [ ! -f ./libs/devlib/setup.py ] ||
-   [ ! -f ./libs/bart/setup.py ] ||
-   [ ! -f ./libs/trappy/setup.py ]; then
-    echo "One or more submodules missing, updating";
-    lisa-update submodules
-fi
 }
 
 ################################################################################
@@ -475,7 +455,6 @@ virtualenv $WLTEST_VENV
 source $WLTEST_VENV/bin/activate
 
 # Clone Workload Automation and install it in the virtual environment
-_lisa-update-submodules
 pip install -e $WLTEST_WA
 pip install -e $WLTEST_DL
 
@@ -551,14 +530,6 @@ LISA_HOME  : $LISA_HOME
 PYTHONPATH :
 EOF
 echo -e "\t${PYTHONPATH//:/\\n\\t}"
-
-if [ "x$DEVMODE" == "x1" ]; then
-lisa-check-submods
-cat <<EOF
-Submodules :
-EOF
-git submodule status
-fi
 
 cat <<EOF
 
