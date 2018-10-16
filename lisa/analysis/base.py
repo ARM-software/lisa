@@ -51,7 +51,8 @@ class AnalysisBase(object):
         self._little_cpus = []
 
         if self._trace.has_big_little:
-            self._little_cap = plat_info['nrg-model']['little']['cpu']['cap_max']
+            nrg_model = plat_info['nrg-model']
+            self._little_cap = nrg_model.get_cpu_capacity(nrg_model.littlest_cpus[0])
 
         if ('clusters' in plat_info and
             'big' in plat_info['clusters'] and
