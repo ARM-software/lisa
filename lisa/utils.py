@@ -742,6 +742,9 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
             is_sublevel = k in self._sublevel_map
             if is_sublevel:
                 v = v.pretty_format(_level + 1)
+                # If there is no content, just skip that sublevel entirely
+                if not v.strip():
+                   continue
             else:
                 v = str(v)
 
