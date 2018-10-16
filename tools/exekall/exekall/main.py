@@ -629,16 +629,23 @@ the name of the parameter, the start value, stop value and step size.""")
                 return
 
             if reused:
-                msg='Reusing already computed {id} UUID={uuid}'
+                msg='Reusing already computed {id}{uuid}'
             else:
-                msg='Computed {id} UUID={uuid}'
+                msg='Computed {id}{uuid}'
+
+            uuid_val = (expr_val.value_uuid or expr_val.excep_uuid)
+            if uuid_val:
+                uuid_str = ' UUID={}'.format(uuid_val)
+            else:
+                uuid_str = ''
+
             info(msg.format(
                 id=expr_val.get_id(
                     full_qual=False,
                     with_tags=True,
                     hidden_callable_set=hidden_callable_set,
                 ),
-                uuid = expr_val.value_uuid
+                uuid = uuid_str
             ))
 
         executor = executor(log_expr_val)
