@@ -47,15 +47,11 @@ Time in seconds for util_avg to converge (i.e. ignored time)
 class LoadTrackingBase(RTATestBundle):
     """
     Base class for shared functionality of load tracking tests
-
-    :param cpu_capacities: A mapping of cpu number to their orig_capacity
-    :type rtapp_profile: dict(int)
     """
 
     ftrace_conf = {
         "events" : [
             "sched_switch",
-            "sched_wakeup",
             "sched_load_avg_task",
             "sched_load_avg_cpu",
             "sched_pelt_se",
@@ -71,11 +67,6 @@ class LoadTrackingBase(RTATestBundle):
     The cpufreq configuration used while the synthetic workload is being run.
     Items are arguments to :meth:`devlib.cpufreq.use_governor`.
     """
-
-    def __init__(self, res_dir, plat_info, rtapp_profile, cpu_capacities):
-        super().__init__(res_dir, plat_info, rtapp_profile)
-
-        self.cpu_capacities = cpu_capacities
 
     @classmethod
     def _from_testenv(cls, te, res_dir):
@@ -93,15 +84,14 @@ class LoadTrackingBase(RTATestBundle):
             with te.target.cpufreq.use_governor(**cls.cpufreq_conf):
                 cls._run_rtapp(te, res_dir, rtapp_profile)
 
-        caps = te.target.sched.get_capacities()
-        return cls(res_dir, te.plat_info, rtapp_profile, caps)
+        return cls(res_dir, te.plat_info, rtapp_profile)
 
     @classmethod
     def get_max_capa_cpu(cls, te):
         """
         :returns: A CPU with the highest capacity value
         """
-        cpu_capacities = te.target.sched.get_capacities()
+        cpu_capacities = te.plat_info['cpu-capacities']
         return max(cpu_capacities.keys(), key=lambda cpu: cpu_capacities[cpu])
 
     @classmethod
@@ -241,10 +231,11 @@ class CpuInvarianceTest(LoadTrackingBase):
         """
         # Find duty cycle of the workload task
         duty_cycle_pct = self.get_task_duty_cycle_pct(trace, task_name, cpu)
-        capacity = capacity or self.cpu_capacities[cpu]
+        cpu_capacities = self.plat_info['cpu-capacities']
+        capacity = capacity or cpu_capacities[cpu]
 
         # Scale the relative CPU/freq capacity into the range 0..1
-        scaling_factor = capacity / max(self.cpu_capacities.values())
+        scaling_factor = capacity / max(cpu_capacities.values())
         return UTIL_SCALE * (duty_cycle_pct / 100) * scaling_factor
 
     def _test_task_signal(self, signal_name, allowed_error_pct,
@@ -315,9 +306,8 @@ class FreqInvarianceTest(CpuInvarianceTest):
 
     task_prefix = 'fie'
 
-    def __init__(self, res_dir, rtapp_profile, cpu_capacities,
-                 frequencies):
-        super().__init__(res_dir, rtapp_profile, cpu_capacities)
+    def __init__(self, res_dir, plat_info, rtapp_profile, frequencies):
+        super().__init__(res_dir, plat_info, rtapp_profile)
 
         self.frequencies = frequencies
 
@@ -364,8 +354,7 @@ class FreqInvarianceTest(CpuInvarianceTest):
                 te.target.cpufreq.set_frequency(cpu, freq)
                 cls._run_rtapp(te, iter_dir, rtapp_profile)
 
-        caps = te.target.sched.get_capacities()
-        return cls(res_dir, rtapp_profile, caps, freqs)
+        return cls(res_dir, te.plat_info, rtapp_profile, freqs)
 
     def get_trace(self, freq):
         """
@@ -383,7 +372,7 @@ class FreqInvarianceTest(CpuInvarianceTest):
             for freq in self.frequencies:
                 cpu = task.phases[0].cpus[0]
                 # Scale the capacity linearly according to the frequency
-                capacity = self.cpu_capacities[cpu] * (freq / max(self.frequencies))
+                capacity = self.plat_info['cpu-capacities'][cpu] * (freq / max(self.frequencies))
                 trace = self.get_trace(freq)
 
                 ok, exp_util, signal_mean = self._test_task_signal(

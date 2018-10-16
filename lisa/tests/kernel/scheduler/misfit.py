@@ -113,9 +113,10 @@ class StaggeredFinishes(MisfitMigrationBase):
     rq->avg_idle > sysctl_sched_migration_cost
     """
 
-    def __init__(self, res_dir, plat_info, rtapp_profile, cpu_capacities):
+    def __init__(self, res_dir, plat_info, rtapp_profile):
         super().__init__(res_dir, plat_info, rtapp_profile)
-        self.cpu_capacities = cpu_capacities
+
+        cpu_capacities = plat_info['cpu-capacities']
 
         cpu_classes = {}
         for cpu, capacity in cpu_capacities.items():
@@ -159,14 +160,6 @@ class StaggeredFinishes(MisfitMigrationBase):
         if not cls._has_asym_cpucapacity(te):
             raise CannotCreateError(
                 "Target doesn't have SD_ASYM_CPUCAPACITY on any sched_domain")
-
-    @classmethod
-    def _from_testenv(cls, te, res_dir):
-        rtapp_profile = cls.get_rtapp_profile(te)
-        cls._run_rtapp(te, res_dir, rtapp_profile)
-
-        cpu_capacities = te.target.sched.get_capacities()
-        return cls(res_dir, te.plat_info, rtapp_profile, cpu_capacities)
 
     @classmethod
     def get_rtapp_profile(cls, te):
