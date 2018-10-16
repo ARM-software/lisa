@@ -8,3 +8,6 @@
         # "modules" : ["bl", "cpufreq"]
     # }
 # }
+
+platform-info: {}
+

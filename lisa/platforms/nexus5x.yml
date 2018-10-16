@@ -6,3 +6,6 @@
         # "big_core" : "A57",
     # }
 # }
+
+platform-info: {}
+

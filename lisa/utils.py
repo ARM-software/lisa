@@ -135,6 +135,7 @@ class Serializable:
         yaml.indent = 4
         yaml.Constructor.add_constructor('!include', cls._yaml_include_constructor)
         yaml.Constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
+        yaml.Constructor.add_multi_constructor('!var:', cls._yaml.Constructor.construct_python_name)
         #TODO: remove that once the issue is fixed
         # Workaround for ruamel.yaml bug #244:
         # https://bitbucket.org/ruamel/yaml/issues/244
@@ -468,7 +469,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
 
     @classmethod
     def from_map(cls, mapping):
-        conf = mapping['conf']
+        conf = mapping.get('conf', {})
         src_override = mapping.get('source', {})
 
         plat_conf = cls(conf)
