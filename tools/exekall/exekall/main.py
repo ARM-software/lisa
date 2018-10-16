@@ -596,7 +596,7 @@ the name of the parameter, the start value, stop value and step size.""")
     out('\n')
     result_map = collections.defaultdict(list)
     for testcase, executor in engine.Expression.get_executor_map(testcase_list).items():
-        exec_start_msg = 'Executing: {short_id}\n\nFull ID: {full_id}\nArtifacts: {folder}'.format(
+        exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}'.format(
                 short_id=take_first(testcase.get_id(
                     hidden_callable_set=hidden_callable_set,
                     full_qual = False
@@ -683,12 +683,9 @@ the name of the parameter, the start value, stop value and step size.""")
                 )
             ))
             prefix = 'Full ID: '
-            #TODO: turn these prints into logs output, so they end up on the
-            # same stderr or file as the logging output
             out('{prefix}{id}{uuid_str}'.format(
                 id=result.get_id(
                     mark_excep=True,
-                    hidden_callable_set=hidden_callable_set
                 ).strip().replace('\n', '\n'+len(prefix)*' '),
                 prefix=prefix,
                 uuid_str = uuid_str
