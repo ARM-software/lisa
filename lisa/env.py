@@ -35,7 +35,7 @@ from lisa.wlgen.rta import RTA
 from lisa.energy_meter import EnergyMeter
 from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, TypedList, LISA_HOME
 
-from lisa.platform import PlatformInfo
+from lisa.platforms.platinfo import PlatformInfo
 
 USERNAME_DEFAULT = 'root'
 ADB_PORT_DEFAULT = 5555

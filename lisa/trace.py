@@ -32,7 +32,7 @@ from functools import reduce
 
 from lisa.analysis.proxy import AnalysisProxy
 from lisa.utils import Loggable, memoized
-from lisa.platform import PlatformInfo
+from lisa.platforms.platinfo import PlatformInfo
 from devlib.target import KernelVersion
 from trappy.utils import listify, handle_duplicate_index
 

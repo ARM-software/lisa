@@ -39,7 +39,7 @@ from trappy.utils import handle_duplicate_index
 
 from IPython.display import display
 
-from lisa.platform import PlatformInfo
+from lisa.platforms.platinfo import PlatformInfo
 from lisa.trace import Trace
 from lisa.git import Git
 from lisa.utils import Loggable, memoized

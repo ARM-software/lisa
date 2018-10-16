@@ -30,7 +30,7 @@ from lisa.perf_analysis import PerfAnalysis
 
 from lisa.utils import Serializable, memoized
 from lisa.env import TestEnv, ArtifactPath
-from lisa.platform import PlatformInfo
+from lisa.platforms.platinfo import PlatformInfo
 
 class TestMetric:
     """

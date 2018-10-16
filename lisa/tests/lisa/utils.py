@@ -22,7 +22,7 @@ import shutil
 from devlib.target import KernelVersion
 
 from lisa.env import TestEnv, TargetConf
-from lisa.platform import PlatformInfo
+from lisa.platforms.platinfo import PlatformInfo
 
 
 HOST_TARGET_CONF = TargetConf({

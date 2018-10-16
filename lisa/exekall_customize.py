@@ -28,7 +28,7 @@ import xml.etree.ElementTree as ET
 import traceback
 
 from lisa.env import TargetConf, ArtifactPath
-from lisa.platform import PlatformInfo
+from lisa.platforms.platinfo import PlatformInfo
 from lisa.utils import HideExekallID, Loggable
 from lisa.tests.kernel.test_bundle import Result, ResultBundle, CannotCreateError
 

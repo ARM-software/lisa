@@ -25,7 +25,7 @@ from devlib.target import KernelVersion
 
 from lisa.energy_model import (EnergyModel, ActiveState, EnergyModelCapacityError,
                                EnergyModelNode, EnergyModelRoot, PowerDomain)
-from lisa.platform import PlatformInfo
+from lisa.platforms.platinfo import PlatformInfo
 from lisa.trace import Trace
 from lisa.tests.lisa.utils import StorageTestCase
 
