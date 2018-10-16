@@ -664,6 +664,9 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
                 if isinstance(val, cls):
                     self._eval_deferred_val(src_, key)
 
+        for sublevel in self._sublevel_map.values():
+            sublevel.eval_deferred(cls, src)
+
     def __getstate__(self):
         # Filter-out DeferredValue key-value pairs before serialization
         key_map = {
@@ -780,7 +783,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
         return iter(self._get_effective_map())
 
     def __len__(self):
-        return len(self._get_effective_map())
+        return len(self._key_map) + len(self._sublevel_map)
 
 class GenericContainerMetaBase(type):
     def __instancecheck__(cls, instance):
