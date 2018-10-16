@@ -163,6 +163,7 @@ class TestEnv(Loggable):
             # one we were passed when adding the target source to it
             plat_info = copy.copy(plat_info)
         self.plat_info = plat_info
+
         logger.info('Pre-configured platform information:\n%s', self.plat_info)
 
         # Compute base installation path

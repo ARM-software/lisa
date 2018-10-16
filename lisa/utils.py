@@ -740,18 +740,14 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
             for src in self._resolve_prio(key)
         )
 
-    def pretty_format(self, eval_deferred=False, _level=1):
+    def pretty_format(self, eval_deferred=False):
         out = []
         idt_style = ' '
-        idt_str = idt_style * _level
         for k, v in self.items(eval_deferred=eval_deferred):
             v_cls = type(v)
             is_sublevel = k in self._sublevel_map
             if is_sublevel:
-                v = v.pretty_format(
-                    eval_deferred=eval_deferred,
-                    _level=_level + 1
-                )
+                v = v.pretty_format(eval_deferred=eval_deferred)
                 # If there is no content, just skip that sublevel entirely
                 if not v.strip():
                    continue
@@ -764,13 +760,13 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
                 v = ' ' + v
 
             if is_sublevel:
-                k_str = ' + ' + k
-                v_prefix = '   '
+                k_str = '+- ' + k
+                v_prefix = '    '
             else:
-                k_str = ' |-' + k
-                v_prefix = ' | '
+                k_str = '|- ' + k
+                v_prefix = '|   '
 
-            v = v.replace('\n', '\n' + v_prefix + idt_str)
+            v = v.replace('\n', '\n' + v_prefix)
 
             out.append('{k}{src}{cls}:{v}'.format(
                 k=k_str,
