@@ -70,10 +70,11 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
                 'calib': DeferredValue(RTA.get_cpu_calibrations, te)
             }
         }
+        return self.add_src(src, info, filter_none=True, **kwargs)
 
     #TODO: kill that once code depending on this has been converted to
     # using the appropriate "root" data, instead of these derived values.
-    def add_from_em(self, nrg_model=None, **kwargs):
+    def add_from_nrg_model_src(self, nrg_model=None, src='from-nrg-model', **kwargs):
         # Derive all the deprecated keys from the nrg_model
         nrg_model = nrg_model or self['nrg-model']
         node_groups = nrg_model.node_groups
@@ -124,7 +125,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             'freqs': freqs,
         }
 
-        return self.add_src('em-derived', info, filter_none=True, **kwargs)
+        return self.add_src(src, info, filter_none=True, **kwargs)
 
     @property
     def tags(self):
