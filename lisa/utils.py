@@ -365,6 +365,9 @@ class DeferredValue:
     def __call__(self):
         return self.callback(*self.args, **self.kwargs)
 
+    def __str__(self):
+        return '<lazy value of {}>'.format(self.callback.__qualname__)
+
 class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
     @abc.abstractmethod
     def STRUCTURE():
@@ -593,11 +596,11 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
                 override[key] = sublevel_override
         return override
 
-    def _get_effective_map(self):
+    def _get_effective_map(self, eval_deferred=True):
         mapping = {}
         for key in self._key_map.keys():
             try:
-                val = self.get_key(key)
+                val = self.get_key(key, eval_deferred=eval_deferred)
             # If the source of that key does not exist, we just ignore it
             except KeyError:
                 pass
@@ -605,7 +608,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
                 mapping[key] = val
 
         mapping.update(
-            (key, sublevel._get_effective_map())
+            (key, sublevel._get_effective_map(eval_deferred=eval_deferred))
             for key, sublevel in self._sublevel_map.items()
         )
 
@@ -650,9 +653,10 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
 
     def _eval_deferred_val(self, src, key):
         val = self._key_map[key][src]
-        val = val()
-        self.validate_val(key, val)
-        self._key_map[key][src] = val
+        if isinstance(val, DeferredValue):
+            val = val()
+            self.validate_val(key, val)
+            self._key_map[key][src] = val
         return val
 
 
@@ -687,7 +691,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
 
         return state
 
-    def get_key(self, key, src=None):
+    def get_key(self, key, src=None, eval_deferred=True):
         self._check_allowed_key(key)
 
         with contextlib.suppress(KeyError):
@@ -708,7 +712,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
                 cls=cls_name,
             ))
 
-        if isinstance(val, DeferredValue):
+        if eval_deferred:
             val = self._eval_deferred_val(src, key)
 
         frame_conf = inspect.stack()[2]
@@ -723,7 +727,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
         ))
         return val
 
-    def get_values(self, key):
+    def get_src_map(self, key):
         self._check_allowed_key(key)
         if self._is_sublevel_key(key):
             raise ValueError('Key "{key}" is a nested configuration level in {cls}, it does not have a source on its own.'.format(
@@ -732,19 +736,22 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
             ))
 
         return OrderedDict(
-            (src, self._key_map[key][src])
+            (src, self._eval_deferred_val(src, key))
             for src in self._resolve_prio(key)
         )
 
-    def pretty_format(self, _level=1):
+    def pretty_format(self, eval_deferred=False, _level=1):
         out = []
         idt_style = ' '
         idt_str = idt_style * _level
-        for k, v in self.items():
+        for k, v in self.items(eval_deferred=eval_deferred):
             v_cls = type(v)
             is_sublevel = k in self._sublevel_map
             if is_sublevel:
-                v = v.pretty_format(_level + 1)
+                v = v.pretty_format(
+                    eval_deferred=eval_deferred,
+                    _level=_level + 1
+                )
                 # If there is no content, just skip that sublevel entirely
                 if not v.strip():
                    continue
@@ -779,11 +786,20 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
     def __getitem__(self, key):
         return self.get_key(key)
 
+    def _get_key_names(self):
+        return list(self._key_map.keys()) + list(self._sublevel_map.keys())
+
     def __iter__(self):
-        return iter(self._get_effective_map())
+        return iter(self._get_key_names())
 
     def __len__(self):
-        return len(self._key_map) + len(self._sublevel_map)
+        return len(self._get_key_names())
+
+    def items(self, eval_deferred=True):
+        return (
+            (k, self.get_key(k, eval_deferred=eval_deferred))
+            for k in self.keys()
+        )
 
 class GenericContainerMetaBase(type):
     def __instancecheck__(cls, instance):
