@@ -1,0 +1,29 @@
+# {
+    # "board" : {
+        # "cores" : [
+            # "Silver", "Silver", "Gold", "Gold"
+        # ],
+        # "big_core" : "Gold",
+        # "modules" : ["bl", "cpufreq"]
+    # },
+    # "nrg_model" : {
+        # "little" : {
+            # "cpu" : {
+                # "nrg_max" :  925,
+                # "cap_max" :  763,
+            # },
+            # "cluster" : {
+                # "nrg_max" :  52
+            # }
+        # },
+        # "big": {
+            # "cpu" : {
+                # "nrg_max" :  1715,
+                # "cap_max" :  1024
+            # },
+            # "cluster" : {
+                # "nrg_max" :  96
+            # }
+        # }
+    # }
+# }

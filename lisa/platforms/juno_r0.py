@@ -90,7 +90,7 @@ def a57_cpu_node(cpu):
                            active_states=a57_cpu_active_states,
                            idle_states=a57_cpu_idle_states)
 
-juno_r0_energy = EnergyModel(
+nrg_model = EnergyModel(
     root_node=EnergyModelRoot(
         children=[
             EnergyModelNode(

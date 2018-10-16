@@ -29,12 +29,6 @@ from lisa.platform import PlatformInfo
 from lisa.trace import Trace
 from lisa.tests.lisa.utils import StorageTestCase
 
-# Import these just to test that they can be constructed
-# pylint: disable=unused-import
-import lisa.platforms.juno_r0_energy
-import lisa.platforms.pixel_energy
-import lisa.platforms.hikey_energy
-
 """ A very basic test suite for the EnergyModel class."""
 
 # WARNING!

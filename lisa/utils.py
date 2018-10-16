@@ -440,6 +440,10 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
             for key, sublevel in new._sublevel_map.items()
         }
 
+        # fixup _parent
+        for sublevel in new._sublevel_map.values():
+           sublevel._parent = new
+
         return new
 
     def to_map(self):
@@ -478,7 +482,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
         for key, val in conf.items():
             self.validate_val(key, val)
 
-    def get_sublevel(self, key):
+    def _get_sublevel(self, key):
         return self._sublevel_map[key]
 
     def _is_sublevel_key(self, key):
@@ -499,7 +503,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
 
         # If that key is supposed to be a level of nested keys
         if self._is_sublevel_key(key):
-            return self.get_sublevel(key).validate_src(val)
+            return self._get_sublevel(key).validate_src(val)
         # Or if that key is supposed to hold a value
         else:
             cls = self._structure[key]
@@ -540,7 +544,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
             if self._is_sublevel_key(key):
                 # sublevels have already been initialized when the root object
                 # was created.
-                self.get_sublevel(key).add_src(src, val, filter_none=filter_none, fallback=fallback)
+                self._get_sublevel(key).add_src(src, val, filter_none=filter_none, fallback=fallback)
             # Otherwise that is a leaf value that we store at that level
             else:
                 self._key_map.setdefault(key, {})[src] = val
@@ -561,7 +565,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
         for key, src_or_map in key_src_map.items():
             if self._is_sublevel_key(key):
                 mapping = src_or_map
-                self.get_sublevel(key).force_src_nested(mapping)
+                self._get_sublevel(key).force_src_nested(mapping)
             else:
                 self.force_src(key, src_or_map)
 
@@ -684,7 +688,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
         self._check_allowed_key(key)
 
         with contextlib.suppress(KeyError):
-            return self.get_sublevel(key)
+            return self._get_sublevel(key)
 
         cls_name = type(self).__qualname__
         key_name = self._get_key_name(key)

@@ -32,7 +32,7 @@ from devlib import Platform
 from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
-from lisa.energy import EnergyMeter
+from lisa.energy_meter import EnergyMeter
 from lisa.conf import BASEPATH
 from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, TypedList
 
@@ -145,7 +145,7 @@ class TestEnv(Loggable):
     freeze when using :meth:`freeze_userspace`.
     """
 
-    def __init__(self, target_conf:TargetConf, plat_info:PlatformInfo, res_dir:ArtifactPath=None):
+    def __init__(self, target_conf:TargetConf, plat_info:PlatformInfo=None, res_dir:ArtifactPath=None):
         super().__init__()
         logger = self.get_logger()
 
@@ -156,10 +156,13 @@ class TestEnv(Loggable):
         self.target_conf = target_conf
         logger.debug('Target configuration %s', self.target_conf)
 
-        # Make a copy of the PlatformInfo so we don't modify the original one we
-        # were passed when adding the target source to it
-        self.plat_info = copy.copy(plat_info)
-
+        if plat_info is None:
+            plat_info = PlatformInfo()
+        else:
+            # Make a copy of the PlatformInfo so we don't modify the original
+            # one we were passed when adding the target source to it
+            plat_info = copy.copy(plat_info)
+        self.plat_info = plat_info
         logger.info('Pre-configured platform information:\n%s', self.plat_info)
 
         # Compute base installation path
@@ -182,6 +185,10 @@ class TestEnv(Loggable):
         # initialized. Expensive computations are deferred so they will only be
         # computed when actually needed.
         self.plat_info.add_target_src(self, fallback=True)
+
+        # Update the PlatformInfo with keys derived from the energy model
+        with contextlib.suppress(KeyError):
+            self.plat_info.add_from_em()
 
         logger.info('Effective platform information:\n%s', self.plat_info)
 

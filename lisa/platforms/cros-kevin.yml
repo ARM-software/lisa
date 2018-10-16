@@ -1,0 +1,29 @@
+# {
+    # "board" : {
+	# "cores" : [
+	    # "A53", "A53", "A53", "A53",
+	    # "A72", "A72"
+	# ],
+	# "big_core" : "A72",
+    # },
+    # "nrg_model": {
+	# "big": {
+	    # "cluster": {
+		# "nrg_max": 78
+	    # },
+	    # "cpu": {
+		# "cap_max": 1024,
+		# "nrg_max": 1893
+	    # }
+	# },
+	# "little": {
+	    # "cluster": {
+		# "nrg_max": 56
+	    # },
+	    # "cpu": {
+		# "cap_max": 472,
+		# "nrg_max": 215
+	    # }
+	# }
+    # }
+# }

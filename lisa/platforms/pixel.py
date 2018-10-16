@@ -150,7 +150,7 @@ def gold_cpu_node(cpu):
 def cpu_pd(cpu):
     return PowerDomain(cpu=cpu, idle_states=["WFI", "cpu-sleep-0"])
 
-pixel_energy = EnergyModel(
+nrg_model = EnergyModel(
     root_node=EnergyModelRoot(children=[
         EnergyModelNode(name='cluster_silver',
                         children=[silver_cpu_node(c) for c in silvers],

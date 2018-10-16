@@ -1,0 +1,23 @@
+# {
+    # // TC2 Energy Model
+    # "nrg_model" : {
+        # "little" : {
+            # "cpu" : {
+                # "nrg_max" :  1024,
+                # "cap_max" :   430
+            # },
+            # "cluster" : {
+                # "nrg_max" :  4905
+            # }
+        # },
+        # "big": {
+            # "cpu" : {
+                # "nrg_max" :  6997,
+                # "cap_max" :  1024
+            # },
+            # "cluster" : {
+                # "nrg_max" : 15200
+            # }
+        # }
+    # }
+# }

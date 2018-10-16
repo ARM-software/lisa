@@ -1,0 +1,30 @@
+# {
+    # "board" : {
+        # "cores" : [
+            # "A53", "A53", "A53", "A53",
+            # "A73", "A73", "A73", "A73"
+        # ],
+        # "big_core" : "A73",
+        # "modules" : ["bl", "cpufreq", "cpuidle"]
+    # },
+    # "nrg_model": {
+        # "big": {
+            # "cluster": {
+                # "nrg_max": 433
+            # },
+            # "cpu": {
+                # "cap_max": 1024,
+                # "nrg_max": 2848
+            # }
+        # },
+        # "little": {
+            # "cluster": {
+                # "nrg_max": 144
+            # },
+            # "cpu": {
+                # "cap_max": 462,
+                # "nrg_max": 502
+            # }
+        # }
+    # },
+# }

@@ -52,7 +52,7 @@ def cpu_node(cpu):
     return EnergyModelNode(cpu=cpu,
                            active_states=cpu_active_states,
                            idle_states=cpu_idle_states)
-hikey_energy = EnergyModel(
+nrg_model = EnergyModel(
     root_node=EnergyModelRoot(children=[
         EnergyModelNode(name='cluster0',
                         children=[cpu_node(c) for c in [0, 1, 2, 3]],
