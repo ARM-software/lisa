@@ -1636,7 +1636,7 @@ class Operator:
             annotation_map.pop(first_param, None)
             extra_ignored_param.add(first_param)
 
-        # If it is just a function
+        # If it is any other callable
         else:
             # When we have a method, we fill the annotations of the 1st
             # parameter with the name of the class it is defined in
@@ -1664,6 +1664,7 @@ class Operator:
                     op = self.callable_,
                 ))
 
+        # Iterate over keys and values of "mapping" in the same order as "keys"
         def iter_by_keys(mapping, keys):
             for key in keys:
                 try:
@@ -1671,6 +1672,7 @@ class Operator:
                 except KeyError:
                     pass
 
+        # Use an OrderedDict to retain the declaration order of parameters
         param_map = OrderedDict(
             (name, annotation)
             for name, annotation in iter_by_keys(annotation_map, sig.parameters.keys())
