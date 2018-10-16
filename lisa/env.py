@@ -62,6 +62,7 @@ class TargetConf(MultiSrcConf, HideExekallID):
         'username': str,
         'password': str,
         'port': int,
+        'device': str,
         'keyfile': str,
         'workdir': str,
         'tools': TypedList[str],
