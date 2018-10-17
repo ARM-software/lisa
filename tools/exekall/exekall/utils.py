@@ -345,7 +345,8 @@ def unique_type(*param_list):
     return decorator
 
 # Call the given function at most once per set of parameters
-once = functools.lru_cache()
+def once(callable_):
+    return functools.lru_cache(maxsize=None, typed=True)(callable_)
 
 def iterate_cb(iterator, pre_hook=None, post_hook=None):
     with contextlib.suppress(StopIteration):
