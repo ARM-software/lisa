@@ -31,7 +31,7 @@ setup(
     license='LICENSE.txt',
     description='A stick to probe the kernel with',
     long_description=long_description,
-    python_requires='>= 3.4',
+    python_requires='>= 3.5',
     install_requires=[
         "Cython >= 0.25.1",
         "psutil >= 4.4.2",
