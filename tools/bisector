@@ -62,11 +62,6 @@ import xml.etree.ElementTree as ET
 import ruamel.yaml
 
 yaml = ruamel.yaml.YAML(typ='unsafe')
-# Without that, escape sequences are used to represent unicode characters in
-# plain ascii.
-yaml.allow_unicode = True
-yaml.default_flow_style = False
-yaml.indent = 4
 
 # If these modules are not available, DBus features will not be used.
 ENABLE_DBUS = True
@@ -971,19 +966,7 @@ def get_steps_kwarg_parsers(cls, method_name):
 
     method = getattr(cls, method_name)
     meth_options = cls.options.get(method_name, dict())
-
-    # We get the signature to get the list of arguments
-    sig = inspect.signature(method)
-
-    # Only override the parameters specified in the options dict of the class
-    kwarg_parser_map = {
-        name: meth_options[name]
-        for name, param in sig.parameters.items()
-        if name in meth_options
-    }
-
-    return kwarg_parser_map
-
+    return meth_options
 
 def get_step_kwargs(step_cat, step_name, cls, method_name, user_options):
     """
@@ -1057,30 +1040,38 @@ class StepMeta(abc.ABCMeta, type(Serializable)):
             # Some arguments may not be present, but we want the exception to
             # raised when the method is called to make it more obvious.
 
-            all_args = dict()
+            bound_args = sig.bind_partial(*args, **kwargs)
+
+            # For Python >= 3.5, using apply_defaults instead of the below code
+            # is preferable.
+            #  bound_args.apply_defaults()
+            default_args = dict()
             # Equivalent to BoundArguments.apply_defaults() but works for
             # Python 3.4
             argspec = inspect.getfullargspec(method)
             if argspec.defaults:
-                all_args.update(zip(reversed(argspec.args), reversed(argspec.defaults)))
+                default_args.update(zip(reversed(argspec.args), reversed(argspec.defaults)))
             if argspec.kwonlydefaults:
-                all_args.update(argspec.kwonlydefaults)
-
-            bound_args = sig.bind_partial(*args, **kwargs)
-            # For Python >= 3.5, using apply_defaults instead of the above code
-            # is preferable.
-            #  bound_args.apply_defaults()
-            all_args.update(bound_args.arguments)
+                default_args.update(argspec.kwonlydefaults)
+            # arguments already set, so we don't override these ones with
+            # default values
+            set_names = set(bound_args.arguments.keys())
+            bound_args.arguments.update(
+                (name, default)
+                for name, default in default_args.items()
+                # Only add values that are not already set
+                if name not in set_names
+            )
 
             # Preprocess the values when they are an str
             for param, parser in parser_map.items():
                 try:
-                    val = all_args[param]
+                    val = bound_args.arguments[param]
                 except KeyError:
                     continue
 
                 try:
-                    all_args[param] = parser.parse(val)
+                    bound_args.arguments[param] = parser.parse(val)
                 except Exception as e:
                     raise ValueError('Invalid value format "{val}" for option "{param}": {e}'.format(
                         e = e,
@@ -1089,8 +1080,18 @@ class StepMeta(abc.ABCMeta, type(Serializable)):
                     )) from e
 
             # Call the wrapped method with the preprocessed values.
-            return method(**all_args)
+            return method(*bound_args.args, **bound_args.kwargs)
         return wrapper
+
+class IterationCounterStack(list):
+    """list subclass that can be pretty printed as dot-separated list.
+    This is intended to be used for nested iteration counters.
+    """
+    def __format__(self, fmt):
+        return str(self).__format__(fmt)
+
+    def __str__(self):
+        return '.'.join(str(i) for i in self)
 
 class StepABC(Serializable, metaclass=StepMeta):
     """
@@ -1450,7 +1451,7 @@ class StepBase(StepABC):
         out = MLString(empty=not show_basic)
         out('command: {cmd}'.format(cmd=self.cmd))
 
-        for i_stack, i_str, res in step_res_seq:
+        for i_stack, res in step_res_seq:
             # Ignore the iterations we are not interested in
             if considered_iteration_set and i_stack[0] not in considered_iteration_set:
                 continue
@@ -1484,15 +1485,66 @@ class StepBase(StepABC):
                     or res.bisect_ret == BisectRet.NA)
                 ):
                 if not ignore_non_issue:
-                    out('#{i_str: <2}: OK'.format(i_str=i_str))
+                    out('#{i_stack: <2}: OK'.format(i_stack=i_stack))
             else:
-                out('#{i_str: <2}: returned {ret}, bisect {res.bisect_ret.lower_name}'.format(
+                out('#{i_stack: <2}: returned {ret}, bisect {res.bisect_ret.lower_name}'.format(
                     ret = res.ret if res.ret is not None else '<timeout>',
                     res = res,
-                    i_str = i_str,
+                    i_stack = i_stack,
                 ))
 
         return out
+
+class YieldStep(StepBase):
+    """
+    Abort current iteration.
+
+    If the specified command returns a non-zero return code, bisector will
+    abort the current iteration.
+    """
+    yaml_tag = '!yield-step'
+
+    attr_init = dict(
+        cat = 'yield',
+        name = 'yield',
+        every_n_iterations = 1,
+        cmd = 'exit 1',
+    )
+
+    options = dict(
+        __init__ = dict(
+            every_n_iterations = IntParam('The step will be a no-op except if the iteration number can be evenly divided by that value.'),
+            **StepBase.options['__init__']
+        )
+    )
+
+    def __init__(self,
+            every_n_iterations = Default,
+            **kwargs
+        ):
+        super().__init__(**kwargs)
+        self.every_n_iterations = every_n_iterations
+
+    def run(self, i_stack, service_hub):
+        skipped = bool(i_stack[-1] % self.every_n_iterations)
+        if not skipped:
+            res_list = self._run_cmd(i_stack)
+
+            # Return value is the one from the last trial
+            ret = res_list[-1][0]
+            bisect_ret = BisectRet.ABORT if ret != 0 else BisectRet.NA
+            step_res = StepResult(
+                step = self,
+                res_list = res_list,
+                bisect_ret = bisect_ret,
+            )
+        else:
+            step_res = StepResult(
+                step = self,
+                res_list = [(0, b'<skipped>')],
+                bisect_ret = BisectRet.NA,
+            )
+        return step_res
 
 class ShellStep(StepBase):
     """
@@ -1703,22 +1755,15 @@ class ExekallLISATestStep(ShellStep):
     options = dict(
         __init__ = dict(
             compress_artifact = BoolParam('compress the exekall artifact directory in an archive'),
-            cmd = StepBase.options['__init__']['cmd'],
-            shell = StepBase.options['__init__']['shell'],
-            trials = StepBase.options['__init__']['trials'],
-            timeout = StepBase.options['__init__']['timeout'],
-            kill_timeout = StepBase.options['__init__']['kill_timeout'],
-            bail_out = StepBase.options['__init__']['bail_out'],
-            use_systemd_run = StepBase.options['__init__']['use_systemd_run'],
-            env = StepBase.options['__init__']['env'],
             upload_artifact = BoolParam('upload the exekall artifact directory to Artifactorial as the execution goes, and delete the local archive.'),
+            **StepBase.options['__init__'],
         ),
         report_results = dict(
             verbose = StepBase.options['report_results']['verbose'],
             show_basic = StepBase.options['report_results']['show_basic'],
             iterations = StepBase.options['report_results']['iterations'],
-            show_rates = BoolParam('show percentages of failure, error, skipped, noisy and passed tests'),
-            show_dist = BoolParam('show graphical distribution of issues among iterations with a one letter code: passed=".", failed="F", error="#", skipped="s", noisy="n"'),
+            show_rates = BoolParam('show percentages of failure, error, skipped, undecided and passed tests'),
+            show_dist = BoolParam('show graphical distribution of issues among iterations with a one letter code: passed=".", failed="F", error="#", skipped="s", undecided="u"'),
             show_pass_rate = BoolParam('always show the pass rate of tests, even when there are failures or crashes as well'),
             show_details = ChoiceOrBoolParam(['msg'], 'show details of results. Use "msg" for only a brief message'),
             show_artifact_dirs = BoolParam('show exekall artifact directory for all iterations'),
@@ -1734,28 +1779,12 @@ class ExekallLISATestStep(ShellStep):
 
     )
 
-    def __init__(self, name=Default, cat=Default,
+    def __init__(self,
             compress_artifact = Default,
-            cmd = Default,
-            shell = Default,
-            trials = Default,
-            timeout = Default,
-            kill_timeout = Default,
-            bail_out = Default,
-            use_systemd_run = Default,
-            env = Default,
-            upload_artifact = Default
+            upload_artifact = Default,
+            **kwargs,
         ):
-        super().__init__(name=name, cat=cat,
-            cmd=cmd,
-            trials=trials,
-            timeout=timeout,
-            kill_timeout=kill_timeout,
-            shell=shell,
-            bail_out=bail_out,
-            use_systemd_run=use_systemd_run,
-            env=env,
-        )
+        super().__init__(**kwargs)
 
         self.upload_artifact = upload_artifact
         # upload_artifact implies compress_artifact, in order to have an
@@ -1919,7 +1948,7 @@ class ExekallLISATestStep(ShellStep):
             max(res[0][-1] for res in step_res_seq)
         )
         for step_res_item in step_res_seq:
-            i_stack, i_str, step_res = step_res_item
+            i_stack, step_res = step_res_item
 
             # Ignore the iterations we are not interested in
             if considered_iteration_set and i_stack[0] not in considered_iteration_set:
@@ -1931,7 +1960,7 @@ class ExekallLISATestStep(ShellStep):
             if not xunit:
                 warn("Empty LISA's xUnit for {step_name} step, iteration {i}".format(
                     step_name = step_res.step.name,
-                    i = i_str
+                    i = i_stack
                 ))
                 continue
 
@@ -1957,7 +1986,6 @@ class ExekallLISATestStep(ShellStep):
                     entry = {
                         'testsuite': testsuite_name,
                         'testcase_id': testcase_id,
-                        'i_str': i_str,
                         'i_stack': i_stack,
                         'results_path': step_res.results_path,
                     }
@@ -1967,7 +1995,7 @@ class ExekallLISATestStep(ShellStep):
                     for et_subtag in et_testcase:
                         tag = et_subtag.tag
                         if tag in (
-                            'passed', 'failure', 'skipped', 'noisy', 'error'
+                            'passed', 'failure', 'skipped', 'undecided', 'error'
                         ):
                             entry['result'] = tag
 
@@ -2012,7 +2040,7 @@ class ExekallLISATestStep(ShellStep):
             out('Results directories:')
 
         # Apply processing on selected results
-        for i_stack, i_str, step_res in step_res_seq:
+        for i_stack, step_res in step_res_seq:
 
             # Upload the results and update the result path
             if upload_artifact and os.path.exists(step_res.results_path):
@@ -2027,7 +2055,7 @@ class ExekallLISATestStep(ShellStep):
                     error('No upload service available, could not upload LISA results.')
 
             if show_artifact_dir:
-                out('    #{i_str: <2}: {step_res.results_path}'.format(**locals()))
+                out('    #{i_stack: <2}: {step_res.results_path}'.format(**locals()))
 
             # Accumulate the results path to a file, that can be used to garbage
             # collect all results path that are not referenced by any report.
@@ -2106,7 +2134,7 @@ class ExekallLISATestStep(ShellStep):
             for issue, pretty_issue in (
                     ('passed', 'passed'),
                     ('skipped', 'skipped'),
-                    ('noisy', 'noisy'),
+                    ('undecided', 'undecided'),
                     ('failure', 'FAILED'),
                     ('error', 'CRASHED'),
                 ):
@@ -2143,7 +2171,7 @@ class ExekallLISATestStep(ShellStep):
 
                 if show_details and not (ignore_non_issue and issue == 'passed'):
                     for entry in filtered_entry_list:
-                        i_str = entry['i_str']
+                        i_stack = entry['i_stack']
                         results_path = '\n' + entry['results_path'] if show_artifact_dir else ''
                         exception_name, short_msg, msg = entry['details']
 
@@ -2158,7 +2186,7 @@ class ExekallLISATestStep(ShellStep):
                             msg += ' '
 
                         table_out(
-                            '   #{i_str: <2}) {short_msg} ({exception_name}){results_path}{msg}'.format(**locals()).replace('\n', '\n\t')
+                            '   #{i_stack: <2}) {short_msg} ({exception_name}){results_path}{msg}'.format(**locals()).replace('\n', '\n\t')
                         )
 
             iterations_summary = stats['iterations_summary']
@@ -2167,7 +2195,7 @@ class ExekallLISATestStep(ShellStep):
                     'passed': '.',
                     'failure': 'F',
                     'skipped': 's',
-                    'noisy': 'n',
+                    'undecided': 'u',
                     'error': '#',
                 }
                 iterations_summary = [
@@ -2201,7 +2229,7 @@ class ExekallLISATestStep(ShellStep):
         out(
             'Crashed: {counts[error]}/{total}, '
             'Failed: {counts[failure]}/{total}, '
-            'Noisy: {counts[noisy]}/{total}, '
+            'Undecided: {counts[undecided]}/{total}, '
             'Skipped: {counts[skipped]}/{total}, '
             'Passed: {counts[passed]}/{total}'.format(**locals())
         )
@@ -2235,15 +2263,8 @@ class LISATestStep(ShellStep):
     options = dict(
         __init__ = dict(
             compress_results = BoolParam('compress the LISA result directory in an archive'),
-            cmd = StepBase.options['__init__']['cmd'],
-            shell = StepBase.options['__init__']['shell'],
-            trials = StepBase.options['__init__']['trials'],
-            timeout = StepBase.options['__init__']['timeout'],
-            kill_timeout = StepBase.options['__init__']['kill_timeout'],
-            bail_out = StepBase.options['__init__']['bail_out'],
-            use_systemd_run = StepBase.options['__init__']['use_systemd_run'],
-            env = StepBase.options['__init__']['env'],
             upload_results = BoolParam('upload the LISA results directory to Artifactorial as the execution goes, and delete the local archive.'),
+            **StepBase.options['__init__'],
         ),
         report_results = dict(
             verbose = StepBase.options['report_results']['verbose'],
@@ -2266,28 +2287,12 @@ class LISATestStep(ShellStep):
 
     )
 
-    def __init__(self, name=Default, cat=Default,
+    def __init__(self,
             compress_results = Default,
-            cmd = Default,
-            shell = Default,
-            trials = Default,
-            timeout = Default,
-            kill_timeout = Default,
-            bail_out = Default,
-            use_systemd_run = Default,
-            env = Default,
-            upload_results = Default
+            upload_results = Default,
+            **kwargs,
         ):
-        super().__init__(name=name, cat=cat,
-            cmd=cmd,
-            trials=trials,
-            timeout=timeout,
-            kill_timeout=kill_timeout,
-            shell=shell,
-            bail_out=bail_out,
-            use_systemd_run=use_systemd_run,
-            env=env,
-        )
+        super().__init__(**kwargs)
         self.upload_results = upload_results
         # upload_results implies compress_results, in order to have an archive
         # instead of a folder
@@ -2441,7 +2446,7 @@ class LISATestStep(ShellStep):
             max(res[0][-1] for res in step_res_seq)
         )
         for step_res_item in step_res_seq:
-            i_stack, i_str, step_res = step_res_item
+            i_stack, step_res = step_res_item
 
             # Ignore the iterations we are not interested in
             if considered_iteration_set and i_stack[0] not in considered_iteration_set:
@@ -2453,7 +2458,7 @@ class LISATestStep(ShellStep):
             if not xunit:
                 warn("Empty nosetest's xUnit for {step_name} step, iteration {i}".format(
                     step_name = step_res.step.name,
-                    i = i_str
+                    i = i_stack
                 ))
                 continue
 
@@ -2477,7 +2482,6 @@ class LISATestStep(ShellStep):
 
                 entry_list = list()
                 res_entry = {
-                    'i_str': i_str,
                     'i_stack': i_stack,
                     'results_path': step_res.results_path,
                 }
@@ -2520,7 +2524,7 @@ class LISATestStep(ShellStep):
             out('Results directories:')
 
         # Apply processing on selected results
-        for i_stack, i_str, step_res in step_res_seq:
+        for i_stack, step_res in step_res_seq:
 
             # Upload the results and update the result path
             if upload_results and os.path.exists(step_res.results_path):
@@ -2535,7 +2539,7 @@ class LISATestStep(ShellStep):
                     error('No upload service available, could not upload LISA results.')
 
             if show_results_dir:
-                out('    #{i_str: <2}: {step_res.results_path}'.format(**locals()))
+                out('    #{i_stack: <2}: {step_res.results_path}'.format(**locals()))
 
             # Accumulate the results path to a file, that can be used to garbage
             # collect all results path that are not referenced by any report.
@@ -2642,7 +2646,7 @@ class LISATestStep(ShellStep):
                         )
                     if show_details:
                         for res in issue_list:
-                            i_str = res['i_str']
+                            i_stack = res['i_stack']
                             results_path = '\n' + res['results_path'] if show_results_dir else ''
                             exception_name, msg, content = res[issue]
 
@@ -2659,7 +2663,7 @@ class LISATestStep(ShellStep):
                                 msg += ' '
 
                             table_out(
-                                '   #{i_str: <2}) {msg}({exception_name}){results_path}{content}'.format(**locals()).replace('\n', '\n\t')
+                                '   #{i_stack: <2}) {msg}({exception_name}){results_path}{content}'.format(**locals()).replace('\n', '\n\t')
                             )
 
             iterations_summary = testcase_stats[testcase_id]['iterations_summary']
@@ -3320,15 +3324,12 @@ class MacroStep(StepBase):
     def _run_steps(self, i_stack, service_hub):
         step_res_list = list()
 
-        i_str = '.'.join(str(i) for i in i_stack)
-        info('Starting {self.cat} step ({self.name}) iteration #{i} ...'.format(i=i_str, self=self))
+        info('Starting {self.cat} step ({self.name}) iteration #{i} ...'.format(i=i_stack, self=self))
 
         # Run the steps
         begin_ts = time.monotonic()
         for step in self.steps_list:
-            # Pass down some MacroStep-specific parameters
             res = step.run(i_stack, service_hub)
-
             step_res_list.append(res)
 
             # If the bisect must be aborted, there is no point in carrying over,
@@ -3348,7 +3349,7 @@ class MacroStep(StepBase):
         end_ts = time.monotonic()
         delta_ts = end_ts - begin_ts
         info('{self.cat} step ({self.name}) iteration #{i} executed in {delta_ts}.'.format(
-            i = i_str,
+            i = i_stack,
             delta_ts = datetime.timedelta(seconds=delta_ts),
             self = self,
         ))
@@ -3413,7 +3414,7 @@ class MacroStep(StepBase):
             if slave_manager:
                 slave_manager.signal.State = 'running'
 
-            for i_, i in enumerate(self.iteration_range(start=iteration_start)):
+            for i in self.iteration_range(start=iteration_start):
                 # Save the report after each iteration, to make early results
                 # available. We store BisectRet.UNTESTABLE since we have not
                 # completed yet, so it is not significant.
@@ -3428,7 +3429,8 @@ class MacroStep(StepBase):
                     if url is not None:
                         slave_manager.signal.ReportPath = url
 
-                res = self._run_steps([i], service_hub)
+                i_stack = IterationCounterStack([i])
+                res = self._run_steps(i_stack, service_hub)
                 res_list.append(res)
 
                 # Propagate ABORT
@@ -3496,7 +3498,7 @@ class MacroStep(StepBase):
         steps_set = set(steps_list)
 
         step_res_map = collections.defaultdict(list)
-        for i_stack, i_str, macrostep_res in macrostep_res_seq:
+        for i_stack, macrostep_res in macrostep_res_seq:
             if not macrostep_res.res_list:
                 return 'No iteration information found for {self.cat} step ({self.name}).'.format(self=self)
 
@@ -3504,7 +3506,6 @@ class MacroStep(StepBase):
                 i += 1
                 i_stack_ = copy.copy(i_stack)
                 i_stack_.append(i)
-                i_str = '.'.join(str(i) for i in i_stack_)
                 for step_res in macrostep_i_res.steps_res:
                     step = step_res.step
                     # Ignore steps that are not part of the list
@@ -3512,7 +3513,7 @@ class MacroStep(StepBase):
                         continue
 
                     # Get the step result and the associated iteration number
-                    step_res_map[step].append((i_stack_, i_str, step_res))
+                    step_res_map[step].append((i_stack_, step_res))
 
         # Display the steps in the right order
         for step in steps_list:
@@ -3544,7 +3545,7 @@ class MacroStep(StepBase):
             # so that it has a chance to modify the results.
             bisect_ret = StepSeqResult(
                 step,
-                (res[2] for res in step_res_list),
+                (res[1] for res in step_res_list),
             ).bisect_ret
 
             out('{step.cat}/{step.name} ({step.__class__.name}) [{bisect_ret}]'.format(
@@ -3813,11 +3814,17 @@ def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
 
     return report.bisect_ret.value, report
 
-def init_pyyaml(relative_root):
+def init_yaml(yaml, relative_root):
     """
     Initialize pyyaml to allow transparent loading and dumping of
     OrderedDict, as well as an !include tag to include another file.
     """
+    # Without that, escape sequences are used to represent unicode characters in
+    # plain ascii.
+    yaml.allow_unicode = True
+    yaml.default_flow_style = False
+    yaml.indent = 4
+
     # Allow !include tag to include other files. Relative paths are relative
     # to the folder of the root yaml file. Absolute paths are used as-is.
     # Environments variables are expanded in the path.
@@ -3832,7 +3839,7 @@ def init_pyyaml(relative_root):
         with open(path, 'r') as f:
             return yaml.load(f)
 
-    ruamel.yaml.add_constructor('!include', include_constructor)
+    yaml.Constructor.add_constructor('!include', include_constructor)
 
     # Use OrderedDict as default mapping objects
     def map_representer(dumper, data):
@@ -3841,15 +3848,15 @@ def init_pyyaml(relative_root):
     def map_constructor(loader, node):
         return collections.OrderedDict(loader.construct_pairs(node))
 
-    ruamel.yaml.add_representer(collections.OrderedDict, map_representer)
-    ruamel.yaml.add_constructor(yaml.resolver.DEFAULT_MAPPING_TAG, map_constructor)
+    yaml.Representer.add_representer(collections.OrderedDict, map_representer)
+    yaml.Constructor.add_constructor(yaml.resolver.DEFAULT_MAPPING_TAG, map_constructor)
 
     # Use block style for multiline strings
     def str_presenter(dumper, data):
         style = '|' if '\n' in data else None
         return dumper.represent_scalar('tag:yaml.org,2002:str', data, style=style)
 
-    ruamel.yaml.add_representer(str, str_presenter)
+    yaml.Representer.add_representer(str, str_presenter)
 
 # Compute the SHA1 of the script itself, to identify the version of the tool
 # that was used to generate a given report.
@@ -4160,7 +4167,7 @@ class Report(Serializable):
         out('Description: {self.description}'.format(self=self))
         out('Creation time: {self.creation_time}\n'.format(self=self))
         out(self.result.step.report_results(
-            [([], '', self.result)],
+            [(IterationCounterStack(), self.result)],
             service_hub = service_hub,
             steps_filter = steps_filter,
             *args, **kwargs
@@ -5261,7 +5268,7 @@ command line""")
 
     steps_path = args.steps
     relative_root = get_relative_root(steps_path)
-    init_pyyaml(relative_root)
+    init_yaml(yaml, relative_root)
     report_path = format_placeholders(args.report, placeholder_map)
     step_options = parse_step_options(args.option)
 
