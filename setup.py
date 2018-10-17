@@ -50,6 +50,10 @@ setup(
             "ipython",
             "jupyter"
         ],
+        "doc": [
+            "sphinx",
+            "sphinx_rtd_theme"
+        ]
     }
 )
 
