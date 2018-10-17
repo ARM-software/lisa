@@ -1,0 +1,6 @@
+*.pyc
+.ipynb_checkpoints
+example_trace_dat*
+/dist/
+/build/
+/bart_py.egg-info/

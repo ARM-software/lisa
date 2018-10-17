@@ -1,0 +1,7 @@
+version = 6
+CPU 3 is empty
+CPU 4 is empty
+cpus=6
+              ls-4734  [002] 106439.675591: sched_switch:         trace-cmd:4734 [120] R ==> migration/2:18 [0]
+     migration/2-18    [002] 106439.675613: sched_switch:         migration/2:18 [0] S ==> trace-cmd:4732 [120]
+       trace-cmd-4731  [001] 106439.675698: sched_switch:         trace-cmd:4731 [120] S ==> trace-cmd:4730 [120]
