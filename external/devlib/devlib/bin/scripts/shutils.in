@@ -1,0 +1,351 @@
+#!__DEVLIB_SHELL__
+
+CMD=$1
+shift
+
+BUSYBOX=${BUSYBOX:-__DEVLIB_BUSYBOX__}
+FIND=${FIND:-$BUSYBOX find}
+GREP=${GREP:-$BUSYBOX grep}
+SED=${SED:-$BUSYBOX sed}
+CAT=${CAT:-$BUSYBOX cat}
+AWK=${AWK:-$BUSYBOX awk}
+PS=${PS:-$BUSYBOX ps}
+
+################################################################################
+# CPUFrequency Utility Functions
+################################################################################
+
+cpufreq_set_all_frequencies() {
+	FREQ=$1
+	for CPU in /sys/devices/system/cpu/cpu[0-9]*; do
+		echo $FREQ > $CPU/cpufreq/scaling_cur_freq
+	done
+}
+
+cpufreq_get_all_frequencies() {
+	$GREP '' /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq | \
+		$SED -e 's|/sys/devices/system/cpu/cpu||' -e 's|/cpufreq/scaling_cur_freq:| |'
+}
+
+cpufreq_set_all_governors() {
+	GOV=$1
+	for CPU in /sys/devices/system/cpu/cpu[0-9]*; do
+		echo $GOV > $CPU/cpufreq/scaling_governor
+	done
+}
+
+cpufreq_get_all_governors() {
+	$GREP '' /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor | \
+		$SED -e 's|/sys/devices/system/cpu/cpu||' -e 's|/cpufreq/scaling_governor:| |'
+}
+
+cpufreq_trace_all_frequencies() {
+	FREQS=$($CAT /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq)
+	CPU=0; for F in $FREQS; do
+		echo "cpu_frequency_devlib:        state=$F cpu_id=$CPU" > /sys/kernel/debug/tracing/trace_marker
+		CPU=$((CPU + 1))
+	done
+}
+
+################################################################################
+# DevFrequency Utility Functions
+################################################################################
+
+devfreq_set_all_frequencies() {
+	FREQ=$1
+	for DEV in /sys/class/devfreq/*; do
+		echo $FREQ > $DEV/min_freq
+		echo $FREQ > $DEV/max_freq
+	done
+}
+
+devfreq_get_all_frequencies() {
+	for DEV in /sys/class/devfreq/*; do
+		echo "`basename $DEV` `cat $DEV/cur_freq`"
+	done
+}
+
+devfreq_set_all_governors() {
+	GOV=$1
+	for DEV in /sys/class/devfreq/*; do
+		echo $GOV > $DEV/governor
+	done
+}
+
+devfreq_get_all_governors() {
+	for DEV in /sys/class/devfreq/*; do
+		echo "`basename $DEV` `cat $DEV/governor`"
+	done
+}
+
+################################################################################
+# CPUIdle Utility Functions
+################################################################################
+
+cpuidle_wake_all_cpus() {
+	CPU_PATHS=/sys/devices/system/cpu/cpu[0-9]*
+	MASK=0x1; for F in $CPU_PATHS; do
+		$BUSYBOX taskset $MASK true &
+		MASK=$($BUSYBOX printf '0x%x' $((MASK * 2)))
+	done
+}
+
+################################################################################
+# FTrace Utility Functions
+################################################################################
+
+ftrace_get_function_stats() {
+    for CPU in $(ls /sys/kernel/debug/tracing/trace_stat | sed 's/function//'); do
+        REPLACE_STRING="s/  Function/\n  Function (CPU$CPU)/"
+        $CAT /sys/kernel/debug/tracing/trace_stat/function$CPU \
+            | sed "$REPLACE_STRING"
+    done
+}
+
+
+################################################################################
+# CGroups Utility Functions
+################################################################################
+
+cgroups_get_attributes() {
+	test $# -eq 2 || exit -1
+	CGROUP="$1"
+	CONTROLLER="$2"
+	# Check if controller is mounted with "noprefix" option, which is quite
+	# common on Android for backward compatibility
+	ls $CGROUP/$CONTROLLER\.* 2>&1 >/dev/null
+	if [ $? -eq 0 ]; then
+		# no "noprefix" option, attributes format is:
+		#   mnt_point/controller.attribute_name
+		$GREP '' $CGROUP/* | \
+			$GREP "$CONTROLLER\." | \
+			$SED -e "s|$CONTROLLER\.||" -e "s|$CGROUP/||"
+	else
+		# "noprefix" option, attribute format is:
+		#   mnt_point/attribute_name
+		$GREP '' $(\
+			$FIND $CGROUP -type f -maxdepth 1 |
+			$GREP -v -e ".*tasks" -e ".*cgroup\..*") | \
+		$SED "s|$CGROUP/||"
+	fi
+}
+
+cgroups_run_into() {
+
+	# Control groups mount point
+	CGMOUNT=${CGMOUNT:-/sys/fs/cgroup}
+	# The control group we want to run into
+	CGP=${1}
+	shift 1
+	# The command to run
+	CMD="${@}"
+
+	# Execution under root CGgroup
+	if [ "x/" == "x$CGP" ]; then
+
+	  $FIND $CGMOUNT -type d -maxdepth 0 | \
+	  while read CGPATH; do
+		# Move this shell into that control group
+		echo $$ > $CGPATH/cgroup.procs
+		echo "Moving task into root CGroup ($CGPATH)"
+	  done
+
+	# Execution under specified CGroup
+	else
+
+	  # Check if the required CGroup exists
+	  $FIND $CGMOUNT -type d -mindepth 1 | \
+	  $GREP -E "^$CGMOUNT/devlib_cgh[0-9]{1,2}$CGP" &>/dev/null
+	  if [ $? -ne 0 ]; then
+		echo "ERROR: could not find any $CGP cgroup under $CGMOUNT"
+		exit 1
+	  fi
+
+	  $FIND $CGMOUNT -type d -mindepth 1 | \
+	  $GREP -E "^$CGMOUNT/devlib_cgh[0-9]{1,2}$CGP$" | \
+	  while read CGPATH; do
+		  # Move this shell into that control group
+		  echo $$ > $CGPATH/cgroup.procs
+		  echo "Moving task into $CGPATH"
+	  done
+
+	fi
+
+	# Execute the command
+	exec $CMD
+
+}
+
+cgroups_tasks_move() {
+	SRC_GRP=${1}
+	DST_GRP=${2}
+	shift 2
+	FILTERS=$*
+
+	$CAT $SRC_GRP/tasks | while read TID; do
+	  echo $TID > $DST_GRP/cgroup.procs
+	done
+
+	[ "x$FILTERS" = "x" ] && exit 0
+
+	PIDS=`$PS -o comm,pid | $GREP $FILTERS | $AWK '{print $2}'`
+	PIDS=`echo $PIDS`
+	echo "PIDs to save: [$PIDS]"
+	for TID in $PIDS; do
+	  COMM=`$CAT /proc/$TID/comm`
+	  echo "$TID : $COMM"
+	  echo $TID > $SRC_GRP/cgroup.procs || true
+	done
+}
+
+cgroups_tasks_in() {
+	GRP=${1}
+	for TID in $($CAT $GRP/tasks); do
+		COMM=`$CAT /proc/$TID/comm 2>/dev/null`
+		[ "$COMM" != "" ] && CMDL=`$CAT /proc/$TID/cmdline 2>/dev/null`
+		[ "$COMM" != "" ] && echo "$TID,$COMM,$CMDL"
+	done
+	exit 0
+}
+
+cgroups_freezer_set_state() {
+    STATE=${1}
+    SYSFS_ENTRY=${2}/freezer.state
+
+    # Set the state of the freezer
+    echo $STATE > $SYSFS_ENTRY
+
+    # And check it applied cleanly
+    for i in `seq 1 10`; do
+        [ $($CAT $SYSFS_ENTRY) = $STATE ] && exit 0
+        sleep 1
+    done
+
+    # We have an issue
+    echo "ERROR: Freezer stalled while changing state to \"$STATE\"." >&2
+    exit 1
+}
+
+################################################################################
+# Hotplug
+################################################################################
+
+hotplug_online_all() {
+    for path in /sys/devices/system/cpu/cpu[0-9]*; do
+        if [ $(cat $path/online) -eq 0 ]; then
+            echo 1 > $path/online
+        fi
+    done
+}
+
+################################################################################
+# Misc
+################################################################################
+
+read_tree_values() {
+    BASEPATH=$1
+    MAXDEPTH=$2
+
+    if [ ! -e $BASEPATH ]; then
+        echo "ERROR: $BASEPATH does not exist"
+        exit 1
+    fi
+
+    PATHS=$($BUSYBOX find $BASEPATH -follow -maxdepth $MAXDEPTH)
+    i=0
+    for path in $PATHS; do
+        i=$(expr $i + 1)
+        if [ $i -gt 1 ]; then
+            break;
+        fi
+    done
+    if [ $i -gt 1 ]; then
+        $BUSYBOX grep -s '' $PATHS
+    fi
+}
+
+get_linux_system_id() {
+	kernel=$($BUSYBOX uname -r)
+	hardware=$($BUSYBOX ip a | $BUSYBOX grep 'link/ether' | $BUSYBOX sed 's/://g' | $BUSYBOX awk '{print $2}' | $BUSYBOX tr -d '\n')
+	filesystem=$(ls /dev/disk/by-uuid | $BUSYBOX tr '\n' '-' | $BUSYBOX sed 's/-$//')
+	echo "$hardware/$kernel/$filesystem"
+}
+
+get_android_system_id() {
+	kernel=$($BUSYBOX uname -r)
+	hardware=$($BUSYBOX ip a | $BUSYBOX grep 'link/ether' | $BUSYBOX sed 's/://g' | $BUSYBOX awk '{print $2}' | $BUSYBOX tr -d '\n')
+	filesystem=$(content query --uri content://settings/secure --projection value --where "name='android_id'" | $BUSYBOX cut -f2 -d=)
+	echo "$hardware/$kernel/$filesystem"
+}
+
+################################################################################
+# Main Function Dispatcher
+################################################################################
+
+case $CMD in
+cpufreq_set_all_frequencies)
+    cpufreq_set_all_frequencies $*
+    ;;
+cpufreq_get_all_frequencies)
+    cpufreq_get_all_frequencies
+    ;;
+cpufreq_set_all_governors)
+    cpufreq_set_all_governors $*
+    ;;
+cpufreq_get_all_governors)
+    cpufreq_get_all_governors
+    ;;
+cpufreq_trace_all_frequencies)
+    cpufreq_trace_all_frequencies $*
+    ;;
+devfreq_set_all_frequencies)
+    devfreq_set_all_frequencies $*
+    ;;
+devfreq_get_all_frequencies)
+    devfreq_get_all_frequencies
+    ;;
+devfreq_set_all_governors)
+    devfreq_set_all_governors $*
+    ;;
+devfreq_get_all_governors)
+    devfreq_get_all_governors
+    ;;
+cpuidle_wake_all_cpus)
+    cpuidle_wake_all_cpus $*
+    ;;
+cgroups_get_attributes)
+	cgroups_get_attributes $*
+	;;
+cgroups_run_into)
+    cgroups_run_into $*
+    ;;
+cgroups_tasks_move)
+	cgroups_tasks_move $*
+	;;
+cgroups_tasks_in)
+	cgroups_tasks_in $*
+	;;
+cgroups_freezer_set_state)
+	cgroups_freezer_set_state $*
+	;;
+ftrace_get_function_stats)
+    ftrace_get_function_stats
+    ;;
+hotplug_online_all)
+	hotplug_online_all
+    ;;
+read_tree_values)
+	read_tree_values $*
+    ;;
+get_linux_system_id)
+	get_linux_system_id $*
+    ;;
+get_android_system_id)
+	get_android_system_id $*
+    ;;
+*)
+    echo "Command [$CMD] not supported"
+    exit -1
+esac
+
+# vim: tabstop=4 shiftwidth=4
