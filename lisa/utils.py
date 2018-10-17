@@ -165,7 +165,7 @@ class Serializable:
         Provide a !include tag in YAML that can be used to include the content of
         another YAML file. Environment variables are expanded in the given path.
 
-        !include: /foo/$ENV_VAR/bar.yml
+        !include /foo/$ENV_VAR/bar.yml
         """
         path = loader.construct_scalar(node)
         assert isinstance(path, str)
@@ -179,7 +179,7 @@ class Serializable:
         Provide a !var tag in YAML that can be used to reference a module-level
         variable:
 
-        !var: package.module.var
+        !var package.module.var
         """
         varname = loader.construct_scalar(node)
         assert isinstance(varname, str)
