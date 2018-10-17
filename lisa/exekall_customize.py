@@ -176,24 +176,19 @@ class LISAAdaptor(AdaptorBase):
         # Add symlinks to artifact folders for ExprValue that were used in the
         # ExprValue graph, but were initially computed for another Expression
         if isinstance(val, ArtifactStorage):
-            try:
-                # If the folder is already a subfolder of our artifacts, we
-                # don't need to do anything
-                val.relative_to(testcase_artifact_dir)
-            # Otherwise, that means that such folder is reachable from our
-            # parent ExprValue and we want to get a symlink to them
-            except ValueError:
+            val = Path(val)
+            is_subfolder = (testcase_artifact_dir.resolve() in val.resolve().parents)
+            # The folder is reachable from our ExprValue, but is not a
+            # subfolder of the testcase_artifact_dir, so we want to get a
+            # symlink to it
+            if not is_subfolder:
                 # We get the name of the callable
                 callable_folder = val.parts[-2]
                 folder = testcase_artifact_dir/callable_folder
 
-                # TODO: check os.path.relpath
                 # We build a relative path back in the hierarchy to the root of
                 # all artifacts
-                relative_artifact_dir = Path(*(
-                    '..' for part in
-                    folder.relative_to(artifact_dir).parts
-                ))
+                relative_artifact_dir = Path(os.path.relpath(artifact_dir, start=folder))
 
                 # The target needs to be a relative symlink, so we replace the
                 # absolute artifact_dir by a relative version of it
