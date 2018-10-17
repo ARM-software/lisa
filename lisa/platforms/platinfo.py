@@ -61,7 +61,6 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         target = te.target
         info = {
             'nrg-model': self._nrg_model_from_target(target),
-            'cpu-capacities': target.sched.get_capacities(default=1024),
             'kernel-version': target.kernel_version,
             'abi': target.abi,
             'os': target.os,
@@ -70,6 +69,10 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
                 'calib': DeferredValue(RTA.get_cpu_calibrations, te)
             }
         }
+
+        if 'sched' in target.modules:
+            info['cpu-capacities'] = target.sched.get_capacities(default=1024)
+
         return self.add_src(src, info, filter_none=True, **kwargs)
 
     #TODO: kill that once code depending on this has been converted to
