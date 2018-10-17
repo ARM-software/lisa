@@ -42,7 +42,7 @@ ADB_PORT_DEFAULT = 5555
 SSH_PORT_DEFAULT = 22
 FTRACE_EVENTS_DEFAULT = ['sched:*']
 FTRACE_BUFSIZE_DEFAULT = 10240
-OUT_PREFIX = 'results'
+RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
 DEFAULT_DEVLIB_MODULES = ['sched', 'cpufreq', 'cpuidle']
 
@@ -149,9 +149,14 @@ class TestEnv(Loggable):
         super().__init__()
         logger = self.get_logger()
 
+        if not res_dir:
+            res_dir_name = datetime.now().strftime('TestEnv_%Y%m%d_%H%M%S.%f')
+            res_dir = os.path.join(LISA_HOME, RESULT_DIR, res_dir_name)
+
         # That res_dir is for the exclusive use of TestEnv itself, it must not
         # be used by users of TestEnv
         self._res_dir = res_dir
+        os.makedirs(self._res_dir, exist_ok=True)
 
         self.target_conf = target_conf
         logger.debug('Target configuration %s', self.target_conf)
@@ -358,7 +363,7 @@ class TestEnv(Loggable):
         elif append_time:
             name = "{}-{}".format(name, time_str)
 
-        res_dir = os.path.join(LISA_HOME, OUT_PREFIX, name)
+        res_dir = os.path.join(self._res_dir, name)
 
         # Compute base installation path
         self.get_logger().info('Creating result directory: %s', res_dir)
