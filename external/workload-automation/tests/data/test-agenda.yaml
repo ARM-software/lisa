@@ -1,0 +1,25 @@
+global: 
+        iterations: 8
+        boot_parameters:
+                os_mode: mp_a15_bootcluster
+        runtime_parameters:
+                a7_governor: Interactive
+                a15_governor: Interactive2
+                a7_cores: 3
+                a15_cores: 2
+workloads:
+        - id: 1c
+          workload_name: exoplayer
+        - id: 1d
+          workload_name: exoplayer
+          runtime_parameters:
+                os_mode: mp_a7_only
+                a7_cores: 0
+          iterations: 4
+        - id: 1e
+          workload_name: benchmarkpi
+        - id: 1f
+          workload_name: antutu
+          runtime_parameters:
+                a7_cores: 1
+                a15_cores: 1

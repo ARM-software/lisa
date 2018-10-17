@@ -1,0 +1,7 @@
+config:
+    augmentations: [~execution_time]
+    include#: configs/test.yaml
+sections:
+    - include#: sections/section1.yaml
+    - include#: sections/section2.yaml
+include#: workloads.yaml

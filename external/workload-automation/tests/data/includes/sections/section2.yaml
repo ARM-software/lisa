@@ -1,0 +1,2 @@
+classifiers: {'section': 'two'}
+include#: ../section-include.yaml
