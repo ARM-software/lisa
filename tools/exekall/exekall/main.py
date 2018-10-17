@@ -628,6 +628,13 @@ the name of the parameter, the start value, stop value and step size.""")
             sys.stdout.flush()
             sys.stderr.flush()
 
+        def get_uuid_str(expr_val):
+            uuid_val = (expr_val.value_uuid or expr_val.excep_uuid)
+            if uuid_val:
+                return ' UUID={}'.format(uuid_val)
+            else:
+                return ''
+
         def log_expr_val(expr_val, reused):
             if expr_val.expr.op.callable_ in hidden_callable_set:
                 return
@@ -637,19 +644,13 @@ the name of the parameter, the start value, stop value and step size.""")
             else:
                 msg='Computed {id}{uuid}'
 
-            uuid_val = (expr_val.value_uuid or expr_val.excep_uuid)
-            if uuid_val:
-                uuid_str = ' UUID={}'.format(uuid_val)
-            else:
-                uuid_str = ''
-
             info(msg.format(
                 id=expr_val.get_id(
                     full_qual=False,
                     with_tags=True,
                     hidden_callable_set=hidden_callable_set,
                 ),
-                uuid = uuid_str
+                uuid = get_uuid_str(expr_val),
             ))
 
         executor = executor(log_expr_val)
@@ -667,16 +668,7 @@ the name of the parameter, the start value, stop value and step size.""")
                     ),
                 )
 
-            uuid_ = None
-            if result.value is NoValue:
-                uuid_ = result.excep_uuid
-                uuid_name = 'Error UUID'
-            else:
-                uuid_ = result.value_uuid
-                uuid_name = 'Result UUID'
-
-            uuid_str = '' if uuid_ is None else '\n' + uuid_name + ': ' + uuid_
-            info('Finished: {short_id}'.format(
+            info('Finished {short_id}{uuid}'.format(
                 short_id = result.get_id(
                     hidden_callable_set=hidden_callable_set,
                     full_qual=False,
@@ -684,16 +676,20 @@ the name of the parameter, the start value, stop value and step size.""")
                 full_id = result.get_id(
                     hidden_callable_set=hidden_callable_set,
                     full_qual=True,
-                )
+                ),
+                uuid=get_uuid_str(result)
             ))
-            prefix = 'Full ID: '
-            out('{prefix}{id}{uuid_str}'.format(
+            prefix = 'ID: '
+            out('{prefix}{id}'.format(
                 id=result.get_id(
+                    full_qual=False,
                     mark_excep=True,
                 ).strip().replace('\n', '\n'+len(prefix)*' '),
                 prefix=prefix,
-                uuid_str = uuid_str
             ))
+            if verbose:
+                out('Full ID:{}'.format(result.get_id(full_qual=True)))
+
             out(adaptor.result_str(result))
             result_list.append(result)
 
