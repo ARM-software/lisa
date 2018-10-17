@@ -149,9 +149,13 @@ class TestEnv(Loggable):
         super().__init__()
         logger = self.get_logger()
 
+        board_name = target_conf.get('board', None)
+        self.tags = [board_name] if board_name else []
         if not res_dir:
-            res_dir_name = datetime.now().strftime('TestEnv_%Y%m%d_%H%M%S.%f')
-            res_dir = os.path.join(LISA_HOME, RESULT_DIR, res_dir_name)
+            name = board_name or type(self).__qualname__
+            time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
+            name = '{}-{}'.format(name, time_str)
+            res_dir = os.path.join(LISA_HOME, RESULT_DIR, name)
 
         # That res_dir is for the exclusive use of TestEnv itself, it must not
         # be used by users of TestEnv
@@ -180,9 +184,6 @@ class TestEnv(Loggable):
         if tools:
             logger.info('Tools to install: %s', tools)
             self.install_tools(target, tools)
-
-        board_name = target_conf.get('board', None)
-        self.tags = [board_name] if board_name else []
 
         # Autodetect information from the target, after the TestEnv is
         # initialized. Expensive computations are deferred so they will only be
