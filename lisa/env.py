@@ -358,22 +358,34 @@ class TestEnv(Loggable):
           created results directory
         :type symlink: bool
         """
+        logger = self.get_logger()
 
-        time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
-        if not name:
-            name = time_str
-        elif append_time:
-            name = "{}-{}".format(name, time_str)
+        while True:
+            time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
+            if not name:
+                name = time_str
+            elif append_time:
+                name = "{}-{}".format(name, time_str)
 
-        res_dir = os.path.join(self._res_dir, name)
+            res_dir = os.path.join(self._res_dir, name)
 
-        # Compute base installation path
-        self.get_logger().info('Creating result directory: %s', res_dir)
+            # Compute base installation path
+            logger.info('Creating result directory: %s', res_dir)
 
-        try:
-            os.mkdir(res_dir)
-        except FileExistsError:
-            pass
+            # It will fail if the folder already exists. In that case,
+            # append_time should be used to ensure we get a unique name.
+            try:
+                os.mkdir(res_dir)
+            except FileExistsError:
+                # If the time is used in the name, there is some hope that the
+                # next time it will succeed
+                if append_time:
+                    logger.info('Directory already exists, retrying ...')
+                    continue
+                else:
+                    raise
+            else:
+                break
 
         if symlink:
             res_lnk = Path(LISA_HOME, LATEST_LINK)
