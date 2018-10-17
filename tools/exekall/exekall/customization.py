@@ -17,6 +17,7 @@
 #
 
 from exekall.engine import NoValue, get_name
+from exekall.utils import out
 
 class AdaptorBase:
     name = 'default'
@@ -78,7 +79,7 @@ class AdaptorBase:
             for result in result_list:
                 msg = self.result_str(result)
                 msg = msg + '\n' if '\n' in msg else msg
-                print('{id}: {result}'.format(
+                out('{id}: {result}'.format(
                     id=result.get_id(
                         hidden_callable_set=hidden_callable_set,
                         full_qual=False,

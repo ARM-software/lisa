@@ -379,22 +379,28 @@ class ExekallFormatter(logging.Formatter):
         else:
             return self.default_fmt.format(record)
 
-def setup_logging(log_level, verbose=False):
+def setup_logging(log_level, debug_log_file=None, verbose=False):
     logging.addLevelName(LOGGING_OUT_LEVEL, 'OUT')
     level=getattr(logging, log_level.upper())
-    if verbose:
-        fmt = '[%(name)s/%(filename)s:%(lineno)s][%(asctime)s] %(levelname)s  %(message)s'
-    else:
-        fmt = '[%(name)s][%(asctime)s] %(levelname)s  %(message)s'
-    formatter = ExekallFormatter(fmt)
+
+    verbose_formatter = ExekallFormatter('[%(name)s/%(filename)s:%(lineno)s][%(asctime)s] %(levelname)s  %(message)s')
+    normal_formatter = ExekallFormatter('[%(name)s][%(asctime)s] %(levelname)s  %(message)s')
 
     logger = logging.getLogger()
-    logger.setLevel(level)
+    # We do not filter anything at the logger level, only at the handler level
+    logger.setLevel(logging.NOTSET)
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(level)
+    formatter = verbose_formatter if verbose else normal_formatter
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
+
+    if debug_log_file:
+        file_handler = logging.FileHandler(str(debug_log_file), encoding='utf-8')
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(verbose_formatter)
+        logger.addHandler(file_handler)
 
 EXEKALL_LOGGER  = logging.getLogger('EXEKALL')
 

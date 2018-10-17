@@ -28,7 +28,6 @@ import pathlib
 import sys
 import traceback
 import uuid
-import logging
 import traceback
 import gzip
 import fnmatch
@@ -206,7 +205,6 @@ the name of the parameter, the start value, stop value and step size.""")
     args = parser.parse_args(argv)
 
     verbose = args.verbose
-    utils.setup_logging(args.log_level, verbose)
 
     adaptor = adaptor_cls(args)
 
@@ -224,6 +222,30 @@ the name of the parameter, the start value, stop value and step size.""")
     restrict_list = args.restrict
 
     sys.path.extend(args.modules_root)
+
+    # Setup the artifact_dir so we can create a verbose log in there
+    date = datetime.datetime.now().strftime('%Y%m%d_%H:%M:%S')
+    testsession_uuid = engine.create_uuid()
+    if only_template_scripts:
+        artifact_dir = pathlib.Path(only_template_scripts)
+    elif args.artifact_dir:
+        artifact_dir = pathlib.Path(args.artifact_dir)
+    # If we are not given a specific folder, we create one under the root we
+    # were given
+    else:
+        artifact_dir = pathlib.Path(args.artifact_root, date + '_' + testsession_uuid)
+
+    artifact_dir = artifact_dir.resolve()
+    # Update the CLI arguments so the customization module has access to the
+    # correct value
+    args.artifact_dir = artifact_dir
+    if dry_run:
+        debug_log = None
+    else:
+        artifact_dir.mkdir(parents=True)
+        debug_log = artifact_dir.joinpath('log.txt')
+
+    utils.setup_logging(args.log_level, debug_log, verbose)
 
     module_set.update(utils.import_file(path) for path in args.python_files)
 
@@ -507,23 +529,6 @@ the name of the parameter, the start value, stop value and step size.""")
         info('Nothing to do, exiting ...')
         return 0
 
-    date = datetime.datetime.now().strftime('%Y%m%d_%H:%M:%S')
-    testsession_uuid = engine.create_uuid()
-
-    if only_template_scripts:
-        artifact_dir = pathlib.Path(only_template_scripts)
-    elif args.artifact_dir:
-        artifact_dir = pathlib.Path(args.artifact_dir)
-    # If we are not given a specific folder, we create one under the root we
-    # were given
-    else:
-        artifact_dir = pathlib.Path(args.artifact_root, date + '_' + testsession_uuid)
-
-    artifact_dir = artifact_dir.resolve()
-    # Update the CLI arguments so the customization module has access to the
-    # correct value
-    args.artifact_dir = artifact_dir
-
     out('The following expressions will be executed:\n')
     for testcase in testcase_list:
         out(take_first(testcase.get_id(
@@ -536,7 +541,6 @@ the name of the parameter, the start value, stop value and step size.""")
     if dry_run:
         return 0
 
-    artifact_dir.mkdir(parents=True)
     if not only_template_scripts:
         with open(str(artifact_dir.joinpath('UUID')), 'wt') as f:
             f.write(testsession_uuid+'\n')
