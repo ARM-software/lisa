@@ -289,23 +289,20 @@ class WaResultsCollector(object):
             # of the full key=value pairs.
             classifiers = job['classifiers'] or {}
 
+            test = "{}".format(workload)
+
             if 'test' in classifiers:
                 # If the workload spec has a 'test' classifier, use that to
                 # identify it.
-                test = classifiers.pop('test')
+                test = classifiers.pop('test') or test
             elif 'test' in job['workload_parameters']:
                 # If not, some workloads have a 'test' workload_parameter, try
                 # using that
-                test = job['workload_parameters']['test']
+                test = job['workload_parameters']['test'] or test
             elif 'test_ids' in job['workload_parameters']:
                 # If not, some workloads have a 'test_ids' workload_parameter, try
                 # using that
-                test = job['workload_parameters']['test_ids']
-            else:
-                # Otherwise just use the workload name.
-                # This isn't ideal because it means the results from jobs with
-                # different workload parameters will be amalgamated.
-                test = workload
+                test = job['workload_parameters']['test_ids'] or test
 
             rich_tag = ';'.join('{}={}'.format(k, v) for k, v in classifiers.iteritems())
             tag = classifiers.get('tag', rich_tag)
