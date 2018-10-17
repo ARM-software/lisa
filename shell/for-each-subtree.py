@@ -50,7 +50,7 @@ def main():
 
         if do_fetch:
             fetch_cmd = ['git', 'fetch', url, git_ref]
-            call_subprocess(cmd)
+            call_subprocess(fetch_cmd)
 
         if git_cmd in ('pull', 'push'):
             git_args = [git_cmd] + extra_args +['-P', path, url, git_ref]
