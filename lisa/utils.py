@@ -341,7 +341,7 @@ class SerializableConfABC(Serializable, abc.ABC):
         """
         Allow reloading from a plain mapping, to avoid having to specify a tag
         in the configuration file. The content is hosted under a top-level key
-        specified in :attr:`YAML_MAP_TOP_LEVEL_KEY'.
+        specified in :attr:`YAML_MAP_TOP_LEVEL_KEY`.
         """
 
         mapping = cls._from_path(path, fmt='yaml')
