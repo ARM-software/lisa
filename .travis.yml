@@ -17,14 +17,13 @@
 
 sudo: required
 language: python
+python:
+  - "3.5"
 install:
-  - pip install --upgrade trappy bart-py devlib psutil wrapt matplotlib
-    future jupyter sphinx ruamel.yaml
+  - python -m pip install -e .[doc]
 script:
   - cd $TRAVIS_BUILD_DIR
   - 'echo backend : Agg > matplotlibrc' # Otherwise it tries to use tkinter
   - export PATH=$TRAVIS_BUILD_DIR/tools/x86_64/:$PATH # For trace-cmd
-  - source init_env && lisa-test tests/lisa/
-  # -W is like -Werror.
-  # Ideally we should use -n too, which is like -Wall, but we have too many errors for that.
-  - cd doc/ && sphinx-build -W -b html . _build/html
+  - source init_env && python -m nose
+  - cd doc/ && make SPHINXOPTS='-W -n' html
