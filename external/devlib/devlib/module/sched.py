@@ -48,7 +48,7 @@ class SchedProcFSNode(object):
     MC
     """
 
-    _re_procfs_node = re.compile(r"(?P<name>.*)(?P<digits>\d+)$")
+    _re_procfs_node = re.compile(r"(?P<name>.*\D)(?P<digits>\d+)$")
 
     @staticmethod
     def _ends_with_digits(node):
