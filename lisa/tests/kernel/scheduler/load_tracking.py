@@ -175,7 +175,7 @@ class LoadTrackingBase(RTATestBundle):
     @staticmethod
     def is_almost_equal(target, value, allowed_delta_pct):
         """
-        Verify that :attr:`value` is reasonably close to :attr:`target`
+        Verify that ``value``` is reasonably close to ``target```
         """
         delta = target * allowed_delta_pct / 100
         return target - delta <= value <= target + delta
@@ -464,9 +464,9 @@ class PELTTaskTest(LoadTrackingBase):
         Get simulated PELT signal and the periodic task used to model it.
 
         :returns: tuple of
-          - :mod:`bart.sched.pelt.Simulator` the PELT simulator object
-          - :mod:`bart.sched.pelt.PeriodicTask` simulated periodic task
-          - :mod:`pandas.DataFrame` instance which reports the computed
+          - :class:`bart.sched.pelt.Simulator.Simulator` the PELT simulator object
+          - :class:`bart.sched.pelt.PeriodicTask` simulated periodic task
+          - :class:`pandas.DataFrame` instance which reports the computed
           PELT values at each PELT sample interval.
         """
         signal_df = self.get_task_sched_signals(cpu, [signal_name])
@@ -607,7 +607,7 @@ class PELTTaskTest(LoadTrackingBase):
           simulated signal
 
         :param allowed_error_pct: How many PELT errors (determined by
-          :attr:`error_margin_pct`) are allowed
+          ``error_margin_pct```) are allowed
         """
         return self._test_behaviour('util_avg', error_margin_pct, allowed_error_pct)
 
@@ -620,6 +620,6 @@ class PELTTaskTest(LoadTrackingBase):
           simulated signal
 
         :param allowed_error_pct: How many PELT errors (determined by
-          :attr:`error_margin_pct`) are allowed
+          ``error_margin_pct```) are allowed
         """
         return self._test_behaviour('load_avg', error_margin_pct, allowed_error_pct)

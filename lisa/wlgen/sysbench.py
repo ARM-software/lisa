@@ -90,7 +90,7 @@ class Sysbench(Workload):
           test (run ``sysbench --test=<test> help``). Due to Python limitations,
           use ``_`` instead of ``-`` for argument naming.
 
-        The standard output will be saved into a file in :attr:`self.res_dir`
+        The standard output will be saved into a file in ``self.res_dir``
         """
         command = "{} --test={}".format(self.sysbench_bin, test)
 

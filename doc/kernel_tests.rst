@@ -45,12 +45,12 @@ Where to start
 The main class of the kernel tests is :class:`~lisa.tests.kernel.test_bundle.TestBundle`.
 Have a look at its documentation for implementation and usage examples. It can
 also be worth to look at a simple test, such as
-:class:`~lisa.tests.kernel.misc.capacity_sanity.CapacitySanityCheck`.
+:class:`~lisa.tests.kernel.scheduler.sanity.CapacitySanity`.
 
 Implementations of :class:`~lisa.tests.kernel.test_bundle.TestBundle` can
 execute any sort of arbitry Python code. This means that you are free to
 manipulate sysfs entries, or to execute arbitray binaries on the target. The
-:class:`~lisa.tests.kernel.workload.Workload` class has been created to
+:class:`~lisa.wlgen.workload.Workload` class has been created to
 facilitate the execution of commands/binaries on the target.
 
 An important daughter class of :class:`~lisa.wlgen.workload.Workload`
@@ -64,6 +64,7 @@ Base API
 
 .. automodule:: lisa.tests.kernel.test_bundle
    :members:
+   :private-members: _from_testenv
 
 .. TODO:: Make those imports more generic
 

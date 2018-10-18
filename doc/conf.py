@@ -18,6 +18,60 @@ import re
 import subprocess
 import sys
 
+from docutils import nodes
+from sphinx.util.docfields import TypedField
+from sphinx import addnodes
+
+import unittest
+
+# This ugly hack is required because by default TestCase.__module__ is
+# equal to 'case', so sphinx replaces all of our TestCase uses to
+# unittest.case.TestCase, which doesn't exist in the doc.
+for name, obj in vars(unittest).items():
+    try:
+        m = obj.__module__
+        obj.__module__ = 'unittest' if m == 'unittest.case' else m
+    except Exception: pass
+
+# This is a hack to prevent :ivar: docs from attempting to create a reference
+# Credit goes to https://stackoverflow.com/a/41184353/5096023
+def patched_make_field(self, types, domain, items, env=None):
+    # type: (List, unicode, Tuple) -> nodes.field
+    def handle_item(fieldarg, content):
+        par = nodes.paragraph()
+        par += addnodes.literal_strong('', fieldarg)  # Patch: this line added
+        #par.extend(self.make_xrefs(self.rolename, domain, fieldarg,
+        #                           addnodes.literal_strong))
+        if fieldarg in types:
+            par += nodes.Text(' (')
+            # NOTE: using .pop() here to prevent a single type node to be
+            # inserted twice into the doctree, which leads to
+            # inconsistencies later when references are resolved
+            fieldtype = types.pop(fieldarg)
+            if len(fieldtype) == 1 and isinstance(fieldtype[0], nodes.Text):
+                typename = u''.join(n.astext() for n in fieldtype)
+                par.extend(self.make_xrefs(self.typerolename, domain, typename,
+                                           addnodes.literal_emphasis))
+            else:
+                par += fieldtype
+            par += nodes.Text(')')
+        par += nodes.Text(' -- ')
+        par += content
+        return par
+
+    fieldname = nodes.field_name('', self.label)
+    if len(items) == 1 and self.can_collapse:
+        fieldarg, content = items[0]
+        bodynode = handle_item(fieldarg, content)
+    else:
+        bodynode = self.list_type()
+        for fieldarg, content in items:
+            bodynode += nodes.list_item('', handle_item(fieldarg, content))
+    fieldbody = nodes.field_body('', bodynode)
+    return nodes.field('', fieldname, fieldbody)
+
+TypedField.make_field = patched_make_field
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -277,7 +331,7 @@ intersphinx_mapping = {
     'pandas' : ('https://pandas.pydata.org/pandas-docs/stable/', None),
     'matplotlib' : ('http://matplotlib.sourceforge.net/', None),
     # XXX: Doesn't seem to work, might be due to how devlib doc is generated
-    'devlib' : ('https://devlib.readthedocs.io/en/latest', None),
+    'devlib' : ('https://pythonhosted.org/devlib/', None),
     'trappy' : ('https://pythonhosted.org/TRAPpy', None),
     'bart' :   ('https://pythonhosted.org/bart-py/', None),
 }

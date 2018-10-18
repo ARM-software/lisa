@@ -36,8 +36,7 @@ class TestMetric:
     """
     A storage class for metrics used by tests
 
-    :param data: The data to store
-    :type data: Any base type or dict(TestMetric)
+    :param data: The data to store. Can be any base type or dict(TestMetric)
 
     :param units: The data units
     :type units: str
@@ -121,7 +120,7 @@ class ResultBundle:
     @classmethod
     def from_bool(cls, cond, *args, **kwargs):
         """
-        Alternate constructor where :attr:`result` is determined from a bool
+        Alternate constructor where ``ResultBundle.result`` is determined from a bool
         """
         result = Result.PASSED if cond else Result.FAILED
         return cls(result, *args, **kwargs)
@@ -167,7 +166,7 @@ class TestBundle(Serializable, abc.ABC):
 
     Please refrain from monkey-patching the object in :meth:`from_testenv`.
     Data required by the object to run test assertions should be exposed as
-    :meth:`__init__` parameters.
+    ``__init__`` parameters.
 
     **Design notes:**
 
@@ -302,7 +301,7 @@ class TestBundle(Serializable, abc.ABC):
     @classmethod
     def from_dir(cls, res_dir):
         """
-        See :meth:`Serializable.from_path`
+        See :meth:`lisa.utils.Serializable.from_path`
         """
         bundle = super().from_path(cls._filepath(res_dir))
         # We need to update the res_dir to the one we were given
@@ -312,7 +311,7 @@ class TestBundle(Serializable, abc.ABC):
 
     def to_dir(self, res_dir):
         """
-        See :meth:`Serializable.to_path`
+        See :meth:`lisa.utils.Serializable.to_path`
         """
         super().to_path(self._filepath(res_dir))
 
@@ -347,9 +346,9 @@ class RTATestBundle(TestBundle, abc.ABC):
 
         Having the trace as a property lets us defer the loading of the actual
         trace to when it is first used. Also, this prevents it from being
-        serialized when calling :meth:`to_path` and allows updating the
-        underlying path before it is actually loaded to match a different
-        folder structure.
+        serialized when calling :meth:`lisa.utils.Serializable.to_path` and
+        allows updating the underlying path before it is actually loaded to
+        match a different folder structure.
         """
         return Trace(self.res_dir, self.plat_info, events=self.ftrace_conf["events"])
 
@@ -361,7 +360,8 @@ class RTATestBundle(TestBundle, abc.ABC):
     @abc.abstractmethod
     def get_rtapp_profile(cls, te):
         """
-        :returns: a :class:`dict` with task names as keys and :class:`RTATask` as values
+        :returns: a :class:`dict` with task names as keys and
+          :class:`lisa.wlgen.rta.RTATask` as values
 
         This is the method you want to override to specify what is your
         synthetic workload.
@@ -403,10 +403,10 @@ class RTATestBundle(TestBundle, abc.ABC):
             activations with negative slack.
         :type negative_slack_allowed_pct: int
 
-        Use :class:`PerfAnalysis` to find instances where the RT-App workload
+        Use :class:`lisa.perf_analysis.PerfAnalysis` to find instances where the RT-App workload
         wasn't able to complete its activations (i.e. its reported "slack"
         was negative). Assert that this happened less than
-        :attr:`negative_slack_allowed_pct` percent of the time.
+        ``negative_slack_allowed_pct`` percent of the time.
         """
         pa = PerfAnalysis(self.res_dir)
 

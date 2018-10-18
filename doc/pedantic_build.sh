@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Copyright (C) 2017, ARM Limited and contributors.
+# Copyright (C) 2018, Arm Limited and contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License.
@@ -15,15 +15,25 @@
 # limitations under the License.
 #
 
-sudo: required
-language: python
-python:
-  - "3.5"
-install:
-  - python -m pip install -e .[doc]
-script:
-  - cd $TRAVIS_BUILD_DIR
-  - 'echo backend : Agg > matplotlibrc' # Otherwise it tries to use tkinter
-  - export PATH=$TRAVIS_BUILD_DIR/tools/x86_64/:$PATH # For trace-cmd
-  - source init_env && python -m nose
-  - cd doc/ && ./pedantic_build.sh
+#!/bin/bash
+
+# The documentation of those modules causes some issues,
+# be permissive for warnings related to them
+IGNORE_PATTERN="devlib|bart"
+
+make SPHINXOPTS='-n' html 2>doc_build.log
+all_warns=$(cat doc_build.log)
+warns=$(cat doc_build.log | grep WARNING | grep -E -v "$IGNORE_PATTERN")
+
+echo
+
+if [ ! -z "$warns" ]; then
+    echo "Documentation build warnings:"
+    echo
+    echo "$warns"
+    exit 1
+elif [ ! -z "$all_warns" ]; then
+    echo "Ignored warnings:"
+    echo
+    echo "$all_warns"
+fi

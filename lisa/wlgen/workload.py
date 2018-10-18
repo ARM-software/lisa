@@ -40,13 +40,13 @@ class Workload(Loggable):
 
     **Design notes**
 
-    :meth:`__init__` is there to initialize a given workload, and :meth:`run`
+    ``__init__`` is there to initialize a given workload, and :meth:`run`
     can be called on it several times, with varying arguments.
     As much work as possible should be delegated to :meth:`run`, so that
     different flavours of the same workload can be run without the hassle of
     creating a superfluous amount of new instances. However, when persistent
     data is involved (e.g. the workload depends on a file), then this data
-    should bet set up in :meth:`__init__`.
+    should be exposed as an ``__init__`` parameter.
 
     **Implementation example**::
 
@@ -107,7 +107,7 @@ class Workload(Loggable):
         :param as_root: Whether to run the workload as root or not
         :type as_root: bool
 
-        The standard output will be saved into a file in :attr:`self.res_dir`
+        The standard output will be saved into a file in ``self.res_dir``
         """
         logger = self.get_logger()
         if not self.command:

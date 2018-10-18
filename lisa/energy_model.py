@@ -85,15 +85,21 @@ class _CpuTree(Loggable):
     """Internal class. Abstract representation of a CPU topology.
 
     Each node contains either a single CPU or a set of child nodes.
+
+    :ivar cpus: CPUs contained in this node. Includes those of child nodes.
+    :ivar cpu: For convenience, this holds the single CPU contained by leaf
+      nodes. ``None`` for non-leaf nodes.
     """
     def __init__(self, cpu, children):
         if (cpu is None) == (children is None):
             raise ValueError('Provide exactly one of: cpu or children')
 
         self.parent = None
+        #: Test yolo
         self.cpu = cpu
 
         if cpu is not None:
+            #: This is another thingie
             self.cpus = (cpu,)
             self.children = []
         else:
@@ -134,7 +140,8 @@ class _CpuTree(Loggable):
         return self._iter(False)
 
 class EnergyModelNode(_CpuTree):
-    """Describes topology and energy data for an EnergyModel.
+    """
+    Describes topology and energy data for an EnergyModel.
 
     Represents a CPU topology with energy data. The active and idle state data
     represents the power usage of just the hardware resources of this topology
@@ -148,15 +155,17 @@ class EnergyModelNode(_CpuTree):
                           values. Compute capacity data is optional for
                           non-leaf nodes.
     :param idle_states: Dict mapping idle state names to power usage values
+    :type idle_states: dict
+
     :param cpu: The CPU this node represents. If provided, this is a leaf node.
-    :type cpus: tuple(int)
+    :type cpu: tuple(int)
+
     :param children: Non-empty list of child :class:`EnergyModelNode` objects
+    :type children: list(EnergyModelNode)
+
     :param name: Optional human-readable name for this node. Leaf (CPU) nodes
                  have a default name of "cpuN" where N is the cpu number.
-
-    :ivar cpus: CPUs contained in this node. Includes those of child nodes.
-    :ivar cpu: For convenience, this holds the single CPU contained by leaf
-               nodes. ``None`` for non-leaf nodes.
+    :type name: str
     """
     def __init__(self, active_states, idle_states,
                  cpu=None, children=None, name=None):
@@ -1095,7 +1104,7 @@ class EnergyModel(Serializable, Loggable):
         software with real-time constraints preventing deep CPU idle states.
 
         :param trace: The trace
-        :type trace: Trace
+        :type trace: lisa.trace.Trace
 
         :returns: A DataFrame with a column for each node in the energy model,
                   labelled with the CPU members of the node joined by  '-'s.

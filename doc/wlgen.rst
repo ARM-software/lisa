@@ -36,8 +36,8 @@ rt-app profile classes
 ----------------------
 
 To make rt-app workload description easier, rt-app tasks can be described using
-the :meth:`RTA.by_profile` class method. This method is powered by :class:`RTATask`
-and its siblings.
+the :meth:`lisa.wlgen.rta.RTA.by_profile` class method. This method is powered
+by :class:`lisa.wlgen.rta.RTATask` and its siblings.
 
 .. autoclass:: lisa.wlgen.rta.Phase
    :members:

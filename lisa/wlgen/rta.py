@@ -34,7 +34,7 @@ class RTA(Workload):
 
     The class constructor only deals with pre-constructed json files.
     For creating rt-app workloads through other means, see :meth:`by_profile`
-    and :meth:`by_conf`.
+    and :meth:`by_str`.
 
     For more information about rt-app itself, see
     https://github.com/scheduler-tools/rt-app
@@ -494,7 +494,7 @@ class Phase(Loggable):
 
 class RTATask(object):
     """
-    Base class for conveniently constructing params to :meth:`RTA.conf`
+    Base class for conveniently constructing params to :meth:`RTA.by_profile`
 
     This class represents an rt-app task which may contain multiple :class:`Phase`.
     It implements ``__add__`` so that using ``+`` on two tasks concatenates their

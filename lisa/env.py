@@ -348,12 +348,13 @@ class TestEnv(Loggable):
         :param name: Name of the results directory
         :type name: str
 
-        :param append_time: If True and :attr:`name` is not None, the
-          current datetime will be appended to :attr:`name`
+        :param append_time: If True, the current datetime will be appended to
+          the given ``name``. If ``name`` is None, the directory name will be
+          the current datetime.
         :type append_time: bool
 
         :param symlink: Create a symlink named ``results_latest`` to the newly
-          create results directory
+          created results directory
         :type symlink: bool
         """
 
