@@ -277,7 +277,7 @@ intersphinx_mapping = {
     'pandas' : ('https://pandas.pydata.org/pandas-docs/stable/', None),
     'matplotlib' : ('http://matplotlib.sourceforge.net/', None),
     # XXX: Doesn't seem to work, might be due to how devlib doc is generated
-    'devlib' : ('https://devlib.readthedocs.io/en/latest', None),
+    'devlib' : ('https://pythonhosted.org/devlib/', None),
     'trappy' : ('https://pythonhosted.org/TRAPpy', None),
     'bart' :   ('https://pythonhosted.org/bart-py/', None),
 }
