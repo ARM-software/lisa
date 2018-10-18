@@ -58,9 +58,9 @@ class EASBehaviour(RTATestBundle, abc.ABC):
     @classmethod
     @abc.abstractmethod
     def get_rtapp_profile(cls, te):
-        """Returns the RTapp profile for the given :class:`TestEnv`.
+        """Returns the RTapp profile for the given :class:`lisa.env.TestEnv`.
 
-        :returns: :class:`lisa.wlgen.RTATask`
+        :returns: :class:`lisa.wlgen.rta.RTATask`
         """
         pass
 
@@ -90,7 +90,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         """
         The smallest CPU capacity on the target
 
-        :type te: TestEnv
+        :type te: lisa.env.TestEnv
 
         :returns: int
         """
@@ -101,7 +101,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         """
         The highest CPU capacity on the target
 
-        :type te: TestEnv
+        :type te: lisa.env.TestEnv
 
         :returns: int
         """
@@ -329,7 +329,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         Test that task placement was energy-efficient
 
         :param nrg_model: Allow using an alternate EnergyModel instead of
-            :attr:`nrg_model`
+            ``nrg_model```
         :type nrg_model: EnergyModel
 
         :param energy_est_threshold_pct: Allowed margin for estimated vs
@@ -339,7 +339,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         Compute optimal energy consumption (energy-optimal task placement)
         and compare to energy consumption estimated from the trace.
         Check that the estimated energy does not exceed the optimal energy by
-        more than :attr:`energy_est_threshold_pct` percents.
+        more than ``energy_est_threshold_pct``` percents.
         """
         nrg_model = nrg_model or self.nrg_model
 
@@ -365,7 +365,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         """
         Convert a scaled utilization value to a 'raw', unscaled one.
 
-        :param capacity: The capacity of the CPU :attr:`utilization_pct` is scaled
+        :param capacity: The capacity of the CPU ``utilization_pct``` is scaled
           against
         :type capacity: int
 

@@ -38,6 +38,10 @@ from ruamel.yaml import YAML
 # lisa package is installed in the site-package locations using pip, which
 # are typically not writable.
 LISA_HOME = os.getenv('LISA_HOME')
+"""
+The detected location of your LISA installation
+"""
+
 if not LISA_HOME:
     logging.getLogger(__name__).warning('LISA_HOME env var is not set, LISA may misbehave.')
 
@@ -928,8 +932,8 @@ def setup_logging(filepath='logging.conf', level=logging.INFO):
                      :attr:`lisa.utils.LISA_HOME` as base folder.
     :type filepath: str
 
-    :param level: the default log level to enable, INFO by default
-    :type level: logging.<level> or int in [0..50]
+    :param level: the default log level to enable, logging.INFO by default
+    :type level: int
     """
 
     # Load the specified logfile using an absolute path

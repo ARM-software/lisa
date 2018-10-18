@@ -650,7 +650,7 @@ class Trace(Loggable):
         given size.
 
         :param seq: data to be split into chunks
-        :type seq: :mod:`pandas.Series` or :mod:`pandas.DataFrame`
+        :type seq: :class:`pandas.Series` or :class:`pandas.DataFrame`
 
         :param size: size of each chunk
         :type size: int
@@ -748,7 +748,7 @@ class Trace(Loggable):
         Compute the integral of a square wave time series.
 
         :param sq_wave: square wave assuming only 1.0 and 0.0 values
-        :type sq_wave: :mod:`pandas.Series`
+        :type sq_wave: :class:`pandas.Series`
         """
         sq_wave.iloc[-1] = 0.0
         # Compact signal to obtain only 1-0-1-0 sequences
@@ -806,7 +806,7 @@ class Trace(Loggable):
         :param cpu: CPU ID
         :type cpu: int
 
-        :returns: A :mod:`pandas.Series` or ``None`` if the trace contains no
+        :returns: A :class:`pandas.Series` or ``None`` if the trace contains no
                   "cpu_idle" events
         """
         if not self.hasEvents('cpu_idle'):
@@ -847,7 +847,7 @@ class Trace(Loggable):
         :param cluster: list of CPU IDs belonging to a cluster
         :type cluster: list(int)
 
-        :returns: A :mod:`pandas.Series` or ``None`` if the trace contains no
+        :returns: A :class:`pandas.Series` or ``None`` if the trace contains no
                   "cpu_idle" events
         """
         if not self.hasEvents('cpu_idle'):

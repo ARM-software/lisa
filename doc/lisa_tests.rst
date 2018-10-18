@@ -28,6 +28,8 @@ It's possible to write tests that require a live target - see
 are meant to be run by Travis as part of our pull-request validation, they have
 to be designed to work on a target with limited privilege.
 
+:class:`unittest.TestCase`
+
 Utilities
 =========
 

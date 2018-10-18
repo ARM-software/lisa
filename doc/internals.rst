@@ -23,6 +23,19 @@ Energy model
 
 .. automodule:: lisa.energy_model
    :members:
+   :private-members: _CpuTree
+
+Trace
+=====
+
+.. automodule:: lisa.trace
+   :members:
+
+Performance Analysis
+====================
+
+.. automodule:: lisa.perf_analysis
+   :members:
 
 Miscellaneous utilities
 =======================
