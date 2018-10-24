@@ -25,6 +25,9 @@ from pathlib import Path
 import shlex
 from collections.abc import Mapping
 import copy
+import sys
+import argparse
+import textwrap
 
 import devlib
 from devlib.utils.misc import which
@@ -210,6 +213,75 @@ class TestEnv(Loggable):
             cls.get_logger().warn('No platform information could be found: {}'.format(e))
             plat_info = None
         return cls(target_conf=target_conf, plat_info=plat_info)
+
+    @classmethod
+    def from_cli(cls, argv=None):
+        """
+        Create a TestEnv from command line arguments.
+
+        :param argv: The list of arguments. ``sys.argv[1:]`` will be used if
+          this is ``None``.
+        :type argv: list(str)
+
+        Trying to use this in a script that expects extra arguments is bound
+        to be confusing (help message woes, argument clashes...), so for now
+        this should only be used in scripts that only expect TestEnv args.
+        """
+        # Subparsers cannot let us specify --kind=android, at best we could
+        # have --android which is lousy. Instead, use a first parser to figure
+        # out the target kind, then create a new parser for that specific kind.
+        kind_parser = argparse.ArgumentParser(
+            # Disable the automatic help to not catch e.g. ./script.py -k linux -h
+            add_help=False,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            description=textwrap.dedent(
+                """
+                Extra arguments differ depending on the value passed to 'kind'.
+                Try e.g. "--kind android -h" to see the arguments for android targets.
+                """))
+
+        kind_parser.add_argument(
+            "--kind", "-k", choices=["android", "linux", "host"],
+            help="The kind of target to create")
+
+        # Add a self-managed help argument, see why below
+        kind_parser.add_argument("--help", "-h", action="store_true")
+
+        args = kind_parser.parse_known_args(argv)[0]
+
+        # Print the generic help only if we can't print the proper --kind help
+        if not args.kind or (args.help and not args.kind):
+            kind_parser.print_help()
+            sys.exit(2)
+
+        kind = args.kind
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--kind", "-k",
+                            choices=[kind],
+                            required=True,
+                            help="The kind of target to create")
+
+        if kind == "android":
+            parser.add_argument("--device", "-d", type=str, required=True,
+                                help="The ADB ID of the target")
+        elif kind == "linux":
+            parser.add_argument("--hostname", "-n", type=str, required=True, dest="host",
+                                help="The hostname/IP of the target")
+            parser.add_argument("--username", "-u", type=str, required=True,
+                                help="Login username")
+            parser.add_argument("--password", "-p",  type=str, required=True,
+                                help="Login password")
+
+        parser.add_argument("--platform", "-pi", type=str,
+                            help="Path to a PlatformInfo yaml file")
+
+        args = parser.parse_args(argv)
+        platform_info = PlatformInfo.from_yaml_map(args.platform) if args.platform else None
+        target_conf = TargetConf(
+            {k : v for k, v in vars(args).items() if k != "platform"})
+
+        return TestEnv(target_conf, platform_info)
 
     def _init_target(self, target_conf, res_dir):
         """
