@@ -258,9 +258,9 @@ function _lisa-jupyter-start {
     IPADDR=
 
     if [[ -x /sbin/ifconfig ]]; then
-        IPADDR=$(/sbin/ifconfig $NETIF 2>/dev/null  | \
-            awk '/inet / {print $2}' | \
-            sed 's/addr://')
+	IPADDR=$(/sbin/ifconfig $NETIF 2>/dev/null  | \
+	    awk '/inet / {print $2}' | \
+	    grep -Eo [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)
     fi
 
     if [[ -z "$IPADDR" && -x /sbin/ip ]]; then
