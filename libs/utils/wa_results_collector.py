@@ -160,11 +160,12 @@ class WaResultsCollector(object):
         df = df.append(df_list)
 
         kernel_refs = {}
-        if kernel_repo_path:
-            for sha1 in df['kernel_sha1'].unique():
-                ref = Git.find_shortest_symref(kernel_repo_path, sha1)
-                if ref:
-                    kernel_refs[sha1] = ref
+        for sha1 in df['kernel_sha1'].unique():
+            if kernel_repo_path:
+                kernel_refs[sha1] = Git.find_shortest_symref(kernel_repo_path, sha1) or sha1
+            else:
+                kernel_refs[sha1] = sha1
+
 
         common_prefix = os.path.commonprefix(kernel_refs.values())
         for sha1, ref in kernel_refs.iteritems():
