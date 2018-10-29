@@ -377,6 +377,7 @@ class TestEnv(Loggable):
             # append_time should be used to ensure we get a unique name.
             try:
                 os.mkdir(res_dir)
+                break
             except FileExistsError:
                 # If the time is used in the name, there is some hope that the
                 # next time it will succeed
@@ -385,8 +386,6 @@ class TestEnv(Loggable):
                     continue
                 else:
                     raise
-            else:
-                break
 
         if symlink:
             res_lnk = Path(LISA_HOME, LATEST_LINK)
