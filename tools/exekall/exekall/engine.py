@@ -423,11 +423,8 @@ class Expression:
         )
 
     def get_all_values(self):
-        value_list = list()
         for result in self.result_list:
-            value_list.extend(result.value_list)
-
-        return value_list
+            yield from result.value_list
 
     def find_result_list(self, param_expr_val_map):
         def value_map(expr_value_map):
@@ -458,7 +455,7 @@ class Expression:
         )
 
     def pretty_structure(self, indent=1):
-        indent_str = 4*" " * indent
+        indent_str = 4 * ' ' * indent
 
         if isinstance(self.op, PrebuiltOperator):
             op_name = '<provided>'
@@ -1442,17 +1439,14 @@ class Operator:
         # mostly initialized.
 
         # Special support of return type annotation for classmethod
-        if (
-            inspect.ismethod(self.resolved_callable) and
-            inspect.isclass(self.resolved_callable.__self__)
-        ):
+        if self.is_cls_method:
             return_type = self.value_type
             try:
                 # If the return annotation type is an (indirect) base class of
                 # the original annotation, we replace the annotation by the
                 # subclass That allows implementing factory classmethods
                 # easily.
-                if issubclass(self.resolved_callable.__self__, return_type):
+                if issubclass(self.unwrapped_callable.__self__, return_type):
                     self.annotations['return'] = self.resolved_callable.__self__
             except TypeError:
                 pass
