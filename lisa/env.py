@@ -160,7 +160,8 @@ class TestEnv(Loggable):
         # That res_dir is for the exclusive use of TestEnv itself, it must not
         # be used by users of TestEnv
         self._res_dir = res_dir
-        os.makedirs(self._res_dir, exist_ok=True)
+        if self._res_dir:
+            os.makedirs(self._res_dir, exist_ok=True)
 
         self.target_conf = target_conf
         logger.debug('Target configuration %s', self.target_conf)
