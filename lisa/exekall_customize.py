@@ -27,7 +27,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 import traceback
 
-from lisa.env import TargetConf, ArtifactPath
+from lisa.env import TestEnv, TargetConf, ArtifactPath
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.utils import HideExekallID, Loggable
 from lisa.tests.kernel.test_bundle import Result, ResultBundle, CannotCreateError
@@ -207,6 +207,15 @@ class LISAAdaptor(AdaptorBase):
         for param, param_expr_val in expr_val.param_value_map.items():
             self._finalize_expr_val(param_expr_val, artifact_dir, testcase_artifact_dir)
 
+    @classmethod
+    def get_tag_list(cls, value):
+        if isinstance(value, TestEnv):
+            board_name = value.target_conf.get('board')
+            tags = [board_name] if board_name else []
+        else:
+            tags = super().get_tag_list(value)
+
+        return tags
 
     def process_results(self, result_map):
         super().process_results(result_map)

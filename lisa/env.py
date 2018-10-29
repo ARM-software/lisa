@@ -150,7 +150,6 @@ class TestEnv(Loggable):
         logger = self.get_logger()
 
         board_name = target_conf.get('board', None)
-        self.tags = [board_name] if board_name else []
         if not res_dir:
             name = board_name or type(self).__qualname__
             time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')

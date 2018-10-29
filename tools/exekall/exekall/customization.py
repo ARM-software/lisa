@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+import numbers
+
 from exekall.engine import NoValue, get_name
 from exekall.utils import out
 
@@ -26,6 +28,14 @@ class AdaptorBase:
         if args is None:
             args = dict()
         self.args = args
+
+    @staticmethod
+    def get_tag_list(value):
+        if isinstance(value, numbers.Number):
+            tags = [str(value)]
+        else:
+            tags = []
+        return tags
 
     def get_db_loader(self):
         return None

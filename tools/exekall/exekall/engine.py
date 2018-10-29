@@ -253,7 +253,7 @@ class ExpressionWrapper:
                 expr_gen = cls._build_expr(result_op, op_map, cls_map,
                     op_stack = [],
                     non_produced_handler=non_produced_handler,
-                    cycle_handler=cycle_handler
+                    cycle_handler=cycle_handler,
                 )
                 for expr in expr_gen:
                     if expr.validate_expr(op_map):
@@ -353,7 +353,7 @@ class ExpressionWrapper:
                 # Get all the possible ways of calling these operators
                 param_combis = itertools.product(*(
                     cls._build_expr(param_op, op_map, cls_map,
-                        op_stack, non_produced_handler, cycle_handler
+                        op_stack, non_produced_handler, cycle_handler,
                     )
                     for param_op in op_combi
                 ))
@@ -454,28 +454,25 @@ class Expression:
             id = hex(id(self))
         )
 
-    def pretty_structure(self, indent=1):
+    def pretty_structure(self, full_qual=True, indent=1):
         indent_str = 4 * ' ' * indent
 
         if isinstance(self.op, PrebuiltOperator):
             op_name = '<provided>'
-            value_type_name = (
-                get_name(self.op.value_type, full_qual=True)
-                # We just call the operator. It is cheap since it is only
-                # returing a pre-built object
-                + self._get_value_tag_str(self.op.callable_())
-            )
         else:
             op_name = self.op.name
-            value_type_name = get_name(self.op.value_type, full_qual=True)
 
         out = '{op_name} ({value_type_name})'.format(
             op_name = op_name,
-            value_type_name = value_type_name,
+            value_type_name = get_name(self.op.value_type, full_qual=full_qual)
+,
         )
         if self.param_map:
             out += ':\n'+ indent_str + ('\n'+indent_str).join(
-                '{param}: {desc}'.format(param=param, desc=desc.pretty_structure(indent+1))
+                '{param}: {desc}'.format(param=param, desc=desc.pretty_structure(
+                    full_qual=full_qual,
+                    indent=indent+1
+                ))
                 for param, desc in self.param_map.items()
             )
         return out
@@ -483,17 +480,6 @@ class Expression:
     def get_failed_values(self):
         for expr_val in self.get_all_values():
             yield from expr_val.get_failed_values()
-
-    @staticmethod
-    def _get_value_tag_str(value):
-        tag_str = ''
-        try:
-            if value.tags:
-                tag_str = '[' + '+'.join(str(v) for v in value.tags) + ']'
-        except AttributeError:
-            pass
-        return tag_str
-
 
     def get_id(self, *args, marked_value_set=None, mark_excep=False, hidden_callable_set=None, **kwargs):
         if hidden_callable_set is None:
@@ -572,12 +558,14 @@ class Expression:
             if not param_expr.op.callable_ in hidden_callable_set
         )
 
-        get_tag = self._get_value_tag_str if with_tags else lambda v: ''
-
         def tags_iter(value_list):
             if value_list:
                 for expr_val in value_list:
-                    tag = get_tag(expr_val.value)
+                    if with_tags:
+                        tag = expr_val.format_tag_list()
+                        tag = '[{}]'.format(tag) if tag else ''
+                    else:
+                        tag = ''
                     yield (expr_val, tag)
             # Yield at least once without any tag even if there is no computed
             # value available
@@ -1397,7 +1385,12 @@ class Operator:
     # True to make all objects reusable by default, False otherwise
     REUSABLE_DEFAULT = True
 
-    def __init__(self, callable_, name=None):
+    def __init__(self, callable_, name=None, tag_list_getter=None):
+
+        if not tag_list_getter:
+            tag_list_getter = lambda v: []
+        self.tag_list_getter = tag_list_getter
+
         assert callable(callable_)
         self._name = name
         self.callable_ = callable_
@@ -1454,7 +1447,7 @@ class Operator:
     def __repr__(self):
         return '<Operator of ' + str(self.callable_) + '>'
 
-    def force_param(self, param_callable_map):
+    def force_param(self, param_callable_map, tag_list_getter=None):
         def define_type(param_type):
             class ForcedType(param_type):
                 # Make ourselves transparent for better reporting
@@ -1473,8 +1466,9 @@ class Operator:
             ForcedType = define_type(param_type)
             self.annotations[param] = ForcedType
             prebuilt_op_set.add(
-                PrebuiltOperator(ForcedType, value_list)
-            )
+                PrebuiltOperator(ForcedType, value_list,
+                    tag_list_getter=tag_list_getter
+            ))
 
             # Make sure the parameter is not optional anymore
             self.optional_param.discard(param)
@@ -1697,18 +1691,7 @@ class PrebuiltOperator(Operator):
         self.obj_list = obj_list_
         self.uuid_list = uuid_list
         self.obj_type = obj_type
-
-        if id_ is None:
-            name = self.obj_type
-        else:
-            name = id_
-            # Get rid of the existing tags, since the name of the operator
-            # already carries that information.
-            for obj in self.obj_list:
-                try:
-                    del obj.tags
-                except AttributeError:
-                    pass
+        name = self.obj_type if id_ is None else id_
 
         # Placeholder for the signature
         def callable_() -> self.obj_type:
@@ -1811,7 +1794,8 @@ class SerializableExprValue:
         for full_qual, with_tags in itertools.product((True, False), repeat=2):
             self.recorded_id_map[(full_qual, with_tags)] = expr_val.get_id(
                 full_qual = full_qual,
-                with_tags = with_tags
+                with_tags = with_tags,
+                hidden_callable_set=hidden_callable_set,
             )
 
         self.type_names = [
@@ -1824,7 +1808,7 @@ class SerializableExprValue:
         for param, param_expr_val in expr_val.param_value_map.items():
             param_serialzable = param_expr_val._get_serializable(
                 serialized_map,
-                hidden_callable_set
+                hidden_callable_set=hidden_callable_set
             )
             self.param_value_map[param] = param_serialzable
 
@@ -1873,7 +1857,7 @@ def get_name(obj, full_qual=True):
 class ExprValue:
     def __init__(self, expr, param_value_map,
             value=NoValue, value_uuid=None,
-            excep=NoValue, excep_uuid=None
+            excep=NoValue, excep_uuid=None,
     ):
         self.value = value
         self.value_uuid = value_uuid
@@ -1881,6 +1865,13 @@ class ExprValue:
         self.excep_uuid = excep_uuid
         self.expr = expr
         self.param_value_map = param_value_map
+
+    def format_tag_list(self):
+        tag_list = self.expr.op.tag_list_getter(self.value)
+        if tag_list:
+            return '+'.join(str(v) for v in tag_list)
+        else:
+            return ''
 
     def _get_serializable(self, serialized_map, *args, **kwargs):
         if serialized_map is None:

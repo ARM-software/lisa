@@ -265,16 +265,6 @@ def get_module_basename(path):
         module_name = path.name
     return module_name
 
-class TaggedNum:
-    def __init__(self, *args, **kwargs):
-        self.tags = [str(a) for a in args]
-
-class Int(int, TaggedNum):
-    pass
-
-class Float(float, TaggedNum):
-    pass
-
 def sweep_number(
     callable_, param,
     start, stop=None, step=1):
@@ -289,60 +279,11 @@ def sweep_number(
         stop = start
         start = 0
 
-    # Swap-in the tagged type if possible
-    if issubclass(type_, numbers.Integral):
-        type_ = Int
-    # Must come in 2nd place, since int is a subclass of numbers.Real
-    elif issubclass(type_, numbers.Real):
-        type_ = Float
-
     i = type_(start)
     step = type_(step)
     while i <= stop:
         yield type_(i)
         i += step
-
-def _make_tagged_type(name, qualname, mod_name, bases):
-    class new_type(*bases):
-        def __init__(self, *args, **kwargs):
-            self.tags = (
-                [str(a) for a in args] +
-                [
-                    k+'='+str(a)
-                    for k, a in kwargs.items()
-                ]
-            )
-            try:
-                super().__init__(*args, **kwargs)
-            except TypeError:
-                pass
-
-    new_type.__name__ = name
-    new_type.__qualname__ = qualname
-    new_type.__module__ = mod_name
-    return new_type
-
-def unique_type(*param_list):
-    def decorator(f):
-        annot = engine.get_type_hints(f)
-        for param in param_list:
-            type_ = annot[param]
-            f_name = engine.get_name(f, full_qual=False)
-
-            new_type_name = '{f}_{name}'.format(
-                f = f_name.replace('.', '_'),
-                type_name = type_.__name__,
-                name = param
-            )
-            new_type = _make_tagged_type(
-                new_type_name, new_type_name, f.__module__,
-                (type_,)
-            )
-            f.__globals__[new_type_name] = new_type
-            f.__annotations__[param] = new_type
-        return f
-
-    return decorator
 
 # Call the given function at most once per set of parameters
 def once(callable_):

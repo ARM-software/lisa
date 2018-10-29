@@ -253,7 +253,10 @@ the name of the parameter, the start value, stop value and step size.""")
     callable_pool = utils.get_callable_set(module_set)
     callable_pool = adaptor.filter_callable_pool(callable_pool)
 
-    op_pool = {engine.Operator(callable_) for callable_ in callable_pool}
+    op_pool = {
+        engine.Operator(callable_, tag_list_getter=adaptor.get_tag_list)
+        for callable_ in callable_pool
+    }
     op_pool = {
         op for op in op_pool
         # Only select operators with non-empty parameter list. This rules out
@@ -366,7 +369,8 @@ the name of the parameter, the start value, stop value and step size.""")
                 id_ = serial_list[0].get_id(full_qual=False, with_tags=True)
                 prebuilt_op_pool_list.append(
                     engine.PrebuiltOperator(
-                        type_, serial_list, id_=id_
+                        type_, serial_list, id_=id_,
+                        tag_list_getter=adaptor.get_tag_list,
                     ))
 
     # Make sure that the provided PrebuiltOperator will be the only ones used
@@ -382,7 +386,10 @@ the name of the parameter, the start value, stop value and step size.""")
         for op in op_pool:
             if op.name == op_name:
                 try:
-                    new_op_pool = op.force_param(param_patch_map)
+                    new_op_pool = op.force_param(
+                        param_patch_map,
+                        tag_list_getter=adaptor.get_tag_list
+                    )
                     prebuilt_op_pool_list.extend(new_op_pool)
                 except KeyError as e:
                     error('Callable "{callable_}" has no parameter "{param}"'.format(
@@ -484,6 +491,10 @@ the name of the parameter, the start value, stop value and step size.""")
     # Only print once per parameters' tuple
     @utils.once
     def handle_non_produced(cls_name, consumer_name, param_name, callable_path):
+        # When reloading from the DB, we don't want to be annoyed with lots of
+        # output related to missing PrebuiltOperator
+        if load_db_path and not verbose:
+            return
         info('Nothing can produce instances of {cls} needed for {consumer} (parameter "{param}", along path {path})'.format(
             cls = cls_name,
             consumer = consumer_name,
@@ -505,7 +516,7 @@ the name of the parameter, the start value, stop value and step size.""")
     testcase_list = list(engine.ExpressionWrapper.build_expr_list(
         root_op_list, op_map, cls_map,
         non_produced_handler = handle_non_produced,
-        cycle_handler = handle_cycle
+        cycle_handler = handle_cycle,
     ))
 
     # Only keep the Expression where the outermost (root) operator is defined
@@ -546,6 +557,8 @@ the name of the parameter, the start value, stop value and step size.""")
             f.write(testsession_uuid+'\n')
 
     db_loader = adaptor.get_db_loader()
+
+    out('\nArtifacts dir: {}'.format(artifact_dir))
 
     for testcase in testcase_list:
         testcase_short_id = take_first(testcase.get_id(
@@ -684,6 +697,7 @@ the name of the parameter, the start value, stop value and step size.""")
                 id=result.get_id(
                     full_qual=False,
                     mark_excep=True,
+                    with_tags=True,
                 ).strip().replace('\n', '\n'+len(prefix)*' '),
                 prefix=prefix,
             ))
