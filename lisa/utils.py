@@ -187,7 +187,7 @@ class Serializable:
         """
         varname = loader.construct_scalar(node)
         assert isinstance(varname, str)
-        return loader.construct_python_name(varname, node)
+        return loader.find_python_name(varname, node.start_mark)
 
     def to_path(self, filepath, fmt=None):
         """
