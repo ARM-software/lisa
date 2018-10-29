@@ -187,7 +187,7 @@ def import_file(python_src, module_name=None, is_package=False):
                 is_package=True
             )
         else:
-            spec = importlib.util.spec_from_file_location(module_name, python_src,
+            spec = importlib.util.spec_from_file_location(module_name, str(python_src),
                 submodule_search_locations=submodule_search_locations)
             if spec is None:
                 raise ValueError('Could not find module "{module}" at {path}'.format(
