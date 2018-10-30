@@ -250,7 +250,7 @@ the name of the parameter, the start value, stop value and step size.""")
         debug_log = None
     else:
         artifact_dir.mkdir(parents=True)
-        debug_log = artifact_dir.joinpath('log.txt')
+        debug_log = artifact_dir.joinpath('debug_log.txt')
 
     utils.setup_logging(args.log_level, debug_log, verbose)
 
@@ -688,25 +688,16 @@ the name of the parameter, the start value, stop value and step size.""")
                     ),
                 )
 
-            info('Finished {short_id}{uuid}'.format(
-                short_id = result.get_id(
-                    hidden_callable_set=hidden_callable_set,
-                    full_qual=False,
-                ),
-                full_id = result.get_id(
-                    hidden_callable_set=hidden_callable_set,
-                    full_qual=True,
-                ),
-                uuid=get_uuid_str(result)
-            ))
-            prefix = 'ID: '
-            out('{prefix}{id}'.format(
+            prefix = 'Finished '
+            info('{prefix}{id}{uuid}'.format(
                 id=result.get_id(
                     full_qual=False,
                     mark_excep=True,
                     with_tags=True,
+                    hidden_callable_set=hidden_callable_set,
                 ).strip().replace('\n', '\n'+len(prefix)*' '),
                 prefix=prefix,
+                uuid=get_uuid_str(result),
             ))
             if verbose:
                 out('Full ID:{}'.format(result.get_id(full_qual=True)))
