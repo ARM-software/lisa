@@ -173,7 +173,7 @@ class TestEnv(Loggable):
             plat_info = copy.copy(plat_info)
         self.plat_info = plat_info
 
-        logger.info('Pre-configured platform information:\n%s', self.plat_info)
+        logger.info('User-defined platform information:\n%s', self.plat_info)
 
         self.ftrace = None
         self._installed_tools = set()
