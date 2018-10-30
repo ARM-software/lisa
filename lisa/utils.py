@@ -30,6 +30,7 @@ import os
 import importlib
 import pkgutil
 import operator
+import numbers
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -187,7 +188,7 @@ class Serializable:
         """
         varname = loader.construct_scalar(node)
         assert isinstance(varname, str)
-        return loader.construct_python_name(varname, node)
+        return loader.find_python_name(varname, node.start_mark)
 
     def to_path(self, filepath, fmt=None):
         """
@@ -550,9 +551,9 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
                 pass
             # Some classes are able to raise a more detailed exception than
             # just the boolean return value of __instancecheck__
-            elif hasattr(cls, '_instancecheck'):
+            elif hasattr(cls, 'instancecheck'):
                 try:
-                    cls._instancecheck(val)
+                    cls.instancecheck(val)
                 except ValueError as e:
                     raise_excep(key, val, cls, str(e))
             else:
@@ -714,7 +715,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
             k: src_map for k, src_map in key_map.items()
             if src_map
         }
-        state = copy.copy(self.__dict__)
+        state = copy.copy(super().__getstate__())
         state['_key_map'] = key_map
 
         return state
@@ -828,42 +829,19 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
 class GenericContainerMetaBase(type):
     def __instancecheck__(cls, instance):
         try:
-            cls._instancecheck(instance)
+            cls.instancecheck(instance)
         except ValueError:
             return False
         else:
             return True
 
-# That is needed to make ruamel.yaml consider these classes as objects, so it
-# uses __reduce_ex__
-ruamel.yaml.Representer.add_multi_representer(GenericContainerMetaBase, ruamel.yaml.Representer.represent_object)
-
 class GenericContainerBase:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        type(self)._instancecheck(self)
-
-    @classmethod
-    def __reduce_ex__(cls, version):
-        return (cls._build, (cls._type,))
+        type(self).instancecheck(self)
 
 class GenericMappingMeta(GenericContainerMetaBase, type(Mapping)):
-    @memoized
-    def __getitem__(cls, type_):
-        if type_ is None:
-            return cls
-
-        class new_cls(cls):
-            _type = type_
-
-        suffix = '[{},{}]'.format(*(
-            t.__qualname__ for t in type_
-        ))
-        new_cls.__qualname__ = cls.__qualname__ + suffix
-        new_cls.__name__ = cls.__name__ + suffix
-        return new_cls
-
-    def _instancecheck(cls, instance):
+    def instancecheck(cls, instance):
         if not isinstance(instance, Mapping):
             raise ValueError('not a Mapping')
 
@@ -884,26 +862,10 @@ class GenericMappingMeta(GenericContainerMetaBase, type(Mapping)):
                 ))
 
 class TypedDict(GenericContainerBase, dict, metaclass=GenericMappingMeta):
-    # Workaround issues in ruamel.yaml when it comes to complex setups
-    @staticmethod
-    def _build(types):
-        return TypedDict[types]
+    pass
 
 class GenericSequenceMeta(GenericContainerMetaBase, type(Sequence)):
-    @memoized
-    def __getitem__(cls, type_):
-        if type_ is None:
-            return cls
-
-        class new_cls(cls):
-            _type = type_
-
-        suffix = '[{}]'.format(type_.__qualname__)
-        new_cls.__qualname__ = cls.__qualname__ + suffix
-        new_cls.__name__ = cls.__name__ + suffix
-        return new_cls
-
-    def _instancecheck(cls, instance):
+    def instancecheck(cls, instance):
         if not isinstance(instance, Sequence):
             raise ValueError('not a Sequence')
 
@@ -918,10 +880,22 @@ class GenericSequenceMeta(GenericContainerMetaBase, type(Sequence)):
                 ))
 
 class TypedList(GenericContainerBase, list, metaclass=GenericSequenceMeta):
-    # Workaround issues in ruamel.yaml when it comes to complex setups
-    @staticmethod
-    def _build(types):
-        return TypedList[types]
+    pass
+
+class IntIntDict(TypedDict):
+    _type = (int, int)
+
+class IntRealDict(TypedDict):
+    _type = (int, numbers.Real)
+
+class IntList(TypedList):
+    _type = int
+
+class StrList(TypedList):
+    _type = str
+
+class StrIntListDict(TypedDict):
+    _type = (str, IntList)
 
 def setup_logging(filepath='logging.conf', level=logging.INFO):
     """

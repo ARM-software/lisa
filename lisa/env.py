@@ -33,7 +33,7 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
 from lisa.energy_meter import EnergyMeter
-from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, TypedList, LISA_HOME
+from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList
 
 from lisa.platforms.platinfo import PlatformInfo
 
@@ -65,10 +65,10 @@ class TargetConf(MultiSrcConf, HideExekallID):
         'device': str,
         'keyfile': str,
         'workdir': str,
-        'tools': TypedList[str],
+        'tools': StrList,
         'ftrace': {
-            'events': TypedList[str],
-            'functions': TypedList[str],
+            'events': StrList,
+            'functions': StrList,
             'buffsize': int,
         },
         'devlib': {
@@ -76,7 +76,7 @@ class TargetConf(MultiSrcConf, HideExekallID):
                 'class': str,
                 'args': Mapping,
             },
-            'excluded-modules': TypedList[str],
+            'excluded-modules': StrList,
         }
     }
 
@@ -149,14 +149,18 @@ class TestEnv(Loggable):
         super().__init__()
         logger = self.get_logger()
 
+        board_name = target_conf.get('board', None)
         if not res_dir:
-            res_dir_name = datetime.now().strftime('TestEnv_%Y%m%d_%H%M%S.%f')
-            res_dir = os.path.join(LISA_HOME, RESULT_DIR, res_dir_name)
+            name = board_name or type(self).__qualname__
+            time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
+            name = '{}-{}'.format(name, time_str)
+            res_dir = os.path.join(LISA_HOME, RESULT_DIR, name)
 
         # That res_dir is for the exclusive use of TestEnv itself, it must not
         # be used by users of TestEnv
         self._res_dir = res_dir
-        os.makedirs(self._res_dir, exist_ok=True)
+        if self._res_dir:
+            os.makedirs(self._res_dir, exist_ok=True)
 
         self.target_conf = target_conf
         logger.debug('Target configuration %s', self.target_conf)
@@ -180,9 +184,6 @@ class TestEnv(Loggable):
         if tools:
             logger.info('Tools to install: %s', tools)
             self.install_tools(target, tools)
-
-        board_name = target_conf.get('board', None)
-        self.tags = [board_name] if board_name else []
 
         # Autodetect information from the target, after the TestEnv is
         # initialized. Expensive computations are deferred so they will only be
@@ -357,22 +358,33 @@ class TestEnv(Loggable):
           created results directory
         :type symlink: bool
         """
+        logger = self.get_logger()
 
-        time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
-        if not name:
-            name = time_str
-        elif append_time:
-            name = "{}-{}".format(name, time_str)
+        while True:
+            time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
+            if not name:
+                name = time_str
+            elif append_time:
+                name = "{}-{}".format(name, time_str)
 
-        res_dir = os.path.join(self._res_dir, name)
+            res_dir = os.path.join(self._res_dir, name)
 
-        # Compute base installation path
-        self.get_logger().info('Creating result directory: %s', res_dir)
+            # Compute base installation path
+            logger.info('Creating result directory: %s', res_dir)
 
-        try:
-            os.mkdir(res_dir)
-        except FileExistsError:
-            pass
+            # It will fail if the folder already exists. In that case,
+            # append_time should be used to ensure we get a unique name.
+            try:
+                os.mkdir(res_dir)
+                break
+            except FileExistsError:
+                # If the time is used in the name, there is some hope that the
+                # next time it will succeed
+                if append_time:
+                    logger.info('Directory already exists, retrying ...')
+                    continue
+                else:
+                    raise
 
         if symlink:
             res_lnk = Path(LISA_HOME, LATEST_LINK)

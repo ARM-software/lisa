@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+import numbers
+
 from exekall.engine import NoValue, get_name
 from exekall.utils import out
 
@@ -26,6 +28,14 @@ class AdaptorBase:
         if args is None:
             args = dict()
         self.args = args
+
+    @staticmethod
+    def get_tag_list(value):
+        if isinstance(value, numbers.Number):
+            tags = [str(value)]
+        else:
+            tags = []
+        return tags
 
     def get_db_loader(self):
         return None
@@ -75,16 +85,27 @@ class AdaptorBase:
 
     def process_results(self, result_map):
         hidden_callable_set = self.hidden_callable_set
+
+        # Get all IDs and compute the maximum length to align the output
+        result_id_map = {
+            result: result.get_id(
+                hidden_callable_set=hidden_callable_set,
+                full_qual=False,
+                ) + ':'
+            for expr, result_list in result_map.items()
+            for result in result_list
+        }
+
+        max_id_len = len(max(result_id_map.values(), key=len))
+
         for expr, result_list in result_map.items():
             for result in result_list:
                 msg = self.result_str(result)
                 msg = msg + '\n' if '\n' in msg else msg
-                out('{id}: {result}'.format(
-                    id=result.get_id(
-                        hidden_callable_set=hidden_callable_set,
-                        full_qual=False,
-                    ),
+                out('{id:<{max_id_len}} {result}'.format(
+                    id=result_id_map[result],
                     result=msg,
+                    max_id_len=max_id_len,
                 ))
 
     @classmethod

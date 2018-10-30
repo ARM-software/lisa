@@ -27,7 +27,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 import traceback
 
-from lisa.env import TargetConf, ArtifactPath
+from lisa.env import TestEnv, TargetConf, ArtifactPath
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.utils import HideExekallID, Loggable
 from lisa.tests.kernel.test_bundle import Result, ResultBundle, CannotCreateError
@@ -52,7 +52,7 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
         path_str = super().__new__(cls, str(path), *args, **kwargs)
         # Record the actual root, so we can relocate the path later with an
         # updated root
-        path_str.artifact_dir = root
+        path_str.root = root
         return path_str
 
     def __fspath__(self):
@@ -61,31 +61,30 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
     def __reduce__(self):
         # Serialize the path relatively to the root, so it can be relocated
         # easily
-        relative = self.relative_to(self.artifact_dir)
-        return (type(self), (self.artifact_dir, relative))
+        relative = self.relative_to(self.root)
+        return (type(self), (self.root, relative))
 
     def relative_to(self, path):
         return os.path.relpath(self, start=path)
 
-    def with_artifact_dir(self, artifact_dir):
+    def with_root(self, root):
         # Get the path relative to the old root
-        relative = self.relative_to(self.artifact_dir)
+        relative = self.relative_to(self.root)
 
-        # Swap-in the new artifact_dir and return a new instance
-        return type(self)(artifact_dir, relative)
+        # Swap-in the new root and return a new instance
+        return type(self)(root, relative)
 
     @classmethod
     def from_expr_data(cls, data:ExprData, consumer:Consumer) -> 'ArtifactStorage':
         """
         Factory used when running under `exekall`
         """
-        artifact_dir = Path(data['artifact_dir']).resolve()
-        root = data['testcase_artifact_dir']
+        artifact_dir = Path(data['testcase_artifact_dir']).resolve()
         consumer_name = get_name(consumer)
 
         # Find a non-used directory
         for i in itertools.count(1):
-            artifact_dir = Path(root, consumer_name, str(i))
+            artifact_dir = Path(artifact_dir, consumer_name, str(i))
             if not artifact_dir.exists():
                 break
 
@@ -97,8 +96,9 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
             path = artifact_dir
         ))
         artifact_dir.mkdir(parents=True)
-        relative = artifact_dir.relative_to(artifact_dir)
-        return cls(artifact_dir, relative)
+        root = data['artifact_dir']
+        relative = artifact_dir.relative_to(root)
+        return cls(root, relative)
 
 class LISAAdaptor(AdaptorBase):
     name = 'LISA'
@@ -159,7 +159,7 @@ class LISAAdaptor(AdaptorBase):
             for attr, attr_val in dct.items():
                 if isinstance(attr_val, ArtifactStorage):
                     setattr(val, attr,
-                        attr_val.with_artifact_dir(artifact_dir)
+                        attr_val.with_root(artifact_dir)
                     )
 
         return db
@@ -176,24 +176,19 @@ class LISAAdaptor(AdaptorBase):
         # Add symlinks to artifact folders for ExprValue that were used in the
         # ExprValue graph, but were initially computed for another Expression
         if isinstance(val, ArtifactStorage):
-            try:
-                # If the folder is already a subfolder of our artifacts, we
-                # don't need to do anything
-                val.relative_to(testcase_artifact_dir)
-            # Otherwise, that means that such folder is reachable from our
-            # parent ExprValue and we want to get a symlink to them
-            except ValueError:
+            val = Path(val)
+            is_subfolder = (testcase_artifact_dir.resolve() in val.resolve().parents)
+            # The folder is reachable from our ExprValue, but is not a
+            # subfolder of the testcase_artifact_dir, so we want to get a
+            # symlink to it
+            if not is_subfolder:
                 # We get the name of the callable
                 callable_folder = val.parts[-2]
                 folder = testcase_artifact_dir/callable_folder
 
-                # TODO: check os.path.relpath
                 # We build a relative path back in the hierarchy to the root of
                 # all artifacts
-                relative_artifact_dir = Path(*(
-                    '..' for part in
-                    folder.relative_to(artifact_dir).parts
-                ))
+                relative_artifact_dir = Path(os.path.relpath(artifact_dir, start=folder))
 
                 # The target needs to be a relative symlink, so we replace the
                 # absolute artifact_dir by a relative version of it
@@ -212,6 +207,15 @@ class LISAAdaptor(AdaptorBase):
         for param, param_expr_val in expr_val.param_value_map.items():
             self._finalize_expr_val(param_expr_val, artifact_dir, testcase_artifact_dir)
 
+    @classmethod
+    def get_tag_list(cls, value):
+        if isinstance(value, TestEnv):
+            board_name = value.target_conf.get('board')
+            tags = [board_name] if board_name else []
+        else:
+            tags = super().get_tag_list(value)
+
+        return tags
 
     def process_results(self, result_map):
         super().process_results(result_map)

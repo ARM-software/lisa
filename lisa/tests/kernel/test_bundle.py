@@ -280,7 +280,7 @@ class TestBundle(Serializable, abc.ABC):
         cls.check_from_testenv(te)
 
         if not res_dir:
-            res_dir = te.get_res_dir()
+            res_dir = te.get_res_dir(cls.__qualname__)
 
         bundle = cls._from_testenv(te, res_dir, **kwargs)
 

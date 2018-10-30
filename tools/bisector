@@ -59,6 +59,7 @@ import urllib.parse
 import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
+
 import ruamel.yaml
 
 yaml = ruamel.yaml.YAML(typ='unsafe')
@@ -1931,6 +1932,7 @@ class ExekallLISATestStep(ShellStep):
         ignored_except_set = {
             tuple(e.strip().rsplit('.')) for e in ignore_excep
         }
+
         considered_testcase_set = set(testcase)
         considered_iteration_set = set(iterations)
 
@@ -2158,16 +2160,26 @@ class ExekallLISATestStep(ShellStep):
                     for i in range(1, i_max + 1)
                 ]
 
-                counts[issue] += 1
-                if show_rates:
-                    if (
-                        (issue == 'passed' and show_pass_rate)
-                        or
-                        issue_n and not (issue == 'passed' and ignore_non_issue)
-                    ):
-                        table_out(
-                            '{testcase_id}: {pretty_issue} {issue_n}/{iteration_n} ({issue_pc:.1f}%)'.format(**locals())
+                if i_set:
+                    counts[issue] += 1
+
+                if show_rates and (
+                    (issue == 'passed' and show_pass_rate)
+                    or
+                    issue_n and not (
+                        issue in ('passed', 'skipped')
+                        and ignore_non_issue
+                    )
+                ):
+                    table_out(
+                        '{testcase_id}: {pretty_issue} {issue_n}/{iteration_n} ({issue_pc:.1f}%)'.format(
+                            testcase_id=testcase_id,
+                            pretty_issue=pretty_issue,
+                            issue_n=issue_n,
+                            iteration_n=iteration_n,
+                            issue_pc=issue_pc
                         )
+                    )
 
                 if show_details and not (ignore_non_issue and issue == 'passed'):
                     for entry in filtered_entry_list:
@@ -2231,7 +2243,10 @@ class ExekallLISATestStep(ShellStep):
             'Failed: {counts[failure]}/{total}, '
             'Undecided: {counts[undecided]}/{total}, '
             'Skipped: {counts[skipped]}/{total}, '
-            'Passed: {counts[passed]}/{total}'.format(**locals())
+            'Passed: {counts[passed]}/{total}'.format(
+                counts=counts,
+                total=total,
+            )
         )
 
         # Write out the digest in JSON format so another tool can exploit it
