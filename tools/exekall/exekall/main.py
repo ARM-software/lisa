@@ -176,13 +176,20 @@ the name of the parameter, the start value, stop value and step size.""")
 
     adaptor_cls = AdaptorBase
     module_set = set()
+
+    try:
+        import_excep = ModuleNotFoundError
+    # Python < 3.6
+    except NameError:
+        import_excep = ImportError
+
     for name in reversed(package_name_list):
         customize_name = name + '.exekall_customize'
         # Only hide ModuleNotFoundError exceptions when looking up that
         # specific module, we don't want to hide issues inside the module
         # itself.
         module_exists = False
-        with contextlib.suppress(ModuleNotFoundError):
+        with contextlib.suppress(import_excep):
             module_exists = importlib.util.find_spec(customize_name)
 
         if module_exists:
