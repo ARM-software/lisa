@@ -52,7 +52,7 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
         path_str = super().__new__(cls, str(path), *args, **kwargs)
         # Record the actual root, so we can relocate the path later with an
         # updated root
-        path_str.artifact_dir = root
+        path_str.root = root
         return path_str
 
     def __fspath__(self):
@@ -61,31 +61,30 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
     def __reduce__(self):
         # Serialize the path relatively to the root, so it can be relocated
         # easily
-        relative = self.relative_to(self.artifact_dir)
-        return (type(self), (self.artifact_dir, relative))
+        relative = self.relative_to(self.root)
+        return (type(self), (self.root, relative))
 
     def relative_to(self, path):
         return os.path.relpath(self, start=path)
 
-    def with_artifact_dir(self, artifact_dir):
+    def with_root(self, root):
         # Get the path relative to the old root
-        relative = self.relative_to(self.artifact_dir)
+        relative = self.relative_to(self.root)
 
-        # Swap-in the new artifact_dir and return a new instance
-        return type(self)(artifact_dir, relative)
+        # Swap-in the new root and return a new instance
+        return type(self)(root, relative)
 
     @classmethod
     def from_expr_data(cls, data:ExprData, consumer:Consumer) -> 'ArtifactStorage':
         """
         Factory used when running under `exekall`
         """
-        artifact_dir = Path(data['artifact_dir']).resolve()
-        root = data['testcase_artifact_dir']
+        artifact_dir = Path(data['testcase_artifact_dir']).resolve()
         consumer_name = get_name(consumer)
 
         # Find a non-used directory
         for i in itertools.count(1):
-            artifact_dir = Path(root, consumer_name, str(i))
+            artifact_dir = Path(artifact_dir, consumer_name, str(i))
             if not artifact_dir.exists():
                 break
 
@@ -97,8 +96,9 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
             path = artifact_dir
         ))
         artifact_dir.mkdir(parents=True)
-        relative = artifact_dir.relative_to(artifact_dir)
-        return cls(artifact_dir, relative)
+        root = data['artifact_dir']
+        relative = artifact_dir.relative_to(root)
+        return cls(root, relative)
 
 class LISAAdaptor(AdaptorBase):
     name = 'LISA'
@@ -159,7 +159,7 @@ class LISAAdaptor(AdaptorBase):
             for attr, attr_val in dct.items():
                 if isinstance(attr_val, ArtifactStorage):
                     setattr(val, attr,
-                        attr_val.with_artifact_dir(artifact_dir)
+                        attr_val.with_root(artifact_dir)
                     )
 
         return db

@@ -21,7 +21,7 @@ from collections import ChainMap
 from collections.abc import Mapping
 from numbers import Real
 
-from lisa.utils import HideExekallID, MultiSrcConf, memoized, TypedDict, TypedList, DeferredValue
+from lisa.utils import HideExekallID, MultiSrcConf, memoized, DeferredValue, IntRealDict, IntIntDict, StrIntListDict
 from lisa.energy_model import EnergyModel
 from lisa.wlgen.rta import RTA
 
@@ -37,10 +37,10 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     # we need.
     STRUCTURE = {
         'rtapp': {
-            'calib': TypedDict[int, int],
+            'calib': IntIntDict,
         },
         'nrg-model': EnergyModel,
-        'cpu-capacities': TypedDict[int, Real],
+        'cpu-capacities': IntRealDict,
         'kernel-version': KernelVersion,
         'abi': str,
         'os': str,
@@ -48,9 +48,9 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
         # TODO: remove that once no code depend on it anymore
         'topology': Topology,
-        'clusters': TypedDict[str, TypedList[int]],
+        'clusters': StrIntListDict,
         'cpus-count': int,
-        'freqs': TypedDict[str, TypedList[int]],
+        'freqs': StrIntListDict,
     }
     """Some keys have a reserved meaning with an associated type."""
 

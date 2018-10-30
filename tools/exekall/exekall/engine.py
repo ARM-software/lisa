@@ -37,6 +37,7 @@ import contextlib
 import types
 import pprint
 import sys
+import logging
 
 import ruamel.yaml
 
@@ -1330,7 +1331,8 @@ def is_serializable(obj, raise_excep=False):
         # This may be slow for big objects but it is the only way to be sure
         # it can actually be serialized
         pickle.dumps(obj)
-    except (TypeError, pickle.PickleError):
+    except (TypeError, pickle.PickleError) as e:
+        logging.getLogger('serialization test').debug('Cannot serialize instance of %s: %s', type(obj).__qualname__, str(e))
         if raise_excep:
             raise NotSerializableError(obj)
         return False
@@ -1494,16 +1496,17 @@ class Operator:
 
     def get_name(self, full_qual=True):
         if self._name is not None:
-            if isinstance(self._name, str):
-                return self._name
-            # We allow passing in types for example, that will be used as the
-            # source for the name
+            # We allow passing in types that will be used as the source for the
+            # name
+            if isinstance(self._name, type):
+                name = get_name(self._name, full_qual)
             else:
-                return get_name(self._name, full_qual)
-        try:
-            name = get_name(self.callable_, full_qual)
-        except AttributeError:
-            name = self._name
+                name = str(self._name)
+        else:
+            try:
+                name = get_name(self.callable_, full_qual)
+            except AttributeError:
+                name = self._name
 
         return name
 
@@ -1816,18 +1819,15 @@ class SerializableExprValue:
         args = (full_qual, with_tags)
         return self.recorded_id_map[args]
 
-    def get_parent_set(self, predicate):
-        parent_set = set()
+    def get_parent_set(self, predicate, _parent_set=None):
+        parent_set = set() if _parent_set is None else _parent_set
         if predicate(self):
             parent_set.add(self)
-        self._get_parent_set(parent_set, predicate)
-        return parent_set
 
-    def _get_parent_set(self, parent_set, predicate):
         for parent in self.param_value_map.values():
-            if predicate(parent):
-                parent_set.add(parent)
-            parent._get_parent_set(parent_set, predicate)
+            parent.get_parent_set(predicate, _parent_set=parent_set)
+
+        return parent_set
 
 def get_name(obj, full_qual=True):
     # Add the module's name in front of the name to get a fully

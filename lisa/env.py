@@ -33,7 +33,7 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
 from lisa.energy_meter import EnergyMeter
-from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, TypedList, LISA_HOME
+from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList
 
 from lisa.platforms.platinfo import PlatformInfo
 
@@ -65,10 +65,10 @@ class TargetConf(MultiSrcConf, HideExekallID):
         'device': str,
         'keyfile': str,
         'workdir': str,
-        'tools': TypedList[str],
+        'tools': StrList,
         'ftrace': {
-            'events': TypedList[str],
-            'functions': TypedList[str],
+            'events': StrList,
+            'functions': StrList,
             'buffsize': int,
         },
         'devlib': {
@@ -76,7 +76,7 @@ class TargetConf(MultiSrcConf, HideExekallID):
                 'class': str,
                 'args': Mapping,
             },
-            'excluded-modules': TypedList[str],
+            'excluded-modules': StrList,
         }
     }
 
