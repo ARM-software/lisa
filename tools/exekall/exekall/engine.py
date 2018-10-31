@@ -559,7 +559,7 @@ class Expression:
             if (
                 param_expr.op.callable_ not in hidden_callable_set
                 # If the value is marked, the ID will not be hidden
-                or param_value_map.get(param, None) in marked_value_set
+                or param_value_map.get(param) in marked_value_set
             )
         )
 

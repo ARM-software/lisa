@@ -152,7 +152,7 @@ class TestEnv(Loggable):
         super().__init__()
         logger = self.get_logger()
 
-        board_name = target_conf.get('board', None)
+        board_name = target_conf.get('board')
         if not res_dir:
             name = board_name or type(self).__qualname__
             time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
@@ -289,7 +289,7 @@ class TestEnv(Loggable):
         """
         logger = self.get_logger()
         target_kind = target_conf['kind']
-        target_workdir = target_conf.get('workdir', None)
+        target_workdir = target_conf.get('workdir')
         conn_settings = {}
 
         # If the target is Android, we need just (eventually) the device
@@ -323,7 +323,7 @@ class TestEnv(Loggable):
             if 'keyfile' in target_conf:
                 conn_settings['keyfile'] = target_conf['keyfile']
             else:
-                conn_settings['password'] = target_conf.get('password', None)
+                conn_settings['password'] = target_conf.get('password')
         elif target_kind == 'host':
             logger.debug('Setting up localhost Linux target...')
             devlib_target_cls = devlib.LocalLinuxTarget
