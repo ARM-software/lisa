@@ -65,7 +65,7 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
         return (type(self), (self.root, relative))
 
     def relative_to(self, path):
-        return os.path.relpath(self, start=path)
+        return os.path.relpath(str(self), start=str(path))
 
     def with_root(self, root):
         # Get the path relative to the old root
@@ -188,7 +188,7 @@ class LISAAdaptor(AdaptorBase):
 
                 # We build a relative path back in the hierarchy to the root of
                 # all artifacts
-                relative_artifact_dir = Path(os.path.relpath(artifact_dir, start=folder))
+                relative_artifact_dir = Path(os.path.relpath(str(artifact_dir), start=str(folder)))
 
                 # The target needs to be a relative symlink, so we replace the
                 # absolute artifact_dir by a relative version of it
@@ -230,11 +230,11 @@ class LISAAdaptor(AdaptorBase):
         #  https://github.com/jenkinsci/xunit-plugin/blob/master/src/main/resources/org/jenkinsci/plugins/xunit/types/model/xsd/junit-10.xsd
         # This way, Jenkins should be able to read it, and other tools as well
 
-        xunit_path = os.path.join(self.args.artifact_dir, 'xunit.xml')
+        xunit_path = self.args.artifact_dir.joinpath('xunit.xml')
         et_root = self.create_xunit(result_map, self.hidden_callable_set)
         et_tree = ET.ElementTree(et_root)
-        utils.info('Writing xUnit file at: ' + xunit_path)
-        et_tree.write(xunit_path)
+        utils.info('Writing xUnit file at: ' + str(xunit_path))
+        et_tree.write(str(xunit_path))
 
     def create_xunit(self, result_map, hidden_callable_set):
         et_testsuites = ET.Element('testsuites')
