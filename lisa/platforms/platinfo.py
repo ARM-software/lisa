@@ -130,15 +130,6 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
         return self.add_src(src, info, filter_none=True, **kwargs)
 
-    @property
-    def tags(self):
-        try:
-            name = self['name']
-        except KeyError:
-            return []
-        else:
-            return [name]
-
     # Internal methods used to compute some keys from a live devlib Target
 
     @classmethod

@@ -105,7 +105,7 @@ class TargetConf(MultiSrcConf, HideExekallID):
     def to_map(self):
         return dict(self._get_chainmap())
 
-class TestEnv(Loggable):
+class TestEnv(Loggable, HideExekallID):
     """
     Represents the environment configuring LISA, the target, and the test setup
 
@@ -175,6 +175,12 @@ class TestEnv(Loggable):
             # one we were passed when adding the target source to it
             plat_info = copy.copy(plat_info)
         self.plat_info = plat_info
+
+        # Take the board name from the target configuration so it becomes
+        # available for later inspection. That board name is mostly free form
+        # and should not be relied upon.
+        if board_name:
+            self.plat_info.add_src('target-conf', dict(name=board_name))
 
         logger.info('User-defined platform information:\n%s', self.plat_info)
 

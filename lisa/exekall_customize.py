@@ -30,7 +30,7 @@ import traceback
 from lisa.env import TestEnv, TargetConf, ArtifactPath
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.utils import HideExekallID, Loggable
-from lisa.tests.kernel.test_bundle import Result, ResultBundle, CannotCreateError
+from lisa.tests.kernel.test_bundle import TestBundle, Result, ResultBundle, CannotCreateError
 
 from exekall import utils, engine
 from exekall.engine import reusable, ExprData, Consumer, PrebuiltOperator, NoValue, get_name
@@ -213,6 +213,12 @@ class LISAAdaptor(AdaptorBase):
         if isinstance(value, TestEnv):
             board_name = value.target_conf.get('board')
             tags = [board_name] if board_name else []
+        elif isinstance(value, PlatformInfo):
+            name = value.get('name')
+            tags = [name] if name else []
+        elif isinstance(value, TestBundle):
+            name = value.plat_info.get('name')
+            tags = [name] if name else []
         else:
             tags = super().get_tag_list(value)
 
