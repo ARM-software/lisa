@@ -180,7 +180,7 @@ the name of the parameter, the start value, stop value and step size.""")
         import_excep = ModuleNotFoundError
     # Python < 3.6
     except NameError:
-        import_excep = ImportError
+        import_excep = AttributeError
 
     for name in reversed(package_name_list):
         customize_name = name + '.exekall_customize'
