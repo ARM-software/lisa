@@ -1,17 +1,16 @@
 # A word about the future
 
-We are currently working on revamping and streamlining a good chunk of LISA,
-which will of course break some things. 
+A revamped and streamlined version of LISA is available under the 'next' branch
+(https://github.com/ARM-software/lisa/tree/next). Active development is moving
+towards that branch, so while we'll accept small fixes to LISA/master until we feel
+confident it is time to flip the switch, any other kind of pull requests should be
+sent against LISA/next.
 
 In short, this what you should expect to see:
-* Complete redo of our test classes (LisaTest & Executor) - see this [WIP branch](https://github.com/valschneider/lisa/commits/tests/executor-rework)
+* Complete redo of our test classes (LisaTest & Executor)
 * Various clean ups of LISA internals (e.g. TestEnv)
 * Migration to Python3
 * Documentation overhaul (as in, not just bare docstrings)
-
-We are aiming for an external release by November. This should take the form of a
-'next' branch in this repository. After some transition period (say 6 months),
-we'll update 'master' to this 'next' branch.
 
 # Introduction
 
