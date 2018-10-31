@@ -1811,10 +1811,11 @@ class SerializableExprValue:
         # Pre-compute all the IDs so they are readily available once the value
         # is deserialized
         self.recorded_id_map = dict()
-        for full_qual, with_tags in itertools.product((True, False), repeat=2):
-            self.recorded_id_map[(full_qual, with_tags)] = expr_val.get_id(
-                full_qual = full_qual,
-                with_tags = with_tags,
+        for full_qual, qual, with_tags in itertools.product((True, False), repeat=3):
+            self.recorded_id_map[(full_qual, qual, with_tags)] = expr_val.get_id(
+                full_qual=full_qual,
+                qual=qual,
+                with_tags=with_tags,
                 hidden_callable_set=hidden_callable_set,
             )
 
@@ -1832,8 +1833,8 @@ class SerializableExprValue:
             )
             self.param_value_map[param] = param_serialzable
 
-    def get_id(self, full_qual=True, with_tags=True):
-        args = (full_qual, with_tags)
+    def get_id(self, full_qual=True, qual=True, with_tags=True):
+        args = (full_qual, qual, with_tags)
         return self.recorded_id_map[args]
 
     def get_parent_set(self, predicate, _parent_set=None):
