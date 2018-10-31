@@ -556,7 +556,11 @@ class Expression:
                 hidden_callable_set = hidden_callable_set,
             )))
             for param, param_expr in self.param_map.items()
-            if not param_expr.op.callable_ in hidden_callable_set
+            if (
+                param_expr.op.callable_ not in hidden_callable_set
+                # If the value is marked, the ID will not be hidden
+                or param_value_map.get(param, None) in marked_value_set
+            )
         )
 
         def tags_iter(value_list):

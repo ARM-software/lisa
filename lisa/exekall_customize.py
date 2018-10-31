@@ -84,8 +84,9 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
 
         # Find a non-used directory
         for i in itertools.count(1):
-            artifact_dir = Path(artifact_dir, consumer_name, str(i))
-            if not artifact_dir.exists():
+            artifact_dir_ = Path(artifact_dir, consumer_name, str(i))
+            if not artifact_dir_.exists():
+                artifact_dir = artifact_dir_
                 break
 
         # Get canonical absolute paths
