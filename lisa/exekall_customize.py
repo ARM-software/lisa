@@ -89,14 +89,13 @@ class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
                 artifact_dir = artifact_dir_
                 break
 
-        # Get canonical absolute paths
-        artifact_dir = artifact_dir.resolve()
-
         cls.get_logger().info('Creating {consumer} artifact storage: {path}'.format(
             consumer = consumer_name,
             path = artifact_dir
         ))
         artifact_dir.mkdir(parents=True)
+        # Get canonical absolute paths
+        artifact_dir = artifact_dir.resolve()
         root = data['artifact_dir']
         relative = artifact_dir.relative_to(root)
         return cls(root, relative)

@@ -241,14 +241,14 @@ the name of the parameter, the start value, stop value and step size.""")
     else:
         artifact_dir = pathlib.Path(args.artifact_root, date + '_' + testsession_uuid)
 
-    artifact_dir = artifact_dir.resolve()
-    # Update the CLI arguments so the customization module has access to the
-    # correct value
-    args.artifact_dir = artifact_dir
     if dry_run:
         debug_log = None
     else:
         artifact_dir.mkdir(parents=True)
+        artifact_dir = artifact_dir.resolve()
+        # Update the CLI arguments so the customization module has access to the
+        # correct value
+        args.artifact_dir = artifact_dir
         debug_log = artifact_dir.joinpath('debug_log.txt')
 
     utils.setup_logging(args.log_level, debug_log, verbose)
@@ -592,8 +592,9 @@ the name of the parameter, the start value, stop value and step size.""")
             testcase.op.get_name(full_qual=False),
             testcase_short_id,
             testcase.uuid
-        ).resolve()
+        )
         testcase_artifact_dir.mkdir(parents=True)
+        testcase_artifact_dir = testcase_artifact_dir.resolve()
         data['artifact_dir'] = artifact_dir
         data['testcase_artifact_dir'] = testcase_artifact_dir
 
