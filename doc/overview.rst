@@ -5,6 +5,13 @@ Overview
 Installation
 ============
 
+As with any other Python project, we recommend using a virtual python environment::
+
+  python3 -m venv --system-site-packages <venv_folder>
+  source <venv_folder>/bin/activate
+  # do work
+  deactivate
+
 For now, you will need to clone LISA from `github
 <https://github.com/ARM-software/lisa>`_ and use ``setup.py`` to install the
 required packages. The simplest way to do so would be to issue these commands::
@@ -19,8 +26,6 @@ Extra (optionnal) packages can also be installed, for instance notebook support:
 
 Since any dependency update will be reflected in ``setup.py``, these commands can
 also be used to update your packages and keep them compatible with LISA.
-
-As with any other Python project, we recommend using a virtual python environment.
 
 Using LISA
 ==========
