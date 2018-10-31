@@ -566,7 +566,7 @@ the name of the parameter, the start value, stop value and step size.""")
 
     db_loader = adaptor.get_db_loader()
 
-    out('\nArtifacts dir: {}'.format(artifact_dir))
+    out('\nArtifacts dir: {}\n'.format(artifact_dir))
 
     for testcase in testcase_list:
         testcase_short_id = take_first(testcase.get_id(
@@ -615,7 +615,6 @@ the name of the parameter, the start value, stop value and step size.""")
     if only_template_scripts:
         return 0
 
-    out('\n')
     result_map = collections.defaultdict(list)
     for testcase, executor in engine.Expression.get_executor_map(testcase_list).items():
         exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}'.format(
@@ -746,7 +745,8 @@ the name of the parameter, the start value, stop value and step size.""")
     db.to_path(db_path)
 
     out('#'*80)
-    info('Result summary:\n')
+    info('Artifacts dir: {}'.format(artifact_dir))
+    info('Result summary:')
 
     # Display the results
     adaptor.process_results(result_map)
