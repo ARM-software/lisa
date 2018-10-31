@@ -273,13 +273,13 @@ class TestEnv(Loggable):
             parser.add_argument("--password", "-p",  type=str, required=True,
                                 help="Login password")
 
-        parser.add_argument("--platform", "-pi", type=str,
+        parser.add_argument("--platform-info", "-pi", type=str,
                             help="Path to a PlatformInfo yaml file")
 
         args = parser.parse_args(argv)
-        platform_info = PlatformInfo.from_yaml_map(args.platform) if args.platform else None
+        platform_info = PlatformInfo.from_yaml_map(args.platform_info) if args.platform_info else None
         target_conf = TargetConf(
-            {k : v for k, v in vars(args).items() if k != "platform"})
+            {k : v for k, v in vars(args).items() if k != "platform_info"})
 
         return TestEnv(target_conf, platform_info)
 
