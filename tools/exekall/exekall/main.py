@@ -372,7 +372,14 @@ the name of the parameter, the start value, stop value and step size.""")
                 serial_list = list(group)
 
                 type_ = type(serial_list[0].value)
-                id_ = serial_list[0].get_id(qual=False, with_tags=True)
+                id_ = serial_list[0].get_id(
+                    full_qual=False,
+                    qual=False,
+                    # Do not include the tags to avoid having them displayed
+                    # twice, and to avoid wrongfully using the tag of the first
+                    # item in the list for all items.
+                    with_tags=False,
+                )
                 prebuilt_op_pool_list.append(
                     engine.PrebuiltOperator(
                         type_, serial_list, id_=id_,

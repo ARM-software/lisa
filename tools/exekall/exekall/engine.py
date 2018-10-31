@@ -1849,10 +1849,10 @@ class SerializableExprValue:
 
 def get_name(obj, full_qual=True, qual=True):
     # full_qual enabled implies qual enabled
-    qual = qual or full_qual
-
+    _qual = qual or full_qual
     # qual disabled implies full_qual disabled
     full_qual = full_qual and qual
+    qual = _qual
 
     # Add the module's name in front of the name to get a fully
     # qualified name
