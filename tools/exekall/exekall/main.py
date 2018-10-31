@@ -408,7 +408,7 @@ the name of the parameter, the start value, stop value and step size.""")
     op_pool.update(prebuilt_op_pool_list)
 
     # Sort to have stable output
-    op_pool = sorted(op_pool, key=lambda x: x.name)
+    op_pool = sorted(op_pool, key=lambda x: str(x.name))
 
     # Pool of classes that can be produced by the ops
     produced_pool = set(op.value_type for op in op_pool)
@@ -488,7 +488,7 @@ the name of the parameter, the start value, stop value and step size.""")
             root_op_set.update(op_set)
 
     # Sort for stable output
-    root_op_list = sorted(root_op_set, key=lambda op: op.name)
+    root_op_list = sorted(root_op_set, key=lambda op: str(op.name))
 
     # Some operators are hidden in IDs since they don't add useful information
     # (internal classes)
@@ -538,7 +538,8 @@ the name of the parameter, the start value, stop value and step size.""")
             testcase for testcase in testcase_list
             if fnmatch.fnmatch(take_first(testcase.get_id(
                 # These options need to match what --dry-run gives
-                full_qual=False,
+                full_qual=verbose,
+                qual=False,
                 hidden_callable_set=hidden_callable_set)), user_filter)
         ]
 
@@ -549,7 +550,8 @@ the name of the parameter, the start value, stop value and step size.""")
     out('The following expressions will be executed:\n')
     for testcase in testcase_list:
         out(take_first(testcase.get_id(
-            full_qual = verbose,
+            full_qual=verbose,
+            qual=False,
             hidden_callable_set=hidden_callable_set
         )))
         if verbose:
@@ -570,7 +572,8 @@ the name of the parameter, the start value, stop value and step size.""")
         testcase_short_id = take_first(testcase.get_id(
             hidden_callable_set=hidden_callable_set,
             with_tags=False,
-            full_qual = False
+            full_qual=False,
+            qual=False,
         ))
         testcase_id = take_first(testcase.get_id(
             hidden_callable_set=hidden_callable_set,
@@ -578,11 +581,6 @@ the name of the parameter, the start value, stop value and step size.""")
             full_qual=True,
         ))
 
-        testcase_short_id = take_first(testcase.get_id(
-            hidden_callable_set=hidden_callable_set,
-            with_tags=False,
-            full_qual=False,
-        ))
         data = testcase.data
         data['id'] = testcase_id
         data['uuid'] = testcase.uuid
@@ -623,12 +621,13 @@ the name of the parameter, the start value, stop value and step size.""")
         exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}'.format(
                 short_id=take_first(testcase.get_id(
                     hidden_callable_set=hidden_callable_set,
-                    full_qual = False
+                    full_qual=False,
+                    qual=False,
                 )),
 
                 full_id=take_first(testcase.get_id(
                     hidden_callable_set=hidden_callable_set,
-                    full_qual = True
+                    full_qual=True,
                 )),
                 folder=testcase.data['testcase_artifact_dir']
         ).replace('\n', '\n# ')
@@ -692,6 +691,7 @@ the name of the parameter, the start value, stop value and step size.""")
             out('{prefix}{id}{uuid}'.format(
                 id=result.get_id(
                     full_qual=False,
+                    qual=False,
                     mark_excep=True,
                     with_tags=True,
                     hidden_callable_set=hidden_callable_set,

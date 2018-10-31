@@ -450,8 +450,8 @@ class Expression:
         self.result_list = list()
 
     def __repr__(self):
-        return '<Expression of {self.op.name} at {id}>'.format(
-            self=self,
+        return '<Expression of {name} at {id}>'.format(
+            name=self.op.get_name(full_qual=True),
             id = hex(id(self))
         )
 
@@ -461,7 +461,7 @@ class Expression:
         if isinstance(self.op, PrebuiltOperator):
             op_name = '<provided>'
         else:
-            op_name = self.op.name
+            op_name = self.op.get_name(full_qual=True)
 
         out = '{op_name} ({value_type_name})'.format(
             op_name = op_name,
@@ -504,7 +504,7 @@ class Expression:
             else:
                 yield id_
 
-    def _get_id(self, with_tags=True, full_qual=True, expr_val=None, marked_value_set=None, hidden_callable_set=None):
+    def _get_id(self, with_tags=True, full_qual=True, qual=True, expr_val=None, marked_value_set=None, hidden_callable_set=None):
         # When asked about NoValue, it means the caller did not have any value
         # computed for that parameter, but still wants an ID. Obviously, it
         # cannot have any tag since there is no ExprValue available to begin
@@ -533,10 +533,16 @@ class Expression:
 
         for param_value_map, value_list in grouped_value_list():
             yield from self._get_id_internal(
-                    param_value_map, value_list, with_tags, marked_value_set,
-                    hidden_callable_set, full_qual)
+                param_value_map=param_value_map,
+                value_list=value_list,
+                with_tags=with_tags,
+                marked_value_set=marked_value_set,
+                hidden_callable_set=hidden_callable_set,
+                full_qual=full_qual,
+                qual=qual
+            )
 
-    def _get_id_internal(self, param_value_map, value_list, with_tags, marked_value_set, hidden_callable_set, full_qual):
+    def _get_id_internal(self, param_value_map, value_list, with_tags, marked_value_set, hidden_callable_set, full_qual, qual):
         separator = ':'
         marker_char = '^'
 
@@ -549,6 +555,7 @@ class Expression:
             (param, take_first(param_expr._get_id(
                 with_tags = with_tags,
                 full_qual = full_qual,
+                qual = qual,
                 # Pass a NoValue when there is no value available, since
                 # None means all possible IDs (we just want one here).
                 expr_val = param_value_map.get(param, NoValue),
@@ -583,7 +590,7 @@ class Expression:
         # No parameter to worry about
         if not param_id_map:
             for expr_val, tag_str in tags_iter(value_list):
-                id_ = self.op.get_name(full_qual=full_qual) + tag_str
+                id_ = self.op.get_id(full_qual=full_qual, qual=qual) + tag_str
                 marker_str = get_marker_char(expr_val) * len(id_)
                 yield (id_, marker_str)
 
@@ -610,7 +617,7 @@ class Expression:
                     param_str = ''
 
                 op_str = '{op}{tags}'.format(
-                    op = self.op.get_name(full_qual=full_qual),
+                    op = self.op.get_id(full_qual=full_qual, qual=qual),
                     tags = tag_str,
                 )
                 id_ = '{param_str}{op_str}'.format(
@@ -811,7 +818,7 @@ class Expression:
             # selected since it is not serializable
             callable_ = expr_val.expr.op.callable_
             if attr == 'value' and callable_ is Consumer:
-                return Operator(obj).name
+                return Operator(obj).get_name(full_qual=True)
             elif attr == 'value' and callable_ is ExprData:
                 return self.EXPR_DATA_VAR_NAME
             else:
@@ -858,7 +865,7 @@ class Expression:
             if not len(consumer_expr_stack) >= 2:
                 return ('None', '')
             else:
-                return (consumer_expr_stack[-2].op.name, '')
+                return (consumer_expr_stack[-2].op.get_name(full_qual=True), '')
         elif self.op.callable_ is ExprData:
             # When we actually have an ExprValue, use it so we have the right
             # UUID.
@@ -875,7 +882,7 @@ class Expression:
                 is_user_defined = True
 
         if not prefix:
-            prefix = self.op.name
+            prefix = self.op.get_name(full_qual=True)
             # That is not completely safe, but very unlikely to break in
             # practice
             prefix = prefix.replace('.', '_')
@@ -948,7 +955,7 @@ class Expression:
 
         do_not_call_callable = is_user_defined or isinstance(self.op, PrebuiltOperator)
 
-        op_callable = self.op.name
+        op_callable = self.op.get_name(full_qual=True)
         is_genfunc = self.op.is_genfunc
         # If it is a prebuilt operator and only one value is available, we just
         # replace the operator by it. That is valid since we will never end up
@@ -1391,14 +1398,13 @@ class Operator:
     # True to make all objects reusable by default, False otherwise
     REUSABLE_DEFAULT = True
 
-    def __init__(self, callable_, name=None, tag_list_getter=None):
+    def __init__(self, callable_, tag_list_getter=None):
 
         if not tag_list_getter:
             tag_list_getter = lambda v: []
         self.tag_list_getter = tag_list_getter
 
         assert callable(callable_)
-        self._name = name
         self.callable_ = callable_
 
         self.signature = inspect.signature(self.resolved_callable)
@@ -1437,18 +1443,13 @@ class Operator:
         # At that point, we can get the prototype safely as the object is
         # mostly initialized.
 
-        # Special support of return type annotation for classmethod
-        if self.is_cls_method:
-            return_type = self.value_type
-            try:
-                # If the return annotation type is an (indirect) base class of
-                # the original annotation, we replace the annotation by the
-                # subclass That allows implementing factory classmethods
-                # easily.
-                if issubclass(self.unwrapped_callable.__self__, return_type):
-                    self.annotations['return'] = self.resolved_callable.__self__
-            except TypeError:
-                pass
+        # Special support of return type annotation for factory classmethod
+        if self.is_factory_cls_method:
+            # If the return annotation type is an (indirect) base class of
+            # the original annotation, we replace the annotation by the
+            # subclass That allows implementing factory classmethods
+            # easily.
+            self.annotations['return'] = self.resolved_callable.__self__
 
     def __repr__(self):
         return '<Operator of ' + str(self.callable_) + '>'
@@ -1494,25 +1495,27 @@ class Operator:
     def unwrapped_callable(self):
         return inspect.unwrap(self.callable_)
 
+    def get_name(self, *args, **kwargs):
+        try:
+            return get_name(self.callable_, *args, **kwargs)
+        except AttributeError:
+            return None
+
+    def get_id(self, full_qual=True, qual=True):
+        # Factory classmethods are replaced by the class name when not
+        # asking for a qualified ID
+        if not qual and self.is_factory_cls_method:
+            return get_name(self.value_type, full_qual=full_qual, qual=qual)
+        else:
+            return self.get_name(full_qual=full_qual, qual=qual)
+
     @property
     def name(self):
         return self.get_name()
 
-    def get_name(self, full_qual=True):
-        if self._name is not None:
-            # We allow passing in types that will be used as the source for the
-            # name
-            if isinstance(self._name, type):
-                name = get_name(self._name, full_qual)
-            else:
-                name = str(self._name)
-        else:
-            try:
-                name = get_name(self.callable_, full_qual)
-            except AttributeError:
-                name = self._name
-
-        return name
+    @property
+    def id_(self):
+        return self.get_id()
 
     @property
     def mod_name(self):
@@ -1584,6 +1587,10 @@ class Operator:
             inspect.ismethod(self.unwrapped_callable) and
             inspect.isclass(self.unwrapped_callable.__self__)
         )
+
+    @property
+    def is_factory_cls_method(self):
+        return self.is_cls_method and issubclass(self.unwrapped_callable.__self__, self.value_type)
 
     @property
     def generator_wrapper(self):
@@ -1698,12 +1705,18 @@ class PrebuiltOperator(Operator):
         self.obj_list = obj_list_
         self.uuid_list = uuid_list
         self.obj_type = obj_type
-        name = self.obj_type if id_ is None else id_
+        self._id = id_
 
         # Placeholder for the signature
         def callable_() -> self.obj_type:
             pass
-        super().__init__(callable_, name, **kwargs)
+        super().__init__(callable_, **kwargs)
+
+    def get_name(self, *args, **kwargs):
+        return None
+
+    def get_id(self, *args, **kwargs):
+        return self._id or get_name(self.obj_type, *args, **kwargs)
 
     @property
     def src_loc(self):
@@ -1793,7 +1806,7 @@ class SerializableExprValue:
         self.excep_uuid = expr_val.excep_uuid
 
         self.callable_qual_name = expr_val.expr.op.get_name(full_qual=True)
-        self.callable_name = expr_val.expr.op.get_name(full_qual=False)
+        self.callable_name = expr_val.expr.op.get_name(full_qual=False, qual=False)
 
         # Pre-compute all the IDs so they are readily available once the value
         # is deserialized
@@ -1833,7 +1846,13 @@ class SerializableExprValue:
 
         return parent_set
 
-def get_name(obj, full_qual=True):
+def get_name(obj, full_qual=True, qual=True):
+    # full_qual enabled implies qual enabled
+    qual = qual or full_qual
+
+    # qual disabled implies full_qual disabled
+    full_qual = full_qual and qual
+
     # Add the module's name in front of the name to get a fully
     # qualified name
     if full_qual:
@@ -1845,18 +1864,22 @@ def get_name(obj, full_qual=True):
         )
     else:
         module_name = ''
+
+    if qual:
+        _get_name = lambda x: x.__qualname__
+    else:
+        _get_name = lambda x: x.__name__
+
     # Classmethods appear as bound method of classes. Since each subclass will
     # get a different bound method object, we want to reflect that in the
-    # qualified name we use, instead of always using the same qualname
+    # name we use, instead of always using the same name that the method got
+    # when it was defined
     if inspect.ismethod(obj):
-        qualname = (
-            obj.__self__.__qualname__ + '.' +
-            obj.__qualname__.rsplit('.', 1)[-1]
-        )
+        name = _get_name(obj.__self__) + '.' + obj.__name__
     else:
-        qualname = obj.__qualname__
+        name = _get_name(obj)
 
-    return module_name + qualname
+    return module_name + name
 
 class ExprValue:
     def __init__(self, expr, param_value_map,
