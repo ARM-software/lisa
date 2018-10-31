@@ -48,7 +48,7 @@ def _main(argv):
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
-    subparsers = parser.add_subparsers(title='subcommands', dest='subcommand', required=True)
+    subparsers = parser.add_subparsers(title='subcommands', dest='subcommand')
 
     run_parser = subparsers.add_parser('run',
     description="""
@@ -148,6 +148,10 @@ the name of the parameter, the start value, stop value and step size.""")
     # show the message.
     except SystemExit:
         args, _ = parser.parse_known_args(argv, args)
+
+    if not args.subcommand:
+        parser.print_help()
+        return 2
 
     global show_traceback
     show_traceback = args.debug
