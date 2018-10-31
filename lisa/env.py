@@ -105,7 +105,7 @@ class TargetConf(MultiSrcConf, HideExekallID):
     def to_map(self):
         return dict(self._get_chainmap())
 
-class TestEnv(Loggable):
+class TestEnv(Loggable, HideExekallID):
     """
     Represents the environment configuring LISA, the target, and the test setup
 
@@ -152,7 +152,7 @@ class TestEnv(Loggable):
         super().__init__()
         logger = self.get_logger()
 
-        board_name = target_conf.get('board', None)
+        board_name = target_conf.get('board')
         if not res_dir:
             name = board_name or type(self).__qualname__
             time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
@@ -175,6 +175,12 @@ class TestEnv(Loggable):
             # one we were passed when adding the target source to it
             plat_info = copy.copy(plat_info)
         self.plat_info = plat_info
+
+        # Take the board name from the target configuration so it becomes
+        # available for later inspection. That board name is mostly free form
+        # and should not be relied upon.
+        if board_name:
+            self.plat_info.add_src('target-conf', dict(name=board_name))
 
         logger.info('User-defined platform information:\n%s', self.plat_info)
 
@@ -289,7 +295,7 @@ class TestEnv(Loggable):
         """
         logger = self.get_logger()
         target_kind = target_conf['kind']
-        target_workdir = target_conf.get('workdir', None)
+        target_workdir = target_conf.get('workdir')
         conn_settings = {}
 
         # If the target is Android, we need just (eventually) the device
@@ -323,7 +329,7 @@ class TestEnv(Loggable):
             if 'keyfile' in target_conf:
                 conn_settings['keyfile'] = target_conf['keyfile']
             else:
-                conn_settings['password'] = target_conf.get('password', None)
+                conn_settings['password'] = target_conf.get('password')
         elif target_kind == 'host':
             logger.debug('Setting up localhost Linux target...')
             devlib_target_cls = devlib.LocalLinuxTarget

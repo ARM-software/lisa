@@ -48,7 +48,7 @@ def _main(argv):
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
-    subparsers = parser.add_subparsers(title='subcommands', dest='subcommand', required=True)
+    subparsers = parser.add_subparsers(title='subcommands', dest='subcommand')
 
     run_parser = subparsers.add_parser('run',
     description="""
@@ -149,6 +149,10 @@ the name of the parameter, the start value, stop value and step size.""")
     except SystemExit:
         args, _ = parser.parse_known_args(argv, args)
 
+    if not args.subcommand:
+        parser.print_help()
+        return 2
+
     global show_traceback
     show_traceback = args.debug
 
@@ -176,7 +180,7 @@ the name of the parameter, the start value, stop value and step size.""")
         import_excep = ModuleNotFoundError
     # Python < 3.6
     except NameError:
-        import_excep = ImportError
+        import_excep = AttributeError
 
     for name in reversed(package_name_list):
         customize_name = name + '.exekall_customize'
@@ -237,14 +241,14 @@ the name of the parameter, the start value, stop value and step size.""")
     else:
         artifact_dir = pathlib.Path(args.artifact_root, date + '_' + testsession_uuid)
 
-    artifact_dir = artifact_dir.resolve()
-    # Update the CLI arguments so the customization module has access to the
-    # correct value
-    args.artifact_dir = artifact_dir
     if dry_run:
         debug_log = None
     else:
         artifact_dir.mkdir(parents=True)
+        artifact_dir = artifact_dir.resolve()
+        # Update the CLI arguments so the customization module has access to the
+        # correct value
+        args.artifact_dir = artifact_dir
         debug_log = artifact_dir.joinpath('debug_log.txt')
 
     utils.setup_logging(args.log_level, debug_log, verbose)
@@ -404,7 +408,7 @@ the name of the parameter, the start value, stop value and step size.""")
     op_pool.update(prebuilt_op_pool_list)
 
     # Sort to have stable output
-    op_pool = sorted(op_pool, key=lambda x: x.name)
+    op_pool = sorted(op_pool, key=lambda x: str(x.name))
 
     # Pool of classes that can be produced by the ops
     produced_pool = set(op.value_type for op in op_pool)
@@ -484,7 +488,7 @@ the name of the parameter, the start value, stop value and step size.""")
             root_op_set.update(op_set)
 
     # Sort for stable output
-    root_op_list = sorted(root_op_set, key=lambda op: op.name)
+    root_op_list = sorted(root_op_set, key=lambda op: str(op.name))
 
     # Some operators are hidden in IDs since they don't add useful information
     # (internal classes)
@@ -534,7 +538,8 @@ the name of the parameter, the start value, stop value and step size.""")
             testcase for testcase in testcase_list
             if fnmatch.fnmatch(take_first(testcase.get_id(
                 # These options need to match what --dry-run gives
-                full_qual=False,
+                full_qual=verbose,
+                qual=False,
                 hidden_callable_set=hidden_callable_set)), user_filter)
         ]
 
@@ -545,7 +550,8 @@ the name of the parameter, the start value, stop value and step size.""")
     out('The following expressions will be executed:\n')
     for testcase in testcase_list:
         out(take_first(testcase.get_id(
-            full_qual = verbose,
+            full_qual=verbose,
+            qual=False,
             hidden_callable_set=hidden_callable_set
         )))
         if verbose:
@@ -566,7 +572,8 @@ the name of the parameter, the start value, stop value and step size.""")
         testcase_short_id = take_first(testcase.get_id(
             hidden_callable_set=hidden_callable_set,
             with_tags=False,
-            full_qual = False
+            full_qual=False,
+            qual=False,
         ))
         testcase_id = take_first(testcase.get_id(
             hidden_callable_set=hidden_callable_set,
@@ -574,11 +581,6 @@ the name of the parameter, the start value, stop value and step size.""")
             full_qual=True,
         ))
 
-        testcase_short_id = take_first(testcase.get_id(
-            hidden_callable_set=hidden_callable_set,
-            with_tags=False,
-            full_qual=False,
-        ))
         data = testcase.data
         data['id'] = testcase_id
         data['uuid'] = testcase.uuid
@@ -588,8 +590,9 @@ the name of the parameter, the start value, stop value and step size.""")
             testcase.op.get_name(full_qual=False),
             testcase_short_id,
             testcase.uuid
-        ).resolve()
+        )
         testcase_artifact_dir.mkdir(parents=True)
+        testcase_artifact_dir = testcase_artifact_dir.resolve()
         data['artifact_dir'] = artifact_dir
         data['testcase_artifact_dir'] = testcase_artifact_dir
 
@@ -618,12 +621,13 @@ the name of the parameter, the start value, stop value and step size.""")
         exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}'.format(
                 short_id=take_first(testcase.get_id(
                     hidden_callable_set=hidden_callable_set,
-                    full_qual = False
+                    full_qual=False,
+                    qual=False,
                 )),
 
                 full_id=take_first(testcase.get_id(
                     hidden_callable_set=hidden_callable_set,
-                    full_qual = True
+                    full_qual=True,
                 )),
                 folder=testcase.data['testcase_artifact_dir']
         ).replace('\n', '\n# ')
@@ -684,9 +688,10 @@ the name of the parameter, the start value, stop value and step size.""")
                 )
 
             prefix = 'Finished '
-            info('{prefix}{id}{uuid}'.format(
+            out('{prefix}{id}{uuid}'.format(
                 id=result.get_id(
                     full_qual=False,
+                    qual=False,
                     mark_excep=True,
                     with_tags=True,
                     hidden_callable_set=hidden_callable_set,
