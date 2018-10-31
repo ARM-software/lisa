@@ -17,7 +17,8 @@
 
 from lisa.tests.kernel.test_bundle import Result, ResultBundle, TestBundle
 from lisa.wlgen.sysbench import Sysbench
-from lisa.env import TestEnv, ArtifactPath
+from lisa.env import TestEnv
+from lisa.utils import ArtifactPath
 
 class UserspaceSanity(TestBundle):
     """

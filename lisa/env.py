@@ -21,7 +21,6 @@ import os
 import os.path
 import contextlib
 import logging
-from pathlib import Path
 import shlex
 from collections.abc import Mapping
 import copy
@@ -36,7 +35,7 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
 from lisa.energy_meter import EnergyMeter
-from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList
+from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList, ArtifactPath
 
 from lisa.platforms.platinfo import PlatformInfo
 
@@ -49,11 +48,46 @@ RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
 DEFAULT_DEVLIB_MODULES = ['sched', 'cpufreq', 'cpuidle']
 
-class ArtifactPath(str):
+class ArtifactPath(str, Loggable, HideExekallID):
     """Path to a folder that can be used to store artifacts of a function.
     This must be a clean folder, already created on disk.
     """
-    pass
+    def __new__(cls, root, relative, *args, **kwargs):
+        root = os.path.realpath(str(root))
+        relative = str(relative)
+        # we only support paths relative to the root parameter
+        assert not os.path.isabs(relative)
+        absolute = os.path.join(root, relative)
+
+        # Use a resolved absolute path so it is more convenient for users to
+        # manipulate
+        path = os.path.realpath(absolute)
+
+        path_str = super().__new__(cls, path, *args, **kwargs)
+        # Record the actual root, so we can relocate the path later with an
+        # updated root
+        path_str.root = root
+        path_str.relative = relative
+        return path_str
+
+    def __fspath__(self):
+        return str(self)
+
+    def __reduce__(self):
+        # Serialize the path relatively to the root, so it can be relocated
+        # easily
+        relative = self.relative_to(self.root)
+        return (type(self), (self.root, relative))
+
+    def relative_to(self, path):
+        return os.path.relpath(str(self), start=str(path))
+
+    def with_root(self, root):
+        # Get the path relative to the old root
+        relative = self.relative_to(self.root)
+
+        # Swap-in the new root and return a new instance
+        return type(self)(root, relative)
 
 class TargetConf(MultiSrcConf, HideExekallID):
     YAML_MAP_TOP_LEVEL_KEY = 'target-conf'
@@ -283,7 +317,7 @@ class TestEnv(Loggable, HideExekallID):
 
         args = parser.parse_args(argv)
         platform_info = PlatformInfo.from_yaml_map(args.platform_info) if args.platform_info else None
-        target_conf = TargetConf(
+            target_conf = TargetConf(
             {k : v for k, v in vars(args).items() if k != "platform_info"})
 
         return TestEnv(target_conf, platform_info)
@@ -437,6 +471,13 @@ class TestEnv(Loggable, HideExekallID):
         """
         logger = self.get_logger()
 
+        if isinstance(self._res_dir, ArtifactPath):
+            root = self._res_dir.root
+            relative = self._res_dir.relative
+        else:
+            root = self._res_dir
+            relative = ''
+
         while True:
             time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
             if not name:
@@ -444,10 +485,12 @@ class TestEnv(Loggable, HideExekallID):
             elif append_time:
                 name = "{}-{}".format(name, time_str)
 
-            res_dir = os.path.join(self._res_dir, name)
+            # If we were given an ArtifactPath with an existing root, we
+            # preserve that root so it can be relocated as the caller wants it
+            res_dir = ArtifactPath(root, os.path.join(relative,name))
 
             # Compute base installation path
-            logger.info('Creating result directory: %s', res_dir)
+            logger.info('Creating result directory: %s', str(res_dir))
 
             # It will fail if the folder already exists. In that case,
             # append_time should be used to ensure we get a unique name.
@@ -464,14 +507,14 @@ class TestEnv(Loggable, HideExekallID):
                     raise
 
         if symlink:
-            res_lnk = Path(LISA_HOME, LATEST_LINK)
+            res_lnk = os.path.join(LISA_HOME, LATEST_LINK)
             with contextlib.suppress(FileNotFoundError):
-                res_lnk.unlink()
+                os.remove(res_lnk)
 
             # There may be a race condition with another tool trying to create
             # the link
             with contextlib.suppress(FileExistsError):
-                res_lnk.symlink_to(res_dir)
+                os.symlink(res_dir, res_lnk)
 
         return res_dir
 

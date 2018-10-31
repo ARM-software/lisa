@@ -28,8 +28,8 @@ from lisa.trace import Trace
 from lisa.wlgen.rta import RTA
 from lisa.perf_analysis import PerfAnalysis
 
-from lisa.utils import Serializable, memoized
-from lisa.env import TestEnv, ArtifactPath
+from lisa.utils import Serializable, memoized, ArtifactPath
+from lisa.env import TestEnv
 from lisa.platforms.platinfo import PlatformInfo
 
 class TestMetric:
@@ -300,9 +300,11 @@ class TestBundle(Serializable, abc.ABC):
 
     @classmethod
     def from_dir(cls, res_dir):
-        """
+    """
         See :meth:`lisa.utils.Serializable.from_path`
         """
+        res_dir = ArtifactPath(root=res_dir, relative='')
+
         bundle = super().from_path(cls._filepath(res_dir))
         # We need to update the res_dir to the one we were given
         bundle.res_dir = res_dir

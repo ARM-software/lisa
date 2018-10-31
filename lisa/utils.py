@@ -923,4 +923,45 @@ def setup_logging(filepath='logging.conf', level=logging.INFO):
     logging.info('Using LISA logging configuration:')
     logging.info('  %s', filepath)
 
+class ArtifactPath(str, Loggable, HideExekallID):
+    """Path to a folder that can be used to store artifacts of a function.
+    This must be a clean folder, already created on disk.
+    """
+    def __new__(cls, root, relative, *args, **kwargs):
+        root = os.path.realpath(str(root))
+        relative = str(relative)
+        # we only support paths relative to the root parameter
+        assert not os.path.isabs(relative)
+        absolute = os.path.join(root, relative)
+
+        # Use a resolved absolute path so it is more convenient for users to
+        # manipulate
+        path = os.path.realpath(absolute)
+
+        path_str = super().__new__(cls, path, *args, **kwargs)
+        # Record the actual root, so we can relocate the path later with an
+        # updated root
+        path_str.root = root
+        path_str.relative = relative
+        return path_str
+
+    def __fspath__(self):
+        return str(self)
+
+    def __reduce__(self):
+        # Serialize the path relatively to the root, so it can be relocated
+        # easily
+        relative = self.relative_to(self.root)
+        return (type(self), (self.root, relative))
+
+    def relative_to(self, path):
+        return os.path.relpath(str(self), start=str(path))
+
+    def with_root(self, root):
+        # Get the path relative to the old root
+        relative = self.relative_to(self.root)
+
+        # Swap-in the new root and return a new instance
+        return type(self)(root, relative)
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
