@@ -251,7 +251,6 @@ class LISAAdaptor(AdaptorBase):
                     if isinstance(value, ResultBundle):
                         result = RESULT_TAG_MAP[value.result]
                         short_msg = value.result.lower_name
-                        #TODO: add API to ResultBundle to print the message without the Result
                         msg = str(value)
                         type_ = type(value)
 

@@ -398,6 +398,7 @@ class DeferredValue:
         return '<lazy value of {}>'.format(self.callback.__qualname__)
 
 class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
+    #TODO: also add a help string in the structure and derive a help paragraph
     @abc.abstractmethod
     def STRUCTURE():
         """
