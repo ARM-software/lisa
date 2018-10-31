@@ -688,7 +688,7 @@ the name of the parameter, the start value, stop value and step size.""")
                 )
 
             prefix = 'Finished '
-            info('{prefix}{id}{uuid}'.format(
+            out('{prefix}{id}{uuid}'.format(
                 id=result.get_id(
                     full_qual=False,
                     mark_excep=True,
