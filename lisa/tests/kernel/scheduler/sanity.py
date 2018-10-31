@@ -17,6 +17,7 @@
 
 import sys
 
+from lisa.env import TestEnv, ArtifactPath
 from lisa.tests.kernel.test_bundle import TestMetric, ResultBundle, TestBundle
 from lisa.wlgen.sysbench import Sysbench
 
@@ -50,6 +51,13 @@ class CapacitySanity(TestBundle):
                 capa_work[capa] = min(capa_work[capa], sysbench.output.nr_events)
 
         return cls(res_dir, te.plat_info, capa_work)
+
+    @classmethod
+    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'CapacitySanity':
+        """
+        Factory method to create a bundle using a live target
+        """
+        return super().from_testenv(te, res_dir)
 
     def test_capacity_sanity(self) -> ResultBundle:
         """
