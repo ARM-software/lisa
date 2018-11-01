@@ -375,7 +375,7 @@ class RTATestBundle(TestBundle, abc.ABC):
 
         trace_path = os.path.join(res_dir, "trace.dat")
 
-        with te.record_ftrace(trace_path, **cls.ftrace_conf), te.freeze_userspace():
+        with te.collect_ftrace(trace_path, **cls.ftrace_conf), te.freeze_userspace():
             wload.run()
 
     @classmethod

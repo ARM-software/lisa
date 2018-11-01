@@ -598,7 +598,7 @@ class TestEnv(Loggable, HideExekallID):
             self.target.cgroups.freeze(thaw=True)
 
     @contextlib.contextmanager
-    def record_ftrace(self, output_file, events=None, functions=None,
+    def collect_ftrace(self, output_file, events=None, functions=None,
                        buffsize=FTRACE_BUFSIZE_DEFAULT):
         """
         Context manager that lets you collect an Ftrace trace
