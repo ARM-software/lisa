@@ -329,7 +329,7 @@ class RTATestBundle(TestBundle, abc.ABC):
     }
     """
     The FTrace configuration used to record a trace while the synthetic workload
-    is being run. Items are arguments to :meth:`lisa.env.TestEnv.configure_ftrace`.
+    is being run. Items are arguments to :meth:`lisa.env.TestEnv.collect_ftrace`.
     """
 
     TASK_PERIOD_MS = 16
@@ -374,9 +374,8 @@ class RTATestBundle(TestBundle, abc.ABC):
                                profile, res_dir=res_dir)
 
         trace_path = os.path.join(res_dir, "trace.dat")
-        te.configure_ftrace(**cls.ftrace_conf)
 
-        with te.record_ftrace(trace_path), te.freeze_userspace():
+        with te.collect_ftrace(trace_path, **cls.ftrace_conf), te.freeze_userspace():
             wload.run()
 
     @classmethod

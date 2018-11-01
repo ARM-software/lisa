@@ -184,7 +184,6 @@ class TestEnv(Loggable, HideExekallID):
 
         logger.info('User-defined platform information:\n%s', self.plat_info)
 
-        self.ftrace = None
         self._installed_tools = set()
         self.target = self._init_target(self.target_conf, self._res_dir)
 
@@ -502,10 +501,10 @@ class TestEnv(Loggable, HideExekallID):
 
         self._installed_tools.update(tools)
 
-    def configure_ftrace(self, events=None, functions=None,
-                         buffsize=FTRACE_BUFSIZE_DEFAULT):
+    def get_ftrace_collector(self, events=None, functions=None,
+                             buffsize=FTRACE_BUFSIZE_DEFAULT):
         """
-        Setup the environment's :class:`devlib.trace.FtraceCollector`
+        Get a configured FtraceCollector
 
         :param events: The events to trace
         :type events: list(str)
@@ -517,6 +516,8 @@ class TestEnv(Loggable, HideExekallID):
         :type buffsize: int
 
         :raises RuntimeError: If no event nor function is to be traced
+
+        :returns: devlib.trace.FtraceCollector
         """
         logger = self.get_logger()
 
@@ -547,7 +548,7 @@ class TestEnv(Loggable, HideExekallID):
         if 'trace-cmd' not in self._installed_tools:
             self.install_tools(['trace-cmd'])
 
-        self.ftrace = devlib.FtraceCollector(
+        ftrace = devlib.FtraceCollector(
             self.target,
             events      = events,
             functions   = functions,
@@ -564,6 +565,8 @@ class TestEnv(Loggable, HideExekallID):
             logger.info('Kernel functions profiled:')
             for function in functions:
                 logger.info('   %s', function)
+
+        return ftrace
 
     @contextlib.contextmanager
     def freeze_userspace(self):
@@ -595,17 +598,33 @@ class TestEnv(Loggable, HideExekallID):
             self.target.cgroups.freeze(thaw=True)
 
     @contextlib.contextmanager
-    def record_ftrace(self, output_file):
+    def collect_ftrace(self, output_file, events=None, functions=None,
+                       buffsize=FTRACE_BUFSIZE_DEFAULT):
         """
-        Context manager that lets you record an Ftrace trace
+        Context manager that lets you collect an Ftrace trace
 
         :param output_file: Filepath for the trace to be created
         :type output_file: str
+
+        :param events: The events to trace
+        :type events: list(str)
+
+        :param functions: the kernel functions to trace
+        :type functions: list(str)
+
+        :param buffsize: The size of the Ftrace buffer
+        :type buffsize: int
+
+        :raises RuntimeError: If no event nor function is to be traced
         """
-        self.ftrace.start()
-        yield
-        self.ftrace.stop()
-        self.ftrace.get_trace(output_file)
+        ftrace = self.get_ftrace_collector(events, functions, buffsize)
+
+        ftrace.start()
+
+        yield ftrace
+
+        ftrace.stop()
+        ftrace.get_trace(output_file)
 
     @contextlib.contextmanager
     def disable_idle_states(self):
