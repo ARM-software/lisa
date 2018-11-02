@@ -1904,12 +1904,12 @@ class ExekallLISATestStep(ShellStep):
             show_dist = False,
             show_details = False,
             show_pass_rate = False,
-            show_artifact_dir = False,
+            show_artifact_dirs = False,
             testcase = [],
             iterations = [],
             ignore_non_issue = False,
             ignore_excep = [],
-            dump_artifact_dir = False,
+            dump_artifact_dirs = False,
             xunit2json = False,
             export_logs = False,
             download = True,
@@ -1923,7 +1923,7 @@ class ExekallLISATestStep(ShellStep):
             show_basic = True
             show_rates = True
             show_dist = True
-            show_artifact_dir = True
+            show_artifact_dirs = True
             show_details = True
             ignore_non_issue = False
 
@@ -2038,7 +2038,7 @@ class ExekallLISATestStep(ShellStep):
 
         step_res_seq = filtered_step_res_seq
 
-        if show_artifact_dir:
+        if show_artifact_dirs:
             out('Results directories:')
 
         # Apply processing on selected results
@@ -2056,12 +2056,12 @@ class ExekallLISATestStep(ShellStep):
                 else:
                     error('No upload service available, could not upload LISA results.')
 
-            if show_artifact_dir:
+            if show_artifact_dirs:
                 out('    #{i_stack: <2}: {step_res.results_path}'.format(**locals()))
 
             # Accumulate the results path to a file, that can be used to garbage
             # collect all results path that are not referenced by any report.
-            if dump_artifact_dir:
+            if dump_artifact_dirs:
                 with open(dump_results_dir, 'a') as f:
                     f.write(step_res.results_path + '\n')
 
@@ -2184,7 +2184,7 @@ class ExekallLISATestStep(ShellStep):
                 if show_details and not (ignore_non_issue and issue == 'passed'):
                     for entry in filtered_entry_list:
                         i_stack = entry['i_stack']
-                        results_path = '\n' + entry['results_path'] if show_artifact_dir else ''
+                        results_path = '\n' + entry['results_path'] if show_artifact_dirs else ''
                         exception_name, short_msg, msg = entry['details']
 
                         if show_details == 'msg':
