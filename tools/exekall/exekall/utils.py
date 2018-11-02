@@ -67,6 +67,8 @@ def match_base_cls(cls, pattern_list):
     # Match on the name of the class of the object and all its base classes
     for base_cls in engine.get_mro(cls):
         base_cls_name = engine.get_name(base_cls, full_qual=True)
+        if not base_cls_name:
+            continue
         if any(
                 fnmatch.fnmatch(base_cls_name, pattern)
                 for pattern in pattern_list
@@ -330,7 +332,7 @@ class ExekallFormatter(logging.Formatter):
         else:
             return self.default_fmt.format(record)
 
-def setup_logging(log_level, debug_log_file=None, verbose=False):
+def setup_logging(log_level, debug_log_file=None, verbose=0):
     logging.addLevelName(LOGGING_OUT_LEVEL, 'OUT')
     level=getattr(logging, log_level.upper())
 

@@ -124,7 +124,7 @@ matching this pattern.""")
 It needs five fields: the qualified name of the callable (pattern can be used),
 the name of the parameter, the start value, stop value and step size.""")
 
-    run_parser.add_argument('--verbose', action='store_true',
+    run_parser.add_argument('--verbose', '-v', action='count', default=0,
         help="""More verbose output.""")
 
     run_parser.add_argument('--dry-run', action='store_true',
@@ -140,8 +140,6 @@ the name of the parameter, the start value, stop value and step size.""")
     run_parser.add_argument('--debug', action='store_true',
         help="""Show complete Python backtrace when exekall crashes.""")
 
-
-    args = argparse.Namespace()
     # Avoid showing help message on the incomplete parser. Instead, we carry on
     # and the help will be displayed after the parser customization has a
     # chance to take place.
@@ -154,12 +152,12 @@ the name of the parameter, the start value, stop value and step size.""")
         # Silence argparse until we know what is going on
         stream = io.StringIO()
         with contextlib.redirect_stderr(stream):
-            args, _ = parser.parse_known_args(no_help_argv, args)
+            args, _ = parser.parse_known_args(no_help_argv)
     # If it fails, that may be because of an incomplete command line with just
     # --help for example. If it was for another reason, it will fail again and
     # show the message.
     except SystemExit:
-        args, _ = parser.parse_known_args(argv, args)
+        args, _ = parser.parse_known_args(argv)
 
     if not args.subcommand:
         parser.print_help()
@@ -449,8 +447,8 @@ the name of the parameter, the start value, stop value and step size.""")
     # Make sure that the provided PrebuiltOperator will be the only ones used
     # to provide their types
     only_prebuilt_cls = set(itertools.chain.from_iterable(
-    # Augment the list of classes that can only be provided by a prebuilt
-    # Operator with all the compatible classes
+        # Augment the list of classes that can only be provided by a prebuilt
+        # Operator with all the compatible classes
         cls_map[op.obj_type]
         for op in prebuilt_op_pool_list
     ))
@@ -459,15 +457,15 @@ the name of the parameter, the start value, stop value and step size.""")
 
     # Map of all produced types to a set of what operator can create them
     def build_op_map(op_pool, only_prebuilt_cls, forbidden_pattern_set):
-    op_map = dict()
-    for op in op_pool:
-        param_map, produced = op.get_prototype()
+        op_map = dict()
+        for op in op_pool:
+            param_map, produced = op.get_prototype()
             is_prebuilt_op = isinstance(op, engine.PrebuiltOperator)
             if (
                 (is_prebuilt_op or produced not in only_prebuilt_cls)
                 and not utils.match_base_cls(produced, forbidden_pattern_set)
-        ):
-            op_map.setdefault(produced, set()).add(op)
+            ):
+                op_map.setdefault(produced, set()).add(op)
         return op_map
 
     op_map = build_op_map(op_pool, only_prebuilt_cls, forbidden_pattern_set)
@@ -520,27 +518,23 @@ the name of the parameter, the start value, stop value and step size.""")
 
     # Only print once per parameters' tuple
     if verbose:
-    @utils.once
-    def handle_non_produced(cls_name, consumer_name, param_name, callable_path):
-        # When reloading from the DB, we don't want to be annoyed with lots of
-        # output related to missing PrebuiltOperator
-        if load_db_path and not verbose:
-            return
-        info('Nothing can produce instances of {cls} needed for {consumer} (parameter "{param}", along path {path})'.format(
-            cls = cls_name,
-            consumer = consumer_name,
-            param = param_name,
-            path = ' -> '.join(engine.get_name(callable_) for callable_ in callable_path)
-        ))
+        @utils.once
+        def handle_non_produced(cls_name, consumer_name, param_name, callable_path):
+            info('Nothing can produce instances of {cls} needed for {consumer} (parameter "{param}", along path {path})'.format(
+                cls = cls_name,
+                consumer = consumer_name,
+                param = param_name,
+                path = ' -> '.join(engine.get_name(callable_) for callable_ in callable_path)
+            ))
 
-    @utils.once
-    def handle_cycle(path):
-        error('Cyclic dependency detected: {path}'.format(
-            path = ' -> '.join(
-                engine.get_name(callable_)
-                for callable_ in path
-            )
-        ))
+        @utils.once
+        def handle_cycle(path):
+            error('Cyclic dependency detected: {path}'.format(
+                path = ' -> '.join(
+                    engine.get_name(callable_)
+                    for callable_ in path
+                )
+            ))
     else:
         handle_non_produced = 'ignore'
         handle_cycle = 'ignore'
@@ -552,7 +546,13 @@ the name of the parameter, the start value, stop value and step size.""")
         non_produced_handler = handle_non_produced,
         cycle_handler = handle_cycle,
     ))
+    # First, sort with the fully qualified ID so we have the strongest stability
+    # possible from one run to another
     testcase_list.sort(key=lambda expr: take_first(expr.get_id(full_qual=True, with_tags=True)))
+    # Then sort again according to what will be displayed. Since it is a stable
+    # sort, it will keep a stable order for IDs that look the same but actually
+    # differ in their hidden part
+    testcase_list.sort(key=lambda expr: take_first(expr.get_id(qual=False, with_tags=True)))
 
     # Only keep the Expression where the outermost (root) operator is defined
     # in one of the files that were explicitely specified on the command line.
@@ -580,11 +580,11 @@ the name of the parameter, the start value, stop value and step size.""")
     out('The following expressions will be executed:\n')
     for testcase in testcase_list:
         out(take_first(testcase.get_id(
-            full_qual=verbose,
-            qual=False,
+            full_qual=bool(verbose),
+            qual=bool(verbose),
             hidden_callable_set=hidden_callable_set
         )))
-        if verbose:
+        if verbose >= 2:
             out(testcase.pretty_structure() + '\n')
 
     if dry_run:
@@ -659,7 +659,7 @@ the name of the parameter, the start value, stop value and step size.""")
                 )),
 
                 full_id=take_first(testcase.get_id(
-                    hidden_callable_set=hidden_callable_set,
+                    hidden_callable_set=hidden_callable_set if not verbose else None,
                     full_qual=True,
                 )),
                 folder=testcase.data['testcase_artifact_dir']
@@ -732,8 +732,6 @@ the name of the parameter, the start value, stop value and step size.""")
                 prefix=prefix,
                 uuid=get_uuid_str(result),
             ))
-            if verbose:
-                out('Full ID:{}'.format(result.get_id(full_qual=True)))
 
             out(adaptor.result_str(result))
             result_list.append(result)

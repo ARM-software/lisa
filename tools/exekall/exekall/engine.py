@@ -1151,26 +1151,32 @@ class Expression:
             for expr_val in executor(*args, **kwargs):
                 yield (expr_wrapper, expr_val)
 
-    #TODO: make that stateless by returning copies of Expression's
     def _prepare_exec(self, expr_set):
-        self.discard_result()
+        """Apply a flavor of common subexpressions elimination to the Expression
+        graph and cleanup results of previous runs.
 
-        for param, param_expr in list(self.param_map.items()):
+        :return: return an updated copy of the Expression
+        """
+        # Make a copy so we don't modify the original Expression
+        new_expr = copy.copy(self)
+        new_expr.discard_result()
+
+        for param, param_expr in list(new_expr.param_map.items()):
             # Update the param map in case param_expr was deduplicated
-            self.param_map[param] = param_expr._prepare_exec(expr_set)
+            new_expr.param_map[param] = param_expr._prepare_exec(expr_set)
 
         # Look for an existing Expression that has the same parameters so we
         # don't add duplicates.
-        for replacement_expr in expr_set - {self}:
+        for replacement_expr in expr_set - {new_expr}:
             if (
-                self.op.callable_ is replacement_expr.op.callable_ and
-                self.param_map == replacement_expr.param_map
+                new_expr.op.callable_ is replacement_expr.op.callable_ and
+                new_expr.param_map == replacement_expr.param_map
             ):
                 return replacement_expr
 
         # Otherwise register this Expression so no other duplicate will be used
-        expr_set.add(self)
-        return self
+        expr_set.add(new_expr)
+        return new_expr
 
     def execute(self, post_compute_cb=None):
         return self._execute([], post_compute_cb)
@@ -1457,10 +1463,10 @@ class Operator:
             )
         }
 
-        if hasattr(self.resolved_callable, 'reusable'):
-            self.reusable = self.resolved_callable.reusable
-        elif hasattr(self.value_type, 'reusable'):
-            self.reusable = self.value_type.reusable
+        if hasattr(self.resolved_callable, '_exekall_reusable'):
+            self.reusable = self.resolved_callable._exekall_reusable
+        elif hasattr(self.value_type, '_exekall_reusable'):
+            self.reusable = self.value_type._exekall_reusable
         else:
             self.reusable = self.REUSABLE_DEFAULT
 
@@ -1763,7 +1769,7 @@ class PrebuiltOperator(Operator):
 
 def reusable(reusable=Operator.REUSABLE_DEFAULT):
     def decorator(wrapped):
-        wrapped.reusable = reusable
+        wrapped._exekall_reusable = reusable
         return wrapped
     return decorator
 
