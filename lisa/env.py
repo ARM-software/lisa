@@ -198,6 +198,8 @@ class TestEnv(Loggable, HideExekallID):
         self._res_dir = res_dir
         if self._res_dir:
             os.makedirs(self._res_dir, exist_ok=True)
+            if os.listdir(self._res_dir):
+                raise ValueError('res_dir must be empty: {}'.format(self._res_dir))
 
         self.target_conf = target_conf
         logger.debug('Target configuration %s', self.target_conf)
