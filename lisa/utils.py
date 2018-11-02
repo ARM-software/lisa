@@ -107,7 +107,16 @@ def import_all_submodules(pkg):
         for loader, module_name, is_pkg in pkgutil.walk_packages(pkg.__path__)
     ]
 
-class Serializable:
+class UnknownTagPlaceholder:
+    def __init__(self, yaml_tag, data, location=None):
+        self.yaml_tag = yaml_tag
+        self.data = data
+        self.location = location
+
+    def __str__(self):
+        return '<UnknownTagPlaceholder of {}>'.format(self.yaml_tag)
+
+class Serializable(Loggable):
     """
     A helper class for YAML serialization/deserialization
 
@@ -135,17 +144,47 @@ class Serializable:
         yaml = cls._yaml
         # If allow_unicode=True, true unicode characters will be written to the
         # file instead of being replaced by escape sequence.
-        yaml.allow_unicode = (cls.YAML_ENCODING == 'utf-8')
+        yaml.allow_unicode = ('utf' in cls.YAML_ENCODING)
         yaml.default_flow_style = False
         yaml.indent = 4
         yaml.Constructor.add_constructor('!include', cls._yaml_include_constructor)
         yaml.Constructor.add_constructor('!var', cls._yaml_var_constructor)
         yaml.Constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
+
+        # Replace unknown tags by a placeholder object containing the data.
+        # This happens when the class was not imported at the time the object
+        # was deserialized
+        yaml.Constructor.add_constructor(None, cls._yaml_unknown_tag_constructor)
+
         #TODO: remove that once the issue is fixed
         # Workaround for ruamel.yaml bug #244:
         # https://bitbucket.org/ruamel/yaml/issues/244
         yaml.Representer.add_multi_representer(type, yaml.Representer.represent_name)
 
+    @classmethod
+    def _yaml_unknown_tag_constructor(cls, loader, node):
+        # Get the basic data types that can be expressed using the YAML syntax,
+        # without using any tag-specific constructor
+        data = None
+        for constructor in (
+            loader.construct_scalar,
+            loader.construct_sequence,
+            loader.construct_mapping
+        ):
+            try:
+                data = constructor(node)
+            except ruamel.yaml.constructor.ConstructorError:
+                continue
+            else:
+                break
+
+        tag = node.tag
+        cls.get_logger().debug('Could not find constructor for YAML tag "{tag}" ({mark}), using a placeholder'.format(
+            tag=tag,
+            mark=str(node.start_mark).strip()
+        ))
+
+        return UnknownTagPlaceholder(tag, data, location=node.start_mark)
 
     @classmethod
     def _yaml_call_constructor(cls, loader, suffix, node):
