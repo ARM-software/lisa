@@ -609,14 +609,9 @@ the name of the parameter, the start value, stop value and step size.""")
             full_qual=False,
             qual=False,
         ))
-        testcase_id = take_first(testcase.get_id(
-            hidden_callable_set=hidden_callable_set,
-            with_tags=False,
-            full_qual=True,
-        ))
 
         data = testcase.data
-        data['id'] = testcase_id
+        data['id'] = testcase_short_id
         data['uuid'] = testcase.uuid
 
         testcase_artifact_dir = pathlib.Path(
@@ -630,8 +625,19 @@ the name of the parameter, the start value, stop value and step size.""")
         data['artifact_dir'] = artifact_dir
         data['testcase_artifact_dir'] = testcase_artifact_dir
 
+        with open(str(testcase_artifact_dir.joinpath('UUID')), 'wt') as f:
+            f.write(testcase.uuid + '\n')
+
         with open(str(testcase_artifact_dir.joinpath('ID')), 'wt') as f:
-            f.write(testcase_id+'\n')
+            f.write(testcase_short_id+'\n')
+
+        with open(str(testcase_artifact_dir.joinpath('STRUCTURE')), 'wt') as f:
+            f.write(take_first(testcase.get_id(
+                hidden_callable_set=hidden_callable_set,
+                with_tags=False,
+                full_qual=True,
+            )) + '\n\n')
+            f.write(testcase.pretty_structure())
 
         with open(
             str(testcase_artifact_dir.joinpath('testcase_template.py')),
@@ -651,7 +657,7 @@ the name of the parameter, the start value, stop value and step size.""")
 
     result_map = collections.defaultdict(list)
     for testcase, executor in executor_map.items():
-        exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}'.format(
+        exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}\nUUID: {uuid_}'.format(
                 short_id=take_first(testcase.get_id(
                     hidden_callable_set=hidden_callable_set,
                     full_qual=False,
@@ -662,7 +668,8 @@ the name of the parameter, the start value, stop value and step size.""")
                     hidden_callable_set=hidden_callable_set if not verbose else None,
                     full_qual=True,
                 )),
-                folder=testcase.data['testcase_artifact_dir']
+                folder=testcase.data['testcase_artifact_dir'],
+                uuid_=testcase.uuid
         ).replace('\n', '\n# ')
 
         delim = '#' * (len(exec_start_msg.splitlines()[0]) + 2)
@@ -720,8 +727,8 @@ the name of the parameter, the start value, stop value and step size.""")
                     ),
                 )
 
-            prefix = 'Finished '
-            out('{prefix}{id}{uuid}'.format(
+            prefix = 'Finished {uuid} '.format(uuid=get_uuid_str(result))
+            out('{prefix}{id}'.format(
                 id=result.get_id(
                     full_qual=False,
                     qual=False,
@@ -730,7 +737,6 @@ the name of the parameter, the start value, stop value and step size.""")
                     hidden_callable_set=hidden_callable_set,
                 ).strip().replace('\n', '\n'+len(prefix)*' '),
                 prefix=prefix,
-                uuid=get_uuid_str(result),
             ))
 
             out(adaptor.result_str(result))
@@ -757,8 +763,7 @@ the name of the parameter, the start value, stop value and step size.""")
                 )[1]+'\n',
             )
 
-
-        with open(str(testcase_artifact_dir.joinpath('UUID')), 'wt') as f:
+        with open(str(testcase_artifact_dir.joinpath('VALUES_UUID')), 'wt') as f:
             for expr_val in result_list:
                 if expr_val.value is not NoValue:
                     f.write(expr_val.value_uuid + '\n')

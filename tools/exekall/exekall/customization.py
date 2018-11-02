@@ -79,7 +79,7 @@ class AdaptorBase:
             failed_parents = result.get_failed_values()
             for failed_parent in failed_parents:
                 excep = failed_parent.excep
-                return '{type}: {msg}'.format(
+                return 'EXCEPTION ({type}): {msg}'.format(
                     type = get_name(type(excep)),
                     msg = excep
                 )

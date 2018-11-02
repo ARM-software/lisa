@@ -823,9 +823,26 @@ class Expression:
             return expr.op.value_type.__name__.replace('.', '')
 
         def make_var(name):
-            # Make sure we don't have clashes between the variable names
-            name = name.replace('_', '__')
-            name = '_' + name if name else ''
+            # If the variable name already contains a double underscore, we use
+            # 3 of them for the separator between the prefix and the name, so
+            # it will avoid ambiguity between these cases:
+            # prefix="prefix", name="my__name":
+            #   prefix___my__name
+            # prefix="prefix__my", name="name":
+            #   prefix__my__name
+
+            # Find the longest run of underscores
+            nr_underscore = 0
+            current_counter = 0
+            for letter in name:
+                if letter == '_':
+                    current_counter += 1
+                else:
+                    nr_underscore = max(current_counter, nr_underscore)
+                    current_counter = 0
+
+            sep = (nr_underscore + 1) * '_'
+            name = sep + name if name else ''
             return prefix + name
 
         def make_comment(code, idt):
@@ -1257,10 +1274,8 @@ class Expression:
                 expr_val = ExprValue(self, param_expr_val_map)
                 expr_val_seq = ExprValueSeq(
                     self, None, param_expr_val_map,
-                    post_compute_cb
                 )
                 expr_val_seq.value_list.append(expr_val)
-                expr_val_seq.completed = True
                 self.result_list.append(expr_val_seq)
                 yield expr_val
                 continue
@@ -1779,7 +1794,6 @@ class ExprValueSeq:
         self.iterator = iterator
         self.value_list = list()
         self.param_expr_val_map = param_expr_val_map
-        self.completed = False
         self.post_compute_cb = post_compute_cb
 
     def get_expr_value_iter(self):
@@ -1796,7 +1810,7 @@ class ExprValueSeq:
         yield from yielder(self.value_list, True)
 
         # Then compute the remaining ones
-        if not self.completed:
+        if self.iterator:
             for (value, value_uuid), (excep, excep_uuid) in self.iterator:
                 expr_val = ExprValue(self.expr, self.param_expr_val_map,
                     value, value_uuid,
@@ -1819,7 +1833,7 @@ class ExprValueSeq:
                         True
                     )
 
-            self.completed = True
+            self.iterator = None
 
 def any_value_is_NoValue(value_list):
     return any(
