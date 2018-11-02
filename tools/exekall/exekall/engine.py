@@ -235,9 +235,6 @@ class ObjectStore:
 class CycleError(Exception):
     pass
 
-class IgnoredCycleError(CycleError):
-    pass
-
 class ExpressionWrapper:
     def __init__(self, expr):
         self.expr = expr
@@ -249,23 +246,28 @@ class ExpressionWrapper:
     def build_expr_list(cls, result_op_seq, op_map, cls_map,
             non_produced_handler='raise', cycle_handler='raise'):
         op_map = copy.copy(op_map)
-        cls_map = copy.copy(cls_map)
+        cls_map = {
+            cls: compat_cls_set
+            for cls, compat_cls_set in cls_map.items()
+            # If there is at least one compatible subclass that is produced, we
+            # keep it, otherwise it will mislead _build_expr into thinking the
+            # class can be built where in fact it cannot
+            if compat_cls_set & op_map.keys()
+        }
         for internal_cls in (Consumer, ExprData):
             op_map[internal_cls] = {Operator(internal_cls)}
             cls_map[internal_cls] = [internal_cls]
 
         expr_list = list()
         for result_op in result_op_seq:
-            # We just skip over Expression where a CycleError happened
-            with contextlib.suppress(IgnoredCycleError):
-                expr_gen = cls._build_expr(result_op, op_map, cls_map,
-                    op_stack = [],
-                    non_produced_handler=non_produced_handler,
-                    cycle_handler=cycle_handler,
-                )
-                for expr in expr_gen:
-                    if expr.validate_expr(op_map):
-                        expr_list.append(expr)
+            expr_gen = cls._build_expr(result_op, op_map, cls_map,
+                op_stack = [],
+                non_produced_handler=non_produced_handler,
+                cycle_handler=cycle_handler,
+            )
+            for expr in expr_gen:
+                if expr.validate_expr(op_map):
+                    expr_list.append(expr)
 
         return expr_list
 
@@ -276,6 +278,9 @@ class ExpressionWrapper:
         if op in op_stack:
             if cycle_handler == 'ignore':
                 return
+            elif callable(cycle_handler):
+                cycle_handler(tuple(op.callable_ for op in new_op_stack))
+                return
             elif cycle_handler == 'raise':
                 raise CycleError('Cyclic dependency found: {path}'.format(
                     path = ' -> '.join(
@@ -283,9 +288,7 @@ class ExpressionWrapper:
                     )
                 ))
             else:
-                cycle_handler(tuple(op.callable_ for op in new_op_stack))
-                raise IgnoredCycleError
-
+                raise ValueError('Invalid cycle_handler')
 
         op_stack = new_op_stack
 
@@ -321,6 +324,11 @@ class ExpressionWrapper:
                 else:
                     if non_produced_handler == 'ignore':
                         return
+                    elif callable(non_produced_handler):
+                        non_produced_handler(wanted_cls.__qualname__, op.name, param,
+                            tuple(op.resolved_callable for op in op_stack)
+                        )
+                        return
                     elif non_produced_handler == 'raise':
                         raise NoOperatorError('No operator can produce instances of {cls} needed for {op} (parameter "{param}" along path {path})'.format(
                             cls = wanted_cls.__qualname__,
@@ -331,10 +339,7 @@ class ExpressionWrapper:
                             )
                         ))
                     else:
-                        non_produced_handler(wanted_cls.__qualname__, op.name, param,
-                            tuple(op.resolved_callable for op in op_stack)
-                        )
-                        return
+                        raise ValueError('Invalid non_produced_handler')
 
         param_list = remove_indices(param_list, ignored_indices)
         cls_combis = remove_indices(cls_combis, ignored_indices)
@@ -359,11 +364,10 @@ class ExpressionWrapper:
                 op_combi = list(op_combi)
 
                 # Get all the possible ways of calling these operators
-                param_combis = itertools.product(*(
-                    cls._build_expr(param_op, op_map, cls_map,
+                param_combis = itertools.product(*(cls._build_expr(
+                        param_op, op_map, cls_map,
                         op_stack, non_produced_handler, cycle_handler,
-                    )
-                    for param_op in op_combi
+                    ) for param_op in op_combi
                 ))
 
                 for param_combi in param_combis:
@@ -697,6 +701,7 @@ class Expression:
         plain_name_cls_set = set()
         script = ''
         result_name_map = dict()
+        reusable_outvar_map = dict()
         for i, expr in enumerate(expr_list):
             script += (
                 '#'*80 + '\n# Computed expressions:' +
@@ -710,6 +715,7 @@ class Expression:
 
             expr_val_set = set(expr.get_all_values())
             result_name, snippet = expr._get_script(
+                reusable_outvar_map = reusable_outvar_map,
                 prefix = prefix + str(i),
                 obj_store = obj_store,
                 module_name_set = module_name_set,
@@ -801,7 +807,18 @@ class Expression:
 
     EXPR_DATA_VAR_NAME = 'EXPR_DATA'
 
-    def _get_script(self, prefix, obj_store, module_name_set, idt, expr_val_set, consumer_expr_stack):
+    def _get_script(self, reusable_outvar_map, *args, **kwargs):
+        with contextlib.suppress(KeyError):
+            outvar = reusable_outvar_map[self]
+            return (outvar, '')
+        outvar, script = self._get_script_internal(
+            reusable_outvar_map, *args, **kwargs
+        )
+        if self.op.reusable:
+            reusable_outvar_map[self] = outvar
+        return (outvar, script)
+
+    def _get_script_internal(self, reusable_outvar_map, prefix, obj_store, module_name_set, idt, expr_val_set, consumer_expr_stack):
         def make_method_self_name(expr):
             return expr.op.value_type.__name__.replace('.', '')
 
@@ -934,7 +951,7 @@ class Expression:
 
             # Do a deep first search traversal of the expression.
             param_outvar, param_out = param_expr._get_script(
-                param_prefix, obj_store, module_name_set, idt,
+                reusable_outvar_map, param_prefix, obj_store, module_name_set, idt,
                 param_expr_val_set,
                 consumer_expr_stack = consumer_expr_stack + [self],
             )
@@ -1134,6 +1151,7 @@ class Expression:
             for expr_val in executor(*args, **kwargs):
                 yield (expr_wrapper, expr_val)
 
+    #TODO: make that stateless by returning copies of Expression's
     def _prepare_exec(self, expr_set):
         self.discard_result()
 
@@ -1151,9 +1169,8 @@ class Expression:
                 return replacement_expr
 
         # Otherwise register this Expression so no other duplicate will be used
-        else:
-            expr_set.add(self)
-            return self
+        expr_set.add(self)
+        return self
 
     def execute(self, post_compute_cb=None):
         return self._execute([], post_compute_cb)

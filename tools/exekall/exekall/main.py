@@ -30,7 +30,6 @@ import traceback
 import uuid
 import traceback
 import gzip
-import fnmatch
 import functools
 import itertools
 import importlib
@@ -71,6 +70,14 @@ than one to choose from.""")
         default=[],
         help="""Callable names patterns. Types produced by these callables will
 only be produced by these (other callables will be excluded).""")
+
+    run_parser.add_argument('--forbid', action='append',
+        default=[],
+        help="""Type names patterns. Callable returning these types or any subclass will not be called.""")
+
+    run_parser.add_argument('--allow', action='append',
+        default=[],
+        help="""Allow using callable with a fully qualified name matching these patterns, even if they have been not selected for various reasons..""")
 
     run_parser.add_argument('--modules-root', action='append', default=[],
         help="Equivalent to setting PYTHONPATH")
@@ -234,7 +241,10 @@ the name of the parameter, the start value, stop value and step size.""")
     load_db_uuid_args = args.load_uuid_args
 
     user_filter = args.filter
-    restrict_list = args.restrict
+    restricted_pattern_set = set(args.restrict)
+    forbidden_pattern_set = set(args.forbid)
+    allowed_pattern_set = set(args.allow)
+    allowed_pattern_set.update(restricted_pattern_set)
 
     sys.path.extend(args.modules_root)
 
@@ -263,40 +273,6 @@ the name of the parameter, the start value, stop value and step size.""")
     utils.setup_logging(args.log_level, debug_log, verbose)
 
     module_set.update(utils.import_file(path) for path in args.python_files)
-
-    # Pool of all callable considered
-    callable_pool = utils.get_callable_set(module_set)
-    callable_pool = adaptor.filter_callable_pool(callable_pool)
-
-    op_pool = {
-        engine.Operator(callable_, tag_list_getter=adaptor.get_tag_list)
-        for callable_ in callable_pool
-    }
-    op_pool = {
-        op for op in op_pool
-        # Only select operators with non-empty parameter list. This rules out
-        # all classes __init__ that do not take parameter, as they are
-        # typically not interesting to us.
-        if op.get_prototype()[0]
-    }
-
-    # Force some parameter values to be provided with a specific callable
-    patch_map = dict()
-    for sweep_spec in args.sweep:
-        number_type = float
-        callable_pattern, param, start, stop, step = sweep_spec
-        for callable_ in callable_pool:
-            callable_name = engine.get_name(callable_)
-            if not fnmatch.fnmatch(callable_name, callable_pattern):
-                continue
-            patch_map.setdefault(callable_name, dict())[param] = [
-                i for i in utils.sweep_number(
-                    callable_, param,
-                    number_type(start), number_type(stop), number_type(step)
-                )
-            ]
-
-    only_prebuilt_cls = set()
 
     # Get the prebuilt operators from the adaptor
     if not load_db_path:
@@ -395,14 +371,35 @@ the name of the parameter, the start value, stop value and step size.""")
                         tag_list_getter=adaptor.get_tag_list,
                     ))
 
-    # Make sure that the provided PrebuiltOperator will be the only ones used
-    # to provide their types
-    only_prebuilt_cls.update(
-        op.obj_type
-        for op in prebuilt_op_pool_list
+    # Pool of all callable considered
+    callable_pool = utils.get_callable_set(module_set)
+    op_pool = {
+        engine.Operator(callable_, tag_list_getter=adaptor.get_tag_list)
+        for callable_ in callable_pool
+    }
+    filtered_op_pool = adaptor.filter_op_pool(op_pool)
+    # Make sure we have all the explicitely allowed operators
+    filtered_op_pool.update(
+        op for op in op_pool
+        if utils.match_name(op.get_name(full_qual=True), allowed_pattern_set)
     )
+    op_pool = filtered_op_pool
 
-    only_prebuilt_cls.discard(type(NoValue))
+    # Force some parameter values to be provided with a specific callable
+    patch_map = dict()
+    for sweep_spec in args.sweep:
+        number_type = float
+        callable_pattern, param, start, stop, step = sweep_spec
+        for callable_ in callable_pool:
+            callable_name = engine.get_name(callable_, full_qual=True)
+            if not utils.match_name(callable_name, [callable_pattern]):
+                continue
+            patch_map.setdefault(callable_name, dict())[param] = [
+                i for i in utils.sweep_number(
+                    callable_, param,
+                    number_type(start), number_type(stop), number_type(step)
+                )
+            ]
 
     for op_name, param_patch_map in patch_map.items():
         for op in op_pool:
@@ -449,34 +446,38 @@ the name of the parameter, the start value, stop value and step size.""")
         for cls in cls_set
     }
 
-    cls_map = adaptor.filter_cls_map(cls_map)
+    # Make sure that the provided PrebuiltOperator will be the only ones used
+    # to provide their types
+    only_prebuilt_cls = set(itertools.chain.from_iterable(
+    # Augment the list of classes that can only be provided by a prebuilt
+    # Operator with all the compatible classes
+        cls_map[op.obj_type]
+        for op in prebuilt_op_pool_list
+    ))
 
-        # Augment the list of classes that can only be provided by a prebuilt
-        # Operator with all the compatible classes
-    only_prebuilt_cls_ = set()
-    for cls in only_prebuilt_cls:
-        only_prebuilt_cls_.update(cls_map[cls])
-    only_prebuilt_cls = only_prebuilt_cls_
+    only_prebuilt_cls.discard(type(NoValue))
 
     # Map of all produced types to a set of what operator can create them
-        op_map = dict()
-        for op in op_pool:
-            param_map, produced = op.get_prototype()
-        if not (
-            # Some types may only be produced by prebuilt operators
-            produced in only_prebuilt_cls and
-            not isinstance(op, engine.PrebuiltOperator)
-            ):
-                op_map.setdefault(produced, set()).add(op)
-    op_map = adaptor.filter_op_map(op_map)
+    def build_op_map(op_pool, only_prebuilt_cls, forbidden_pattern_set):
+    op_map = dict()
+    for op in op_pool:
+        param_map, produced = op.get_prototype()
+            is_prebuilt_op = isinstance(op, engine.PrebuiltOperator)
+            if (
+                (is_prebuilt_op or produced not in only_prebuilt_cls)
+                and not utils.match_base_cls(produced, forbidden_pattern_set)
+        ):
+            op_map.setdefault(produced, set()).add(op)
+        return op_map
+
+    op_map = build_op_map(op_pool, only_prebuilt_cls, forbidden_pattern_set)
+    # Make sure that we only use what is available from now on
+    op_pool = set(itertools.chain.from_iterable(op_map.values()))
 
     # Restrict the production of some types to a set of operators.
     restricted_op_set = {
         op for op in op_pool
-        if any(
-            fnmatch.fnmatch(op.get_name(full_qual=True), pattern)
-            for pattern in restrict_list
-        )
+        if utils.match_name(op.get_name(full_qual=True), restricted_pattern_set)
     }
     def apply_restrict(produced, op_set, restricted_op_set, cls_map):
         restricted_op_set = {
@@ -518,27 +519,31 @@ the name of the parameter, the start value, stop value and step size.""")
     hidden_callable_set = adaptor.get_hidden_callable_set(op_map)
 
     # Only print once per parameters' tuple
-        @utils.once
-        def handle_non_produced(cls_name, consumer_name, param_name, callable_path):
+    if verbose:
+    @utils.once
+    def handle_non_produced(cls_name, consumer_name, param_name, callable_path):
         # When reloading from the DB, we don't want to be annoyed with lots of
         # output related to missing PrebuiltOperator
         if load_db_path and not verbose:
             return
-            info('Nothing can produce instances of {cls} needed for {consumer} (parameter "{param}", along path {path})'.format(
-                cls = cls_name,
-                consumer = consumer_name,
-                param = param_name,
-                path = ' -> '.join(engine.get_name(callable_) for callable_ in callable_path)
-            ))
+        info('Nothing can produce instances of {cls} needed for {consumer} (parameter "{param}", along path {path})'.format(
+            cls = cls_name,
+            consumer = consumer_name,
+            param = param_name,
+            path = ' -> '.join(engine.get_name(callable_) for callable_ in callable_path)
+        ))
 
-        @utils.once
-        def handle_cycle(path):
-            error('Cyclic dependency detected: {path}'.format(
-                path = ' -> '.join(
-                    engine.get_name(callable_)
-                    for callable_ in path
-                )
-            ))
+    @utils.once
+    def handle_cycle(path):
+        error('Cyclic dependency detected: {path}'.format(
+            path = ' -> '.join(
+                engine.get_name(callable_)
+                for callable_ in path
+            )
+        ))
+    else:
+        handle_non_produced = 'ignore'
+        handle_cycle = 'ignore'
 
     # Build the list of Expression that can be constructed from the set of
     # callables
@@ -547,6 +552,7 @@ the name of the parameter, the start value, stop value and step size.""")
         non_produced_handler = handle_non_produced,
         cycle_handler = handle_cycle,
     ))
+    testcase_list.sort(key=lambda expr: take_first(expr.get_id(full_qual=True, with_tags=True)))
 
     # Only keep the Expression where the outermost (root) operator is defined
     # in one of the files that were explicitely specified on the command line.
@@ -559,12 +565,12 @@ the name of the parameter, the start value, stop value and step size.""")
     if user_filter:
         testcase_list = [
             testcase for testcase in testcase_list
-            if fnmatch.fnmatch(take_first(testcase.get_id(
+            if utils.match_name(take_first(testcase.get_id(
                 # These options need to match what --dry-run gives (unless
                 # verbose is used)
                 full_qual=False,
                 qual=False,
-                hidden_callable_set=hidden_callable_set)), user_filter)
+                hidden_callable_set=hidden_callable_set)), [user_filter])
         ]
 
     if not testcase_list:
@@ -592,7 +598,11 @@ the name of the parameter, the start value, stop value and step size.""")
 
     out('\nArtifacts dir: {}\n'.format(artifact_dir))
 
-    for testcase in testcase_list:
+    # Apply the common subexpression elimination before trying to create the
+    # template scripts
+    executor_map = engine.Expression.get_executor_map(testcase_list)
+
+    for testcase in executor_map.keys():
         testcase_short_id = take_first(testcase.get_id(
             hidden_callable_set=hidden_callable_set,
             with_tags=False,
@@ -640,7 +650,7 @@ the name of the parameter, the start value, stop value and step size.""")
         return 0
 
     result_map = collections.defaultdict(list)
-    for testcase, executor in engine.Expression.get_executor_map(testcase_list).items():
+    for testcase, executor in executor_map.items():
         exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}'.format(
                 short_id=take_first(testcase.get_id(
                     hidden_callable_set=hidden_callable_set,

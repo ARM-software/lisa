@@ -40,14 +40,14 @@ class AdaptorBase:
     def get_db_loader(self):
         return None
 
-    def filter_callable_pool(self, callable_pool):
-        return callable_pool
-
-    def filter_cls_map(self, cls_map):
-        return cls_map
-
-    def filter_op_map(self, op_map):
-        return op_map
+    def filter_op_pool(self, op_pool):
+        return {
+            op for op in op_pool
+            # Only select operators with non-empty parameter list. This
+            # rules out all classes __init__ that do not take parameter, as
+            # they are typically not interesting to us.
+            if op.get_prototype()[0]
+        }
 
     def get_prebuilt_list(self):
         return []

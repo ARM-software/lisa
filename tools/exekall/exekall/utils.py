@@ -46,10 +46,7 @@ def load_serial_from_db(db, uuid_seq=None, type_pattern_seq=None):
         )
 
     def type_pattern_predicate(serial):
-        return any(
-            match_base_cls(type(serial.value), pattern)
-            for pattern in type_pattern_seq
-        )
+        return match_base_cls(type(serial.value), type_pattern_seq)
 
     if type_pattern_seq and not uuid_seq:
         predicate = type_pattern_predicate
@@ -66,14 +63,26 @@ def load_serial_from_db(db, uuid_seq=None, type_pattern_seq=None):
 
     return db.obj_store.get_by_predicate(predicate)
 
-def match_base_cls(cls, pattern):
+def match_base_cls(cls, pattern_list):
     # Match on the name of the class of the object and all its base classes
     for base_cls in engine.get_mro(cls):
         base_cls_name = engine.get_name(base_cls, full_qual=True)
-        if fnmatch.fnmatch(base_cls_name, pattern):
+        if any(
+                fnmatch.fnmatch(base_cls_name, pattern)
+                for pattern in pattern_list
+            ):
             return True
 
     return False
+
+def match_name(name, pattern_list):
+    if name is None:
+        return False
+    return any(
+        fnmatch.fnmatch(name, pattern)
+        for pattern in pattern_list
+    )
+
 
 def get_recursive_module_set(module_set, package_set):
     """Retrieve the set of all modules recurisvely imported from the modules in
