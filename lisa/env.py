@@ -35,7 +35,7 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
 from lisa.energy_meter import EnergyMeter
-from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList, ArtifactPath
+from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList, setup_logging
 
 from lisa.platforms.platinfo import PlatformInfo
 
@@ -254,7 +254,7 @@ class TestEnv(Loggable, HideExekallID):
         return cls(target_conf=target_conf, plat_info=plat_info)
 
     @classmethod
-    def from_cli(cls, argv=None):
+    def from_cli(cls, argv=None) -> 'TestEnv':
         """
         Create a TestEnv from command line arguments.
 
@@ -266,61 +266,79 @@ class TestEnv(Loggable, HideExekallID):
         to be confusing (help message woes, argument clashes...), so for now
         this should only be used in scripts that only expect TestEnv args.
         """
-        # Subparsers cannot let us specify --kind=android, at best we could
-        # have --android which is lousy. Instead, use a first parser to figure
-        # out the target kind, then create a new parser for that specific kind.
-        kind_parser = argparse.ArgumentParser(
-            # Disable the automatic help to not catch e.g. ./script.py -k linux -h
-            add_help=False,
+        parser = argparse.ArgumentParser(
             formatter_class=argparse.RawDescriptionHelpFormatter,
             description=textwrap.dedent(
                 """
-                Extra arguments differ depending on the value passed to 'kind'.
-                Try e.g. "--kind android -h" to see the arguments for android targets.
-                """))
+                Connect to a target using the provided configuration in order
+                to run a test.
 
-        kind_parser.add_argument(
-            "--kind", "-k", choices=["android", "linux", "host"],
-            help="The kind of target to create")
+                EXAMPLES
 
-        # Add a self-managed help argument, see why below
-        kind_parser.add_argument("--help", "-h", action="store_true")
+                --target-conf can point to a YAML target configuration file
+                with all the necessary connection information:
+                $ {script} --target-conf my_target.yml
 
-        args = kind_parser.parse_known_args(argv)[0]
+                Alternatively, --kind must be set along the relevant credentials:
+                $ {script} --kind linux --host 192.0.2.1 --username root --password root
 
-        # Print the generic help only if we can't print the proper --kind help
-        if not args.kind or (args.help and not args.kind):
-            kind_parser.print_help()
-            sys.exit(2)
+                In both cases, --platform-info can point to a PlatformInfo YAML
+                file.
 
-        kind = args.kind
+                """.format(
+                    script=os.path.basename(sys.argv[0])
+                )))
 
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--kind", "-k",
-                            choices=[kind],
-                            required=True,
-                            help="The kind of target to create")
 
-        if kind == "android":
-            parser.add_argument("--device", "-d", type=str, required=True,
-                                help="The ADB ID of the target")
-        elif kind == "linux":
-            parser.add_argument("--hostname", "-n", type=str, required=True, dest="host",
-                                help="The hostname/IP of the target")
-            parser.add_argument("--username", "-u", type=str, required=True,
-                                help="Login username")
-            parser.add_argument("--password", "-p",  type=str, required=True,
-                                help="Login password")
+        kind_group = parser.add_mutually_exclusive_group(required=True)
+        kind_group.add_argument("--kind", "-k",
+            choices=["android", "linux", "host"],
+            help="The kind of target to connect to.")
 
-        parser.add_argument("--platform-info", "-pi", type=str,
-                            help="Path to a PlatformInfo yaml file")
+        kind_group.add_argument("--target-conf", "-t",
+                            help="Path to a TargetConf yaml file. Superseeds other target connection related options.")
+
+        device_group = parser.add_mutually_exclusive_group()
+        device_group.add_argument("--device", "-d",
+                            help="The ADB ID of the target. Superseeds --host. Only applies to Android kind.")
+        device_group.add_argument("--host", "-n",
+                            help="The hostname/IP of the target.")
+
+        parser.add_argument("--username", "-u",
+                            help="Login username. Only applies to Linux kind.")
+        parser.add_argument("--password", "-p",
+                            help="Login password. Only applies to Linux kind.")
+
+        parser.add_argument("--platform-info", "-pi",
+                            help="Path to a PlatformInfo yaml file.")
+
+        parser.add_argument("--log-level",
+                            choices=('warning', 'info', 'debug'),
+                            help="Verbosity level of the logs.")
+
+        parser.add_argument("--res-dir", "-o",
+                            help="Result directory of the created TestEnv. If no directory is specified, a default location under $LISA_HOME will be used.")
+
+        # Options that are not a key in TargetConf must be listed here
+        not_target_conf_opt = (
+            'platform_info', 'log_level', 'res_dir', 'target_conf',
+        )
 
         args = parser.parse_args(argv)
-        platform_info = PlatformInfo.from_yaml_map(args.platform_info) if args.platform_info else None
-            target_conf = TargetConf(
-            {k : v for k, v in vars(args).items() if k != "platform_info"})
+        if args.log_level:
+            setup_logging(level=args.log_level.upper())
 
-        return TestEnv(target_conf, platform_info)
+        if args.kind and not (args.host or args.device):
+            parser.error('--host or --device must be specified')
+
+        platform_info = PlatformInfo.from_yaml_map(args.platform_info) if args.platform_info else None
+        if args.target_conf:
+            target_conf = TargetConf.from_yaml_map(args.target_conf)
+        else:
+            target_conf = TargetConf(
+                {k : v for k, v in vars(args).items() if k not in not_target_conf_opt})
+
+        return cls(target_conf, platform_info, res_dir=args.res_dir)
 
     def _init_target(self, target_conf, res_dir):
         """
