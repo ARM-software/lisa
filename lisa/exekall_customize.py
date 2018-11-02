@@ -33,7 +33,7 @@ from lisa.utils import HideExekallID, Loggable, ArtifactPath
 from lisa.tests.kernel.test_bundle import TestBundle, Result, ResultBundle, CannotCreateError
 
 from exekall import utils, engine
-from exekall.engine import reusable, ExprData, Consumer, PrebuiltOperator, NoValue, get_name
+from exekall.engine import reusable, ExprData, Consumer, PrebuiltOperator, NoValue, get_name, get_mro
 from exekall.customization import AdaptorBase
 
 @reusable(False)
@@ -101,6 +101,10 @@ class LISAAdaptor(AdaptorBase):
 
         parser.add_argument('--platform-info',
             help="Platform info file")
+
+    @staticmethod
+    def get_default_type_goal_pattern_set():
+        return {'*.ResultBundle'}
 
     def get_db_loader(self):
         return self.load_db
@@ -270,7 +274,7 @@ def append_result_tag(et_testcase, result, type_, short_msg, msg):
         type=get_name(type_, full_qual=True),
         type_bases=','.join(
             get_name(type_, full_qual=True)
-            for type_ in inspect.getmro(type_)
+            for type_ in get_mro(type_)
         ),
         message=str(short_msg),
     ))

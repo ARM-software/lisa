@@ -102,9 +102,14 @@ refined with --load-type.""")
         help="""Load the parameters of the values that were used to compute the
 given UUID from the database.""")
 
-    run_parser.add_argument('--goal', default='*ResultBundle',
+    goal_group = run_parser.add_mutually_exclusive_group()
+    goal_group.add_argument('--goal', action='append',
         help="""Compute expressions leading to an instance of the specified
 class or a subclass of it.""")
+
+    goal_group.add_argument('--callable-goal', action='append',
+        help="""Compute expressions ending with a callable which name is
+matching this pattern.""")
 
     run_parser.add_argument('--sweep', nargs=5, action='append', default=[],
         metavar=('CALLABLE', 'PARAM', 'START', 'STOP', 'STEP'),
@@ -217,7 +222,11 @@ the name of the parameter, the start value, stop value and step size.""")
     dry_run = args.dry_run
     only_template_scripts = args.template_scripts
 
-    goal_pattern = args.goal
+    type_goal_pattern = args.goal
+    callable_goal_pattern = args.callable_goal
+
+    if not (type_goal_pattern or callable_goal_pattern):
+        type_goal_pattern = set(adaptor_cls.get_default_type_goal_pattern_set())
 
     load_db_path = args.load_db
     load_db_pattern_list = args.load_type
@@ -425,8 +434,9 @@ the name of the parameter, the start value, stop value and step size.""")
     # dependended upon as well.
     cls_set = set()
     for produced in produced_pool:
-        cls_set.update(inspect.getmro(produced))
+        cls_set.update(engine.get_mro(produced))
     cls_set.discard(object)
+    cls_set.discard(type(None))
 
     # Map all types to the subclasses that can be used when the type is
     # requested.
@@ -441,23 +451,23 @@ the name of the parameter, the start value, stop value and step size.""")
 
     cls_map = adaptor.filter_cls_map(cls_map)
 
-    # Augment the list of classes that can only be provided by a prebuilt
-    # Operator with all the compatible classes
+        # Augment the list of classes that can only be provided by a prebuilt
+        # Operator with all the compatible classes
     only_prebuilt_cls_ = set()
     for cls in only_prebuilt_cls:
         only_prebuilt_cls_.update(cls_map[cls])
     only_prebuilt_cls = only_prebuilt_cls_
 
     # Map of all produced types to a set of what operator can create them
-    op_map = dict()
-    for op in op_pool:
-        param_map, produced = op.get_prototype()
+        op_map = dict()
+        for op in op_pool:
+            param_map, produced = op.get_prototype()
         if not (
             # Some types may only be produced by prebuilt operators
             produced in only_prebuilt_cls and
             not isinstance(op, engine.PrebuiltOperator)
-        ):
-            op_map.setdefault(produced, set()).add(op)
+            ):
+                op_map.setdefault(produced, set()).add(op)
     op_map = adaptor.filter_op_map(op_map)
 
     # Restrict the production of some types to a set of operators.
@@ -489,10 +499,16 @@ the name of the parameter, the start value, stop value and step size.""")
     # Get the list of root operators
     root_op_set = set()
     for produced, op_set in op_map.items():
-        # All producers of Result can be a root operator in the expressions
-        # we are going to build, i.e. the outermost function call
-        if utils.match_base_cls(produced, goal_pattern):
-            root_op_set.update(op_set)
+        # All producers of the goal types can be a root operator in the
+        # expressions we are going to build, i.e. the outermost function call
+        if type_goal_pattern:
+            if utils.match_base_cls(produced, type_goal_pattern):
+                root_op_set.update(op_set)
+
+        if callable_goal_pattern:
+            for op in op_set:
+                if utils.match_name(op.get_name(full_qual=True), callable_goal_pattern):
+                    root_op_set.add(op)
 
     # Sort for stable output
     root_op_list = sorted(root_op_set, key=lambda op: str(op.name))
@@ -502,27 +518,27 @@ the name of the parameter, the start value, stop value and step size.""")
     hidden_callable_set = adaptor.get_hidden_callable_set(op_map)
 
     # Only print once per parameters' tuple
-    @utils.once
-    def handle_non_produced(cls_name, consumer_name, param_name, callable_path):
+        @utils.once
+        def handle_non_produced(cls_name, consumer_name, param_name, callable_path):
         # When reloading from the DB, we don't want to be annoyed with lots of
         # output related to missing PrebuiltOperator
         if load_db_path and not verbose:
             return
-        info('Nothing can produce instances of {cls} needed for {consumer} (parameter "{param}", along path {path})'.format(
-            cls = cls_name,
-            consumer = consumer_name,
-            param = param_name,
-            path = ' -> '.join(engine.get_name(callable_) for callable_ in callable_path)
-        ))
+            info('Nothing can produce instances of {cls} needed for {consumer} (parameter "{param}", along path {path})'.format(
+                cls = cls_name,
+                consumer = consumer_name,
+                param = param_name,
+                path = ' -> '.join(engine.get_name(callable_) for callable_ in callable_path)
+            ))
 
-    @utils.once
-    def handle_cycle(path):
-        error('Cyclic dependency detected: {path}'.format(
-            path = ' -> '.join(
-                engine.get_name(callable_)
-                for callable_ in path
-            )
-        ))
+        @utils.once
+        def handle_cycle(path):
+            error('Cyclic dependency detected: {path}'.format(
+                path = ' -> '.join(
+                    engine.get_name(callable_)
+                    for callable_ in path
+                )
+            ))
 
     # Build the list of Expression that can be constructed from the set of
     # callables

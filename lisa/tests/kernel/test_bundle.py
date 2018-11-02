@@ -19,6 +19,7 @@ import enum
 import os
 import os.path
 import abc
+import sys
 from collections.abc import Mapping
 
 from devlib.target import KernelVersion
@@ -140,6 +141,13 @@ class ResultBundle:
         :Parameters: :class:`TestMetric` parameters
         """
         self.metrics[name] = TestMetric(data, units)
+
+    def display_and_exit(self) -> type(None):
+        print("Test result: {}".format(self))
+        if self:
+            sys.exit(0)
+        else:
+            sys.exit(1)
 
 class CannotCreateError(RuntimeError):
     """

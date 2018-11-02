@@ -63,6 +63,13 @@ def get_type_hints(f, module_vars=None):
 
     return resolve_annotations(f.__annotations__, module_vars)
 
+def get_mro(cls):
+    assert isinstance(cls, type)
+    if issubclass(cls, type(None)):
+        return (type(None), object)
+    else:
+        return inspect.getmro(cls)
+
 def resolve_annotations(annotations, module_vars):
     return {
         # If we get a string, evaluate it in the global namespace of the
@@ -1821,7 +1828,7 @@ class SerializableExprValue:
 
         self.type_names = [
             get_name(type_, full_qual=True)
-            for type_ in inspect.getmro(expr_val.expr.op.value_type)
+            for type_ in get_mro(expr_val.expr.op.value_type)
             if type_ is not object
         ]
 

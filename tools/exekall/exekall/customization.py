@@ -60,6 +60,10 @@ class AdaptorBase:
     def register_cli_param(parser):
         pass
 
+    @staticmethod
+    def get_default_type_goal_pattern_set():
+        return {'*Result'}
+
     def resolve_cls_name(self, goal):
         return engine.get_class_from_name(goal, sys.modules)
 

@@ -68,7 +68,7 @@ def load_serial_from_db(db, uuid_seq=None, type_pattern_seq=None):
 
 def match_base_cls(cls, pattern):
     # Match on the name of the class of the object and all its base classes
-    for base_cls in inspect.getmro(cls):
+    for base_cls in engine.get_mro(cls):
         base_cls_name = engine.get_name(base_cls, full_qual=True)
         if fnmatch.fnmatch(base_cls_name, pattern):
             return True
