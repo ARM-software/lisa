@@ -1,18 +1,3 @@
-# A word about the future
-
-We are currently working on revamping and streamlining a good chunk of LISA,
-which will of course break some things. 
-
-In short, this what you should expect to see:
-* Complete redo of our test classes (LisaTest & Executor) - see this [WIP branch](https://github.com/valschneider/lisa/commits/tests/executor-rework)
-* Various clean ups of LISA internals (e.g. TestEnv)
-* Migration to Python3
-* Documentation overhaul (as in, not just bare docstrings)
-
-We are aiming for an external release by November. This should take the form of a
-'next' branch in this repository. After some transition period (say 6 months),
-we'll update 'master' to this 'next' branch.
-
 # Introduction
 
 The LISA project provides a toolkit that supports regression testing and
@@ -49,7 +34,7 @@ There are two "entry points" for running LISA:
   automated pass/fail regression tests for kernel behaviour. The
   [BART](https://github.com/ARM-software/trappy) toolkit provides additional
   domain-specific test assertions for this use-case. LISA provides some
-  ready-made automated tests under the `tests/` directory.
+  ready-made automated tests under the `lisa/tests/` directory.
 
 # Motivations
 
@@ -69,11 +54,14 @@ The main goals of LISA are:
 
 # Documentation
 
-* [Wiki Home page](https://github.com/ARM-software/lisa/wiki)
-* [Installation](https://github.com/ARM-software/lisa/wiki/Installation)
-* [Quickstart Tutorial](https://github.com/ARM-software/lisa/wiki/Quickstart-tutorial)
+You should find everything on [ReadTheDocs](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/).
+Here are some noteworthy sections:
+* [Installation](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/overview.html#installation)
+* [Self-tests](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/lisa_tests.html)
+* [Kernel tests](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/kernel_tests.html)
 
-* [API Documentation](http://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/)
+We are working towards phasing out the [Github wiki](https://github.com/ARM-software/lisa/wiki) in favor of
+ReadTheDocs, but in the meantime you may find some extra information there.
 
 # External Links
 * Linux Integrated System Analysis (LISA) & Friends
