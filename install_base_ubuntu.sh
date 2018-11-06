@@ -61,8 +61,8 @@ done
 
 apt-get update
 
-apt-get -y install build-essential git python3 python3-pip python3-tk \
-	trace-cmd kernelshark
+apt-get -y install build-essential git wget expect trace-cmd kernelshark \
+	python3 python3-pip python3-tk
 
 # Upgrade pip so we can use wheel packages instead of compiling stuff, this is
 # much faster.
