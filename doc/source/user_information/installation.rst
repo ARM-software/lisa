@@ -196,7 +196,8 @@ Alternatively, you can also install the latest development version from GitHub
 (you will need git installed for this to work)::
 
        git clone git@github.com:ARM-software/workload-automation.git workload-automation
-       sudo -H pip install ./workload-automation
+       cd workload-automation
+       sudo -H python setup.py install
 
 
 

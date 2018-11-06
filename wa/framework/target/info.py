@@ -22,6 +22,7 @@ from devlib.target import KernelConfig, KernelVersion, Cpuinfo
 from devlib.utils.android import AndroidProperties
 
 from wa.framework.configuration.core import settings
+from wa.framework.exception import ConfigError
 from wa.utils.serializer import read_pod, write_pod
 
 
@@ -222,6 +223,8 @@ def get_target_info(target):
 
         info.cpus.append(cpu)
 
+    info.page_size_kb = target.page_size_kb
+
     if isinstance(target, AndroidTarget):
         info.screen_resolution = target.screen_resolution
         info.prop = target.getprop()
@@ -247,8 +250,15 @@ def write_target_info_cache(cache):
 def get_target_info_from_cache(system_id):
     cache = read_target_info_cache()
     pod = cache.get(system_id, None)
+
     if not pod:
         return None
+
+    pod_version = pod.get('format_version', 0)
+    if pod_version != TargetInfo.format_version:
+        msg = 'Target info version mismatch. Expected {}, but found {}.\nTry deleting {}'
+        raise ConfigError(msg.format(TargetInfo.format_version, pod_version,
+                                     settings.target_info_cache_file))
     return TargetInfo.from_pod(pod)
 
 
@@ -261,6 +271,8 @@ def cache_target_info(target_info, overwrite=False):
 
 
 class TargetInfo(object):
+
+    format_version = 2
 
     @staticmethod
     def from_pod(pod):
@@ -278,6 +290,7 @@ class TargetInfo(object):
         instance.kernel_version = kernel_version_from_pod(pod)
         instance.kernel_config = kernel_config_from_pod(pod)
         instance.sched_features = pod['sched_features']
+        instance.page_size_kb = pod.get('page_size_kb')
         if instance.os == 'android':
             instance.screen_resolution = pod['screen_resolution']
             instance.prop = AndroidProperties('')
@@ -302,9 +315,11 @@ class TargetInfo(object):
         self.screen_resolution = None
         self.prop = None
         self.android_id = None
+        self.page_size_kb = None
 
     def to_pod(self):
         pod = {}
+        pod['format_version'] = self.format_version
         pod['target'] = self.target
         pod['abi'] = self.abi
         pod['cpus'] = [c.to_pod() for c in self.cpus]
@@ -319,6 +334,7 @@ class TargetInfo(object):
         pod['kernel_version'] = self.kernel_version.version
         pod['kernel_config'] = dict(self.kernel_config.iteritems())
         pod['sched_features'] = self.sched_features
+        pod['page_size_kb'] = self.page_size_kb
         if self.os == 'android':
             pod['screen_resolution'] = self.screen_resolution
             pod['prop'] = self.prop._properties
