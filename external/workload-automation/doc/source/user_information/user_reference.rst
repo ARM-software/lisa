@@ -18,6 +18,3 @@ User Reference
 -------------------
 
 .. include:: user_information/user_reference/output_directory.rst
-
-
-
