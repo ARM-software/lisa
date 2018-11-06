@@ -19,10 +19,11 @@ import pandas as pd
 
 from devlib.module.sched import SchedDomain
 
-from lisa.utils import memoized
+from lisa.utils import memoized, ArtifactPath
 from lisa.trace import Trace
 from lisa.wlgen.rta import Periodic
 from lisa.tests.kernel.test_bundle import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
+from lisa.env import TestEnv
 
 class MisfitMigrationBase(RTATestBundle):
     """
@@ -70,6 +71,16 @@ class MisfitMigrationBase(RTATestBundle):
         """
         HZ = te.target.sched.get_hz()
         return ((HZ * te.target.number_of_cpus) // 10) * (1. / HZ)
+
+    @classmethod
+    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'MisfitMigrationBase':
+        """
+        Factory method to create a bundle using a live target
+
+        This will execute the rt-app workload described in
+        :meth:`~lisa.tests.kernel.test_bundle.RTATestBundle.get_rtapp_profile`
+        """
+        return super().from_testenv(te, res_dir)
 
 class StaggeredFinishes(MisfitMigrationBase):
     """

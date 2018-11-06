@@ -15,9 +15,11 @@
 # limitations under the License.
 #
 
+import abc
 import os
 import matplotlib.pyplot as plt
 import pylab as pl
+from collections import OrderedDict
 
 from bart.common.Utils import select_window
 from bart.sched import pelt
@@ -25,7 +27,11 @@ from bart.sched.SchedAssert import SchedAssert
 
 from trappy.stats.Topology import Topology
 
-from lisa.tests.kernel.test_bundle import TestMetric, Result, ResultBundle, RTATestBundle
+from lisa.tests.kernel.test_bundle import (
+    TestMetric, Result, ResultBundle, TestBundle, RTATestBundle
+)
+from lisa.env import TestEnv
+from lisa.utils import ArtifactPath
 from lisa.wlgen.rta import Periodic
 from lisa.trace import Trace
 
@@ -44,7 +50,56 @@ UTIL_AVG_CONVERGENCE_TIME_S = 0.3
 Time in seconds for util_avg to converge (i.e. ignored time)
 """
 
-class LoadTrackingBase(RTATestBundle):
+class LoadTrackingHelpers:
+    """
+    Common bunch of helpers for load tracking tests.
+    """
+    @staticmethod
+    def get_max_capa_cpu(te):
+        """
+        :returns: A CPU with the highest capacity value
+        """
+        cpu_capacities = te.plat_info['cpu-capacities']
+        return max(cpu_capacities.keys(), key=lambda cpu: cpu_capacities[cpu])
+
+    @classmethod
+    def get_task_duty_cycle_pct(cls, trace, task_name, cpu):
+        window = cls.get_task_window(trace, task_name, cpu)
+
+        top = Topology()
+        top.add_to_level('cpu', [[cpu]])
+        return SchedAssert(trace.ftrace, top, execname=task_name).getDutyCycle(window)
+
+    @staticmethod
+    def get_task_window(trace, task_name, cpu=None):
+        """
+        Get the execution window of a given task
+
+        :param trace: The trace to look at
+        :type trace: Trace
+
+        :param task_name: The name of the task
+        :type task_name: str
+
+        :param cpu: If specified, limit the window to times where the task was
+          running on that particular CPU
+        :type cpu: int
+
+        :returns: tuple(int, int)
+        """
+        sw_df = trace.df_events('sched_switch')
+
+        start_df = sw_df[(sw_df["next_comm"] == task_name)]
+        end_df = sw_df[(sw_df["prev_comm"] == task_name)]
+
+        if not cpu is None:
+            start_df = start_df[(start_df["__cpu"] == cpu)]
+            end_df = end_df[(end_df["__cpu"] == cpu)]
+
+        return (start_df.index[0], end_df.index[-1])
+
+
+class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
     """
     Base class for shared functionality of load tracking tests
     """
@@ -85,50 +140,6 @@ class LoadTrackingBase(RTATestBundle):
                 cls._run_rtapp(te, res_dir, rtapp_profile)
 
         return cls(res_dir, te.plat_info, rtapp_profile)
-
-    @classmethod
-    def get_max_capa_cpu(cls, te):
-        """
-        :returns: A CPU with the highest capacity value
-        """
-        cpu_capacities = te.plat_info['cpu-capacities']
-        return max(cpu_capacities.keys(), key=lambda cpu: cpu_capacities[cpu])
-
-    @classmethod
-    def get_task_duty_cycle_pct(cls, trace, task_name, cpu):
-        window = cls.get_task_window(trace, task_name, cpu)
-
-        top = Topology()
-        top.add_to_level('cpu', [[cpu]])
-        return SchedAssert(trace.ftrace, top, execname=task_name).getDutyCycle(window)
-
-    @classmethod
-    def get_task_window(cls, trace, task_name, cpu=None):
-        """
-        Get the execution window of a given task
-
-        :param trace: The trace to look at
-        :type trace: Trace
-
-        :param task_name: The name of the task
-        :type task_name: str
-
-        :param cpu: If specified, limit the window to times where the task was
-          running on that particular CPU
-        :type cpu: int
-
-        :returns: tuple(int, int)
-        """
-        sw_df = trace.df_events('sched_switch')
-
-        start_df = sw_df[(sw_df["next_comm"] == task_name)]
-        end_df = sw_df[(sw_df["prev_comm"] == task_name)]
-
-        if not cpu is None:
-            start_df = start_df[(start_df["__cpu"] == cpu)]
-            end_df = end_df[(end_df["__cpu"] == cpu)]
-
-        return (start_df.index[0], end_df.index[-1])
 
     def get_task_sched_signals(self, trace, cpu, task_name, signals):
         """
@@ -180,27 +191,121 @@ class LoadTrackingBase(RTATestBundle):
         delta = target * allowed_delta_pct / 100
         return target - delta <= value <= target + delta
 
-class CpuInvarianceTest(LoadTrackingBase):
+class InvarianceBase(LoadTrackingBase):
     """
-    Basic check for CPU invariant load and utilization tracking
-
-    This test runs the same workload on one CPU of each type in the system. The
-    trace is then examined to estimate an expected mean value for util_avg for
-    each CPU's workload. The util_avg value is extracted from scheduler trace
-    events and its mean is compared with the expected value (ignoring the first
-    300ms so that the signal can stabilize).
-
-    The test fails if the observed mean
-    is beyond a certain error margin from the expected one.
+    Basic check for CPU and frequency invariant load and utilization tracking
 
     **Expected Behaviour:**
 
-    Load tracking signals are scaled so that the workload results in roughly the
-    same util & load values regardless of compute power of the CPU
-    used.
+    Load tracking signals are scaled so that the workload results in
+    roughly the same util & load values regardless of compute power of the
+    CPU used and its frequency.
+    """
+    task_prefix = 'cie'
+
+    def get_expected_util_avg(self, trace, cpu, task_name, capacity=None):
+        """
+        Examine trace to figure out an expected mean for util_avg
+
+        Assumes an RT-App workload with a single phase
+        """
+        # Find duty cycle of the workload task
+        duty_cycle_pct = self.get_task_duty_cycle_pct(trace, task_name, cpu)
+        cpu_capacities = self.plat_info['cpu-capacities']
+        capacity = capacity or cpu_capacities[cpu]
+
+        # Scale the relative CPU/freq capacity into the range 0..1
+        scaling_factor = capacity / max(cpu_capacities.values())
+        return UTIL_SCALE * (duty_cycle_pct / 100) * scaling_factor
+
+    def _test_task_signal(self, signal_name, allowed_error_pct,
+                          trace, cpu, task_name, capacity=None):
+        exp_util = self.get_expected_util_avg(trace, cpu, task_name, capacity)
+        signal_df = self.get_task_sched_signals(trace, cpu, task_name, [signal_name])
+        signal_mean = signal_df[UTIL_AVG_CONVERGENCE_TIME_S:][signal_name].describe()['mean']
+
+        ok = self.is_almost_equal(exp_util, signal_mean, allowed_error_pct)
+
+        return ok, exp_util, signal_mean
+
+    def _test_signal(self, signal_name, allowed_error_pct, freq=None, capacity_scale=1):
+        passed = True
+        expected_data = {}
+        trace_data = {}
+
+        freq_str = '@{}'.format(freq) if freq is not None else ''
+
+        for name, task in self.rtapp_profile.items():
+            cpu = task.phases[0].cpus[0]
+            capacity = self.plat_info['cpu-capacities'][cpu] * capacity_scale
+
+            ok, exp_util, signal_mean = self._test_task_signal(
+                signal_name, allowed_error_pct, self.trace, cpu, name, capacity)
+
+            if not ok:
+                passed = False
+
+            metric_name = 'cpu{}{}'.format(cpu, freq_str)
+            expected_data[metric_name] = TestMetric(exp_util)
+            trace_data[metric_name] = TestMetric(signal_mean)
+
+        bundle = ResultBundle.from_bool(passed)
+        bundle.add_metric("Expected signals", expected_data)
+        bundle.add_metric("Trace signals", trace_data)
+        return bundle
+
+    def test_task_util_avg(self, allowed_error_pct=15) -> ResultBundle:
+        """
+        Test that the mean of the util_avg signal matched the expected value
+
+        The trace is examined to estimate an expected mean value for util_avg
+        for each CPU's workload by combining the known period and the average
+        activation length of the workload. The util_avg value is extracted from
+        scheduler trace events and its mean is compared with the expected value
+        (ignoring the first 300ms so that the signal can stabilize).
+
+        The test fails if the observed mean is beyond a certain error margin
+        from the expected one.
+
+        :param allowed_error_pct: How much the real signal can stray from the
+          expected values
+        :type allowed_error_pct: float
+        """
+        return self._test_signal('util_avg', allowed_error_pct)
+
+    def test_task_load_avg(self, allowed_error_pct=15) -> ResultBundle:
+        """
+        Test that the mean of the load_avg signal matched the expected value.
+
+        Assuming that the system was under little stress (so the task was
+        RUNNING whenever it was RUNNABLE) and that the task was run with a
+        'nice' value of 0, the load_avg should be similar to the util_avg. So,
+        this test does the same as test_task_util_avg but for load_avg.
+
+        For asymmetric systems, this is only true for tasks run on the
+        biggest CPUs.
+
+        :param allowed_error_pct: How much the real signal can stray from the
+          expected values
+        :type allowed_error_pct: float
+        """
+        return self._test_signal('load_avg', allowed_error_pct)
+
+class CpuInvariance(InvarianceBase):
+    """
+    Basic check for CPU invariant load and utilization tracking
+
+    This class runs the same workload on one CPU of each type in the system.
     """
 
-    task_prefix = 'cie'
+    @classmethod
+    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'CpuInvariance':
+        """
+        Factory method to create a bundle using a live target
+
+        This will execute the rt-app workload described in :meth:`get_rtapp_profile`
+        """
+        return super().from_testenv(te, res_dir)
 
     @classmethod
     def get_rtapp_profile(cls, te):
@@ -223,100 +328,24 @@ class CpuInvarianceTest(LoadTrackingBase):
 
         return rtapp_profile
 
-    def get_expected_util_avg(self, trace, cpu, task_name, capacity=None):
-        """
-        Examine trace to figure out an expected mean for util_avg
-
-        Assumes an RT-App workload with a single task with a single phase
-        """
-        # Find duty cycle of the workload task
-        duty_cycle_pct = self.get_task_duty_cycle_pct(trace, task_name, cpu)
-        cpu_capacities = self.plat_info['cpu-capacities']
-        capacity = capacity or cpu_capacities[cpu]
-
-        # Scale the relative CPU/freq capacity into the range 0..1
-        scaling_factor = capacity / max(cpu_capacities.values())
-        return UTIL_SCALE * (duty_cycle_pct / 100) * scaling_factor
-
-    def _test_task_signal(self, signal_name, allowed_error_pct,
-                          trace, cpu, task_name, capacity=None):
-        exp_util = self.get_expected_util_avg(trace, cpu, task_name, capacity)
-        signal_df = self.get_task_sched_signals(trace, cpu, task_name, [signal_name])
-        signal_mean = signal_df[UTIL_AVG_CONVERGENCE_TIME_S:][signal_name].describe()['mean']
-
-        ok = self.is_almost_equal(exp_util, signal_mean, allowed_error_pct)
-
-        return ok, exp_util, signal_mean
-
-    def _test_signal(self, signal_name, allowed_error_pct):
-        passed = True
-        expected_data = {}
-        trace_data = {}
-
-        for name, task in self.rtapp_profile.items():
-            cpu = task.phases[0].cpus[0]
-
-            ok, exp_util, signal_mean = self._test_task_signal(
-                signal_name, allowed_error_pct, self.trace, cpu, name)
-
-            expected_data["cpu{}".format(cpu)] = TestMetric(exp_util)
-            trace_data["cpu{}".format(cpu)] = TestMetric(signal_mean)
-
-        bundle = ResultBundle.from_bool(passed)
-        bundle.add_metric("Expected signals", expected_data)
-        bundle.add_metric("Trace signals", trace_data)
-        return bundle
-
-    def test_task_util_avg(self, allowed_error_pct=15) -> ResultBundle:
-        """
-        Test that the mean of the util_avg signal matched the expected value
-
-        :param allowed_error_pct: How much the real signal can stray from the
-          expected values
-        :type allowed_error_pct: int
-        """
-        return self._test_signal('util_avg', allowed_error_pct)
-
-class FreqInvarianceTest(CpuInvarianceTest):
+class FreqInvarianceItem(InvarianceBase):
     """
-    Basic check for frequency invariant load tracking
+    Frequency invariance test bundle item
 
-    This test runs the same workload on the most capable CPU on the system at a
-    cross section of available frequencies. The trace is then examined to find
-    the average activation length of the workload, which is combined with the
-    known period to estimate an expected mean value for util_avg for each
-    frequency. The util_avg value is extracted from scheduler trace events and
-    its mean is compared with the expected value (ignoring the first 300ms so
-    that the signal can stabilize).
-
-    The test fails if the observed mean is
-    beyond a certain error margin from the expected one. load_avg is then
-    similarly compared with the expected util_avg mean, under the assumption
-    that load_avg should equal util_avg when system load is light.
-
-    **Expected Behaviour:**
-
-    Load tracking signals are scaled so that the workload results in roughly the
-    same util & load values regardless of frequency.
+    This bundle holds the trace for a given frequency.
     """
-
     cpufreq_conf = {
         "governor" : "userspace"
     }
 
     task_prefix = 'fie'
 
-    def __init__(self, res_dir, plat_info, rtapp_profile, frequencies):
+    def __init__(self, res_dir, plat_info, rtapp_profile, freq, freq_list, cpu=None):
         super().__init__(res_dir, plat_info, rtapp_profile)
 
-        self.frequencies = frequencies
-
-    @classmethod
-    def get_iter_dir(cls, res_dir, freq):
-        """
-        :returns: The results directory for a run at a given frequency
-        """
-        return os.path.join(res_dir, "{}_{}".format(cls.task_prefix, freq))
+        self.freq = freq
+        self.freq_list = freq_list
+        self.cpu = cpu
 
     @classmethod
     def get_rtapp_profile(cls, te):
@@ -337,71 +366,159 @@ class FreqInvarianceTest(CpuInvarianceTest):
         return rtapp_profile
 
     @classmethod
-    def _from_testenv(cls, te, res_dir):
-        rtapp_profile = cls.get_rtapp_profile(te)
+    # Not annotated, to prevent exekall from picking it up. See
+    # FreqInvariance.from_testenv
+    def from_testenv(cls, te, freq, freq_list, res_dir=None):
+        """
+        .. warning:: `res_dir` is the last parameter, unlike most other
+            `from_testenv` where it is the second one.
+        """
+        return super().from_testenv(te, res_dir, freq=freq, freq_list=freq_list)
 
+    @classmethod
+    def _from_testenv(cls, te, res_dir, freq, freq_list):
+        rtapp_profile = cls.get_rtapp_profile(te)
         cpu = cls.get_max_capa_cpu(te)
-        freqs = te.target.cpufreq.list_frequencies(cpu)
-        # If we have loads of frequencies just test a cross-section so it
-        # doesn't take all day
-        freqs = freqs[::len(freqs) // 8 + (1 if len(freqs) % 2 else 0)]
+        logger = cls.get_logger()
 
         with te.target.cpufreq.use_governor(**cls.cpufreq_conf):
-            for freq in freqs:
-                iter_dir = cls.get_iter_dir(res_dir, freq)
-                os.makedirs(iter_dir)
+            te.target.cpufreq.set_frequency(cpu, freq)
+            logger.debug('CPU{} frequency: {}'.format(cpu, te.target.cpufreq.get_frequency(cpu)))
+            cls._run_rtapp(te, res_dir, rtapp_profile)
 
-                te.target.cpufreq.set_frequency(cpu, freq)
-                cls._run_rtapp(te, iter_dir, rtapp_profile)
+        return cls(res_dir, te.plat_info, rtapp_profile, freq, freq_list, cpu)
 
-        return cls(res_dir, te.plat_info, rtapp_profile, freqs)
+    def _test_signal(self, signal_name, allowed_error_pct):
+        # Scale the capacity linearly according to the frequency
+        capacity_scale = self.freq / max(self.freq_list)
+
+        return super()._test_signal(
+            signal_name, allowed_error_pct,
+            freq=self.freq,
+            capacity_scale=capacity_scale
+        )
+
+class FreqInvariance(TestBundle, LoadTrackingHelpers):
+    """
+    Basic check for frequency invariant load and utilization tracking
+
+    This test runs the same workload on the most capable CPU on the system at a
+    cross section of available frequencies.
+
+    This class is mostly a wrapper around :class:`FreqInvarianceItem`,
+    providing a way to build a list of those for a few frequencies, and
+    providing aggregated versions of the tests. Calling the tests methods on
+    the items directly is recommended to avoid the unavoidable loss of
+    information when aggregating the
+    :class:`~lisa.tests.kernel.test_bundle.Result` of each item.
+
+    `freq_items` instance attribute is a mapping of frequency values in
+    Hz to an instance of :class:`FreqInvarianceItem`.
+    """
+
+    def __init__(self, res_dir, plat_info, freq_items):
+        super().__init__(res_dir, plat_info)
+
+        self.freq_items = freq_items
+
+    @classmethod
+    def iter_freq_items(cls, te:TestEnv, res_dir:ArtifactPath) -> FreqInvarianceItem:
+        """
+        Yield a :class:`FreqInvarianceItem` for a subset of target's
+        frequencies.
+
+        This is a generator function.
+
+        :rtype: Iterator[:class:`FreqInvarianceItem`]
+        """
+        cpu = cls.get_max_capa_cpu(te)
+        all_freqs = te.target.cpufreq.list_frequencies(cpu)
+        # If we have loads of frequencies just test a cross-section so it
+        # doesn't take all day
+        freq_list = all_freqs[::len(all_freqs) // 8 + (1 if len(all_freqs) % 2 else 0)]
+
+        # Make sure we have increasing frequency order, to make the logs easier
+        # to navigate
+        freq_list.sort()
+
+        for freq in freq_list:
+            item_dir = os.path.join(res_dir, "{}_{}".format(
+                FreqInvarianceItem.task_prefix, freq))
+            os.makedirs(item_dir)
+
+            yield FreqInvarianceItem.from_testenv(
+                te, freq, all_freqs, res_dir=item_dir,
+            )
+
+    @classmethod
+    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'FreqInvariance':
+        return super().from_testenv(te, res_dir)
+
+    @classmethod
+    def _from_testenv(cls, te, res_dir):
+        return cls(res_dir, te.plat_info, OrderedDict(
+            (item.freq, item)
+            for item in cls.iter_freq_items(te, res_dir)
+        ))
 
     def get_trace(self, freq):
         """
         :returns: The trace generated when running at a given frequency
         """
-        iter_dir = self.get_iter_dir(self.res_dir, freq)
-        return Trace(iter_dir, events=self.ftrace_conf["events"])
+        return self.freq_items[freq].trace
 
-    def _test_signal(self, signal_name, allowed_error_pct):
-        passed = True
-        expected_data = {}
-        trace_data = {}
+    # Combined version of some other tests, applied on all available
+    # FreqInvarianceItem with the result merged.
 
-        for name, task in self.rtapp_profile.items():
-            for freq in self.frequencies:
-                cpu = task.phases[0].cpus[0]
-                # Scale the capacity linearly according to the frequency
-                capacity = self.plat_info['cpu-capacities'][cpu] * (freq / max(self.frequencies))
-                trace = self.get_trace(freq)
-
-                ok, exp_util, signal_mean = self._test_task_signal(
-                    signal_name, allowed_error_pct, trace, cpu, name, capacity)
-
-                if not ok:
-                    passed = False
-
-                expected_data["{}".format(freq)] = TestMetric(exp_util)
-                trace_data["{}".format(freq)] = TestMetric(signal_mean)
-
-        bundle = ResultBundle.from_bool(passed)
-        bundle.add_metric("Expected signals", expected_data)
-        bundle.add_metric("Trace signals", trace_data)
-        return bundle
-
-    def test_task_load_avg(self, allowed_error_pct=15) -> ResultBundle:
+    def test_task_util_avg(self, *args, **kwargs):
         """
-        Test that the mean of the load_avg signal matched the expected value
-
-        Assuming that the system was under little stress (so the task was
-        RUNNING whenever it was RUNNABLE) and that the task was run with a
-        'nice' value of 0, the load_avg should be similar to the util_avg. So,
-        this test does the same as test_task_util_avg but for load_avg.
-
-        For asymmetric systems, this is only true for tasks run on the
-        biggest CPUs.
+        Aggregated version of :meth:`InvarianceBase.test_task_util_avg`
         """
-        return self._test_signal('load_avg', allowed_error_pct)
+        def item_test(test_item):
+            return test_item.test_task_util_avg(*args, **kwargs)
+        return self._test_all_freq(item_test)
+
+    def test_task_load_avg(self, allowed_error_pct=15):
+        """
+        Aggregated version of :meth:`InvarianceBase.test_task_load_avg`
+        """
+        def item_test(test_item):
+            return test_item.test_task_load_avg(allowed_error_pct=allowed_error_pct)
+        return self._test_all_freq(item_test)
+
+    def test_slack(self, negative_slack_allowed_pct=15):
+        """
+        Aggregated version of
+        :meth:`lisa.tests.kernel.test_bundle.RTATestBundle.test_slack`
+        """
+        def item_test(test_item):
+            return test_item.test_slack(
+                negative_slack_allowed_pct=negative_slack_allowed_pct)
+        return self._test_all_freq(item_test)
+
+    def _test_all_freq(self, item_test):
+        """
+        Apply the `test_item` function on all instances of
+        :class:`FreqInvarianceItem` and aggregate the returned
+        :class:`~lisa.tests.kernel.test_bundle.ResultBundle` into one.
+
+        :attr:`~lisa.tests.kernel.test_bundle.Result.UNDECIDED` is ignored.
+        """
+        item_res_bundles = {
+            freq: item_test(test_item)
+            for freq, test_item in self.freq_items.items()
+        }
+
+        overall_bundle = ResultBundle.from_bool(all(item_res_bundles.values()))
+        for freq, bundle in item_res_bundles.items():
+            overall_bundle.add_metric(freq, bundle.metrics)
+
+        overall_bundle.add_metric('failed freqs', [
+            freq for freq, bundle in item_res_bundles.items()
+            if bundle.result is Result.FAILED
+        ])
+
+        return overall_bundle
 
 class PELTTaskTest(LoadTrackingBase):
     """
@@ -432,6 +549,15 @@ class PELTTaskTest(LoadTrackingBase):
     """
 
     task_prefix = 'pelt_behv'
+
+    @classmethod
+    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'PELTTaskTest':
+        """
+        Factory method to create a bundle using a live target
+
+        This will execute the rt-app workload described in :meth:`get_rtapp_profile`
+        """
+        return super().from_testenv(te, res_dir)
 
     @classmethod
     def get_rtapp_profile(cls, te):
@@ -623,3 +749,5 @@ class PELTTaskTest(LoadTrackingBase):
           ``error_margin_pct```) are allowed
         """
         return self._test_behaviour('load_avg', error_margin_pct, allowed_error_pct)
+
+

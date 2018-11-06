@@ -83,6 +83,7 @@ Load tracking tests
 -------------------
 .. automodule:: lisa.tests.kernel.scheduler.load_tracking
    :members:
+   :private-members: _from_testenv
 
 Misfit tests
 ------------
