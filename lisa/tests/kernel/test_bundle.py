@@ -298,7 +298,8 @@ class TestBundle(Serializable, abc.ABC):
         # it does not get broken.
         if cls.verify_serialization:
             bundle.to_dir(res_dir)
-            bundle = cls.from_dir(res_dir)
+            # Updating the res_dir breaks deserialization for some use cases
+            bundle = cls.from_dir(res_dir, update_res_dir=False)
 
         return bundle
 
@@ -307,15 +308,16 @@ class TestBundle(Serializable, abc.ABC):
         return os.path.join(res_dir, "{}.yaml".format(cls.__qualname__))
 
     @classmethod
-    def from_dir(cls, res_dir):
-    """
+    def from_dir(cls, res_dir, update_res_dir=True):
+        """
         See :meth:`lisa.utils.Serializable.from_path`
         """
         res_dir = ArtifactPath(root=res_dir, relative='')
 
         bundle = super().from_path(cls._filepath(res_dir))
         # We need to update the res_dir to the one we were given
-        bundle.res_dir = res_dir
+        if update_res_dir:
+            bundle.res_dir = res_dir
 
         return bundle
 
