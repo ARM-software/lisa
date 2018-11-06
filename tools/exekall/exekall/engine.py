@@ -64,10 +64,10 @@ def get_type_hints(f, module_vars=None):
     return resolve_annotations(f.__annotations__, module_vars)
 
 def get_mro(cls):
-    assert isinstance(cls, type)
-    if issubclass(cls, type(None)):
+    if cls is type(None) or cls is None:
         return (type(None), object)
     else:
+        assert isinstance(cls, type)
         return inspect.getmro(cls)
 
 def resolve_annotations(annotations, module_vars):
@@ -1799,7 +1799,7 @@ class ExprValueSeq:
     def get_expr_value_iter(self):
         callback = self.post_compute_cb
         if not callback:
-            callback = lambda x,y: None
+            callback = lambda x, reused: None
 
         def yielder(iteratable, reused):
             for x in iteratable:
