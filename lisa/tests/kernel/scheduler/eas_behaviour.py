@@ -29,7 +29,8 @@ from devlib.target import KernelVersion
 
 from lisa.wlgen.rta import Periodic, Ramp, Step
 from lisa.tests.kernel.test_bundle import ResultBundle, CannotCreateError, RTATestBundle
-from lisa.env import TestEnv, ArtifactPath
+from lisa.env import TestEnv
+from lisa.utils import ArtifactPath
 from lisa.energy_model import EnergyModel
 
 class EASBehaviour(RTATestBundle, abc.ABC):

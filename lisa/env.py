@@ -35,7 +35,7 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
 from lisa.energy_meter import EnergyMeter
-from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList, setup_logging
+from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList, setup_logging, ArtifactPath
 
 from lisa.platforms.platinfo import PlatformInfo
 
@@ -47,47 +47,6 @@ FTRACE_BUFSIZE_DEFAULT = 10240
 RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
 DEFAULT_DEVLIB_MODULES = ['sched', 'cpufreq', 'cpuidle']
-
-class ArtifactPath(str, Loggable, HideExekallID):
-    """Path to a folder that can be used to store artifacts of a function.
-    This must be a clean folder, already created on disk.
-    """
-    def __new__(cls, root, relative, *args, **kwargs):
-        root = os.path.realpath(str(root))
-        relative = str(relative)
-        # we only support paths relative to the root parameter
-        assert not os.path.isabs(relative)
-        absolute = os.path.join(root, relative)
-
-        # Use a resolved absolute path so it is more convenient for users to
-        # manipulate
-        path = os.path.realpath(absolute)
-
-        path_str = super().__new__(cls, path, *args, **kwargs)
-        # Record the actual root, so we can relocate the path later with an
-        # updated root
-        path_str.root = root
-        path_str.relative = relative
-        return path_str
-
-    def __fspath__(self):
-        return str(self)
-
-    def __reduce__(self):
-        # Serialize the path relatively to the root, so it can be relocated
-        # easily
-        relative = self.relative_to(self.root)
-        return (type(self), (self.root, relative))
-
-    def relative_to(self, path):
-        return os.path.relpath(str(self), start=str(path))
-
-    def with_root(self, root):
-        # Get the path relative to the old root
-        relative = self.relative_to(self.root)
-
-        # Swap-in the new root and return a new instance
-        return type(self)(root, relative)
 
 class TargetConf(MultiSrcConf, HideExekallID):
     YAML_MAP_TOP_LEVEL_KEY = 'target-conf'
