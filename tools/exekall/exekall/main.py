@@ -625,6 +625,8 @@ the name of the parameter, the start value, stop value and step size.""")
         data['artifact_dir'] = artifact_dir
         data['testcase_artifact_dir'] = testcase_artifact_dir
 
+        adaptor.update_expr_data(data)
+
         with open(str(testcase_artifact_dir.joinpath('UUID')), 'wt') as f:
             f.write(testcase.uuid + '\n')
 

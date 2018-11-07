@@ -40,6 +40,9 @@ class AdaptorBase:
     def get_db_loader(self):
         return None
 
+    def update_expr_data(self, expr_data):
+        return
+
     def filter_op_pool(self, op_pool):
         return {
             op for op in op_pool
