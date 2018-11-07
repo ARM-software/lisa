@@ -149,6 +149,7 @@ class Serializable(Loggable):
         yaml.indent = 4
         yaml.Constructor.add_constructor('!include', cls._yaml_include_constructor)
         yaml.Constructor.add_constructor('!var', cls._yaml_var_constructor)
+        yaml.Constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
         yaml.Constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
 
         # Replace unknown tags by a placeholder object containing the data.
@@ -216,6 +217,33 @@ class Serializable(Loggable):
         path = os.path.expandvars(path)
         with open(path, 'r', encoding=cls.YAML_ENCODING) as f:
             return cls._yaml.load(f)
+
+    @classmethod
+    def _yaml_env_var_constructor(cls, loader, suffix, node):
+        """
+        Provide a !include tag in YAML that can be used to include the content
+        of an environment variable, and converting it to a Python type:
+
+        !env:int MY_ENV_VAR
+        """
+        varname = loader.construct_scalar(node)
+        assert isinstance(varname, str)
+
+        type_ = loader.find_python_name(suffix, node.start_mark)
+        assert callable(type_)
+        try:
+            value = os.environ[varname]
+        except KeyError:
+            cls._warn_missing_env(varname)
+            return None
+        else:
+            return type_(value)
+
+    @classmethod
+    # memoize to avoid displaying the same message twice
+    @memoized
+    def _warn_missing_env(cls, varname):
+            cls.get_logger().warning('Environment variable "{}" not defined, using None value'.format(varname))
 
     @classmethod
     def _yaml_var_constructor(cls, loader, node):
