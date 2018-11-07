@@ -41,6 +41,8 @@ import logging
 
 import ruamel.yaml
 
+from exekall.utils import debug
+
 yaml = ruamel.yaml.YAML(typ='unsafe')
 yaml.allow_unicode = True
 yaml.default_flow_style = False
@@ -1388,7 +1390,9 @@ def is_serializable(obj, raise_excep=False):
         # it can actually be serialized
         pickle.dumps(obj)
     except (TypeError, pickle.PickleError) as e:
-        logging.getLogger('serialization test').debug('Cannot serialize instance of %s: %s', type(obj).__qualname__, str(e))
+        debug('Cannot serialize instance of {}: {}'.format(
+            type(obj).__qualname__, str(e)
+        ))
         if raise_excep:
             raise NotSerializableError(obj)
         return False

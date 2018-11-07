@@ -370,7 +370,7 @@ the name of the parameter, the start value, stop value and step size.""")
                     ))
 
     # Pool of all callable considered
-    callable_pool = utils.get_callable_set(module_set)
+    callable_pool = utils.get_callable_set(module_set, verbose=verbose)
     op_pool = {
         engine.Operator(callable_, tag_list_getter=adaptor.get_tag_list)
         for callable_ in callable_pool

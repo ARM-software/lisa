@@ -30,7 +30,6 @@ import fnmatch
 import contextlib
 import types
 import traceback
-import logging
 
 import exekall.engine as engine
 
@@ -116,7 +115,7 @@ def _get_recursive_module_set(module, module_set, package_set):
         ):
             _get_recursive_module_set(imported_module, module_set, package_set)
 
-def get_callable_set(module_set):
+def get_callable_set(module_set, verbose=False):
     # We keep the search local to the packages these modules are defined in, to
     # avoid getting a huge set of uninteresting callables.
     package_set = {
@@ -124,11 +123,11 @@ def get_callable_set(module_set):
     }
     callable_set = set()
     for module in get_recursive_module_set(module_set, package_set):
-        callable_set.update(_get_callable_set(module))
+        callable_set.update(_get_callable_set(module, verbose=verbose))
 
     return callable_set
 
-def _get_callable_set(module):
+def _get_callable_set(module, verbose):
     callable_pool = set()
     for name, obj in vars(module).items():
         # skip internal classes that may end up being exposed as a global
@@ -155,9 +154,13 @@ def _get_callable_set(module):
             # Also make sure we don't accidentally get callables that will
             # return a abstract base class instance, since that would not work
             # anyway.
-            if not inspect.isabstract(return_type):
+            if inspect.isabstract(return_type):
+                log_f = info if verbose else debug
+                log_f('Class {} is ignored since it has non-implemented abstract methods'.format(
+                    engine.get_name(return_type, full_qual=True)
+                ))
+            else:
                 callable_pool.add(callable_)
-
     return callable_pool
 
 def import_file(python_src, module_name=None, is_package=False):
