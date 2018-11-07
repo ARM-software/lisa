@@ -106,9 +106,6 @@ class LISAAdaptor(AdaptorBase):
     def get_default_type_goal_pattern_set():
         return {'*.ResultBundle'}
 
-    def get_db_loader(self):
-        return self.load_db
-
     @classmethod
     def load_db(cls, db_path, *args, **kwargs):
         # This will relocate ArtifactPath instances to the new absolute path of

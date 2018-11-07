@@ -37,8 +37,7 @@ class AdaptorBase:
             tags = []
         return tags
 
-    def get_db_loader(self):
-        return None
+    load_db = None
 
     def update_expr_data(self, expr_data):
         return

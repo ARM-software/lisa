@@ -594,7 +594,7 @@ the name of the parameter, the start value, stop value and step size.""")
         with open(str(artifact_dir.joinpath('UUID')), 'wt') as f:
             f.write(testsession_uuid+'\n')
 
-    db_loader = adaptor.get_db_loader()
+    db_loader = adaptor.load_db
 
     out('\nArtifacts dir: {}\n'.format(artifact_dir))
 
@@ -650,7 +650,7 @@ the name of the parameter, the start value, stop value and step size.""")
                     prefix = 'testcase',
                     db_path = '../../storage.yml.gz',
                     db_relative_to = '__file__',
-                    db_loader = db_loader
+                    db_loader=db_loader
                 )[1]+'\n',
             )
 
@@ -761,7 +761,7 @@ the name of the parameter, the start value, stop value and step size.""")
                     prefix = 'testcase',
                     db_path = '../../../storage.yml.gz',
                     db_relative_to = '__file__',
-                    db_loader = db_loader
+                    db_loader=db_loader
                 )[1]+'\n',
             )
 
@@ -797,7 +797,7 @@ the name of the parameter, the start value, stop value and step size.""")
         db_path=db_path.relative_to(artifact_dir),
         db_relative_to='__file__',
         obj_store=obj_store,
-        db_loader=adaptor.get_db_loader()
+        db_loader=db_loader,
     )
 
     with open(str(script_path), 'wt', encoding='utf-8') as f:
