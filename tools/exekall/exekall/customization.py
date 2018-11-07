@@ -40,14 +40,14 @@ class AdaptorBase:
     def get_db_loader(self):
         return None
 
-    def filter_callable_pool(self, callable_pool):
-        return callable_pool
-
-    def filter_cls_map(self, cls_map):
-        return cls_map
-
-    def filter_op_map(self, op_map):
-        return op_map
+    def filter_op_pool(self, op_pool):
+        return {
+            op for op in op_pool
+            # Only select operators with non-empty parameter list. This
+            # rules out all classes __init__ that do not take parameter, as
+            # they are typically not interesting to us.
+            if op.get_prototype()[0]
+        }
 
     def get_prebuilt_list(self):
         return []
@@ -59,6 +59,10 @@ class AdaptorBase:
     @staticmethod
     def register_cli_param(parser):
         pass
+
+    @staticmethod
+    def get_default_type_goal_pattern_set():
+        return {'*Result'}
 
     def resolve_cls_name(self, goal):
         return engine.get_class_from_name(goal, sys.modules)
@@ -75,7 +79,7 @@ class AdaptorBase:
             failed_parents = result.get_failed_values()
             for failed_parent in failed_parents:
                 excep = failed_parent.excep
-                return '{type}: {msg}'.format(
+                return 'EXCEPTION ({type}): {msg}'.format(
                     type = get_name(type(excep)),
                     msg = excep
                 )

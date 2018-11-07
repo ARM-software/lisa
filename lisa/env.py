@@ -21,7 +21,6 @@ import os
 import os.path
 import contextlib
 import logging
-from pathlib import Path
 import shlex
 from collections.abc import Mapping
 import copy
@@ -36,7 +35,7 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
 from lisa.energy_meter import EnergyMeter
-from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList
+from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList, setup_logging
 
 from lisa.platforms.platinfo import PlatformInfo
 
@@ -49,11 +48,46 @@ RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
 DEFAULT_DEVLIB_MODULES = ['sched', 'cpufreq', 'cpuidle']
 
-class ArtifactPath(str):
+class ArtifactPath(str, Loggable, HideExekallID):
     """Path to a folder that can be used to store artifacts of a function.
     This must be a clean folder, already created on disk.
     """
-    pass
+    def __new__(cls, root, relative, *args, **kwargs):
+        root = os.path.realpath(str(root))
+        relative = str(relative)
+        # we only support paths relative to the root parameter
+        assert not os.path.isabs(relative)
+        absolute = os.path.join(root, relative)
+
+        # Use a resolved absolute path so it is more convenient for users to
+        # manipulate
+        path = os.path.realpath(absolute)
+
+        path_str = super().__new__(cls, path, *args, **kwargs)
+        # Record the actual root, so we can relocate the path later with an
+        # updated root
+        path_str.root = root
+        path_str.relative = relative
+        return path_str
+
+    def __fspath__(self):
+        return str(self)
+
+    def __reduce__(self):
+        # Serialize the path relatively to the root, so it can be relocated
+        # easily
+        relative = self.relative_to(self.root)
+        return (type(self), (self.root, relative))
+
+    def relative_to(self, path):
+        return os.path.relpath(str(self), start=str(path))
+
+    def with_root(self, root):
+        # Get the path relative to the old root
+        relative = self.relative_to(self.root)
+
+        # Swap-in the new root and return a new instance
+        return type(self)(root, relative)
 
 class TargetConf(MultiSrcConf, HideExekallID):
     YAML_MAP_TOP_LEVEL_KEY = 'target-conf'
@@ -164,6 +198,8 @@ class TestEnv(Loggable, HideExekallID):
         self._res_dir = res_dir
         if self._res_dir:
             os.makedirs(self._res_dir, exist_ok=True)
+            if os.listdir(self._res_dir):
+                raise ValueError('res_dir must be empty: {}'.format(self._res_dir))
 
         self.target_conf = target_conf
         logger.debug('Target configuration %s', self.target_conf)
@@ -220,7 +256,7 @@ class TestEnv(Loggable, HideExekallID):
         return cls(target_conf=target_conf, plat_info=plat_info)
 
     @classmethod
-    def from_cli(cls, argv=None):
+    def from_cli(cls, argv=None) -> 'TestEnv':
         """
         Create a TestEnv from command line arguments.
 
@@ -232,61 +268,79 @@ class TestEnv(Loggable, HideExekallID):
         to be confusing (help message woes, argument clashes...), so for now
         this should only be used in scripts that only expect TestEnv args.
         """
-        # Subparsers cannot let us specify --kind=android, at best we could
-        # have --android which is lousy. Instead, use a first parser to figure
-        # out the target kind, then create a new parser for that specific kind.
-        kind_parser = argparse.ArgumentParser(
-            # Disable the automatic help to not catch e.g. ./script.py -k linux -h
-            add_help=False,
+        parser = argparse.ArgumentParser(
             formatter_class=argparse.RawDescriptionHelpFormatter,
             description=textwrap.dedent(
                 """
-                Extra arguments differ depending on the value passed to 'kind'.
-                Try e.g. "--kind android -h" to see the arguments for android targets.
-                """))
+                Connect to a target using the provided configuration in order
+                to run a test.
 
-        kind_parser.add_argument(
-            "--kind", "-k", choices=["android", "linux", "host"],
-            help="The kind of target to create")
+                EXAMPLES
 
-        # Add a self-managed help argument, see why below
-        kind_parser.add_argument("--help", "-h", action="store_true")
+                --target-conf can point to a YAML target configuration file
+                with all the necessary connection information:
+                $ {script} --target-conf my_target.yml
 
-        args = kind_parser.parse_known_args(argv)[0]
+                Alternatively, --kind must be set along the relevant credentials:
+                $ {script} --kind linux --host 192.0.2.1 --username root --password root
 
-        # Print the generic help only if we can't print the proper --kind help
-        if not args.kind or (args.help and not args.kind):
-            kind_parser.print_help()
-            sys.exit(2)
+                In both cases, --platform-info can point to a PlatformInfo YAML
+                file.
 
-        kind = args.kind
+                """.format(
+                    script=os.path.basename(sys.argv[0])
+                )))
 
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--kind", "-k",
-                            choices=[kind],
-                            required=True,
-                            help="The kind of target to create")
 
-        if kind == "android":
-            parser.add_argument("--device", "-d", type=str, required=True,
-                                help="The ADB ID of the target")
-        elif kind == "linux":
-            parser.add_argument("--hostname", "-n", type=str, required=True, dest="host",
-                                help="The hostname/IP of the target")
-            parser.add_argument("--username", "-u", type=str, required=True,
-                                help="Login username")
-            parser.add_argument("--password", "-p",  type=str, required=True,
-                                help="Login password")
+        kind_group = parser.add_mutually_exclusive_group(required=True)
+        kind_group.add_argument("--kind", "-k",
+            choices=["android", "linux", "host"],
+            help="The kind of target to connect to.")
 
-        parser.add_argument("--platform-info", "-pi", type=str,
-                            help="Path to a PlatformInfo yaml file")
+        kind_group.add_argument("--target-conf", "-t",
+                            help="Path to a TargetConf yaml file. Superseeds other target connection related options.")
+
+        device_group = parser.add_mutually_exclusive_group()
+        device_group.add_argument("--device", "-d",
+                            help="The ADB ID of the target. Superseeds --host. Only applies to Android kind.")
+        device_group.add_argument("--host", "-n",
+                            help="The hostname/IP of the target.")
+
+        parser.add_argument("--username", "-u",
+                            help="Login username. Only applies to Linux kind.")
+        parser.add_argument("--password", "-p",
+                            help="Login password. Only applies to Linux kind.")
+
+        parser.add_argument("--platform-info", "-pi",
+                            help="Path to a PlatformInfo yaml file.")
+
+        parser.add_argument("--log-level",
+                            choices=('warning', 'info', 'debug'),
+                            help="Verbosity level of the logs.")
+
+        parser.add_argument("--res-dir", "-o",
+                            help="Result directory of the created TestEnv. If no directory is specified, a default location under $LISA_HOME will be used.")
+
+        # Options that are not a key in TargetConf must be listed here
+        not_target_conf_opt = (
+            'platform_info', 'log_level', 'res_dir', 'target_conf',
+        )
 
         args = parser.parse_args(argv)
-        platform_info = PlatformInfo.from_yaml_map(args.platform_info) if args.platform_info else None
-        target_conf = TargetConf(
-            {k : v for k, v in vars(args).items() if k != "platform_info"})
+        if args.log_level:
+            setup_logging(level=args.log_level.upper())
 
-        return TestEnv(target_conf, platform_info)
+        if args.kind and not (args.host or args.device):
+            parser.error('--host or --device must be specified')
+
+        platform_info = PlatformInfo.from_yaml_map(args.platform_info) if args.platform_info else None
+        if args.target_conf:
+            target_conf = TargetConf.from_yaml_map(args.target_conf)
+        else:
+            target_conf = TargetConf(
+                {k : v for k, v in vars(args).items() if k not in not_target_conf_opt})
+
+        return cls(target_conf, platform_info, res_dir=args.res_dir)
 
     def _init_target(self, target_conf, res_dir):
         """
@@ -437,6 +491,13 @@ class TestEnv(Loggable, HideExekallID):
         """
         logger = self.get_logger()
 
+        if isinstance(self._res_dir, ArtifactPath):
+            root = self._res_dir.root
+            relative = self._res_dir.relative
+        else:
+            root = self._res_dir
+            relative = ''
+
         while True:
             time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
             if not name:
@@ -444,10 +505,12 @@ class TestEnv(Loggable, HideExekallID):
             elif append_time:
                 name = "{}-{}".format(name, time_str)
 
-            res_dir = os.path.join(self._res_dir, name)
+            # If we were given an ArtifactPath with an existing root, we
+            # preserve that root so it can be relocated as the caller wants it
+            res_dir = ArtifactPath(root, os.path.join(relative,name))
 
             # Compute base installation path
-            logger.info('Creating result directory: %s', res_dir)
+            logger.info('Creating result directory: %s', str(res_dir))
 
             # It will fail if the folder already exists. In that case,
             # append_time should be used to ensure we get a unique name.
@@ -464,14 +527,14 @@ class TestEnv(Loggable, HideExekallID):
                     raise
 
         if symlink:
-            res_lnk = Path(LISA_HOME, LATEST_LINK)
+            res_lnk = os.path.join(LISA_HOME, LATEST_LINK)
             with contextlib.suppress(FileNotFoundError):
-                res_lnk.unlink()
+                os.remove(res_lnk)
 
             # There may be a race condition with another tool trying to create
             # the link
             with contextlib.suppress(FileExistsError):
-                res_lnk.symlink_to(res_dir)
+                os.symlink(res_dir, res_lnk)
 
         return res_dir
 

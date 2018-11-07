@@ -63,6 +63,13 @@ def get_type_hints(f, module_vars=None):
 
     return resolve_annotations(f.__annotations__, module_vars)
 
+def get_mro(cls):
+    if cls is type(None) or cls is None:
+        return (type(None), object)
+    else:
+        assert isinstance(cls, type)
+        return inspect.getmro(cls)
+
 def resolve_annotations(annotations, module_vars):
     return {
         # If we get a string, evaluate it in the global namespace of the
@@ -228,9 +235,6 @@ class ObjectStore:
 class CycleError(Exception):
     pass
 
-class IgnoredCycleError(CycleError):
-    pass
-
 class ExpressionWrapper:
     def __init__(self, expr):
         self.expr = expr
@@ -242,23 +246,28 @@ class ExpressionWrapper:
     def build_expr_list(cls, result_op_seq, op_map, cls_map,
             non_produced_handler='raise', cycle_handler='raise'):
         op_map = copy.copy(op_map)
-        cls_map = copy.copy(cls_map)
+        cls_map = {
+            cls: compat_cls_set
+            for cls, compat_cls_set in cls_map.items()
+            # If there is at least one compatible subclass that is produced, we
+            # keep it, otherwise it will mislead _build_expr into thinking the
+            # class can be built where in fact it cannot
+            if compat_cls_set & op_map.keys()
+        }
         for internal_cls in (Consumer, ExprData):
             op_map[internal_cls] = {Operator(internal_cls)}
             cls_map[internal_cls] = [internal_cls]
 
         expr_list = list()
         for result_op in result_op_seq:
-            # We just skip over Expression where a CycleError happened
-            with contextlib.suppress(IgnoredCycleError):
-                expr_gen = cls._build_expr(result_op, op_map, cls_map,
-                    op_stack = [],
-                    non_produced_handler=non_produced_handler,
-                    cycle_handler=cycle_handler,
-                )
-                for expr in expr_gen:
-                    if expr.validate_expr(op_map):
-                        expr_list.append(expr)
+            expr_gen = cls._build_expr(result_op, op_map, cls_map,
+                op_stack = [],
+                non_produced_handler=non_produced_handler,
+                cycle_handler=cycle_handler,
+            )
+            for expr in expr_gen:
+                if expr.validate_expr(op_map):
+                    expr_list.append(expr)
 
         return expr_list
 
@@ -269,6 +278,9 @@ class ExpressionWrapper:
         if op in op_stack:
             if cycle_handler == 'ignore':
                 return
+            elif callable(cycle_handler):
+                cycle_handler(tuple(op.callable_ for op in new_op_stack))
+                return
             elif cycle_handler == 'raise':
                 raise CycleError('Cyclic dependency found: {path}'.format(
                     path = ' -> '.join(
@@ -276,9 +288,7 @@ class ExpressionWrapper:
                     )
                 ))
             else:
-                cycle_handler(tuple(op.callable_ for op in new_op_stack))
-                raise IgnoredCycleError
-
+                raise ValueError('Invalid cycle_handler')
 
         op_stack = new_op_stack
 
@@ -314,6 +324,11 @@ class ExpressionWrapper:
                 else:
                     if non_produced_handler == 'ignore':
                         return
+                    elif callable(non_produced_handler):
+                        non_produced_handler(wanted_cls.__qualname__, op.name, param,
+                            tuple(op.resolved_callable for op in op_stack)
+                        )
+                        return
                     elif non_produced_handler == 'raise':
                         raise NoOperatorError('No operator can produce instances of {cls} needed for {op} (parameter "{param}" along path {path})'.format(
                             cls = wanted_cls.__qualname__,
@@ -324,10 +339,7 @@ class ExpressionWrapper:
                             )
                         ))
                     else:
-                        non_produced_handler(wanted_cls.__qualname__, op.name, param,
-                            tuple(op.resolved_callable for op in op_stack)
-                        )
-                        return
+                        raise ValueError('Invalid non_produced_handler')
 
         param_list = remove_indices(param_list, ignored_indices)
         cls_combis = remove_indices(cls_combis, ignored_indices)
@@ -352,11 +364,10 @@ class ExpressionWrapper:
                 op_combi = list(op_combi)
 
                 # Get all the possible ways of calling these operators
-                param_combis = itertools.product(*(
-                    cls._build_expr(param_op, op_map, cls_map,
+                param_combis = itertools.product(*(cls._build_expr(
+                        param_op, op_map, cls_map,
                         op_stack, non_produced_handler, cycle_handler,
-                    )
-                    for param_op in op_combi
+                    ) for param_op in op_combi
                 ))
 
                 for param_combi in param_combis:
@@ -690,6 +701,7 @@ class Expression:
         plain_name_cls_set = set()
         script = ''
         result_name_map = dict()
+        reusable_outvar_map = dict()
         for i, expr in enumerate(expr_list):
             script += (
                 '#'*80 + '\n# Computed expressions:' +
@@ -703,6 +715,7 @@ class Expression:
 
             expr_val_set = set(expr.get_all_values())
             result_name, snippet = expr._get_script(
+                reusable_outvar_map = reusable_outvar_map,
                 prefix = prefix + str(i),
                 obj_store = obj_store,
                 module_name_set = module_name_set,
@@ -794,14 +807,42 @@ class Expression:
 
     EXPR_DATA_VAR_NAME = 'EXPR_DATA'
 
-    def _get_script(self, prefix, obj_store, module_name_set, idt, expr_val_set, consumer_expr_stack):
+    def _get_script(self, reusable_outvar_map, *args, **kwargs):
+        with contextlib.suppress(KeyError):
+            outvar = reusable_outvar_map[self]
+            return (outvar, '')
+        outvar, script = self._get_script_internal(
+            reusable_outvar_map, *args, **kwargs
+        )
+        if self.op.reusable:
+            reusable_outvar_map[self] = outvar
+        return (outvar, script)
+
+    def _get_script_internal(self, reusable_outvar_map, prefix, obj_store, module_name_set, idt, expr_val_set, consumer_expr_stack):
         def make_method_self_name(expr):
             return expr.op.value_type.__name__.replace('.', '')
 
         def make_var(name):
-            # Make sure we don't have clashes between the variable names
-            name = name.replace('_', '__')
-            name = '_' + name if name else ''
+            # If the variable name already contains a double underscore, we use
+            # 3 of them for the separator between the prefix and the name, so
+            # it will avoid ambiguity between these cases:
+            # prefix="prefix", name="my__name":
+            #   prefix___my__name
+            # prefix="prefix__my", name="name":
+            #   prefix__my__name
+
+            # Find the longest run of underscores
+            nr_underscore = 0
+            current_counter = 0
+            for letter in name:
+                if letter == '_':
+                    current_counter += 1
+                else:
+                    nr_underscore = max(current_counter, nr_underscore)
+                    current_counter = 0
+
+            sep = (nr_underscore + 1) * '_'
+            name = sep + name if name else ''
             return prefix + name
 
         def make_comment(code, idt):
@@ -927,7 +968,7 @@ class Expression:
 
             # Do a deep first search traversal of the expression.
             param_outvar, param_out = param_expr._get_script(
-                param_prefix, obj_store, module_name_set, idt,
+                reusable_outvar_map, param_prefix, obj_store, module_name_set, idt,
                 param_expr_val_set,
                 consumer_expr_stack = consumer_expr_stack + [self],
             )
@@ -1128,25 +1169,31 @@ class Expression:
                 yield (expr_wrapper, expr_val)
 
     def _prepare_exec(self, expr_set):
-        self.discard_result()
+        """Apply a flavor of common subexpressions elimination to the Expression
+        graph and cleanup results of previous runs.
 
-        for param, param_expr in list(self.param_map.items()):
+        :return: return an updated copy of the Expression
+        """
+        # Make a copy so we don't modify the original Expression
+        new_expr = copy.copy(self)
+        new_expr.discard_result()
+
+        for param, param_expr in list(new_expr.param_map.items()):
             # Update the param map in case param_expr was deduplicated
-            self.param_map[param] = param_expr._prepare_exec(expr_set)
+            new_expr.param_map[param] = param_expr._prepare_exec(expr_set)
 
         # Look for an existing Expression that has the same parameters so we
         # don't add duplicates.
-        for replacement_expr in expr_set - {self}:
+        for replacement_expr in expr_set - {new_expr}:
             if (
-                self.op.callable_ is replacement_expr.op.callable_ and
-                self.param_map == replacement_expr.param_map
+                new_expr.op.callable_ is replacement_expr.op.callable_ and
+                new_expr.param_map == replacement_expr.param_map
             ):
                 return replacement_expr
 
         # Otherwise register this Expression so no other duplicate will be used
-        else:
-            expr_set.add(self)
-            return self
+        expr_set.add(new_expr)
+        return new_expr
 
     def execute(self, post_compute_cb=None):
         return self._execute([], post_compute_cb)
@@ -1227,10 +1274,8 @@ class Expression:
                 expr_val = ExprValue(self, param_expr_val_map)
                 expr_val_seq = ExprValueSeq(
                     self, None, param_expr_val_map,
-                    post_compute_cb
                 )
                 expr_val_seq.value_list.append(expr_val)
-                expr_val_seq.completed = True
                 self.result_list.append(expr_val_seq)
                 yield expr_val
                 continue
@@ -1433,10 +1478,10 @@ class Operator:
             )
         }
 
-        if hasattr(self.resolved_callable, 'reusable'):
-            self.reusable = self.resolved_callable.reusable
-        elif hasattr(self.value_type, 'reusable'):
-            self.reusable = self.value_type.reusable
+        if hasattr(self.resolved_callable, '_exekall_reusable'):
+            self.reusable = self.resolved_callable._exekall_reusable
+        elif hasattr(self.value_type, '_exekall_reusable'):
+            self.reusable = self.value_type._exekall_reusable
         else:
             self.reusable = self.REUSABLE_DEFAULT
 
@@ -1739,7 +1784,7 @@ class PrebuiltOperator(Operator):
 
 def reusable(reusable=Operator.REUSABLE_DEFAULT):
     def decorator(wrapped):
-        wrapped.reusable = reusable
+        wrapped._exekall_reusable = reusable
         return wrapped
     return decorator
 
@@ -1749,13 +1794,12 @@ class ExprValueSeq:
         self.iterator = iterator
         self.value_list = list()
         self.param_expr_val_map = param_expr_val_map
-        self.completed = False
         self.post_compute_cb = post_compute_cb
 
     def get_expr_value_iter(self):
         callback = self.post_compute_cb
         if not callback:
-            callback = lambda x,y: None
+            callback = lambda x, reused: None
 
         def yielder(iteratable, reused):
             for x in iteratable:
@@ -1766,7 +1810,7 @@ class ExprValueSeq:
         yield from yielder(self.value_list, True)
 
         # Then compute the remaining ones
-        if not self.completed:
+        if self.iterator:
             for (value, value_uuid), (excep, excep_uuid) in self.iterator:
                 expr_val = ExprValue(self.expr, self.param_expr_val_map,
                     value, value_uuid,
@@ -1789,7 +1833,7 @@ class ExprValueSeq:
                         True
                     )
 
-            self.completed = True
+            self.iterator = None
 
 def any_value_is_NoValue(value_list):
     return any(
@@ -1811,16 +1855,17 @@ class SerializableExprValue:
         # Pre-compute all the IDs so they are readily available once the value
         # is deserialized
         self.recorded_id_map = dict()
-        for full_qual, with_tags in itertools.product((True, False), repeat=2):
-            self.recorded_id_map[(full_qual, with_tags)] = expr_val.get_id(
-                full_qual = full_qual,
-                with_tags = with_tags,
+        for full_qual, qual, with_tags in itertools.product((True, False), repeat=3):
+            self.recorded_id_map[(full_qual, qual, with_tags)] = expr_val.get_id(
+                full_qual=full_qual,
+                qual=qual,
+                with_tags=with_tags,
                 hidden_callable_set=hidden_callable_set,
             )
 
         self.type_names = [
             get_name(type_, full_qual=True)
-            for type_ in inspect.getmro(expr_val.expr.op.value_type)
+            for type_ in get_mro(expr_val.expr.op.value_type)
             if type_ is not object
         ]
 
@@ -1832,8 +1877,8 @@ class SerializableExprValue:
             )
             self.param_value_map[param] = param_serialzable
 
-    def get_id(self, full_qual=True, with_tags=True):
-        args = (full_qual, with_tags)
+    def get_id(self, full_qual=True, qual=True, with_tags=True):
+        args = (full_qual, qual, with_tags)
         return self.recorded_id_map[args]
 
     def get_parent_set(self, predicate, _parent_set=None):
@@ -1848,10 +1893,10 @@ class SerializableExprValue:
 
 def get_name(obj, full_qual=True, qual=True):
     # full_qual enabled implies qual enabled
-    qual = qual or full_qual
-
+    _qual = qual or full_qual
     # qual disabled implies full_qual disabled
     full_qual = full_qual and qual
+    qual = _qual
 
     # Add the module's name in front of the name to get a fully
     # qualified name

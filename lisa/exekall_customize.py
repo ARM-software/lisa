@@ -27,55 +27,19 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 import traceback
 
-from lisa.env import TestEnv, TargetConf, ArtifactPath
+from lisa.env import TestEnv, TargetConf
 from lisa.platforms.platinfo import PlatformInfo
-from lisa.utils import HideExekallID, Loggable
+from lisa.utils import HideExekallID, Loggable, ArtifactPath
 from lisa.tests.kernel.test_bundle import TestBundle, Result, ResultBundle, CannotCreateError
 
 from exekall import utils, engine
-from exekall.engine import reusable, ExprData, Consumer, PrebuiltOperator, NoValue, get_name
+from exekall.engine import reusable, ExprData, Consumer, PrebuiltOperator, NoValue, get_name, get_mro
 from exekall.customization import AdaptorBase
 
 @reusable(False)
-class ArtifactStorage(ArtifactPath, Loggable, HideExekallID):
-    def __new__(cls, root, relative, *args, **kwargs):
-        root = Path(root).resolve()
-        relative = Path(relative)
-        # we only support paths relative to the root parameter
-        assert not relative.is_absolute()
-        absolute = root/relative
-
-        # Use a resolved absolute path so it is more convenient for users to
-        # manipulate
-        path = absolute.resolve()
-
-        path_str = super().__new__(cls, str(path), *args, **kwargs)
-        # Record the actual root, so we can relocate the path later with an
-        # updated root
-        path_str.root = root
-        return path_str
-
-    def __fspath__(self):
-        return str(self)
-
-    def __reduce__(self):
-        # Serialize the path relatively to the root, so it can be relocated
-        # easily
-        relative = self.relative_to(self.root)
-        return (type(self), (self.root, relative))
-
-    def relative_to(self, path):
-        return os.path.relpath(str(self), start=str(path))
-
-    def with_root(self, root):
-        # Get the path relative to the old root
-        relative = self.relative_to(self.root)
-
-        # Swap-in the new root and return a new instance
-        return type(self)(root, relative)
-
+class ExekallArtifactPath(ArtifactPath):
     @classmethod
-    def from_expr_data(cls, data:ExprData, consumer:Consumer) -> 'ArtifactStorage':
+    def from_expr_data(cls, data:ExprData, consumer:Consumer) -> 'ExekallArtifactPath':
         """
         Factory used when running under `exekall`
         """
@@ -138,17 +102,21 @@ class LISAAdaptor(AdaptorBase):
         parser.add_argument('--platform-info',
             help="Platform info file")
 
+    @staticmethod
+    def get_default_type_goal_pattern_set():
+        return {'*.ResultBundle'}
+
     def get_db_loader(self):
         return self.load_db
 
     @classmethod
     def load_db(cls, db_path, *args, **kwargs):
-        # This will relocate ArtifactStorage instances to the new absolute path
-        # of the results folder, in case it has been moved to another place
+        # This will relocate ArtifactPath instances to the new absolute path of
+        # the results folder, in case it has been moved to another place
         artifact_dir = Path(db_path).parent.resolve()
         db = engine.StorageDB.from_path(db_path, *args, **kwargs)
 
-        # Relocate ArtifactStorage embeded in objects so they will always
+        # Relocate ArtifactPath embeded in objects so they will always
         # contain an absolute path that adapts to the local filesystem
         for serial in db.obj_store.get_all():
             val = serial.value
@@ -157,7 +125,7 @@ class LISAAdaptor(AdaptorBase):
             except AttributeError:
                 continue
             for attr, attr_val in dct.items():
-                if isinstance(attr_val, ArtifactStorage):
+                if isinstance(attr_val, ArtifactPath):
                     setattr(val, attr,
                         attr_val.with_root(artifact_dir)
                     )
@@ -175,7 +143,7 @@ class LISAAdaptor(AdaptorBase):
 
         # Add symlinks to artifact folders for ExprValue that were used in the
         # ExprValue graph, but were initially computed for another Expression
-        if isinstance(val, ArtifactStorage):
+        if isinstance(val, ArtifactPath):
             val = Path(val)
             is_subfolder = (testcase_artifact_dir.resolve() in val.resolve().parents)
             # The folder is reachable from our ExprValue, but is not a
@@ -287,7 +255,6 @@ class LISAAdaptor(AdaptorBase):
                     if isinstance(value, ResultBundle):
                         result = RESULT_TAG_MAP[value.result]
                         short_msg = value.result.lower_name
-                        #TODO: add API to ResultBundle to print the message without the Result
                         msg = str(value)
                         type_ = type(value)
 
@@ -307,7 +274,7 @@ def append_result_tag(et_testcase, result, type_, short_msg, msg):
         type=get_name(type_, full_qual=True),
         type_bases=','.join(
             get_name(type_, full_qual=True)
-            for type_ in inspect.getmro(type_)
+            for type_ in get_mro(type_)
         ),
         message=str(short_msg),
     ))

@@ -107,7 +107,16 @@ def import_all_submodules(pkg):
         for loader, module_name, is_pkg in pkgutil.walk_packages(pkg.__path__)
     ]
 
-class Serializable:
+class UnknownTagPlaceholder:
+    def __init__(self, yaml_tag, data, location=None):
+        self.yaml_tag = yaml_tag
+        self.data = data
+        self.location = location
+
+    def __str__(self):
+        return '<UnknownTagPlaceholder of {}>'.format(self.yaml_tag)
+
+class Serializable(Loggable):
     """
     A helper class for YAML serialization/deserialization
 
@@ -135,17 +144,47 @@ class Serializable:
         yaml = cls._yaml
         # If allow_unicode=True, true unicode characters will be written to the
         # file instead of being replaced by escape sequence.
-        yaml.allow_unicode = (cls.YAML_ENCODING == 'utf-8')
+        yaml.allow_unicode = ('utf' in cls.YAML_ENCODING)
         yaml.default_flow_style = False
         yaml.indent = 4
         yaml.Constructor.add_constructor('!include', cls._yaml_include_constructor)
         yaml.Constructor.add_constructor('!var', cls._yaml_var_constructor)
         yaml.Constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
+
+        # Replace unknown tags by a placeholder object containing the data.
+        # This happens when the class was not imported at the time the object
+        # was deserialized
+        yaml.Constructor.add_constructor(None, cls._yaml_unknown_tag_constructor)
+
         #TODO: remove that once the issue is fixed
         # Workaround for ruamel.yaml bug #244:
         # https://bitbucket.org/ruamel/yaml/issues/244
         yaml.Representer.add_multi_representer(type, yaml.Representer.represent_name)
 
+    @classmethod
+    def _yaml_unknown_tag_constructor(cls, loader, node):
+        # Get the basic data types that can be expressed using the YAML syntax,
+        # without using any tag-specific constructor
+        data = None
+        for constructor in (
+            loader.construct_scalar,
+            loader.construct_sequence,
+            loader.construct_mapping
+        ):
+            try:
+                data = constructor(node)
+            except ruamel.yaml.constructor.ConstructorError:
+                continue
+            else:
+                break
+
+        tag = node.tag
+        cls.get_logger().debug('Could not find constructor for YAML tag "{tag}" ({mark}), using a placeholder'.format(
+            tag=tag,
+            mark=str(node.start_mark).strip()
+        ))
+
+        return UnknownTagPlaceholder(tag, data, location=node.start_mark)
 
     @classmethod
     def _yaml_call_constructor(cls, loader, suffix, node):
@@ -398,6 +437,7 @@ class DeferredValue:
         return '<lazy value of {}>'.format(self.callback.__qualname__)
 
 class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
+    #TODO: also add a help string in the structure and derive a help paragraph
     @abc.abstractmethod
     def STRUCTURE():
         """
@@ -922,5 +962,46 @@ def setup_logging(filepath='logging.conf', level=logging.INFO):
 
     logging.info('Using LISA logging configuration:')
     logging.info('  %s', filepath)
+
+class ArtifactPath(str, Loggable, HideExekallID):
+    """Path to a folder that can be used to store artifacts of a function.
+    This must be a clean folder, already created on disk.
+    """
+    def __new__(cls, root, relative, *args, **kwargs):
+        root = os.path.realpath(str(root))
+        relative = str(relative)
+        # we only support paths relative to the root parameter
+        assert not os.path.isabs(relative)
+        absolute = os.path.join(root, relative)
+
+        # Use a resolved absolute path so it is more convenient for users to
+        # manipulate
+        path = os.path.realpath(absolute)
+
+        path_str = super().__new__(cls, path, *args, **kwargs)
+        # Record the actual root, so we can relocate the path later with an
+        # updated root
+        path_str.root = root
+        path_str.relative = relative
+        return path_str
+
+    def __fspath__(self):
+        return str(self)
+
+    def __reduce__(self):
+        # Serialize the path relatively to the root, so it can be relocated
+        # easily
+        relative = self.relative_to(self.root)
+        return (type(self), (self.root, relative))
+
+    def relative_to(self, path):
+        return os.path.relpath(str(self), start=str(path))
+
+    def with_root(self, root):
+        # Get the path relative to the old root
+        relative = self.relative_to(self.root)
+
+        # Swap-in the new root and return a new instance
+        return type(self)(root, relative)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

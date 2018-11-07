@@ -24,7 +24,8 @@ from devlib.exception import TimeoutError
 
 from lisa.tests.kernel.test_bundle import TestMetric, ResultBundle, TestBundle
 from lisa.target_script import TargetScript
-from lisa.env import TestEnv, ArtifactPath
+from lisa.env import TestEnv
+from lisa.utils import ArtifactPath
 
 class HotplugTorture(TestBundle):
 

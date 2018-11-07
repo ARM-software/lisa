@@ -19,6 +19,7 @@ import enum
 import os
 import os.path
 import abc
+import sys
 from collections.abc import Mapping
 
 from devlib.target import KernelVersion
@@ -28,8 +29,8 @@ from lisa.trace import Trace
 from lisa.wlgen.rta import RTA
 from lisa.perf_analysis import PerfAnalysis
 
-from lisa.utils import Serializable, memoized
-from lisa.env import TestEnv, ArtifactPath
+from lisa.utils import Serializable, memoized, ArtifactPath
+from lisa.env import TestEnv
 from lisa.platforms.platinfo import PlatformInfo
 
 class TestMetric:
@@ -140,6 +141,13 @@ class ResultBundle:
         :Parameters: :class:`TestMetric` parameters
         """
         self.metrics[name] = TestMetric(data, units)
+
+    def display_and_exit(self) -> type(None):
+        print("Test result: {}".format(self))
+        if self:
+            sys.exit(0)
+        else:
+            sys.exit(1)
 
 class CannotCreateError(RuntimeError):
     """
@@ -290,7 +298,8 @@ class TestBundle(Serializable, abc.ABC):
         # it does not get broken.
         if cls.verify_serialization:
             bundle.to_dir(res_dir)
-            bundle = cls.from_dir(res_dir)
+            # Updating the res_dir breaks deserialization for some use cases
+            bundle = cls.from_dir(res_dir, update_res_dir=False)
 
         return bundle
 
@@ -299,13 +308,16 @@ class TestBundle(Serializable, abc.ABC):
         return os.path.join(res_dir, "{}.yaml".format(cls.__qualname__))
 
     @classmethod
-    def from_dir(cls, res_dir):
+    def from_dir(cls, res_dir, update_res_dir=True):
         """
         See :meth:`lisa.utils.Serializable.from_path`
         """
+        res_dir = ArtifactPath(root=res_dir, relative='')
+
         bundle = super().from_path(cls._filepath(res_dir))
         # We need to update the res_dir to the one we were given
-        bundle.res_dir = res_dir
+        if update_res_dir:
+            bundle.res_dir = res_dir
 
         return bundle
 

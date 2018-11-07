@@ -30,7 +30,7 @@ from trappy.utils import listify
 ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
 ResidencyData = namedtuple('ResidencyData', ['label', 'residency'])
 
-class AnalysisBase(object):
+class AnalysisBase:
     """
     Base class for Analysis modules.
 
