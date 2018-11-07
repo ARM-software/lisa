@@ -330,8 +330,13 @@ class TestEnv(Loggable, HideExekallID):
         if args.log_level:
             setup_logging(level=args.log_level.upper())
 
-        if args.kind and not (args.host or args.device):
-            parser.error('--host or --device must be specified')
+        if args.kind == 'android':
+            if not (args.host or args.device):
+                parser.error('--host or --device must be specified')
+        if args.kind == 'linux':
+            for required in ['host', 'username', 'password']:
+                if getattr(args, required) is None:
+                    parser.error('--{} must be specified'.format(required))
 
         platform_info = PlatformInfo.from_yaml_map(args.platform_info) if args.platform_info else None
         if args.target_conf:
