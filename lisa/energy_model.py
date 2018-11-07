@@ -78,9 +78,6 @@ class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
     def __new__(cls, capacity=None, power=None):
         return super(ActiveState, cls).__new__(cls, capacity, power)
 
-    # helpers for yaml serialization
-    yaml_tag = 'em_active_state:capacity,power'
-
 class _CpuTree(Loggable):
     """Internal class. Abstract representation of a CPU topology.
 
