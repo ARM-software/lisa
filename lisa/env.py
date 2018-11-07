@@ -343,7 +343,8 @@ class TestEnv(Loggable, HideExekallID):
             target_conf = TargetConf.from_yaml_map(args.target_conf)
         else:
             target_conf = TargetConf(
-                {k : v for k, v in vars(args).items() if k not in not_target_conf_opt})
+                {k : v for k, v in vars(args).items()
+                 if v is not None and k not in not_target_conf_opt})
 
         return cls(target_conf, platform_info, res_dir=args.res_dir)
 
