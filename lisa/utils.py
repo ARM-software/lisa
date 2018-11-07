@@ -108,13 +108,13 @@ def import_all_submodules(pkg):
     ]
 
 class UnknownTagPlaceholder:
-    def __init__(self, yaml_tag, data, location=None):
-        self.yaml_tag = yaml_tag
+    def __init__(self, tag, data, location=None):
+        self.tag = tag
         self.data = data
         self.location = location
 
     def __str__(self):
-        return '<UnknownTagPlaceholder of {}>'.format(self.yaml_tag)
+        return '<UnknownTagPlaceholder of {}>'.format(self.tag)
 
 class Serializable(Loggable):
     """
@@ -245,13 +245,6 @@ class Serializable(Loggable):
 
     @classmethod
     def _to_path(cls, instance, filepath, fmt):
-        # On Python >= 3.6, __init_subclass__ will take care of that
-        if sys.version_info < (3, 6):
-            # Better late than never. Doing it here avoids using a metaclass
-            # just to register the class. If we don't do that, yaml_tag class
-            # attribute will be ignored.
-            cls._yaml.register_class(type(instance))
-
         if fmt is None:
             fmt = cls.DEFAULT_SERIALIZATION_FMT
 
@@ -352,12 +345,6 @@ class Serializable(Loggable):
 
     def __deepcopy__(self):
        return super().__deepcopy__()
-
-   # Will only be called with Python >= 3.6
-    def __init_subclass__(cls, **kwargs):
-        # Register the class to ensure yaml_tag will be used
-        cls._yaml.register_class(cls)
-        super().__init_subclass__(**kwargs)
 
 Serializable._init_yaml()
 
