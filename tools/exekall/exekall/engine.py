@@ -1240,7 +1240,7 @@ class Expression:
                     # that was computed with a given param_expr_val_map
                     assert len(result_list) == 1
                     expr_val_seq = result_list[0]
-                    yield from expr_val_seq.get_expr_value_iter()
+                    yield from expr_val_seq.iter_expr_value()
                     continue
 
             # Only compute the non-reusable parameters if all the reusable one
@@ -1313,7 +1313,7 @@ class Expression:
                 post_compute_cb
             )
             self.result_list.append(expr_val_seq)
-            yield from expr_val_seq.get_expr_value_iter()
+            yield from expr_val_seq.iter_expr_value()
 
 def infinite_iter(generator, value_list, from_gen):
     """Exhaust the `generator` when `from_gen=True`, yield from `value_list`
@@ -1800,7 +1800,7 @@ class ExprValueSeq:
         self.param_expr_val_map = param_expr_val_map
         self.post_compute_cb = post_compute_cb
 
-    def get_expr_value_iter(self):
+    def iter_expr_value(self):
         callback = self.post_compute_cb
         if not callback:
             callback = lambda x, reused: None
