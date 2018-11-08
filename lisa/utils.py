@@ -31,6 +31,7 @@ import importlib
 import pkgutil
 import operator
 import numbers
+import difflib
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -451,34 +452,212 @@ class DeferredValue:
     def __str__(self):
         return '<lazy value of {}>'.format(self.callback.__qualname__)
 
-class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
-    #TODO: also add a help string in the structure and derive a help paragraph
+class KeyDescBase(abc.ABC):
+    INDENTATION = 4 * ' '
+    def __init__(self, name, help):
+        self.name = name
+        self.help = help
+        self.parent = None
+
+    @property
+    def qualname(self):
+        if self.parent is None:
+            return self.name
+        return '/'.join((self.parent.qualname, self.name))
+
+    @staticmethod
+    def _get_cls_name(cls):
+        return 'None' if cls is None else cls.__qualname__
+
+    @abc.abstractmethod
+    def get_help(self):
+        pass
+
+    @abc.abstractmethod
+    def validate_val(self, val):
+        pass
+
+class KeyDesc(KeyDescBase):
+    def __init__(self, name, help, classinfo):
+        super().__init__(name=name, help=help)
+        # isinstance's style classinfo
+        self.classinfo = tuple(classinfo)
+
+    def validate_val(self, val):
+        # Or if that key is supposed to hold a value
+        classinfo = self.classinfo
+        key = self.name
+        def get_excep(key, val, classinfo, cls, msg):
+            classinfo = ' or '.join(self._get_cls_name(cls) for cls in classinfo)
+            msg = ': ' + msg if msg else ''
+            return ValueError('Key "{key}" is an instance of {actual_cls}, but should be instance of {classinfo}{msg}. Help: {help}'.format(
+                        key=self.qualname,
+                        actual_cls=self._get_cls_name(type(val)),
+                        classinfo=classinfo,
+                        msg=msg,
+                        help=self.help,
+                    ))
+
+        def checkinstance(key, val, classinfo):
+            excep_list = []
+            for cls in classinfo:
+                if cls is None:
+                    if val is not None:
+                        excep_list.append(
+                            get_excep(key, val, classinfo, cls, 'Key is not None')
+                        )
+                # Some classes are able to raise a more detailed
+                # exception than just the boolean return value of
+                # __instancecheck__
+                elif hasattr(cls, 'instancecheck'):
+                    try:
+                        cls.instancecheck(val)
+                    except ValueError as e:
+                        excep_list.append(
+                            get_excep(key, val, classinfo, cls, str(e))
+                        )
+                else:
+                    if not isinstance(val, cls):
+                        excep_list.append(
+                            get_excep(key, val, classinfo, cls, None)
+                        )
+
+            # If no type was validated, we raise an exception. This will
+            # only show the exception for the first class to be tried,
+            # which is the primary one.
+            if len(excep_list) == len(classinfo):
+                raise excep_list[0]
+
+        # DeferredValue will be checked when they are computed
+        if not isinstance(val, DeferredValue):
+            checkinstance(key, val, classinfo)
+
+    def get_help(self):
+        return '|- {key} ({classinfo}){help}'.format(
+            key=self.name,
+            classinfo=' or '.join(
+                self._get_cls_name(key_cls)
+                for key_cls in self.classinfo
+            ),
+            help=': ' + self.help if self.help else ''
+        )
+
+class LevelKeyDesc(KeyDescBase, Mapping):
+    def __init__(self, name, help, children):
+        super().__init__(name=name, help=help)
+        self.children = children
+
+        # Fixup parent for easy nested declaration
+        for key_desc in self.children:
+            key_desc.parent = self
+
+    @property
+    def _key_map(self):
+        return {
+            key_desc.name: key_desc
+            for key_desc in self.children
+        }
+    def __iter__(self):
+        return iter(self._key_map)
+    def __len__(self):
+        return len(self._key_map)
+    def __getitem__(self, key):
+        self.check_allowed_key(key)
+        return self._key_map[key]
+
+    def check_allowed_key(self, key):
+        try:
+            key_desc = self._key_map[key]
+        except KeyError:
+            try:
+                closest_match = difflib.get_close_matches(
+                    word=key,
+                    possibilities=self._key_map.keys(),
+                    n=1,
+                )[0]
+            except IndexError:
+                closest_match = ''
+            else:
+                closest_match = ', maybe you meant "{}" ?'.format(closest_match)
+
+            raise ValueError('Key "{key}" is not allowed in {parent}{maybe}'.format(
+                key=key,
+                parent=self.qualname,
+                maybe=closest_match,
+            ))
+
+    def validate_key(self, key, val):
+        self[key].validate_val(val)
+
+    def validate_val(self, conf):
+        """Validate a mapping to be used as a source"""
+        if not isinstance(conf, Mapping):
+            raise ValueError('Configuration of {key} must be a Mapping'.format(
+                key=self.qualname,
+            ))
+        for key, val in conf.items():
+            self.validate_key(key, val)
+
+    def get_help(self):
+        idt = self.INDENTATION
+        help_ = '+- {key}:{help}\n{idt}'.format(
+            key=self.name,
+            help= ' ' + self.help if self.help else '',
+            idt=idt,
+        )
+        help_ += ('\n' + idt).join(
+            key_desc.get_help().replace('\n', '\n'+idt)
+            for key_desc in self.children
+        )
+
+        return help_
+
+class TopLevelKeyDesc(LevelKeyDesc):
+    pass
+
+class MultiSrcConfMeta(abc.ABCMeta):
+    def __new__(metacls, name, bases, dct, **kwargs):
+        new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
+        if not inspect.isabstract(new_cls):
+            doc = new_cls.__doc__
+            if doc:
+                # Create a ResStructuredText preformatted block
+                generated_help = '::\n\n\t{}'.format('\n\t'.join(
+                    line
+                    for line in new_cls.get_help().splitlines()
+                    # We need to remove empty lines since it would break
+                    # the ResStructuredText preformatted block syntax
+                    if line.strip()
+                ))
+                new_cls.__doc__ = doc.format(generated_help=generated_help)
+        return new_cls
+
+class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcConfMeta):
     @abc.abstractmethod
     def STRUCTURE():
         """
         Class attribute defining the structure of the configuration file, as a
-        nested dictionary mirroring the allowed keys, with values containing
-        the type of the key or a nested dictionary.
+        instance of :class:`TopLevelKeyDesc`
         """
         pass
 
     def __init__(self, conf=None, src='default'):
+
         self._nested_init(
-            parent = None,
-            level = None,
-            structure = self.STRUCTURE,
-            src_prio = []
+            parent=None,
+            structure=self.STRUCTURE,
+            src_prio=[]
         )
         if conf is not None:
             self.add_src(src, conf)
 
-    def _nested_init(self, parent, level, structure, src_prio):
+    @classmethod
+    def get_help(cls, *args, **kwargs):
+        return cls.STRUCTURE.get_help(*args, **kwargs)
+
+    def _nested_init(self, parent, structure, src_prio):
         """Called to initialize nested instances of the class for nested
         configuration."""
-        self._parent = parent
-        "Link to parent object"
-        self._level = level
-        "Name of the current level in the configuration"
         self._structure = structure
         "Structure of that level of configuration"
         # Make a copy to avoid sharing it with the parent
@@ -492,12 +671,11 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
         "Key/sublevel map of nested configuration objects"
 
         # Build the tree of objects for nested configuration mappings
-        for key, cls_or_map in self._structure.items():
-            if self._is_sublevel_key(key):
+        for key, key_desc in self._structure.items():
+            if isinstance(key_desc, LevelKeyDesc):
                 self._sublevel_map[key] = self._nested_new(
                     parent = self,
-                    level = key,
-                    structure = cls_or_map,
+                    structure = key_desc,
                     src_prio = self._src_prio,
                 )
 
@@ -516,8 +694,9 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
 
         # make a shallow copy of the attributes
         attr_set = set(self.__dict__.keys())
-        # Avoid infinite recursion
-        attr_set -= {'_parent'}
+        # we do not duplicate the structure, since it is a readonly bit of
+        # configuration. That would break parent links in it
+        attr_set -= {'_structure'}
         for attr in attr_set:
             new.__dict__[attr] = copy.copy(self.__dict__[attr])
 
@@ -526,10 +705,6 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
             key: sublevel.__copy__()
             for key, sublevel in new._sublevel_map.items()
         }
-
-        # fixup _parent
-        for sublevel in new._sublevel_map.values():
-           sublevel._parent = new
 
         return new
 
@@ -551,69 +726,9 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
         plat_conf.force_src_nested(src_override)
         return plat_conf
 
-    def _get_parent_levels(self):
-        if self._parent is not None:
-            return self._parent._get_parent_levels() + [self._level]
-        else:
-            return []
-
-    def _get_key_name(self, key):
-        return '/'.join(self._get_parent_levels() + [key])
-
-    def validate_src(self, conf):
-        """Validate a mapping to be used as a source"""
-        if not isinstance(conf, Mapping):
-            raise ValueError('Configuration of {cls} must be a Mapping'.format(
-                cls=type(self).__qualname__,
-            ))
-        for key, val in conf.items():
-            self.validate_val(key, val)
-
-    def _get_sublevel(self, key):
-        return self._sublevel_map[key]
-
-    def _is_sublevel_key(self, key):
-        return isinstance(self._structure[key], Mapping)
-
-    def _check_allowed_key(self, key):
-        try:
-            cls_or_map = self._structure[key]
-        except KeyError:
-            raise ValueError('Key "{key}" is not allowed in {cls}'.format(
-                key=self._get_key_name(key),
-                cls=type(self).__qualname__
-            ))
-
-    def validate_val(self, key, val):
-        # Check we only have allowed key names
-        self._check_allowed_key(key)
-
-        # If that key is supposed to be a level of nested keys
-        if self._is_sublevel_key(key):
-            return self._get_sublevel(key).validate_src(val)
-        # Or if that key is supposed to hold a value
-        else:
-            cls = self._structure[key]
-            def raise_excep(key, val, cls, msg):
-                raise ValueError('Key "{key}" is an instance of {actual_cls}, but should be instance of {cls}{msg}'.format(
-                            key=self._get_key_name(key),
-                            actual_cls=type(val),
-                            cls=cls,
-                            msg = ': ' + msg if msg else ''
-                        ))
-            # DeferredValue will be checked when they are computed
-            if isinstance(val, DeferredValue):
-                pass
-            # Some classes are able to raise a more detailed exception than
-            # just the boolean return value of __instancecheck__
-            elif hasattr(cls, 'instancecheck'):
-                try:
-                    cls.instancecheck(val)
-                except ValueError as e:
-                    raise_excep(key, val, cls, str(e))
-            else:
-                if not isinstance(val, cls):
-                    raise_excep(key, val, cls, None)
+    @staticmethod
+    def _get_cls_name(cls):
+        return 'None' if cls is None else cls.__qualname__
 
     def add_src(self, src, conf, filter_none=False, fallback=False):
         # Filter-out None values, so they won't override actual data from
@@ -624,14 +739,15 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
                 if v is not None
             }
 
-        self.validate_src(conf)
+        self._structure.validate_val(conf)
 
         for key, val in conf.items():
+            key_desc = self._structure[key]
             # Dispatch the nested mapping to the right sublevel
-            if self._is_sublevel_key(key):
+            if isinstance(key_desc, LevelKeyDesc):
                 # sublevels have already been initialized when the root object
                 # was created.
-                self._get_sublevel(key).add_src(src, val, filter_none=filter_none, fallback=fallback)
+                self._sublevel_map[key].add_src(src, val, filter_none=filter_none, fallback=fallback)
             # Otherwise that is a leaf value that we store at that level
             else:
                 self._key_map.setdefault(key, {})[src] = val
@@ -650,17 +766,18 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
 
     def force_src_nested(self, key_src_map):
         for key, src_or_map in key_src_map.items():
-            if self._is_sublevel_key(key):
+            key_desc = self._structure[key]
+            if isinstance(key_desc, LevelKeyDesc):
                 mapping = src_or_map
-                self._get_sublevel(key).force_src_nested(mapping)
+                self._sublevel_map[key].force_src_nested(mapping)
             else:
                 self.force_src(key, src_or_map)
 
     def force_src(self, key, src_prio):
-        self._check_allowed_key(key)
-        if self._is_sublevel_key(key):
-            raise ValueError('Cannot force source of the sub-level "{level}" in {cls}'.format(
-                level=self._get_key_name(key),
+        key_desc = self._structure[key]
+        if isinstance(key_desc, LevelKeyDesc):
+            raise ValueError('Cannot force source of the sub-level "{key}" in {cls}'.format(
+                key=key_desc.qualname,
                 cls=type(self).__qualname__
             ))
 
@@ -714,14 +831,11 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
         return src_list
 
     def resolve_src(self, key):
-        self._check_allowed_key(key)
+        key_desc = self._structure[key]
 
-        cls_name = type(self).__qualname__
-        key_name = self._get_key_name(key)
-        if self._is_sublevel_key(key):
-            raise ValueError('Key "{key}" is a nested configuration level in {cls}, it does not have a source on its own.'.format(
-                key=key_name,
-                cls=cls_name,
+        if isinstance(key_desc, LevelKeyDesc):
+            raise ValueError('Key "{key}" is a nested configuration level, it does not have a source on its own.'.format(
+                key=key_desc.qualname,
             ))
 
         # Get the priority list from the prio override list, or just the
@@ -730,19 +844,18 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
         if src_prio:
             return src_prio[0]
         else:
-            raise KeyError('Could not find any source for key "{key}" in {cls}'.format(
-                key=key_name,
-                cls=cls_name
+            raise KeyError('Could not find any source for key "{key}"'.format(
+                key=key_desc.qualname,
             ))
 
     def _eval_deferred_val(self, src, key):
+        key_desc = self._structure[key]
         val = self._key_map[key][src]
         if isinstance(val, DeferredValue):
             val = val()
-            self.validate_val(key, val)
+            key_desc.validate_val(val)
             self._key_map[key][src] = val
         return val
-
 
     def eval_deferred(self, cls=DeferredValue, src=None):
         for key, src_map in self._key_map.items():
@@ -776,13 +889,11 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
         return state
 
     def get_key(self, key, src=None, eval_deferred=True):
-        self._check_allowed_key(key)
+        key_desc = self._structure[key]
 
-        with contextlib.suppress(KeyError):
-            return self._get_sublevel(key)
+        if isinstance(key_desc, LevelKeyDesc):
+            return self._sublevel_map[key]
 
-        cls_name = type(self).__qualname__
-        key_name = self._get_key_name(key)
         # Compute the source to use for that key
         if src is None:
             src = self.resolve_src(key)
@@ -790,32 +901,30 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping):
         try:
             val = self._key_map[key][src]
         except KeyError:
-            raise KeyError('Key "{key}" is not available from source "{src}" in {cls}'.format(
-                key=key_name,
+            raise KeyError('Key "{key}" is not available from source "{src}"'.format(
+                key=key_desc.qualname,
                 src=src,
-                cls=cls_name,
             ))
 
         if eval_deferred:
             val = self._eval_deferred_val(src, key)
 
         frame_conf = inspect.stack()[2]
-        self.get_logger().debug('{cls} used by {caller} ({filename}:{lineno}) from "{src}" source: {key}={val}'.format(
-            key=key_name,
+        self.get_logger().debug('{caller} ({filename}:{lineno}) has used key {key} from source "{src}": {val}'.format(
+            key=key_desc.qualname,
             src=src,
             val=val,
             caller=frame_conf.function,
             filename=frame_conf.filename,
             lineno=frame_conf.lineno,
-            cls=cls_name,
         ))
         return val
 
     def get_src_map(self, key):
-        self._check_allowed_key(key)
-        if self._is_sublevel_key(key):
+        key_desc = self._structure[key]
+        if isinstance(key_desc, LevelKeyDesc):
             raise ValueError('Key "{key}" is a nested configuration level in {cls}, it does not have a source on its own.'.format(
-                key=self._get_key_name(key),
+                key=key_desc.qualname,
                 cls=type(self).__qualname__,
             ))
 

@@ -35,7 +35,8 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
 from lisa.energy_meter import EnergyMeter
-from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList, setup_logging, ArtifactPath
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList, setup_logging, ArtifactPath
+from lisa.utils import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc
 
 from lisa.platforms.platinfo import PlatformInfo
 
@@ -46,37 +47,46 @@ FTRACE_EVENTS_DEFAULT = ['sched:*']
 FTRACE_BUFSIZE_DEFAULT = 10240
 RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
-DEFAULT_DEVLIB_MODULES = ['sched', 'cpufreq', 'cpuidle']
 
 class TargetConf(MultiSrcConf, HideExekallID):
+    """
+    Target connection settings.
+
+    {generated_help}
+    """
     YAML_MAP_TOP_LEVEL_KEY = 'target-conf'
 
-    STRUCTURE = {
-        'kind': str,
-        'host': str,
-        'board': str,
-        'username': str,
-        'password': str,
-        'port': int,
-        'device': str,
-        'keyfile': str,
-        'workdir': str,
-        'tools': StrList,
-        'ftrace': {
-            'events': StrList,
-            'functions': StrList,
-            'buffsize': int,
-        },
-        'devlib': {
-            'platform': {
-                'class': str,
-                'args': Mapping,
-            },
-            'excluded-modules': StrList,
-        }
-    }
+    STRUCTURE = TopLevelKeyDesc(YAML_MAP_TOP_LEVEL_KEY, 'target connection settings', (
+        KeyDesc('board', 'Board name, free-form value only used to embelish logs', [str]),
+        KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [str]),
+        KeyDesc('host', 'Hostname or IP address of the host', [str, None]),
+        KeyDesc('username', 'SSH username', [str, None]),
+        KeyDesc('password', 'SSH password', [str, None]),
+        KeyDesc('port', 'SSH or ADB server port', [int, None]),
+        KeyDesc('device', 'ADB device. Takes precedence over "host"', [str, None]),
+        KeyDesc('keyfile', 'SSH private key file', [str, None]),
+
+        KeyDesc('workdir', 'Remote target workdir', [str]),
+        KeyDesc('tools', 'List of tools to install on the target', [StrList]),
+        LevelKeyDesc('ftrace', 'FTrace configuration', (
+            KeyDesc('events', 'FTrace events to trace', [StrList]),
+            KeyDesc('functions', 'FTrace functions to trace', [StrList]),
+            KeyDesc('buffsize', 'FTrace buffer size', [int]),
+        )),
+        LevelKeyDesc('devlib', 'devlib configuration', (
+            LevelKeyDesc('platform', 'devlib.platform.Platform subclass specification', (
+                KeyDesc('class', 'Name of the class to use', [str]),
+                KeyDesc('args', 'Keyword arguments to build the Platform object', [Mapping]),
+            )),
+            KeyDesc('excluded-modules', 'List of devlib modules to *not* load', [StrList]),
+        ))
+    ))
 
     DEFAULT_CONF = {
+        'username': USERNAME_DEFAULT,
+        'ftrace': {
+            'buffsize': FTRACE_BUFSIZE_DEFAULT,
+        },
         'devlib': {
             'platform': {
                 'class': 'devlib.platform.Platform'
@@ -161,7 +171,7 @@ class TestEnv(Loggable, HideExekallID):
                 raise ValueError('res_dir must be empty: {}'.format(self._res_dir))
 
         self.target_conf = target_conf
-        logger.debug('Target configuration %s', self.target_conf)
+        logger.debug('Target configuration:\n%s', self.target_conf)
 
         if plat_info is None:
             plat_info = PlatformInfo()
@@ -324,10 +334,11 @@ class TestEnv(Loggable, HideExekallID):
             # Workaround for ARM-software/devlib#225
             target_workdir = target_workdir or '/data/local/tmp/devlib-target'
 
-            if 'device' in target_conf:
-                device = target_conf['device']
-            elif 'host' in target_conf:
-                host = target_conf['host']
+            device = target_conf.get('device')
+            host = target_conf.get('host')
+            if device:
+                pass
+            elif host:
                 port = target_conf.get('port', ADB_PORT_DEFAULT)
                 device = '{}:{}'.format(host, port)
             else:
@@ -339,13 +350,17 @@ class TestEnv(Loggable, HideExekallID):
             logger.debug('Setting up Linux target...')
             devlib_target_cls = devlib.LinuxTarget
 
-            conn_settings['username'] = target_conf.get('username', USERNAME_DEFAULT)
+            conn_settings['username'] = target_conf['username']
             conn_settings['port'] = target_conf.get('port', SSH_PORT_DEFAULT)
+            # Force reading 'host' from target_conf, so it will raise if the key
+            # does not exist
             conn_settings['host'] = target_conf['host']
 
+
             # Configure password or SSH keyfile
-            if 'keyfile' in target_conf:
-                conn_settings['keyfile'] = target_conf['keyfile']
+            keyfile = target_conf.get('keyfile')
+            if keyfile:
+                conn_settings['keyfile'] = keyfile
             else:
                 conn_settings['password'] = target_conf.get('password')
         elif target_kind == 'host':
