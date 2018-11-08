@@ -77,7 +77,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
     #TODO: kill that once code depending on this has been converted to
     # using the appropriate "root" data, instead of these derived values.
-    def add_from_nrg_model_src(self, nrg_model=None, src='nrg-model', **kwargs):
+    def add_nrg_model_src(self, nrg_model=None, src='nrg-model', **kwargs):
         # Derive all the deprecated keys from the nrg_model
         nrg_model = nrg_model or self['nrg-model']
         node_groups = nrg_model.node_groups
@@ -142,6 +142,8 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             logger.error("Couldn't read target energy model: %s", err)
             return None
 
+    # OLD CODE AFTER REFACTORING, FOR REFERENCE OF WHAT IS THE EXPECTED FORMAT
+    # AND CONTENT OF THE COMPATIBILITY KEYS
     #  @classmethod
     #  def _topology_from_target(cls, target):
         #  logger = cls.get_logger()

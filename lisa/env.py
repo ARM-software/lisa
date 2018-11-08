@@ -195,7 +195,7 @@ class TestEnv(Loggable, HideExekallID):
 
         # Update the PlatformInfo with keys derived from the energy model
         with contextlib.suppress(KeyError):
-            self.plat_info.add_from_nrg_model_src()
+            self.plat_info.add_nrg_model_src()
 
         logger.info('Effective platform information:\n%s', self.plat_info)
 
