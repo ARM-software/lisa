@@ -990,6 +990,10 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
             for k in self.keys()
         )
 
+    # Allow Jupyter keys completion in interactive notebooks
+    def _ipython_key_completions_(self):
+        return self.keys()
+
 class GenericContainerMetaBase(type):
     def __instancecheck__(cls, instance):
         try:
