@@ -34,6 +34,13 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     """
     Platform-specific information made available to tests.
 
+    .. warning::
+        The follwing keys are here for compatibility with old code only, do not
+        write new code depending on them:
+            * topology
+            * clusters
+            * freqs
+
     {generated_help}
     """
     YAML_MAP_TOP_LEVEL_KEY = 'platform-info'
