@@ -544,8 +544,7 @@ class TestEnv(Loggable, HideExekallID):
 
         self._installed_tools.update(tools)
 
-    def get_ftrace_collector(self, events=None, functions=None,
-                             buffsize=FTRACE_BUFSIZE_DEFAULT):
+    def get_ftrace_collector(self, events=None, functions=None, buffsize=0):
         """
         Get a configured FtraceCollector
 
@@ -555,7 +554,9 @@ class TestEnv(Loggable, HideExekallID):
         :param functions: the kernel functions to trace
         :type functions: list(str)
 
-        :param buffsize: The size of the Ftrace buffer
+        :param buffsize: The size of the Ftrace buffer. The value used will be
+            the maximum of the one in the target configuration and the one
+            specified in that argument.
         :type buffsize: int
 
         :raises RuntimeError: If no event nor function is to be traced
@@ -577,7 +578,7 @@ class TestEnv(Loggable, HideExekallID):
 
         events = merge_conf(events, 'events', [])
         functions = merge_conf(functions, 'functions', [])
-        buffsize = max(buffsize, target_conf.get('buffsize', 0))
+        buffsize = max(buffsize, target_conf['buffsize'])
 
         # If no events or functions have been specified:
         # do not create the FtraceCollector
@@ -642,7 +643,7 @@ class TestEnv(Loggable, HideExekallID):
 
     @contextlib.contextmanager
     def collect_ftrace(self, output_file, events=None, functions=None,
-                       buffsize=FTRACE_BUFSIZE_DEFAULT):
+                       buffsize=0):
         """
         Context manager that lets you collect an Ftrace trace
 
@@ -655,7 +656,8 @@ class TestEnv(Loggable, HideExekallID):
         :param functions: the kernel functions to trace
         :type functions: list(str)
 
-        :param buffsize: The size of the Ftrace buffer
+        :param buffsize: The size of the Ftrace buffer. The target
+            configuration provides a default value.
         :type buffsize: int
 
         :raises RuntimeError: If no event nor function is to be traced
