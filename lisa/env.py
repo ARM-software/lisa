@@ -43,7 +43,6 @@ from lisa.platforms.platinfo import PlatformInfo
 USERNAME_DEFAULT = 'root'
 ADB_PORT_DEFAULT = 5555
 SSH_PORT_DEFAULT = 22
-FTRACE_EVENTS_DEFAULT = ['sched:*']
 FTRACE_BUFSIZE_DEFAULT = 10240
 RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
