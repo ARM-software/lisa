@@ -16,7 +16,7 @@ target-conf:
 
     # Board
     # Optional board name used for better prettier logs
-    # board: myboard
+    # name: myboard
 
     # Target IP or domain name
     # host: 192.168.0.20

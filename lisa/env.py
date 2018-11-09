@@ -57,7 +57,7 @@ class TargetConf(MultiSrcConf, HideExekallID):
     YAML_MAP_TOP_LEVEL_KEY = 'target-conf'
 
     STRUCTURE = TopLevelKeyDesc(YAML_MAP_TOP_LEVEL_KEY, 'target connection settings', (
-        KeyDesc('board', 'Board name, free-form value only used to embelish logs', [str]),
+        KeyDesc('name', 'Board name, free-form value only used to embelish logs', [str]),
         KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [str]),
         KeyDesc('host', 'Hostname or IP address of the host', [str, None]),
         KeyDesc('username', 'SSH username', [str, None]),
@@ -155,7 +155,7 @@ class TestEnv(Loggable, HideExekallID):
         super().__init__()
         logger = self.get_logger()
 
-        board_name = target_conf.get('board')
+        board_name = target_conf.get('name')
         if not res_dir:
             name = board_name or type(self).__qualname__
             time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
@@ -370,7 +370,7 @@ class TestEnv(Loggable, HideExekallID):
         else:
             raise ValueError('Unsupported platform type {}'.format(target_kind))
 
-        board_name = target_conf.get('board', '')
+        board_name = target_conf.get('name', '')
         logger.info('%s %s target connection settings:', target_kind, board_name)
         for key, val in conn_settings.items():
             logger.info('%10s : %s', key, val)

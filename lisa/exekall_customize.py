@@ -175,7 +175,7 @@ class LISAAdaptor(AdaptorBase):
     @classmethod
     def get_tag_list(cls, value):
         if isinstance(value, TestEnv):
-            board_name = value.target_conf.get('board')
+            board_name = value.target_conf.get('name')
             tags = [board_name] if board_name else []
         elif isinstance(value, PlatformInfo):
             name = value.get('name')
