@@ -466,11 +466,18 @@ class KeyDescBase(abc.ABC):
         return '/'.join((self.parent.qualname, self.name))
 
     @staticmethod
-    def _get_cls_name(cls):
-        return 'None' if cls is None else cls.__qualname__
+    def _get_cls_name(cls, style=None):
+        if cls is None:
+            return 'None'
+        mod_name = inspect.getmodule(cls).__name__
+        mod_name = mod_name + '.' if mod_name not in ('builtins', '__main__') else ''
+        name = mod_name + cls.__qualname__
+        if style == 'rst':
+            name = ':class:`~{}`'.format(name)
+        return name
 
     @abc.abstractmethod
-    def get_help(self):
+    def get_help(self, style=None):
         pass
 
     @abc.abstractmethod
@@ -532,11 +539,13 @@ class KeyDesc(KeyDescBase):
         if not isinstance(val, DeferredValue):
             checkinstance(key, val, classinfo)
 
-    def get_help(self):
-        return '|- {key} ({classinfo}){help}'.format(
+    def get_help(self, style=None):
+        prefix = '*' if style == 'rst' else '|-'
+        return '{prefix} {key} ({classinfo}){help}'.format(
+            prefix=prefix,
             key=self.name,
             classinfo=' or '.join(
-                self._get_cls_name(key_cls)
+                self._get_cls_name(key_cls, style='rst')
                 for key_cls in self.classinfo
             ),
             help=': ' + self.help if self.help else ''
@@ -598,17 +607,28 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         for key, val in conf.items():
             self.validate_key(key, val)
 
-    def get_help(self):
+    def get_help(self, style=None):
         idt = self.INDENTATION
-        help_ = '+- {key}:{help}\n{idt}'.format(
+        prefix = '*' if style == 'rst' else '+-'
+        # Nasty hack: adding an empty ResStructuredText comment between levels
+        # of nested list avoids getting extra blank line between list items.
+        # That prevents ResStructuredText from thinking each item must be a
+        # paragraph.
+        suffix = '\n\n..\n\n' + idt if style == 'rst' else '\n'
+        help_ = '{prefix} {key}:{help}{suffix}'.format(
+            prefix=prefix,
+            suffix=suffix,
             key=self.name,
             help= ' ' + self.help if self.help else '',
             idt=idt,
         )
-        help_ += ('\n' + idt).join(
-            key_desc.get_help().replace('\n', '\n'+idt)
+        nl = '\n' + idt
+        help_ += nl.join(
+            key_desc.get_help(style=style).replace('\n', nl)
             for key_desc in self.children
         )
+        if style == 'rst':
+            help_ += '\n\n..\n'
 
         return help_
 
@@ -622,13 +642,7 @@ class MultiSrcConfMeta(abc.ABCMeta):
             doc = new_cls.__doc__
             if doc:
                 # Create a ResStructuredText preformatted block
-                generated_help = '::\n\n\t{}'.format('\n\t'.join(
-                    line
-                    for line in new_cls.get_help().splitlines()
-                    # We need to remove empty lines since it would break
-                    # the ResStructuredText preformatted block syntax
-                    if line.strip()
-                ))
+                generated_help = '\n' + new_cls.get_help(style='rst')
                 new_cls.__doc__ = doc.format(generated_help=generated_help)
         return new_cls
 
@@ -725,10 +739,6 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         plat_conf = cls(conf)
         plat_conf.force_src_nested(src_override)
         return plat_conf
-
-    @staticmethod
-    def _get_cls_name(cls):
-        return 'None' if cls is None else cls.__qualname__
 
     def add_src(self, src, conf, filter_none=False, fallback=False):
         # Filter-out None values, so they won't override actual data from
