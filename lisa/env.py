@@ -51,7 +51,46 @@ class TargetConf(MultiSrcConf, HideExekallID):
     """
     Target connection settings.
 
+    Only keys defined below ``target-conf`` are allowed, with the given meaning
+    and type:
+
+
     {generated_help}
+
+
+    The following special YAML tags can be used in the configuration file:
+
+    .. code-block:: YAML
+
+        target-conf:
+            # "!env:<type> ENV_VAR_NAME" can be used to reference an
+            # environment variable.
+            name: !env:str BOARD_NAME
+            port: !env:int PORT
+
+            # It is possible to include another YAML file as a whole node in
+            # the current YAML document.
+            ftrace: !include /path/to/$ENV_VAR/ftrace.yml
+
+
+    .. note:: That structure in a YAML file is allowed and will work:
+
+        * file foo.yml::
+
+            target-conf:
+                name: myboard
+
+        * file bar.yml::
+
+            target-conf:
+                !include foo.yml
+
+        This will result in that structure which would normally be invalid, but
+        is handled as a special case::
+
+            target-conf:
+                target-conf:
+                    name: myboard
     """
     YAML_MAP_TOP_LEVEL_KEY = 'target-conf'
 
