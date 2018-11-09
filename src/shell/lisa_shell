@@ -535,6 +535,10 @@ function lisa-buildroot-create-rootfs {
 	"$LISA_HOME/src/shell/lisa_buildroot_create_rootfs" "$@"
 }
 
+function lisa-buildroot-update-kernel-config {
+	"$LISA_HOME/src/shell/lisa_buildroot_update_kernel_config" "$@"
+}
+
 ################################################################################
 # LISA Shell MAIN
 ################################################################################
