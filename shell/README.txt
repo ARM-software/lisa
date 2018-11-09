@@ -10,6 +10,7 @@ For a longer description type "lisa-<command> help"
 
 lisa-help    - Print this help, or command specific helps
 lisa-version - Dump info on the LISA in use
+lisa-buildroot-create-rootfs   - Create a buildroot based rootfs to be used as userland for testing
 
 .:: Maintenance commands
 ------------------------

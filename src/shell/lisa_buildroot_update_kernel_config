@@ -1,0 +1,65 @@
+#! /bin/bash
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2018, ARM Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+set -e
+
+BUILDROOT_DIR=$LISA_HOME/src/buildroot
+
+ROOTFS="$1"
+KERNEL_DIR="$2"
+KERNEL_CONFIG="$2/.config"
+
+function print_usage {
+	echo "Usage: $0 <path/to/rootfs> <path/to/kernel/tree>"
+	echo "	options:"
+	echo "		-h: print this help message"
+}
+
+while getopts "hp" opt
+do
+	case $opt in
+		h)
+			print_usage
+			exit 0
+			;;
+		*)
+			print_usage
+			exit -1
+			;;
+	esac
+done
+
+if [[ -z "$1" || -z "$2" ]]; then
+	echo "ERROR: missing argument"
+	echo ""
+	print_usage
+	exit -1
+fi
+
+# Automatically detect the arm arch we are building for
+ARCH="`grep -owE "(arm|arm64)" $KERNEL_CONFIG`"
+if [ -z "$ARCH" ]; then
+	echo "ERROR: unknown arch, arm and arm64 are assumed"
+	exit -1
+fi
+
+set -u
+
+# Update kernel .config to use the provided rootfs as builtin initramfs
+sed -i "s#[.]*CONFIG_INITRAMFS_SOURCE.*#CONFIG_INITRAMFS_SOURCE=\"$ROOTFS\"#" "$KERNEL_CONFIG"
+make -C "$KERNEL_DIR" ARCH=$ARCH olddefconfig
