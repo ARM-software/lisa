@@ -171,7 +171,7 @@ class TestEnv(Loggable, HideExekallID):
                 raise ValueError('res_dir must be empty: {}'.format(self._res_dir))
 
         self.target_conf = target_conf
-        logger.debug('Target configuration:\n%s', self.target_conf)
+        logger.info('Target configuration:\n%s', self.target_conf)
 
         if plat_info is None:
             plat_info = PlatformInfo()
@@ -419,7 +419,7 @@ class TestEnv(Loggable, HideExekallID):
         devlib_module_set.difference_update(excluded_devlib_modules)
 
         devlib_module_list = sorted(devlib_module_set)
-        logger.info('Devlib modules to load: %s', devlib_module_list)
+        logger.info('Devlib modules to load: %s', ', '.join(devlib_module_list))
 
         ########################################################################
         # Create devlib Target object
