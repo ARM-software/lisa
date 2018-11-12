@@ -127,7 +127,7 @@ class ResultBundle:
         return cls(result, *args, **kwargs)
 
     def __bool__(self):
-        return self.result == Result.PASSED
+        return self.result is Result.PASSED
 
     def __str__(self):
         return self.result.name + ': ' + ', '.join(
