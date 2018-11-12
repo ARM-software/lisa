@@ -41,6 +41,8 @@ import logging
 
 import ruamel.yaml
 
+from exekall.utils import debug
+
 yaml = ruamel.yaml.YAML(typ='unsafe')
 yaml.allow_unicode = True
 yaml.default_flow_style = False
@@ -1238,7 +1240,7 @@ class Expression:
                     # that was computed with a given param_expr_val_map
                     assert len(result_list) == 1
                     expr_val_seq = result_list[0]
-                    yield from expr_val_seq.get_expr_value_iter()
+                    yield from expr_val_seq.iter_expr_value()
                     continue
 
             # Only compute the non-reusable parameters if all the reusable one
@@ -1311,7 +1313,7 @@ class Expression:
                 post_compute_cb
             )
             self.result_list.append(expr_val_seq)
-            yield from expr_val_seq.get_expr_value_iter()
+            yield from expr_val_seq.iter_expr_value()
 
 def infinite_iter(generator, value_list, from_gen):
     """Exhaust the `generator` when `from_gen=True`, yield from `value_list`
@@ -1388,7 +1390,9 @@ def is_serializable(obj, raise_excep=False):
         # it can actually be serialized
         pickle.dumps(obj)
     except (TypeError, pickle.PickleError) as e:
-        logging.getLogger('serialization test').debug('Cannot serialize instance of %s: %s', type(obj).__qualname__, str(e))
+        debug('Cannot serialize instance of {}: {}'.format(
+            type(obj).__qualname__, str(e)
+        ))
         if raise_excep:
             raise NotSerializableError(obj)
         return False
@@ -1502,9 +1506,12 @@ class Operator:
     def force_param(self, param_callable_map, tag_list_getter=None):
         def define_type(param_type):
             class ForcedType(param_type):
-                # Make ourselves transparent for better reporting
-                __qualname__ = param_type.__qualname__
-                __module__ = param_type.__module__
+                pass
+
+            # Make it transparent for better reporting
+            ForcedType.__qualname__ = param_type.__qualname__
+            ForcedType.__name__ = param_type.__name__
+            ForcedType.__module__ = param_type.__module__
             return ForcedType
 
         prebuilt_op_set = set()
@@ -1796,7 +1803,7 @@ class ExprValueSeq:
         self.param_expr_val_map = param_expr_val_map
         self.post_compute_cb = post_compute_cb
 
-    def get_expr_value_iter(self):
+    def iter_expr_value(self):
         callback = self.post_compute_cb
         if not callback:
             callback = lambda x, reused: None

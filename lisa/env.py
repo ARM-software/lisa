@@ -35,48 +35,96 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
 from lisa.energy_meter import EnergyMeter
-from lisa.utils import Loggable, MultiSrcConf, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList, setup_logging, ArtifactPath
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList, setup_logging, ArtifactPath
+from lisa.utils import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc
 
 from lisa.platforms.platinfo import PlatformInfo
 
 USERNAME_DEFAULT = 'root'
 ADB_PORT_DEFAULT = 5555
 SSH_PORT_DEFAULT = 22
-FTRACE_EVENTS_DEFAULT = ['sched:*']
 FTRACE_BUFSIZE_DEFAULT = 10240
 RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
-DEFAULT_DEVLIB_MODULES = ['sched', 'cpufreq', 'cpuidle']
 
 class TargetConf(MultiSrcConf, HideExekallID):
+    """
+    Target connection settings.
+
+    Only keys defined below ``target-conf`` are allowed, with the given meaning
+    and type:
+
+
+    {generated_help}
+
+
+    The following special YAML tags can be used in the configuration file:
+
+    .. code-block:: YAML
+
+        target-conf:
+            # "!env:<type> ENV_VAR_NAME" can be used to reference an
+            # environment variable.
+            name: !env:str BOARD_NAME
+            port: !env:int PORT
+
+            # It is possible to include another YAML file as a whole node in
+            # the current YAML document.
+            ftrace: !include /path/to/$ENV_VAR/ftrace.yml
+
+
+    .. note:: That structure in a YAML file is allowed and will work:
+
+        * file foo.yml::
+
+            target-conf:
+                name: myboard
+
+        * file bar.yml::
+
+            target-conf:
+                !include foo.yml
+
+        This will result in that structure which would normally be invalid, but
+        is handled as a special case::
+
+            target-conf:
+                target-conf:
+                    name: myboard
+    """
     YAML_MAP_TOP_LEVEL_KEY = 'target-conf'
 
-    STRUCTURE = {
-        'kind': str,
-        'host': str,
-        'board': str,
-        'username': str,
-        'password': str,
-        'port': int,
-        'device': str,
-        'keyfile': str,
-        'workdir': str,
-        'tools': StrList,
-        'ftrace': {
-            'events': StrList,
-            'functions': StrList,
-            'buffsize': int,
-        },
-        'devlib': {
-            'platform': {
-                'class': str,
-                'args': Mapping,
-            },
-            'excluded-modules': StrList,
-        }
-    }
+    STRUCTURE = TopLevelKeyDesc(YAML_MAP_TOP_LEVEL_KEY, 'target connection settings', (
+        KeyDesc('name', 'Board name, free-form value only used to embelish logs', [str]),
+        KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [str]),
+        KeyDesc('host', 'Hostname or IP address of the host', [str, None]),
+        KeyDesc('username', 'SSH username', [str, None]),
+        KeyDesc('password', 'SSH password', [str, None]),
+        KeyDesc('port', 'SSH or ADB server port', [int, None]),
+        KeyDesc('device', 'ADB device. Takes precedence over "host"', [str, None]),
+        KeyDesc('keyfile', 'SSH private key file', [str, None]),
+
+        KeyDesc('workdir', 'Remote target workdir', [str]),
+        KeyDesc('tools', 'List of tools to install on the target', [StrList]),
+        LevelKeyDesc('ftrace', 'FTrace configuration', (
+            KeyDesc('events', 'FTrace events to trace', [StrList]),
+            KeyDesc('functions', 'FTrace functions to trace', [StrList]),
+            KeyDesc('buffsize', 'FTrace buffer size', [int]),
+        )),
+        LevelKeyDesc('devlib', 'devlib configuration', (
+            LevelKeyDesc('platform', 'devlib.platform.Platform subclass specification', (
+                KeyDesc('class', 'Name of the class to use', [str]),
+                KeyDesc('args', 'Keyword arguments to build the Platform object', [Mapping]),
+            )),
+            KeyDesc('excluded-modules', 'List of devlib modules to *not* load', [StrList]),
+        ))
+    ))
 
     DEFAULT_CONF = {
+        'username': USERNAME_DEFAULT,
+        'ftrace': {
+            'buffsize': FTRACE_BUFSIZE_DEFAULT,
+        },
         'devlib': {
             'platform': {
                 'class': 'devlib.platform.Platform'
@@ -145,7 +193,7 @@ class TestEnv(Loggable, HideExekallID):
         super().__init__()
         logger = self.get_logger()
 
-        board_name = target_conf.get('board')
+        board_name = target_conf.get('name')
         if not res_dir:
             name = board_name or type(self).__qualname__
             time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
@@ -161,7 +209,7 @@ class TestEnv(Loggable, HideExekallID):
                 raise ValueError('res_dir must be empty: {}'.format(self._res_dir))
 
         self.target_conf = target_conf
-        logger.debug('Target configuration %s', self.target_conf)
+        logger.info('Target configuration:\n%s', self.target_conf)
 
         if plat_info is None:
             plat_info = PlatformInfo()
@@ -195,7 +243,7 @@ class TestEnv(Loggable, HideExekallID):
 
         # Update the PlatformInfo with keys derived from the energy model
         with contextlib.suppress(KeyError):
-            self.plat_info.add_from_nrg_model_src()
+            self.plat_info.add_nrg_model_src()
 
         logger.info('Effective platform information:\n%s', self.plat_info)
 
@@ -324,10 +372,11 @@ class TestEnv(Loggable, HideExekallID):
             # Workaround for ARM-software/devlib#225
             target_workdir = target_workdir or '/data/local/tmp/devlib-target'
 
-            if 'device' in target_conf:
-                device = target_conf['device']
-            elif 'host' in target_conf:
-                host = target_conf['host']
+            device = target_conf.get('device')
+            host = target_conf.get('host')
+            if device:
+                pass
+            elif host:
                 port = target_conf.get('port', ADB_PORT_DEFAULT)
                 device = '{}:{}'.format(host, port)
             else:
@@ -339,13 +388,17 @@ class TestEnv(Loggable, HideExekallID):
             logger.debug('Setting up Linux target...')
             devlib_target_cls = devlib.LinuxTarget
 
-            conn_settings['username'] = target_conf.get('username', USERNAME_DEFAULT)
+            conn_settings['username'] = target_conf['username']
             conn_settings['port'] = target_conf.get('port', SSH_PORT_DEFAULT)
+            # Force reading 'host' from target_conf, so it will raise if the key
+            # does not exist
             conn_settings['host'] = target_conf['host']
 
+
             # Configure password or SSH keyfile
-            if 'keyfile' in target_conf:
-                conn_settings['keyfile'] = target_conf['keyfile']
+            keyfile = target_conf.get('keyfile')
+            if keyfile:
+                conn_settings['keyfile'] = keyfile
             else:
                 conn_settings['password'] = target_conf.get('password')
         elif target_kind == 'host':
@@ -355,7 +408,7 @@ class TestEnv(Loggable, HideExekallID):
         else:
             raise ValueError('Unsupported platform type {}'.format(target_kind))
 
-        board_name = target_conf.get('board', '')
+        board_name = target_conf.get('name', '')
         logger.info('%s %s target connection settings:', target_kind, board_name)
         for key, val in conn_settings.items():
             logger.info('%10s : %s', key, val)
@@ -404,7 +457,7 @@ class TestEnv(Loggable, HideExekallID):
         devlib_module_set.difference_update(excluded_devlib_modules)
 
         devlib_module_list = sorted(devlib_module_set)
-        logger.info('Devlib modules to load: %s', devlib_module_list)
+        logger.info('Devlib modules to load: %s', ', '.join(devlib_module_list))
 
         ########################################################################
         # Create devlib Target object
@@ -529,8 +582,7 @@ class TestEnv(Loggable, HideExekallID):
 
         self._installed_tools.update(tools)
 
-    def get_ftrace_collector(self, events=None, functions=None,
-                             buffsize=FTRACE_BUFSIZE_DEFAULT):
+    def get_ftrace_collector(self, events=None, functions=None, buffsize=0):
         """
         Get a configured FtraceCollector
 
@@ -540,7 +592,9 @@ class TestEnv(Loggable, HideExekallID):
         :param functions: the kernel functions to trace
         :type functions: list(str)
 
-        :param buffsize: The size of the Ftrace buffer
+        :param buffsize: The size of the Ftrace buffer. The value used will be
+            the maximum of the one in the target configuration and the one
+            specified in that argument.
         :type buffsize: int
 
         :raises RuntimeError: If no event nor function is to be traced
@@ -562,7 +616,7 @@ class TestEnv(Loggable, HideExekallID):
 
         events = merge_conf(events, 'events', [])
         functions = merge_conf(functions, 'functions', [])
-        buffsize = max(buffsize, target_conf.get('buffsize', 0))
+        buffsize = max(buffsize, target_conf['buffsize'])
 
         # If no events or functions have been specified:
         # do not create the FtraceCollector
@@ -627,7 +681,7 @@ class TestEnv(Loggable, HideExekallID):
 
     @contextlib.contextmanager
     def collect_ftrace(self, output_file, events=None, functions=None,
-                       buffsize=FTRACE_BUFSIZE_DEFAULT):
+                       buffsize=0):
         """
         Context manager that lets you collect an Ftrace trace
 
@@ -640,7 +694,8 @@ class TestEnv(Loggable, HideExekallID):
         :param functions: the kernel functions to trace
         :type functions: list(str)
 
-        :param buffsize: The size of the Ftrace buffer
+        :param buffsize: The size of the Ftrace buffer. The target
+            configuration provides a default value.
         :type buffsize: int
 
         :raises RuntimeError: If no event nor function is to be traced

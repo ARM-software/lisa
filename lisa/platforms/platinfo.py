@@ -21,7 +21,8 @@ from collections import ChainMap
 from collections.abc import Mapping
 from numbers import Real
 
-from lisa.utils import HideExekallID, MultiSrcConf, memoized, DeferredValue, IntRealDict, IntIntDict, StrIntListDict
+from lisa.utils import HideExekallID, memoized, DeferredValue, IntRealDict, IntIntDict, StrIntListDict
+from lisa.utils import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc
 from lisa.energy_model import EnergyModel
 from lisa.wlgen.rta import RTA
 
@@ -30,28 +31,40 @@ from devlib.target import KernelVersion
 from devlib.exception import TargetStableError
 
 class PlatformInfo(MultiSrcConf, HideExekallID):
+    """
+    Platform-specific information made available to tests.
+
+    .. warning::
+        The follwing keys are here for compatibility with old code only, do not
+        write new code depending on them:
+            * topology
+            * clusters
+            * freqs
+
+    {generated_help}
+    """
     YAML_MAP_TOP_LEVEL_KEY = 'platform-info'
 
     # we could use mypy.subtypes.is_subtype and use the infrastructure provided
     # by typing module, but adding an external dependency is overkill for what
     # we need.
-    STRUCTURE = {
-        'rtapp': {
-            'calib': IntIntDict,
-        },
-        'nrg-model': EnergyModel,
-        'cpu-capacities': IntRealDict,
-        'kernel-version': KernelVersion,
-        'abi': str,
-        'os': str,
-        'name': str,
+    STRUCTURE = TopLevelKeyDesc(YAML_MAP_TOP_LEVEL_KEY, 'Platform-specific information', (
+        LevelKeyDesc('rtapp', 'RTapp configuration', (
+            KeyDesc('calib', 'RTapp calibration dictionary', [IntIntDict]),
+        )),
+        KeyDesc('nrg-model', 'Energy model object', [EnergyModel]),
+        KeyDesc('cpu-capacities', 'Dictionary of CPU ID to capacity value', [IntRealDict]),
+        KeyDesc('kernel-version', '', [KernelVersion]),
+        KeyDesc('abi', 'ABI, e.g. "arm64"', [str]),
+        KeyDesc('os', 'OS being used, e.g. "linux"', [str]),
+        KeyDesc('name', 'Free-form name of the board', [str]),
 
-        # TODO: remove that once no code depend on it anymore
-        'topology': Topology,
-        'clusters': StrIntListDict,
-        'cpus-count': int,
-        'freqs': StrIntListDict,
-    }
+        # TODO remove that once no code depend on it anymore
+        KeyDesc('topology', 'Compat key: CPU topology', [Topology]),
+        KeyDesc('clusters', 'Compat key: dictionary of cluster names to list of CPU ID', [StrIntListDict]),
+        KeyDesc('cpus-count', 'Compat key: number of CPUs', [int]),
+        KeyDesc('freqs', 'Compat key: dictionary of cluster names to list of frequencies', [StrIntListDict]),
+    ))
     """Some keys have a reserved meaning with an associated type."""
 
     def __init__(self, conf=None, src='user'):
@@ -77,7 +90,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
     #TODO: kill that once code depending on this has been converted to
     # using the appropriate "root" data, instead of these derived values.
-    def add_from_nrg_model_src(self, nrg_model=None, src='nrg-model', **kwargs):
+    def add_nrg_model_src(self, nrg_model=None, src='nrg-model', **kwargs):
         # Derive all the deprecated keys from the nrg_model
         nrg_model = nrg_model or self['nrg-model']
         node_groups = nrg_model.node_groups
@@ -142,6 +155,8 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             logger.error("Couldn't read target energy model: %s", err)
             return None
 
+    # OLD CODE AFTER REFACTORING, FOR REFERENCE OF WHAT IS THE EXPECTED FORMAT
+    # AND CONTENT OF THE COMPATIBILITY KEYS
     #  @classmethod
     #  def _topology_from_target(cls, target):
         #  logger = cls.get_logger()
