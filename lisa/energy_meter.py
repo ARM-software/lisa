@@ -362,7 +362,7 @@ class ACME(EnergyMeter):
         # Check if iio-capture binary is available
         try:
             p = Popen([self._iiocapturebin, '-h'], stdout=PIPE, stderr=STDOUT)
-        except:
+        except OSError:
             logger.error('iio-capture binary [%s] not available',
                             self._iiocapturebin)
             logger.warning(_acme_install_instructions)

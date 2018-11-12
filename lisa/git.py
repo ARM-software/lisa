@@ -46,7 +46,7 @@ class Git(object):
         for line in branches.splitlines():
             try:
                 sha1_out, name = line.strip().split()
-            except:
+            except ValueError:
                 continue
             if sha1_out[:7] == sha1[:7]:
                 possibles.append(name)

@@ -221,7 +221,7 @@ class LisaBenchmark(object):
         if 'energy' not in self.bm_collect:
             try:
                 self.bm_conf.pop('emeter')
-            except:
+            except KeyError:
                 pass
 
         return self.bm_conf
@@ -298,7 +298,7 @@ class LisaBenchmark(object):
         try:
             self._preInit()
             self.benchmarkInit()
-        except:
+        except Exception:
             self._log.warning('Benchmark initialization failed: execution aborted')
             raise
 
@@ -306,9 +306,7 @@ class LisaBenchmark(object):
         for iter_id in range(1, self.bm_iterations+1):
             self._log.info('=== Iteration {}/{}...'.format(iter_id, self.bm_iterations))
             out_dir = os.path.join(self.out_dir, "{:03d}".format(iter_id))
-            try:
-                os.makedirs(out_dir)
-            except: pass
+            os.makedirs(out_dir, exist_ok=True)
 
             self._preRun()
 
