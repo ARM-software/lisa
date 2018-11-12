@@ -115,6 +115,7 @@ given UUID from the database.""")
 class or a subclass of it.""")
 
     goal_group.add_argument('--callable-goal', action='append',
+        default=[],
         help="""Compute expressions ending with a callable which name is
 matching this pattern.""")
 
@@ -228,9 +229,9 @@ the name of the parameter, the start value, stop value and step size.""")
     only_template_scripts = args.template_scripts
 
     type_goal_pattern = args.goal
-    callable_goal_pattern = args.callable_goal
+    callable_goal_pattern_set = set(args.callable_goal)
 
-    if not (type_goal_pattern or callable_goal_pattern):
+    if not (type_goal_pattern or callable_goal_pattern_set):
         type_goal_pattern = set(adaptor_cls.get_default_type_goal_pattern_set())
 
     load_db_path = args.load_db
@@ -243,6 +244,7 @@ the name of the parameter, the start value, stop value and step size.""")
     forbidden_pattern_set = set(args.forbid)
     allowed_pattern_set = set(args.allow)
     allowed_pattern_set.update(restricted_pattern_set)
+    allowed_pattern_set.update(callable_goal_pattern_set)
 
     sys.path.extend(args.modules_root)
 
@@ -471,12 +473,11 @@ the name of the parameter, the start value, stop value and step size.""")
         return op_map
 
     op_map = build_op_map(op_pool, only_prebuilt_cls, forbidden_pattern_set)
-    # Make sure that we only use what is available from now on
-    op_pool = set(itertools.chain.from_iterable(op_map.values()))
 
     # Restrict the production of some types to a set of operators.
     restricted_op_set = {
-        op for op in op_pool
+        # Make sure that we only use what is available
+        op for op in itertools.chain.from_iterable(op_map.values())
         if utils.match_name(op.get_name(full_qual=True), restricted_pattern_set)
     }
     def apply_restrict(produced, op_set, restricted_op_set, cls_map):
@@ -497,19 +498,21 @@ the name of the parameter, the start value, stop value and step size.""")
         for produced, op_set in op_map.items()
     }
 
-    # Get the list of root operators
+    # Get the callable goals
     root_op_set = set()
-    for produced, op_set in op_map.items():
-        # All producers of the goal types can be a root operator in the
-        # expressions we are going to build, i.e. the outermost function call
-        if type_goal_pattern:
+    if callable_goal_pattern_set:
+        root_op_set.update(
+            op for op in op_pool
+            if utils.match_name(op.get_name(full_qual=True), callable_goal_pattern_set)
+        )
+
+    # Get the list of root operators by produced type
+    if type_goal_pattern:
+        for produced, op_set in op_map.items():
+            # All producers of the goal types can be a root operator in the
+            # expressions we are going to build, i.e. the outermost function call
             if utils.match_base_cls(produced, type_goal_pattern):
                 root_op_set.update(op_set)
-
-        if callable_goal_pattern:
-            for op in op_set:
-                if utils.match_name(op.get_name(full_qual=True), callable_goal_pattern):
-                    root_op_set.add(op)
 
     # Sort for stable output
     root_op_list = sorted(root_op_set, key=lambda op: str(op.name))
