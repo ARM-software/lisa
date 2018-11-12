@@ -1506,9 +1506,12 @@ class Operator:
     def force_param(self, param_callable_map, tag_list_getter=None):
         def define_type(param_type):
             class ForcedType(param_type):
-                # Make ourselves transparent for better reporting
-                __qualname__ = param_type.__qualname__
-                __module__ = param_type.__module__
+                pass
+
+            # Make it transparent for better reporting
+            ForcedType.__qualname__ = param_type.__qualname__
+            ForcedType.__name__ = param_type.__name__
+            ForcedType.__module__ = param_type.__module__
             return ForcedType
 
         prebuilt_op_set = set()
