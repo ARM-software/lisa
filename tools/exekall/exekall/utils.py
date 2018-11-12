@@ -335,7 +335,7 @@ class ExekallFormatter(logging.Formatter):
         else:
             return self.default_fmt.format(record)
 
-def setup_logging(log_level, debug_log_file=None, verbose=0):
+def setup_logging(log_level, debug_log_file=None, info_log_file=None, verbose=0):
     logging.addLevelName(LOGGING_OUT_LEVEL, 'OUT')
     level=getattr(logging, log_level.upper())
 
@@ -356,6 +356,12 @@ def setup_logging(log_level, debug_log_file=None, verbose=0):
         file_handler = logging.FileHandler(str(debug_log_file), encoding='utf-8')
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(verbose_formatter)
+        logger.addHandler(file_handler)
+
+    if info_log_file:
+        file_handler = logging.FileHandler(str(info_log_file), encoding='utf-8')
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(normal_formatter)
         logger.addHandler(file_handler)
 
 EXEKALL_LOGGER  = logging.getLogger('EXEKALL')

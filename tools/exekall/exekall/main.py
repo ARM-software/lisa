@@ -260,6 +260,7 @@ the name of the parameter, the start value, stop value and step size.""")
 
     if dry_run:
         debug_log = None
+        info_log = None
     else:
         artifact_dir.mkdir(parents=True)
         artifact_dir = artifact_dir.resolve()
@@ -267,8 +268,9 @@ the name of the parameter, the start value, stop value and step size.""")
         # correct value
         args.artifact_dir = artifact_dir
         debug_log = artifact_dir.joinpath('debug_log.txt')
+        info_log = artifact_dir.joinpath('info_log.txt')
 
-    utils.setup_logging(args.log_level, debug_log, verbose)
+    utils.setup_logging(args.log_level, debug_log, info_log, verbose=verbose)
 
     module_set.update(utils.import_file(path) for path in args.python_files)
 
