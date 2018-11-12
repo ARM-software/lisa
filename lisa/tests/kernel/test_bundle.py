@@ -184,7 +184,7 @@ class TestBundle(Serializable, abc.ABC):
         given directory (which should have been created by an earlier call
         to :meth:`from_testenv` and then :meth:`to_dir`), and will then return
         a :class:`TestBundle`.
-      * :attr:`verify_serialization` is there to ensure both above methods remain
+      * :attr:`VERIFY_SERIALIZATION` is there to ensure both above methods remain
         operationnal at all times.
 
     **Implementation example**::
@@ -201,7 +201,7 @@ class TestBundle(Serializable, abc.ABC):
                 output = te.target.execute('echo $((21+21))').split()
                 return cls(res_dir, output)
 
-            def test_output(self):
+            def test_output(self) -> ResultBundle:
                 passed = False
                 for line in self.shell_output:
                     if '42' in line:
@@ -225,7 +225,7 @@ class TestBundle(Serializable, abc.ABC):
         res_bundle = bundle.test_foo()
     """
 
-    verify_serialization = True
+    VERIFY_SERIALIZATION = True
     """
     When True, this enforces a serialization/deserialization step in :meth:`from_testenv`.
     Although it hinders performance (we end up creating two :class:`TestBundle`
@@ -272,7 +272,7 @@ class TestBundle(Serializable, abc.ABC):
         try:
             cls.check_from_testenv(te)
             return True
-        except:
+        except CannotCreateError:
             return False
 
     @classmethod
@@ -296,7 +296,7 @@ class TestBundle(Serializable, abc.ABC):
         # the information we need to execute the test code. However,
         # we enforce the use of the offline reloading path to ensure
         # it does not get broken.
-        if cls.verify_serialization:
+        if cls.VERIFY_SERIALIZATION:
             bundle.to_dir(res_dir)
             # Updating the res_dir breaks deserialization for some use cases
             bundle = cls.from_dir(res_dir, update_res_dir=False)
