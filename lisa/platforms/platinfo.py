@@ -82,7 +82,8 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             'rtapp': {
                 # Since it is expensive to compute, use an on-demand DeferredValue
                 'calib': DeferredValue(RTA.get_cpu_calibrations, te)
-            }
+            },
+            'cpus-count': te.target.number_of_cpus
         }
 
         if 'sched' in target.modules:
@@ -122,7 +123,6 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         }
 
         topology = Topology(clusters=cpu_groups)
-        cpus_count = sum(len(group) for group in cpu_groups)
 
         def freq_list(group):
             return sorted(set(
@@ -139,7 +139,6 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         info = {
             'clusters': clusters,
             'topology': topology,
-            'cpus-count': cpus_count,
             'freqs': freqs,
         }
 
