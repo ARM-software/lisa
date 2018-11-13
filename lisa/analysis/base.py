@@ -44,22 +44,6 @@ class AnalysisBase:
 
         plat_info = self._trace.plat_info
 
-        # By default assume SMP system
-        self._big_cap = 1024
-        self._little_cap = 1024
-        self._big_cpus = list(range(trace.cpus_count))
-        self._little_cpus = []
-
-        if self._trace.has_big_little:
-            nrg_model = plat_info['nrg-model']
-            self._little_cap = nrg_model.get_cpu_capacity(nrg_model.littlest_cpus[0])
-
-        if ('clusters' in plat_info and
-            'big' in plat_info['clusters'] and
-            'little' in plat_info['clusters']):
-            self._big_cpus = plat_info['clusters']['big']
-            self._little_cpus = plat_info['clusters']['little']
-
     def _plot_setup(self, width=16, height=4, ncols=1, nrows=1):
         figure, axes = plt.subplots(
             ncols=ncols, nrows=nrows, figsize=(width, height * nrows)
