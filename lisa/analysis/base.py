@@ -17,6 +17,8 @@
 
 import logging
 from collections import namedtuple
+import os
+import inspect
 
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
@@ -80,6 +82,30 @@ class AnalysisBase:
         # Needed for multirow plots to not overlap with each other
         plt.tight_layout(h_pad=3.5)
         return figure, axes
+
+    def save_plot(self, figure, filepath=None, img_format="png"):
+        """
+        Save the plot stored in the ``figure``
+
+        :param figure: The plot figure
+        :type figure: matplotlib.figure.figure
+
+        :param filepath: The path of the file into which the plot will be saved.
+          If ``None``, a path based on the trace directory and the calling method
+          will be used.
+        :type filepath: str
+
+        :param img_format: The image format to generate
+        :type img_format: str
+        """
+        if filepath is None:
+            module = self.__module__
+            caller = inspect.stack()[1][3]
+            filepath = os.path.join(
+                self._trace.plots_dir,
+                "{}.{}.{}".format(module, caller, img_format))
+
+        figure.savefig(filepath, format=img_format)
 
     def check_events(self, required_events):
         """
