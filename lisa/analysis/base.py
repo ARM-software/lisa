@@ -52,7 +52,28 @@ class AnalysisBase:
 
         plat_info = self._trace.plat_info
 
-    def setup_plot(self, width=16, height=4, ncols=1, nrows=1, **kwargs):
+    @classmethod
+    def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, **kwargs):
+        """
+        Common helper for setting up a matplotlib plot
+
+        :param width: Width of the plot (inches)
+        :type width: int or float
+
+        :param height: Height of each subplot (inches)
+        :type height: int or float
+
+        :param ncols: Number of plots on a single row
+        :type ncols: int
+
+        :param nrows: Number of plots in a single column
+        :type nrows: int
+
+        :Keywords arguments: Extra arguments to pass to :meth:`matplotlib.subplots`
+
+        :returns: tuple(matplotlib.figure.Figure, matplotlib.axes.Axes (or an
+          (array of, if ``nrows`` > 1))
+        """
         figure, axes = plt.subplots(
             ncols=ncols, nrows=nrows, figsize=(width, height * nrows), **kwargs
         )
@@ -62,6 +83,8 @@ class AnalysisBase:
 
     def check_events(self, required_events):
         """
+        Check that certain trace events are available in the trace
+
         :raises: RuntimeError if some events are not available
         """
         available_events = set(self._trace.events)
