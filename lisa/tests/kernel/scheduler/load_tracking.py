@@ -520,7 +520,7 @@ class FreqInvariance(TestBundle, LoadTrackingHelpers):
 
         return overall_bundle
 
-class PELTTaskTest(LoadTrackingBase):
+class PELTTask(LoadTrackingBase):
     """
     Basic checks for task related PELT signals behaviour
 
@@ -551,7 +551,7 @@ class PELTTaskTest(LoadTrackingBase):
     task_prefix = 'pelt_behv'
 
     @classmethod
-    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'PELTTaskTest':
+    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'PELTTask':
         """
         Factory method to create a bundle using a live target
 
