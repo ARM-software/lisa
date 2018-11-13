@@ -44,9 +44,9 @@ class AnalysisBase:
 
         plat_info = self._trace.plat_info
 
-    def _plot_setup(self, width=16, height=4, ncols=1, nrows=1):
+    def setup_plot(self, width=16, height=4, ncols=1, nrows=1, **kwargs):
         figure, axes = plt.subplots(
-            ncols=ncols, nrows=nrows, figsize=(width, height * nrows)
+            ncols=ncols, nrows=nrows, figsize=(width, height * nrows), **kwargs
         )
         # Needed for multirow plots to not overlap with each other
         plt.tight_layout(h_pad=3.5)
@@ -134,7 +134,7 @@ class AnalysisBase:
 
         setup_plot = False
         if ax is None:
-            _, ax = self._plot_setup(width, height)
+            _, ax = self.setup_plot(width, height)
             setup_plot = True
 
         matches = dfr[pivot].unique().tolist()
