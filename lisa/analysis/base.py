@@ -36,6 +36,14 @@ class AnalysisBase:
 
     :param trace: input Trace object
     :type trace: :class:`trace.Trace`
+
+    :Design notes:
+
+    Method depending on certain trace events *must* start with a call to
+    :meth:`AnalysisBase.check_events`.
+
+    Plotting methods *must* return the :class:`matplotlib.axes.Axes` instance
+    used by the plotting method. This lets users embed plots into subplots.
     """
 
     def __init__(self, trace):
@@ -51,6 +59,17 @@ class AnalysisBase:
         # Needed for multirow plots to not overlap with each other
         plt.tight_layout(h_pad=3.5)
         return figure, axes
+
+    def check_events(self, required_events):
+        """
+        :raises: RuntimeError if some events are not available
+        """
+        available_events = set(self._trace.events)
+        missing_events = set(required_events).difference(available_events)
+
+        if missing_events:
+            raise RuntimeError(
+                "Trace is missing the following required events: {}".format(missing_events))
 
     def _plot_generic(self, dfr, pivot, filters=None, columns=None,
                      prettify_name=None, width=16, height=4,
