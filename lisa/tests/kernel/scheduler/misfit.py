@@ -257,7 +257,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         :returns: A dataframe that describes the idle status (on/off) of 'cpu'
         """
         active_df = pd.DataFrame(self.trace.getCPUActiveSignal(cpu), columns=['state'])
-        self.trace.addEventsDeltas(active_df)
+        self.trace.add_events_deltas(active_df)
         return active_df
 
     def _max_idle_time(self, start, end, cpus):
