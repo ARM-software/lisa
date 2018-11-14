@@ -29,6 +29,9 @@ class AdaptorBase:
             args = dict()
         self.args = args
 
+    def get_non_reusable_type_set(self):
+        return set()
+
     @staticmethod
     def get_tag_list(value):
         if isinstance(value, numbers.Number):

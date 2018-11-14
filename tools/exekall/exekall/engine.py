@@ -264,8 +264,11 @@ class ExpressionWrapper:
             # class can be built where in fact it cannot
             if compat_cls_set & op_map.keys()
         }
-        for internal_cls in (Consumer, ExprData):
-            op_map[internal_cls] = {Operator(internal_cls)}
+        internal_cls_set = {Consumer, ExprData}
+        for internal_cls in internal_cls_set:
+            op_map[internal_cls] = {
+                Operator(internal_cls, non_reusable_type_set=internal_cls_set)
+            }
             cls_map[internal_cls] = [internal_cls]
 
         expr_list = list()
@@ -1452,10 +1455,9 @@ def get_src_loc(obj):
     return (src_file, src_line)
 
 class Operator:
-    # True to make all objects reusable by default, False otherwise
-    REUSABLE_DEFAULT = True
-
-    def __init__(self, callable_, tag_list_getter=None):
+    def __init__(self, callable_, non_reusable_type_set=None, tag_list_getter=None):
+        if non_reusable_type_set is None:
+            non_reusable_type_set = set()
 
         if not tag_list_getter:
             tag_list_getter = lambda v: []
@@ -1490,12 +1492,7 @@ class Operator:
             )
         }
 
-        if hasattr(self.resolved_callable, '_exekall_reusable'):
-            self.reusable = self.resolved_callable._exekall_reusable
-        elif hasattr(self.value_type, '_exekall_reusable'):
-            self.reusable = self.value_type._exekall_reusable
-        else:
-            self.reusable = self.REUSABLE_DEFAULT
+        self.reusable = self.value_type not in non_reusable_type_set
 
         # At that point, we can get the prototype safely as the object is
         # mostly initialized.
@@ -1797,12 +1794,6 @@ class PrebuiltOperator(Operator):
                 yield (obj, uuid_), (NoValue, None)
         return genf
 
-def reusable(reusable=Operator.REUSABLE_DEFAULT):
-    def decorator(wrapped):
-        wrapped._exekall_reusable = reusable
-        return wrapped
-    return decorator
-
 class ExprValueSeq:
     def __init__(self, expr, iterator, param_expr_val_map, post_compute_cb=None):
         self.expr = expr
@@ -2024,12 +2015,10 @@ class ExprValue:
         for param, expr_val in self.param_value_map.items():
             yield from expr_val.get_failed_values()
 
-@reusable(False)
 class Consumer:
     def __init__(self):
         pass
 
-@reusable(False)
 class ExprData(dict):
     def __init__(self):
         pass

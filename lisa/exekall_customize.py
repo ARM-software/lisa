@@ -34,10 +34,9 @@ from lisa.tests.kernel.test_bundle import TestBundle, Result, ResultBundle, Cann
 from lisa.tests.kernel.scheduler.load_tracking import FreqInvarianceItem
 
 from exekall import utils, engine
-from exekall.engine import reusable, ExprData, Consumer, PrebuiltOperator, NoValue, get_name, get_mro
+from exekall.engine import ExprData, Consumer, PrebuiltOperator, NoValue, get_name, get_mro
 from exekall.customization import AdaptorBase
 
-@reusable(False)
 class ExekallArtifactPath(ArtifactPath):
     @classmethod
     def from_expr_data(cls, data:ExprData, consumer:Consumer) -> 'ExekallArtifactPath':
@@ -68,21 +67,29 @@ class ExekallArtifactPath(ArtifactPath):
 class LISAAdaptor(AdaptorBase):
     name = 'LISA'
 
+    def get_non_reusable_type_set(self):
+        return {
+            ExekallArtifactPath,
+        }
+
     def get_prebuilt_list(self):
+        non_reusable_type_set = self.get_non_reusable_type_set()
         op_list = []
         if self.args.target_conf:
             op_list.append(
                 PrebuiltOperator(TargetConf, [
                     TargetConf.from_yaml_map(self.args.target_conf)
-                ])
-            )
+                ],
+                non_reusable_type_set=non_reusable_type_set
+            ))
 
         if self.args.platform_info:
             op_list.append(
                 PrebuiltOperator(PlatformInfo, [
                     PlatformInfo.from_yaml_map(self.args.platform_info)
-                ])
-            )
+                ],
+                non_reusable_type_set=non_reusable_type_set
+            ))
 
         return op_list
 
@@ -296,10 +303,4 @@ RESULT_TAG_MAP = {
 }
 # Make sure we cover all cases
 assert set(RESULT_TAG_MAP.keys()) == set(Result)
-
-
-
-
-
-
 

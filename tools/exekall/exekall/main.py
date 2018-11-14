@@ -276,6 +276,8 @@ the name of the parameter, the start value, stop value and step size.""")
 
     module_set.update(utils.import_file(path) for path in args.python_files)
 
+    non_reusable_type_set = adaptor.get_non_reusable_type_set()
+
     # Get the prebuilt operators from the adaptor
     if not load_db_path:
         prebuilt_op_pool_list = adaptor.get_prebuilt_list()
@@ -370,13 +372,18 @@ the name of the parameter, the start value, stop value and step size.""")
                 prebuilt_op_pool_list.append(
                     engine.PrebuiltOperator(
                         type_, serial_list, id_=id_,
+                        non_reusable_type_set=non_reusable_type_set,
                         tag_list_getter=adaptor.get_tag_list,
                     ))
 
     # Pool of all callable considered
     callable_pool = utils.get_callable_set(module_set, verbose=verbose)
     op_pool = {
-        engine.Operator(callable_, tag_list_getter=adaptor.get_tag_list)
+        engine.Operator(
+            callable_,
+            non_reusable_type_set=non_reusable_type_set,
+            tag_list_getter=adaptor.get_tag_list
+        )
         for callable_ in callable_pool
     }
     filtered_op_pool = adaptor.filter_op_pool(op_pool)
