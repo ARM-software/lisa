@@ -148,7 +148,7 @@ class ThermalAnalysis(AnalysisBase):
         :type thermal_zones: list(int)
         """
         if not self._trace.hasEvents('thermal_temperature'):
-            self._log.warning('Event [{}] not found, plot DISABLED!'
+            self.get_logger().warning('Event [{}] not found, plot DISABLED!'
                               .format('thermal_temperature'))
             return
 
@@ -191,7 +191,7 @@ class ThermalAnalysis(AnalysisBase):
         :type cpus: list(int)
         """
         if not self._trace.hasEvents('thermal_power_cpu_limit'):
-            self._log.warning('Event [{}] not found, plot DISABLED!'
+            self.get_logger().warning('Event [{}] not found, plot DISABLED!'
                               .format('thermal_power_cpu_limit'))
             return
 
@@ -244,7 +244,7 @@ class ThermalAnalysis(AnalysisBase):
         :type cpus: list(int)
         """
         if not self._trace.hasEvents('thermal_power_devfreq_limit'):
-            self._log.warning('Event [{}] not found, plot DISABLED!'
+            self.get_logger().warning('Event [{}] not found, plot DISABLED!'
                               .format('thermal_power_devfreq_limit'))
             return
 

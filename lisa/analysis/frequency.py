@@ -145,7 +145,7 @@ class FrequencyAnalysis(AnalysisBase):
         """
         freq = self._trace.getPeripheralClockEffectiveRate(clk)
         if freq is None or freq.empty:
-            self._log.warning('no peripheral clock events found for clock')
+            self.get_logger().warning('no peripheral clock events found for clock')
             return
 
         fig = plt.figure(figsize=(16,8))
@@ -165,7 +165,7 @@ class FrequencyAnalysis(AnalysisBase):
             set_rate.plot(style=['b--'], ax=freq_axis, drawstyle='steps-post', alpha=0.4, label="clock_set_rate value")
             freq_axis.hlines(set_rate.iloc[-1], set_rate.index[-1], self._trace.x_max, linestyle='--', color='b', alpha=0.4)
         else:
-            self._log.warning('No clock_set_rate events to plot')
+            self.get_logger().warning('No clock_set_rate events to plot')
 
         # Plot frequency information (effective rate)
         eff_rate = freq['effective_rate'].dropna()
@@ -174,7 +174,7 @@ class FrequencyAnalysis(AnalysisBase):
             eff_rate.plot(style=['b-'], ax=freq_axis, drawstyle='steps-post', alpha=1.0, label="Effective rate (with on/off)")
             freq_axis.hlines(eff_rate.iloc[-1], eff_rate.index[-1], self._trace.x_max, linestyle='-', color='b', alpha=1.0)
         else:
-            self._log.warning('No effective frequency events to plot')
+            self.get_logger().warning('No effective frequency events to plot')
 
         freq_axis.set_ylim(0, rate_axis_lib * 1.1)
         freq_axis.set_xlim(self._trace.x_min, self._trace.x_max)
@@ -220,7 +220,7 @@ class FrequencyAnalysis(AnalysisBase):
         :type title: str
         """
         if not self._trace.hasEvents('cpu_frequency'):
-            self._log.warning('Events [cpu_frequency] not found, plot DISABLED!')
+            self.get_logger().warning('Events [cpu_frequency] not found, plot DISABLED!')
             return
         df = self._trace.df_events('cpu_frequency')
 
@@ -276,7 +276,7 @@ class FrequencyAnalysis(AnalysisBase):
             bfreq['frequency'].plot(style=['r-'], ax=axes,
                                     drawstyle='steps-post', alpha=0.4)
         else:
-            self._log.warning('NO big CPUs frequency events to plot')
+            self.get_logger().warning('NO big CPUs frequency events to plot')
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
         axes.set_ylabel('MHz')
         axes.grid(True)
@@ -296,7 +296,7 @@ class FrequencyAnalysis(AnalysisBase):
             lfreq['frequency'].plot(style=['b-'], ax=axes,
                                     drawstyle='steps-post', alpha=0.4)
         else:
-            self._log.warning('NO LITTLE CPUs frequency events to plot')
+            self.get_logger().warning('NO LITTLE CPUs frequency events to plot')
         axes.set_xlim(self._trace.x_min, self._trace.x_max)
         axes.set_ylabel('MHz')
         axes.grid(True)
@@ -307,9 +307,9 @@ class FrequencyAnalysis(AnalysisBase):
                   .format(self._trace.plots_dir, self._trace.plots_prefix)
         pl.savefig(figname, bbox_inches='tight')
 
-        self._log.info('LITTLE cluster average frequency: %.3f GHz',
+        self.get_logger().info('LITTLE cluster average frequency: %.3f GHz',
                        avg_lfreq/1e3)
-        self._log.info('big    cluster average frequency: %.3f GHz',
+        self.get_logger().info('big    cluster average frequency: %.3f GHz',
                        avg_bfreq/1e3)
 
         return (avg_lfreq/1e3, avg_bfreq/1e3)
@@ -330,7 +330,7 @@ class FrequencyAnalysis(AnalysisBase):
         :return: a dictionary of average frequency for each CPU.
         """
         if not self._trace.hasEvents('cpu_frequency'):
-            self._log.warning('Events [cpu_frequency] not found, plot DISABLED!')
+            self.get_logger().warning('Events [cpu_frequency] not found, plot DISABLED!')
             return
         df = self._trace.df_events('cpu_frequency')
 
@@ -349,7 +349,7 @@ class FrequencyAnalysis(AnalysisBase):
             # Extract CPUs' frequencies and scale them to [MHz]
             _df = df[df.cpu == cpu_id]
             if _df.empty:
-                self._log.warning('No [cpu_frequency] events for CPU%d, '
+                self.get_logger().warning('No [cpu_frequency] events for CPU%d, '
                                   'plot DISABLED!', cpu_id)
                 continue
             _df['frequency'] = _df.frequency / 1e3
@@ -419,7 +419,7 @@ class FrequencyAnalysis(AnalysisBase):
                 axes.set_xlabel('')
 
             avg_freqs[cpu_id] = _avg/1e3
-            self._log.info('CPU%02d average frequency: %.3f GHz',
+            self.get_logger().info('CPU%02d average frequency: %.3f GHz',
                            cpu_id, avg_freqs[cpu_id])
 
         # Save generated plots into datadir
@@ -450,10 +450,10 @@ class FrequencyAnalysis(AnalysisBase):
         :type active: bool
         """
         if not self._trace.hasEvents('cpu_frequency'):
-            self._log.warning('Events [cpu_frequency] not found, plot DISABLED!')
+            self.get_logger().warning('Events [cpu_frequency] not found, plot DISABLED!')
             return
         if not self._trace.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, plot DISABLED!')
+            self.get_logger().warning('Events [cpu_idle] not found, plot DISABLED!')
             return
 
         if cpus is None:
@@ -505,20 +505,20 @@ class FrequencyAnalysis(AnalysisBase):
         :type active: bool
         """
         if not self._trace.hasEvents('cpu_frequency'):
-            self._log.warning('Events [cpu_frequency] not found, plot DISABLED!')
+            self.get_logger().warning('Events [cpu_frequency] not found, plot DISABLED!')
             return
         if not self._trace.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, plot DISABLED!')
+            self.get_logger().warning('Events [cpu_idle] not found, plot DISABLED!')
             return
         if 'clusters' not in self._trace.plat_info:
-            self._log.warning('No platform cluster info. Plot DISABLED!')
+            self.get_logger().warning('No platform cluster info. Plot DISABLED!')
             return
 
         # Assumption: all CPUs in a cluster run at the same frequency, i.e. the
         # frequency is scaled per-cluster not per-CPU. Hence, we can limit the
         # cluster frequencies data to a single CPU
         if not self._trace.freq_coherency:
-            self._log.warning('Cluster frequency is not coherent, plot DISABLED!')
+            self.get_logger().warning('Cluster frequency is not coherent, plot DISABLED!')
             return
 
         # Sanitize clusters
@@ -556,7 +556,7 @@ class FrequencyAnalysis(AnalysisBase):
         :type pct: bool
         """
         if not self._trace.hasEvents('cpu_frequency'):
-            self._log.warn('Events [cpu_frequency] not found, plot DISABLED!')
+            self.get_logger().warn('Events [cpu_frequency] not found, plot DISABLED!')
             return
         df = self._trace.df_events('cpu_frequency')
 
@@ -644,11 +644,11 @@ class FrequencyAnalysis(AnalysisBase):
         :type pct: bool
         """
         if not self._trace.hasEvents('cpu_frequency'):
-            self._log.warn('Events [cpu_frequency] not found, plot DISABLED!')
+            self.get_logger().warn('Events [cpu_frequency] not found, plot DISABLED!')
             return
 
         if not self._trace.plat_info or 'clusters' not in self._trace.plat_info:
-            self._log.warn('No platform cluster info, plot DISABLED!')
+            self.get_logger().warn('No platform cluster info, plot DISABLED!')
             return
 
         if clusters is None:
@@ -741,7 +741,7 @@ class FrequencyAnalysis(AnalysisBase):
         # cluster frequencies data to a single CPU. This assumption is verified
         # by the Trace module when parsing the trace.
         if len(cpus) > 1 and not self._trace.freq_coherency:
-            self._log.warning('Cluster frequency is NOT coherent,'
+            self.get_logger().warning('Cluster frequency is NOT coherent,'
                               'cannot compute residency!')
             return None
 

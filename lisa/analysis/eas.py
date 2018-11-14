@@ -55,52 +55,52 @@ class EasAnalysis(AnalysisBase):
         Plot energy_diff()-related signals on time axes.
         """
         if not self._trace.hasEvents('sched_energy_diff'):
-            self._log.warning('Event [sched_energy_diff] not found, plot DISABLED!')
+            self.get_logger().warning('Event [sched_energy_diff] not found, plot DISABLED!')
             return
         df = self._trace.df_events('sched_energy_diff')
 
         # Filter on 'tasks'
         if tasks is not None:
-            self._log.info('Plotting EDiff data just for task(s) [%s]', tasks)
+            self.get_logger().info('Plotting EDiff data just for task(s) [%s]', tasks)
             df = df[df['comm'].isin(tasks)]
 
         # Filter on 'usage_delta'
         if min_usage_delta is not None:
-            self._log.info('Plotting EDiff data just with minimum '
+            self.get_logger().info('Plotting EDiff data just with minimum '
                            'usage_delta of [%d]', min_usage_delta)
             df = df[abs(df['usage_delta']) >= min_usage_delta]
         if max_usage_delta is not None:
-            self._log.info('Plotting EDiff data just with maximum '
+            self.get_logger().info('Plotting EDiff data just with maximum '
                            'usage_delta of [%d]', max_usage_delta)
             df = df[abs(df['usage_delta']) <= max_usage_delta]
 
         # Filter on 'cap_delta'
         if min_cap_delta is not None:
-            self._log.info('Plotting EDiff data just with minimum '
+            self.get_logger().info('Plotting EDiff data just with minimum '
                            'cap_delta of [%d]', min_cap_delta)
             df = df[abs(df['cap_delta']) >= min_cap_delta]
         if max_cap_delta is not None:
-            self._log.info('Plotting EDiff data just with maximum '
+            self.get_logger().info('Plotting EDiff data just with maximum '
                            'cap_delta of [%d]', max_cap_delta)
             df = df[abs(df['cap_delta']) <= max_cap_delta]
 
         # Filter on 'nrg_delta'
         if min_nrg_delta is not None:
-            self._log.info('Plotting EDiff data just with minimum '
+            self.get_logger().info('Plotting EDiff data just with minimum '
                            'nrg_delta of [%d]', min_nrg_delta)
             df = df[abs(df['nrg_delta']) >= min_nrg_delta]
         if max_nrg_delta is not None:
-            self._log.info('Plotting EDiff data just with maximum '
+            self.get_logger().info('Plotting EDiff data just with maximum '
                            'nrg_delta of [%d]', max_nrg_delta)
             df = df[abs(df['nrg_delta']) <= max_nrg_delta]
 
         # Filter on 'nrg_diff'
         if min_nrg_diff is not None:
-            self._log.info('Plotting EDiff data just with minimum '
+            self.get_logger().info('Plotting EDiff data just with minimum '
                            'nrg_diff of [%d]', min_nrg_diff)
             df = df[abs(df['nrg_diff']) >= min_nrg_diff]
         if max_nrg_diff is not None:
-            self._log.info('Plotting EDiff data just with maximum '
+            self.get_logger().info('Plotting EDiff data just with maximum '
                            'nrg_diff of [%d]', max_nrg_diff)
             df = df[abs(df['nrg_diff']) <= max_nrg_diff]
 
@@ -199,52 +199,52 @@ class EasAnalysis(AnalysisBase):
         (PxE).
         """
         if not self._trace.hasEvents('sched_energy_diff'):
-            self._log.warning('Event [sched_energy_diff] not found, plot DISABLED!')
+            self.get_logger().warning('Event [sched_energy_diff] not found, plot DISABLED!')
             return
         df = self._trace.df_events('sched_energy_diff')
 
         # Filter on 'tasks'
         if tasks is not None:
-            self._log.info('Plotting EDiff data just for task(s) [%s]', tasks)
+            self.get_logger().info('Plotting EDiff data just for task(s) [%s]', tasks)
             df = df[df['comm'].isin(tasks)]
 
         # Filter on 'usage_delta'
         if min_usage_delta is not None:
-            self._log.info('Plotting EDiff data just with minimum '
+            self.get_logger().info('Plotting EDiff data just with minimum '
                            'usage_delta of [%d]', min_usage_delta)
             df = df[abs(df['usage_delta']) >= min_usage_delta]
         if max_usage_delta is not None:
-            self._log.info('Plotting EDiff data just with maximum '
+            self.get_logger().info('Plotting EDiff data just with maximum '
                            'usage_delta of [%d]', max_usage_delta)
             df = df[abs(df['usage_delta']) <= max_usage_delta]
 
         # Filter on 'cap_delta'
         if min_cap_delta is not None:
-            self._log.info('Plotting EDiff data just with minimum '
+            self.get_logger().info('Plotting EDiff data just with minimum '
                            'cap_delta of [%d]', min_cap_delta)
             df = df[abs(df['cap_delta']) >= min_cap_delta]
         if max_cap_delta is not None:
-            self._log.info('Plotting EDiff data just with maximum '
+            self.get_logger().info('Plotting EDiff data just with maximum '
                            'cap_delta of [%d]', max_cap_delta)
             df = df[abs(df['cap_delta']) <= max_cap_delta]
 
         # Filter on 'nrg_delta'
         if min_nrg_delta is not None:
-            self._log.info('Plotting EDiff data just with minimum '
+            self.get_logger().info('Plotting EDiff data just with minimum '
                            'nrg_delta of [%d]', min_nrg_delta)
             df = df[abs(df['nrg_delta']) >= min_nrg_delta]
         if max_nrg_delta is not None:
-            self._log.info('Plotting EDiff data just with maximum '
+            self.get_logger().info('Plotting EDiff data just with maximum '
                            'nrg_delta of [%d]', max_nrg_delta)
             df = df[abs(df['nrg_delta']) <= max_nrg_delta]
 
         # Filter on 'nrg_diff'
         if min_nrg_diff is not None:
-            self._log.info('Plotting EDiff data just with minimum '
+            self.get_logger().info('Plotting EDiff data just with minimum '
                            'nrg_diff of [%d]', min_nrg_diff)
             df = df[abs(df['nrg_diff']) >= min_nrg_diff]
         if max_nrg_diff is not None:
-            self._log.info('Plotting EDiff data just with maximum '
+            self.get_logger().info('Plotting EDiff data just with maximum '
                            'nrg_diff of [%d]', max_nrg_diff)
             df = df[abs(df['nrg_diff']) <= max_nrg_diff]
 
@@ -366,7 +366,7 @@ class EasAnalysis(AnalysisBase):
         Plot the configuration of SchedTune.
         """
         if not self._trace.hasEvents('sched_tune_config'):
-            self._log.warning('Event [sched_tune_config] not found, plot DISABLED!')
+            self.get_logger().warning('Event [sched_tune_config] not found, plot DISABLED!')
             return
         # Grid
         gs = gridspec.GridSpec(2, 1, height_ratios=[4, 1])

@@ -53,7 +53,7 @@ class IdleAnalysis(AnalysisBase):
         :returns: :mod:`pandas.DataFrame` - idle state residency dataframe
         """
         if not self._trace.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, '
+            self.get_logger().warning('Events [cpu_idle] not found, '
                               'idle state residency computation not possible!')
             return None
 
@@ -103,7 +103,7 @@ class IdleAnalysis(AnalysisBase):
         :returns: :mod:`pandas.DataFrame` - idle state residency dataframe
         """
         if not self._trace.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, '
+            self.get_logger().warning('Events [cpu_idle] not found, '
                               'idle state residency computation not possible!')
             return None
 
@@ -112,7 +112,7 @@ class IdleAnalysis(AnalysisBase):
             try:
                 _cluster = self._trace.plat_info['clusters'][cluster.lower()]
             except KeyError:
-                self._log.warning('%s cluster not found!', cluster)
+                self.get_logger().warning('%s cluster not found!', cluster)
                 return None
 
         idle_df = self._trace.df_events('cpu_idle')
@@ -179,7 +179,7 @@ class IdleAnalysis(AnalysisBase):
         :type pct: bool
         """
         if not self._trace.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, '
+            self.get_logger().warning('Events [cpu_idle] not found, '
                               'plot DISABLED!')
             return
 
@@ -220,10 +220,10 @@ class IdleAnalysis(AnalysisBase):
         :type clusters: str ot list(str)
         """
         if not self._trace.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, plot DISABLED!')
+            self.get_logger().warning('Events [cpu_idle] not found, plot DISABLED!')
             return
         if 'clusters' not in self._trace.plat_info:
-            self._log.warning('No platform cluster info. Plot DISABLED!')
+            self.get_logger().warning('No platform cluster info. Plot DISABLED!')
             return
 
         # Sanitize clusters

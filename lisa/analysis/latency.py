@@ -78,11 +78,11 @@ class LatencyAnalysis(AnalysisBase):
         """
 
         if not self._trace.hasEvents('sched_wakeup'):
-            self._log.warning('Events [sched_wakeup] not found, '
+            self.get_logger().warning('Events [sched_wakeup] not found, '
                               'cannot compute CPU active signal!')
             return None
         if not self._trace.hasEvents('sched_switch'):
-            self._log.warning('Events [sched_switch] not found, '
+            self.get_logger().warning('Events [sched_switch] not found, '
                               'cannot compute CPU active signal!')
             return None
 
@@ -129,15 +129,15 @@ class LatencyAnalysis(AnalysisBase):
         numbers = 0
         for value in task_switches_df.curr_state.unique():
             if type(value) is not str:
-                self._log.warning('The [sched_switch] events contain "prev_state" value [%s]',
+                self.get_logger().warning('The [sched_switch] events contain "prev_state" value [%s]',
                                   value)
                 numbers += 1
         if numbers:
             verb = 'is' if numbers == 1 else 'are'
-            self._log.warning('  which %s not currently mapped into a task state.',
+            self.get_logger().warning('  which %s not currently mapped into a task state.',
                               verb)
-            self._log.warning('Check mappings in:')
-            self._log.warning(' %s::%s _task_state()',
+            self.get_logger().warning('Check mappings in:')
+            self.get_logger().warning(' %s::%s _task_state()',
                               __file__, self.__class__.__name__)
 
         # Forward annotate task state
@@ -276,7 +276,7 @@ class LatencyAnalysis(AnalysisBase):
                 return cr.runtime
             if row['next_state'] in ['n']:
                 return cr.runtime
-            self._log.warning("Unexpected next state: %s @ %f",
+            self.get_logger().warning("Unexpected next state: %s @ %f",
                               row['next_state'], row['t_start'])
             return 0
         # cr's static variables intialization
@@ -345,11 +345,11 @@ class LatencyAnalysis(AnalysisBase):
         """
 
         if not self._trace.hasEvents('sched_switch'):
-            self._log.warning('Event [sched_switch] not found, '
+            self.get_logger().warning('Event [sched_switch] not found, '
                               'plot DISABLED!')
             return
         if not self._trace.hasEvents('sched_wakeup'):
-            self._log.warning('Event [sched_wakeup] not found, '
+            self.get_logger().warning('Event [sched_wakeup] not found, '
                               'plot DISABLED!')
             return
 
@@ -364,7 +364,7 @@ class LatencyAnalysis(AnalysisBase):
             wkp_df = self.df_latency_wakeup(td.pid)
         if wkp_df is not None:
             wkp_df.rename(columns={'wakeup_latency' : 'latency'}, inplace=True)
-            self._log.info('Found: %5d WAKEUP latencies', len(wkp_df))
+            self.get_logger().info('Found: %5d WAKEUP latencies', len(wkp_df))
 
         # Load preempt latencies (if required)
         prt_df = None
@@ -372,10 +372,10 @@ class LatencyAnalysis(AnalysisBase):
             prt_df = self.df_latency_preemption(td.pid)
         if prt_df is not None:
             prt_df.rename(columns={'preempt_latency' : 'latency'}, inplace=True)
-            self._log.info('Found: %5d PREEMPT latencies', len(prt_df))
+            self.get_logger().info('Found: %5d PREEMPT latencies', len(prt_df))
 
         if wkp_df is None and prt_df is None:
-            self._log.warning('No Latency info for task [%s]', td.label)
+            self.get_logger().warning('No Latency info for task [%s]', td.label)
             return
 
         # Join the two data frames
@@ -447,8 +447,8 @@ class LatencyAnalysis(AnalysisBase):
 
         # Get latency events
         df, cdf = self._get_latency_df(task, kind, threshold_ms)
-        self._log.info('Total: %5d latency events', len(df))
-        self._log.info('%.1f %% samples below %d [ms] threshold',
+        self.get_logger().info('Total: %5d latency events', len(df))
+        self.get_logger().info('%.1f %% samples below %d [ms] threshold',
                        100. * cdf.below, threshold_ms)
 
         # Get task data
@@ -525,11 +525,11 @@ class LatencyAnalysis(AnalysisBase):
         :type axes: :mod:`matplotlib.axes.Axes`
         """
         if not self._trace.hasEvents('sched_switch'):
-            self._log.warning('Event [sched_switch] not found, '
+            self.get_logger().warning('Event [sched_switch] not found, '
                               'plot DISABLED!')
             return
         if not self._trace.hasEvents('sched_wakeup'):
-            self._log.warning('Event [sched_wakeup] not found, '
+            self.get_logger().warning('Event [sched_wakeup] not found, '
                               'plot DISABLED!')
             return
 
@@ -542,7 +542,7 @@ class LatencyAnalysis(AnalysisBase):
         prt_df = self.df_latency_preemption(td.pid)
 
         if wkl_df is None and prt_df is None:
-            self._log.warning('No task with name [%s]', td.label)
+            self.get_logger().warning('No task with name [%s]', td.label)
             return
 
         # If not axis provided: generate a standalone plot
@@ -621,11 +621,11 @@ class LatencyAnalysis(AnalysisBase):
         """
 
         if not self._trace.hasEvents('sched_switch'):
-            self._log.warning('Event [sched_switch] not found, '
+            self.get_logger().warning('Event [sched_switch] not found, '
                               'plot DISABLED!')
             return
         if not self._trace.hasEvents('sched_wakeup'):
-            self._log.warning('Event [sched_wakeup] not found, '
+            self.get_logger().warning('Event [sched_wakeup] not found, '
                               'plot DISABLED!')
             return
 
@@ -638,7 +638,7 @@ class LatencyAnalysis(AnalysisBase):
         wkp_df = self.df_activations(td.pid)
         if wkp_df is None:
             return None
-        self._log.info('Found: %5d activations for [%s]',
+        self.get_logger().info('Found: %5d activations for [%s]',
                        len(wkp_df), td.label)
 
         # Disregard data above two time the specified threshold
@@ -649,14 +649,14 @@ class LatencyAnalysis(AnalysisBase):
         if len_plt < len_tot:
             len_dif = len_tot - len_plt
             len_pct = 100. * len_dif / len_tot
-            self._log.warning('Discarding {} activation intervals (above 2 x threshold_ms, '
+            self.get_logger().warning('Discarding {} activation intervals (above 2 x threshold_ms, '
                               '{:.1f}% of the overall activations)'\
                               .format(len_dif, len_pct))
         ymax = 1.1 * wkp_df.activation_interval.max()
 
         # Build the series for the CDF
         cdf = self._get_cdf(wkp_df.activation_interval, (threshold_ms / 1000.))
-        self._log.info('%.1f %% samples below %d [ms] threshold',
+        self.get_logger().info('%.1f %% samples below %d [ms] threshold',
                        100. * cdf.below, threshold_ms)
 
         # Setup plots
@@ -752,11 +752,11 @@ class LatencyAnalysis(AnalysisBase):
         """
 
         if not self._trace.hasEvents('sched_switch'):
-            self._log.warning('Event [sched_switch] not found, '
+            self.get_logger().warning('Event [sched_switch] not found, '
                               'plot DISABLED!')
             return
         if not self._trace.hasEvents('sched_wakeup'):
-            self._log.warning('Event [sched_wakeup] not found, '
+            self.get_logger().warning('Event [sched_wakeup] not found, '
                               'plot DISABLED!')
             return
 
@@ -769,7 +769,7 @@ class LatencyAnalysis(AnalysisBase):
         run_df = self.df_runtimes(td.pid)
         if run_df is None:
             return None
-        self._log.info('Found: %5d activations for [%s]',
+        self.get_logger().info('Found: %5d activations for [%s]',
                        len(run_df), td.label)
 
         # Disregard data above two time the specified threshold
@@ -780,14 +780,14 @@ class LatencyAnalysis(AnalysisBase):
         if len_plt < len_tot:
             len_dif = len_tot - len_plt
             len_pct = 100. * len_dif / len_tot
-            self._log.warning('Discarding {} running times (above 2 x threshold_ms, '
+            self.get_logger().warning('Discarding {} running times (above 2 x threshold_ms, '
                               '{:.1f}% of the overall activations)'\
                               .format(len_dif, len_pct))
         ymax = 1.1 * run_df.running_time.max()
 
         # Build the series for the CDF
         cdf = self._get_cdf(run_df.running_time, (threshold_ms / 1000.))
-        self._log.info('%.1f %% samples below %d [ms] threshold',
+        self.get_logger().info('%.1f %% samples below %d [ms] threshold',
                        100. * cdf.below, threshold_ms)
 
         # Setup plots
@@ -873,16 +873,16 @@ class LatencyAnalysis(AnalysisBase):
         if isinstance(task, str):
             task_pids = self._trace.getTaskByName(task)
             if len(task_pids) == 0:
-                self._log.warning('No tasks found with name [%s]', task)
+                self.get_logger().warning('No tasks found with name [%s]', task)
                 return None
 
             task_pid = task_pids[0]
             if len(task_pids) > 1:
-                self._log.warning('Multiple PIDs for task named [%s]', task)
+                self.get_logger().warning('Multiple PIDs for task named [%s]', task)
                 for pid in task_pids:
-                    self._log.warning('  %5d :  %s', pid,
+                    self.get_logger().warning('  %5d :  %s', pid,
                                       ','.join(self._trace.getTaskByPid(pid)))
-                self._log.warning('Returning stats only for PID: %d',
+                self.get_logger().warning('Returning stats only for PID: %d',
                                   task_pid)
             task_name = self._trace.getTaskByPid(task_pid)
 
@@ -891,7 +891,7 @@ class LatencyAnalysis(AnalysisBase):
             task_pid = task
             task_name = self._trace.getTaskByPid(task_pid)
             if task_name is None:
-                self._log.warning('No tasks found with name [%s]', task)
+                self.get_logger().warning('No tasks found with name [%s]', task)
                 return None
 
         else:
@@ -926,7 +926,7 @@ class LatencyAnalysis(AnalysisBase):
         try:
             kernel_version = self._trace.plat_info['kernel-version']
         except KeyError:
-            self._log.info('Parsing task states assuming 3.18 kernel')
+            self.get_logger().info('Parsing task states assuming 3.18 kernel')
             kernel_version = KernelVersion('3.18')
 
         if kernel_version.parts >= (4, 8):

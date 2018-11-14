@@ -28,9 +28,10 @@ import pylab as pl
 from trappy.utils import listify
 
 """ Helper module for Analysis classes """
+from lisa.utils import Loggable
 
 
-class AnalysisBase:
+class AnalysisBase(Loggable):
     """
     Base class for Analysis modules.
 
@@ -47,10 +48,7 @@ class AnalysisBase:
     """
 
     def __init__(self, trace):
-        self._log = logging.getLogger('Analysis')
         self._trace = trace
-
-        plat_info = self._trace.plat_info
 
     @classmethod
     def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, **kwargs):

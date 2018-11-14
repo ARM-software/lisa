@@ -81,7 +81,7 @@ class StatusAnalysis(AnalysisBase):
         :type axes: :mod:`matplotlib.axes.Axes`
         """
         if not self._trace.hasEvents('sched_overutilized'):
-            self._log.warning('Event [sched_overutilized] not found, '
+            self.get_logger().warning('Event [sched_overutilized] not found, '
                               'plot DISABLED!')
             return
 

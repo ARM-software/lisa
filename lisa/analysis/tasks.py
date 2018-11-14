@@ -60,7 +60,7 @@ class TasksAnalysis(AnalysisBase):
         :type min_utilization: int
         """
         if self.df_load() is None:
-            self._log.warning('No trace events for task signals, plot DISABLED')
+            self.get_logger().warning('No trace events for task signals, plot DISABLED')
             return None
 
         if min_utilization is None:
@@ -70,13 +70,13 @@ class TasksAnalysis(AnalysisBase):
         df = self.df_load()
         big_tasks_events = df[df.util_avg > min_utilization]
         if not len(big_tasks_events):
-            self._log.warning('No tasks with with utilization samples > %d',
+            self.get_logger().warning('No tasks with with utilization samples > %d',
                               min_utilization)
             return None
 
         # Report the number of tasks which match the min_utilization condition
         big_tasks = big_tasks_events.pid.unique()
-        self._log.info('%5d tasks with samples of utilization > %d',
+        self.get_logger().info('%5d tasks with samples of utilization > %d',
                        len(big_tasks), min_utilization)
 
         # Compute number of samples above threshold
@@ -91,11 +91,11 @@ class TasksAnalysis(AnalysisBase):
         # Filter for number of occurrences
         big_tasks_stats = big_tasks_stats[big_tasks_stats['count'] > min_samples]
         if not len(big_tasks_stats):
-            self._log.warning('      but none with more than %d samples',
+            self.get_logger().warning('      but none with more than %d samples',
                               min_samples)
             return None
 
-        self._log.info('      %d with more than %d samples',
+        self.get_logger().info('      %d with more than %d samples',
                        len(big_tasks_stats), min_samples)
 
         # Add task name column
@@ -116,7 +116,7 @@ class TasksAnalysis(AnalysisBase):
         :type min_wakeups: int
         """
         if not self._trace.hasEvents('sched_wakeup'):
-            self._log.warning('Events [sched_wakeup] not found')
+            self.get_logger().warning('Events [sched_wakeup] not found')
             return None
 
         df = self._trace.df_events('sched_wakeup')
@@ -130,10 +130,10 @@ class TasksAnalysis(AnalysisBase):
         wkp_tasks_stats = wkp_tasks_stats[
             wkp_tasks_stats['count'] > min_wakeups]
         if not len(df):
-            self._log.warning('No tasks with more than %d wakeups',
+            self.get_logger().warning('No tasks with more than %d wakeups',
                               len(wkp_tasks_stats))
             return None
-        self._log.info('%5d tasks with more than %d wakeups',
+        self.get_logger().info('%5d tasks with more than %d wakeups',
                        len(df), len(wkp_tasks_stats))
 
         # Add task name column
@@ -159,7 +159,7 @@ class TasksAnalysis(AnalysisBase):
         :type min_prio: int
         """
         if not self._trace.hasEvents('sched_switch'):
-            self._log.warning('Events [sched_switch] not found')
+            self.get_logger().warning('Events [sched_switch] not found')
             return None
 
         df = self._trace.df_events('sched_switch')
@@ -274,7 +274,7 @@ class TasksAnalysis(AnalysisBase):
 
         # Check for the minimum required signals to be available
         if self.df_load() is None:
-            self._log.warning('No trace events for task signals, plot DISABLED')
+            self.get_logger().warning('No trace events for task signals, plot DISABLED')
             return
 
         # Defined list of tasks to plot
@@ -326,7 +326,7 @@ class TasksAnalysis(AnalysisBase):
             savefig = False
 
             task_name = self._trace.getTaskByPid(tid)
-            self._log.info('Plotting [%d:%s]...', tid, task_name)
+            self.get_logger().info('Plotting [%d:%s]...', tid, task_name)
             plot_id = 0
 
             # For each task create a figure with plots_count plots
@@ -351,7 +351,7 @@ class TasksAnalysis(AnalysisBase):
             signals_to_plot = list(signals_to_plot.intersection(signals))
             if len(signals_to_plot) > 0:
                 if not self._trace.has_big_little:
-                    self._log.warning(
+                    self.get_logger().warning(
                         'No big.LITTLE platform data, residencies plot disabled')
                 else:
                     axes = plt.subplot(gs[plot_id, 0])
@@ -380,7 +380,7 @@ class TasksAnalysis(AnalysisBase):
                 savefig = True
 
             if not savefig:
-                self._log.warning('Nothing to plot for %s', task_name)
+                self.get_logger().warning('Nothing to plot for %s', task_name)
                 continue
 
             # Save generated plots into datadir
@@ -423,7 +423,7 @@ class TasksAnalysis(AnalysisBase):
 
         big_frequent_tasks_count = len(big_frequent_task_pids)
         if big_frequent_tasks_count == 0:
-            self._log.warning('No big/frequent tasks to plot')
+            self.get_logger().warning('No big/frequent tasks to plot')
             return
 
         # Get the list of events for all big frequent tasks
@@ -465,7 +465,7 @@ class TasksAnalysis(AnalysisBase):
 
         ax.set_xlabel('Time [s]')
 
-        self._log.info('Tasks which have been a "utilization" of %d for at least %d samples',
+        self.get_logger().info('Tasks which have been a "utilization" of %d for at least %d samples',
                        self._little_cap, min_samples)
 
     def plot_wakeup(self, max_tasks=10, min_wakeups=0, per_cluster=False):
@@ -484,12 +484,12 @@ class TasksAnalysis(AnalysisBase):
         """
         if per_cluster is True and \
            not self._trace.hasEvents('sched_wakeup_new'):
-            self._log.warning('Events [sched_wakeup_new] not found, '
+            self.get_logger().warning('Events [sched_wakeup_new] not found, '
                               'plots DISABLED!')
             return
         elif  not self._trace.hasEvents('sched_wakeup') and \
               not self._trace.hasEvents('sched_wakeup_new'):
-            self._log.warning('Events [sched_wakeup, sched_wakeup_new] not found, '
+            self.get_logger().warning('Events [sched_wakeup, sched_wakeup_new] not found, '
                               'plots DISABLED!')
             return
 
@@ -508,10 +508,10 @@ class TasksAnalysis(AnalysisBase):
             ntlc = df[little_frequent];
             ntlc_count = len(ntlc)
 
-            self._log.info('%5d tasks forked on big cluster    (%3.1f %%)',
+            self.get_logger().info('%5d tasks forked on big cluster    (%3.1f %%)',
                            ntbc_count,
                            100. * ntbc_count / (ntbc_count + ntlc_count))
-            self._log.info('%5d tasks forked on LITTLE cluster (%3.1f %%)',
+            self.get_logger().info('%5d tasks forked on LITTLE cluster (%3.1f %%)',
                            ntlc_count,
                            100. * ntlc_count / (ntbc_count + ntlc_count))
 
@@ -537,7 +537,7 @@ class TasksAnalysis(AnalysisBase):
         wkp_task_pids = self.df_top_wakeup(min_wakeups)
         if len(wkp_task_pids):
             wkp_task_pids = wkp_task_pids.index.values[:max_tasks]
-            self._log.info('Plotting %d frequent wakeup tasks',
+            self.get_logger().info('Plotting %d frequent wakeup tasks',
                            len(wkp_task_pids))
 
         ax = axes[0]
@@ -581,13 +581,13 @@ class TasksAnalysis(AnalysisBase):
         """
 
         if not self._trace.hasEvents('cpu_frequency'):
-            self._log.warning('Events [cpu_frequency] not found')
+            self.get_logger().warning('Events [cpu_frequency] not found')
             return
 
         # Get all utilization update events
         df = self.df_load()
         if df is None:
-            self._log.warning('No trace events for task signals, plot DISABLED')
+            self.get_logger().warning('No trace events for task signals, plot DISABLED')
             return
 
         if big_cluster:
@@ -604,7 +604,7 @@ class TasksAnalysis(AnalysisBase):
             big_task_pids = big_task_pids.index.values
             df = df[df.pid.isin(big_task_pids)]
         if not df.size:
-            self._log.warning('No events for tasks with more then %d utilization '
+            self.get_logger().warning('No events for tasks with more then %d utilization '
                               'samples bigger than %d, plots DISABLED!')
             return
 
@@ -681,7 +681,7 @@ class TasksAnalysis(AnalysisBase):
         # Get dataframe for the required task
         util_df = self.df_load()
         if util_df is None:
-            self._log.warning('No trace events for task signals, plot DISABLED')
+            self.get_logger().warning('No trace events for task signals, plot DISABLED')
             return
 
         # Plot load and util
@@ -701,7 +701,7 @@ class TasksAnalysis(AnalysisBase):
                 data.plot(ax=axes, style=['y-'], drawstyle='steps-post')
             else:
                 task_name = self._trace.getTaskByPid(tid)
-                self._log.warning('No "boosted_util" data for task [%d:%s]',
+                self.get_logger().warning('No "boosted_util" data for task [%d:%s]',
                                   tid, task_name)
 
         # Add Capacities data if avilable
@@ -711,7 +711,7 @@ class TasksAnalysis(AnalysisBase):
             max_bcap = nrg_model['big']['cpu']['cap_max']
             tip_lcap = 0.8 * max_lcap
             tip_bcap = 0.8 * max_bcap
-            self._log.debug(
+            self.get_logger().debug(
                 'LITTLE capacity tip/max: %d/%d, big capacity tip/max: %d/%d',
                 tip_lcap, max_lcap, tip_bcap, max_bcap
             )
@@ -747,7 +747,7 @@ class TasksAnalysis(AnalysisBase):
         """
         util_df = self.df_load()
         if util_df is None:
-            self._log.warning('No trace events for task signals, plot DISABLED')
+            self.get_logger().warning('No trace events for task signals, plot DISABLED')
             return
         data = util_df[util_df.pid == tid][['cluster', 'cpu']]
         for ccolor, clabel in zip('gr', ['LITTLE', 'big']):
@@ -784,7 +784,7 @@ class TasksAnalysis(AnalysisBase):
         :param signals: list(str)
         """
         if not self._trace.hasEvents('sched_load_avg_task'):
-            self._log.warning(
+            self.get_logger().warning(
                 'No sched_load_avg_task events, skipping PELT plot')
             return
 
