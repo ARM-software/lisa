@@ -17,18 +17,19 @@
 
 """ Frequency Analysis Module """
 
+import os
+
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
-import operator
-import os
 import pandas as pd
 import pylab as pl
 
-from lisa.analysis.base import AnalysisBase, requires_events
-from lisa.utils import memoized
 from bart.common.Utils import area_under_curve
 from matplotlib.ticker import FuncFormatter
 from trappy.utils import listify
+
+from lisa.analysis.base import AnalysisBase, requires_events
+from lisa.utils import memoized
 
 class FrequencyAnalysis(AnalysisBase):
     """

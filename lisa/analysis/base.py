@@ -15,20 +15,14 @@
 # limitations under the License.
 #
 
-import logging
-from collections import namedtuple
 import functools
 import os
 import inspect
 
-import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
-import pandas as pd
-import pylab as pl
 
 from trappy.utils import listify
 
-""" Helper module for Analysis classes """
 from lisa.utils import Loggable
 
 def requires_events(events):
