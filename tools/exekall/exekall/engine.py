@@ -41,17 +41,7 @@ import logging
 
 import ruamel.yaml
 
-from exekall.utils import debug
-
-yaml = ruamel.yaml.YAML(typ='unsafe')
-yaml.allow_unicode = True
-yaml.default_flow_style = False
-yaml.indent = 4
-
-#TODO: remove that once the issue is fixed
-# Workaround for ruamel.yaml bug #244:
-# https://bitbucket.org/ruamel/yaml/issues/244
-ruamel.yaml.add_multi_representer(type, ruamel.yaml.representer.Representer.represent_name)
+import exekall.utils as utils
 
 # Basic reimplementation of typing.get_type_hints for Python versions that
 # do not have a typing module available, and also avoids creating Optional[]
@@ -132,6 +122,22 @@ class IndentationManager:
         return str(self.style) * self.level
 
 class StorageDB:
+    _yaml = ruamel.yaml.YAML(typ='unsafe')
+
+    @classmethod
+    def _init_yaml(cls):
+        """Needs to be called only once"""
+        yaml = cls._yaml
+
+        yaml.allow_unicode = True
+        yaml.default_flow_style = False
+        yaml.indent = 4
+
+        #TODO: remove that once the issue is fixed
+        # Workaround for ruamel.yaml bug #244:
+        # https://bitbucket.org/ruamel/yaml/issues/244
+        yaml.Representer.add_multi_representer(type, ruamel.yaml.representer.Representer.represent_name)
+
 
     def __init__(self, obj_store):
         self.obj_store = obj_store
@@ -145,20 +151,22 @@ class StorageDB:
             path = pathlib.Path(relative_to, path)
 
         with gzip.open(str(path), 'rt', encoding='utf-8') as f:
-            db = yaml.load(f)
+            db = cls._yaml.load(f)
         assert isinstance(db, cls)
 
         return db
 
     def to_path(self, path):
         with gzip.open(str(path), 'wt', encoding='utf-8') as f:
-            yaml.dump(self, f)
+            self._yaml.dump(self, f)
 
     # Having it there shortens the output of the generated scripts and makes
     # them more readable while avoiding to expose to much of the StorageDB
     # internals
     def by_uuid(self, *args, **kwargs):
         return self.obj_store.by_uuid(*args, **kwargs)
+
+StorageDB._init_yaml()
 
 class ObjectStore:
     def __init__(self, serial_seq_list, db_var_name='db'):
