@@ -17,6 +17,7 @@
 
 import logging
 from collections import namedtuple
+import functools
 import os
 import inspect
 
@@ -30,6 +31,28 @@ from trappy.utils import listify
 """ Helper module for Analysis classes """
 from lisa.utils import Loggable
 
+def requires_events(events):
+    """
+    Decorator for methods that require some given trace events
+
+    :param events: The list of required events
+    :type events: list(str)
+
+    The decorate method must inherit from :class:`AnalysisBase`
+    """
+    def decorator(f):
+        @functools.wraps(f)
+
+        def wrapper(self, *args, **kwargs):
+            self.check_events(events)
+            return f(self, *args, **kwargs)
+
+        # Set an attribute on the wrapper itself, so it can be e.g. added
+        # to the method documentation
+        wrapper.required_events = events
+        return wrapper
+
+    return decorator
 
 class AnalysisBase(Loggable):
     """
@@ -40,8 +63,8 @@ class AnalysisBase(Loggable):
 
     :Design notes:
 
-    Method depending on certain trace events *must* start with a call to
-    :meth:`AnalysisBase.check_events`.
+    Method depending on certain trace events *must* be decorated with
+    :meth:`lisa.analysis.base.requires_events`
 
     Plotting methods *must* return the :class:`matplotlib.axes.Axes` instance
     used by the plotting method. This lets users embed plots into subplots.
@@ -109,8 +132,8 @@ class AnalysisBase(Loggable):
 
         :raises: RuntimeError if some events are not available
         """
-        available_events = set(self._trace.events)
-        missing_events = set(required_events).difference(available_events)
+        available_events = sorted(set(self._trace.events))
+        missing_events = sorted(set(required_events).difference(available_events))
 
         if missing_events:
             raise RuntimeError(

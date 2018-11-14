@@ -24,7 +24,7 @@ import os
 import pandas as pd
 import pylab as pl
 
-from lisa.analysis.base import AnalysisBase
+from lisa.analysis.base import AnalysisBase, requires_events
 from lisa.utils import memoized
 from bart.common.Utils import area_under_curve
 from matplotlib.ticker import FuncFormatter
@@ -86,6 +86,7 @@ class FrequencyAnalysis(AnalysisBase):
             if cpu in domain:
                 return self._get_frequency_residency(tuple(domain))
 
+    @requires_events(['cpu_frequency'])
     def df_cpu_frequency_transitions(self, cpu):
         """
         Compute number of frequency transitions of a given CPU.
@@ -109,6 +110,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return pd.DataFrame(transitions)
 
+    @requires_events(df_cpu_frequency_transitions.required_events)
     def df_cpu_frequency_transition_rate(self, cpu):
         """
         Compute frequency transition rate of a given CPU.
@@ -724,6 +726,7 @@ class FrequencyAnalysis(AnalysisBase):
 ###############################################################################
 
     @memoized
+    @requires_events(['cpu_frequency', 'cpu_idle'])
     def _get_frequency_residency(self, cpus):
         """
         Get a DataFrame with per cluster frequency residency, i.e. amount of

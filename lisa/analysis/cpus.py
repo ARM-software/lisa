@@ -24,7 +24,8 @@ import pandas as pd
 
 from trappy.utils import handle_duplicate_index
 
-from lisa.analysis.base import AnalysisBase
+from lisa.utils import memoized
+from lisa.analysis.base import AnalysisBase, requires_events
 
 
 class CpusAnalysis(AnalysisBase):
@@ -45,14 +46,13 @@ class CpusAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
+    @requires_events(['sched_switch'])
     def df_context_switches(self):
         """
         Compute number of context switches on each CPU.
 
         :returns: :mod:`pandas.DataFrame`
         """
-        self.check_events(['sched_switch'])
-
         sched_df = self._trace.df_events('sched_switch')
         cpus = list(range(self._trace.cpus_count))
         ctx_sw_df = pd.DataFrame(
@@ -64,6 +64,7 @@ class CpusAnalysis(AnalysisBase):
 
         return ctx_sw_df
 
+    @requires_events(['cpu_idle'])
     def df_cpu_wakeups(self, cpus=None):
         """"
         Get a DataFrame showing when a CPU was woken from idle
@@ -75,8 +76,6 @@ class CpusAnalysis(AnalysisBase):
                   row shows a time when the given ``cpu`` was woken up from
                   idle.
         """
-        self.check_events(['cpu_idle'])
-
         cpus = cpus or list(range(self._trace.cpus_count))
 
         sr = pd.Series()
@@ -88,6 +87,8 @@ class CpusAnalysis(AnalysisBase):
 
         return pd.DataFrame({'cpu': sr}).sort_index()
 
+    @memoized
+    @requires_events(['cpu_idle'])
     def signal_cpu_active(self, cpu):
         """
         Build a square wave representing the active (i.e. non-idle) CPU time,
@@ -103,8 +104,6 @@ class CpusAnalysis(AnalysisBase):
         :returns: A :class:`pandas.Series` or ``None`` if the trace contains no
                   "cpu_idle" events
         """
-        self.check_events(['cpu_idle'])
-
         idle_df = self._trace.df_events('cpu_idle')
         cpu_df = idle_df[idle_df.cpu_id == cpu]
 
@@ -125,6 +124,7 @@ class CpusAnalysis(AnalysisBase):
         # Fix sequences of wakeup/sleep events reported with the same index
         return handle_duplicate_index(cpu_active)
 
+    @requires_events(signal_cpu_active.required_events)
     def signal_cluster_active(self, cluster):
         """
         Build a square wave representing the active (i.e. non-idle) cluster
@@ -169,6 +169,7 @@ class CpusAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
+    @requires_events(df_context_switches.required_events)
     def plot_context_switch(self, filepath=None):
         """
         Plot histogram of context switches on each CPU.
