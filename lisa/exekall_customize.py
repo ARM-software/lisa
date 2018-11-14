@@ -33,8 +33,8 @@ from lisa.utils import HideExekallID, Loggable, ArtifactPath
 from lisa.tests.kernel.test_bundle import TestBundle, Result, ResultBundle, CannotCreateError
 from lisa.tests.kernel.scheduler.load_tracking import FreqInvarianceItem
 
-from exekall import utils, engine
-from exekall.engine import ExprData, Consumer, PrebuiltOperator, NoValue, get_name, get_mro
+from exekall.utils import info, get_name, get_mro
+from exekall.engine import ExprData, Consumer, PrebuiltOperator, NoValue, StorageDB
 from exekall.customization import AdaptorBase
 
 class ExekallArtifactPath(ArtifactPath):
@@ -119,7 +119,7 @@ class LISAAdaptor(AdaptorBase):
         # This will relocate ArtifactPath instances to the new absolute path of
         # the results folder, in case it has been moved to another place
         artifact_dir = Path(db_path).parent.resolve()
-        db = engine.StorageDB.from_path(db_path, *args, **kwargs)
+        db = StorageDB.from_path(db_path, *args, **kwargs)
 
         # Relocate ArtifactPath embeded in objects so they will always
         # contain an absolute path that adapts to the local filesystem
@@ -213,7 +213,7 @@ class LISAAdaptor(AdaptorBase):
         xunit_path = self.args.artifact_dir.joinpath('xunit.xml')
         et_root = self.create_xunit(result_map, self.hidden_callable_set)
         et_tree = ET.ElementTree(et_root)
-        utils.info('Writing xUnit file at: ' + str(xunit_path))
+        info('Writing xUnit file at: ' + str(xunit_path))
         et_tree.write(str(xunit_path))
 
     def create_xunit(self, result_map, hidden_callable_set):

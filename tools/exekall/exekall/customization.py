@@ -18,8 +18,8 @@
 
 import numbers
 
-from exekall.engine import NoValue, get_name
-from exekall.utils import out
+from exekall.engine import NoValue, StorageDB
+from exekall.utils import out, get_name
 
 class AdaptorBase:
     name = 'default'
@@ -70,10 +70,10 @@ class AdaptorBase:
         return {'*Result'}
 
     def resolve_cls_name(self, goal):
-        return engine.get_class_from_name(goal, sys.modules)
+        return utils.get_class_from_name(goal, sys.modules)
 
     def load_db(self, db_path):
-        return engine.StorageDB.from_path(db_path)
+        return StorageDB.from_path(db_path)
 
     def finalize_expr(self, expr):
         pass

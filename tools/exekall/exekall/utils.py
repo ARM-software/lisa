@@ -16,22 +16,58 @@
 # limitations under the License.
 #
 
-import inspect
 import collections
-import numbers
-import importlib
-from importlib import util
-import itertools
-import sys
-import pathlib
-import logging
-import functools
-import fnmatch
 import contextlib
-import types
+import fnmatch
+import functools
+import importlib
+import inspect
+import io
+import itertools
+import logging
+import pathlib
+import pickle
+import sys
 import traceback
+import types
+import uuid
 
 import exekall.engine as engine
+
+def get_src_loc(obj):
+    try:
+        src_line = inspect.getsourcelines(obj)[1]
+        src_file = inspect.getsourcefile(obj)
+        src_file = str(pathlib.Path(src_file).resolve())
+    except (OSError, TypeError):
+        src_line, src_file = None, None
+
+    return (src_file, src_line)
+
+class NotSerializableError(Exception):
+    pass
+
+def is_serializable(obj, raise_excep=False):
+    """
+    Try to Pickle the object to see if that raises any exception.
+    """
+    stream = io.StringIO()
+    try:
+        # This may be slow for big objects but it is the only way to be sure
+        # it can actually be serialized
+        pickle.dumps(obj)
+    except (TypeError, pickle.PickleError) as e:
+        debug('Cannot serialize instance of {}: {}'.format(
+            type(obj).__qualname__, str(e)
+        ))
+        if raise_excep:
+            raise NotSerializableError(obj) from e
+        return False
+    else:
+        return True
+
+def remove_indices(iterable, ignored_indices):
+    return [v for i, v in enumerate(iterable) if i not in ignored_indices]
 
 def flatten_nested_seq(seq):
     return list(itertools.chain.from_iterable(seq))
@@ -64,8 +100,8 @@ def load_serial_from_db(db, uuid_seq=None, type_pattern_seq=None):
 
 def match_base_cls(cls, pattern_list):
     # Match on the name of the class of the object and all its base classes
-    for base_cls in engine.get_mro(cls):
-        base_cls_name = engine.get_name(base_cls, full_qual=True)
+    for base_cls in get_mro(cls):
+        base_cls_name = get_name(base_cls, full_qual=True)
         if not base_cls_name:
             continue
         if any(
@@ -83,6 +119,82 @@ def match_name(name, pattern_list):
         fnmatch.fnmatch(name, pattern)
         for pattern in pattern_list
     )
+
+def get_mro(cls):
+    if cls is type(None) or cls is None:
+        return (type(None), object)
+    else:
+        assert isinstance(cls, type)
+        return inspect.getmro(cls)
+
+
+def get_name(obj, full_qual=True, qual=True):
+    # full_qual enabled implies qual enabled
+    _qual = qual or full_qual
+    # qual disabled implies full_qual disabled
+    full_qual = full_qual and qual
+    qual = _qual
+
+    # Add the module's name in front of the name to get a fully
+    # qualified name
+    if full_qual:
+        module_name = obj.__module__
+        module_name = (
+            module_name + '.'
+            if module_name != '__main__' and module_name != 'builtins'
+            else ''
+        )
+    else:
+        module_name = ''
+
+    if qual:
+        _get_name = lambda x: x.__qualname__
+    else:
+        _get_name = lambda x: x.__name__
+
+    # Classmethods appear as bound method of classes. Since each subclass will
+    # get a different bound method object, we want to reflect that in the
+    # name we use, instead of always using the same name that the method got
+    # when it was defined
+    if inspect.ismethod(obj):
+        name = _get_name(obj.__self__) + '.' + obj.__name__
+    else:
+        name = _get_name(obj)
+
+    return module_name + name
+
+def get_class_from_name(cls_name, module_map):
+    possible_mod_set = {
+        mod_name
+        for mod_name in module_map.keys()
+        if cls_name.startswith(mod_name)
+    }
+
+    # Longest match in term of number of components
+    possible_mod_list = sorted(possible_mod_set, key=lambda name: len(name.split('.')))
+    if possible_mod_list:
+        mod_name = possible_mod_list[-1]
+    else:
+        return None
+
+    mod = module_map[mod_name]
+    cls_name = cls_name[len(mod_name)+1:]
+    return _get_class_from_name(cls_name, mod)
+
+def _get_class_from_name(cls_name, namespace):
+    if isinstance(namespace, collections.abc.Mapping):
+        namespace = types.SimpleNamespace(**namespace)
+
+    split = cls_name.split('.', 1)
+    try:
+        obj = getattr(namespace, split[0])
+    except AttributeError as e:
+        raise ValueError('Object not found') from e
+
+    if len(split) > 1:
+        return _get_class_from_name('.'.join(split[1:]), obj)
+    else:
+        return obj
 
 
 def get_recursive_module_set(module_set, package_set):
@@ -157,11 +269,22 @@ def _get_callable_set(module, verbose):
             if inspect.isabstract(return_type):
                 log_f = info if verbose else debug
                 log_f('Class {} is ignored since it has non-implemented abstract methods'.format(
-                    engine.get_name(return_type, full_qual=True)
+                    get_name(return_type, full_qual=True)
                 ))
             else:
                 callable_pool.add(callable_)
     return callable_pool
+
+# Basic reimplementation of typing.get_type_hints for Python versions that
+# do not have a typing module available, and also avoids creating Optional[]
+# when the parameter has a None default value.
+def resolve_annotations(annotations, module_vars):
+    return {
+        # If we get a string, evaluate it in the global namespace of the
+        # module in which the callable was defined
+        param: cls if not isinstance(cls, str) else eval(cls, module_vars)
+        for param, cls in annotations.items()
+    }
 
 def import_file(python_src, module_name=None, is_package=False):
     python_src = pathlib.Path(python_src)
@@ -279,6 +402,9 @@ def get_module_basename(path):
         module_name = path.name
     return module_name
 
+def create_uuid():
+    return uuid.uuid4().hex
+
 def sweep_number(
     callable_, param,
     start, stop=None, step=1):
@@ -385,4 +511,9 @@ def error(msg):
     """Write a log message at the ERROR level."""
     EXEKALL_LOGGER.error(msg)
 
+
+def take_first(iterable):
+    for i in iterable:
+        return i
+    return engine.NoValue
 

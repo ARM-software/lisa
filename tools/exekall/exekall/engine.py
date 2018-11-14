@@ -16,71 +16,20 @@
 # limitations under the License.
 #
 
-import abc
 import inspect
-import collections
+import collections.abc
 from collections import OrderedDict
 import copy
 import itertools
-import numbers
 import functools
-import traceback
-import uuid
-import io
-import os
-import pickle
-import datetime
-import io
 import gzip
 import pathlib
 import contextlib
-import types
 import pprint
-import sys
-import logging
 
 import ruamel.yaml
 
 import exekall.utils as utils
-
-# Basic reimplementation of typing.get_type_hints for Python versions that
-# do not have a typing module available, and also avoids creating Optional[]
-# when the parameter has a None default value.
-def get_type_hints(f, module_vars=None):
-    if module_vars is None:
-        try:
-            module_vars = f.__globals__
-        except AttributeError:
-            module_vars = dict()
-
-    return resolve_annotations(f.__annotations__, module_vars)
-
-def get_mro(cls):
-    if cls is type(None) or cls is None:
-        return (type(None), object)
-    else:
-        assert isinstance(cls, type)
-        return inspect.getmro(cls)
-
-def resolve_annotations(annotations, module_vars):
-    return {
-        # If we get a string, evaluate it in the global namespace of the
-        # module in which the callable was defined
-        param: cls if not isinstance(cls, str) else eval(cls, module_vars)
-        for param, cls in annotations.items()
-    }
-
-def remove_indices(iterable, ignored_indices):
-    return [v for i, v in enumerate(iterable) if i not in ignored_indices]
-
-def take_first(iterable):
-    for i in iterable:
-        return i
-    return NoValue
-
-def create_uuid():
-    return uuid.uuid4().hex
-
 
 class NoOperatorError(Exception):
     pass
@@ -186,7 +135,7 @@ class ObjectStore:
 
     # Since the content of the cache is not serialized, the maps will be
     # regenerated when the object is restored.
-    @functools.lru_cache(maxsize=None, typed=True)
+    @utils.once
     def get_indexes(self):
         uuid_value_map = dict()
         id_uuid_map = dict()
@@ -354,8 +303,8 @@ class ExpressionWrapper:
                     else:
                         raise ValueError('Invalid non_produced_handler')
 
-        param_list = remove_indices(param_list, ignored_indices)
-        cls_combis = remove_indices(cls_combis, ignored_indices)
+        param_list = utils.remove_indices(param_list, ignored_indices)
+        cls_combis = utils.remove_indices(cls_combis, ignored_indices)
 
         param_list_len = len(param_list)
 
@@ -398,8 +347,8 @@ class Expression:
         # Map of parameters to other Expression
         self.param_map = param_map
         self.data = data if data is not None else dict()
-        self.data_uuid = create_uuid()
-        self.uuid = create_uuid()
+        self.data_uuid = utils.create_uuid()
+        self.uuid = utils.create_uuid()
 
         self.discard_result()
 
@@ -489,7 +438,7 @@ class Expression:
 
         out = '{op_name} ({value_type_name})'.format(
             op_name = op_name,
-            value_type_name = get_name(self.op.value_type, full_qual=full_qual)
+            value_type_name = utils.get_name(self.op.value_type, full_qual=full_qual)
 ,
         )
         if self.param_map:
@@ -576,7 +525,7 @@ class Expression:
         # We only get the ID's of the parameter ExprValue that lead to the
         # ExprValue we are interested in
         param_id_map = OrderedDict(
-            (param, take_first(param_expr._get_id(
+            (param, utils.take_first(param_expr._get_id(
                 with_tags = with_tags,
                 full_qual = full_qual,
                 qual = qual,
@@ -769,11 +718,11 @@ class Expression:
         # Get the name of the customized db_loader
         if db_loader is None:
             db_loader_name = '{cls_name}.from_path'.format(
-                cls_name=get_name(StorageDB, full_qual=True),
+                cls_name=utils.get_name(StorageDB, full_qual=True),
             )
         else:
             module_name_set.add(inspect.getmodule(db_loader).__name__)
-            db_loader_name = get_name(db_loader, full_qual=True)
+            db_loader_name = utils.get_name(db_loader, full_qual=True)
 
         # Add all the imports
         header = (
@@ -864,8 +813,7 @@ class Expression:
 
         def make_serialized(expr_val, attr):
             obj = getattr(expr_val, attr)
-            # Try to Pickle the object to see if that raises any exception
-            is_serializable(obj, raise_excep=True)
+            utils.is_serializable(obj, raise_excep=True)
 
             # When the ExprValue is from an Expression of the Consumer
             # operator, we directly print out the name of the function that was
@@ -884,7 +832,7 @@ class Expression:
                 try:
                     value = format_expr_value(expr_val)
                 # Cannot be serialized, so we skip it
-                except NotSerializableError:
+                except utils.NotSerializableError:
                     continue
                 out.append('{param} = {value}'.format(
                     param=param, value=value
@@ -929,7 +877,7 @@ class Expression:
                 expr_val_list = [expr_val.value for expr_val in expr_val_set]
                 assert expr_val_list[1:] == expr_val_list[:-1]
 
-                expr_data = take_first(expr_val_set)
+                expr_data = utils.take_first(expr_val_set)
                 return (format_expr_value(expr_data, lambda x:''), '')
             # Prior to execution, we don't have an ExprValue yet
             else:
@@ -956,7 +904,7 @@ class Expression:
             self.get_param_map(reusable=False).items(),
         )
 
-        first_param = take_first(self.param_map.keys())
+        first_param = utils.take_first(self.param_map.keys())
 
         for param, param_expr in param_map_chain:
             # Rename "self" parameter for more natural-looking output
@@ -1093,7 +1041,7 @@ class Expression:
             # Rename "self" parameter to the name of the variable we are
             # going to apply the method on
             if self.op.is_method:
-                first_param = take_first(param_expr_val_map)
+                first_param = utils.take_first(param_expr_val_map)
                 param_expr_val = param_expr_val_map.pop(first_param)
                 self_param = make_var(make_method_self_name(param_expr_val.expr))
                 param_expr_val_map[self_param] = param_expr_val
@@ -1116,7 +1064,7 @@ class Expression:
                         value = format_expr_value(value_list[0])
                     )
             # The values cannot be serialized so we hide them
-            except NotSerializableError:
+            except utils.NotSerializableError:
                 pass
             else:
                 # Prebuilt operators use that code to restore the serialized
@@ -1185,7 +1133,7 @@ class Expression:
         """Apply a flavor of common subexpressions elimination to the Expression
         graph and cleanup results of previous runs.
 
-        :return: return an updated copy of the Expression
+        :return: return an updated copy of the Expression it is called on
         """
         # Make a copy so we don't modify the original Expression
         new_expr = copy.copy(self)
@@ -1232,7 +1180,9 @@ class Expression:
         reusable_param_map_len = len(reusable_param_exec_map)
 
         # Consume all the reusable parameters, since they are generators
-        for param_expr_val_map in consume_gen_map(reusable_param_exec_map, product=expr_value_product):
+        for param_expr_val_map in consume_gen_map(
+                reusable_param_exec_map, product=ExprValue.expr_value_product
+            ):
             # If some parameters could not be computed, we will not get all
             # values
             reusable_param_computed = (
@@ -1285,10 +1235,10 @@ class Expression:
                 any_value_is_NoValue(param_expr_val_map.values())
             ):
                 expr_val = ExprValue(self, param_expr_val_map)
-                expr_val_seq = ExprValueSeq(
-                    self, None, param_expr_val_map,
+                expr_val_seq = ExprValueSeq.from_one_expr_val(
+                    self, expr_val, param_expr_val_map,
+                    post_compute_cb=post_compute_cb,
                 )
-                expr_val_seq.value_list.append(expr_val)
                 self.result_list.append(expr_val_seq)
                 yield expr_val
                 continue
@@ -1337,122 +1287,26 @@ def infinite_iter(generator, value_list, from_gen):
     else:
         yield from value_list
 
-def expr_value_product(*gen_list):
-    """Similar to the cartesian product provided by itertools.product, with
-    special handling of NoValue. It will only yield the combinations of values
-    that are validated by :meth:`ExprValue.validate_expr_value_list`.
-    """
-
-    generator = gen_list[0]
-    sub_generator_list = gen_list[1:]
-    sub_generator_list_iterator = expr_value_product(*sub_generator_list)
-    if sub_generator_list:
-        from_gen = True
-        value_list = list()
-        for expr_val in generator:
-            # The value is not useful, we can return early without calling the
-            # other generators. That avoids spending time computing parameters
-            # if they won't be used anyway.
-            if expr_val.value is NoValue:
-                # Returning an incomplete list will make the calling code aware
-                # that some values were not computed at all
-                yield [expr_val]
-                continue
-
-            for sub_value_list in infinite_iter(sub_generator_list_iterator, value_list, from_gen):
-                expr_value_list = [expr_val] + sub_value_list
-                if ExprValue.validate_expr_value_list(expr_value_list):
-                    yield expr_value_list
-
-            # After the first traversal of sub_generator_list_iterator, we
-            # want to yield from the saved value_list
-            from_gen = False
-    else:
-        for expr_val in generator:
-            expr_value_list = [expr_val]
-            if ExprValue.validate_expr_value_list(expr_value_list):
-                yield expr_value_list
-
 def no_product(*gen_list):
     # Take only one value from each generator, since non-reusable
     # operators are not supposed to produce more than one value.
     yield [next(generator) for generator in gen_list]
 
-def consume_gen_map(param_map, product=itertools.product):
+def consume_gen_map(param_map, product):
+    """
+    :param product: Function implementing a the same interface as
+        :func:`itertools.product`
+    """
     if not param_map:
         yield OrderedDict()
     else:
         # sort to make sure we always compute the parameters in the same order
-        gen_map = [(param, gen) for param, gen in param_map.items()]
-        param_list, gen_list = zip(*gen_map)
+        param_list, gen_list = zip(*param_map.items())
         for values in product(*gen_list):
             yield OrderedDict(zip(param_list, values))
 
 class AnnotationError(Exception):
     pass
-
-class NotSerializableError(Exception):
-    pass
-
-def is_serializable(obj, raise_excep=False):
-    stream = io.StringIO()
-    try:
-        # This may be slow for big objects but it is the only way to be sure
-        # it can actually be serialized
-        pickle.dumps(obj)
-    except (TypeError, pickle.PickleError) as e:
-        debug('Cannot serialize instance of {}: {}'.format(
-            type(obj).__qualname__, str(e)
-        ))
-        if raise_excep:
-            raise NotSerializableError(obj)
-        return False
-    else:
-        return True
-
-def get_class_from_name(cls_name, module_map):
-    possible_mod_set = {
-        mod_name
-        for mod_name in module_map.keys()
-        if cls_name.startswith(mod_name)
-    }
-
-    # Longest match in term of number of components
-    possible_mod_list = sorted(possible_mod_set, key=lambda name: len(name.split('.')))
-    if possible_mod_list:
-        mod_name = possible_mod_list[-1]
-    else:
-        return None
-
-    mod = module_map[mod_name]
-    cls_name = cls_name[len(mod_name)+1:]
-    return _get_class_from_name(cls_name, mod)
-
-def _get_class_from_name(cls_name, namespace):
-    if isinstance(namespace, collections.abc.Mapping):
-        namespace = types.SimpleNamespace(**namespace)
-
-    split = cls_name.split('.', 1)
-    try:
-        obj = getattr(namespace, split[0])
-    except AttributeError as e:
-        raise ValueError('Object not found') from e
-
-    if len(split) > 1:
-        return _get_class_from_name('.'.join(split[1:]), obj)
-    else:
-        return obj
-
-
-def get_src_loc(obj):
-    try:
-        src_line = inspect.getsourcelines(obj)[1]
-        src_file = inspect.getsourcefile(obj)
-        src_file = str(pathlib.Path(src_file).resolve())
-    except (OSError, TypeError):
-        src_line, src_file = None, None
-
-    return (src_file, src_line)
 
 class Operator:
     def __init__(self, callable_, non_reusable_type_set=None, tag_list_getter=None):
@@ -1523,7 +1377,7 @@ class Operator:
         for param, value_list in param_callable_map.items():
             # We just get the type of the first item in the list, which should
             # work in most cases
-            param_type = type(take_first(value_list))
+            param_type = type(utils.take_first(value_list))
 
             # Create an artificial new type that will only be produced by
             # the PrebuiltOperator
@@ -1554,7 +1408,7 @@ class Operator:
 
     def get_name(self, *args, **kwargs):
         try:
-            return get_name(self.callable_, *args, **kwargs)
+            return utils.get_name(self.callable_, *args, **kwargs)
         except AttributeError:
             return None
 
@@ -1562,7 +1416,7 @@ class Operator:
         # Factory classmethods are replaced by the class name when not
         # asking for a qualified ID
         if not qual and self.is_factory_cls_method:
-            return get_name(self.value_type, full_qual=full_qual, qual=qual)
+            return utils.get_name(self.value_type, full_qual=full_qual, qual=qual)
         else:
             return self.get_name(full_qual=full_qual, qual=qual)
 
@@ -1584,7 +1438,7 @@ class Operator:
 
     @property
     def src_loc(self):
-        return get_src_loc(self.unwrapped_callable)
+        return utils.get_src_loc(self.unwrapped_callable)
 
     @property
     def value_type(self):
@@ -1601,13 +1455,19 @@ class Operator:
     @property
     def is_static_method(self):
         callable_ = self.unwrapped_callable
+
         try:
-            cls = _get_class_from_name(
-                callable_.__qualname__.rsplit('.', 1)[0],
-                namespace=callable_.__globals__
-            )
+            callable_globals = callable_.__globals__
         # __globals__ is only defined for functions
-        except (AttributeError, ValueError):
+        except AttributeError:
+            return False
+
+        try:
+            cls = utils._get_class_from_name(
+                callable_.__qualname__.rsplit('.', 1)[0],
+                namespace=callable_globals
+            )
+        except ValueError:
             return False
 
         if not inspect.isclass(cls):
@@ -1658,7 +1518,7 @@ class Operator:
                     has_yielded = False
                     for res in self.callable_(*args, **kwargs):
                         has_yielded = True
-                        yield (res, create_uuid()), (NoValue, None)
+                        yield (res, utils.create_uuid()), (NoValue, None)
 
                     # If no value at all were produced, we still need to yield
                     # something
@@ -1666,23 +1526,23 @@ class Operator:
                         yield (NoValue, None), (NoValue, None)
 
                 except Exception as e:
-                    yield (NoValue, None), (e, create_uuid())
+                    yield (NoValue, None), (e, utils.create_uuid())
         else:
             @functools.wraps(self.callable_)
             def genf(*args, **kwargs):
                 # yield one value and then return
                 try:
                     val = self.callable_(*args, **kwargs)
-                    yield (val, create_uuid()), (NoValue, None)
+                    yield (val, utils.create_uuid()), (NoValue, None)
                 except Exception as e:
-                    yield (NoValue, None), (e, create_uuid())
+                    yield (NoValue, None), (e, utils.create_uuid())
 
         return genf
 
     def get_prototype(self):
         sig = self.signature
-        first_param = take_first(sig.parameters)
-        annotation_map = resolve_annotations(self.annotations, self.callable_globals)
+        first_param = utils.take_first(sig.parameters)
+        annotation_map = utils.resolve_annotations(self.annotations, self.callable_globals)
 
         extra_ignored_param = set()
         # If it is a class
@@ -1706,7 +1566,7 @@ class Operator:
             produced = annotation_map['return']
 
         # Recompute after potentially modifying the annotations
-        annotation_map = resolve_annotations(self.annotations, self.callable_globals)
+        annotation_map = utils.resolve_annotations(self.annotations, self.callable_globals)
 
         # Remove the return annotation, since we are handling that separately
         annotation_map.pop('return', None)
@@ -1754,7 +1614,7 @@ class PrebuiltOperator(Operator):
                 uuid_ = obj.value_uuid
                 obj = obj.value
             else:
-                uuid_ = create_uuid()
+                uuid_ = utils.create_uuid()
 
             uuid_list.append(uuid_)
             obj_list_.append(obj)
@@ -1773,11 +1633,11 @@ class PrebuiltOperator(Operator):
         return None
 
     def get_id(self, *args, **kwargs):
-        return self._id or get_name(self.obj_type, *args, **kwargs)
+        return self._id or utils.get_name(self.obj_type, *args, **kwargs)
 
     @property
     def src_loc(self):
-        return get_src_loc(self.value_type)
+        return utils.get_src_loc(self.value_type)
 
     @property
     def is_genfunc(self):
@@ -1797,10 +1657,26 @@ class PrebuiltOperator(Operator):
 class ExprValueSeq:
     def __init__(self, expr, iterator, param_expr_val_map, post_compute_cb=None):
         self.expr = expr
+        assert isinstance(iterator, collections.abc.Iterator)
         self.iterator = iterator
-        self.value_list = list()
+        self.value_list = []
         self.param_expr_val_map = param_expr_val_map
         self.post_compute_cb = post_compute_cb
+
+
+    @classmethod
+    def from_one_expr_val(cls, expr, expr_val, param_expr_val_map, post_compute_cb=None):
+        iterated = [(
+            (expr_val.value, expr_val.value_uuid),
+            (expr_val.excep, expr_val.excep_uuid),
+        )]
+        new = cls(
+            expr=expr,
+            iterator=iter(iterated),
+            param_expr_val_map=param_expr_val_map,
+            post_compute_cb=post_compute_cb
+        )
+        return new
 
     def iter_expr_value(self):
         callback = self.post_compute_cb
@@ -1825,17 +1701,17 @@ class ExprValueSeq:
                 callback(expr_val, reused=False)
 
                 self.value_list.append(expr_val)
-                value_list_idx = len(self.value_list) - 1
+                value_list_len = len(self.value_list)
                 yield expr_val
 
                 # If value_list length has changed, catch up with the values
                 # that were computed behind our back, so that this generator is
                 # reentrant.
-                if value_list_idx != len(self.value_list) - 1:
+                if value_list_len != len(self.value_list):
                     # This will yield all values, even if the list grows while
                     # we are yielding the control back to another piece of code.
                     yield from yielder(
-                        self.value_list[value_list_idx + 1:],
+                        self.value_list[value_list_len:],
                         True
                     )
 
@@ -1849,8 +1725,8 @@ def any_value_is_NoValue(value_list):
 
 class SerializableExprValue:
     def __init__(self, expr_val, serialized_map, hidden_callable_set=None):
-        self.value = expr_val.value if is_serializable(expr_val.value) else NoValue
-        self.excep = expr_val.excep if is_serializable(expr_val.excep) else NoValue
+        self.value = expr_val.value if utils.is_serializable(expr_val.value) else NoValue
+        self.excep = expr_val.excep if utils.is_serializable(expr_val.excep) else NoValue
 
         self.value_uuid = expr_val.value_uuid
         self.excep_uuid = expr_val.excep_uuid
@@ -1870,12 +1746,12 @@ class SerializableExprValue:
             )
 
         self.type_names = [
-            get_name(type_, full_qual=True)
-            for type_ in get_mro(expr_val.expr.op.value_type)
+            utils.get_name(type_, full_qual=True)
+            for type_ in utils.get_mro(expr_val.expr.op.value_type)
             if type_ is not object
         ]
 
-        self.param_value_map = collections.OrderedDict()
+        self.param_value_map = OrderedDict()
         for param, param_expr_val in expr_val.param_value_map.items():
             param_serialzable = param_expr_val._get_serializable(
                 serialized_map,
@@ -1896,41 +1772,6 @@ class SerializableExprValue:
             parent.get_parent_set(predicate, _parent_set=parent_set)
 
         return parent_set
-
-def get_name(obj, full_qual=True, qual=True):
-    # full_qual enabled implies qual enabled
-    _qual = qual or full_qual
-    # qual disabled implies full_qual disabled
-    full_qual = full_qual and qual
-    qual = _qual
-
-    # Add the module's name in front of the name to get a fully
-    # qualified name
-    if full_qual:
-        module_name = obj.__module__
-        module_name = (
-            module_name + '.'
-            if module_name != '__main__' and module_name != 'builtins'
-            else ''
-        )
-    else:
-        module_name = ''
-
-    if qual:
-        _get_name = lambda x: x.__qualname__
-    else:
-        _get_name = lambda x: x.__name__
-
-    # Classmethods appear as bound method of classes. Since each subclass will
-    # get a different bound method object, we want to reflect that in the
-    # name we use, instead of always using the same name that the method got
-    # when it was defined
-    if inspect.ismethod(obj):
-        name = _get_name(obj.__self__) + '.' + obj.__name__
-    else:
-        name = _get_name(obj)
-
-    return module_name + name
 
 class ExprValue:
     def __init__(self, expr, param_value_map,
@@ -2002,10 +1843,52 @@ class ExprValue:
 
         return True
 
+    @classmethod
+    def expr_value_product(cls, *gen_list):
+        """Similar to the cartesian product provided by itertools.product, with
+        special handling of NoValue and some checks on the yielded sequences.
+
+        It will only yield the combinations of values that are validated by
+        :meth:`validate_expr_value_list`.
+        """
+
+        generator = gen_list[0]
+        sub_generator_list = gen_list[1:]
+        sub_generator_list_iterator = cls.expr_value_product(*sub_generator_list)
+        if sub_generator_list:
+            from_gen = True
+            value_list = list()
+            for expr_val in generator:
+                # The value is not useful, we can return early without calling the
+                # other generators. That avoids spending time computing parameters
+                # if they won't be used anyway.
+                if expr_val.value is NoValue:
+                    # Returning an incomplete list will make the calling code aware
+                    # that some values were not computed at all
+                    yield [expr_val]
+                    continue
+
+                for sub_value_list in infinite_iter(
+                        sub_generator_list_iterator, value_list, from_gen
+                    ):
+                    expr_value_list = [expr_val] + sub_value_list
+                    if cls.validate_expr_value_list(expr_value_list):
+                        yield expr_value_list
+
+                # After the first traversal of sub_generator_list_iterator, we
+                # want to yield from the saved value_list
+                from_gen = False
+        else:
+            for expr_val in generator:
+                expr_value_list = [expr_val]
+                if cls.validate_expr_value_list(expr_value_list):
+                    yield expr_value_list
+
+
     def get_id(self, *args, with_tags=True, **kwargs):
         # There exists only one ID for a given ExprValue so we just return it
         # instead of an iterator.
-        return take_first(self.expr.get_id(with_tags=with_tags,
+        return utils.take_first(self.expr.get_id(with_tags=with_tags,
             expr_val=self, *args, **kwargs))
 
     def get_failed_values(self):
