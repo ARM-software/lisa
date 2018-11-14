@@ -286,6 +286,45 @@ def resolve_annotations(annotations, module_vars):
         for param, cls in annotations.items()
     }
 
+def find_customization_module_set(module_set):
+    def build_full_names(l_l):
+        """Explode list of lists, and build full package names."""
+        for l in l_l:
+            for i, _ in enumerate(l):
+                i += 1
+                yield '.'.join(l[:i])
+
+    try:
+        import_excep = ModuleNotFoundError
+    # Python < 3.6
+    except NameError:
+        import_excep = AttributeError
+
+    package_names_list = [
+        module.__name__.split('.')
+        for module in module_set
+    ]
+    package_name_set = set(build_full_names(package_names_list))
+
+    customization_module_set = set()
+
+    for name in package_name_set:
+        customize_name = name + '.exekall_customize'
+        # Only hide ModuleNotFoundError exceptions when looking up that
+        # specific module, we don't want to hide issues inside the module
+        # itself.
+        module_exists = False
+        with contextlib.suppress(import_excep):
+            module_exists = importlib.util.find_spec(customize_name)
+
+        if module_exists:
+            # Importing that module is enough to make the adaptor visible
+            # to the Adaptor base class
+            customize_module = importlib.import_module(customize_name)
+            customization_module_set.add(customize_module)
+
+    return customization_module_set
+
 def import_file(python_src, module_name=None, is_package=False):
     python_src = pathlib.Path(python_src)
     if python_src.is_dir():

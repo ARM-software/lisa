@@ -160,47 +160,12 @@ the name of the parameter, the start value, stop value and step size.""")
     global show_traceback
     show_traceback = args.debug
 
-    # Look for a customization submodule in one of the toplevel packages
-    # of the modules we specified on the command line.
-    module_list = [utils.import_file(path) for path in args.python_files]
-    package_names_list = [
-        module.__name__.split('.')
-        for module in reversed(module_list)
-    ]
+    # Import all modules, before selecting the adaptor
+    module_set = {utils.import_file(path) for path in args.python_files}
 
-    def build_full_names(l_l):
-        """Explode list of lists, and build full package names."""
-        for l in l_l:
-            for i, _ in enumerate(l):
-                i += 1
-                yield '.'.join(l[:i])
-
-    package_name_list = list(build_full_names(package_names_list))
-
-    adaptor_cls = AdaptorBase
-    module_set = set()
-
-    try:
-        import_excep = ModuleNotFoundError
-    # Python < 3.6
-    except NameError:
-        import_excep = AttributeError
-
-    for name in reversed(package_name_list):
-        customize_name = name + '.exekall_customize'
-        # Only hide ModuleNotFoundError exceptions when looking up that
-        # specific module, we don't want to hide issues inside the module
-        # itself.
-        module_exists = False
-        with contextlib.suppress(import_excep):
-            module_exists = importlib.util.find_spec(customize_name)
-
-        if module_exists:
-            # Importing that module is enough to make the adaptor visible
-            # to the Adaptor base class
-            customize_module = importlib.import_module(customize_name)
-            module_set.add(customize_module)
-            break
+    # Look for a customization submodule in one of the parent packages of the
+    # modules we specified on the command line.
+    module_set.update(utils.find_customization_module_set(module_set))
 
     adaptor_name = args.adaptor
     adaptor_cls = AdaptorBase.get_adaptor_cls(adaptor_name)
@@ -266,8 +231,6 @@ the name of the parameter, the start value, stop value and step size.""")
         info_log = artifact_dir.joinpath('info_log.txt')
 
     utils.setup_logging(args.log_level, debug_log, info_log, verbose=verbose)
-
-    module_set.update(utils.import_file(path) for path in args.python_files)
 
     non_reusable_type_set = adaptor.get_non_reusable_type_set()
 
