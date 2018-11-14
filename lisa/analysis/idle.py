@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pylab as pl
 
-from lisa.analysis.base import AnalysisBase, ResidencyTime, ResidencyData
+from lisa.analysis.base import AnalysisBase
 from trappy.utils import listify
 
 

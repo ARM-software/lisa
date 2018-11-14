@@ -17,8 +17,9 @@
 
 """ CPUs Analysis Module """
 
-import matplotlib.pyplot as plt
-import pylab as pl
+import operator
+from functools import reduce
+
 import pandas as pd
 
 from trappy.utils import handle_duplicate_index
@@ -123,6 +124,45 @@ class CpusAnalysis(AnalysisBase):
 
         # Fix sequences of wakeup/sleep events reported with the same index
         return handle_duplicate_index(cpu_active)
+
+    def signal_cluster_active(self, cluster):
+        """
+        Build a square wave representing the active (i.e. non-idle) cluster
+        time, i.e.:
+
+          cluster_active[t] == 1 if at least one CPU is reported to be non-idle
+          by CPUFreq at time t
+          cluster_active[t] == 0 otherwise
+
+        :param cluster: list of CPU IDs belonging to a cluster
+        :type cluster: list(int)
+
+        :returns: A :class:`pandas.Series` or ``None`` if the trace contains no
+                  "cpu_idle" events
+        """
+        active = self.signal_cpu_active(cluster[0]).to_frame(name=cluster[0])
+        for cpu in cluster[1:]:
+            active = active.join(
+                self.signal_cpu_active(cpu).to_frame(name=cpu),
+                how='outer'
+            )
+
+        active.fillna(method='ffill', inplace=True)
+        # There might be NaNs in the signal where we got data from some CPUs
+        # before others. That will break the .astype(int) below, so drop rows
+        # with NaN in them.
+        active.dropna(inplace=True)
+
+        # Cluster active is the OR between the actives on each CPU
+        # belonging to that specific cluster
+        cluster_active = reduce(
+            operator.or_,
+            [cpu_active.astype(int) for _, cpu_active in
+             active.items()]
+        )
+
+        return cluster_active
+
 
 
 ###############################################################################

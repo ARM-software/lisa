@@ -24,7 +24,7 @@ import os
 import pandas as pd
 import pylab as pl
 
-from lisa.analysis.base import AnalysisBase, ResidencyTime, ResidencyData
+from lisa.analysis.base import AnalysisBase
 from lisa.utils import memoized
 from bart.common.Utils import area_under_curve
 from matplotlib.ticker import FuncFormatter
@@ -47,7 +47,7 @@ class FrequencyAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    def df_cpu_frequency_residency(self, cpu, total=True):
+    def df_cpu_frequency_residency(self, cpu):
         """
         Get per-CPU frequency residency, i.e. amount of
         time CPU `cpu` spent at each frequency.
@@ -67,66 +67,34 @@ class FrequencyAnalysis(AnalysisBase):
         if not isinstance(cpu, int):
             raise TypeError('Input CPU parameter must be an integer')
 
-        residency = self._get_frequency_residency(cpu)
-        if not residency:
-            return None
-        if total:
-            return residency.total
-        return residency.active
+        return self._get_frequency_residency((cpu,))
 
-    def df_cluster_frequency_residency(self, cluster, total=True):
+    def df_domain_frequency_residency(self, cpu):
         """
-        Get per-Cluster frequency residency, i.e. amount of time CLUSTER
-        `cluster` spent at each frequency.
+        Get per-frequency-domain frequency residency, i.e. amount of time each
+        domain at each frequency.
 
-        :param cluster: this can be either a list of CPU IDs belonging to a
-            cluster or the cluster name as specified in the platform
-            description
-        :type cluster: str or list(int)
-
-        :param total: if true returns the "total" time, otherwise the "active"
-                      time is returned
-        :type total: bool
+        :param cpu: Any CPU of the domain to analyse
+        :type cpu: int
 
         :returns: :mod:`pandas.DataFrame` - "total" or "active" time residency
                   at each frequency.
 
-        :raises: KeyError
         """
-        if isinstance(cluster, str):
-            try:
-                residency = self._get_frequency_residency(
-                    self._trace.plat_info['clusters'][cluster.lower()]
-                )
-            except KeyError:
-                self._log.warning(
-                    'Platform descriptor has not a cluster named [%s], '
-                    'plot disabled!', cluster
-                )
-                return None
-        else:
-            residency = self._get_frequency_residency(cluster)
-        if not residency:
-            return None
-        if total:
-            return residency.total
-        return residency.active
+        domains = self._trace.plat_info['freq-domains']
+        for domain in domains:
+            if cpu in domain:
+                return self._get_frequency_residency(tuple(domain))
 
     def df_cpu_frequency_transitions(self, cpu):
         """
         Compute number of frequency transitions of a given CPU.
-
-        Requires cpu_frequency events to be available in the trace.
 
         :param cpu: a CPU ID
         :type cpu: int
 
         :returns: :mod:`pandas.DataFrame` - number of frequency transitions
         """
-        if not self._trace.hasEvents('cpu_frequency'):
-            self._log.warn('Events [cpu_frequency] not found, '
-                           'frequency data not available')
-            return None
 
         freq_df = self._trace.df_events('cpu_frequency')
         cpu_freqs = freq_df[freq_df.cpu == cpu].frequency
@@ -135,16 +103,15 @@ class FrequencyAnalysis(AnalysisBase):
         # a cpu_frequency event is triggered that can generate a duplicate)
         cpu_freqs = cpu_freqs.loc[cpu_freqs.shift(-1) != cpu_freqs]
         transitions = cpu_freqs.value_counts()
-        # Convert frequencies to MHz
-        transitions.index = transitions.index / 1000
+
         transitions.name = "transitions"
         transitions.sort_index(inplace=True)
+
         return pd.DataFrame(transitions)
 
     def df_cpu_frequency_transition_rate(self, cpu):
         """
         Compute frequency transition rate of a given CPU.
-        Requires cpu_frequency events to be available in the trace.
 
         :param cpu: a CPU ID
         :type cpu: int
@@ -757,50 +724,36 @@ class FrequencyAnalysis(AnalysisBase):
 ###############################################################################
 
     @memoized
-    def _get_frequency_residency(self, cluster):
+    def _get_frequency_residency(self, cpus):
         """
         Get a DataFrame with per cluster frequency residency, i.e. amount of
         time spent at a given frequency in each cluster.
 
-        :param cluster: this can be either a single CPU ID or a list of CPU IDs
-            belonging to a cluster
-        :type cluster: int or list(int)
+        :param cpus: A tuple of CPU IDs
+        :type cpus: tuple(int)
 
         :returns: namedtuple(ResidencyTime) - tuple of total and active time
             dataframes
         """
-        if not self._trace.hasEvents('cpu_frequency'):
-            self._log.warning('Events [cpu_frequency] not found, '
-                              'frequency residency computation not possible!')
-            return None
-        if not self._trace.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, '
-                              'frequency residency computation not possible!')
-            return None
-
-        _cluster = listify(cluster)
-
         freq_df = self._trace.df_events('cpu_frequency')
         # Assumption: all CPUs in a cluster run at the same frequency, i.e. the
         # frequency is scaled per-cluster not per-CPU. Hence, we can limit the
         # cluster frequencies data to a single CPU. This assumption is verified
         # by the Trace module when parsing the trace.
-        if len(_cluster) > 1 and not self._trace.freq_coherency:
+        if len(cpus) > 1 and not self._trace.freq_coherency:
             self._log.warning('Cluster frequency is NOT coherent,'
                               'cannot compute residency!')
             return None
-        cluster_freqs = freq_df[freq_df.cpu == _cluster[0]]
+
+        cluster_freqs = freq_df[freq_df.cpu == cpus[0]]
 
         # Compute TOTAL Time
-        time_intervals = cluster_freqs.index[1:] - cluster_freqs.index[:-1]
-        total_time = pd.DataFrame({
-            'time': time_intervals,
-            'frequency': [f/1000.0 for f in cluster_freqs.iloc[:-1].frequency]
-        })
-        total_time = total_time.groupby(['frequency']).sum()
+        cluster_freqs = self._trace.add_events_deltas(
+            cluster_freqs, col_name="total_time", inplace=False)
+        time_df = cluster_freqs[["total_time", "frequency"]].groupby(["frequency"]).sum()
 
         # Compute ACTIVE Time
-        cluster_active = self._trace.getClusterActiveSignal(_cluster)
+        cluster_active = self._trace.analysis.cpus.signal_cluster_active(cpus)
 
         # In order to compute the active time spent at each frequency we
         # multiply 2 square waves:
@@ -816,16 +769,14 @@ class FrequencyAnalysis(AnalysisBase):
             cluster_active.to_frame(name='active'), how='outer')
         cluster_freqs.fillna(method='ffill', inplace=True)
         nonidle_time = []
-        for f in available_freqs:
-            freq_active = cluster_freqs.frequency.apply(lambda x: 1 if x == f else 0)
+        for freq in available_freqs:
+            freq_active = cluster_freqs.frequency.apply(lambda x: 1 if x == freq else 0)
             active_t = cluster_freqs.active * freq_active
             # Compute total time by integrating the square wave
             nonidle_time.append(self._trace.integrate_square_wave(active_t))
 
-        active_time = pd.DataFrame({'time': nonidle_time},
-                                   index=[f/1000.0 for f in available_freqs])
-        active_time.index.name = 'frequency'
-        return ResidencyTime(total_time, active_time)
+        time_df["active_time"] = pd.DataFrame(index=available_freqs, data=nonidle_time)
+        return time_df
 
     def _plot_frequency_residency_abs(self, axes, residency, n_plots,
                                    is_first, is_last, xmax, title=''):

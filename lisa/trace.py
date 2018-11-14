@@ -828,50 +828,6 @@ class Trace(Loggable):
         return handle_duplicate_index(cpu_active)
 
     @memoized
-    def getClusterActiveSignal(self, cluster):
-        """
-        Build a square wave representing the active (i.e. non-idle) cluster
-        time, i.e.:
-
-          cluster_active[t] == 1 if at least one CPU is reported to be non-idle
-          by CPUFreq at time t
-          cluster_active[t] == 0 otherwise
-
-        :param cluster: list of CPU IDs belonging to a cluster
-        :type cluster: list(int)
-
-        :returns: A :class:`pandas.Series` or ``None`` if the trace contains no
-                  "cpu_idle" events
-        """
-        if not self.hasEvents('cpu_idle'):
-            self.get_logger().warning('Events [cpu_idle] not found, '
-                              'cannot compute cluster active signal!')
-            return None
-
-        active = self.getCPUActiveSignal(cluster[0]).to_frame(name=cluster[0])
-        for cpu in cluster[1:]:
-            active = active.join(
-                self.getCPUActiveSignal(cpu).to_frame(name=cpu),
-                how='outer'
-            )
-
-        active.fillna(method='ffill', inplace=True)
-        # There might be NaNs in the signal where we got data from some CPUs
-        # before others. That will break the .astype(int) below, so drop rows
-        # with NaN in them.
-        active.dropna(inplace=True)
-
-        # Cluster active is the OR between the actives on each CPU
-        # belonging to that specific cluster
-        cluster_active = reduce(
-            operator.or_,
-            [cpu_active.astype(int) for _, cpu_active in
-             active.items()]
-        )
-
-        return cluster_active
-
-    @memoized
     def getPeripheralClockEffectiveRate(self, clk_name):
         logger = self.get_logger()
         if clk_name is None:

@@ -29,8 +29,6 @@ from trappy.utils import listify
 
 """ Helper module for Analysis classes """
 
-ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
-ResidencyData = namedtuple('ResidencyData', ['label', 'residency'])
 
 class AnalysisBase:
     """
