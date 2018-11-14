@@ -922,14 +922,22 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         if eval_deferred:
             val = self._eval_deferred_val(src, key)
 
-        frame_conf = inspect.stack()[2]
+        try:
+            frame_conf = inspect.stack()[2]
+        except Exception:
+            caller, filename, lineno = ['<unknown>'] * 3
+        else:
+            caller = frame_conf.function
+            filename = frame_conf.filename
+            lineno = frame_conf.lineno
+
         self.get_logger().debug('{caller} ({filename}:{lineno}) has used key {key} from source "{src}": {val}'.format(
             key=key_desc.qualname,
             src=src,
             val=val,
-            caller=frame_conf.function,
-            filename=frame_conf.filename,
-            lineno=frame_conf.lineno,
+            caller=caller,
+            filename=filename,
+            lineno=lineno,
         ))
         return val
 
