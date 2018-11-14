@@ -908,9 +908,20 @@ class Trace(Loggable):
 
     def add_events_deltas(self, df, col_name='delta', inplace=True):
         """
-        Compute the time between each event in a dataframe, and store it in a
-        new column. This only really makes sense for events tracking an
-        on/off state (e.g. overutilized, idle)
+        Store the time between each event in a new dataframe column
+
+        :param df: The DataFrame to operate one
+        :type df: pandas.DataFrame
+
+        :param col_name: The name of the column to add
+        :type col_name: str
+
+        :param inplace: Whether to operate on the passed DataFrame, or to use
+          a copy of it
+        :type inplace: bool
+
+        This method only really makes sense for events tracking an on/off state
+        (e.g. overutilized, idle)
         """
         if df.empty:
             return df
@@ -919,13 +930,17 @@ class Trace(Loggable):
             raise RuntimeError("Column {} is already present in the dataframe".
                                format(col_name))
 
-        df['start'] = df.index
-        df[col_name] = (df.start - df.start.shift()).fillna(0).shift(-1)
-        df.drop('start', axis=1, inplace=True)
+        if not inplace:
+            df = df.copy()
+
+        time_df = pd.DataFrame(index=df.index, data=df.index.values, columns=["start"])
+        df[col_name] = (time_df.start - time_df.start.shift()).fillna(0).shift(-1)
 
         # Fix the last event, which will have a NaN duration
         # Set duration to trace_end - last_event
         df.loc[df.index[-1], col_name] = self.start_time + self.time_range - df.index[-1]
+
+        return df
 
     @staticmethod
     def squash_df(df, start, end, column='delta'):
