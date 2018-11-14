@@ -83,7 +83,10 @@ def memoized(callable_):
     # It is important to have one separate call to lru_cache for every call to
     # memoized, otherwise all uses of the decorator will end up using the same
     # wrapper and all hells will break loose.
-    return functools.lru_cache(maxsize=None, typed=True)(callable_)
+
+    # maxsize should be a power of two for better speed, see:
+    # https://docs.python.org/3/library/functools.html#functools.lru_cache
+    return functools.lru_cache(maxsize=1024, typed=True)(callable_)
 
 def resolve_dotted_name(name):
     """Only resolve names where __qualname__ == __name__, i.e the callable is a
