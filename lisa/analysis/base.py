@@ -20,10 +20,19 @@ import os
 import inspect
 
 import matplotlib.pyplot as plt
+from cycler import cycler
 
 from trappy.utils import listify
 
 from lisa.utils import Loggable
+
+# Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
+COLOR_CYCLES = [
+    '#377eb8', '#ff7f00', '#4daf4a',
+    '#f781bf', '#a65628', '#984ea3',
+    '#999999', '#e41a1c', '#dede00']
+
+plt.rcParams['axes.prop_cycle'] = cycler(color=COLOR_CYCLES)
 
 def requires_events(events):
     """
@@ -95,6 +104,52 @@ class AnalysisBase(Loggable):
         # Needed for multirow plots to not overlap with each other
         plt.tight_layout(h_pad=3.5)
         return figure, axes
+
+    @classmethod
+    def cycle_colors(cls, axis, nr_cycles):
+        """
+        Cycle the axis color cycle ``nr_cycles`` forward
+
+        :param axis: The axis to manipulate
+        :type axis: matplotlib.axes.Axes
+
+        :param nr_cycles: The number of colors to cycle through.
+        :type nr_cycles: int
+
+        .. note::
+
+          This is an absolute cycle, as in, it will always start from the first
+          color defined in the color cycle.
+
+        """
+        if nr_cycles < 1:
+            return
+
+        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+        if nr_cycles > len(colors):
+            nr_cycles -= len(colors)
+
+        axis.set_prop_cycle(cycler(color=colors[nr_cycles:] + colors[:nr_cycles]))
+
+    @classmethod
+    def get_next_color(cls, axis):
+        """
+        Get the next color that will be used to draw lines on the axis
+
+        :param axis: The axis
+        :type axis: matplotlib.axes.Axes
+
+        .. warning::
+
+          This will consume the color from the cycler, which means it will
+          change which color is to be used next.
+
+        """
+        # XXX: We're accessing some private data here, so that could break eventually
+        # Need to find another way to get the current color from the cycler, or to
+        # plot all data from a dataframe in the same color.
+        return next(axis._get_lines.prop_cycler)['color']
 
     def save_plot(self, figure, filepath=None, img_format="png"):
         """
