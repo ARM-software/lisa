@@ -30,10 +30,7 @@ from lisa.analysis.base import AnalysisBase, requires_events
 
 class CpusAnalysis(AnalysisBase):
     """
-    Support for CPUs Signals Analysis
-
-    :param trace: input Trace object
-    :type trace: :class:`Trace`
+    Support for CPUs signals analysis
     """
 
     name = 'cpus'
@@ -51,7 +48,9 @@ class CpusAnalysis(AnalysisBase):
         """
         Compute number of context switches on each CPU.
 
-        :returns: :mod:`pandas.DataFrame`
+        :returns: A :class:`pandas.DataFrame` with:
+
+          * A ``context_switch_cnt`` column (the number of context switch per CPU)
         """
         sched_df = self._trace.df_events('sched_switch')
         cpus = list(range(self._trace.cpus_count))
@@ -72,9 +71,9 @@ class CpusAnalysis(AnalysisBase):
         :param cpus: List of CPUs to find wakeups for. If None, all CPUs.
         :type cpus: list(int) or None
 
-        :returns: :mod:`pandas.DataFrame` with one column ``cpu``, where each
-                  row shows a time when the given ``cpu`` was woken up from
-                  idle.
+        :returns: A :class:`pandas.DataFrame` with
+
+          * A ``cpu`` column (the CPU that woke up at the row index)
         """
         cpus = cpus or list(range(self._trace.cpus_count))
 
@@ -91,18 +90,13 @@ class CpusAnalysis(AnalysisBase):
     @requires_events(['cpu_idle'])
     def signal_cpu_active(self, cpu):
         """
-        Build a square wave representing the active (i.e. non-idle) CPU time,
-        i.e.:
-
-          cpu_active[t] == 1 if the CPU is reported to be non-idle by cpuidle at
-          time t
-          cpu_active[t] == 0 otherwise
+        Build a square wave representing the active (i.e. non-idle) CPU time
 
         :param cpu: CPU ID
         :type cpu: int
 
-        :returns: A :class:`pandas.Series` or ``None`` if the trace contains no
-                  "cpu_idle" events
+        :returns: A :class:`pandas.Series` that equals 1 at timestamps where the
+          CPU is reported to be non-idle, 0 otherwise
         """
         idle_df = self._trace.df_events('cpu_idle')
         cpu_df = idle_df[idle_df.cpu_id == cpu]
@@ -127,18 +121,13 @@ class CpusAnalysis(AnalysisBase):
     @requires_events(signal_cpu_active.required_events)
     def signal_cluster_active(self, cluster):
         """
-        Build a square wave representing the active (i.e. non-idle) cluster
-        time, i.e.:
-
-          cluster_active[t] == 1 if at least one CPU is reported to be non-idle
-          by CPUFreq at time t
-          cluster_active[t] == 0 otherwise
+        Build a square wave representing the active (i.e. non-idle) cluster time
 
         :param cluster: list of CPU IDs belonging to a cluster
         :type cluster: list(int)
 
-        :returns: A :class:`pandas.Series` or ``None`` if the trace contains no
-                  "cpu_idle" events
+        :returns: A :class:`pandas.Series` that equals 1 at timestamps where at
+          least one CPU is reported to be non-idle, 0 otherwise
         """
         active = self.signal_cpu_active(cluster[0]).to_frame(name=cluster[0])
         for cpu in cluster[1:]:

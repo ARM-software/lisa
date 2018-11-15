@@ -70,7 +70,7 @@ class AnalysisBase(Loggable):
     :meth:`lisa.analysis.base.requires_events`
 
     Plotting methods *must* return the :class:`matplotlib.axes.Axes` instance
-    used by the plotting method. This lets users embed plots into subplots.
+    used by the plotting method. This lets users further modify them.
     """
 
     def __init__(self, trace):
@@ -93,10 +93,11 @@ class AnalysisBase(Loggable):
         :param nrows: Number of plots in a single column
         :type nrows: int
 
-        :Keywords arguments: Extra arguments to pass to :meth:`matplotlib.subplots`
+        :Keywords arguments: Extra arguments to pass to
+          :obj:`matplotlib.pyplot.subplots`
 
         :returns: tuple(matplotlib.figure.Figure, matplotlib.axes.Axes (or an
-          (array of, if ``nrows`` > 1))
+          array of, if ``nrows`` > 1))
         """
         figure, axes = plt.subplots(
             ncols=ncols, nrows=nrows, figsize=(width, height * nrows), **kwargs
@@ -156,7 +157,7 @@ class AnalysisBase(Loggable):
         Save the plot stored in the ``figure``
 
         :param figure: The plot figure
-        :type figure: matplotlib.figure.figure
+        :type figure: matplotlib.figure.Figure
 
         :param filepath: The path of the file into which the plot will be saved.
           If ``None``, a path based on the trace directory and the calling method
