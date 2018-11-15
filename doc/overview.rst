@@ -8,22 +8,27 @@ Installation
 Native installation
 +++++++++++++++++++
 
-For now, you will need to clone LISA from `github
-<https://github.com/ARM-software/lisa>`_ and use ``setup.py`` to install the
-required packages. The simplest way to do so would be to issue these commands::
+For now, you will need to clone LISA from `github <https://github.com/ARM-software/lisa>`_ ,
+and then issue these commands::
 
   git clone https://github.com/ARM-software/lisa.git -b next
   cd lisa
-  python3 -m pip install -e .
+  # A few packages need to be installed, like python3 or kernelshark. Python
+  # modules will be installed in a venv at the next step, without touching 
+  # any system-wide install location.
+  ./install_base_ubuntu.sh
+  # On the first run, it will take care of creating a Python venv and populating it
+  source init_env
 
-Extra (optionnal) packages can also be installed, for instance notebook support::
+In case the venv becomes unusable for some reason, the ``lisa-install``
+shell command available after sourcing ``init_env`` will allow to create a new
+clean venv from scratch.
 
-  python3 -m pip install -e .[notebook]
-
-Since any dependency update will be reflected in ``setup.py``, these commands can
-also be used to update your packages and keep them compatible with LISA.
-
-As with any other Python project, we recommend using a virtual python environment.
+Alternatively, ``lisa`` package is packaged according to the usual
+Python practices, which includes a ``setup.py`` script, and a
+``devmode_requirements.txt`` file that will install all the shipped packages in
+editable mode (including those that are not developped in that repository, but
+still included for convenience).
 
 Virtual machine installation
 ++++++++++++++++++++++++++++++++++

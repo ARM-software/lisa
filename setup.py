@@ -33,29 +33,45 @@ setup(
     long_description=long_description,
     python_requires='>= 3.5',
     install_requires=[
-        "Cython >= 0.25.1",
         "psutil >= 4.4.2",
-        "wrapt >= 1.10.8",
-        "matplotlib >= 1.4.2, < 3.0",
+        "matplotlib >= 1.4.2",
         "pandas >= 0.23.0",
         "numpy",
         "nose",
-        "future",
-        "ruamel.yaml",
+        "ruamel.yaml >= 0.15.72",
+
+        # Depdendencies that are shipped as part of the LISA repo as
+        # subtree/submodule
         "devlib",
-        # "trappy",
-        # "bart-py",
+        "trappy",
+        "bart-py",
     ],
+
     extras_require={
         "notebook": [
             "ipython",
             "jupyter"
         ],
+
         "doc": [
             "sphinx",
             "sphinx_rtd_theme"
-        ]
-    }
+        ],
+    },
+
+    classifiers=[
+        "Programming Language :: Python :: 3 :: Only",
+        # This is not a standard classifier, as there is nothing defined for
+        # Apache 2.0 yet:
+        # https://pypi.org/classifiers/
+        "License :: OSI Approved :: Apache 2.0",
+        # It has not been tested under any other OS
+        "Operating System :: POSIX :: Linux",
+
+        "Topic :: System :: Operating System Kernels :: Linux",
+        "Topic :: Software Development :: Testing",
+        "Intended Audience :: Developers",
+    ],
 )
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
