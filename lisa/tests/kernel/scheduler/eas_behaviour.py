@@ -87,6 +87,15 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         return cls(res_dir, te.plat_info, rtapp_profile)
 
     @classmethod
+    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'EASBehaviour':
+        """
+        Factory method to create a bundle using a live target
+
+        This will execute the rt-app workload described in :meth:`get_rtapp_profile`
+        """
+        return super().from_testenv(te, res_dir)
+
+    @classmethod
     def min_cpu_capacity(cls, te):
         """
         The smallest CPU capacity on the target

@@ -397,15 +397,6 @@ class RTATestBundle(TestBundle, abc.ABC):
 
         return cls(res_dir, te.plat_info, rtapp_profile)
 
-    @classmethod
-    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'RTATestBundle':
-        """
-        Factory method to create a bundle using a live target
-
-        This will execute the rt-app workload described in :meth:`get_rtapp_profile`
-        """
-        return super().from_testenv(te, res_dir)
-
     def test_slack(self, negative_slack_allowed_pct=15) -> ResultBundle:
         """
         Assert that the RTApp workload was given enough performance
