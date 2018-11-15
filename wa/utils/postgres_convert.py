@@ -32,7 +32,7 @@ import re
 try:
     from psycopg2 import InterfaceError
     from psycopg2.extensions import AsIs
-except ImportError as e:
+except ImportError:
     InterfaceError = None
     AsIs = None
 

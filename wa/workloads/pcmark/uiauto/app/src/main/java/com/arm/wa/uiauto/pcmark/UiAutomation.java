@@ -46,7 +46,7 @@ public class UiAutomation extends BaseUiAutomation {
 
     @Test
     public void setup() throws Exception{
-        dismissPopup();
+        dismissAndroidVersionPopup();
         setScreenOrientation(ScreenOrientation.NATURAL);
         loadBenchmarks();
         installBenchmark();
@@ -62,21 +62,9 @@ public class UiAutomation extends BaseUiAutomation {
         unsetScreenOrientation();
     }
 
-    // If we run the app in newer Android we'll get a popup complaining about
-    // that, silently accept it and carry on.
-    // This function should act as a NOP if no popup appears.
-    public void dismissPopup() throws Exception {
-        UiObject acceptButton =
-           mDevice.findObject(new UiSelector().resourceId("android:id/button1")
-                                         .className("android.widget.Button"));
-        if (acceptButton.waitForExists(WAIT_TIMEOUT_5SEC)) {
-            acceptButton.click();
-        }
-    }
-
     //Swipe to benchmarks and back to initialise the app correctly
     private void loadBenchmarks() throws Exception {
-        UiObject title = 
+        UiObject title =
             mDevice.findObject(new UiSelector().text("PCMARK"));
         title.waitForExists(300000);
         if (title.exists()){
@@ -95,22 +83,22 @@ public class UiAutomation extends BaseUiAutomation {
 
     //Install the Work 2.0 Performance Benchmark
     private void installBenchmark() throws Exception {
-        UiObject benchmark = 
+        UiObject benchmark =
             mDevice.findObject(new UiSelector().descriptionContains("INSTALL("));
         if (benchmark.exists()) {
             benchmark.click();
         } else {
-            UiObject benchmarktext = 
+            UiObject benchmarktext =
                 mDevice.findObject(new UiSelector().textContains("INSTALL("));
             benchmarktext.click();
         }
-            UiObject install = 
+            UiObject install =
                 mDevice.findObject(new UiSelector().description("INSTALL")
                     .className("android.view.View"));
             if (install.exists()) {
                 install.click();
             } else {
-                UiObject installtext = 
+                UiObject installtext =
                     mDevice.findObject(new UiSelector().text("INSTALL")
                         .className("android.view.View"));
                 installtext.click();;
@@ -126,7 +114,7 @@ public class UiAutomation extends BaseUiAutomation {
                     installedtext.waitForExists(1000);
                 }
     }
-    
+
     //Execute the Work 2.0 Performance Benchmark - wait up to ten minutes for this to complete
     private void runBenchmark() throws Exception {
         UiObject run =
@@ -137,17 +125,17 @@ public class UiAutomation extends BaseUiAutomation {
         if (run.exists()) {
             run.click();
         } else {
-            UiObject runtext = 
+            UiObject runtext =
                 mDevice.findObject(new UiSelector().text("RUN"));
                 if (runtext.exists()) {
                     runtext.click();
                 } else {
-                    UiObject rundesc = 
+                    UiObject rundesc =
                         mDevice.findObject(new UiSelector().description("RUN"));
                     rundesc.click();
                 }
         }
-        UiObject score = 
+        UiObject score =
             mDevice.findObject(new UiSelector().text("SCORE DETAILS")
                 .className("android.widget.TextView"));
         if (!score.waitForExists(3600000)){

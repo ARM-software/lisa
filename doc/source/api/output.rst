@@ -73,7 +73,7 @@ parameters and the metrics recorded from the first job was we can do the followi
     (u'big_frequency': 1700000)
     (u'little_frequency': 1400000)
 
-    # Print out all the metrics avalible for this job
+    # Print out all the metrics available for this job
     In [7]: job_1.metrics
     Out[7]:
     [<thread 0 score: 14423105 (+)>,
