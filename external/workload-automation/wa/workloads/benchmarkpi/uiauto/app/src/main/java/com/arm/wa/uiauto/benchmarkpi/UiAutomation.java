@@ -37,6 +37,11 @@ public class UiAutomation extends BaseUiAutomation {
     public String packageID;
 
     @Test
+    public void setup() throws Exception {
+        dismissAndroidVersionPopup();
+    }
+
+    @Test
     public void runWorkload() throws Exception {
         startTest();
         waitForResults();

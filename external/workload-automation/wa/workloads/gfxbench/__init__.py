@@ -21,6 +21,7 @@ class Gfxbench(ApkUiautoWorkload):
 
     name = 'gfxbench-corporate'
     package_names = ['net.kishonti.gfxbench.gl.v50000.corporate']
+    clear_data_on_reset = False
     regex_matches = [re.compile(r'Car Chase score (.+)'),
                      re.compile(r'Car Chase Offscreen score (.+)'),
                      re.compile(r'Manhattan 3.1 score (.+)'),

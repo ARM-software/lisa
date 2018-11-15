@@ -232,7 +232,7 @@ Target
    :param timeout: timeout (in seconds) for the transfer; if the transfer does
        not  complete within this period, an exception will be raised.
 
-.. method:: Target.execute(command [, timeout [, check_exit_code [, as_root, [will_succeed]]]])
+.. method:: Target.execute(command [, timeout [, check_exit_code [, as_root [, strip_colors [, will_succeed]]]]])
 
    Execute the specified command on the target device and return its output.
 
@@ -245,10 +245,12 @@ Target
        raised if it is not ``0``.
    :param as_root: The command will be executed as root. This will fail on
        unrooted targets.
+   :param strip_colours: The command output will have colour encodings and
+       most ANSI escape sequences striped out before returning.
    :param will_succeed: The command is assumed to always succeed, unless there is
        an issue in the environment like the loss of network connectivity. That
-       will make the method always raise an instance of a subclass of 
-       :class:`DevlibTransientError' when the command fails, instead of a
+       will make the method always raise an instance of a subclass of
+       :class:`DevlibTransientError` when the command fails, instead of a
        :class:`DevlibStableError`.
 
 .. method:: Target.background(command [, stdout [, stderr [, as_root]]])

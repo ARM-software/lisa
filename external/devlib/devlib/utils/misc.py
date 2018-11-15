@@ -648,12 +648,20 @@ def __get_memo_id(obj):
 
 @wrapt.decorator
 def memoized(wrapped, instance, args, kwargs):  # pylint: disable=unused-argument
-    """A decorator for memoizing functions and methods."""
+    """
+    A decorator for memoizing functions and methods.
+
+    .. warning:: this may not detect changes to mutable types. As long as the
+                 memoized function was used with an object as an argument
+                 before, the cached result will be returned, even if the
+                 structure of the object (e.g. a list) has changed in the mean time.
+
+    """
     func_id = repr(wrapped)
 
     def memoize_wrapper(*args, **kwargs):
         id_string = func_id + ','.join([__get_memo_id(a) for a in  args])
-        id_string += ','.join('{}={}'.format(k, v)
+        id_string += ','.join('{}={}'.format(k, __get_memo_id(v))
                               for k, v in kwargs.items())
         if id_string not in __memo_cache:
             __memo_cache[id_string] = wrapped(*args, **kwargs)

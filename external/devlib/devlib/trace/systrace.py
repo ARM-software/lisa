@@ -21,7 +21,7 @@ from tempfile import NamedTemporaryFile
 
 from devlib.exception import TargetStableError, HostError
 from devlib.trace import TraceCollector
-from devlib.utils.android import platform_tools
+import devlib.utils.android
 from devlib.utils.misc import memoized
 
 
@@ -59,13 +59,11 @@ class SystraceCollector(TraceCollector):
     @property
     @memoized
     def available_categories(self):
-        lines = subprocess.check_output([self.systrace_binary, '-l']).splitlines()
+        lines = subprocess.check_output(
+            [self.systrace_binary, '-l'], universal_newlines=True
+        ).splitlines()
 
-        categories = []
-        for line in lines:
-            categories.append(line.split()[0])
-
-        return categories
+        return [line.split()[0] for line in lines if line]
 
     def __init__(self, target,
                  categories=None,
@@ -83,6 +81,7 @@ class SystraceCollector(TraceCollector):
         # Try to find a systrace binary
         self.systrace_binary = None
 
+        platform_tools = devlib.utils.android.platform_tools
         systrace_binary_path = os.path.join(platform_tools, 'systrace', 'systrace.py')
         if not os.path.isfile(systrace_binary_path):
             raise HostError('Could not find any systrace binary under {}'.format(platform_tools))
@@ -138,7 +137,8 @@ class SystraceCollector(TraceCollector):
         self._systrace_process = subprocess.Popen(
             self.systrace_cmd,
             stdin=subprocess.PIPE,
-            shell=True
+            shell=True,
+            universal_newlines=True
         )
 
     def stop(self):

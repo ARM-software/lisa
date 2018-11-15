@@ -42,6 +42,11 @@ public class UiAutomation extends BaseUiAutomation {
     public static String TAG = "UXPERF";
 
     @Test
+    public void setup() throws Exception {
+        dismissAndroidVersionPopup();
+    }
+
+    @Test
     public void runWorkload() throws Exception {
         runBenchmark();
     }

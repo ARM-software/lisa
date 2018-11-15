@@ -62,6 +62,7 @@ public class UiAutomation extends BaseUiAutomation {
 
     @Test
     public void setup() throws Exception {
+        dismissAndroidVersionPopup();
         dismissEULA();
         if (version.equals("2.0.3")) {
             dissmissWelcomebanner();

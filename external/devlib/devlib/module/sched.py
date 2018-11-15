@@ -195,7 +195,19 @@ class SchedProcFSData(SchedProcFSNode):
 
     @staticmethod
     def available(target):
-        return target.directory_exists(SchedProcFSData.sched_domain_root)
+        path = SchedProcFSData.sched_domain_root
+        cpus = target.list_directory(path) if target.file_exists(path) else []
+
+        if not cpus:
+            return False
+
+        # Even if we have a CPU entry, it can be empty (e.g. hotplugged out)
+        # Make sure some data is there
+        for cpu in cpus:
+            if target.file_exists(target.path.join(path, cpu, "domain0", "name")):
+                return True
+
+        return False
 
     def __init__(self, target, path=None):
         if not path:

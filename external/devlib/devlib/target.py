@@ -24,6 +24,7 @@ import tarfile
 import tempfile
 import threading
 import xml.dom.minidom
+import copy
 from collections import namedtuple, defaultdict
 
 from devlib.host import LocalConnection, PACKAGE_BIN_DIRECTORY
@@ -43,8 +44,7 @@ from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_s
 FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (.+) type (\S+) \((\S+)\)')
 ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn|Display Power: state)=([0-9]+|true|false|ON|OFF)',
                                         re.IGNORECASE)
-ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'mUnrestrictedScreen=\(\d+,\d+\)'
-                                             r'\s+(?P<width>\d+)x(?P<height>\d+)')
+ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'cur=(?P<width>\d+)x(?P<height>\d+)')
 DEFAULT_SHELL_PROMPT = re.compile(r'^.*(shell|root|juno)@?.*:[/~]\S* *[#$] ',
                                   re.MULTILINE)
 KVERSION_REGEX = re.compile(
@@ -164,6 +164,12 @@ class Target(object):
     @memoized
     def user(self):
         return self.getenv('USER')
+
+    @property
+    @memoized
+    def page_size_kb(self):
+        cmd = "cat /proc/self/smaps | {0} grep KernelPageSize | {0} head -n 1 | {0} awk '{{ print $2 }}'"
+        return int(self.execute(cmd.format(self.busybox)))
 
     @property
     def conn(self):
@@ -363,9 +369,10 @@ class Target(object):
     # execution
 
     def execute(self, command, timeout=None, check_exit_code=True,
-                as_root=False, will_succeed=False):
-        return self.conn.execute(command, timeout, check_exit_code, as_root,
-                will_succeed)
+                as_root=False, strip_colors=True, will_succeed=False):
+        return self.conn.execute(command, timeout=timeout,
+                check_exit_code=check_exit_code, as_root=as_root,
+                strip_colors=strip_colors, will_succeed=will_succeed)
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
         return self.conn.background(command, stdout, stderr, as_root)
@@ -741,18 +748,19 @@ class Target(object):
         return extracted
 
     def _update_modules(self, stage):
-        for mod in self.modules:
-            if isinstance(mod, dict):
-                mod, params = list(mod.items())[0]
+        for mod_name in copy.copy(self.modules):
+            if isinstance(mod_name, dict):
+                mod_name, params = list(mod_name.items())[0]
             else:
                 params = {}
-            mod = get_module(mod)
+            mod = get_module(mod_name)
             if not mod.stage == stage:
                 continue
             if mod.probe(self):
                 self._install_module(mod, **params)
             else:
                 msg = 'Module {} is not supported by the target'.format(mod.name)
+                self.modules.remove(mod_name)
                 if self.load_default_modules:
                     self.logger.debug(msg)
                 else:
@@ -1042,7 +1050,7 @@ class AndroidTarget(Target):
     @property
     @memoized
     def screen_resolution(self):
-        output = self.execute('dumpsys window')
+        output = self.execute('dumpsys window displays')
         match = ANDROID_SCREEN_RESOLUTION_REGEX.search(output)
         if match:
             return (int(match.group('width')),
