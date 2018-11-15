@@ -89,8 +89,9 @@ class LoadTrackingAnalysis(AnalysisBase):
 
         cpus_df = self.df_cpus()
 
-        for cpu in cpus:
+        for idx, cpu in enumerate(cpus):
             axis = axes[cpu] if len(cpus) > 1 else axes
+            self.cycle_colors(axis, 2 * idx)
 
             # Add CPU utilization
             axis.set_title('CPU{}'.format(cpu))
