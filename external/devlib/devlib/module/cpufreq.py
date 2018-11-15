@@ -120,6 +120,12 @@ class CpufreqModule(Module):
         prev_governors = {cpu : (self.get_governor(cpu), self.get_governor_tunables(cpu))
                           for cpu in domains}
 
+        # Special case for userspace, frequency is not seen as a tunable
+        userspace_freqs = {}
+        for cpu, (prev_gov, _) in prev_governors.items():
+            if prev_gov == "userspace":
+                userspace_freqs[cpu] = self.get_frequency(cpu)
+
         for cpu in domains:
             self.set_governor(cpu, governor, **kwargs)
 
@@ -127,8 +133,10 @@ class CpufreqModule(Module):
             yield
 
         finally:
-            for cpu, (governor, tunables) in prev_governors.items():
-                self.set_governor(cpu, governor, **tunables)
+            for cpu, (prev_gov, tunables) in prev_governors.items():
+                self.set_governor(cpu, prev_gov, **tunables)
+                if prev_gov == "userspace":
+                    self.set_frequency(cpu, userspace_freqs[cpu])
 
     def list_governor_tunables(self, cpu):
         """Returns a list of tunables available for the governor on the specified CPU."""
