@@ -490,6 +490,9 @@ def setup_logging(log_level, debug_log_file=None, info_log_file=None, verbose=0)
         file_handler.setFormatter(normal_formatter)
         logger.addHandler(file_handler)
 
+    # Redirect all warnings of the "warnings" module as log entries
+    logging.captureWarnings(True)
+
 EXEKALL_LOGGER  = logging.getLogger('EXEKALL')
 
 def out(msg):
