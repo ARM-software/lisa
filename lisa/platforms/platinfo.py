@@ -66,7 +66,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         KeyDesc('clusters', 'Compat key: dictionary of cluster names to list of CPU ID', [StrIntListDict]),
         KeyDesc('cpus-count', 'Compat key: number of CPUs', [int]),
         KeyDesc('freq-domains', 'Frequency domains', [list]),
-        KeyDesc('freqs', 'Dictionnary of first cluster CPU to list of frequencies', [dict]),
+        KeyDesc('freqs', 'Dictionnary of CPU to list of frequencies', [dict]),
     ))
     """Some keys have a reserved meaning with an associated type."""
 
@@ -89,10 +89,10 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
         if hasattr(target, 'cpufreq'):
             info['freq-domains'] = list(target.cpufreq.iter_domains())
-            info['freqs'] = {cpus[0] : target.cpufreq.list_frequencies(cpus[0])
-                             for cpus in target.cpufreq.iter_domains()}
+            info['freqs'] = {cpu : target.cpufreq.list_frequencies(cpu)
+                             for cpu in range(target.number_of_cpus)}
 
-        if 'sched' in target.modules:
+        if hasattr(target, 'sched'):
             info['cpu-capacities'] = target.sched.get_capacities(default=1024)
 
         return self.add_src(src, info, filter_none=True, **kwargs)
