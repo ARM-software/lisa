@@ -60,10 +60,6 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         KeyDesc('abi', 'ABI, e.g. "arm64"', [str]),
         KeyDesc('os', 'OS being used, e.g. "linux"', [str]),
         KeyDesc('name', 'Free-form name of the board', [str]),
-
-        # TODO remove that once no code depend on it anymore
-        KeyDesc('topology', 'Compat key: CPU topology', [Topology]),
-        KeyDesc('clusters', 'Compat key: dictionary of cluster names to list of CPU ID', [StrIntListDict]),
         KeyDesc('cpus-count', 'Compat key: number of CPUs', [int]),
         KeyDesc('freq-domains', 'Frequency domains', [list]),
         KeyDesc('freqs', 'Dictionnary of CPU to list of frequencies', [dict]),
@@ -94,59 +90,6 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
         if hasattr(target, 'sched'):
             info['cpu-capacities'] = target.sched.get_capacities(default=1024)
-
-        return self.add_src(src, info, filter_none=True, **kwargs)
-
-    #TODO: kill that once code depending on this has been converted to
-    # using the appropriate "root" data, instead of these derived values.
-    def add_nrg_model_src(self, nrg_model=None, src='nrg-model', **kwargs):
-        # Derive all the deprecated keys from the nrg_model
-        nrg_model = nrg_model or self['nrg-model']
-        node_groups = nrg_model.node_groups
-
-        # Sort according to max capacity found in the group
-        def max_capacity(group):
-            return max(
-                s.capacity
-                for node in group
-                for s in node.active_states.values()
-            )
-        node_groups = sorted(node_groups, key=max_capacity)
-        cpu_groups = [
-            [node.cpu for node in group]
-            for group in node_groups
-        ]
-
-        # big.LITTLE platform
-        if len(cpu_groups) == 2:
-            cluster_names = ['little', 'big']
-        # SMP platform
-        else:
-            cluster_names = [str(i) for i in range(len(cpu_groups))]
-        clusters = {
-            name: group
-            for name, group in zip(cluster_names, cpu_groups)
-        }
-
-        topology = Topology(clusters=cpu_groups)
-
-        def freq_list(group):
-            return sorted(set(
-                freq
-                for node in group
-                for freq in node.active_states.keys()
-            ))
-
-        freqs = {
-            cluster_name: freq_list(group)
-            for cluster_name, group in zip(cluster_names, node_groups)
-        }
-
-        info = {
-            'clusters': clusters,
-            'topology': topology,
-            # 'freqs': freqs,
-        }
 
         return self.add_src(src, info, filter_none=True, **kwargs)
 
