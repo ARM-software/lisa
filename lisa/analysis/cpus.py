@@ -177,9 +177,8 @@ class CpusAnalysis(AnalysisBase):
         fig, axis = self.setup_plot(height=8)
 
         ctx_sw_df = self.df_context_switches()
-        ctx_sw_df.plot.bar(title="Per-CPU Task Context Switches",
-                           legend=False,
-                           ax=axis)
+        ctx_sw_df["context_switch_cnt"].plot.bar(
+            title="Per-CPU Task Context Switches", legend=False, ax=axis)
         axis.grid()
 
         self.save_plot(fig, filepath)
