@@ -18,6 +18,17 @@ be contributed to Devlib instead.
 .. automodule:: lisa.env
    :members:
 
+PlatformInfo
+============
+
+The main source of information for tests come from :class:`~lisa.trace.Trace`
+and :class:`~lisa.platforms.platinfo.PlatformInfo`. The latter gives access to
+information autodetected from the :class:`devlib.target.Target` or filled in by
+the user.
+
+.. automodule:: lisa.platforms.platinfo
+   :members:
+
 Energy model
 ============
 

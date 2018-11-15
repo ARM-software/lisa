@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import sys
+import inspect
 
 from docutils import nodes
 from sphinx.util.docfields import TypedField
@@ -349,5 +350,47 @@ autodoc_default_options = {
     'show-inheritance' : '', # Show parent class
     'undoc-members' : '',    # Show members even if they don't have docstrings
 }
+autodoc_inherit_docstrings = True
+
+def is_test(method):
+    if not callable(method):
+        return False
+
+    if method.__name__.startswith('test_'):
+        return True
+
+    # Tests are methods with an annotated return type, with at least
+    # one base class with a name containing 'result'
+    try:
+        ret_type = method.__annotations__['return']
+        base_cls_list = inspect.getmro(ret_type)
+    except (AttributeError, KeyError):
+        return False
+    else:
+        return any(
+            'result' in cls.__qualname__.lower()
+            for cls in base_cls_list
+        )
+
+def autodoc_process_docstring(app, what, name, obj, options, lines):
+    # Append the list of available test methods for all classes that appear to
+    # have some.
+    if what == 'class':
+        test_list = [
+            member
+            for member_name, member in inspect.getmembers(obj, is_test)
+        ]
+        if test_list:
+            test_list_doc = '\n:Test methods:\n\n{}\n\n'.format('\n'.join(
+                '    * :meth:`~{}`'.format(
+                    method.__module__ + '.' + method.__qualname__
+                )
+                for method in test_list
+            ))
+
+            lines.extend(test_list_doc.splitlines())
+
+def setup(app):
+    app.connect('autodoc-process-docstring', autodoc_process_docstring)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

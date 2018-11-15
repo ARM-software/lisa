@@ -282,8 +282,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         return max_time, max_cpu
 
-    def _test_cpus_busy(self, latency_dfs, cpus, allowed_idle_time_s)\
-        -> ResultBundle:
+    def _test_cpus_busy(self, latency_dfs, cpus, allowed_idle_time_s):
         """
         Test that for every window in which the tasks are running, :attr:`cpus`
         are not idle for more than :attr:`allowed_idle_time_s`

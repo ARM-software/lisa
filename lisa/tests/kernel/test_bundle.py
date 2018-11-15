@@ -127,7 +127,7 @@ class ResultBundle:
         return cls(result, *args, **kwargs)
 
     def __bool__(self):
-        return self.result == Result.PASSED
+        return self.result is Result.PASSED
 
     def __str__(self):
         return self.result.name + ': ' + ', '.join(
@@ -163,6 +163,10 @@ class TestBundle(Serializable, abc.ABC):
         This will also be used to dump any artifact generated in the test code.
     :type res_dir: str
 
+    :param plat_info: Various informations about the platform, that is available
+        to all tests.
+    :type plat_info: :class:`lisa.platforms.platinfo.PlatformInfo`
+
     The point of a TestBundle is to bundle in a single object all of the
     required data to run some test assertion (hence the name). When inheriting
     from this class, you can define test methods that use this data, and return
@@ -184,53 +188,61 @@ class TestBundle(Serializable, abc.ABC):
         given directory (which should have been created by an earlier call
         to :meth:`from_testenv` and then :meth:`to_dir`), and will then return
         a :class:`TestBundle`.
-      * :attr:`verify_serialization` is there to ensure both above methods remain
+      * :attr:`VERIFY_SERIALIZATION` is there to ensure both above methods remain
         operationnal at all times.
+      * `res_dir` parameter of `__init__` must be stored as an attribute
+        without further processing, in order to support result directory
+        relocation.
+      * Test methodes should have a return annotation for the
+        :class:`ResultBundle` to be picked up by the test runners.
 
     **Implementation example**::
 
         class DummyTestBundle(TestBundle):
 
-            def __init__(self, res_dir, shell_output):
-                super(DummyTestBundle, self).__init__(res_dir)
+            def __init__(self, res_dir, plat_info, shell_output):
+                super(DummyTestBundle, self).__init__(res_dir, plat_info)
 
                 self.shell_output = shell_output
 
             @classmethod
-            def _from_testenv(cls, te, res_dir):
+            def _from_testenv(cls, te, plat_info, res_dir):
                 output = te.target.execute('echo $((21+21))').split()
-                return cls(res_dir, output)
+                return cls(res_dir, plat_info, output)
 
-            def test_output(self):
-                passed = False
-                for line in self.shell_output:
-                    if '42' in line:
-                        passed = True
-                        break
-
-                return ResultBundle.from_bool(passed)
+            def test_output(self) -> ResultBundle:
+                return ResultBundle.from_bool(
+                    any(
+                        '42' in line
+                        for line in self.shell_output
+                    )
+                )
 
     **Usage example**::
 
         # Creating a Bundle from a live target
-        bundle = TestBundle.from_testenv(test_env, "/my/res/dir")
+        bundle = TestBundle.from_testenv(test_env, plat_info, "/my/res/dir")
         # Running some test on the bundle
         res_bundle = bundle.test_foo()
 
         # Saving the bundle on the disk
-        bundle.to_dir(test_env, "/my/res/dir")
+        bundle.to_dir("/my/res/dir")
 
         # Reloading the bundle from the disk
         bundle = TestBundle.from_dir("/my/res/dir")
+        # The reloaded object can be used just like the original one.
+        # Keep in mind that serializing/deserializing this way will have a
+        # similar effect than a deepcopy.
         res_bundle = bundle.test_foo()
     """
 
-    verify_serialization = True
+    VERIFY_SERIALIZATION = True
     """
-    When True, this enforces a serialization/deserialization step in :meth:`from_testenv`.
-    Although it hinders performance (we end up creating two :class:`TestBundle`
-    instances), it's very valuable to ensure :meth:`from_dir` does not get broken
-    for some particular class.
+    When True, this enforces a serialization/deserialization step in
+    :meth:`from_testenv`. Although it adds an extra step (we end up creating
+    two :class:`TestBundle` instances), it's very valuable to ensure
+    :meth:`TestBundle.from_dir` does not get broken for some particular
+    class.
     """
 
     def __init__(self, res_dir, plat_info):
@@ -272,7 +284,7 @@ class TestBundle(Serializable, abc.ABC):
         try:
             cls.check_from_testenv(te)
             return True
-        except:
+        except CannotCreateError:
             return False
 
     @classmethod
@@ -296,7 +308,7 @@ class TestBundle(Serializable, abc.ABC):
         # the information we need to execute the test code. However,
         # we enforce the use of the offline reloading path to ensure
         # it does not get broken.
-        if cls.verify_serialization:
+        if cls.VERIFY_SERIALIZATION:
             bundle.to_dir(res_dir)
             # Updating the res_dir breaks deserialization for some use cases
             bundle = cls.from_dir(res_dir, update_res_dir=False)
@@ -310,7 +322,10 @@ class TestBundle(Serializable, abc.ABC):
     @classmethod
     def from_dir(cls, res_dir, update_res_dir=True):
         """
-        See :meth:`lisa.utils.Serializable.from_path`
+        Wrapper around :meth:`lisa.utils.Serializable.from_path`.
+
+        It uses :meth:`_filepath` to get the name of the serialized file to
+        reload.
         """
         res_dir = ArtifactPath(root=res_dir, relative='')
 

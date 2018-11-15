@@ -33,11 +33,10 @@ from lisa.utils import HideExekallID, Loggable, ArtifactPath
 from lisa.tests.kernel.test_bundle import TestBundle, Result, ResultBundle, CannotCreateError
 from lisa.tests.kernel.scheduler.load_tracking import FreqInvarianceItem
 
-from exekall import utils, engine
-from exekall.engine import reusable, ExprData, Consumer, PrebuiltOperator, NoValue, get_name, get_mro
+from exekall.utils import info, get_name, get_mro
+from exekall.engine import ExprData, Consumer, PrebuiltOperator, NoValue, StorageDB
 from exekall.customization import AdaptorBase
 
-@reusable(False)
 class ExekallArtifactPath(ArtifactPath):
     @classmethod
     def from_expr_data(cls, data:ExprData, consumer:Consumer) -> 'ExekallArtifactPath':
@@ -68,21 +67,29 @@ class ExekallArtifactPath(ArtifactPath):
 class LISAAdaptor(AdaptorBase):
     name = 'LISA'
 
+    def get_non_reusable_type_set(self):
+        return {
+            ExekallArtifactPath,
+        }
+
     def get_prebuilt_list(self):
+        non_reusable_type_set = self.get_non_reusable_type_set()
         op_list = []
         if self.args.target_conf:
             op_list.append(
                 PrebuiltOperator(TargetConf, [
                     TargetConf.from_yaml_map(self.args.target_conf)
-                ])
-            )
+                ],
+                non_reusable_type_set=non_reusable_type_set
+            ))
 
         if self.args.platform_info:
             op_list.append(
                 PrebuiltOperator(PlatformInfo, [
                     PlatformInfo.from_yaml_map(self.args.platform_info)
-                ])
-            )
+                ],
+                non_reusable_type_set=non_reusable_type_set
+            ))
 
         return op_list
 
@@ -112,7 +119,7 @@ class LISAAdaptor(AdaptorBase):
         # This will relocate ArtifactPath instances to the new absolute path of
         # the results folder, in case it has been moved to another place
         artifact_dir = Path(db_path).parent.resolve()
-        db = engine.StorageDB.from_path(db_path, *args, **kwargs)
+        db = StorageDB.from_path(db_path, *args, **kwargs)
 
         # Relocate ArtifactPath embeded in objects so they will always
         # contain an absolute path that adapts to the local filesystem
@@ -206,7 +213,7 @@ class LISAAdaptor(AdaptorBase):
         xunit_path = self.args.artifact_dir.joinpath('xunit.xml')
         et_root = self.create_xunit(result_map, self.hidden_callable_set)
         et_tree = ET.ElementTree(et_root)
-        utils.info('Writing xUnit file at: ' + str(xunit_path))
+        info('Writing xUnit file at: ' + str(xunit_path))
         et_tree.write(str(xunit_path))
 
     def create_xunit(self, result_map, hidden_callable_set):
@@ -296,10 +303,4 @@ RESULT_TAG_MAP = {
 }
 # Make sure we cover all cases
 assert set(RESULT_TAG_MAP.keys()) == set(Result)
-
-
-
-
-
-
 

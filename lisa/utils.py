@@ -83,7 +83,10 @@ def memoized(callable_):
     # It is important to have one separate call to lru_cache for every call to
     # memoized, otherwise all uses of the decorator will end up using the same
     # wrapper and all hells will break loose.
-    return functools.lru_cache(maxsize=None, typed=True)(callable_)
+
+    # maxsize should be a power of two for better speed, see:
+    # https://docs.python.org/3/library/functools.html#functools.lru_cache
+    return functools.lru_cache(maxsize=1024, typed=True)(callable_)
 
 def resolve_dotted_name(name):
     """Only resolve names where __qualname__ == __name__, i.e the callable is a
@@ -919,14 +922,22 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         if eval_deferred:
             val = self._eval_deferred_val(src, key)
 
-        frame_conf = inspect.stack()[2]
+        try:
+            frame_conf = inspect.stack()[2]
+        except Exception:
+            caller, filename, lineno = ['<unknown>'] * 3
+        else:
+            caller = frame_conf.function
+            filename = frame_conf.filename
+            lineno = frame_conf.lineno
+
         self.get_logger().debug('{caller} ({filename}:{lineno}) has used key {key} from source "{src}": {val}'.format(
             key=key_desc.qualname,
             src=src,
             val=val,
-            caller=frame_conf.function,
-            filename=frame_conf.filename,
-            lineno=frame_conf.lineno,
+            caller=caller,
+            filename=filename,
+            lineno=lineno,
         ))
         return val
 

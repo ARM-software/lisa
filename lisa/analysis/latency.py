@@ -471,11 +471,13 @@ class LatencyAnalysis(AnalysisBase):
         try:
             wkp_df.rename(columns={'latency': 'wakeup'}, inplace=True)
             wkp_df.plot(style='b+', logy=True, ax=axes)
-        except: pass
+        except Exception:
+            pass
         try:
             prt_df.rename(columns={'latency' : 'preempt'}, inplace=True)
             prt_df.plot(style='r+', logy=True, ax=axes)
-        except: pass
+        except Exception:
+            pass
         axes.axhline(threshold_ms / 1000., linestyle='--', color='g')
         self._trace.analysis.status.plot_overutilized(axes)
         axes.legend(loc='lower center', ncol=2)
@@ -563,7 +565,8 @@ class LatencyAnalysis(AnalysisBase):
                 end = start + duration
                 axes.axvspan(start, end, facecolor='r', alpha=0.1)
                 axes.set_xlim(self._trace.x_min, self._trace.x_max)
-        except: pass
+        except Exception:
+            pass
 
         # Draw PREEMPTION latencies
         try:
@@ -572,7 +575,8 @@ class LatencyAnalysis(AnalysisBase):
                 end = start + duration
                 axes.axvspan(start, end, facecolor='b', alpha=0.1)
                 axes.set_xlim(self._trace.x_min, self._trace.x_max)
-        except: pass
+        except Exception:
+            pass
 
     def plot_activations(self, task, tag=None, threshold_ms=16, bins=64):
         """

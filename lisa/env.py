@@ -51,11 +51,32 @@ class TargetConf(MultiSrcConf, HideExekallID):
     """
     Target connection settings.
 
-    Only keys defined below ``target-conf`` are allowed, with the given meaning
-    and type:
-
+    Only keys defined below are allowed, with the given meaning and type:
 
     {generated_help}
+
+    An instance can be created by calling :class:`~TargetConf` with a
+    dictionary. The top-level `target-conf` key is not needed here:
+
+    .. code-block:: python
+
+        TargetConf({{
+            'name': 'myboard',
+            'host': 192.0.2.1,
+            'usname': 'foo',
+            'password': 'bar',
+        }})
+
+    Or alternatively, from a YAML configuration file:
+
+    Content of target_conf.yml:
+
+    .. literalinclude:: ../target_conf.yml
+        :language: YAML
+
+    ::
+
+        TargetConf.from_yaml_map('target_conf.yml')
 
 
     The following special YAML tags can be used in the configuration file:
@@ -97,6 +118,7 @@ class TargetConf(MultiSrcConf, HideExekallID):
     STRUCTURE = TopLevelKeyDesc(YAML_MAP_TOP_LEVEL_KEY, 'target connection settings', (
         KeyDesc('name', 'Board name, free-form value only used to embelish logs', [str]),
         KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [str]),
+
         KeyDesc('host', 'Hostname or IP address of the host', [str, None]),
         KeyDesc('username', 'SSH username', [str, None]),
         KeyDesc('password', 'SSH password', [str, None]),

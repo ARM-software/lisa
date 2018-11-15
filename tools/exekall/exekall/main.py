@@ -16,30 +16,23 @@
 # limitations under the License.
 #
 
-from pprint import pprint
 import argparse
 import collections
-import copy
+import contextlib
 import datetime
+import importlib
 import inspect
 import io
+import itertools
 import os
 import pathlib
 import sys
-import traceback
-import uuid
-import traceback
-import gzip
-import functools
-import itertools
-import importlib
-import contextlib
 
 from exekall.customization import AdaptorBase
 import exekall.engine as engine
-from exekall.engine import take_first, NoValue
+from exekall.engine import NoValue
 import exekall.utils as utils
-from exekall.utils import error, warn, debug, info, out
+from exekall.utils import take_first, error, warn, debug, info, out
 
 def _main(argv):
     parser = argparse.ArgumentParser(description="""
@@ -115,6 +108,7 @@ given UUID from the database.""")
 class or a subclass of it.""")
 
     goal_group.add_argument('--callable-goal', action='append',
+        default=[],
         help="""Compute expressions ending with a callable which name is
 matching this pattern.""")
 
@@ -228,9 +222,9 @@ the name of the parameter, the start value, stop value and step size.""")
     only_template_scripts = args.template_scripts
 
     type_goal_pattern = args.goal
-    callable_goal_pattern = args.callable_goal
+    callable_goal_pattern_set = set(args.callable_goal)
 
-    if not (type_goal_pattern or callable_goal_pattern):
+    if not (type_goal_pattern or callable_goal_pattern_set):
         type_goal_pattern = set(adaptor_cls.get_default_type_goal_pattern_set())
 
     load_db_path = args.load_db
@@ -243,12 +237,13 @@ the name of the parameter, the start value, stop value and step size.""")
     forbidden_pattern_set = set(args.forbid)
     allowed_pattern_set = set(args.allow)
     allowed_pattern_set.update(restricted_pattern_set)
+    allowed_pattern_set.update(callable_goal_pattern_set)
 
     sys.path.extend(args.modules_root)
 
     # Setup the artifact_dir so we can create a verbose log in there
     date = datetime.datetime.now().strftime('%Y%m%d_%H:%M:%S')
-    testsession_uuid = engine.create_uuid()
+    testsession_uuid = utils.create_uuid()
     if only_template_scripts:
         artifact_dir = pathlib.Path(only_template_scripts)
     elif args.artifact_dir:
@@ -260,6 +255,7 @@ the name of the parameter, the start value, stop value and step size.""")
 
     if dry_run:
         debug_log = None
+        info_log = None
     else:
         artifact_dir.mkdir(parents=True)
         artifact_dir = artifact_dir.resolve()
@@ -267,10 +263,13 @@ the name of the parameter, the start value, stop value and step size.""")
         # correct value
         args.artifact_dir = artifact_dir
         debug_log = artifact_dir.joinpath('debug_log.txt')
+        info_log = artifact_dir.joinpath('info_log.txt')
 
-    utils.setup_logging(args.log_level, debug_log, verbose)
+    utils.setup_logging(args.log_level, debug_log, info_log, verbose=verbose)
 
     module_set.update(utils.import_file(path) for path in args.python_files)
+
+    non_reusable_type_set = adaptor.get_non_reusable_type_set()
 
     # Get the prebuilt operators from the adaptor
     if not load_db_path:
@@ -366,13 +365,18 @@ the name of the parameter, the start value, stop value and step size.""")
                 prebuilt_op_pool_list.append(
                     engine.PrebuiltOperator(
                         type_, serial_list, id_=id_,
+                        non_reusable_type_set=non_reusable_type_set,
                         tag_list_getter=adaptor.get_tag_list,
                     ))
 
     # Pool of all callable considered
     callable_pool = utils.get_callable_set(module_set, verbose=verbose)
     op_pool = {
-        engine.Operator(callable_, tag_list_getter=adaptor.get_tag_list)
+        engine.Operator(
+            callable_,
+            non_reusable_type_set=non_reusable_type_set,
+            tag_list_getter=adaptor.get_tag_list
+        )
         for callable_ in callable_pool
     }
     filtered_op_pool = adaptor.filter_op_pool(op_pool)
@@ -389,7 +393,7 @@ the name of the parameter, the start value, stop value and step size.""")
         number_type = float
         callable_pattern, param, start, stop, step = sweep_spec
         for callable_ in callable_pool:
-            callable_name = engine.get_name(callable_, full_qual=True)
+            callable_name = utils.get_name(callable_, full_qual=True)
             if not utils.match_name(callable_name, [callable_pattern]):
                 continue
             patch_map.setdefault(callable_name, dict())[param] = [
@@ -429,7 +433,7 @@ the name of the parameter, the start value, stop value and step size.""")
     # dependended upon as well.
     cls_set = set()
     for produced in produced_pool:
-        cls_set.update(engine.get_mro(produced))
+        cls_set.update(utils.get_mro(produced))
     cls_set.discard(object)
     cls_set.discard(type(None))
 
@@ -469,12 +473,11 @@ the name of the parameter, the start value, stop value and step size.""")
         return op_map
 
     op_map = build_op_map(op_pool, only_prebuilt_cls, forbidden_pattern_set)
-    # Make sure that we only use what is available from now on
-    op_pool = set(itertools.chain.from_iterable(op_map.values()))
 
     # Restrict the production of some types to a set of operators.
     restricted_op_set = {
-        op for op in op_pool
+        # Make sure that we only use what is available
+        op for op in itertools.chain.from_iterable(op_map.values())
         if utils.match_name(op.get_name(full_qual=True), restricted_pattern_set)
     }
     def apply_restrict(produced, op_set, restricted_op_set, cls_map):
@@ -495,19 +498,21 @@ the name of the parameter, the start value, stop value and step size.""")
         for produced, op_set in op_map.items()
     }
 
-    # Get the list of root operators
+    # Get the callable goals
     root_op_set = set()
-    for produced, op_set in op_map.items():
-        # All producers of the goal types can be a root operator in the
-        # expressions we are going to build, i.e. the outermost function call
-        if type_goal_pattern:
+    if callable_goal_pattern_set:
+        root_op_set.update(
+            op for op in op_pool
+            if utils.match_name(op.get_name(full_qual=True), callable_goal_pattern_set)
+        )
+
+    # Get the list of root operators by produced type
+    if type_goal_pattern:
+        for produced, op_set in op_map.items():
+            # All producers of the goal types can be a root operator in the
+            # expressions we are going to build, i.e. the outermost function call
             if utils.match_base_cls(produced, type_goal_pattern):
                 root_op_set.update(op_set)
-
-        if callable_goal_pattern:
-            for op in op_set:
-                if utils.match_name(op.get_name(full_qual=True), callable_goal_pattern):
-                    root_op_set.add(op)
 
     # Sort for stable output
     root_op_list = sorted(root_op_set, key=lambda op: str(op.name))
@@ -524,14 +529,14 @@ the name of the parameter, the start value, stop value and step size.""")
                 cls = cls_name,
                 consumer = consumer_name,
                 param = param_name,
-                path = ' -> '.join(engine.get_name(callable_) for callable_ in callable_path)
+                path = ' -> '.join(utils.get_name(callable_) for callable_ in callable_path)
             ))
 
         @utils.once
         def handle_cycle(path):
             error('Cyclic dependency detected: {path}'.format(
                 path = ' -> '.join(
-                    engine.get_name(callable_)
+                    utils.get_name(callable_)
                     for callable_ in path
                 )
             ))
@@ -723,7 +728,7 @@ the name of the parameter, the start value, stop value and step size.""")
                 tb = utils.format_exception(excep)
                 error('Error ({e_name}): {e}\nID: {id}\n{tb}'.format(
                         id=failed_val.get_id(),
-                        e_name = engine.get_name(type(excep)),
+                        e_name = utils.get_name(type(excep)),
                         e=excep,
                         tb=tb,
                     ),

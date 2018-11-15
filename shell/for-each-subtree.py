@@ -55,6 +55,13 @@ def main():
         if git_cmd in ('pull', 'push'):
             git_args = [git_cmd] + extra_args +['-P', path, url, git_ref]
 
+        if git_cmd == 'pull':
+            git_args += ['-m', '{path}: update to latest {ref}\n\nremote: {url}'.format(
+                path=path,
+                url=url,
+                ref=git_ref
+            )]
+
         cmd = ['git', 'subtree'] + git_args
         call_subprocess(cmd)
         print()
