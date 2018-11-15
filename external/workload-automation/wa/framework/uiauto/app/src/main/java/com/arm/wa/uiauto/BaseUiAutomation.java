@@ -547,6 +547,21 @@ public class BaseUiAutomation {
         }
     }
 
+    // If an an app is not designed for running on the latest version of android
+    // (currently Q) dissmiss the warning popup if present.
+    public void dismissAndroidVersionPopup() throws Exception {
+        UiObject warningText =
+            mDevice.findObject(new UiSelector().textContains(
+                "This app was built for an older version of Android"));
+        UiObject acceptButton =
+            mDevice.findObject(new UiSelector().resourceId("android:id/button1")
+                                               .className("android.widget.Button"));
+        if (warningText.exists() && acceptButton.exists()) {
+            acceptButton.click();
+        }
+    }
+
+
     // Override getParams function to decode a url encoded parameter bundle before
     // passing it to workloads.
     public Bundle getParams() {

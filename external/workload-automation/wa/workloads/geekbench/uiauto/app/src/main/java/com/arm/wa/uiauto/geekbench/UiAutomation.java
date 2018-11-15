@@ -62,6 +62,7 @@ public class UiAutomation extends BaseUiAutomation {
     @Override
     public void setup() throws Exception {
         initialize_instrumentation();
+        dismissAndroidVersionPopup();
 
         if (!isCorporate)
             dismissEula();

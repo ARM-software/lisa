@@ -175,6 +175,7 @@ class ApkWorkload(Workload):
     loading_time = 10
     package_names = []
     view = None
+    clear_data_on_reset = True
 
     # Set this to True to mark that this workload requires the target apk to be run
     # for initialisation purposes before the main run is performed.
@@ -257,7 +258,8 @@ class ApkWorkload(Workload):
                                   install_timeout=self.install_timeout,
                                   uninstall=self.uninstall,
                                   exact_abi=self.exact_abi,
-                                  prefer_host_package=self.prefer_host_package)
+                                  prefer_host_package=self.prefer_host_package,
+                                  clear_data_on_reset=self.clear_data_on_reset)
 
     @once_per_instance
     def initialize(self, context):
@@ -641,7 +643,7 @@ class PackageHandler(object):
 
     def __init__(self, owner, install_timeout=300, version=None, variant=None,
                  package_name=None, strict=False, force_install=False, uninstall=False,
-                 exact_abi=False, prefer_host_package=True):
+                 exact_abi=False, prefer_host_package=True, clear_data_on_reset=True):
         self.logger = logging.getLogger('apk')
         self.owner = owner
         self.target = self.owner.target
@@ -654,6 +656,7 @@ class PackageHandler(object):
         self.uninstall = uninstall
         self.exact_abi = exact_abi
         self.prefer_host_package = prefer_host_package
+        self.clear_data_on_reset = clear_data_on_reset
         self.supported_abi = self.target.supported_abi
         self.apk_file = None
         self.apk_info = None
@@ -809,7 +812,8 @@ class PackageHandler(object):
 
     def reset(self, context):  # pylint: disable=W0613
         self.target.execute('am force-stop {}'.format(self.apk_info.package))
-        self.target.execute('pm clear {}'.format(self.apk_info.package))
+        if self.clear_data_on_reset:
+            self.target.execute('pm clear {}'.format(self.apk_info.package))
 
     def install_apk(self, context):
         # pylint: disable=unused-argument

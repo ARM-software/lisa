@@ -63,25 +63,28 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     public void clearFirstRun() throws Exception {
-        UiObject accept = 
+        UiObject accept =
             mDevice.findObject(new UiSelector().resourceId("android:id/button1")
                 .className("android.widget.Button"));
         if (accept.exists()){
             accept.click();
             sleep(5);
         }
-
-        UiObject sync = 
+        UiObject sync =
                 mDevice.findObject(new UiSelector().text("Data synchronization")
                     .className("android.widget.TextView"));
-                if (sync.exists()){
-                    UiObject data =
-                        mDevice.findObject(new UiSelector().resourceId("android:id/button1")
-                            .className("android.widget.Button"));
-                    data.click();
-                }
+        if (!sync.exists()){
+            sync = mDevice.findObject(new UiSelector().text("Pushed data not found")
+                    .className("android.widget.TextView"));
+        }
+        if (sync.exists()){
+            UiObject data =
+                mDevice.findObject(new UiSelector().resourceId("android:id/button1")
+                    .className("android.widget.Button"));
+            data.click();
+        }
 
-        UiObject home = 
+        UiObject home =
             mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/main_homeBack")
                 .className("android.widget.LinearLayout"));
             home.waitForExists(300000);
@@ -89,7 +92,7 @@ public class UiAutomation extends BaseUiAutomation {
 
     public void runBenchmark() throws Exception {
         //Calculate the location of the test selection button
-        UiObject circle = 
+        UiObject circle =
             mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/main_circleControl")
             .className("android.widget.RelativeLayout"));
         Rect bounds = circle.getBounds();
@@ -97,7 +100,7 @@ public class UiAutomation extends BaseUiAutomation {
         selectx = bounds.width() - selectx;
         int selecty = bounds.height()/4;
         selecty = bounds.centerY() + selecty;
-        
+
         Log.d(TAG, "maxx " + selectx);
         Log.d(TAG, "maxy " + selecty);
 
@@ -119,7 +122,7 @@ public class UiAutomation extends BaseUiAutomation {
         toggleTest("1080p Tessellation Offscreen");
 
         //Start the tests
-        UiObject start = 
+        UiObject start =
             mDevice.findObject(new UiSelector().text("Start"));
         start.click();
 
@@ -132,43 +135,43 @@ public class UiAutomation extends BaseUiAutomation {
 
     public void getScores() throws Exception {
         UiScrollable list = new UiScrollable(new UiSelector().scrollable(true));
-        UiObject results = 
+        UiObject results =
             mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"));
         int number_of_results = results.getChildCount();
 
         //High Level Tests
-        UiObject carchase = 
+        UiObject carchase =
             mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
             .getChild(new UiSelector().index(1))
             .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
         Log.d(TAG, "Car Chase score " + carchase.getText());
 
-        UiObject carchaseoff = 
+        UiObject carchaseoff =
             mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
             .getChild(new UiSelector().index(2))
             .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
         Log.d(TAG, "Car Chase Offscreen score " + carchaseoff.getText());
 
-        UiObject manhattan = 
+        UiObject manhattan =
             mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
             .getChild(new UiSelector().index(3))
             .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
         Log.d(TAG, "Manhattan 3.1 score " + manhattan.getText());
 
-        UiObject manhattan1080 = 
+        UiObject manhattan1080 =
             mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
             .getChild(new UiSelector().index(4))
             .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
         Log.d(TAG, "1080p Manhattan 3.1 Offscreen score " + manhattan1080.getText());
 
-        UiObject manhattan1440 = 
+        UiObject manhattan1440 =
             mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
             .getChild(new UiSelector().index(5))
             .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
         Log.d(TAG, "1440p Manhattan 3.1 Offscreen score " + manhattan1440.getText());
 
         //Low Level Tests
-        UiObject tess = 
+        UiObject tess =
             mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
             .getChild(new UiSelector().index(7))
             .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
@@ -177,7 +180,7 @@ public class UiAutomation extends BaseUiAutomation {
         }
         Log.d(TAG, "Tessellation score " + tess.getText());
 
-        UiObject tessoff = 
+        UiObject tessoff =
             mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
             .getChild(new UiSelector().index(8))
             .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
@@ -189,7 +192,7 @@ public class UiAutomation extends BaseUiAutomation {
 
     public void toggleTest(String testname) throws Exception {
         UiScrollable list = new UiScrollable(new UiSelector().scrollable(true));
-        UiObject test = 
+        UiObject test =
             mDevice.findObject(new UiSelector().text(testname));
         if (!test.exists() && list.waitForExists(60)) {
             list.scrollIntoView(test);

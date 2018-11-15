@@ -43,6 +43,11 @@ public class UiAutomation extends BaseUiAutomation {
     private static int initialTimeoutSeconds = 20;
 
     @Test
+    public void setup() throws Exception {
+        dismissAndroidVersionPopup();
+    }
+
+    @Test
     public void runWorkload() throws Exception{
         hitTest();
         waitforCompletion();
@@ -54,7 +59,7 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     public void hitTest() throws Exception {
-        UiObject testbutton = 
+        UiObject testbutton =
             mDevice.findObject(new UiSelector().resourceId("com.antutu.ABenchMark:id/main_test_start_title"));
         testbutton.click();
         sleep(1);
@@ -68,14 +73,14 @@ public class UiAutomation extends BaseUiAutomation {
 
     public void getScores() throws Exception {
         //Expand, Extract and Close CPU sub scores
-        UiObject cpuscores = 
+        UiObject cpuscores =
             mDevice.findObject(new UiSelector().text("CPU"));
         cpuscores.click();
-        UiObject cpumaths = 
+        UiObject cpumaths =
             mDevice.findObject(new UiSelector().text("CPU Mathematics Score").fromParent(new UiSelector().index(3)));
-        UiObject cpucommon = 
+        UiObject cpucommon =
             mDevice.findObject(new UiSelector().text("CPU Common Use Score").fromParent(new UiSelector().index(3)));
-        UiObject cpumulti = 
+        UiObject cpumulti =
             mDevice.findObject(new UiSelector().text("CPU Multi-Core Score").fromParent(new UiSelector().index(3)));
         Log.d(TAG, "CPU Maths Score " + cpumaths.getText());
         Log.d(TAG, "CPU Common Score " + cpucommon.getText());
@@ -83,14 +88,14 @@ public class UiAutomation extends BaseUiAutomation {
         cpuscores.click();
 
         //Expand, Extract and Close GPU sub scores
-        UiObject gpuscores = 
+        UiObject gpuscores =
             mDevice.findObject(new UiSelector().text("GPU"));
         gpuscores.click();
-        UiObject gpumaroon = 
+        UiObject gpumaroon =
             mDevice.findObject(new UiSelector().text("3D [Marooned] Score").fromParent(new UiSelector().index(3)));
-        UiObject gpucoast = 
+        UiObject gpucoast =
             mDevice.findObject(new UiSelector().text("3D [Coastline] Score").fromParent(new UiSelector().index(3)));
-        UiObject gpurefinery = 
+        UiObject gpurefinery =
             mDevice.findObject(new UiSelector().text("3D [Refinery] Score").fromParent(new UiSelector().index(3)));
         Log.d(TAG, "GPU Marooned Score " + gpumaroon.getText());
         Log.d(TAG, "GPU Coastline Score " + gpucoast.getText());
@@ -98,16 +103,16 @@ public class UiAutomation extends BaseUiAutomation {
         gpuscores.click();
 
         //Expand, Extract and Close UX sub scores
-        UiObject uxscores = 
+        UiObject uxscores =
             mDevice.findObject(new UiSelector().text("UX"));
         uxscores.click();
-        UiObject security = 
+        UiObject security =
             mDevice.findObject(new UiSelector().text("Data Security Score").fromParent(new UiSelector().index(3)));
-        UiObject dataprocessing = 
+        UiObject dataprocessing =
             mDevice.findObject(new UiSelector().text("Data Processing Score").fromParent(new UiSelector().index(3)));
-        UiObject imageprocessing = 
+        UiObject imageprocessing =
             mDevice.findObject(new UiSelector().text("Image Processing Score").fromParent(new UiSelector().index(3)));
-        UiObject uxscore = 
+        UiObject uxscore =
             mDevice.findObject(new UiSelector().text("User Experience Score").fromParent(new UiSelector().index(3)));
         Log.d(TAG, "Data Security Score " + security.getText());
         Log.d(TAG, "Data Processing Score " + dataprocessing.getText());
@@ -116,12 +121,12 @@ public class UiAutomation extends BaseUiAutomation {
         uxscores.click();
 
         //Expand, Extract and Close MEM sub scores
-        UiObject memscores = 
+        UiObject memscores =
             mDevice.findObject(new UiSelector().text("MEM"));
         memscores.click();
-        UiObject ramscore = 
+        UiObject ramscore =
             mDevice.findObject(new UiSelector().text("RAM Score").fromParent(new UiSelector().index(3)));
-        UiObject romscore = 
+        UiObject romscore =
             mDevice.findObject(new UiSelector().text("ROM Score").fromParent(new UiSelector().index(3)));
         Log.d(TAG, "RAM Score " + ramscore.getText());
         Log.d(TAG, "ROM Score " + romscore.getText());
