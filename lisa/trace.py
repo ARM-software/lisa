@@ -333,7 +333,7 @@ class Trace(Loggable):
                     name_key : 'TaskName'})
                 .set_index('PID').sort_index())
 
-    def getTaskByName(self, name):
+    def get_task_by_name(self, name):
         """
         Get the PIDs of all tasks with the specified name.
 
@@ -354,7 +354,7 @@ class Trace(Loggable):
         return (self._tasks_by_pid[self._tasks_by_pid.TaskName == name]
                     .index.tolist())
 
-    def getTaskByPid(self, pid):
+    def get_task_by_pid(self, pid):
         """
         Get the name of the task with the specified PID.
 
