@@ -1,1 +1,1 @@
-./[notebook,doc]
+./[notebook,doc,test]

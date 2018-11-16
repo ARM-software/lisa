@@ -37,7 +37,6 @@ setup(
         "matplotlib >= 1.4.2",
         "pandas >= 0.23.0",
         "numpy",
-        "nose",
         "ruamel.yaml >= 0.15.72",
 
         # Depdendencies that are shipped as part of the LISA repo as
@@ -56,6 +55,10 @@ setup(
         "doc": [
             "sphinx",
             "sphinx_rtd_theme"
+        ],
+
+        "test": [
+            "nose",
         ],
     },
 

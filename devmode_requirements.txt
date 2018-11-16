@@ -12,4 +12,4 @@
 
 # WA before LISA
 -e ./external/workload-automation/
--e ./[notebook,doc]
+-e ./[notebook,doc,test]
