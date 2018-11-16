@@ -1,4 +1,4 @@
-#! /bin/bash
+#! /bin/sh
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -26,9 +26,6 @@
 # By default use internal libraries
 export LISA_DEVMODE=${LISA_DEVMODE:-1}
 
-# Get base installation path of LISA
-export LISA_HOME="$(readlink -f "$(dirname "$BASH_SOURCE")/../")"
-
 # Setup colors
 source "$LISA_HOME/shell/lisa_colors"
 
@@ -37,7 +34,7 @@ source "$LISA_HOME/shell/lisa_colors"
 
 # In devmode, we provide the lisa package and some of its dependencies within
 # the git tree
-if [ "x$LISA_DEVMODE" == "x1" ]; then
+if [[ "$LISA_DEVMODE" == 1 ]]; then
   export PYTHONPATH="$LISA_HOME/modules_root/:$PYTHONPATH"
 fi
 
@@ -141,11 +138,11 @@ function lisa-install {
     if [[ "$LISA_DEVMODE" == 1 ]]; then
         # This set of requirements will install all the shipped dependencies
         # in editable mode
-        requirements='devmode_requirements.txt'
+        local requirements='devmode_requirements.txt'
     else
         # This one will install the packages that are developed here, but will
         # take the external dependencies from PyPI
-        requirements='requirements.txt'
+        local requirements='requirements.txt'
     fi
 
     echo
@@ -173,7 +170,7 @@ function _lisa-update-usage {
 
 function _lisa-update-subtrees {
     echo -ne "${LISASHELL_BLUE}"
-    if [ "x$LISA_DEVMODE" == "x1" ]; then
+    if [[ "$LISA_DEVMODE" == 1 ]]; then
         # Force update existing modules
         echo
         echo 'Developer mode ENABLED, updating local libraries...'
@@ -187,17 +184,14 @@ function _lisa-update-all {
     echo -ne "${LISASHELL_BLUE}"
     echo -e "*** Update LISA installation"
 
-    git update-index -q --refresh
-    ret=$?
-    if [ $ret -ne 0 ]; then
+
+    if git update-index -q --refresh; then
         echo "LISA internal error: git update-index failed"
         echo "Please report it: https://github.com/ARM-software/lisa/issues"
         return $ret
     fi
 
-    git diff-index --quiet HEAD
-    ret=$?
-    if [ $ret -ne 0 ]; then
+    if git diff-index --quiet HEAD; then
         echo "There are outstanding uncommitted changes."
         echo "Please, commit your changes or stash them before you can update lisa"
         return $ret
@@ -205,21 +199,19 @@ function _lisa-update-all {
 
     curr_commit=$(git rev-parse HEAD)
     remote_name=$(git remote -v | grep -i ARM-software/lisa | grep -m 1 fetch | awk '{print $1}')
-    if [ -z "$remote_name" ]; then
+    if [[ -z "$remote_name" ]]; then
         echo "Couldn't find ARM-Software upstream remote, can't automatically update"
         return 1
     fi
-    git merge-base --is-ancestor $curr_commit $remote_name/master
-    ret=$?
-    if [ $ret -ne 0 ]; then
+
+    if git merge-base --is-ancestor $curr_commit $remote_name/master; then
         echo "You have committed changes that are not part of $remote_name/master"
         echo "Please move to the master branch before running lisa-update"
         return $ret
     fi
 
-    git pull --ff-only $remote_name master
-    ret=$?
-    if [ $ret -ne 0 ]; then
+
+    if git pull --ff-only $remote_name master; then
         # git pull should have printed some error.  Abort and propagate the error code.
         return $ret
     fi
@@ -230,14 +222,14 @@ function _lisa-update-all {
 function lisa-update {
     CMD=${1:-all}
     echo
-    case "x${CMD^^}" in
-    'xSUBTREES')
+    case "$CMD" in
+    subtrees)
         _lisa-update-subtrees
         ;;
-    'xALL')
+    all)
         _lisa-update-all
         ;;
-    "xHELP"|*)
+    help|*)
         _lisa-update-usage
         ;;
     esac
@@ -262,18 +254,18 @@ function _lisa-ipython-start {
     # Get IP address for the specified interface
     IPADDR=
 
-    if [ -x /sbin/ifconfig ]; then
+    if [[ -x /sbin/ifconfig ]]; then
         IPADDR=$(/sbin/ifconfig $NETIF 2>/dev/null  | \
             awk '/inet / {print $2}' | \
             sed 's/addr://')
     fi
 
-    if [ "x$IPADDR" == "x" -a -x /sbin/ip ]; then
+    if [[ -z "$IPADDR" && -x /sbin/ip ]]; then
         IPADDR=$(/sbin/ip a show dev $NETIF 2>/dev/null | \
             awk '/inet / { gsub("/.*", ""); print $2; }')
     fi
 
-    if [ "x$IPADDR" == "x" ]; then
+    if [[ -z "$IPADDR" ]]; then
         echo
         echo "could not determine IP address of $NETIF"
         echo
@@ -293,7 +285,7 @@ function _lisa-ipython-start {
     URL="http://$IPADDR:$PORT/?token=$TOKEN"
 
     # Check if an instance is already running
-    if [ -f "$PIDFILE" ] && pgrep -F $PIDFILE >/dev/null; then
+    if [[ -f "$PIDFILE" ]] && pgrep -F $PIDFILE >/dev/null; then
         echo "Server already running:"
         echo "  " $(cat $URLFILE)
         xdg-open $(cat $URLFILE)
@@ -326,7 +318,7 @@ function _lisa-ipython-start {
 
 function _lisa-ipython-stop {
     PIDFILE="$PYDIR/server.pid"
-    if [ -f "$PIDFILE" ] && pgrep -F $PIDFILE >/dev/null; then
+    if [[ -f "$PIDFILE" ]] && pgrep -F "$PIDFILE" >/dev/null; then
         kill $(<$PIDFILE) 2>/dev/null
     fi
     rm -f $PIDFILE 2>/dev/null
@@ -335,7 +327,7 @@ function _lisa-ipython-stop {
 function lisa-ipython {
     CMD=${1:-start}
 
-    if [ "x$2" == "x" -a $USER == "vagrant" -a -e /vagrant/shell/lisa_shell ]; then
+    if [[ -z "$2" && $USER == vagrant && -e /vagrant/shell/lisa_shell ]]; then
         # NETIF not set and we are in a vagrant environment.  Default to
         # the ethernet interface as loopback won't let you connect from your
         # host machine.
@@ -346,16 +338,16 @@ function lisa-ipython {
 
     PORT=${3:-8888}
     echo
-    case "x${CMD^^}" in
-    'xSTART')
+    case "$CMD" in
+    'start')
         echo "Starting IPython Notebooks..."
         _lisa-ipython-start $NETIF $PORT
         ;;
-    'xSTOP')
+    'stop')
         echo "Stopping IPython Notebooks..."
         _lisa-ipython-stop
         ;;
-    "xHELP"|*)
+    "help"|*)
         _lisa-ipython-usage
         ;;
     esac
@@ -379,14 +371,14 @@ function lisa-test {
 }
 
 function lisa-report {
-    CMD=${1^^}
-    [ "x$CMD" != "xHELP" ] && CMD=report
+    CMD=$1
+    [[ "$CMD" != "HELP" ]] && CMD=report
     echo
-    case "x${CMD^^}" in
-    'xREPORT')
+    case "$CMD" in
+    report)
         ./tools/report.py $*
         ;;
-    "xHELP"|*)
+    help|*)
         ./tools/report.py --help
         ;;
     esac
@@ -419,11 +411,11 @@ EOF
     # Check for required external dependencies
 
     if which realpath &>/dev/null; then
-    cat <<EOF
-    ERROR: this script requires the realpath binary!
+cat <<EOF
+ERROR: this script requires the realpath binary!
 
-    You can install it on Ubuntu systems with:
-        $> sudo apt-get install coreutils
+You can install it on Ubuntu systems with:
+    $> sudo apt-get install coreutils
 EOF
         return -1
     fi
@@ -453,9 +445,6 @@ function lisa-buildroot-update-kernel-config {
 ################################################################################
 # LISA Shell MAIN
 ################################################################################
-
-# Setup Shell variables
-PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_RESET}\]"
 
 # Dump out a nice LISA Shell logo
 clear

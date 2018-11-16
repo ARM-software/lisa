@@ -17,14 +17,30 @@
 #
 
 # LISA Shell: Initialization
-grep "bash" /proc/$$/cmdline &>/dev/null
-if [ $? -eq 0 ]; then
+
+# Running under BASH
+if grep "bash" /proc/$$/cmdline &>/dev/null; then
+	# Get base installation path of LISA
+	export LISA_HOME=$(readlink -f "$(dirname "$BASH_SOURCE")")
+
 	source "$(dirname "$BASH_SOURCE")/shell/lisa_shell"
+
+	PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_RESET}\]"
+
+# Running under ZSH
+elif grep "zsh" /proc/$$/cmdline &>/dev/null; then
+	# Get base installation path of LISA
+	export LISA_HOME=${${${(%):-%N}:h}:A}
+
+	# Source the script in "sh" emulation mode. This will also mark the
+	# functions declared there to be executed in emulated mode, so they will
+	# work as well
+	emulate sh -c "source "$LISA_HOME/shell/lisa_shell""
+
 else
 	echo "WARNING: Current shell is not a BASH"
 	# Check if a bash shell is available
-	which bash &>/dev/null
-	if [ $? -eq 0 ]; then
+	if which bash &>/dev/null; then
 		# Switch to a BASH shell
 		exec bash --init-file ./init_env
 	else
@@ -35,3 +51,4 @@ else
 	echo "Please, source this configuration from a terminal running BASH."
 fi
 
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
