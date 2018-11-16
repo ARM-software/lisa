@@ -377,7 +377,27 @@ class Trace(Loggable):
         except KeyError:
             return None
 
-    def getTasks(self):
+    def get_task_pid(self, task):
+        """
+        Helper that takes either a name or a PID and always returns a PID
+
+        :param task: Either the task name or the task PID
+        :type task: int or str
+        """
+        if isinstance(task, str):
+            pid_list = self.get_task_by_name(task)
+            if len(pid_list) > 1:
+                self.get_logger().warning(
+                    "More than one PID found for task {}, "
+                    "using the first one ({})".format(task, pid_list[0]))
+            pid = pid_list[0]
+        else:
+            pid = task
+
+        return pid
+
+
+    def get_tasks(self):
         """
         Get a dictionary of all the tasks in the Trace.
 
