@@ -465,13 +465,6 @@ class Trace(Loggable):
 ###############################################################################
 # Trace Events Sanitize Methods
 ###############################################################################
-    @property
-    def has_big_little(self):
-        return ('clusters' in self.plat_info
-                and 'big' in self.plat_info['clusters']
-                and 'little' in self.plat_info['clusters']
-                and 'nrg-model' in self.plat_info)
-
     def _sanitize_SchedCpuCapacity(self):
         """
         Add more columns to cpu_capacity data frame if the energy model is
