@@ -255,10 +255,11 @@ rm -f $PIDFILE 2>/dev/null
 function lisa-ipython {
 CMD=${1:-start}
 
-if [ "x$2" == "x" -a $USER == "vagrant" -a -e /vagrant/src/shell/shell ]; then
-    # NETIF not set and we are in a vagrant environment.  Default to
-    # eth0 as loopback won't let you connect from your host machine.
-    NETIF="eth0"
+if [ "x$2" == "x" -a $USER == "vagrant" -a -e /vagrant/shell/lisa_shell ]; then
+    # NETIF not set and we are in a vagrant environment. Default to
+    # the ethernet interface as loopback won't let you connect from your
+    # host machine.
+    NETIF=$(ip route | awk '/default/ { print $5 }')
 else
     NETIF=${2:-lo}
 fi

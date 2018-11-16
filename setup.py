@@ -39,6 +39,7 @@ setup(
         "matplotlib >= 1.4.2, < 3.0",
         "pandas >= 0.23.0",
         "numpy",
+        "nose",
         "future",
         "ruamel.yaml",
         "devlib",
