@@ -68,11 +68,11 @@ Run ``lisa-help`` to see an overview of the provided LISA commands.
 Notebooks
 =========
 
-The LISA shell can simplify starting an IPython Notebook server::
+The LISA shell can simplify starting an Jupyter notebook server::
 
-  [LISAShell lisa] \> lisa-ipython start
+  [LISAShell lisa] \> lisa-jupyter start
 
-  Starting IPython Notebooks...
+  Starting Jupyter Notebooks...
 
   Notebook server configuration:
     URL        :  http://127.0.0.1:8888/?token=b34F8D0e457BDa570C4A6D7AF113CB45d9CcAF44Aa7Cf400
@@ -84,10 +84,10 @@ The LISA shell can simplify starting an IPython Notebook server::
 
   Notebook server task: [4] 30177
 
-Note that the lisa-ipython command allows you to specify interface and
+Note that the ``lisa-jupyter`` command allows you to specify interface and
 port in case you have several network interfaces on your host::
 
-  lisa-ipython start [interface [port]]
+  lisa-jupyter start [interface [port]]
 
 The URL of the main folder served by the server is printed on the screen.
 By default it is http://127.0.0.1:8888/

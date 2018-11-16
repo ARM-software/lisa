@@ -241,16 +241,16 @@ function lisa-update {
 # LISA Notebooks utility functions
 ################################################################################
 
-function _lisa-ipython-usage {
-    echo "Usage: lisa-ipython CMD [NETIF [PORT]]"
-    echo " CMD     - IPython Notebooks command (deafult: start)"
-    echo "  start  start the ipython server"
-    echo "   stop  stop the ipython server"
+function _lisa-jupyter-usage {
+    echo "Usage: lisa-jupyter CMD [NETIF [PORT]]"
+    echo " CMD     - Jupyter Notebooks command (deafult: start)"
+    echo "  start  start the jupyter server"
+    echo "   stop  stop the jupyter server"
     echo " NETIF   - the network interface to start the server on (default: lo)"
     echo " PORT    - the tcp port for the server (default: 8888)"
 }
 
-function _lisa-ipython-start {
+function _lisa-jupyter-start {
     # Get IP address for the specified interface
     IPADDR=
 
@@ -285,14 +285,14 @@ function _lisa-ipython-start {
     URL="http://$IPADDR:$PORT/?token=$TOKEN"
 
     # Check if an instance is already running
-    if [[ -f "$PIDFILE" ]] && pgrep -F $PIDFILE >/dev/null; then
+    if [[ -f "$PIDFILE" ]] && pgrep -F "$PIDFILE" >/dev/null; then
         echo "Server already running:"
-        echo "  " $(cat $URLFILE)
-        xdg-open $(cat $URLFILE)
+        echo "  " "$(cat $URLFILE)"
+        xdg-open "$(cat $URLFILE)"
         return 1
     fi
 
-    # Start the server bindeed to the specified interface
+    # Start the server bound to the specified interface
     echo
     echo 'Notebook server configuration:'
     echo '  URL        : ' $URL
@@ -303,28 +303,23 @@ function _lisa-ipython-start {
     cd $PYDIR
     echo
     echo -n 'Notebook server task: '
-    if which ipython >/dev/null; then
-        local cmd=ipython
-    else
-        local cmd=jupyter
-    fi
-    nohup $cmd notebook --ip=$IPADDR --port=$PORT \
-                        --NotebookApp.token=$TOKEN \
-                        >$LOGFILE 2>&1 &
-    echo $! >$PIDFILE
-    echo $URL >$URLFILE
+    nohup jupyter notebook --ip="$IPADDR" --port="$PORT" \
+                        --NotebookApp.token="$TOKEN" \
+                        >"$LOGFILE" 2>&1 &
+    echo $! >"$PIDFILE"
+    echo $URL >"$URLFILE"
     cd - >/dev/null
 }
 
-function _lisa-ipython-stop {
+function _lisa-jupyter-stop {
     PIDFILE="$PYDIR/server.pid"
     if [[ -f "$PIDFILE" ]] && pgrep -F "$PIDFILE" >/dev/null; then
-        kill $(<$PIDFILE) 2>/dev/null
+        kill "$(<"$PIDFILE")" 2>/dev/null
     fi
-    rm -f $PIDFILE 2>/dev/null
+    rm -f "$PIDFILE" 2>/dev/null
 }
 
-function lisa-ipython {
+function lisa-jupyter {
     CMD=${1:-start}
 
     if [[ -z "$2" && $USER == vagrant && -e /vagrant/shell/lisa_shell ]]; then
@@ -340,15 +335,15 @@ function lisa-ipython {
     echo
     case "$CMD" in
     'start')
-        echo "Starting IPython Notebooks..."
-        _lisa-ipython-start $NETIF $PORT
+        echo "Starting Jupyter Notebooks..."
+        _lisa-jupyter-start "$NETIF" "$PORT"
         ;;
     'stop')
-        echo "Stopping IPython Notebooks..."
-        _lisa-ipython-stop
+        echo "Stopping Jupyter Notebooks..."
+        _lisa-jupyter-stop
         ;;
     "help"|*)
-        _lisa-ipython-usage
+        _lisa-jupyter-usage
         ;;
     esac
     echo
