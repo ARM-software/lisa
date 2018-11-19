@@ -29,15 +29,6 @@ export LISA_DEVMODE=${LISA_DEVMODE:-1}
 # Setup colors
 source "$LISA_HOME/shell/lisa_colors"
 
-# TODO: Stop modifying the PYTHONPATH when all Python packages have a setup.py.
-# It will be installed in edit mode using pip in requirements.txt
-
-# In devmode, we provide the lisa package and some of its dependencies within
-# the git tree
-if [[ "$LISA_DEVMODE" == 1 ]]; then
-  export PYTHONPATH="$LISA_HOME/modules_root/:$PYTHONPATH"
-fi
-
 # Add some shell utilities to the PATH, with lower priority than system's one
 # in case the user needs a different version of them
 export LISA_HOST_ABI=${LISA_HOST_ABI:-x86_64}
@@ -355,11 +346,7 @@ echo
 ################################################################################
 
 export LISA_RESULT_ROOT=$LISA_HOME/results
-
-function exekall {
-    EXEKALL_ARTIFACT_ROOT=${EXEKALL_ARTIFACT_ROOT:-$LISA_RESULT_ROOT}   \
-    python3 -m exekall.main "$@"
-}
+export EXEKALL_ARTIFACT_ROOT=${EXEKALL_ARTIFACT_ROOT:-$LISA_RESULT_ROOT}
 
 function lisa-test {
     exekall "$@"
