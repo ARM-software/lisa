@@ -41,7 +41,7 @@ from IPython.display import display
 
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.trace import Trace
-from lisa.git import Git
+from lisa.git import find_shortest_symref
 from lisa.utils import Loggable, memoized
 
 class WaResultsCollector(Loggable):
@@ -164,7 +164,7 @@ class WaResultsCollector(Loggable):
         kernel_refs = {}
         if kernel_repo_path:
             for sha1 in df['kernel_sha1'].unique():
-                ref = Git.find_shortest_symref(kernel_repo_path, sha1)
+                ref = find_shortest_symref(kernel_repo_path, sha1)
                 if ref:
                     kernel_refs[sha1] = ref
 
