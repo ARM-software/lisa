@@ -580,19 +580,19 @@ class ChoiceOrBoolParam(Param):
 
 def info(msg):
     """Write a log message at the INFO level."""
-    logger.info(msg)
+    BISECTOR_LOGGER.info(msg)
 
 def debug(msg):
     """Write a log message at the DEBUG level."""
-    logger.debug(msg)
+    BISECTOR_LOGGER.debug(msg)
 
 def warn(msg):
     """Write a log message at the WARNING level."""
-    logger.warning(msg)
+    BISECTOR_LOGGER.warning(msg)
 
 def error(msg):
     """Write a log message at the ERROR level."""
-    logger.error(msg)
+    BISECTOR_LOGGER.error(msg)
 
 class _DefaultType:
     """
@@ -886,8 +886,8 @@ def read_stdout(p, timeout=None, kill_timeout=3):
         if stdout:
             sys.stdout.buffer.write(stdout)
             sys.stdout.buffer.flush()
-            log_file.buffer.write(stdout)
-            log_file.buffer.flush()
+            LOG_FILE.buffer.write(stdout)
+            LOG_FILE.buffer.flush()
             stdout_list.append(stdout)
 
     ret = p.wait()
@@ -1771,7 +1771,7 @@ class ExekallLISATestStep(ShellStep):
             testcase = CommaListParam('show only the test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
             ignore_non_issue = BoolParam('consider only tests that failed'),
             ignore_excep = CommaListParam('ignore the given comma-separated list of exceptions that caused tests failure or error. * can be used to match any part of the name'),
-            dump_artifact_dirs = BoolOrStrParam('write the list of exkeall artifact directories to a file. Useful to implement garbage collection of unreferenced artifact archives'),
+            dump_artifact_dirs = BoolOrStrParam('write the list of exekall artifact directories to a file. Useful to implement garbage collection of unreferenced artifact archives'),
             xunit2json = BoolOrStrParam('append consolidated xUnit information to a JSON file'),
             export_logs = BoolOrStrParam('export the logs, xUnit file and artifact directory symlink to the given directory'),
             download = BoolParam('Download the exekall artifact archives if necessary'),
@@ -4964,9 +4964,9 @@ class YAMLCLIOptionsAction(argparse.Action):
                 names = ', '.join('"'+name+'"' for name in overriden_names)
             ))
 
-def main(argv):
-    global log_file
-    global show_traceback
+def _main(argv):
+    global LOG_FILE
+    global SHOW_TRACEBACK
 
     parser = argparse.ArgumentParser(description="""
     Git-bisect-compatible command driver.
@@ -5262,7 +5262,7 @@ command line""")
             args = args,
         )
 
-    show_traceback = args.debug
+    SHOW_TRACEBACK = args.debug
     service_hub = ServiceHub()
     try:
         service_hub.register_service('upload', ArtifactorialService())
@@ -5377,13 +5377,13 @@ command line""")
 
         # This log file is available for any function in the global scope
         ensure_dir(log_path)
-        log_file = open(log_path, log_file_mode, encoding='utf-8')
+        LOG_FILE = open(log_path, log_file_mode, encoding='utf-8')
 
         # Log to the main log file as well as on the console.
-        file_handler = logging.StreamHandler(log_file)
+        file_handler = logging.StreamHandler(LOG_FILE)
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
+        BISECTOR_LOGGER.addHandler(file_handler)
 
         info('Description: {desc}'.format(desc=desc))
 
@@ -5463,28 +5463,34 @@ command line""")
 
         return ret
 
-if __name__ == '__main__':
-    # Might be changed by main()
-    show_traceback = True
 
-    # Log file opened for the duration of the execution. We initialize it as
-    # the standard error, and it will be overidden by a call to open() when
-    # we know which file needs to actually be opened (CLI parameter).
-    log_file = sys.stderr
+# TODO: avoid the global variable by redirecting stdout to a tee (stdout and
+# file) inheriting from io.TextIOWrapper and contextlib.redirect_stdout()
+
+# Log file opened for the duration of the execution. We initialize it as
+# the standard error, and it will be overidden by a call to open() when
+# we know which file needs to actually be opened (CLI parameter).
+LOG_FILE = sys.stderr
+
+# Might be changed by _main()
+SHOW_TRACEBACK = True
+
+BISECTOR_LOGGER = logging.getLogger('BISECTOR')
+
+def main(argv=sys.argv[1:]):
 
     formatter = logging.Formatter('[%(name)s][%(asctime)s] %(levelname)s  %(message)s')
 
-    logger = logging.getLogger('BISECTOR')
-    logger.setLevel(logging.DEBUG)
+    BISECTOR_LOGGER.setLevel(logging.DEBUG)
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+    BISECTOR_LOGGER.addHandler(console_handler)
 
     return_code = None
     try:
-        return_code = main(argv=sys.argv[1:])
+        return_code = _main(argv=argv)
     # Quietly exit for these exceptions
     except SILENT_EXCEPTIONS:
         pass
@@ -5492,7 +5498,7 @@ if __name__ == '__main__':
         return_code = e.code
     # Catch-all
     except Exception as e:
-        if show_traceback:
+        if SHOW_TRACEBACK:
             error(
                 'Exception traceback:\n' +
                 ''.join(
@@ -5506,11 +5512,14 @@ if __name__ == '__main__':
         # We only flush without closing in case it is stderr, to avoid hidding
         # exception traceback. It will be closed when the process ends in any
         # case.
-        log_file.flush()
+        LOG_FILE.flush()
 
     if return_code is None:
         return_code = 0
 
     sys.exit(return_code)
+
+if __name__ == '__main__':
+    main()
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

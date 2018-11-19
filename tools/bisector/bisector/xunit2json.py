@@ -6,9 +6,10 @@ import functools
 import itertools
 import json
 import operator
+import sys
+
 import pandas as pd
 import scipy.stats
-import sys
 
 def error(msg):
     print('Error: ' + str(msg), file=sys.stderr)
@@ -101,7 +102,7 @@ def compare_df(json_df1, json_df2, alpha, alternative='two-sided', non_significa
 
     return regression_df
 
-def main(argv):
+def _main(argv):
     parser = argparse.ArgumentParser(description="""
     Compare tests failure rate using Fisher exact test.
     """,
@@ -226,13 +227,16 @@ def main(argv):
                 failure_df= json_df['failure']/(json_df['passed'] + json_df['failure'])
                 print(failure_df.to_csv(), end='')
 
-if __name__ == '__main__':
+def main(argv=sys.argv[1:]):
     try:
-        return_code = main(argv=sys.argv[1:])
+        return_code = _main(argv=argv)
     except FileNotFoundError as e:
         error(e)
         return_code = 1
 
     sys.exit(return_code)
+
+if __name__ == '__main__':
+    main()
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

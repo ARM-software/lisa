@@ -15,3 +15,4 @@
 -e ./[notebook,doc,test]
 
 -e ./tools/exekall
+-e ./tools/bisector
