@@ -365,23 +365,6 @@ function lisa-test {
     exekall "$@"
 }
 
-function lisa-report {
-    CMD=$1
-    [[ "$CMD" != "HELP" ]] && CMD=report
-    echo
-    case "$CMD" in
-    report)
-        ./tools/report.py $*
-        ;;
-    help|*)
-        ./tools/report.py --help
-        ;;
-    esac
-    echo
-    echo
-}
-
-
 ################################################################################
 # LISA Workloads utility functions
 ################################################################################
