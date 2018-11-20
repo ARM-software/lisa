@@ -111,10 +111,6 @@ class FrequencyAnalysis(AnalysisBase):
         :param cpu: CPU ID
         :type cpu: int
 
-        :param total: if true returns the "total" time, otherwise the "active"
-                      time is returned
-        :type total: bool
-
         :returns: A :class:`pandas.DataFrame` with:
 
           * A ``total_time`` column (the total time spent at a frequency)
