@@ -15,4 +15,4 @@
 -e ./[notebook,doc,test]
 
 -e ./tools/exekall
--e ./tools/bisector
+-e ./tools/bisector[dbus]

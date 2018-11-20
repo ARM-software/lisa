@@ -46,6 +46,15 @@ setup(
         "scipy",
     ],
 
+    extras_require={
+        'dbus': [
+            'pydbus',
+            'pygobject',
+            # You will also need gobject-introspection package from your
+            # distribution
+        ]
+    },
+
     classifiers=[
         "Programming Language :: Python :: 3 :: Only",
         # This is not a standard classifier, as there is nothing defined for
