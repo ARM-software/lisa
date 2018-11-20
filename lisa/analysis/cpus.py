@@ -173,4 +173,19 @@ class CpusAnalysis(AnalysisBase):
         self.save_plot(fig, filepath)
         return axis
 
+    def plot_orig_capacity(self, axis, cpu):
+        """
+        Plot the orig capacity of a CPU onto a given axis
+
+        :param axis: The axis
+        :type axis: matplotlib.axes.Axes
+
+        :param cpu: The CPU
+        :type cpu: int
+        """
+        if "cpu-capacities" in self._trace.plat_info:
+            axis.axhline(self._trace.plat_info["cpu-capacities"][cpu],
+                         color=self.get_next_color(axis),
+                         linestyle='--', label="orig_capacity")
+
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
