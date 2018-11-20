@@ -25,7 +25,7 @@ KERNEL_DIR="$2"
 KERNEL_CONFIG="$2/.config"
 
 function print_usage {
-	echo "Usage: $0 <path/to/rootfs> <path/to/kernel/tree>"
+	echo "Usage: $0 <path/to/rootfs.cpio> <path/to/kernel/tree>"
 	echo "	options:"
 	echo "		-h: print this help message"
 }
@@ -51,15 +51,8 @@ if [[ -z "$1" || -z "$2" ]]; then
 	exit -1
 fi
 
-# Automatically detect the arm arch we are building for
-ARCH="`grep -owE "(arm|arm64)" $KERNEL_CONFIG`"
-if [ -z "$ARCH" ]; then
-	echo "ERROR: unknown arch, arm and arm64 are assumed"
-	exit -1
-fi
-
 set -u
 
 # Update kernel .config to use the provided rootfs as builtin initramfs
 sed -i "s#[.]*CONFIG_INITRAMFS_SOURCE.*#CONFIG_INITRAMFS_SOURCE=\"$ROOTFS\"#" "$KERNEL_CONFIG"
-make -C "$KERNEL_DIR" ARCH=$ARCH olddefconfig
+make -C "$KERNEL_DIR" olddefconfig
