@@ -77,7 +77,7 @@ class FrequencyAnalysis(AnalysisBase):
         time_df = cluster_freqs[["total_time", "frequency"]].groupby(["frequency"]).sum()
 
         # Compute ACTIVE Time
-        cluster_active = self._trace.analysis.cpus.signal_cluster_active(cpus)
+        cluster_active = self._trace.analysis.idle.signal_cluster_active(cpus)
 
         # In order to compute the active time spent at each frequency we
         # multiply 2 square waves:
