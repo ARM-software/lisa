@@ -81,8 +81,9 @@ class EASBehaviour(RTATestBundle, abc.ABC):
 
         # EAS doesn't make a lot of sense without schedutil,
         # so make sure this is what's being used
-        with te.target.cpufreq.use_governor("schedutil"):
-            cls._run_rtapp(te, res_dir, rtapp_profile)
+        with te.disable_idle_states():
+            with te.target.cpufreq.use_governor("schedutil"):
+                cls._run_rtapp(te, res_dir, rtapp_profile)
 
         return cls(res_dir, te.plat_info, rtapp_profile)
 
