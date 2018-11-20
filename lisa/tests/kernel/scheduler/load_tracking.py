@@ -273,24 +273,6 @@ class InvarianceBase(LoadTrackingBase):
         """
         return self._test_signal('util_avg', allowed_error_pct)
 
-    def test_task_load_avg(self, allowed_error_pct=15) -> ResultBundle:
-        """
-        Test that the mean of the load_avg signal matched the expected value.
-
-        Assuming that the system was under little stress (so the task was
-        RUNNING whenever it was RUNNABLE) and that the task was run with a
-        'nice' value of 0, the load_avg should be similar to the util_avg. So,
-        this test does the same as test_task_util_avg but for load_avg.
-
-        For asymmetric systems, this is only true for tasks run on the
-        biggest CPUs.
-
-        :param allowed_error_pct: How much the real signal can stray from the
-          expected values
-        :type allowed_error_pct: float
-        """
-        return self._test_signal('load_avg', allowed_error_pct)
-
 class CpuInvariance(InvarianceBase):
     """
     Basic check for CPU invariant load and utilization tracking
@@ -398,6 +380,25 @@ class FreqInvarianceItem(InvarianceBase):
             capacity_scale=capacity_scale
         )
 
+    def test_task_load_avg(self, allowed_error_pct=15) -> ResultBundle:
+        """
+        Test that the mean of the load_avg signal matched the expected value.
+
+        Assuming that the system was under little stress (so the task was
+        RUNNING whenever it was RUNNABLE) and that the task was run with a
+        'nice' value of 0, the load_avg should be similar to the util_avg. So,
+        this test does the same as test_task_util_avg but for load_avg.
+
+        For asymmetric systems, this is only true for tasks run on the
+        biggest CPUs.
+
+        :param allowed_error_pct: How much the real signal can stray from the
+          expected values
+        :type allowed_error_pct: float
+        """
+        return self._test_signal('load_avg', allowed_error_pct)
+
+
 class FreqInvariance(TestBundle, LoadTrackingHelpers):
     """
     Basic check for frequency invariant load and utilization tracking
@@ -480,7 +481,7 @@ class FreqInvariance(TestBundle, LoadTrackingHelpers):
 
     def test_task_load_avg(self, allowed_error_pct=15):
         """
-        Aggregated version of :meth:`InvarianceBase.test_task_load_avg`
+        Aggregated version of :meth:`FreqInvarianceItem.test_task_load_avg`
         """
         def item_test(test_item):
             return test_item.test_task_load_avg(allowed_error_pct=allowed_error_pct)
