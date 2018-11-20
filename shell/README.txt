@@ -15,7 +15,10 @@ lisa-buildroot-create-rootfs   - Create a buildroot based rootfs to be used as u
 .:: Maintenance commands
 ------------------------
 
-lisa-update  - Update submodules and LISA notebooks/tests
+lisa-update          - Update submodules and LISA notebooks/tests
+lisa-install         - Remove the previous venv and do a fresh ven install
+lisa-activate-venv   - Activate the LISA venv, and create it if it does not exist
+lisa-deactivate-venv - Deactivate the LISA venv, and create it if it does not exist
 
 .:: Notebooks commands
 ----------------------

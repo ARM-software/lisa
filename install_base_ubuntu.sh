@@ -6,7 +6,8 @@
 # run LISA (e.g. for CI infrastructure or for Vagrant installation).
 # This can also work for a fresh LISA install on a workstation.
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+cd "$SCRIPT_DIR"
 
 usage() {
     echo Usage: "$0" [--install-android-sdk]
@@ -51,24 +52,20 @@ install_android_sdk=n
 
 for arg in "$@"; do
     if [ "$arg" == "--install-android-sdk" ]; then
-	install_android_sdk=y
+        install_android_sdk=y
     else
-	echo "Unrecognised argument: $arg"
-	usage
-	exit 1
+        echo "Unrecognised argument: $arg"
+        usage
+        exit 1
     fi
 done
 
 apt-get update
 
-apt-get -y install build-essential git wget expect trace-cmd kernelshark \
-	python3 python3-pip python3-tk
-
-# Upgrade pip so we can use wheel packages instead of compiling stuff, this is
-# much faster.
-python3 -m pip install --upgrade pip
-
-python3 -m pip install -e .[notebook,doc]
+# venv is not installed by default on Ubuntu, even though it is part of the
+# Python standard library
+apt-get -y install build-essential git wget expect kernelshark \
+	python3 python3-pip python3-venv python3-tk
 
 if [ "$install_android_sdk" == y ]; then
     install_sdk

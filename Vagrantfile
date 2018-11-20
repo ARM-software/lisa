@@ -24,7 +24,7 @@ Vagrant.configure(2) do |config|
     # Install required packages
     ./install_base_ubuntu.sh --install-android-sdk
 
-    chown vagrant.vagrant /home/vagrant/lisa
+    chown -R vagrant.vagrant /home/vagrant/lisa
 
     # .bashrc setup
     echo "cd /home/vagrant/lisa" >> /home/vagrant/.bashrc
@@ -32,8 +32,10 @@ Vagrant.configure(2) do |config|
     do
         echo unset $LC  >> /home/vagrant/.bashrc
     done
-    echo 'export PATH=$\PATH:/home/vagrant/lisa/tools/x86_64' >> /home/vagrant/.bashrc
-    echo source init_env >> /home/vagrant/.bashrc
+    echo 'source init_env' >> /home/vagrant/.bashrc
+
+    # Trigger the creation of a venv
+    su vagrant bash ./init_env
 
     # We're all done!
     echo "Virtual Machine Installation completed successfully!                "
@@ -46,6 +48,10 @@ Vagrant.configure(2) do |config|
     echo "      down, please run:                                             "
     echo "                                                                    "
     echo "    $ vagrant suspend                                               "
+    echo "                                                                    "
+    echo " To destroy it, use:                                                "
+    echo "                                                                    "
+    echo "    $ vagrant destroy                                               "
     echo "                                                                    "
   SHELL
 

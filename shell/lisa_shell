@@ -1,4 +1,4 @@
-#! /bin/bash
+#! /bin/sh
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -19,23 +19,29 @@
 
 # LISA Shell: the Linux Integrated System Analysis Shell
 
-# By default use internal libraries
-DEVMODE=${DEVMODE:-1}
+################################################################################
+# Set environment variables
+################################################################################
 
-# Get base installation path of LISA
-export LISA_HOME="$(readlink -f "$(dirname "$BASH_SOURCE")/../")"
+# By default use internal libraries
+export LISA_DEVMODE=${LISA_DEVMODE:-1}
 
 # Setup colors
 source "$LISA_HOME/shell/lisa_colors"
 
+# TODO: Stop modifying the PYTHONPATH when all Python packages have a setup.py.
+# It will be installed in edit mode using pip in requirements.txt
+
 # In devmode, we provide the lisa package and some of its dependencies within
 # the git tree
-if [ "x$DEVMODE" == "x1" ]; then
+if [[ "$LISA_DEVMODE" == 1 ]]; then
   export PYTHONPATH="$LISA_HOME/modules_root/:$PYTHONPATH"
 fi
 
-# Add some shell utilities to the PATH
-export PATH=$PATH:$LISA_HOME/shell
+# Add some shell utilities to the PATH, with lower priority than system's one
+# in case the user needs a different version of them
+export LISA_HOST_ABI=${LISA_HOST_ABI:-x86_64}
+export PATH=$PATH:$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI
 
 ################################################################################
 # Helpers
@@ -56,18 +62,18 @@ function clear {
 
 # LISA Shell On-Line HELP
 function lisa-help {
-clear
-echo -e "$LISASHELL_HELP"
-echo "                                                                               "
-echo "                    .:: LISA Shell - HELP On-Line ::.                          "
-echo "                                                                               "
-echo -ne "$LISASHELL_RESET$LISASHELL_GREEN"
-cat "$LISA_HOME/shell/README.txt"
-echo -ne "$LISASHELL_DEFAULT"
+    clear
+    echo -e "$LISASHELL_HELP"
+    echo "                                                                               "
+    echo "                    .:: LISA Shell - HELP On-Line ::.                          "
+    echo "                                                                               "
+    echo -ne "$LISASHELL_RESET$LISASHELL_GREEN"
+    cat "$LISA_HOME/shell/README.txt"
+    echo -ne "$LISASHELL_DEFAULT"
 }
 
 function lisa-version {
-echo -ne "$LISASHELL_GREEN"
+    echo -ne "$LISASHELL_GREEN"
 cat <<EOF
 
 .:: LISA ($(git describe --all))
@@ -75,7 +81,78 @@ cat <<EOF
 LISA commit: $(git rev-parse --short=11 HEAD)
 
 EOF
-echo -ne "$LISASHELL_DEFAULT"
+    echo -ne "$LISASHELL_DEFAULT"
+}
+
+################################################################################
+# LISA Install functions
+################################################################################
+
+export LISA_USE_VENV=${LISA_USE_VENV:-1}
+export LISA_VENV_PATH=${LISA_VENV_PATH:-"$LISA_HOME/.lisa-venv3"}
+
+function _lisa-venv-create {
+    # Make sure we don't nest venv, by calling deactivate if it exists,
+    # otherwise it will fail with a symlink levels errors
+    lisa-venv-deactivate || return 1
+
+    if [[ "$LISA_USE_VENV" == 1 ]]; then
+        echo "Creating LISA venv from scratch ($LISA_VENV_PATH) ..."
+        # With --clear, the folder is emptied to create a fresh environment
+        python3 -m venv --clear "$LISA_VENV_PATH"
+    fi
+}
+
+function lisa-venv-activate {
+    if [[ "$LISA_USE_VENV" == 1 ]]; then
+        # If the venv is not found, we install LISA in there
+        if [[ ! -e "$LISA_VENV_PATH" ]]; then
+            lisa-install || return 1
+        fi
+        echo "Activating LISA Python venv ($LISA_VENV_PATH) ..."
+        VIRTUAL_ENV_DISABLE_PROMPT=1 source "$LISA_VENV_PATH/bin/activate"
+    fi
+}
+
+function lisa-venv-deactivate {
+    if type deactivate &>/dev/null; then
+        echo "Deactivating LISA Python venv ($LISA_VENV_PATH) ..."
+        deactivate
+    fi
+}
+
+function _lisa-upgrade-pip {
+    # Only upgrade pip when using the venv, so we don't touch the system-wide
+    # install
+    if [[ "$LISA_USE_VENV" == 1 ]]; then
+        lisa-venv-activate || return 1
+        echo "Upgrading pip ..."
+        python3 -m pip install --upgrade pip
+    fi
+}
+
+function lisa-install {
+    _lisa-venv-create &&
+    _lisa-upgrade-pip || return 1
+
+    if [[ "$LISA_DEVMODE" == 1 ]]; then
+        # This set of requirements will install all the shipped dependencies
+        # in editable mode
+        local requirements='devmode_requirements.txt'
+    else
+        # This one will install the packages that are developed here, but will
+        # take the external dependencies from PyPI
+        local requirements='requirements.txt'
+    fi
+
+    echo
+    echo "Installing LISA packages ..."
+    echo
+    # Make sure we install all packages, even if they are satisfied by the
+    # system's site-packages location. This ensures we use up to date packages,
+    # and that the installation process will give the same result on all
+    # machines at a given point in time.
+    python3 -m pip install -r "$LISA_HOME/$requirements" "$@"
 }
 
 ################################################################################
@@ -88,198 +165,188 @@ function _lisa-update-usage {
     echo "       all - update lisa and all the external dependencies"
     echo "       subtrees - update external dependencies provided by subtrees"
     echo
-    echo "Update subtrees (if DEVMODE enabled)"
+    echo "Update subtrees (if LISA_DEVMODE enabled)"
 }
 
 function _lisa-update-subtrees {
-echo -ne "${LISASHELL_BLUE}"
-if [ "x$DEVMODE" == "x1" ]; then
-    # Force update existing modules
-    echo
-    echo 'Developer mode ENABLED, updating local libraries...'
-    for-each-subtree.py "$LISA_HOME/external/subtrees.conf" --fetch pull --squash
-    echo 'DONE'
-fi
-echo -ne "$LISASHELL_DEFAULT"
+    echo -ne "${LISASHELL_BLUE}"
+    if [[ "$LISA_DEVMODE" == 1 ]]; then
+        # Force update existing modules
+        echo
+        echo 'Developer mode ENABLED, updating local libraries...'
+        for-each-subtree.py "$LISA_HOME/external/subtrees.conf" --fetch pull --squash
+        echo 'DONE'
+    fi
+    echo -ne "$LISASHELL_DEFAULT"
 }
 
 function _lisa-update-all {
-echo -ne "${LISASHELL_BLUE}"
-echo -e "*** Update LISA installation"
+    echo -ne "${LISASHELL_BLUE}"
+    echo -e "*** Update LISA installation"
 
-git update-index -q --refresh
-ret=$?
-if [ $ret -ne 0 ]; then
-    echo "LISA internal error: git update-index failed"
-    echo "Please report it: https://github.com/ARM-software/lisa/issues"
-    return $ret
-fi
 
-git diff-index --quiet HEAD
-ret=$?
-if [ $ret -ne 0 ]; then
-    echo "There are outstanding uncommitted changes."
-    echo "Please, commit your changes or stash them before you can update lisa"
-    return $ret
-fi
+    if git update-index -q --refresh; then
+        echo "LISA internal error: git update-index failed"
+        echo "Please report it: https://github.com/ARM-software/lisa/issues"
+        return $ret
+    fi
 
-curr_commit=$(git rev-parse HEAD)
-remote_name=$(git remote -v | grep -i ARM-software/lisa | grep -m 1 fetch | awk '{print $1}')
-if [ -z "$remote_name" ]; then
-    echo "Couldn't find ARM-Software upstream remote, can't automatically update"
-    return 1
-fi
-git merge-base --is-ancestor $curr_commit $remote_name/master
-ret=$?
-if [ $ret -ne 0 ]; then
-    echo "You have committed changes that are not part of $remote_name/master"
-    echo "Please move to the master branch before running lisa-update"
-    return $ret
-fi
+    if git diff-index --quiet HEAD; then
+        echo "There are outstanding uncommitted changes."
+        echo "Please, commit your changes or stash them before you can update lisa"
+        return $ret
+    fi
 
-git pull --ff-only $remote_name master
-ret=$?
-if [ $ret -ne 0 ]; then
-    # git pull should have printed some error.  Abort and propagate the error code.
-    return $ret
-fi
+    curr_commit=$(git rev-parse HEAD)
+    remote_name=$(git remote -v | grep -i ARM-software/lisa | grep -m 1 fetch | awk '{print $1}')
+    if [[ -z "$remote_name" ]]; then
+        echo "Couldn't find ARM-Software upstream remote, can't automatically update"
+        return 1
+    fi
 
-echo -ne "$LISASHELL_DEFAULT"
+    if git merge-base --is-ancestor $curr_commit $remote_name/master; then
+        echo "You have committed changes that are not part of $remote_name/master"
+        echo "Please move to the master branch before running lisa-update"
+        return $ret
+    fi
+
+
+    if git pull --ff-only $remote_name master; then
+        # git pull should have printed some error.  Abort and propagate the error code.
+        return $ret
+    fi
+
+    echo -ne "$LISASHELL_DEFAULT"
 }
 
 function lisa-update {
-CMD=${1:-all}
-echo
-case "x${CMD^^}" in
-'xSUBTREES')
-    _lisa-update-subtrees
-    ;;
-'xALL')
-    _lisa-update-all
-    ;;
-"xHELP"|*)
-    _lisa-update-usage
-    ;;
-esac
-echo
-echo
+    CMD=${1:-all}
+    echo
+    case "$CMD" in
+    subtrees)
+        _lisa-update-subtrees
+        ;;
+    all)
+        _lisa-update-all
+        ;;
+    help|*)
+        _lisa-update-usage
+        ;;
+    esac
+    echo
+    echo
 }
 
 ################################################################################
 # LISA Notebooks utility functions
 ################################################################################
 
-function _lisa-ipython-usage {
-    echo "Usage: lisa-ipython CMD [NETIF [PORT]]"
-    echo " CMD     - IPython Notebooks command (deafult: start)"
-    echo "  start  start the ipython server"
-    echo "   stop  stop the ipython server"
+function _lisa-jupyter-usage {
+    echo "Usage: lisa-jupyter CMD [NETIF [PORT]]"
+    echo " CMD     - Jupyter Notebooks command (deafult: start)"
+    echo "  start  start the jupyter server"
+    echo "   stop  stop the jupyter server"
     echo " NETIF   - the network interface to start the server on (default: lo)"
     echo " PORT    - the tcp port for the server (default: 8888)"
 }
 
-function _lisa-ipython-start {
-# Get IP address for the specified interface
-IPADDR=
+function _lisa-jupyter-start {
+    # Get IP address for the specified interface
+    IPADDR=
 
-if [ -x /sbin/ifconfig ]; then
-    IPADDR=$(/sbin/ifconfig $NETIF 2>/dev/null  | \
-        awk '/inet / {print $2}' | \
-        sed 's/addr://')
-fi
+    if [[ -x /sbin/ifconfig ]]; then
+        IPADDR=$(/sbin/ifconfig $NETIF 2>/dev/null  | \
+            awk '/inet / {print $2}' | \
+            sed 's/addr://')
+    fi
 
-if [ "x$IPADDR" == "x" -a -x /sbin/ip ]; then
-    IPADDR=$(/sbin/ip a show dev $NETIF 2>/dev/null | \
-        awk '/inet / { gsub("/.*", ""); print $2; }')
-fi
+    if [[ -z "$IPADDR" && -x /sbin/ip ]]; then
+        IPADDR=$(/sbin/ip a show dev $NETIF 2>/dev/null | \
+            awk '/inet / { gsub("/.*", ""); print $2; }')
+    fi
 
-if [ "x$IPADDR" == "x" ]; then
+    if [[ -z "$IPADDR" ]]; then
+        echo
+        echo "could not determine IP address of $NETIF"
+        echo
+        echo "Usage: $0 <NETIF>"
+        echo " NETIF - The network interface to start the server on"
+        echo
+        return 1
+    fi
+    # Setup paths
+    PYDIR="$LISA_HOME/ipynb"
+    LOGFILE="$PYDIR/server.log"
+    PIDFILE="$PYDIR/server.pid"
+    URLFILE="$PYDIR/server.url"
+
+    # Generate server URL
+    TOKEN=$(cat /dev/urandom | tr -dc 'a-fA-F0-9' | fold -w 48 | head -n 1)
+    URL="http://$IPADDR:$PORT/?token=$TOKEN"
+
+    # Check if an instance is already running
+    if [[ -f "$PIDFILE" ]] && pgrep -F "$PIDFILE" >/dev/null; then
+        echo "Server already running:"
+        echo "  " "$(cat $URLFILE)"
+        xdg-open "$(cat $URLFILE)"
+        return 1
+    fi
+
+    # Start the server bound to the specified interface
     echo
-    echo "could not determine IP address of $NETIF"
+    echo 'Notebook server configuration:'
+    echo '  URL        : ' $URL
+    echo '  Folder     : ' $PYDIR
+    echo '  Logfile    : ' $LOGFILE
+    echo '  PYTHONPATH : '
+    echo -e "\t${PYTHONPATH//:/\\n\\t}"
+    cd $PYDIR
     echo
-    echo "Usage: $0 <NETIF>"
-    echo " NETIF - The network interface to start the server on"
-    echo
-    return 1
-fi
-# Setup paths
-PYDIR="$LISA_HOME/ipynb"
-LOGFILE="$PYDIR/server.log"
-PIDFILE="$PYDIR/server.pid"
-URLFILE="$PYDIR/server.url"
-
-# Generate server URL
-TOKEN=$(cat /dev/urandom | tr -dc 'a-fA-F0-9' | fold -w 48 | head -n 1)
-URL="http://$IPADDR:$PORT/?token=$TOKEN"
-
-# Check if an instance is already running
-if [ -f "$PIDFILE" ] && pgrep -F $PIDFILE >/dev/null; then
-    echo "Server already running:"
-    echo "  " $(cat $URLFILE)
-    xdg-open $(cat $URLFILE)
-    return 1
-fi
-
-# Start the server bindeed to the specified interface
-echo
-echo 'Notebook server configuration:'
-echo '  URL        : ' $URL
-echo '  Folder     : ' $PYDIR
-echo '  Logfile    : ' $LOGFILE
-echo '  PYTHONPATH : '
-echo -e "\t${PYTHONPATH//:/\\n\\t}"
-cd $PYDIR
-echo
-echo -n 'Notebook server task: '
-if which ipython >/dev/null; then
-    local cmd=ipython
-else
-    local cmd=jupyter
-fi
-nohup $cmd notebook --ip=$IPADDR --port=$PORT \
-                    --NotebookApp.token=$TOKEN \
-                    >$LOGFILE 2>&1 &
-echo $! >$PIDFILE
-echo $URL >$URLFILE
-cd - >/dev/null
+    echo -n 'Notebook server task: '
+    nohup jupyter notebook --ip="$IPADDR" --port="$PORT" \
+                        --NotebookApp.token="$TOKEN" \
+                        >"$LOGFILE" 2>&1 &
+    echo $! >"$PIDFILE"
+    echo $URL >"$URLFILE"
+    cd - >/dev/null
 }
 
-function _lisa-ipython-stop {
-PIDFILE="$PYDIR/server.pid"
-if [ -f "$PIDFILE" ] && pgrep -F $PIDFILE >/dev/null; then
-    kill $(<$PIDFILE) 2>/dev/null
-fi
-rm -f $PIDFILE 2>/dev/null
+function _lisa-jupyter-stop {
+    PIDFILE="$PYDIR/server.pid"
+    if [[ -f "$PIDFILE" ]] && pgrep -F "$PIDFILE" >/dev/null; then
+        kill "$(<"$PIDFILE")" 2>/dev/null
+    fi
+    rm -f "$PIDFILE" 2>/dev/null
 }
 
-function lisa-ipython {
-CMD=${1:-start}
+function lisa-jupyter {
+    CMD=${1:-start}
 
-if [ "x$2" == "x" -a $USER == "vagrant" -a -e /vagrant/shell/lisa_shell ]; then
-    # NETIF not set and we are in a vagrant environment. Default to
-    # the ethernet interface as loopback won't let you connect from your
-    # host machine.
-    NETIF=$(ip route | awk '/default/ { print $5 }')
-else
-    NETIF=${2:-lo}
-fi
+    if [[ -z "$2" && $USER == vagrant && -e /vagrant/shell/lisa_shell ]]; then
+        # NETIF not set and we are in a vagrant environment.  Default to
+        # the ethernet interface as loopback won't let you connect from your
+        # host machine.
+        NETIF=$(ip route | awk '/default/ { print $5 }')
+    else
+        NETIF=${2:-lo}
+    fi
 
-PORT=${3:-8888}
-echo
-case "x${CMD^^}" in
-'xSTART')
-    echo "Starting IPython Notebooks..."
-    _lisa-ipython-start $NETIF $PORT
-    ;;
-'xSTOP')
-    echo "Stopping IPython Notebooks..."
-    _lisa-ipython-stop
-    ;;
-"xHELP"|*)
-    _lisa-ipython-usage
-    ;;
-esac
-echo
+    PORT=${3:-8888}
+    echo
+    case "$CMD" in
+    'start')
+        echo "Starting Jupyter Notebooks..."
+        _lisa-jupyter-start "$NETIF" "$PORT"
+        ;;
+    'stop')
+        echo "Stopping Jupyter Notebooks..."
+        _lisa-jupyter-stop
+        ;;
+    "help"|*)
+        _lisa-jupyter-usage
+        ;;
+    esac
+    echo
 echo
 }
 
@@ -299,19 +366,19 @@ function lisa-test {
 }
 
 function lisa-report {
-CMD=${1^^}
-[ "x$CMD" != "xHELP" ] && CMD=report
-echo
-case "x${CMD^^}" in
-'xREPORT')
-    ./tools/report.py $*
-    ;;
-"xHELP"|*)
-    ./tools/report.py --help
-    ;;
-esac
-echo
-echo
+    CMD=$1
+    [[ "$CMD" != "HELP" ]] && CMD=report
+    echo
+    case "$CMD" in
+    report)
+        ./tools/report.py $*
+        ;;
+    help|*)
+        ./tools/report.py --help
+        ;;
+    esac
+    echo
+    echo
 }
 
 
@@ -319,57 +386,13 @@ echo
 # LISA Workloads utility functions
 ################################################################################
 
-export WLTEST_VENV="$LISA_HOME/tools/wa_venv"
-
-function lisa-wltest-cleanup {
-[ ! -d $WLTEST_VENV ] || rm -rf $WLTEST_VENV
-}
-
 function lisa-wltest-init {
-export WLTEST_HOME="$LISA_HOME/tools/wltests"
-export WLTEST_DL="$LISA_HOME/libs/devlib"
-export WLTEST_WA="$LISA_HOME/tools/workload-automation"
-export WA_USER_DIRECTORY="$LISA_HOME/tools/wa_user_directory"
+    export WLTEST_HOME="$LISA_HOME/tools/wltests"
+    export WA_USER_DIRECTORY="$LISA_HOME/tools/wa_user_directory"
+    lisa-venv-activate
 
-# If the python virtual env existis:
-# let's assume everithing has been already setup and we are ready to go
-if [ -d $WLTEST_VENV ]; then
-    source $WLTEST_VENV/bin/activate
-    return 0
-fi
-
-# Check for require dependencies
-which virtualenv &>/dev/null
-if [ $? -ne 0 ]; then
-cat <<EOF
-
-    ERROR: No virtualenv support found for Python!
-
-    Please install virtualenv  before running this command.
-    You can install it on Ubuntu systems with:
-        $> pip install virtualenv
-
-EOF
-    return -1
-fi
-
-# Create and activate a python's virtual environment to be used for the
-# installation of the required version of external libraries and tools
-virtualenv $WLTEST_VENV
-source $WLTEST_VENV/bin/activate
-
-# Clone Workload Automation and install it in the virtual environment
-pip install -e $WLTEST_WA
-pip install -e $WLTEST_DL
-
-# Leave the virtualenv once setup completed
-deactivate
-}
-
-function lisa-wltest-series {
-
-# Check that the environment is properly configured
-if [ -z $ANDROID_HOME ]; then
+    # Check that the environment is properly configured
+    if [[ -z "$ANDROID_HOME" ]]; then
 cat <<EOF
 
     ERROR: No Android SDK found!
@@ -377,37 +400,29 @@ cat <<EOF
     Please point ANDROID_HOME to your local Android SDK.
 
 EOF
-    return -1
-fi
+        return -1
+    fi
 
-# Check for required external dependencies
-which realpath &>/dev/null
-if [ $? -ne 0 ]; then
-    cat <<EOF
+    # Check for required external dependencies
 
-    ERROR: this script requires the realpath binary!
+    if which realpath &>/dev/null; then
+cat <<EOF
+ERROR: this script requires the realpath binary!
 
-    You can install it on Ubuntu systems with:
-        $> sudo apt-get install coreutils
-
+You can install it on Ubuntu systems with:
+    $> sudo apt-get install coreutils
 EOF
-    return -1
-fi
+        return -1
+    fi
+}
 
-# Ensure the wltest environment has been configured, and get the relative
-# patch loaded in the environment
-lisa-wltest-init
-[ $? -eq 0 ] || exit -1
+function lisa-wltest-series {
+    # Ensure the wltest environment has been configured, and get the relative
+    # patch loaded in the environment
+    lisa-wltest-init || exit -1
 
-# Setup Python virutal env, only if not already done
-echo $PATH | grep wa_venv &>/dev/null
-[ $? -eq 0 ] || source $WLTEST_VENV/bin/activate
-
-# Run the build's provided test_series
-$WLTEST_HOME/test_series "$@"
-
-# Leave the virtualenv once tests completed
-deactivate
+    # Run the build's provided test_series
+    $WLTEST_HOME/test_series "$@"
 }
 
 ################################################################################
@@ -415,19 +430,16 @@ deactivate
 ################################################################################
 
 function lisa-buildroot-create-rootfs {
-	"$LISA_HOME/src/shell/lisa_buildroot_create_rootfs" "$@"
+    "$LISA_HOME/shell/lisa_buildroot_create_rootfs" "$@"
 }
 
 function lisa-buildroot-update-kernel-config {
-	"$LISA_HOME/src/shell/lisa_buildroot_update_kernel_config" "$@"
+    "$LISA_HOME/shell/lisa_buildroot_update_kernel_config" "$@"
 }
 
 ################################################################################
 # LISA Shell MAIN
 ################################################################################
-
-# Setup Shell variables
-PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_RESET}\]"
 
 # Dump out a nice LISA Shell logo
 clear
@@ -456,5 +468,8 @@ EOF
 
 # Setup default SHELL text color
 echo -e "$LISASHELL_DEFAULT"
+
+# Activate the venv unless it was explicitely disabled
+lisa-venv-activate
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -1,6 +1,8 @@
+#!/bin/bash
+#
 # SPDX-License-Identifier: Apache-2.0
 #
-# Copyright (C) 2017, ARM Limited and contributors.
+# Copyright (C) 2015, ARM Limited and contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License.
@@ -15,21 +17,16 @@
 # limitations under the License.
 #
 
-sudo: required
-language: python
-python:
-  - "3.5"
-# Ubuntu Xenial 16.04 (latest version we can have on Travis)
-# https://docs.travis-ci.com/user/reference/overview/
-dist: xenial
+# Script run by Travis. It is mostly a workaround for Travis inability to
+# correctly handle environment variable set in sourced scripts.
 
-install:
-  - echo "$(python3 --version)"
-  - cd "$TRAVIS_BUILD_DIR"
-  - sudo ./install_base_ubuntu.sh
-  # This will trigger the creation of a venv and install everything that is needed
-  - source init_env
+source init_env
 
-script:
-  - cd "$TRAVIS_BUILD_DIR"
-  - bash ./tools/scripts/travis_tests.sh
+# Failing commands will make the script return with an error code
+set -e
+
+echo "Starting nosetests ..."
+python3 -m nose
+
+echo "Starting documentation pedantic build ..."
+cd doc/ && ./pedantic_build.sh
