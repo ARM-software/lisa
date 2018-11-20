@@ -52,7 +52,7 @@ The main goals of LISA are:
     * **enables** kernel developers to easily post process data to produce
       statistics and plots
 
-# Documentation
+# Documentation [![Documentation Status](https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=next)](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/?badge=next)
 
 You should find everything on [ReadTheDocs](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/).
 Here are some noteworthy sections:
