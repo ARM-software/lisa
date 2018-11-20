@@ -20,14 +20,24 @@ from setuptools import setup
 with open('README.md', 'r') as fh:
     long_description = fh.read()
 
+with open("lisa/version.py") as f:
+    version_globals = dict()
+    exec(f.read(), version_globals)
+    lisa_version = version_globals['__version__']
+
 setup(
     name='LISA',
-    version='2.0',
+    version=lisa_version,
     author='Arm Ltd',
     # TODO: figure out which email to put here
     # author_email=
     packages=['lisa'],
-    # url='http://pypi.python.org/pypi/TowelStuff/',
+    url='https://github.com/ARM-software/lisa',
+    project_urls={
+        "Bug Tracker": "https://github.com/ARM-software/lisa/issues",
+        "Documentation": "https://lisa-linux-integrated-system-analysis.readthedocs.io/",
+        "Source Code": "https://github.com/ARM-software/lisa",
+    },
     license='LICENSE.txt',
     description='A stick to probe the kernel with',
     long_description=long_description,
