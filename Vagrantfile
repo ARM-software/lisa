@@ -35,7 +35,7 @@ Vagrant.configure(2) do |config|
     echo 'source init_env' >> /home/vagrant/.bashrc
 
     # Trigger the creation of a venv
-    su vagrant bash ./init_env
+    su vagrant bash -c 'source ./init_env'
 
     # We're all done!
     echo "Virtual Machine Installation completed successfully!                "
