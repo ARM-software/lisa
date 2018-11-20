@@ -4703,7 +4703,7 @@ def do_monitor(slave_id, args):
             report_path = props['ReportPath']
             argv = ['report', report_path]
             argv.extend(args.report)
-            main(argv)
+            _main(argv)
             print('\n' + '#' * 80)
 
         if args.pause:
