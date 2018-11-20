@@ -677,7 +677,7 @@ class Trace(Loggable):
         """
         logger = self.get_logger()
         if not self.hasEvents('cpu_frequency_devlib') \
-           or 'clusters' not in self.plat_info:
+           or 'freq-domains' not in self.plat_info:
             return
 
         devlib_freq = self.df_events('cpu_frequency_devlib')
@@ -685,7 +685,7 @@ class Trace(Loggable):
         devlib_freq.rename(columns={'state':'frequency'}, inplace=True)
 
         df = self.df_events('cpu_frequency')
-        clusters = self.plat_info['clusters']
+        domains = self.plat_info['freq-domains']
 
         # devlib always introduces fake cpu_frequency events, in case the
         # OS has not generated cpu_frequency envets there are the only
@@ -710,29 +710,29 @@ class Trace(Loggable):
                 # Inject "initial" devlib frequencies
                 os_df = df
                 dl_df = devlib_freq.iloc[:self.cpus_count]
-                for _,c in self.plat_info['clusters'].items():
-                    dl_freqs = dl_df[dl_df.cpu.isin(c)]
-                    os_freqs = os_df[os_df.cpu.isin(c)]
-                    logger.debug("First freqs for %s:\n%s", c, dl_freqs)
+                for cpus in domains:
+                    dl_freqs = dl_df[dl_df.cpu.isin(cpus)]
+                    os_freqs = os_df[os_df.cpu.isin(cpus)]
+                    logger.debug("First freqs for %s:\n%s", cpus, dl_freqs)
                     # All devlib events "before" os-generated events
                     logger.debug("Min os freq @: %s", os_freqs.index.min())
                     if os_freqs.empty or \
                        os_freqs.index.min() > dl_freqs.index.max():
-                        logger.debug("Insert devlib freqs for %s", c)
+                        logger.debug("Insert devlib freqs for %s", cpus)
                         df = pd.concat([dl_freqs, df])
 
                 # Inject "final" devlib frequencies
                 os_df = df
                 dl_df = devlib_freq.iloc[self.cpus_count:]
-                for _,c in self.plat_info['clusters'].items():
-                    dl_freqs = dl_df[dl_df.cpu.isin(c)]
-                    os_freqs = os_df[os_df.cpu.isin(c)]
-                    logger.debug("Last freqs for %s:\n%s", c, dl_freqs)
+                for cpus in domains:
+                    dl_freqs = dl_df[dl_df.cpu.isin(cpus)]
+                    os_freqs = os_df[os_df.cpu.isin(cpus)]
+                    logger.debug("Last freqs for %s:\n%s", cpus, dl_freqs)
                     # All devlib events "after" os-generated events
                     logger.debug("Max os freq @: %s", os_freqs.index.max())
                     if os_freqs.empty or \
                        os_freqs.index.max() < dl_freqs.index.min():
-                        logger.debug("Append devlib freqs for %s", c)
+                        logger.debug("Append devlib freqs for %s", cpus)
                         df = pd.concat([df, dl_freqs])
 
                 df.sort_index(inplace=True)
@@ -740,7 +740,7 @@ class Trace(Loggable):
             setattr(self.ftrace.cpu_frequency, 'data_frame', df)
 
         # Frequency Coherency Check
-        for _, cpus in clusters.items():
+        for cpus in domains:
             cluster_df = df[df.cpu.isin(cpus)]
             for chunk in self._chunker(cluster_df, len(cpus)):
                 f = chunk.iloc[0].frequency
