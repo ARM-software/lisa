@@ -5382,7 +5382,7 @@ command line""")
         # Log to the main log file as well as on the console.
         file_handler = logging.StreamHandler(LOG_FILE)
         file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(formatter)
+        file_handler.setFormatter(BISECTOR_FORMATTER)
         BISECTOR_LOGGER.addHandler(file_handler)
 
         info('Description: {desc}'.format(desc=desc))
@@ -5476,16 +5476,16 @@ LOG_FILE = sys.stderr
 SHOW_TRACEBACK = True
 
 BISECTOR_LOGGER = logging.getLogger('BISECTOR')
+BISECTOR_FORMATTER = logging.Formatter('[%(name)s][%(asctime)s] %(levelname)s  %(message)s')
 
 def main(argv=sys.argv[1:]):
 
-    formatter = logging.Formatter('[%(name)s][%(asctime)s] %(levelname)s  %(message)s')
 
     BISECTOR_LOGGER.setLevel(logging.DEBUG)
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
+    console_handler.setFormatter(BISECTOR_FORMATTER)
     BISECTOR_LOGGER.addHandler(console_handler)
 
     return_code = None
