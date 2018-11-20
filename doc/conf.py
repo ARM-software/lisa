@@ -390,7 +390,20 @@ def autodoc_process_test_method(app, what, name, obj, options, lines):
 
             lines.extend(test_list_doc.splitlines())
 
+def autodoc_process_analysis_events(app, what, name, obj, options, lines):
+    # Append the list of required trace events
+    if what != 'method' or not hasattr(obj, "required_events"):
+        return
+
+    events = obj.required_events
+
+    events_doc = "\n:Required trace events:\n\n{}\n\n".format(
+        "\n".join(["    * ``{}``".format(event) for event in events]))
+
+    lines.extend(events_doc.splitlines())
+
 def setup(app):
     app.connect('autodoc-process-docstring', autodoc_process_test_method)
+    app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
