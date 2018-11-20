@@ -53,114 +53,6 @@ class LatencyAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @memoized
-    def df_latency(self, task):
-        """
-        DataFrame of task's wakeup/suspend events
-
-        The returned DataFrame index is the time, in seconds, an event related
-        to `task` happened.
-        The DataFrame has these columns:
-        - target_cpu: the CPU where the task has been scheduled
-                      reported only for wakeup events
-        - curr_state: the current task state:
-            A letter which corresponds to the standard events reported by the
-            prev_state field of a sched_switch event.
-            Only exception is 'A', which is used to represent active tasks,
-            i.e. tasks RUNNING on a CPU
-        - next_state: the next status for the task
-        - t_start: the time when the current status started, it matches Time
-        - t_delta: the interval of time after witch the task will switch to the
-                   next_state
-
-        :param task: the task to report wakeup latencies for
-        :type task: int or str
-        """
-
-        if not self._trace.hasEvents('sched_wakeup'):
-            self.get_logger().warning('Events [sched_wakeup] not found, '
-                              'cannot compute CPU active signal!')
-            return None
-        if not self._trace.hasEvents('sched_switch'):
-            self.get_logger().warning('Events [sched_switch] not found, '
-                              'cannot compute CPU active signal!')
-            return None
-
-        # Get task data
-        td = self._get_task_data(task)
-        if not td:
-            return None
-
-        wk_df = self._trace.df_events('sched_wakeup')
-        sw_df = self._trace.df_events('sched_switch')
-
-        # Filter Task's WAKEUP events
-        task_wakeup = wk_df[wk_df.pid == td.pid][['target_cpu', 'pid']]
-
-        # Filter Task's START events
-        task_events = (sw_df.prev_pid == td.pid) | (sw_df.next_pid == td.pid)
-        task_switches_df = sw_df[task_events]\
-            [['__cpu', 'prev_pid', 'next_pid', 'prev_state']]
-
-        # Unset prev_state for switch_in events, i.e.
-        # we don't care about the status of a task we are replacing
-        task_switches_df.prev_state = task_switches_df.apply(
-            lambda r : np.nan if r['prev_pid'] != td.pid
-                              else self._task_state(r['prev_state']),
-            axis=1)
-
-        # Rename prev_state
-        task_switches_df.rename(columns={'prev_state' : 'curr_state'}, inplace=True)
-
-        # Fill in Running status
-        # We've just set curr_state (a.k.a prev_state) to nan where td.pid was
-        # switching in, so set the state to 'A' ("active") in those places.
-        task_switches_df.curr_state = task_switches_df.curr_state.fillna(value='A')
-
-        # Join Wakeup and SchedSwitch events
-        task_latency_df = task_wakeup.join(task_switches_df, how='outer',
-                                             lsuffix='_wkp', rsuffix='_slp')
-        # Remove not required columns
-        task_latency_df = task_latency_df[['target_cpu', '__cpu', 'curr_state']]
-        # Set Wakeup state on each Wakeup event
-        task_latency_df.curr_state = task_latency_df.curr_state.fillna(value='W')
-
-        # Sanity check for all task states to be mapped to a char
-        numbers = 0
-        for value in task_switches_df.curr_state.unique():
-            if type(value) is not str:
-                self.get_logger().warning('The [sched_switch] events contain "prev_state" value [%s]',
-                                  value)
-                numbers += 1
-        if numbers:
-            verb = 'is' if numbers == 1 else 'are'
-            self.get_logger().warning('  which %s not currently mapped into a task state.',
-                              verb)
-            self.get_logger().warning('Check mappings in:')
-            self.get_logger().warning(' %s::%s _task_state()',
-                              __file__, self.__class__.__name__)
-
-        # Forward annotate task state
-        task_latency_df['next_state'] = task_latency_df.curr_state.shift(-1)
-
-        # Forward account for previous state duration
-        task_latency_df['t_start'] =  task_latency_df.index
-        task_latency_df['t_delta'] = (
-              task_latency_df['t_start'].shift(-1)
-            - task_latency_df['t_start']
-        )
-
-        # Fix the last entry, which will have a NaN state duration
-        # Set duration to trace_end - last_event
-        task_latency_df.loc[task_latency_df.index[-1], 't_delta'] = (
-            self._trace.start_time +
-            self._trace.time_range -
-            task_latency_df.index[-1]
-        )
-
-        return task_latency_df
-
-
     # Select Wakeup latency
     def df_latency_wakeup(self, task):
         """
@@ -289,42 +181,6 @@ class LatencyAnalysis(AnalysisBase):
         # each time the task blocks or terminate
         run_df = run_df[run_df.next_state.isin(['S', 'x'])][['running_time']]
         return run_df
-
-    @memoized
-    def df_task_residency(self, task):
-        """
-        DataFrame of a task's execution time on each CPU
-
-        The returned DataFrame index is the CPU indexes
-        The DataFrame has just one column:
-        - runtime: the time the task spent being active on a given CPU,
-          in seconds.
-
-        :param task: the task to report runtimes for
-        :type task: int or str
-        """
-        cpus = list(range(self._trace.plat_info['cpus-count']))
-        runtimes = {cpu : 0.0 for cpu in cpus}
-
-        df = self.df_latency(task)
-
-        # Exclude sleep time
-        df = df[df.curr_state != 'S']
-
-        for time, data in df.iterrows():
-            cpu = data['__cpu']
-
-            # When waking up, '__cpu' is NaN but 'target_cpu' is populated instead
-            if np.isnan(cpu):
-                if data['curr_state'] == 'W':
-                    cpu = data['target_cpu']
-                else:
-                    raise RuntimeError('No CPU data for latency_df @{}'.format(time))
-
-            runtimes[cpu] += data['t_delta']
-
-        data = [(cpu, time) for  cpu, time in runtimes.items()]
-        return pd.DataFrame(data, columns=['CPU', 'runtime']).set_index('CPU')
 
     @memoized
     def _get_latency_df(self, task, kind='all', threshold_ms=1):
@@ -839,29 +695,6 @@ class LatencyAnalysis(AnalysisBase):
         return stats_df.append(pd.DataFrame(
             list(stats.values()), columns=['running_time'], index=list(stats.keys())))
 
-    def plot_task_residency(self, task):
-        """
-        Plot CPU residency of the specified task
-        This will show an overview of how much time that task spent being
-        active on each available CPU, in seconds.
-
-        :param task: the task to report runtimes for
-        :type task: int or str
-        """
-        df = self.df_task_residency(task)
-
-        ax = df.plot(kind='bar', figsize=(16, 6))
-        ax.set_title('CPU residency of task {}'.format(task))
-
-        figname = os.path.join(
-            self._trace.plots_dir,
-            '{}task_cpu_residency_{}.png'.format(
-                self._trace.plots_prefix, task
-            )
-        )
-
-        pl.savefig(figname, bbox_inches='tight')
-
 ###############################################################################
 # Utility Methods
 ###############################################################################
@@ -871,7 +704,7 @@ class LatencyAnalysis(AnalysisBase):
 
         # Get task PID
         if isinstance(task, str):
-            task_pids = self._trace.getTaskByName(task)
+            task_pids = self._trace.get_task_by_name(task)
             if len(task_pids) == 0:
                 self.get_logger().warning('No tasks found with name [%s]', task)
                 return None
@@ -881,15 +714,15 @@ class LatencyAnalysis(AnalysisBase):
                 self.get_logger().warning('Multiple PIDs for task named [%s]', task)
                 for pid in task_pids:
                     self.get_logger().warning('  %5d :  %s', pid,
-                                      ','.join(self._trace.getTaskByPid(pid)))
+                                      ','.join(self._trace.get_task_by_pid(pid)))
                 self.get_logger().warning('Returning stats only for PID: %d',
                                   task_pid)
-            task_name = self._trace.getTaskByPid(task_pid)
+            task_name = self._trace.get_task_by_pid(task_pid)
 
         # Get task name
         elif isinstance(task, int):
             task_pid = task
-            task_name = self._trace.getTaskByPid(task_pid)
+            task_name = self._trace.get_task_by_pid(task_pid)
             if task_name is None:
                 self.get_logger().warning('No tasks found with name [%s]', task)
                 return None
@@ -899,52 +732,6 @@ class LatencyAnalysis(AnalysisBase):
 
         task_label = "{}: {}".format(task_pid, task_name)
         return TaskData(task_pid, task_name, task_label)
-
-    @memoized
-    def _task_state(self, state):
-        try:
-            state = int(state)
-        except ValueError:
-            # State already converted to symbol
-            return state
-
-        # Tasks STATE flags (Linux 3.18)
-        TASK_STATES = {
-              0: "R", # TASK_RUNNING
-              1: "S", # TASK_INTERRUPTIBLE
-              2: "D", # TASK_UNINTERRUPTIBLE
-              4: "T", # __TASK_STOPPED
-              8: "t", # __TASK_TRACED
-             16: "X", # EXIT_DEAD
-             32: "Z", # EXIT_ZOMBIE
-             64: "x", # TASK_DEAD
-            128: "K", # TASK_WAKEKILL
-            256: "W", # TASK_WAKING
-            512: "P", # TASK_PARKED
-           1024: "N", # TASK_NOLOAD
-        }
-        try:
-            kernel_version = self._trace.plat_info['kernel-version']
-        except KeyError:
-            self.get_logger().info('Parsing task states assuming 3.18 kernel')
-            kernel_version = KernelVersion('3.18')
-
-        if kernel_version.parts >= (4, 8):
-            TASK_STATES[2048] = "n" # TASK_NEW
-        TASK_MAX_STATE = 2 * max(TASK_STATES)
-
-        res = "R"
-        if state & (TASK_MAX_STATE - 1) != 0:
-            res = ""
-        for key in list(TASK_STATES.keys()):
-            if key & state:
-                res += TASK_STATES[key]
-        if state & TASK_MAX_STATE:
-            res += "+"
-        else:
-            res = '|'.join(res)
-        return res
-
 
     def _get_cdf(self, data, threshold):
         """
