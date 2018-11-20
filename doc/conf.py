@@ -372,7 +372,7 @@ def is_test(method):
             for cls in base_cls_list
         )
 
-def autodoc_process_docstring(app, what, name, obj, options, lines):
+def autodoc_process_test_method(app, what, name, obj, options, lines):
     # Append the list of available test methods for all classes that appear to
     # have some.
     if what == 'class':
@@ -391,6 +391,6 @@ def autodoc_process_docstring(app, what, name, obj, options, lines):
             lines.extend(test_list_doc.splitlines())
 
 def setup(app):
-    app.connect('autodoc-process-docstring', autodoc_process_docstring)
+    app.connect('autodoc-process-docstring', autodoc_process_test_method)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
