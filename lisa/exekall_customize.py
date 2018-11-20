@@ -241,6 +241,7 @@ class LISAAdaptor(AdaptorBase):
                     et_testcase = ET.SubElement(et_testsuite, 'testcase', dict(
                         name = expr_val.get_id(
                             full_qual=False,
+                            qual=False,
                             with_tags=True,
                             hidden_callable_set=hidden_callable_set,
                         )))
