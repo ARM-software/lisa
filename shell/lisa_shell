@@ -83,11 +83,11 @@ export LISA_USE_VENV=${LISA_USE_VENV:-1}
 export LISA_VENV_PATH=${LISA_VENV_PATH:-"$LISA_HOME/.lisa-venv3"}
 
 function _lisa-venv-create {
-    # Make sure we don't nest venv, by calling deactivate if it exists,
-    # otherwise it will fail with a symlink levels errors
-    lisa-venv-deactivate || return 1
-
     if [[ "$LISA_USE_VENV" == 1 ]]; then
+        # Make sure we don't nest venv, by calling deactivate if it exists,
+        # otherwise it will fail with a symlink levels errors
+        lisa-venv-deactivate || return 1
+
         echo "Creating LISA venv from scratch ($LISA_VENV_PATH) ..."
         # With --clear, the folder is emptied to create a fresh environment
         python3 -m venv --clear "$LISA_VENV_PATH"
