@@ -20,57 +20,26 @@ from setuptools import setup
 with open('README.md', 'r') as fh:
     long_description = fh.read()
 
-with open("lisa/version.py") as f:
-    version_globals = dict()
-    exec(f.read(), version_globals)
-    lisa_version = version_globals['__version__']
-
 setup(
-    name='LISA',
-    version=lisa_version,
+    name='exekall',
+    version='1.0',
     author='Arm Ltd',
     # TODO: figure out which email to put here
     # author_email=
-    packages=['lisa'],
-    url='https://github.com/ARM-software/lisa',
-    project_urls={
-        "Bug Tracker": "https://github.com/ARM-software/lisa/issues",
-        "Documentation": "https://lisa-linux-integrated-system-analysis.readthedocs.io/",
-        "Source Code": "https://github.com/ARM-software/lisa",
-    },
+    packages=['exekall'],
+    # url='http://pypi.python.org/pypi/TowelStuff/',
     license='LICENSE.txt',
-    description='A stick to probe the kernel with',
+    description='Python expression execution engine',
     long_description=long_description,
+    entry_points={
+        'console_scripts': ['exekall=exekall.main:main'],
+    },
     python_requires='>= 3.5',
     install_requires=[
-        "psutil >= 4.4.2",
-        "matplotlib >= 1.4.2",
-        "pandas >= 0.23.0",
-        "numpy",
+        # Older versions will have troubles with serializing complex nested
+        # objects hierarchy implementing custom __getstate__ and __setstate__
         "ruamel.yaml >= 0.15.72",
-
-        # Depdendencies that are shipped as part of the LISA repo as
-        # subtree/submodule
-        "devlib",
-        "trappy",
-        "bart-py",
     ],
-
-    extras_require={
-        "notebook": [
-            "ipython",
-            "jupyter"
-        ],
-
-        "doc": [
-            "sphinx",
-            "sphinx_rtd_theme"
-        ],
-
-        "test": [
-            "nose",
-        ],
-    },
 
     classifiers=[
         "Programming Language :: Python :: 3 :: Only",
@@ -81,8 +50,6 @@ setup(
         # It has not been tested under any other OS
         "Operating System :: POSIX :: Linux",
 
-        "Topic :: System :: Operating System Kernels :: Linux",
-        "Topic :: Software Development :: Testing",
         "Intended Audience :: Developers",
     ],
 )

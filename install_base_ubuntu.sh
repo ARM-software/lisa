@@ -65,7 +65,7 @@ apt-get update
 # venv is not installed by default on Ubuntu, even though it is part of the
 # Python standard library
 apt-get -y install build-essential git wget expect kernelshark \
-	python3 python3-pip python3-venv python3-tk
+	python3 python3-pip python3-venv python3-tk gobject-introspection
 
 if [ "$install_android_sdk" == y ]; then
     install_sdk
