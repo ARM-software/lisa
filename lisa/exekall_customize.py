@@ -234,6 +234,8 @@ class LISAAdaptor(AdaptorBase):
             testsuite_counters = dict(failures=0, errors=0, tests=0, skipped=0)
 
             for testcase in testcase_list:
+                artifact_path = testcase.data.get('artifact_dir', None)
+
                 # If there is more than one value for a given expression, we
                 # assume that they testcase will have unique names using tags
                 expr_val_list = result_map[testcase]
@@ -244,7 +246,11 @@ class LISAAdaptor(AdaptorBase):
                             qual=False,
                             with_tags=True,
                             hidden_callable_set=hidden_callable_set,
-                        )))
+                        ),
+                        # This may help locating the artifacts, even though it
+                        # will only be valid on the machine it was produced on
+                        artifact_path = str(artifact_path)
+                    ))
                     testsuite_counters['tests'] += 1
 
                     for failed_expr_val in expr_val.get_failed_values():
