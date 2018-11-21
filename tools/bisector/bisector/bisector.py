@@ -1796,10 +1796,10 @@ class ExekallLISATestStep(ShellStep):
         self.compress_artifact = compress_artifact
 
     def run(self, i_stack, service_hub):
-        # Set the path to tests artifact
+        # Add a level of UUID under the root, so we can handle multiple trials
         artifact_path = pathlib.Path(
             os.getenv('EXEKALL_ARTIFACT_ROOT', 'exekall_artifact'),
-            datetime.datetime.now().strftime('%Y%m%d_%H%M%S_') + uuid.uuid4().hex,
+            uuid.uuid4().hex,
         )
 
         # This also strips the trailing /, which is needed later on when
@@ -1809,12 +1809,11 @@ class ExekallLISATestStep(ShellStep):
         env = {
             # exekall will use that folder directly, so it has to be empty and
             # cannot be reused for another invocation
-            'EXEKALL_ARTIFACT_DIR': str(artifact_path),
+            'EXEKALL_ARTIFACT_ROOT': str(artifact_path),
         }
 
-        #TODO: revisit
         if self.trials > 1:
-          warn('More than one trials requested for exekall LISA test, the xUnit XML file will only be recorded for the last trial.')
+          warn("More than one trials requested for exekall LISA test, only the last trial's xUnit XML file will be used.")
 
         res_list = self._run_cmd(i_stack, env=env)
         ret = res_list[-1][0]
@@ -1824,29 +1823,34 @@ class ExekallLISATestStep(ShellStep):
         else:
             bisect_ret = BisectRet.GOOD
 
-        xunit_path_list = list(artifact_path.glob('**/xunit.xml'))
-        if not xunit_path_list:
-            warn('No xUnit file found under: {}'.format(artifact_path))
-        elif len(xunit_path_list) > 1:
-            warn('Found more than one xUnit file, only taking the first one: '+
-                ', '.join(xunit_path_list)
-            )
-
+        # First item is the oldest created file
+        xunit_path_list = sorted(
+            artifact_path.glob('**/xunit.xml'),
+            key=lambda x: os.path.getmtime(x)
+        )
         xunit_report = ''
         if xunit_path_list:
-            xunit_path = xunit_path_list[0]
+            # Take the most recent file
+            xunit_path = xunit_path_list[-1]
+            if len(xunit_path_list) > 1:
+                warn('Found more than one xUnit file, only taking the most recent one ({}): {}'.format(
+                    xunit_path,
+                    ', '.join(xunit_path_list)
+                ))
 
             try:
                 with open(xunit_path, 'r') as xunit_file:
                     xunit_report = xunit_file.read()
-            except OSError:
-                warn('Could not open xUnit XML at: {}'.format(xunit_path))
-                xunit_report = ''
+            except OSError as e:
+                warn('Could not open xUnit XML {}: {}'.format(xunit_path, e))
+
+        else:
+            warn('No xUnit file found under: {}'.format(artifact_path))
 
         # Compress artifact directory
         if self.compress_artifact:
             try:
-                artifact_dir = artifact_path
+                orig_artifact_path = artifact_path
                 # Create a compressed tar archive
                 info('Compressing exekall artifact directory {} ...'.format(artifact_path))
                 archive_name = shutil.make_archive(
@@ -1855,16 +1859,19 @@ class ExekallLISATestStep(ShellStep):
                     root_dir = os.path.join(artifact_path, '..'),
                     base_dir = os.path.split(artifact_path)[-1],
                 )
-                info('exekall artifact directory {artifact_path} compressed as {archive_name}'.format(**locals()))
+                info('exekall artifact directory {artifact_path} compressed as {archive_name}'.format(
+                    artifact_path=artifact_path,
+                    archive_name=archive_name
+                ))
 
                 # From now on, the artifact_path is the path to the archive.
                 artifact_path = os.path.abspath(archive_name)
 
                 # Delete the original artifact directory since we archived it
                 # successfully.
-                info('Deleting exekall artifact directory {} ...'.format(artifact_dir))
-                shutil.rmtree(artifact_dir)
-                info('exekall artifact directory {} deleted.'.format(artifact_dir))
+                info('Deleting exekall artifact root directory {} ...'.format(orig_artifact_path))
+                shutil.rmtree(orig_artifact_path)
+                info('exekall artifact directory {} deleted.'.format(orig_artifact_path))
 
             except Exception as e:
                 warn('Failed to compress exekall artifact: {e}'.format(e=e))
@@ -1939,16 +1946,6 @@ class ExekallLISATestStep(ShellStep):
         # Parse the xUnit XML report from LISA to know the failing tests
         testcase_map = collections.defaultdict(list)
         filtered_step_res_seq = list()
-        # Highest iteration number this step was ran during. We assume it ran
-        # from the start to the end, or that the iteration number at the leaf
-        # level of macro steps is the iteration number (in case of nested macro
-        # steps). We use the highest number we find.
-        # TODO: This should be replace by a function mapping the i_stack to a
-        # global iteration number, and we should take the maximum of that.
-        i_max = max(
-            len(step_res_seq),
-            max(res[0][-1] for res in step_res_seq)
-        )
         for step_res_item in step_res_seq:
             i_stack, step_res = step_res_item
 
@@ -2116,8 +2113,6 @@ class ExekallLISATestStep(ShellStep):
         if show_basic:
             out(basic_report)
 
-        # Display a summary of failed tests
-        counts = collections.defaultdict(int)
         # Contains the percentage of skipped, failed, crashed and passed
         # iterations for every testcase.
         testcase_stats = dict()
@@ -2130,9 +2125,9 @@ class ExekallLISATestStep(ShellStep):
             testcase_stats[testcase_id] = stats
 
             stats['total'] = iteration_n
-            stats['events'] = dict()
-            stats['iterations_summary'] = dict()
+            stats['iterations_summary'] = [entry['result'] for entry in entry_list]
             stats['counters'] = dict()
+            stats['events'] = dict()
             for issue, pretty_issue in (
                     ('passed', 'passed'),
                     ('skipped', 'skipped'),
@@ -2142,26 +2137,15 @@ class ExekallLISATestStep(ShellStep):
                 ):
                 filtered_entry_list = [entry for entry in entry_list if entry['result'] == issue]
 
-                # Only works when no nested macro steps are used. That is the
-                # only way of getting a number that is guaranteed to be
-                # synchronised with other steps.
-                i_set = {entry['i_stack'][-1] for entry in filtered_entry_list}
-                stats['iterations_summary'].update({
-                    i: issue for i in i_set
-                })
-
                 issue_n = len(filtered_entry_list)
                 issue_pc = (100 * issue_n) / iteration_n
                 stats['counters'][issue] = issue_n
                 # The event value for a given issue at a given iteration will
                 # be True if the issue appeared, False otherwise.
                 stats['events'][issue] = [
-                    (i in i_set)
-                    for i in range(1, i_max + 1)
+                    summ_issue == issue
+                    for summ_issue in stats['iterations_summary']
                 ]
-
-                if i_set:
-                    counts[issue] += 1
 
                 if show_rates and (
                     (issue == 'passed' and show_pass_rate)
@@ -2210,19 +2194,14 @@ class ExekallLISATestStep(ShellStep):
                     'undecided': 'u',
                     'error': '#',
                 }
-                iterations_summary = [
-                    issue_letter[iterations_summary.get(i, 'passed')]
-                    for i in range(1, i_max + 1)
-                ]
+                dist = str(
+                    issue_letter[issue]
+                    for issue in iterations_summary
+                )
                 dist_out('{testcase_id}:\n\t{dist}\n'.format(
                     testcase_id = testcase_id,
-                    dist = ''.join(iterations_summary)
+                    dist = dist,
                 ))
-
-            issues_total_n = sum(
-                count for issue, count in stats['counters'].items()
-                if issue != 'passed'
-            )
 
         if show_details:
             out(table_out)
@@ -2232,12 +2211,26 @@ class ExekallLISATestStep(ShellStep):
         out()
         out(dist_out)
 
-        # This shows the number of tests that failed or crashed at least on
-        # one iteration. Therefore, the total might exceed the number of
-        # tests if one test failed at one iteration and crashed at another
-        # one. Only tests passing at all iterations are accounted for in
-        # the "Passed" count.
-        total = len(testcase_map)
+
+        counts = {
+            issue: sum(
+                # If there is a non-zero count for that issue for that test, we
+                # account it
+                bool(stats['counters'][issue])
+                for stats in testcase_stats.values()
+            )
+            for issue in ('error', 'failure', 'undecided', 'skipped')
+        }
+        # Only account for tests that only passed and had no other issues
+        counts['passed'] = sum(
+            all(
+                not count
+                for issue, count in stats['counters'].items()
+                if issue != 'passed'
+            )
+            for stats in testcase_stats.values()
+        )
+
         out(
             'Crashed: {counts[error]}/{total}, '
             'Failed: {counts[failure]}/{total}, '
@@ -2245,7 +2238,7 @@ class ExekallLISATestStep(ShellStep):
             'Skipped: {counts[skipped]}/{total}, '
             'Passed: {counts[passed]}/{total}'.format(
                 counts=counts,
-                total=total,
+                total=len(testcase_map),
             )
         )
 
