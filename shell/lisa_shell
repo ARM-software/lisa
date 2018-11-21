@@ -123,6 +123,10 @@ function _lisa-upgrade-pip {
 }
 
 function lisa-install {
+    # Check that some prerequisites are available on the system, since they
+    # cannot be installed using pip in a venv
+    python3 "$LISA_HOME/setup.py" systemcheck
+
     _lisa-venv-create &&
     _lisa-upgrade-pip || return 1
 
@@ -139,6 +143,7 @@ function lisa-install {
     echo
     echo "Installing LISA packages ..."
     echo
+
     # Make sure we install all packages, even if they are satisfied by the
     # system's site-packages location. This ensures we use up to date packages,
     # and that the installation process will give the same result on all
