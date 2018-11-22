@@ -26,6 +26,8 @@ if grep "bash" /proc/$$/cmdline &>/dev/null; then
 	source "$(dirname "$BASH_SOURCE")/shell/lisa_shell"
 
 	PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_RESET}\]"
+	# Make sure that bash picks up new location for all binaries
+	hash -r 
 
 # Running under ZSH
 elif grep "zsh" /proc/$$/cmdline &>/dev/null; then
@@ -36,6 +38,8 @@ elif grep "zsh" /proc/$$/cmdline &>/dev/null; then
 	# functions declared there to be executed in emulated mode, so they will
 	# work as well
 	emulate sh -c "source "$LISA_HOME/shell/lisa_shell""
+	# Make sure that zsh picks up new location for all binaries
+	hash -r
 
 else
 	echo "WARNING: Current shell is not a BASH"
