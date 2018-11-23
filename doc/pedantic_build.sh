@@ -30,7 +30,13 @@ echo
 if [ ! -z "$warns" ]; then
     echo "Documentation build warnings:"
     echo
+    echo "Warnings to fix:"
+    echo
     echo "$warns"
+    echo
+    echo "Sphinx log:"
+    echo
+    echo "$all_warns"
     exit 1
 elif [ ! -z "$all_warns" ]; then
     echo "Ignored warnings:"
