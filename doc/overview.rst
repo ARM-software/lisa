@@ -24,8 +24,20 @@ In case the venv becomes unusable for some reason, the ``lisa-install``
 shell command available after sourcing ``init_env`` will allow to create a new
 clean venv from scratch.
 
-Alternatively, ``lisa`` package is packaged according to the usual
-Python practices, which includes a ``setup.py`` script, and a
+Without automatic ``venv``
+--------------------------
+
+Sometimes, LISA needs to operate in an environment setup for multiple tools. In
+that case, it may be easier to manage manually a venv/virtualenv instead of
+letting LISA create one for its shell.
+
+Setting ``export LISA_USE_VENV=0`` prior to ``source init_env`` will avoid the
+creation and usage of the LISA-managed venv. ``lisa-install`` command can still
+be used to install the necessary Python packages, which will honor any
+venv-like system manually setup.
+
+Alternatively, ``lisa`` package is packaged according to the usual Python
+practices, which includes a ``setup.py`` script, and a
 ``devmode_requirements.txt`` file that will install all the shipped packages in
 editable mode (including those that are not developped in that repository, but
 still included for convenience).

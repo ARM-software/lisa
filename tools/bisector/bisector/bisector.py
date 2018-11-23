@@ -2124,9 +2124,10 @@ class ExekallLISATestStep(ShellStep):
             stats = dict()
             testcase_stats[testcase_id] = stats
 
-            stats['total'] = iteration_n
             stats['iterations_summary'] = [entry['result'] for entry in entry_list]
-            stats['counters'] = dict()
+            stats['counters'] = {
+                'total': iteration_n
+            }
             stats['events'] = dict()
             for issue, pretty_issue in (
                     ('passed', 'passed'),

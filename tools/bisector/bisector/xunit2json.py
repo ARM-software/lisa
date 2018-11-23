@@ -56,27 +56,32 @@ def compare_df(json_df1, json_df2, alpha, alternative='two-sided', non_significa
     regression_map = collections.defaultdict(dict)
     for row in merged_df.itertuples(index=True):
         testcase = row[0]
+        failure_old = row.counters_old['failure']
+        failure_new = row.counters_new['failure']
+        passed_old = row.counters_old['passed']
+        passed_new = row.counters_new['passed']
+
         odds_ratio, p_val = scipy.stats.fisher_exact(
             [
                 # Ignore errors and skipped tests
-                [row.failure_old, row.passed_old],
-                [row.failure_new, row.passed_new],
+                [failure_old, passed_old],
+                [failure_new, passed_new],
             ],
             alternative = alternative
         )
 
         # Ignore errors and skipped tests
-        meaningful_total_old = row.failure_old + row.passed_old
-        meaningful_total_new = row.failure_new + row.passed_new
+        meaningful_total_old = failure_old + passed_old
+        meaningful_total_new = failure_new + passed_new
         # If no meaningful iterations are available, return NaN
         if not meaningful_total_old:
             failure_old_pc = float('Inf')
         else:
-            failure_old_pc = 100 * row.failure_old / (row.failure_old + row.passed_old)
+            failure_old_pc = 100 * failure_old / (failure_old + passed_old)
         if not meaningful_total_new:
             failure_new_pc = float('Inf')
         else:
-            failure_new_pc = 100 * row.failure_new / (row.failure_new + row.passed_new)
+            failure_new_pc = 100 * failure_new / (failure_new + passed_new)
 
         delta = failure_new_pc - failure_old_pc
 
