@@ -66,7 +66,7 @@ apt-get update
 # Python standard library
 apt-get -y install build-essential git wget expect kernelshark \
 	python3 python3-pip python3-venv python3-tk gobject-introspection \
-	libcairo2-dev
+	libcairo2-dev libgirepository1.0-dev
 
 if [ "$install_android_sdk" == y ]; then
     install_sdk
