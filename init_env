@@ -23,7 +23,7 @@ if grep "bash" /proc/$$/cmdline &>/dev/null; then
 	# Get base installation path of LISA
 	export LISA_HOME=$(readlink -f "$(dirname "$BASH_SOURCE")")
 
-	source "$(dirname "$BASH_SOURCE")/shell/lisa_shell"
+	source "$(dirname "$BASH_SOURCE")/shell/lisa_shell"; RET=$?
 
 	PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_RESET}\]"
 	# Make sure that bash picks up new location for all binaries
@@ -37,7 +37,7 @@ elif grep "zsh" /proc/$$/cmdline &>/dev/null; then
 	# Source the script in "sh" emulation mode. This will also mark the
 	# functions declared there to be executed in emulated mode, so they will
 	# work as well
-	emulate sh -c "source "$LISA_HOME/shell/lisa_shell""
+	emulate sh -c "source "$LISA_HOME/shell/lisa_shell""; RET=$?
 	# Make sure that zsh picks up new location for all binaries
 	hash -r
 
@@ -46,7 +46,7 @@ else
 	# Check if a bash shell is available
 	if which bash &>/dev/null; then
 		# Switch to a BASH shell
-		exec bash --init-file ./init_env
+		exec bash --init-file ./init_env; RET=$?
 	else
 		echo "ERROR: A BASH shell is not available in PATH"
 	fi
@@ -54,5 +54,7 @@ else
 	echo "The LISA shell requires a BASH shell."
 	echo "Please, source this configuration from a terminal running BASH."
 fi
+
+exit $RET
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
