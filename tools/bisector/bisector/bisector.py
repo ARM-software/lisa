@@ -1276,7 +1276,9 @@ class StepBase(StepABC):
 
         # Merge the dictionaries, env takes precedence
         user_env = env
-        env = copy.copy(os.environ)
+        # A deepcopy is required, otherwise we modify our own environment as
+        # well
+        env = copy.deepcopy(os.environ)
         env.update(user_env)
 
         for j in range(1, self.trials + 1):
