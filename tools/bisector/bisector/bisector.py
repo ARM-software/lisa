@@ -1276,7 +1276,9 @@ class StepBase(StepABC):
 
         # Merge the dictionaries, env takes precedence
         user_env = env
-        env = copy.copy(os.environ)
+        # A deepcopy is required, otherwise we modify our own environment as
+        # well
+        env = copy.deepcopy(os.environ)
         env.update(user_env)
 
         for j in range(1, self.trials + 1):
@@ -1783,7 +1785,7 @@ class ExekallLISATestStep(ShellStep):
     def __init__(self,
             compress_artifact = Default,
             upload_artifact = Default,
-            **kwargs,
+            **kwargs
         ):
         super().__init__(**kwargs)
 
@@ -2299,7 +2301,7 @@ class LISATestStep(ShellStep):
     def __init__(self,
             compress_results = Default,
             upload_results = Default,
-            **kwargs,
+            **kwargs
         ):
         super().__init__(**kwargs)
         self.upload_results = upload_results

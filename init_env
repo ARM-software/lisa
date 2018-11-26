@@ -55,6 +55,6 @@ else
 	echo "Please, source this configuration from a terminal running BASH."
 fi
 
-exit $RET
+return $RET
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
