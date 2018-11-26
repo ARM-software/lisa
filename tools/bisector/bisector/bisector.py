@@ -1785,7 +1785,7 @@ class ExekallLISATestStep(ShellStep):
     def __init__(self,
             compress_artifact = Default,
             upload_artifact = Default,
-            **kwargs,
+            **kwargs
         ):
         super().__init__(**kwargs)
 
@@ -2301,7 +2301,7 @@ class LISATestStep(ShellStep):
     def __init__(self,
             compress_results = Default,
             upload_results = Default,
-            **kwargs,
+            **kwargs
         ):
         super().__init__(**kwargs)
         self.upload_results = upload_results
