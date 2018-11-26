@@ -661,15 +661,6 @@ class TestEnv(Loggable, HideExekallID):
             autoview    = False
         )
 
-        if events:
-            logger.info('Enabled tracepoints:')
-            for event in events:
-                logger.info('   %s', event)
-        if functions:
-            logger.info('Kernel functions profiled:')
-            for function in functions:
-                logger.info('   %s', function)
-
         return ftrace
 
     @contextlib.contextmanager
