@@ -265,11 +265,10 @@ function _lisa-jupyter-start {
         echo
         echo "could not determine IP address of $NETIF"
         echo
-        echo "Usage: $0 <NETIF>"
-        echo " NETIF - The network interface to start the server on"
-        echo
+	_lisa-jupyter-usage
         return 1
     fi
+
     # Setup paths
     PYDIR="$LISA_HOME/ipynb"
     LOGFILE="$PYDIR/server.log"
@@ -288,6 +287,16 @@ function _lisa-jupyter-start {
         return 1
     fi
 
+    # Check required port is available (e.g. Vagrant could using the same port)
+    if netstat -nlt | grep $PORT &>/dev/null; then
+        echo
+        echo "ERROR: required port [$PORT] already in use"
+        echo "       try again with a different PORT option"
+        echo
+	_lisa-jupyter-usage
+	return 1
+    fi
+
     # Start the server bound to the specified interface
     echo
     echo 'Notebook server configuration:'
@@ -299,9 +308,9 @@ function _lisa-jupyter-start {
     cd $PYDIR
     echo
     echo -n 'Notebook server task: '
-    nohup jupyter notebook --ip="$IPADDR" --port="$PORT" \
-                        --NotebookApp.token="$TOKEN" \
-                        >"$LOGFILE" 2>&1 &
+    nohup jupyter lab --ip="$IPADDR" --port="$PORT" \
+                      --NotebookApp.token="$TOKEN" \
+                      >"$LOGFILE" 2>&1 &
     echo $! >"$PIDFILE"
     echo $URL >"$URLFILE"
     cd - >/dev/null
