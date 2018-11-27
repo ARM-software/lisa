@@ -1,0 +1,16 @@
+# A streamlined version of devmode_requirements.txt for doc building
+
+# devlib before WA and LISA
+-e ./external/devlib/
+
+# TRAPpy before BART and LISA
+-e ./external/trappy/
+# BART before LISA
+-e ./external/bart/
+
+# WA before LISA
+-e ./external/workload-automation/
+-e ./[doc]
+
+-e ./tools/exekall
+-e ./tools/bisector
