@@ -18,12 +18,14 @@
 
 # LISA Shell: Initialization
 
+_lisa_shell_ret=1
+
 # Running under BASH
 if [[ -n $BASH_VERSION ]]; then
 	# Get base installation path of LISA
 	export LISA_HOME=$(readlink -f "$(dirname "$BASH_SOURCE")")
 
-	source "$(dirname "$BASH_SOURCE")/shell/lisa_shell"; RET=$?
+	source "$(dirname "$BASH_SOURCE")/shell/lisa_shell"; _lisa_shell_ret=$?
 
 	PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_RESET}\]"
 	# Make sure that bash picks up new location for all binaries
@@ -37,7 +39,7 @@ elif [[ -n $ZSH_VERSION ]]; then
 	# Source the script in "sh" emulation mode. This will also mark the
 	# functions declared there to be executed in emulated mode, so they will
 	# work as well
-	emulate sh -c "source "$LISA_HOME/shell/lisa_shell""; RET=$?
+	emulate sh -c "source "$LISA_HOME/shell/lisa_shell""; _lisa_shell_ret=$?
 	# Make sure that zsh picks up new location for all binaries
 	hash -r
 
@@ -46,7 +48,7 @@ else
 	# Check if a bash shell is available
 	if which bash &>/dev/null; then
 		# Switch to a BASH shell
-		exec bash --init-file ./init_env; RET=$?
+		exec bash --init-file ./init_env; _lisa_shell_ret=$?
 	else
 		echo "ERROR: A BASH shell is not available in PATH"
 	fi
@@ -55,6 +57,6 @@ else
 	echo "Please, source this configuration from a terminal running BASH."
 fi
 
-return $RET
+return $_lisa_shell_ret
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
