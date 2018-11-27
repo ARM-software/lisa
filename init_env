@@ -19,7 +19,7 @@
 # LISA Shell: Initialization
 
 # Running under BASH
-if grep "bash" /proc/$$/cmdline &>/dev/null; then
+if [[ -n $BASH_VERSION ]]; then
 	# Get base installation path of LISA
 	export LISA_HOME=$(readlink -f "$(dirname "$BASH_SOURCE")")
 
@@ -30,7 +30,7 @@ if grep "bash" /proc/$$/cmdline &>/dev/null; then
 	hash -r 
 
 # Running under ZSH
-elif grep "zsh" /proc/$$/cmdline &>/dev/null; then
+elif [[ -n $ZSH_VERSION ]]; then
 	# Get base installation path of LISA
 	export LISA_HOME=${${${(%):-%N}:h}:A}
 
