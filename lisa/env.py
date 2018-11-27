@@ -721,10 +721,11 @@ class TestEnv(Loggable, HideExekallID):
 
         ftrace.start()
 
-        yield ftrace
-
-        ftrace.stop()
-        ftrace.get_trace(output_file)
+        try:
+            yield ftrace
+        finally:
+            ftrace.stop()
+            ftrace.get_trace(output_file)
 
     @contextlib.contextmanager
     def disable_idle_states(self):
