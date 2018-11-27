@@ -60,19 +60,6 @@ class AnalysisBase:
             self._big_cpus = plat_info['clusters']['big']
             self._little_cpus = plat_info['clusters']['little']
 
-    @classmethod
-    def get_subclasses(cls, cls_set=None):
-        """Get all indirect sublcasses of AnalysisBase."""
-        if cls_set is None:
-            cls_set = set()
-
-        for subcls in cls.__subclasses__():
-            if subcls not in cls_set:
-                cls_set.add(subcls)
-                cls_set.update(subcls.get_subclasses(cls_set))
-
-        return cls_set
-
     def _plot_setup(self, width=16, height=4, ncols=1, nrows=1):
         figure, axes = plt.subplots(
             ncols=ncols, nrows=nrows, figsize=(width, height * nrows)

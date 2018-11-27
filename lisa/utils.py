@@ -64,6 +64,18 @@ class Loggable:
             name += '.' + suffix
         return logging.getLogger(name)
 
+def get_subclasses(cls, cls_set=None):
+    """Get all indirect subclasses of the class."""
+    if cls_set is None:
+        cls_set = set()
+
+    for subcls in cls.__subclasses__():
+        if subcls not in cls_set:
+            cls_set.add(subcls)
+            cls_set.update(get_subclasses(subcls, cls_set))
+
+    return cls_set
+
 class HideExekallID:
     """Hide the subclasses in the simplified ID format of exekall.
 

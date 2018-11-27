@@ -133,6 +133,10 @@ class TargetConf(MultiSrcConf, HideExekallID):
             KeyDesc('functions', 'FTrace functions to trace', [StrList]),
             KeyDesc('buffsize', 'FTrace buffer size', [int]),
         )),
+        LevelKeyDesc('emeter', 'Energy meter configuration', (
+            KeyDesc('name', 'Energy meter name to use', [str]),
+            KeyDesc('conf', 'Energy meter configuration', [Mapping]),
+        )),
         LevelKeyDesc('devlib', 'devlib configuration', (
             LevelKeyDesc('platform', 'devlib.platform.Platform subclass specification', (
                 KeyDesc('class', 'Name of the class to use', [str]),
@@ -738,6 +742,23 @@ class TestEnv(Loggable, HideExekallID):
         finally:
             for domain in self.target.cpufreq.iter_domains():
                 self.target.cpuidle.enable_all(domain[0])
+
+    def get_emeter(self, res_dir=None):
+        spec = self.target_conf['emeter']
+        name = spec['name']
+        conf = spec['conf']
+
+        res_dir = res_dir if res_dir else self.get_res_dir(
+            name='EnergyMeter-{}'.format(name),
+            symlink=False
+        )
+
+        return EnergyMeter.get_meter(
+            name=name,
+            conf=conf,
+            target=self.target,
+            res_dir=res_dir,
+        )
 
 class Gem5SimulationPlatformWrapper(Gem5SimulationPlatform):
     def __init__(self, system, simulator, **kwargs):
