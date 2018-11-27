@@ -17,8 +17,6 @@
 
 """ Scheduler load tracking analysis module """
 
-import matplotlib.pyplot as plt
-import pylab as pl
 import pandas as pd
 
 from lisa.analysis.base import AnalysisBase
@@ -29,7 +27,7 @@ class LoadTrackingAnalysis(AnalysisBase):
     Support for scheduler load tracking analysis
 
     :param trace: input Trace object
-    :type trace: :class:`Trace`
+    :type trace: lisa.trace.Trace
     """
 
     name = 'load_tracking'
