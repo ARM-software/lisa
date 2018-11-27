@@ -63,7 +63,7 @@ class CpusAnalysis(AnalysisBase):
 ###############################################################################
 
     @requires_events(df_context_switches.required_events)
-    def plot_context_switch(self, filepath=None):
+    def plot_context_switches(self, filepath=None):
         """
         Plot histogram of context switches on each CPU.
         """
