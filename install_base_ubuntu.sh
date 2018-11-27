@@ -22,7 +22,8 @@ install_sdk() {
 	wget -qO- $ANDROID_SDK_URL | tar xz -C $SCRIPT_DIR/tools/
 	expect -c "
 	    set timeout -1;
-	    spawn $SCRIPT_DIR/tools/android-sdk-linux/tools/android update sdk --no-ui
+	    spawn $SCRIPT_DIR/tools/android-sdk-linux/tools/android \
+		    update sdk --no-ui -t tools,platform-tools
 	    expect {
 		\"Do you accept the license\" { exp_send \"y\r\" ; exp_continue }
 		eof
