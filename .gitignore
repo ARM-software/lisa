@@ -10,3 +10,4 @@ server.url
 /tools/wa_venv
 /tools/wa_user_directory/dependencies
 src/buildroot
+*.egg-info
