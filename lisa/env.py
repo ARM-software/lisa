@@ -247,7 +247,8 @@ class TestEnv(Loggable, HideExekallID):
 
         # Take the board name from the target configuration so it becomes
         # available for later inspection. That board name is mostly free form
-        # and should not be relied upon.
+        # and no specific value should be expected for a given kind of board
+        # (i.e. a Juno board might be named "foo-bar-juno-on-my-desk")
         if board_name:
             self.plat_info.add_src('target-conf', dict(name=board_name))
 
