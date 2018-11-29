@@ -25,7 +25,7 @@ import inspect
 import itertools
 
 from lisa.analysis.base import AnalysisBase
-from lisa.utils import Loggable
+from lisa.utils import Loggable, get_subclasses
 
 class AnalysisProxy(Loggable):
     """
@@ -41,7 +41,7 @@ class AnalysisProxy(Loggable):
         # will have had a chance to get registered at that point
         self._class_map = {
             cls.name: cls
-            for cls in AnalysisBase.get_subclasses()
+            for cls in get_subclasses(AnalysisBase)
             # Classes without a "name" attribute directly defined in their
             # scope will not get registered. That allows having unnamed
             # intermediate base classes that are not meant to be exposed.

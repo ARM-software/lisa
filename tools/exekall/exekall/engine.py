@@ -29,7 +29,12 @@ import pprint
 
 import ruamel.yaml
 
-import exekall.utils as utils
+import exekall._utils as utils
+
+def take_first(iterable):
+    for i in iterable:
+        return i
+    return engine.NoValue
 
 class NoOperatorError(Exception):
     pass
@@ -525,7 +530,7 @@ class Expression:
         # We only get the ID's of the parameter ExprValue that lead to the
         # ExprValue we are interested in
         param_id_map = OrderedDict(
-            (param, utils.take_first(param_expr._get_id(
+            (param, take_first(param_expr._get_id(
                 with_tags = with_tags,
                 full_qual = full_qual,
                 qual = qual,
@@ -877,7 +882,7 @@ class Expression:
                 expr_val_list = [expr_val.value for expr_val in expr_val_set]
                 assert expr_val_list[1:] == expr_val_list[:-1]
 
-                expr_data = utils.take_first(expr_val_set)
+                expr_data = take_first(expr_val_set)
                 return (format_expr_value(expr_data, lambda x:''), '')
             # Prior to execution, we don't have an ExprValue yet
             else:
@@ -904,7 +909,7 @@ class Expression:
             self.get_param_map(reusable=False).items(),
         )
 
-        first_param = utils.take_first(self.param_map.keys())
+        first_param = take_first(self.param_map.keys())
 
         for param, param_expr in param_map_chain:
             # Rename "self" parameter for more natural-looking output
@@ -1041,7 +1046,7 @@ class Expression:
             # Rename "self" parameter to the name of the variable we are
             # going to apply the method on
             if self.op.is_method:
-                first_param = utils.take_first(param_expr_val_map)
+                first_param = take_first(param_expr_val_map)
                 param_expr_val = param_expr_val_map.pop(first_param)
                 self_param = make_var(make_method_self_name(param_expr_val.expr))
                 param_expr_val_map[self_param] = param_expr_val
@@ -1377,7 +1382,7 @@ class Operator:
         for param, value_list in param_callable_map.items():
             # We just get the type of the first item in the list, which should
             # work in most cases
-            param_type = type(utils.take_first(value_list))
+            param_type = type(take_first(value_list))
 
             # Create an artificial new type that will only be produced by
             # the PrebuiltOperator
@@ -1541,7 +1546,7 @@ class Operator:
 
     def get_prototype(self):
         sig = self.signature
-        first_param = utils.take_first(sig.parameters)
+        first_param = take_first(sig.parameters)
         annotation_map = utils.resolve_annotations(self.annotations, self.callable_globals)
 
         extra_ignored_param = set()
@@ -1888,7 +1893,7 @@ class ExprValue:
     def get_id(self, *args, with_tags=True, **kwargs):
         # There exists only one ID for a given ExprValue so we just return it
         # instead of an iterator.
-        return utils.take_first(self.expr.get_id(with_tags=with_tags,
+        return take_first(self.expr.get_id(with_tags=with_tags,
             expr_val=self, *args, **kwargs))
 
     def get_failed_values(self):

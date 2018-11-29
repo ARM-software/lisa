@@ -1,6 +1,8 @@
 *~
 .*
 *.pyc
+__pycache__
+*.egg-info
 /results*
 *.log
 /tools/android-sdk-linux
@@ -9,5 +11,4 @@ server.url
 /vagrant
 /tools/wa_venv
 /tools/wa_user_directory/dependencies
-src/buildroot
-*.egg-info
+/src/buildroot

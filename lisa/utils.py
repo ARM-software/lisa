@@ -32,6 +32,7 @@ import pkgutil
 import operator
 import numbers
 import difflib
+import threading
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -63,6 +64,18 @@ class Loggable:
         if suffix:
             name += '.' + suffix
         return logging.getLogger(name)
+
+def get_subclasses(cls, cls_set=None):
+    """Get all indirect subclasses of the class."""
+    if cls_set is None:
+        cls_set = set()
+
+    for subcls in cls.__subclasses__():
+        if subcls not in cls_set:
+            cls_set.add(subcls)
+            cls_set.update(get_subclasses(subcls, cls_set))
+
+    return cls_set
 
 class HideExekallID:
     """Hide the subclasses in the simplified ID format of exekall.
@@ -208,6 +221,21 @@ class Serializable(Loggable):
         kwargs = loader.construct_mapping(node, deep=True)
         return loader.make_python_instance(suffix, node, kwds=kwargs, newobj=False)
 
+
+    # Allow !include to use relative paths from the current file. Since we
+    # introduce a global state, we use thread-local storage.
+    _included_path = threading.local()
+    _included_path.val = None
+    @staticmethod
+    @contextlib.contextmanager
+    def _set_relative_include_root(path):
+        old = Serializable._included_path.val
+        Serializable._included_path.val = path
+        try:
+            yield
+        finally:
+            Serializable._included_path.val = old
+
     @classmethod
     def _yaml_include_constructor(cls, loader, node):
         """
@@ -219,8 +247,14 @@ class Serializable(Loggable):
         path = loader.construct_scalar(node)
         assert isinstance(path, str)
         path = os.path.expandvars(path)
-        with open(path, 'r', encoding=cls.YAML_ENCODING) as f:
-            return cls._yaml.load(f)
+
+        # Paths are relative to the file that is being included
+        if not os.path.isabs(path):
+            path = os.path.join(Serializable._included_path.val, path)
+
+        with cls._set_relative_include_root(path):
+            with open(path, 'r', encoding=cls.YAML_ENCODING) as f:
+                return cls._yaml.load(f)
 
     @classmethod
     def _yaml_env_var_constructor(cls, loader, suffix, node):
@@ -312,6 +346,7 @@ class Serializable(Loggable):
 
     @classmethod
     def _from_path(cls, filepath, fmt):
+        filepath = str(filepath)
         if fmt is None:
             fmt = cls.DEFAULT_SERIALIZATION_FMT
 
@@ -324,8 +359,9 @@ class Serializable(Loggable):
         else:
             raise ValueError('Unknown format "{}"'.format(fmt))
 
-        with open(str(filepath), **kwargs) as fh:
-            instance = loader(fh)
+        with cls._set_relative_include_root(os.path.dirname(filepath)):
+            with open(filepath, **kwargs) as fh:
+                instance = loader(fh)
 
         return instance
 

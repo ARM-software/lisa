@@ -133,6 +133,10 @@ class TargetConf(MultiSrcConf, HideExekallID):
             KeyDesc('functions', 'FTrace functions to trace', [StrList]),
             KeyDesc('buffsize', 'FTrace buffer size', [int]),
         )),
+        LevelKeyDesc('emeter', 'Energy meter configuration', (
+            KeyDesc('name', 'Energy meter name to use', [str]),
+            KeyDesc('conf', 'Energy meter configuration', [Mapping]),
+        )),
         LevelKeyDesc('devlib', 'devlib configuration', (
             LevelKeyDesc('platform', 'devlib.platform.Platform subclass specification', (
                 KeyDesc('class', 'Name of the class to use', [str]),
@@ -243,7 +247,8 @@ class TestEnv(Loggable, HideExekallID):
 
         # Take the board name from the target configuration so it becomes
         # available for later inspection. That board name is mostly free form
-        # and should not be relied upon.
+        # and no specific value should be expected for a given kind of board
+        # (i.e. a Juno board might be named "foo-bar-juno-on-my-desk")
         if board_name:
             self.plat_info.add_src('target-conf', dict(name=board_name))
 
@@ -661,15 +666,6 @@ class TestEnv(Loggable, HideExekallID):
             autoview    = False
         )
 
-        if events:
-            logger.info('Enabled tracepoints:')
-            for event in events:
-                logger.info('   %s', event)
-        if functions:
-            logger.info('Kernel functions profiled:')
-            for function in functions:
-                logger.info('   %s', function)
-
         return ftrace
 
     @contextlib.contextmanager
@@ -726,10 +722,11 @@ class TestEnv(Loggable, HideExekallID):
 
         ftrace.start()
 
-        yield ftrace
-
-        ftrace.stop()
-        ftrace.get_trace(output_file)
+        try:
+            yield ftrace
+        finally:
+            ftrace.stop()
+            ftrace.get_trace(output_file)
 
     @contextlib.contextmanager
     def disable_idle_states(self):
@@ -747,6 +744,23 @@ class TestEnv(Loggable, HideExekallID):
         finally:
             for domain in self.target.cpufreq.iter_domains():
                 self.target.cpuidle.enable_all(domain[0])
+
+    def get_emeter(self, res_dir=None):
+        spec = self.target_conf['emeter']
+        name = spec['name']
+        conf = spec['conf']
+
+        res_dir = res_dir if res_dir else self.get_res_dir(
+            name='EnergyMeter-{}'.format(name),
+            symlink=False
+        )
+
+        return EnergyMeter.get_meter(
+            name=name,
+            conf=conf,
+            target=self.target,
+            res_dir=res_dir,
+        )
 
 class Gem5SimulationPlatformWrapper(Gem5SimulationPlatform):
     def __init__(self, system, simulator, **kwargs):

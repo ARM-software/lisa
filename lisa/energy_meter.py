@@ -15,13 +15,15 @@
 # limitations under the License.
 #
 
-import devlib
+import abc
 import json
 import os
 import os.path
 import psutil
 import time
 import logging
+import inspect
+import abc
 
 from collections import namedtuple
 from subprocess import Popen, PIPE, STDOUT
@@ -31,109 +33,58 @@ import numpy as np
 import pandas as pd
 
 from bart.common.Utils import area_under_curve
-
-from lisa.utils import Loggable
+import devlib
+from lisa.utils import Loggable, get_subclasses
 
 # Default energy measurements for each board
-DEFAULT_ENERGY_METER = {
-
-    # ARM TC2: by default use HWMON
-    'tc2' : {
-        'instrument' : 'hwmon',
-        'channel_map' : {
-            'LITTLE' : 'A7 Jcore',
-            'big' : 'A15 Jcore',
-        }
-    },
-
-    # ARM Juno: by default use HWMON
-    'juno' : {
-        'instrument' : 'hwmon',
-        # if the channels do not contain a core name we can match to the
-        # little/big cores on the board, use a channel_map section to
-        # indicate which channel is which
-        'channel_map' : {
-            'LITTLE' : 'BOARDLITTLE',
-            'big' : 'BOARDBIG',
-        }
-    },
-
-}
-
 EnergyReport = namedtuple('EnergyReport',
                           ['channels', 'report_file', 'data_frame'])
 
-class EnergyMeter(Loggable):
-
-    _meter = None
-
-    def __init__(self, target, res_dir=None):
+class EnergyMeter(Loggable, abc.ABC):
+    def __init__(self, target, res_dir):
         self._target = target
-        res_dir = res_dir if res_dir else tempfile.gettempdir()
         self._res_dir = res_dir
 
-    #TODO: cleanup force and that singleton pattern
     @classmethod
-    def getInstance(cls, target, conf, force=False, res_dir=None):
-
-        if not force and EnergyMeter._meter:
-            return EnergyMeter._meter
-
+    def get_meter(cls, name, conf, target, res_dir=None):
         logger = cls.get_logger()
-
-        # Initialize energy meter based on configuration
-        if 'emeter' in conf:
-            emeter = conf['emeter']
-            logger.debug('using user-defined configuration')
-
-        # Initialize energy probe to board default
-        elif 'board' in conf and \
-            conf['board'] in DEFAULT_ENERGY_METER:
-                emeter = DEFAULT_ENERGY_METER[conf['board']]
-                logger.debug('using default energy meter for [%s]',
-                          conf['board'])
-        else:
-            return None
-
-        if emeter['instrument'] == 'hwmon':
-            EnergyMeter._meter = HWMon(target, emeter, res_dir)
-        elif emeter['instrument'] == 'aep':
-            EnergyMeter._meter = AEP(target, emeter, res_dir)
-        elif emeter['instrument'] == 'monsoon':
-            EnergyMeter._meter = Monsoon(target, emeter, res_dir)
-        elif emeter['instrument'] == 'acme':
-            EnergyMeter._meter = ACME(target, emeter, res_dir)
-        elif emeter['instrument'] == 'gem5':
-            EnergyMeter._meter = Gem5EnergyMeter(target, emeter, res_dir)
-
         logger.debug('Results dir: %s', res_dir)
-        return EnergyMeter._meter
 
+        for subcls in get_subclasses(cls):
+            if not inspect.isabstract(subcls):
+                if name == subcls.name:
+                    return subcls(target, conf, res_dir)
+
+        raise ValueError('No EnergyMeter has name "{}"'.format(name))
+
+    @abc.abstractmethod
+    def name():
+        pass
+
+    @abc.abstractmethod
     def sample(self):
-        raise NotImplementedError('Missing implementation')
+        pass
 
+    @abc.abstractmethod
     def reset(self):
-        raise NotImplementedError('Missing implementation')
+        pass
 
-    def report(self, out_dir):
-        raise NotImplementedError('Missing implementation')
+    @abc.abstractmethod
+    def report(self):
+        pass
 
 class HWMon(EnergyMeter):
+    name = 'hwmon'
 
     def __init__(self, target, conf=None, res_dir=None):
-        super(HWMon, self).__init__(target, res_dir)
+        super().__init__(target, res_dir)
         logger = self.get_logger()
-
-        # The HWMon energy meter
-        self._hwmon = None
 
         # Energy readings
         self.readings = {}
 
         if 'hwmon' not in self._target.modules:
-            logger.info('HWMON module not enabled')
-            logger.warning('Energy sampling disabled by configuration')
-            return
+            raise RuntimeError('HWMON devlib module not enabled')
 
         # Initialize HWMON instrument
         logger.info('Scanning for HWMON channels, may take some time...')
@@ -159,7 +110,7 @@ class HWMon(EnergyMeter):
                         self._target.little_core.upper()]
             if all(s in available_sites for s in bl_sites):
                 logger.info('Using default big.LITTLE hwmon channels')
-                self._channels = dict(list(zip(['big', 'LITTLE'], bl_sites)))
+                self._channels = dict(zip(['big', 'LITTLE'], bl_sites))
 
         if not self._channels:
             logger.info('Using all hwmon energy channels')
@@ -177,8 +128,6 @@ class HWMon(EnergyMeter):
 
     def sample(self):
         logger = self.get_logger()
-        if self._hwmon is None:
-            return None
         samples = self._hwmon.take_measurement()
         for s in samples:
             site = s.channel.site
@@ -200,8 +149,6 @@ class HWMon(EnergyMeter):
         return self.readings
 
     def reset(self):
-        if self._hwmon is None:
-            return
         self.sample()
         for site in self.readings:
             self.readings[site]['delta'] = 0
@@ -209,8 +156,6 @@ class HWMon(EnergyMeter):
         self.get_logger().debug('RESET: %s', self.readings)
 
     def report(self, out_dir, out_file='energy.json'):
-        if self._hwmon is None:
-            return (None, None)
         # Retrive energy consumption data
         nrg = self.sample()
         # Reformat data for output generation
@@ -225,7 +170,7 @@ class HWMon(EnergyMeter):
             clusters_nrg[channel] = nrg_total
 
         # Dump data as JSON file
-        nrg_file = '{}/{}'.format(out_dir, out_file)
+        nrg_file = os.path.join(out_dir, out_file)
         with open(nrg_file, 'w') as ofile:
             json.dump(clusters_nrg, ofile, sort_keys=True, indent=4)
 
@@ -288,9 +233,10 @@ class _DevlibContinuousEnergyMeter(EnergyMeter):
         return channels_nrg
 
 class AEP(_DevlibContinuousEnergyMeter):
+    name = 'aep'
 
     def __init__(self, target, conf, res_dir):
-        super(AEP, self).__init__(target, res_dir)
+        super().__init__(target, res_dir)
         logger = self.get_logger()
 
         # Configure channels for energy measurements
@@ -312,9 +258,10 @@ class Monsoon(_DevlibContinuousEnergyMeter):
     """
     Monsoon Solutions energy monitor
     """
+    name = 'monsoon'
 
     def __init__(self, target, conf, res_dir):
-        super(Monsoon, self).__init__(target, res_dir)
+        super().__init__(target, res_dir)
 
         self._instrument = devlib.MonsoonInstrument(self._target, **conf['conf'])
         self._instrument.reset()
@@ -334,9 +281,10 @@ class ACME(EnergyMeter):
     """
     BayLibre's ACME board based EnergyMeter
     """
+    name = 'acme'
 
     def __init__(self, target, conf, res_dir):
-        super(ACME, self).__init__(target, res_dir)
+        super().__init__(target, res_dir)
         logger = self.get_logger()
 
         # Assume iio-capture is available in PATH
@@ -414,7 +362,7 @@ class ACME(EnergyMeter):
                                        self._iio_device(channel)],
                                        stdout=PIPE, stderr=STDOUT)
 
-        # Wait few milliseconds before to check if there is any output
+        # Wait some time before to check if there is any output
         sleep(1)
 
         # Check that all required channels have been started
@@ -450,8 +398,7 @@ class ACME(EnergyMeter):
         logger = self.get_logger()
         channels_nrg = {}
         channels_stats = {}
-        for channel in self._channels:
-            ch_id = self._channels[channel]
+        for channel, ch_id in self._channels.items():
 
             if self._iio[ch_id] is None:
                 continue
@@ -501,22 +448,23 @@ class ACME(EnergyMeter):
             channels_nrg['{}'.format(channel)] = nrg['energy']
 
         # Dump energy data
-        nrg_file = '{}/{}'.format(out_dir, out_energy)
+        nrg_file = os.path.join(out_dir, out_energy)
         with open(nrg_file, 'w') as ofile:
             json.dump(channels_nrg, ofile, sort_keys=True, indent=4)
 
         # Dump energy stats
         nrg_stats_file = os.path.splitext(out_energy)[0] + \
                         '_stats' + os.path.splitext(out_energy)[1]
-        nrg_stats_file = '{}/{}'.format(out_dir, nrg_stats_file)
+        nrg_stats_file = os.path.join(out_dir, nrg_stats_file)
         with open(nrg_stats_file, 'w') as ofile:
             json.dump(channels_stats, ofile, sort_keys=True, indent=4)
 
         return EnergyReport(channels_nrg, nrg_file, None)
 
 class Gem5EnergyMeter(_DevlibContinuousEnergyMeter):
+    name = 'gem5'
     def __init__(self, target, conf, res_dir):
-        super(Gem5EnergyMeter, self).__init__(target, res_dir)
+        super().__init__(target, res_dir)
 
         power_sites = list(conf['channel_map'].values())
         self._instrument = devlib.Gem5PowerInstrument(self._target, power_sites)
