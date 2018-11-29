@@ -270,7 +270,7 @@ the name of the parameter, the start value, stop value and step size.""")
                 # Get all the UUIDs of its parameters
                 param_uuid_list = [
                     param_serial.value_uuid
-                    for param_serial in serial.param_value_map.values()
+                    for param_serial in serial.param_expr_val_map.values()
                 ]
 
                 serial_res_set.update(
@@ -686,7 +686,7 @@ the name of the parameter, the start value, stop value and step size.""")
 
         out('')
         for result in utils.iterate_cb(executor, pre_line, flush_std_streams):
-            for failed_val in result.get_failed_expr_values():
+            for failed_val in result.get_failed_expr_vals():
                 excep = failed_val.excep
                 tb = utils.format_exception(excep)
                 error('Error ({e_name}): {e}\nID: {id}\n{tb}'.format(
@@ -742,7 +742,7 @@ the name of the parameter, the start value, stop value and step size.""")
                     f.write(expr_val.excep_uuid + '\n')
 
     obj_store = engine.ObjectStore(
-        engine.Expression.get_all_serializable_values(
+        engine.Expression.get_all_serializable_vals(
             testcase_list, hidden_callable_set,
         )
     )

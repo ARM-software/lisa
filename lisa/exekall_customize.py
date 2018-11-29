@@ -140,7 +140,7 @@ class LISAAdaptor(AdaptorBase):
     def finalize_expr(self, expr):
         testcase_artifact_dir = expr.data['testcase_artifact_dir']
         artifact_dir = expr.data['artifact_dir']
-        for expr_val in expr.get_all_values():
+        for expr_val in expr.get_all_vals():
             self._finalize_expr_val(expr_val, artifact_dir, testcase_artifact_dir)
 
     def _finalize_expr_val(self, expr_val, artifact_dir, testcase_artifact_dir):
@@ -177,7 +177,7 @@ class LISAAdaptor(AdaptorBase):
 
                 symlink.symlink_to(target, target_is_directory=True)
 
-        for param, param_expr_val in expr_val.param_value_map.items():
+        for param, param_expr_val in expr_val.param_expr_val_map.items():
             self._finalize_expr_val(param_expr_val, artifact_dir, testcase_artifact_dir)
 
     @classmethod
@@ -245,7 +245,7 @@ class LISAAdaptor(AdaptorBase):
                         return issubclass(expr_val.expr.op.value_type, TestBundle)
                     bundle_uuid_set = {
                         expr_val.value_uuid
-                        for expr_val in expr_val.get_parent_values(bundle_predicate)
+                        for expr_val in expr_val.get_parent_expr_vals(bundle_predicate)
                     }
                     bundle_uuid_set.discard(None)
 
@@ -263,7 +263,7 @@ class LISAAdaptor(AdaptorBase):
                     ))
                     testsuite_counters['tests'] += 1
 
-                    for failed_expr_val in expr_val.get_failed_values():
+                    for failed_expr_val in expr_val.get_failed_expr_vals():
                         excep = failed_expr_val.excep
                         # When one critical object cannot be created, we assume
                         # the test was skipped.
