@@ -33,6 +33,7 @@ import operator
 import numbers
 import difflib
 import threading
+import itertools
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -1188,5 +1189,11 @@ class ArtifactPath(str, Loggable, HideExekallID):
 
         # Swap-in the new root and return a new instance
         return type(self)(root, relative)
+
+def groupby(iterable, key=None):
+    # We need to sort before feeding to groupby, or it will fail to establish
+    # the groups as expected.
+    iterable = sorted(iterable, key=key)
+    return itertools.groupby(iterable, key=key)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
