@@ -686,7 +686,7 @@ the name of the parameter, the start value, stop value and step size.""")
 
         out('')
         for result in utils.iterate_cb(executor, pre_line, flush_std_streams):
-            for failed_val in result.get_failed_values():
+            for failed_val in result.get_failed_expr_values():
                 excep = failed_val.excep
                 tb = utils.format_exception(excep)
                 error('Error ({e_name}): {e}\nID: {id}\n{tb}'.format(

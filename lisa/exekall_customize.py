@@ -238,6 +238,17 @@ class LISAAdaptor(AdaptorBase):
                 # assume that they testcase will have unique names using tags
                 expr_val_list = result_map[testcase]
                 for expr_val in expr_val_list:
+
+                    # Get the set of UUIDs of all TestBundle instances that were
+                    # involved in the testcase.
+                    def bundle_predicate(expr_val, param):
+                        return issubclass(expr_val.expr.op.value_type, TestBundle)
+                    bundle_uuid_set = {
+                        expr_val.value_uuid
+                        for expr_val in expr_val.get_parent_values(bundle_predicate)
+                    }
+                    bundle_uuid_set.discard(None)
+
                     et_testcase = ET.SubElement(et_testsuite, 'testcase', dict(
                         name = expr_val.get_id(
                             full_qual=False,
@@ -247,7 +258,8 @@ class LISAAdaptor(AdaptorBase):
                         ),
                         # This may help locating the artifacts, even though it
                         # will only be valid on the machine it was produced on
-                        artifact_path = str(artifact_path)
+                        artifact_path=str(artifact_path),
+                        bundle_uuids=sorted(bundle_uuid_set),
                     ))
                     testsuite_counters['tests'] += 1
 

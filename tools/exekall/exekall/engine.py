@@ -34,7 +34,7 @@ import exekall._utils as utils
 def take_first(iterable):
     for i in iterable:
         return i
-    return engine.NoValue
+    return NoValue
 
 class NoOperatorError(Exception):
     pass
@@ -358,14 +358,13 @@ class Expression:
         self.discard_result()
 
     def validate_expr(self, op_map):
-        return True
-        expr_map, valid = self._dfs_visit()
+        type_map, valid = self._get_type_map()
         if not valid:
             return False
 
         # Check that the Expression does not involve 2 classes that are compatible
         cls_bags = [set(cls_list) for cls_list in op_map.values()]
-        cls_used = set(expr_map.keys())
+        cls_used = set(type_map.keys())
         for cls1, cls2 in itertools.product(cls_used, repeat=2):
             for cls_bag in cls_bags:
                 if cls1 in cls_bag and cls2 in cls_bag:
@@ -373,21 +372,21 @@ class Expression:
 
         return True
 
-    def _dfs_visit(self):
-        expr_map = dict()
-        return (expr_map, expr._dfs_visit(expr_map))
+    def _get_type_map(self):
+        type_map = dict()
+        return (type_map, self._populate_type_map(type_map))
 
-    def _do_dfs_visit(self, expr_map):
+    def _populate_type_map(self, type_map):
         value_type = self.op.value_type
         # If there was already an Expression producing that type, the Expression
         # is not valid
-        found_callable = expr_map.get(value_type)
+        found_callable = type_map.get(value_type)
         if found_callable is not None and found_callable is not self.op.callable_:
             return False
-        expr_map[value_type] = self.op.callable_
+        type_map[value_type] = self.op.callable_
 
         for param_expr in self.param_map.values():
-            if not param_expr._do_dfs_visit(expr_map):
+            if not param_expr._populate_type_map(type_map):
                 return False
         return True
 
@@ -456,9 +455,9 @@ class Expression:
             )
         return out
 
-    def get_failed_values(self):
+    def get_failed_expr_values(self):
         for expr_val in self.get_all_values():
-            yield from expr_val.get_failed_values()
+            yield from expr_val.get_failed_expr_values()
 
     def get_id(self, *args, marked_value_set=None, mark_excep=False, hidden_callable_set=None, **kwargs):
         if hidden_callable_set is None:
@@ -471,7 +470,7 @@ class Expression:
         # Mark all the values that failed to be computed because of an
         # exception
         if mark_excep:
-            marked_value_set = set(self.get_failed_values())
+            marked_value_set = set(self.get_failed_expr_values())
 
         for id_, marker in self._get_id(
                 marked_value_set=marked_value_set, hidden_callable_set=hidden_callable_set,
@@ -1810,27 +1809,16 @@ class ExprValue:
             serialized_map[self] = serializable
             return serializable
 
-    def _dfs_visit(self):
-        expr_map = dict()
-        self._do_dfs_visit(expr_map)
-        return expr_map
-
-    def _do_dfs_visit(self, expr_map):
-        expr_map[self.expr] = self
-
-        for param_expr_val in self.param_value_map.values():
-            param_expr_val._do_dfs_visit(expr_map)
-
     @classmethod
     def validate_expr_value_list(cls, expr_value_list):
         if not expr_value_list:
             return True
 
         expr_value_ref = expr_value_list[0]
-        expr_map_ref = expr_value_ref._dfs_visit()
+        expr_map_ref = expr_value_ref._get_expr_map()
 
         for expr_val in expr_value_list[1:]:
-            expr_map = expr_val._dfs_visit()
+            expr_map = expr_val._get_expr_map()
             # For all Expression's that directly or indirectly lead to both the
             # reference ExprValue and the ExprValue, check that it had the same
             # value. That ensures that we are not making incompatible combinations.
@@ -1898,12 +1886,32 @@ class ExprValue:
         return take_first(self.expr.get_id(with_tags=with_tags,
             expr_val=self, *args, **kwargs))
 
-    def get_failed_values(self):
-        if self.excep is not NoValue:
+    def get_parent_expr_values(self, predicate):
+        yield from self._get_parent_expr_values(predicate)
+
+    def _get_parent_expr_values(self, predicate, param=None):
+        if predicate(self, param):
             yield self
 
         for param, expr_val in self.param_value_map.items():
-            yield from expr_val.get_failed_values()
+            yield from expr_val._get_parent_expr_values(predicate, param)
+
+    def get_failed_expr_values(self):
+        def predicate(expr_val, param):
+            return expr_val.excep is not NoValue
+
+        yield from self.get_parent_expr_values(predicate)
+
+    def _get_expr_map(self):
+        expr_map = {}
+        def callback(expr_val, param):
+            expr_map[expr_val.expr] = expr_val
+
+        # Consume the generator
+        for _ in get_parent_expr_values(callback):
+            pass
+
+        return expr_map
 
 class Consumer:
     def __init__(self):
