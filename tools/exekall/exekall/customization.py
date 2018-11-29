@@ -101,7 +101,7 @@ class AdaptorBase:
                 hidden_callable_set=hidden_callable_set,
                 full_qual=False,
                 qual=False,
-                ) + ':'
+            )
             for expr, result_list in result_map.items()
             for result in result_list
         }
