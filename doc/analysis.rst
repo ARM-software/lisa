@@ -48,3 +48,9 @@ Idle
 
 .. automodule:: lisa.analysis.idle
    :members:
+
+Latency
+=======
+
+.. automodule:: lisa.analysis.latency
+   :members:
