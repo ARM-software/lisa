@@ -220,6 +220,10 @@ class TasksAnalysis(AnalysisBase):
         wk_df = self._trace.df_events('sched_wakeup')
         sw_df = self._trace.df_events('sched_switch')
 
+        if "sched_wakeup_new" in self._trace.events:
+            wkn_df = self._trace.df_events('sched_wakeup_new')
+            wk_df = pd.concat([wk_df, wkn_df]).sort_index()
+
         task_wakeup = wk_df[wk_df.pid == pid][['target_cpu', '__cpu']]
         task_wakeup['curr_state'] = TaskState.TASK_WAKING.char
 
