@@ -29,7 +29,7 @@ import traceback
 
 from lisa.env import TestEnv, TargetConf
 from lisa.platforms.platinfo import PlatformInfo
-from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, MultiSrcConf, groupby
+from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, MultiSrcConf, groupby, Serializable
 from lisa.tests.kernel.test_bundle import TestBundle, Result, ResultBundle, CannotCreateError
 from lisa.tests.kernel.scheduler.load_tracking import FreqInvarianceItem
 
@@ -111,6 +111,14 @@ class LISAAdaptor(AdaptorBase):
                 non_reusable_type_set=non_reusable_type_set
             ))
 
+        # Inject serialized objects as root operators
+        for path in self.args.inject:
+            obj = Serializable.from_path(path)
+            op_list.append(
+                PrebuiltOperator(type(obj), [obj],
+                non_reusable_type_set=non_reusable_type_set
+            ))
+
         return op_list
 
     def get_hidden_callable_set(self, op_map):
@@ -127,6 +135,10 @@ class LISAAdaptor(AdaptorBase):
         parser.add_argument('--conf', action='append',
             default=[],
             help="Configuration file")
+
+        parser.add_argument('--inject', action='append',
+            default=[],
+            help="Serialized object to inject when building expressions")
 
     @staticmethod
     def get_default_type_goal_pattern_set():
