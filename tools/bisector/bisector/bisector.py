@@ -236,7 +236,9 @@ class BisectRet(enum.Enum):
     BAD = 1
     # Bisect must abort due to non-recoverable error (the board can't boot
     # anymore for example)
-    ABORT = 254
+    ABORT = 253
+    # Yield to the caller of bisector, without taking any decision
+    YIELD = 252
 
     @property
     def lower_name(self):
@@ -262,7 +264,7 @@ BisectRet.yaml_tag = '!git-bisect'
 yaml.register_class(BisectRet)
 
 # This will map to an "abort" meaning for "git bisect run"
-GENERIC_ERROR_CODE = 253
+GENERIC_ERROR_CODE = 254
 assert GENERIC_ERROR_CODE not in (e.value for e in BisectRet)
 
 def parse_step_options(opts_seq):
@@ -1500,10 +1502,13 @@ class StepBase(StepABC):
 
 class YieldStep(StepBase):
     """
-    Abort current iteration.
+    Abort current iteration with the yield return code.
 
     If the specified command returns a non-zero return code, bisector will
-    abort the current iteration.
+    abort the current iteration with the yield return code.
+
+    .. note:: This step can only be used under the main macrostep (it cannot be
+        used in nested macrosteps).
     """
     yaml_tag = '!yield-step'
 
@@ -1535,7 +1540,7 @@ class YieldStep(StepBase):
 
             # Return value is the one from the last trial
             ret = res_list[-1][0]
-            bisect_ret = BisectRet.ABORT if ret != 0 else BisectRet.NA
+            bisect_ret = BisectRet.YIELD if ret != 0 else BisectRet.NA
             step_res = StepResult(
                 step = self,
                 res_list = res_list,
@@ -3349,6 +3354,12 @@ class MacroStep(StepBase):
                 info('{step.cat} step ({step.name}) requested bisect abortion, aborting ...'.format(step=step))
                 break
 
+            # Yielding to the caller of bisector
+            if res.bisect_ret == BisectRet.YIELD:
+                info('{step.cat} step ({step.name}) requested yielding ...'.format(step=step))
+                break
+
+
             # If the commit is not testable or bad, bail out early
             if self.bail_out_early and step.bail_out and (
                 (res.bisect_ret == BisectRet.UNTESTABLE) or
@@ -3380,8 +3391,8 @@ class MacroStep(StepBase):
             res = self._run_steps(i_stack, service_hub)
             res_list.append(res)
 
-            # Propagate ABORT
-            if res.bisect_ret == BisectRet.ABORT:
+            # Propagate ABORT and YIELD
+            if res.bisect_ret in (BisectRet.ABORT, BisectRet.YIELD):
                 break
 
             i_stack.pop()
@@ -3448,6 +3459,12 @@ class MacroStep(StepBase):
                 if res.bisect_ret == BisectRet.ABORT:
                     if slave_manager:
                         slave_manager.signal.State = 'aborted'
+                    break
+
+                # Propagate YIELD
+                if res.bisect_ret == BisectRet.YIELD:
+                    if slave_manager:
+                        slave_manager.signal.State = 'yielded'
                     break
 
                 if slave_manager:
