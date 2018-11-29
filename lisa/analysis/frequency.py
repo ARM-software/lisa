@@ -320,7 +320,8 @@ class FrequencyAnalysis(AnalysisBase):
             ax=axis, drawstyle='steps-post')
 
         if avg > 0:
-            axis.axhline(avg, color='r', linestyle='--', label="average")
+            axis.axhline(avg, color=self.get_next_color(axis), linestyle='--',
+                         label="average")
 
         axis.set_ylim(frequencies[0] * 0.9, frequencies[-1] * 1.1)
         axis.set_xlim(self._trace.x_min, self._trace.x_max)
@@ -353,7 +354,6 @@ class FrequencyAnalysis(AnalysisBase):
         for idx, domain in enumerate(domains):
             axis = axes[idx] if len(domains) > 1 else axes
 
-            self.cycle_colors(axis, idx)
             self.plot_cpu_frequencies(domain[0], filepath, axis)
 
             axis.set_title('Frequencies of CPUS {}'.format(domain))
@@ -391,10 +391,10 @@ class FrequencyAnalysis(AnalysisBase):
             total_df = total_df * 100 / total_df.sum()
             active_df = active_df * 100 / active_df.sum()
 
-        total_df.plot.barh(ax=axes[0], color=self.get_next_color(axes[0]))
+        total_df.plot.barh(ax=axes[0])
         axes[0].set_title("CPU{} total frequency residency".format(cpu))
 
-        active_df.plot.barh(ax=axes[1], color=self.get_next_color(axes[0]))
+        active_df.plot.barh(ax=axes[1])
         axes[1].set_title("CPU{} active frequency residency".format(cpu))
 
         for axis in axes:
@@ -424,9 +424,6 @@ class FrequencyAnalysis(AnalysisBase):
         fig, axes = self.setup_plot(nrows=2*len(domains), sharex=True)
         for idx, domain in enumerate(domains):
             local_axes = axes[2 * idx : 2 * (idx + 1)]
-
-            for ax in local_axes:
-                self.cycle_colors(ax, 2 * idx)
 
             self.plot_cpu_frequency_residency(domain[0], filepath, pct, local_axes)
             for axis in local_axes:
@@ -458,7 +455,7 @@ class FrequencyAnalysis(AnalysisBase):
         if pct:
             df = df * 100 / df.sum()
 
-        df["transitions"].plot.barh(ax=axis, color=self.get_next_color(axis))
+        df["transitions"].plot.barh(ax=axis)
 
         axis.set_title('Frequency transitions of CPU{}'.format(cpu))
 
@@ -489,7 +486,6 @@ class FrequencyAnalysis(AnalysisBase):
 
         for idx, domain in enumerate(domains):
             axis = axes[idx]
-            self.cycle_colors(axis, idx)
 
             self.plot_cpu_frequency_transitions(domain[0], filepath, pct, axis)
 

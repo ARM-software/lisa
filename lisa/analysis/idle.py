@@ -318,7 +318,6 @@ class IdleAnalysis(AnalysisBase):
 
         for idx, cluster in enumerate(clusters):
             axis = axes[idx]
-            self.cycle_colors(axis, idx)
 
             self.plot_cluster_idle_state_residency(cluster, pct=pct, axis=axis)
 
@@ -337,7 +336,7 @@ class IdleAnalysis(AnalysisBase):
         if pct:
             df = df * 100 / df.sum()
 
-        df["time"].plot.barh(ax=axis, color=self.get_next_color(axis))
+        df["time"].plot.barh(ax=axis)
 
         if pct:
             axis.set_xlabel("Time share (%)")
