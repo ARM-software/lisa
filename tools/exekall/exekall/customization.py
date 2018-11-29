@@ -33,11 +33,11 @@ class AdaptorBase:
         return set()
 
     @staticmethod
-    def get_tag_list(value):
+    def get_tags(value):
         if isinstance(value, numbers.Number):
-            tags = [str(value)]
+            tags = dict(''=value)
         else:
-            tags = []
+            tags = {}
         return tags
 
     load_db = None

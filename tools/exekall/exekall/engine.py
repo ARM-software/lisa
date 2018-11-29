@@ -552,8 +552,7 @@ class Expression:
             if value_list:
                 for expr_val in value_list:
                     if with_tags:
-                        tag = expr_val.format_tag_list()
-                        tag = '[{}]'.format(tag) if tag else ''
+                        tag = expr_val.format_tags()
                     else:
                         tag = ''
                     yield (expr_val, tag)
@@ -1314,13 +1313,13 @@ class AnnotationError(Exception):
     pass
 
 class Operator:
-    def __init__(self, callable_, non_reusable_type_set=None, tag_list_getter=None):
+    def __init__(self, callable_, non_reusable_type_set=None, tags_getter=None):
         if non_reusable_type_set is None:
             non_reusable_type_set = set()
 
-        if not tag_list_getter:
-            tag_list_getter = lambda v: []
-        self.tag_list_getter = tag_list_getter
+        if not tags_getter:
+            tags_getter = lambda v: []
+        self.tags_getter = tags_getter
 
         assert callable(callable_)
         self.callable_ = callable_
@@ -1367,7 +1366,7 @@ class Operator:
     def __repr__(self):
         return '<Operator of ' + str(self.callable_) + '>'
 
-    def force_param(self, param_callable_map, tag_list_getter=None):
+    def force_param(self, param_callable_map, tags_getter=None):
         def define_type(param_type):
             class ForcedType(param_type):
                 pass
@@ -1390,7 +1389,7 @@ class Operator:
             self.annotations[param] = ForcedType
             prebuilt_op_set.add(
                 PrebuiltOperator(ForcedType, value_list,
-                    tag_list_getter=tag_list_getter
+                    tags_getter=tags_getter
             ))
 
             # Make sure the parameter is not optional anymore
@@ -1790,10 +1789,13 @@ class ExprValue:
         self.expr = expr
         self.param_value_map = param_value_map
 
-    def format_tag_list(self):
-        tag_list = self.expr.op.tag_list_getter(self.value)
-        if tag_list:
-            return '+'.join(str(v) for v in tag_list)
+    def format_tags(self):
+        tag_map = self.expr.op.tags_getter(self.value)
+        if tag_map:
+            return ''.join(
+                '[{}={}]'.format(k, v) if k else '[{}]'.format(val)
+                for k, v in sorted(tag_map.items())
+            )
         else:
             return ''
 

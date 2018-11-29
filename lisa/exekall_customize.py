@@ -181,25 +181,23 @@ class LISAAdaptor(AdaptorBase):
             self._finalize_expr_val(param_expr_val, artifact_dir, testcase_artifact_dir)
 
     @classmethod
-    def get_tag_list(cls, value):
-        tags = []
+    def get_tags(cls, value):
+        tags = {}
         if isinstance(value, TestEnv):
             board_name = value.target_conf.get('name')
             if board_name:
                 tags.append(board_name)
         elif isinstance(value, PlatformInfo):
-            name = value.get('name')
-            if name:
-                tags.append(name)
+            tags['board'] = value.get('name')
         elif isinstance(value, TestBundle):
-            name = value.plat_info.get('name')
-            if name:
-                tags.append(name)
+            tags['board'] = value.plat_info.get('name')
             if isinstance(value, FreqInvarianceItem):
-                tag_str = 'cpu{cpu}@{freq}' if value.cpu is not None else '{}'
-                tags.append(tag_str.format(cpu=value.cpu, freq=value.freq))
+                if value.cpu is not None:
+                    tags['cpu'] = '{}@{}'.format(value.cpu, value.freq)
         else:
-            tags = super().get_tag_list(value)
+            tags = super().get_tags(value)
+
+        tags = {k: v for k, v in tags.items() if v is not None}
 
         return tags
 

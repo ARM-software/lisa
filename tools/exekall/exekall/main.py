@@ -329,7 +329,7 @@ the name of the parameter, the start value, stop value and step size.""")
                     engine.PrebuiltOperator(
                         type_, serial_list, id_=id_,
                         non_reusable_type_set=non_reusable_type_set,
-                        tag_list_getter=adaptor.get_tag_list,
+                        tags_getter=adaptor.get_tags,
                     ))
 
     # Pool of all callable considered
@@ -338,7 +338,7 @@ the name of the parameter, the start value, stop value and step size.""")
         engine.Operator(
             callable_,
             non_reusable_type_set=non_reusable_type_set,
-            tag_list_getter=adaptor.get_tag_list
+            tags_getter=adaptor.get_tags
         )
         for callable_ in callable_pool
     }
@@ -372,7 +372,7 @@ the name of the parameter, the start value, stop value and step size.""")
                 try:
                     new_op_pool = op.force_param(
                         param_patch_map,
-                        tag_list_getter=adaptor.get_tag_list
+                        tags_getter=adaptor.get_tags
                     )
                     prebuilt_op_pool_list.extend(new_op_pool)
                 except KeyError as e:
