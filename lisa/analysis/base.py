@@ -182,7 +182,7 @@ class AnalysisBase(Loggable):
 
         :raises: RuntimeError if some events are not available
         """
-        available_events = sorted(set(self._trace.events))
+        available_events = sorted(set(self._trace.available_events))
         missing_events = sorted(set(required_events).difference(available_events))
 
         if missing_events:

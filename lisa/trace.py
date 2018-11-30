@@ -125,7 +125,12 @@ class Trace(Loggable):
         # By deafult, use the trace dir to save plots
         self.plots_dir = plots_dir
         if self.plots_dir is None:
-            self.plots_dir = self.data_dir
+            # In case we're passed the trace.dat
+            if os.path.isfile(data_dir):
+                self.plots_dir = os.path.dirname(data_dir)
+            else:
+                self.plots_dir = data_dir
+
         self.plots_prefix = plots_prefix
 
         self.__registerTraceEvents(events)
