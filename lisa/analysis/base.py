@@ -56,14 +56,13 @@ def requires_events(events):
     """
     def decorator(f):
         @functools.wraps(f)
-
         def wrapper(self, *args, **kwargs):
             self.check_events(events)
             return f(self, *args, **kwargs)
 
         # Set an attribute on the wrapper itself, so it can be e.g. added
         # to the method documentation
-        wrapper.required_events = events
+        wrapper.required_events = sorted(set(events))
         return wrapper
 
     return decorator
