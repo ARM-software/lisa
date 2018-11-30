@@ -316,6 +316,10 @@ class TasksAnalysis(AnalysisBase):
         else:
             sw_df["__cpu"].plot(ax=axis, style='+')
 
+        plot_overutilized = self._trace.analysis.status.plot_overutilized
+        if self._trace.hasEvents(plot_overutilized.required_events):
+            plot_overutilized(axis=axis)
+
         # Add an extra CPU lane to make room for the legend
         ylabels = [''] + [str(n) for n in range(self._trace.plat_info['cpus-count'])]
         axis.set_yticklabels(ylabels)
@@ -324,8 +328,6 @@ class TasksAnalysis(AnalysisBase):
         axis.set_ylabel('CPUs')
         axis.grid(True)
         axis.legend()
-
-        self._trace.analysis.status.plot_overutilized(axis)
 
         self.save_plot(fig, filepath)
 

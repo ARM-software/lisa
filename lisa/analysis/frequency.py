@@ -323,6 +323,10 @@ class FrequencyAnalysis(AnalysisBase):
             axis.axhline(avg, color=self.get_next_color(axis), linestyle='--',
                          label="average")
 
+        plot_overutilized = self._trace.analysis.status.plot_overutilized
+        if self._trace.hasEvents(plot_overutilized.required_events):
+            plot_overutilized(axis=axis)
+
         axis.set_ylim(frequencies[0] * 0.9, frequencies[-1] * 1.1)
         axis.set_xlim(self._trace.x_min, self._trace.x_max)
 
@@ -332,8 +336,6 @@ class FrequencyAnalysis(AnalysisBase):
         axis.set_title('Frequency of CPU{}'.format(cpu))
         axis.grid(True)
         axis.legend()
-
-        self._trace.analysis.status.plot_overutilized(axis)
 
         if local_fig:
             self.save_plot(fig, filepath)
