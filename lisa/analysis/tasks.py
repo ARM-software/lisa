@@ -311,8 +311,18 @@ class TasksAnalysis(AnalysisBase):
         if "freq-domains" in self._trace.plat_info:
             # If we are aware of frequency domains, use one color per domain
             for domain in self._trace.plat_info["freq-domains"]:
-                sw_df[sw_df["__cpu"].isin(domain)]["__cpu"].plot(
-                    ax=axis, style='+', label="Task running in domain {}".format(domain))
+                df = sw_df[sw_df["__cpu"].isin(domain)]["__cpu"]
+
+                print(domain)
+
+                if df.empty:
+                    print(df.empty)
+                    # Cycle the colours to stay consistent
+                    self.cycle_colors(axis, 1)
+                else:
+                    print(df.unique())
+                    df.plot(ax=axis, style='+',
+                            label="Task running in domain {}".format(domain))
         else:
             sw_df["__cpu"].plot(ax=axis, style='+')
 
@@ -321,8 +331,7 @@ class TasksAnalysis(AnalysisBase):
             plot_overutilized(axis=axis)
 
         # Add an extra CPU lane to make room for the legend
-        ylabels = [''] + [str(n) for n in range(self._trace.plat_info['cpus-count'])]
-        axis.set_yticklabels(ylabels)
+        axis.set_ylim(-0.95, self._trace.cpus_count - 0.05)
 
         axis.set_title("CPU residency of task \"{}\"".format(task))
         axis.set_ylabel('CPUs')
