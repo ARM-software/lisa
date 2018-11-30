@@ -30,21 +30,6 @@ install_sdk() {
 	    }
 	"
     fi
-
-    ANDROID_EXPORT="export ANDROID_HOME=$(realpath $SCRIPT_DIR/tools/android-sdk-linux)"
-    if [ "$(cat ~/.bashrc | grep ANDROID_HOME | wc -l)" -eq 0 ]; then
-	echo "$ANDROID_EXPORT" >> ~/.bashrc
-    fi
-
-    PLATFORM_TOOLS_EXPORT="export PATH=\$ANDROID_HOME/platform-tools"
-    if [ -z "$(cat ~/.bashrc | grep "$PLATFORM_TOOLS_EXPORT")" ]; then
-	echo "$PLATFORM_TOOLS_EXPORT:\$PATH" >> ~/.bashrc
-    fi
-
-    TOOLS_EXPORT="export PATH=\$ANDROID_HOME/tools"
-    if [ -z "$(cat ~/.bashrc | grep "$TOOLS_EXPORT")" ]; then
-	echo "$TOOLS_EXPORT:\$PATH" >> ~/.bashrc
-    fi
 }
 
 set -eu
