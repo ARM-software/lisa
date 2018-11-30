@@ -54,3 +54,15 @@ Latency
 
 .. automodule:: lisa.analysis.latency
    :members:
+
+Status
+======
+
+.. automodule:: lisa.analysis.status
+   :members:
+
+Thermal
+=======
+
+.. automodule:: lisa.analysis.thermal
+   :members:
