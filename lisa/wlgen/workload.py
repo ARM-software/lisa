@@ -26,8 +26,8 @@ class Workload(Loggable):
     """
     This is pretty much a wrapper around a command to execute on a target.
 
-    :param te: The TestEnv on which to execute this workload
-    :type te: TestEnv
+    :param target: The Target on which to execute this workload
+    :type target: Target
 
     :param name: Name of the workload. Useful for naming related artefacts.
     :type name: str
@@ -51,17 +51,17 @@ class Workload(Loggable):
     **Implementation example**::
 
         class Printer(Workload):
-            def __init__(self, te, name, res_dir=None):
-                super(Printer, self).__init__(te, name, res_dir)
+            def __init__(self, target, name, res_dir=None):
+                super().__init__(target, name, res_dir)
                 self.command = "echo"
 
             def run(self, cpus=None, cgroup=None, background=False, as_root=False, value=42):
                 self.command = "{} {}".format(self.command, value)
-                super(Printer, self).run(cpus, cgroup, background, as_root)
+                super().run(cpus, cgroup, background, as_root)
 
     **Usage example**::
 
-        >>> printer = Printer(te, "test")
+        >>> printer = Printer(target, "test")
         >>> printer.run()
         INFO    : Printer      : Execution start: echo 42
         INFO    : Printer      : Execution complete
@@ -72,24 +72,22 @@ class Workload(Loggable):
     required_tools = ['taskset']
     """
     The tools required to execute the workload. See
-    :meth:`lisa.env.TestEnv.install_tools`.
+    :meth:`lisa.target.Target.install_tools`.
     """
 
-    def __init__(self, te, name, res_dir=None):
-        self.te = te
+    def __init__(self, target, name, res_dir=None):
+        self.target = target
         self.name = name
-
-        # XXX: move this to run() instead?
-        if not res_dir:
-            res_dir = self.te.get_res_dir(name)
-
-        self.res_dir = res_dir
-
         self.command = None
         self.output = ""
-        self.run_dir = self.te.target.working_directory
+        self.run_dir = self.target.working_directory
 
-        self.te.install_tools(self.required_tools)
+        res_dir = res_dir if res_dir else target.get_res_dir(
+            name='{}-{}'.format(self.__class__.__qualname__, name)
+        )
+        self.res_dir = res_dir
+
+        self.target.install_tools(self.required_tools)
 
     def run(self, cpus=None, cgroup=None, background=False, as_root=False):
         """
@@ -114,9 +112,10 @@ class Workload(Loggable):
             raise RuntimeError("Workload does not specify any command to execute")
 
         _command = self.command
+        target = self.target
 
         if cpus:
-            taskset_bin = self.te.target.which('taskset')
+            taskset_bin = target.which('taskset')
             if not taskset_bin:
                 raise RuntimeError("Could not find 'taskset' executable on the target")
 
@@ -125,14 +124,14 @@ class Workload(Loggable):
             _command = '{} {}'.format(taskset_cmd, _command)
 
         if cgroup:
-            _command = self.te.target.cgroups.run_into_cmd(cgroup, _command)
+            _command = target.cgroups.run_into_cmd(cgroup, _command)
 
         logger.info("Execution start: %s", _command)
 
         if background:
-            self.te.target.background(_command, as_root=as_root)
+            target.background(_command, as_root=as_root)
         else:
-            self.output = self.te.target.execute(_command, as_root=as_root)
+            self.output = target.execute(_command, as_root=as_root)
             logger.info("Execution complete")
 
             logfile = os.path.join(self.res_dir, 'output.log')

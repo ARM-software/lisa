@@ -27,7 +27,7 @@ from devlib.exception import TargetNotRespondingError
 
 from lisa.tests.base import TestMetric, ResultBundle, TestBundle
 from lisa.target_script import TargetScript
-from lisa.env import TestEnv
+from lisa.target import Target
 from lisa.utils import ArtifactPath
 
 class CPUHPSequenceError(Exception):
@@ -108,14 +108,14 @@ class HotplugBase(TestBundle, abc.ABC):
         pass
 
     @classmethod
-    def _cpuhp_script(cls, te, res_dir, sequence, sleep_min_ms,
+    def _cpuhp_script(cls, target, res_dir, sequence, sleep_min_ms,
                              sleep_max_ms, random_gen):
         """
         Generate a script consisting of a random sequence of hotplugs operations
 
         Two consecutive hotplugs can be separated by a random sleep in the script.
         """
-        script = TargetScript(te.target, 'random_cpuhp.sh', res_dir)
+        script = TargetScript(target, 'random_cpuhp.sh', res_dir)
 
         # Record configuration
         # script.append('# File generated automatically')
@@ -126,7 +126,7 @@ class HotplugBase(TestBundle, abc.ABC):
 
         for cpu, plug_way in sequence:
             # Write in sysfs entry
-            cmd = 'echo {} > {}'.format(plug_way, HotplugModule._cpu_path(te.target, cpu))
+            cmd = 'echo {} > {}'.format(plug_way, HotplugModule._cpu_path(target, cpu))
             script.append(cmd)
 
             # Sleep if necessary
@@ -137,7 +137,7 @@ class HotplugBase(TestBundle, abc.ABC):
         return script
 
     @classmethod
-    def _from_testenv(cls, te, res_dir, seed, nr_operations, sleep_min_ms,
+    def _from_target(cls, target, res_dir, seed, nr_operations, sleep_min_ms,
                       sleep_max_ms, max_cpus_off):
 
         # Instantiate a generator so we can change the seed without any global
@@ -145,8 +145,8 @@ class HotplugBase(TestBundle, abc.ABC):
         random_gen = random.Random()
         random_gen.seed(seed)
 
-        te.target.hotplug.online_all()
-        hotpluggable_cpus = te.target.hotplug.list_hotpluggable_cpus()
+        target.hotplug.online_all()
+        hotpluggable_cpus = target.hotplug.list_hotpluggable_cpus()
 
         sequence = list(cls.cpuhp_seq(
             nr_operations, hotpluggable_cpus, max_cpus_off, random_gen))
@@ -155,7 +155,7 @@ class HotplugBase(TestBundle, abc.ABC):
             max_cpus_off, sequence)
 
         script = cls._cpuhp_script(
-            te, res_dir, sequence, sleep_min_ms, sleep_max_ms, random_gen)
+            target, res_dir, sequence, sleep_min_ms, sleep_max_ms, random_gen)
 
         script.push()
 
@@ -166,16 +166,16 @@ class HotplugBase(TestBundle, abc.ABC):
                 script.wait()
 
                 target_alive = True
-                te.target.hotplug.online_all()
+                target.hotplug.online_all()
             except TargetNotRespondingError:
                 target_alive = False
 
-        live_cpus = te.target.list_online_cpus() if target_alive else []
+        live_cpus = target.list_online_cpus() if target_alive else []
 
-        return cls(te.plat_info, target_alive, hotpluggable_cpus, live_cpus)
+        return cls(target.plat_info, target_alive, hotpluggable_cpus, live_cpus)
 
     @classmethod
-    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None, seed=None,
+    def from_target(cls, target:Target, res_dir:ArtifactPath=None, seed=None,
                      nr_operations=100, sleep_min_ms=10, sleep_max_ms=100,
                      max_cpus_off=sys.maxsize) -> 'HotplugBase':
         """
@@ -197,8 +197,8 @@ class HotplugBase(TestBundle, abc.ABC):
         :type max_cpus_off: int
         """
         # This is just boilerplate but it lets us document parameters
-        return super().from_testenv(
-            te, res_dir, seed=seed, nr_operations=nr_operations,
+        return super().from_target(
+            target, res_dir, seed=seed, nr_operations=nr_operations,
             sleep_min_ms=sleep_min_ms, sleep_max_ms=sleep_max_ms,
             max_cpus_off=max_cpus_off)
 

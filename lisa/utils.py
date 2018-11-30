@@ -46,6 +46,9 @@ LISA_HOME = os.getenv('LISA_HOME')
 The detected location of your LISA installation
 """
 
+RESULT_DIR = 'results'
+LATEST_LINK = 'results_latest'
+
 class Loggable:
     """
     A simple class for uniformly named loggers
@@ -607,6 +610,5 @@ def set_nested_key(mapping, key_path, val, level=None):
             mapping = new_level
 
     mapping[key_path[-1]] = val
-
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

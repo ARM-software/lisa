@@ -29,8 +29,9 @@ from lisa.trace import Trace
 from lisa.wlgen.rta import RTA
 
 from lisa.utils import Serializable, memoized, ArtifactPath
-from lisa.env import TestEnv
 from lisa.platforms.platinfo import PlatformInfo
+from lisa.target import Target
+from lisa.trace import FtraceCollector, FtraceConf
 
 class TestMetric:
     """
@@ -175,17 +176,17 @@ class TestBundle(Serializable, abc.ABC):
     can be serialized with minimal effort. As long as some information is stored
     within an object's member, it will be automagically handled.
 
-    Please refrain from monkey-patching the object in :meth:`from_testenv`.
+    Please refrain from monkey-patching the object in :meth:`from_target`.
     Data required by the object to run test assertions should be exposed as
     ``__init__`` parameters.
 
     **Design notes:**
 
-      * :meth:`from_testenv` will collect whatever artifacts are required
+      * :meth:`from_target` will collect whatever artifacts are required
         from a given target, and will then return a :class:`TestBundle`.
       * :meth:`from_dir` will use whatever artifacts are available in a
         given directory (which should have been created by an earlier call
-        to :meth:`from_testenv` and then :meth:`to_dir`), and will then return
+        to :meth:`from_target` and then :meth:`to_dir`), and will then return
         a :class:`TestBundle`.
       * :attr:`VERIFY_SERIALIZATION` is there to ensure both above methods remain
         operationnal at all times.
@@ -205,8 +206,8 @@ class TestBundle(Serializable, abc.ABC):
                 self.shell_output = shell_output
 
             @classmethod
-            def _from_testenv(cls, te, plat_info, res_dir):
-                output = te.target.execute('echo $((21+21))').split()
+            def _from_target(cls, target, plat_info, res_dir):
+                output = target.execute('echo $((21+21))').split()
                 return cls(res_dir, plat_info, output)
 
             def test_output(self) -> ResultBundle:
@@ -220,7 +221,7 @@ class TestBundle(Serializable, abc.ABC):
     **Usage example**::
 
         # Creating a Bundle from a live target
-        bundle = TestBundle.from_testenv(test_env, plat_info, "/my/res/dir")
+        bundle = TestBundle.from_target(target, plat_info, "/my/res/dir")
         # Running some test on the bundle
         res_bundle = bundle.test_foo()
 
@@ -238,7 +239,7 @@ class TestBundle(Serializable, abc.ABC):
     VERIFY_SERIALIZATION = True
     """
     When True, this enforces a serialization/deserialization step in
-    :meth:`from_testenv`. Although it adds an extra step (we end up creating
+    :meth:`from_target`. Although it adds an extra step (we end up creating
     two :class:`TestBundle` instances), it's very valuable to ensure
     :meth:`TestBundle.from_dir` does not get broken for some particular
     class.
@@ -254,14 +255,14 @@ class TestBundle(Serializable, abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def _from_testenv(cls, te, res_dir):
+    def _from_target(cls, target, res_dir):
         """
         Internals of the target factory method.
         """
         pass
 
     @classmethod
-    def check_from_testenv(cls, te):
+    def check_from_target(cls, target):
         """
         Check whether the given target can be used to create an instance of this class
 
@@ -272,36 +273,38 @@ class TestBundle(Serializable, abc.ABC):
         pass
 
     @classmethod
-    def can_create_from_testenv(cls, te):
+    def can_create_from_target(cls, target):
         """
         :returns: Whether the given target can be used to create an instance of this class
         :rtype: bool
 
-        :meth:`check_from_testenv` is used internally, so there shouldn't be any
+        :meth:`check_from_target` is used internally, so there shouldn't be any
           need to override this.
         """
         try:
-            cls.check_from_testenv(te)
+            cls.check_from_target(target)
             return True
         except CannotCreateError:
             return False
 
     @classmethod
-    def from_testenv(cls, te, res_dir=None, **kwargs):
+    def from_target(cls, target, res_dir=None, **kwargs):
         """
         Factory method to create a bundle using a live target
 
-        This is mostly boiler-plate code around :meth:`_from_testenv`,
+        This is mostly boiler-plate code around :meth:`_from_target`,
         which lets us introduce common functionalities for daughter classes.
         Unless you know what you are doing, you should not override this method,
-        but the internal :meth:`_from_testenv` instead.
+        but the internal :meth:`_from_target` instead.
         """
-        cls.check_from_testenv(te)
+        cls.check_from_target(target)
 
-        if not res_dir:
-            res_dir = te.get_res_dir(cls.__qualname__)
+        res_dir = res_dir or target.get_res_dir(
+            name=cls.__qualname__,
+            symlink=True,
+        )
 
-        bundle = cls._from_testenv(te, res_dir, **kwargs)
+        bundle = cls._from_target(target, res_dir, **kwargs)
 
         # We've created the bundle from the target, and have all of
         # the information we need to execute the test code. However,
@@ -350,12 +353,12 @@ class RTATestBundle(TestBundle, abc.ABC):
     :type rtapp_profile: dict
     """
 
-    ftrace_conf = {
+    ftrace_conf = FtraceConf({
         "events" : ["sched_switch"],
-    }
+    }, __qualname__)
     """
     The FTrace configuration used to record a trace while the synthetic workload
-    is being run. Items are arguments to :meth:`lisa.env.TestEnv.collect_ftrace`.
+    is being run.
     """
 
     TASK_PERIOD_MS = 16
@@ -414,20 +417,24 @@ class RTATestBundle(TestBundle, abc.ABC):
         pass
 
     @classmethod
-    def _run_rtapp(cls, te, res_dir, profile):
-        wload = RTA.by_profile(te, "rta_{}".format(cls.__name__.lower()),
+    def _run_rtapp(cls, target, res_dir, profile, ftrace_coll=None):
+        wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.lower()),
                                profile, res_dir=res_dir)
 
         trace_path = os.path.join(res_dir, "trace.dat")
+        ftrace_coll = ftrace_coll or FtraceCollector.from_conf(target, cls.ftrace_conf)
 
-        with te.collect_ftrace(trace_path, **cls.ftrace_conf), te.freeze_userspace():
+        with ftrace_coll, target.freeze_userspace():
             wload.run()
+        ftrace_coll.get_trace(trace_path)
+        return trace_path
 
     @classmethod
-    def _from_testenv(cls, te, res_dir):
-        rtapp_profile = cls.get_rtapp_profile(te.plat_info)
-        cls._run_rtapp(te, res_dir, rtapp_profile)
+    def _from_target(cls, target, res_dir, ftrace_coll=None):
+        plat_info = target.plat_info
+        rtapp_profile = cls.get_rtapp_profile(plat_info)
+        cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
 
-        return cls(res_dir, te.plat_info, rtapp_profile)
+        return cls(res_dir, plat_info, rtapp_profile)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

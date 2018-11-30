@@ -91,7 +91,7 @@ The shortest path to executing a test is:
 
 1. Update the ``target_conf.yml`` file located at the root of the repository
    with the credentials to connect to the development board (see
-   :class:`~lisa.env.TargetConf` keys for more information)
+   :class:`~lisa.target.TargetConf` keys for more information)
 2. Run the following:
 
   .. code-block:: sh
@@ -269,7 +269,7 @@ API Changes
 TestEnv
 -------
 
-Creating a :class:`lisa.env.TestEnv` used to look like this::
+Creating a ``env.TestEnv`` used to look like this::
 
     target_conf = {
 	# Define the kind of target platform to use for the experiments
@@ -295,7 +295,10 @@ Creating a :class:`lisa.env.TestEnv` used to look like this::
 
     te = TestEnv(target_conf)
 
-We now have a dedicated class for the ``target_conf``, see :class:`lisa.env.TargetConf`.
+The equivalent class to use is now :class:`lisa.target.Target`. It does not
+require a mapping to be built anymore.
+
+We now have a dedicated class for the ``target_conf``, see :class:`lisa.target.TargetConf`.
 The most notable changes are as follows (see the doc for details):
 
 * ``"platform"`` is now ``"kind"``
@@ -310,9 +313,9 @@ The most notable changes are as follows (see the doc for details):
 
 .. admonition:: Cool new feature
 
-  :class:`~lisa.env.TestEnv` instances can now be easily be created
-  :meth:`from the configuration file<lisa.env.TestEnv.from_default_conf>` or
-  :meth:`via the CLI<lisa.env.TestEnv.from_cli>`.
+  :class:`~lisa.target.Target` instances can now be easily be created
+  :meth:`from the configuration file<lisa.target.Target.from_default_conf>` or
+  :meth:`via the CLI<lisa.target.Target.from_cli>`.
 
 
 Trace

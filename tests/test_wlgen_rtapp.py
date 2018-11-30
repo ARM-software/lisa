@@ -22,7 +22,7 @@ import os
 from lisa.wlgen.rta import RTA, Periodic, Ramp, Step, RunAndSync
 from lisa.analysis.rta import PerfAnalysis
 
-from .utils import StorageTestCase, create_local_testenv
+from .utils import StorageTestCase, create_local_target
 
 class RTABase(StorageTestCase):
     """
@@ -42,7 +42,7 @@ class RTABase(StorageTestCase):
 
     def setUp(self):
         super().setUp()
-        self.te = create_local_testenv()
+        self.te = create_local_target()
 
     def assert_output_file_exists(self, path):
         """Assert that a file was created"""

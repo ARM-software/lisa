@@ -50,10 +50,10 @@ class Sysbench(Workload):
 
     required_tools = Workload.required_tools + ['sysbench']
 
-    def __init__(self, te, name, res_dir=None):
-        super(Sysbench, self).__init__(te, name, res_dir)
+    def __init__(self, target, name, res_dir=None):
+        super().__init__(target, name, res_dir)
 
-        sysbench_bin = self.te.target.which('sysbench')
+        sysbench_bin = self.target.which('sysbench')
         if not sysbench_bin:
             raise RuntimeError("No sysbench executable found on the target")
 
@@ -107,7 +107,7 @@ class Sysbench(Workload):
 
         self.command = "{} run".format(command)
 
-        super(Sysbench, self).run(cpus, cgroup, background, as_root)
+        super().run(cpus, cgroup, background, as_root)
 
         self.output = SysbenchOutput(self.output)
 

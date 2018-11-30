@@ -44,26 +44,27 @@ class RTA(Workload):
 
     sched_policies = ['OTHER', 'FIFO', 'RR', 'DEADLINE']
 
-    def __init__(self, te, name, res_dir=None, json_file=None):
+    def __init__(self, target, name, res_dir=None, json_file=None):
         # Don't add code here, use the early/late init methods instead.
         # This lets us factorize some code for the class methods that serve as
         # alternate constructors.
-        self._early_init(te, name, res_dir, json_file)
+
+        self._early_init(target, name, res_dir, json_file)
         self._late_init()
 
-    def _early_init(self, te, name, res_dir, json_file):
+    def _early_init(self, target, name, res_dir, json_file):
         """
         Initialize everything that is not related to the contents of the json file
         """
-        super(RTA, self).__init__(te, name, res_dir)
+        super().__init__(target, name, res_dir)
 
         if not json_file:
             json_file = '{}.json'.format(self.name)
 
         self.local_json = os.path.join(self.res_dir, json_file)
-        self.remote_json = self.te.target.path.join(self.run_dir, json_file)
+        self.remote_json = self.target.path.join(self.run_dir, json_file)
 
-        rta_cmd = self.te.target.which('rt-app')
+        rta_cmd = self.target.which('rt-app')
         if not rta_cmd:
             raise RuntimeError("No rt-app executable found on the target")
 
@@ -92,10 +93,10 @@ class RTA(Workload):
         self.tasks = tasks_names
 
         # Move configuration file to target
-        self.te.target.push(self.local_json, self.remote_json)
+        self.target.push(self.local_json, self.remote_json)
 
     def run(self, cpus=None, cgroup=None, background=False, as_root=False):
-        super(RTA, self).run(cpus, cgroup, background, as_root)
+        super().run(cpus, cgroup, background, as_root)
         logger = self.get_logger()
 
         if background:
@@ -106,8 +107,8 @@ class RTA(Workload):
         for task in self.tasks:
             # RT-app appends some number to the logs, so we can't predict the
             # exact filename
-            logfile = self.te.target.path.join(self.run_dir, '*{}*.log'.format(task))
-            self.te.target.pull(logfile, self.res_dir)
+            logfile = self.target.path.join(self.run_dir, '*{}*.log'.format(task))
+            self.target.pull(logfile, self.res_dir)
 
     def _process_calibration(self, calibration):
         """
@@ -120,7 +121,7 @@ class RTA(Workload):
         elif isinstance(calibration, str):
             calibration = calibration.upper()
         elif calibration is None:
-            calib_map = self.te.plat_info['rtapp']['calib']
+            calib_map = self.target.plat_info['rtapp']['calib']
             calibration = min(calib_map.values())
         else:
             raise ValueError('Calibration value "{x}" is cannot be handled'.format(x=calibration))
@@ -128,7 +129,7 @@ class RTA(Workload):
         return calibration
 
     @classmethod
-    def by_profile(cls, te, name, profile, res_dir=None, default_policy=None,
+    def by_profile(cls, target, name, profile, res_dir=None, default_policy=None,
                    max_duration_s=None, calibration=None):
         """
         Create an rt-app workload using :class:`RTATask` instances
@@ -151,12 +152,12 @@ class RTA(Workload):
         A simple profile workload would be::
 
             task = Periodic(duty_cycle_pct=5)
-            rta = RTA.by_profile(te, "test",  {"foo" : task})
+            rta = RTA.by_profile(target, "test",  {"foo" : task})
             rta.run()
         """
         logger = cls.get_logger()
         self = cls.__new__(cls)
-        self._early_init(te, name, res_dir, None)
+        self._early_init(target, name, res_dir, None)
 
         # Sanity check for task names
         for task in list(profile.keys()):
@@ -290,7 +291,7 @@ class RTA(Workload):
         return json.loads('\n'.join(res))
 
     @classmethod
-    def by_str(cls, te, name, str_conf, res_dir=None, max_duration_s=None,
+    def by_str(cls, target, name, str_conf, res_dir=None, max_duration_s=None,
                calibration=None):
         """
         Create an rt-app workload using a pure string description
@@ -309,7 +310,7 @@ class RTA(Workload):
         """
 
         self = cls.__new__(cls)
-        self._early_init(te, name, res_dir, None)
+        self._early_init(target, name, res_dir, None)
 
         calibration = self._process_calibration(calibration)
 
@@ -325,31 +326,33 @@ class RTA(Workload):
         return self
 
     @classmethod
-    def _calibrate(cls, te, res_dir):
+    def _calibrate(cls, target, res_dir):
+        res_dir = res_dir if res_dir else target .get_res_dir(
+            "rta_calib", symlink=False
+        )
+
         pload_regexp = re.compile(r'pLoad = ([0-9]+)ns')
         pload = {}
 
         logger = cls.get_logger()
 
         # Create calibration task
-        max_rtprio = int(te.target.execute('ulimit -Hr').split('\r')[0])
+        max_rtprio = int(target.execute('ulimit -Hr').split('\r')[0])
         logger.debug('Max RT prio: %d', max_rtprio)
 
         if max_rtprio > 10:
             max_rtprio = 10
 
-        if not res_dir:
-            res_dir = te.get_res_dir("rta_calib", symlink=False)
-
-        for cpu in te.target.list_online_cpus():
+        for cpu in target.list_online_cpus():
             logger.info('CPU%d calibration...', cpu)
 
             # RT-app will run a calibration for us, so we just need to
             # run a dummy task and read the output
             calib_task = Periodic(duty_cycle_pct=100, duration_s=0.001, period_ms=1)
-            rta = cls.by_profile(te, name="rta_calib_cpu{}".format(cpu),
-                                 res_dir=res_dir, profile={'task1': calib_task},
-                                 calibration="CPU{}".format(cpu))
+            rta = cls.by_profile(target, name="rta_calib_cpu{}".format(cpu),
+                                 profile={'task1': calib_task},
+                                 calibration="CPU{}".format(cpu),
+                                 res_dir=res_dir)
             rta.run(as_root=True)
 
             for line in rta.output.split('\n'):
@@ -361,11 +364,11 @@ class RTA(Workload):
 
         logger.info('Target RT-App calibration: %s', pload)
 
-        if 'sched' not in te.target.modules:
+        if 'sched' not in target.modules:
             return pload
 
         # Sanity check calibration values for asymmetric systems
-        cpu_capacities = te.target.sched.get_capacities()
+        cpu_capacities = target.sched.get_capacities()
         capa_pload = {capacity : sys.maxsize for capacity in list(cpu_capacities.values())}
 
         # Find the max pload per capacity level
@@ -385,7 +388,7 @@ class RTA(Workload):
         return pload
 
     @classmethod
-    def get_cpu_calibrations(cls, te, res_dir=None):
+    def get_cpu_calibrations(cls, target, res_dir=None):
         """
         Get the rt-ap calibration value for all CPUs.
 
@@ -393,13 +396,13 @@ class RTA(Workload):
         :returns: Dict mapping CPU numbers to rt-app calibration values.
         """
 
-        if 'cpufreq' not in te.target.modules:
+        if 'cpufreq' not in target.modules:
             cls.get_logger().warning(
                 'cpufreq module not loaded, skipping setting frequency to max')
-            return cls._calibrate(te, res_dir)
+            return cls._calibrate(target, res_dir)
 
-        with te.target.cpufreq.use_governor('performance'):
-            return cls._calibrate(te, res_dir)
+        with target.cpufreq.use_governor('performance'):
+            return cls._calibrate(target, res_dir)
 
 class Phase(Loggable):
     """

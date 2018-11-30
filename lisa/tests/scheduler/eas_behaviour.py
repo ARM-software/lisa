@@ -30,10 +30,11 @@ from devlib.target import KernelVersion
 from lisa.wlgen.rta import Periodic, Ramp, Step
 from lisa.analysis.rta import PerfAnalysis
 from lisa.tests.base import ResultBundle, CannotCreateError, RTATestBundle
-from lisa.env import TestEnv
 from lisa.utils import ArtifactPath
 from lisa.energy_model import EnergyModel
 from lisa.trace import requires_events
+from lisa.target import Target
+from lisa.trace import FtraceCollector
 
 class EASBehaviour(RTATestBundle, abc.ABC):
     """
@@ -61,43 +62,43 @@ class EASBehaviour(RTATestBundle, abc.ABC):
     @classmethod
     @abc.abstractmethod
     def get_rtapp_profile(cls, plat_info):
-        """Returns the RTapp profile for the given :class:`lisa.env.TestEnv`.
+        """Returns the RTapp profile for the given :class:`lisa.platforms.platinfo.PlatformInfo`.
 
         :returns: :class:`lisa.wlgen.rta.RTATask`
         """
         pass
 
     @classmethod
-    def check_from_testenv(cls, te):
-        for domain in te.target.cpufreq.iter_domains():
-            if "schedutil" not in te.target.cpufreq.list_governors(domain[0]):
+    def check_from_target(cls, target):
+        for domain in target.cpufreq.iter_domains():
+            if "schedutil" not in target.cpufreq.list_governors(domain[0]):
                 raise CannotCreateError(
                     "Can't set schedutil governor for domain {}".format(domain))
 
-        if 'nrg-model' not in te.plat_info:
+        if 'nrg-model' not in target.plat_info:
             raise CannotCreateError("Energy model not available")
 
     @classmethod
-    def _from_testenv(cls, te, res_dir):
-        plat_info = te.plat_info
+    def _from_target(cls, target, res_dir, ftrace_coll=None):
+        plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
 
         # EAS doesn't make a lot of sense without schedutil,
         # so make sure this is what's being used
-        with te.disable_idle_states():
-            with te.target.cpufreq.use_governor("schedutil"):
-                cls._run_rtapp(te, res_dir, rtapp_profile)
+        with target.disable_idle_states():
+            with target.cpufreq.use_governor("schedutil"):
+                cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
 
         return cls(res_dir, plat_info, rtapp_profile)
 
     @classmethod
-    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'EASBehaviour':
+    def from_target(cls, target:Target, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'EASBehaviour':
         """
         Factory method to create a bundle using a live target
 
         This will execute the rt-app workload described in :meth:`get_rtapp_profile`
         """
-        return super().from_testenv(te, res_dir)
+        return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
 
     def _get_start_time(self):
         """

@@ -17,7 +17,7 @@
 
 import sys
 
-from lisa.env import TestEnv
+from lisa.target import Target
 from lisa.utils import ArtifactPath
 from lisa.tests.base import TestMetric, ResultBundle, TestBundle
 from lisa.wlgen.sysbench import Sysbench
@@ -37,11 +37,11 @@ class CapacitySanity(TestBundle):
         self.capacity_work = capacity_work
 
     @classmethod
-    def _from_testenv(cls, te, res_dir):
-        with te.target.cpufreq.use_governor("performance"):
-            sysbench = Sysbench(te, "sysbench", res_dir)
+    def _from_target(cls, target, res_dir):
+        with target.cpufreq.use_governor("performance"):
+            sysbench = Sysbench(target, "sysbench", res_dir)
 
-            cpu_capacities = te.target.sched.get_capacities()
+            cpu_capacities = target.sched.get_capacities()
             capa_work = {capa : sys.maxsize for capa in list(cpu_capacities.values())}
             for cpu in list(cpu_capacities.keys()):
                 sysbench.run(cpus=[cpu], max_duration_s=1)
@@ -51,14 +51,14 @@ class CapacitySanity(TestBundle):
                 capa = cpu_capacities[cpu]
                 capa_work[capa] = min(capa_work[capa], sysbench.output.nr_events)
 
-        return cls(res_dir, te.plat_info, capa_work)
+        return cls(res_dir, target.plat_info, capa_work)
 
     @classmethod
-    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'CapacitySanity':
+    def from_target(cls, target:Target, res_dir:ArtifactPath=None) -> 'CapacitySanity':
         """
         Factory method to create a bundle using a live target
         """
-        return super().from_testenv(te, res_dir)
+        return super().from_target(target, res_dir)
 
     def test_capacity_sanity(self) -> ResultBundle:
         """

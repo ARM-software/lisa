@@ -27,7 +27,7 @@ some Python sources containing the definition of stages for each test and some
 initial spark like ``--conf`` or ``--load-db``.
 
 ``--conf`` will usually be used with a YAML configuration file in the format
-specified by :class:`~lisa.env.TargetConf`.
+specified by :class:`~lisa.target.TargetConf`.
 
 .. code-block:: sh
 
@@ -59,7 +59,7 @@ More of it
 Multiple iterations of the same set of tests can be executed using ``-n``.
 
 .. tip:: In order to speed up the test session when executing multiple
-  iterations, ``--share '*TestEnv'`` can be used. That will share the target
+  iterations, ``--share '*Target'`` can be used. That will share the target
   connection stage between all iterations, so some autodetection mechanisms
   will only run once.
 

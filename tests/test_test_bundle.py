@@ -18,7 +18,7 @@
 from lisa.platforms.platinfo import PlatformInfo
 
 from lisa.tests.base import TestBundle, ResultBundle
-from .utils import create_local_testenv, StorageTestCase
+from .utils import create_local_target, StorageTestCase
 
 class DummyTestBundle(TestBundle):
     """
@@ -30,8 +30,8 @@ class DummyTestBundle(TestBundle):
         self.shell_output = shell_output
 
     @classmethod
-    def _from_testenv(cls, te, res_dir):
-        output = te.target.execute('echo $((21+21))').split()
+    def _from_target(cls, target, res_dir):
+        output = target.execute('echo $((21+21))').split()
         return cls(res_dir, output)
 
     def test_output(self):
@@ -50,7 +50,7 @@ class BundleCheck(StorageTestCase):
     """
     def setUp(self):
         super().setUp()
-        self.te = create_local_testenv()
+        self.target = create_local_target()
 
     def test_init(self):
         """
@@ -62,7 +62,7 @@ class BundleCheck(StorageTestCase):
         """
         Test that creating a bundle from a target works
         """
-        bundle = DummyTestBundle.from_testenv(self.te)
+        bundle = DummyTestBundle.from_target(self.target)
 
     def test_serialization(self):
         """

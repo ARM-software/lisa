@@ -20,10 +20,10 @@ import pandas as pd
 from devlib.module.sched import SchedDomain, SchedDomainFlag
 
 from lisa.utils import memoized, ArtifactPath
-from lisa.trace import Trace, requires_events
+from lisa.trace import Trace, FtraceConf, FtraceCollector, requires_events
 from lisa.wlgen.rta import Periodic
 from lisa.tests.base import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
-from lisa.env import TestEnv
+from lisa.target import Target
 from lisa.analysis.tasks import TasksAnalysis, TaskState
 
 class MisfitMigrationBase(RTATestBundle):
@@ -33,21 +33,21 @@ class MisfitMigrationBase(RTATestBundle):
     This class provides some helpers for features related to Misfit.
     """
 
-    ftrace_conf = {
+    ftrace_conf = FtraceConf({
         "events" : [
             "sched_switch",
             "sched_wakeup",
             "cpu_idle"
         ]
-    }
+    }, __qualname__)
 
     @classmethod
-    def _has_asym_cpucapacity(cls, te):
+    def _has_asym_cpucapacity(cls, target):
         """
         :returns: Whether the target has SD_ASYM_CPUCAPACITY set on any of its sd
         """
         # Just try to find at least one instance of that flag
-        sd_info = te.target.sched.get_sd_info()
+        sd_info = target.sched.get_sd_info()
 
         for cpu, domain_node in sd_info.cpus.items():
             for domain in domain_node.domains.values():
@@ -73,14 +73,14 @@ class MisfitMigrationBase(RTATestBundle):
         return ((HZ * plat_info['cpus-count']) // 10) * (1. / HZ)
 
     @classmethod
-    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'MisfitMigrationBase':
+    def from_target(cls, target:Target, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'MisfitMigrationBase':
         """
         Factory method to create a bundle using a live target
 
         This will execute the rt-app workload described in
         :meth:`~lisa.tests.base.RTATestBundle.get_rtapp_profile`
         """
-        return super().from_testenv(te, res_dir)
+        return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
 
 class StaggeredFinishes(MisfitMigrationBase):
     """
@@ -155,8 +155,8 @@ class StaggeredFinishes(MisfitMigrationBase):
             self.dst_cpus += group
 
     @classmethod
-    def check_from_testenv(cls, te):
-        if not cls._has_asym_cpucapacity(te):
+    def check_from_target(cls, target):
+        if not cls._has_asym_cpucapacity(target):
             raise CannotCreateError(
                 "Target doesn't have SD_ASYM_CPUCAPACITY on any sched_domain")
 

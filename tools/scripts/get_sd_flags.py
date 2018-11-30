@@ -15,12 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from lisa.env import TestEnv
+from lisa.target import Target
 from devlib.module.sched import SchedDomain
 
-te = TestEnv.from_cli()
+target = Target.from_cli()
 
-sd_info = te.target.sched.get_sd_info()
+sd_info = target.sched.get_sd_info()
 
 for cpuid, cpu in sd_info.cpus.items():
     print("== CPU{} ==".format(cpuid))
