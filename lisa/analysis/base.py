@@ -22,8 +22,6 @@ import inspect
 import matplotlib.pyplot as plt
 from cycler import cycler
 
-from trappy.utils import listify
-
 from lisa.utils import Loggable
 
 # Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036

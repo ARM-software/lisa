@@ -18,12 +18,9 @@
 from functools import reduce
 import operator
 
-import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as plt
 import pandas as pd
-import pylab as pl
 
-from trappy.utils import listify, handle_duplicate_index
+from trappy.utils import handle_duplicate_index
 
 from lisa.utils import memoized
 from lisa.analysis.base import AnalysisBase, requires_events

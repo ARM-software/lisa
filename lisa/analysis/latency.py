@@ -15,19 +15,9 @@
 # limitations under the License.
 #
 
-import re
-import os
-
-import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
-import pylab as pl
+import numpy as np
 
-from trappy.utils import listify
-from devlib.target import KernelVersion
-
-from collections import namedtuple
 from lisa.analysis.base import AnalysisBase, requires_events, COLOR_CYCLES
 from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.utils import memoized
