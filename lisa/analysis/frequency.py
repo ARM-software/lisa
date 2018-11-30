@@ -359,6 +359,7 @@ class FrequencyAnalysis(AnalysisBase):
             self.plot_cpu_frequencies(domain[0], filepath, axis)
 
             axis.set_title('Frequencies of CPUS {}'.format(domain))
+            axis.set_xlim(self._trace.x_min, self._trace.x_max)
 
         self.save_plot(fig, filepath)
 

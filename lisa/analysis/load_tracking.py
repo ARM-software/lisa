@@ -245,6 +245,7 @@ class LoadTrackingAnalysis(AnalysisBase):
         axis.set_title('Load-tracking signals of task "{}"'.format(task))
         axis.legend()
         axis.grid(True)
+        axis.set_xlim(self._trace.x_min, self._trace.x_max)
 
         self.save_plot(fig, filepath)
         return axis

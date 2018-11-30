@@ -337,6 +337,7 @@ class TasksAnalysis(AnalysisBase):
         axis.set_ylabel('CPUs')
         axis.grid(True)
         axis.legend()
+        axis.set_xlim(self._trace.x_min, self._trace.x_max)
 
         self.save_plot(fig, filepath)
 
@@ -413,6 +414,7 @@ class TasksAnalysis(AnalysisBase):
         df.plot(ax=axis, legend=False)
 
         axis.set_title("Number of task wakeups within {}s windows".format(time_delta))
+        axis.set_xlim(self._trace.x_min, self._trace.x_max)
 
         self.save_plot(fig, filepath)
 
@@ -436,6 +438,7 @@ class TasksAnalysis(AnalysisBase):
             df.index, df.target_cpu, xbins, "Number of wakeups", cmap=colormap)
 
         axis.set_title("Tasks wakeups over time")
+        axis.set_xlim(self._trace.x_min, self._trace.x_max)
 
         self.save_plot(fig, filepath)
 
@@ -464,6 +467,7 @@ class TasksAnalysis(AnalysisBase):
         df.plot(ax=axis, legend=False)
 
         axis.set_title("Number of task forks within {}s windows".format(time_delta))
+        axis.set_xlim(self._trace.x_min, self._trace.x_max)
 
         self.save_plot(fig, filepath)
 
@@ -487,6 +491,7 @@ class TasksAnalysis(AnalysisBase):
             df.index, df.target_cpu, xbins, "Number of forks", cmap=colormap)
 
         axis.set_title("Tasks forks over time")
+        axis.set_xlim(self._trace.x_min, self._trace.x_max)
 
         self.save_plot(fig, filepath)
 
