@@ -226,11 +226,6 @@ class LatencyAnalysis(AnalysisBase):
 
         # Build the series of sorted values
         ser = data.sort_values()
-        if len(ser) < 1000:
-            # Unbias the CDF for small populations
-            # https://stackoverflow.com/a/31971245/5096023
-            ser = ser.append(pd.Series(ser.iloc[-1]))
-
         df = pd.Series(np.linspace(0., 1., len(ser)), index=ser)
 
         # Compute percentage of samples above/below the specified threshold
