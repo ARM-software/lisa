@@ -56,12 +56,15 @@ class LoadTrackingAnalysis(AnalysisBase):
         if event in ['sched_load_cfs_rq', 'sched_load_se']:
             return ['path', 'rbl_load', 'cpu']
 
+        if event in ['sched_load_avg_task']:
+            return ['load_sum', 'period_contrib', 'util_sum']
+
         return []
 
     def _df_uniformized_signal(self, event):
         df = self._trace.df_events(event)
 
-        df = df.rename(self._columns_renaming(event))
+        df = df.rename(columns=self._columns_renaming(event))
 
         if event == 'sched_load_se':
             df = df[df.path == "(null)"]
@@ -70,15 +73,14 @@ class LoadTrackingAnalysis(AnalysisBase):
             df = df[df.path == "/"]
 
         to_drop = self._columns_to_drop(event)
-        if to_drop:
-            df = df.drop(to_drop, axis=1)
+        df = df[[col for col in df.columns if col not in to_drop]]
 
         return df
 
 
     def _df_either_event(self, events):
         for event in events:
-            if event not in self._trace.events:
+            if event not in self._trace.available_events:
                 continue
 
             return self._df_uniformized_signal(event)
