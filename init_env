@@ -36,7 +36,7 @@ if [[ -n $BASH_VERSION ]]; then
 
 	PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_RESET}\]"
 	# Make sure that bash picks up new location for all binaries
-	hash -r 
+	hash -r
 
 # Running under ZSH
 elif [[ -n $ZSH_VERSION ]]; then
