@@ -223,16 +223,9 @@ class LoadTrackingAnalysis(AnalysisBase):
         """
         fig, axis = self.setup_plot()
 
-        if isinstance(task, str):
-            pid_list = self._trace.get_task_by_name(task)
-            if len(pid_list) > 1:
-                self.get_logger().warning(
-                    "More than one PID found for task {}, using the first one".format(task))
-            pid = pid_list[0]
-        else:
-            pid = task
-
         df = self.df_tasks_signals()
+
+        pid = self._trace.get_task_pid(task)
         df = df[df.pid == pid]
 
         df[['util']].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
