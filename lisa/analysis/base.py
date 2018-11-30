@@ -34,6 +34,17 @@ COLOR_CYCLES = [
 
 plt.rcParams['axes.prop_cycle'] = cycler(color=COLOR_CYCLES)
 
+class MissingTraceEventError(RuntimeError):
+    """
+    :param missing_events: The missing trace events
+    :type missing_events: list(str)
+    """
+    def __init__(self, missing_events):
+        super().__init__(
+            "Trace is missing the following required events: {}".format(missing_events))
+
+        self.missing_events = missing_events
+
 def requires_events(events):
     """
     Decorator for methods that require some given trace events
@@ -180,13 +191,12 @@ class AnalysisBase(Loggable):
         """
         Check that certain trace events are available in the trace
 
-        :raises: RuntimeError if some events are not available
+        :raises: MissingTraceEventError if some events are not available
         """
         available_events = sorted(set(self._trace.available_events))
         missing_events = sorted(set(required_events).difference(available_events))
 
         if missing_events:
-            raise RuntimeError(
-                "Trace is missing the following required events: {}".format(missing_events))
+            raise MissingTraceEventError(missing_events)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
