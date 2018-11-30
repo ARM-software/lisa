@@ -15,18 +15,13 @@
 # limitations under the License.
 #
 
-import inspect
-import contextlib
-from collections import ChainMap
 from collections.abc import Mapping
-from numbers import Real
 
-from lisa.utils import HideExekallID, memoized, DeferredValue, IntRealDict, IntIntDict, StrIntListDict
+from lisa.utils import HideExekallID, memoized, DeferredValue, IntIntDict, IntListList, IntIntListDict, StrIntListDict
 from lisa.utils import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc
 from lisa.energy_model import EnergyModel
 from lisa.wlgen.rta import RTA
 
-from trappy.stats.Topology import Topology
 from devlib.target import KernelVersion
 from devlib.exception import TargetStableError
 
@@ -55,14 +50,14 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             KeyDesc('calib', 'RTapp calibration dictionary', [IntIntDict]),
         )),
         KeyDesc('nrg-model', 'Energy model object', [EnergyModel]),
-        KeyDesc('cpu-capacities', 'Dictionary of CPU ID to capacity value', [IntRealDict]),
+        KeyDesc('cpu-capacities', 'Dictionary of CPU ID to capacity value', [IntIntDict]),
         KeyDesc('kernel-version', '', [KernelVersion]),
         KeyDesc('abi', 'ABI, e.g. "arm64"', [str]),
         KeyDesc('os', 'OS being used, e.g. "linux"', [str]),
         KeyDesc('name', 'Free-form name of the board', [str]),
         KeyDesc('cpus-count', 'Compat key: number of CPUs', [int]),
-        KeyDesc('freq-domains', 'Frequency domains', [list]),
-        KeyDesc('freqs', 'Dictionnary of CPU to list of frequencies', [dict]),
+        KeyDesc('freq-domains', 'Frequency domains', [IntListList]),
+        KeyDesc('freqs', 'Dictionnary of CPU ID to list of frequencies', [IntIntListDict]),
     ))
     """Some keys have a reserved meaning with an associated type."""
 
