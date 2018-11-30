@@ -13,6 +13,12 @@ usage() {
     echo Usage: "$0" [--install-android-sdk]
 }
 
+latest_version() {
+	TOOL=${1}
+	$SCRIPT_DIR/tools/android-sdk-linux/tools/bin/sdkmanager --list  | \
+		awk "/ $TOOL/{VER=\$1}; END{print VER}"
+}
+
 install_sdk() {
     apt-get -y install openjdk-8-jre openjdk-8-jdk
     mkdir -p "$SCRIPT_DIR"/tools
@@ -20,10 +26,14 @@ install_sdk() {
 	ANDROID_SDK_URL="https://dl.google.com/android/android-sdk_r24.4.1-linux.tgz"
 	echo "Downloading Android SDK [$ANDROID_SDK_URL]..."
 	wget -qO- $ANDROID_SDK_URL | tar xz -C $SCRIPT_DIR/tools/
+	# Find last version of required SDK tools
+	VER_BUILD_TOOLS=$(latest_version " build-tools")
+	VER_PLATFORM_TOOLS=$(latest_version " platform-tools")
+	VER_TOOLS=$(latest_version " tools")
 	expect -c "
 	    set timeout -1;
 	    spawn $SCRIPT_DIR/tools/android-sdk-linux/tools/android \
-		    update sdk --no-ui -t tools,platform-tools
+		    update sdk --no-ui -t $VER_BUILD_TOOLS,$VER_PLATFORM_TOOLS,$VER_TOOLS
 	    expect {
 		\"Do you accept the license\" { exp_send \"y\r\" ; exp_continue }
 		eof
