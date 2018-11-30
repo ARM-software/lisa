@@ -154,34 +154,15 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
         :returns: :class:`pandas.DataFrame` with a column for each signal for
           the workload task
         """
-        # There are two different scheduler trace events that expose the load
-        # tracking signals. Neither of them is in mainline. Eventually they
-        # should be unified but for now we'll just check for both types of
-        # event.
-        # TODO: Add support for this parsing in Trappy and/or tasks_analysis
-        signal_fields = signals
-        if 'sched_load_avg_task' in trace.available_events:
-            event = 'sched_load_avg_task'
-        elif 'sched_load_se' in trace.available_events:
-            event = 'sched_load_se'
-            # sched_load_se uses 'util' and 'load' instead of 'util_avg' and
-            # 'load_avg'
-            signal_fields = [s.replace('_avg', '') for s in signals]
-        elif 'sched_pelt_se' in trace.available_events:
-            event = 'sched_pelt_se'
-        else:
-            raise ValueError('No sched_load_avg_task or sched_load_se or sched_pelt_se events. '
-                             'Does the kernel support them?')
-
-        df = trace.df_events(event)
-        df = df[df['comm'] == task_name][signal_fields]
+        df = trace.analysis.load_tracking.df_tasks_signals()
+        df = df[df['comm'] == task_name]
         window = self.get_task_window(trace, task_name, cpu)
         df = select_window(df, window)
 
         # Normalize the signal with the detected task execution start
         df.index -= window[0]
 
-        return df.rename(columns=dict(zip(signal_fields, signals)))
+        return df
 
     @staticmethod
     def is_almost_equal(target, value, allowed_delta_pct):
@@ -271,7 +252,7 @@ class InvarianceBase(LoadTrackingBase):
           expected values
         :type allowed_error_pct: float
         """
-        return self._test_signal('util_avg', allowed_error_pct)
+        return self._test_signal('util', allowed_error_pct)
 
 class CpuInvariance(InvarianceBase):
     """
@@ -396,7 +377,7 @@ class FreqInvarianceItem(InvarianceBase):
           expected values
         :type allowed_error_pct: float
         """
-        return self._test_signal('load_avg', allowed_error_pct)
+        return self._test_signal('load', allowed_error_pct)
 
 
 class FreqInvariance(TestBundle, LoadTrackingHelpers):
@@ -715,7 +696,7 @@ class PELTTask(LoadTrackingBase):
 
         :param allowed_error_pct: The allowed range difference
         """
-        return self._test_range('util_avg', allowed_error_pct)
+        return self._test_range('util', allowed_error_pct)
 
     def test_load_avg_range(self, allowed_error_pct=15) -> ResultBundle:
         """
@@ -723,7 +704,7 @@ class PELTTask(LoadTrackingBase):
 
         :param allowed_error_pct: The allowed range difference
         """
-        return self._test_range('load_avg', allowed_error_pct)
+        return self._test_range('load', allowed_error_pct)
 
     def test_util_avg_behaviour(self, error_margin_pct=5, allowed_error_pct=5)\
         -> ResultBundle:
@@ -736,7 +717,7 @@ class PELTTask(LoadTrackingBase):
         :param allowed_error_pct: How many PELT errors (determined by
           ``error_margin_pct```) are allowed
         """
-        return self._test_behaviour('util_avg', error_margin_pct, allowed_error_pct)
+        return self._test_behaviour('util', error_margin_pct, allowed_error_pct)
 
     def test_load_avg_behaviour(self, error_margin_pct=5, allowed_error_pct=5)\
         -> ResultBundle:
@@ -749,6 +730,4 @@ class PELTTask(LoadTrackingBase):
         :param allowed_error_pct: How many PELT errors (determined by
           ``error_margin_pct```) are allowed
         """
-        return self._test_behaviour('load_avg', error_margin_pct, allowed_error_pct)
-
-
+        return self._test_behaviour('load', error_margin_pct, allowed_error_pct)

@@ -24,6 +24,7 @@ from lisa.trace import Trace
 from lisa.wlgen.rta import Periodic
 from lisa.tests.kernel.test_bundle import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
 from lisa.env import TestEnv
+from lisa.analysis.tasks import TaskState
 
 class MisfitMigrationBase(RTATestBundle):
     """
@@ -202,14 +203,12 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         return profile
 
-    def _trim_lat_df(self, lat_df):
-        if lat_df.empty:
-            return lat_df
+    def _trim_state_df(self, state_df):
+        if state_df.empty:
+            return state_df
 
-        lat_df = Trace.squash_df(lat_df, self.start_time,
-                                 lat_df.index[-1] + lat_df.t_delta.values[-1], "t_delta")
-        # squash_df only updates t_delta, remove t_start to make sure it's not used
-        return lat_df.drop('t_start', 1)
+        return Trace.squash_df(state_df, self.start_time,
+                               state_df.index[-1] + state_df.delta.values[-1], "delta")
 
     def test_preempt_time(self, allowed_preempt_pct=1) -> ResultBundle:
         """
@@ -217,13 +216,13 @@ class StaggeredFinishes(MisfitMigrationBase):
         """
 
         sdf = self.trace.df_events('sched_switch')
-        latency_dfs = {
-            task : self.trace.analysis.latency.df_latency(task)
+        task_state_dfs = {
+            task : self.trace.analysis.tasks.df_task_states(task)
             for task in self.rtapp_profile.keys()
         }
 
         res = ResultBundle.from_bool(True)
-        for task, lat_df in latency_dfs.items():
+        for task, state_df in task_state_dfs.items():
             # The sched_switch dataframe where the misfit task
             # is replaced by another misfit task
             preempt_sdf = sdf[
@@ -231,15 +230,15 @@ class StaggeredFinishes(MisfitMigrationBase):
                 (sdf.next_comm.str.startswith(self.task_prefix))
             ]
 
-            lat_df = self._trim_lat_df(
-                lat_df[
-                    (lat_df.index.isin(preempt_sdf.index)) &
+            state_df = self._trim_state_df(
+                state_df[
+                    (state_df.index.isin(preempt_sdf.index)) &
                     # Ensure this is a preemption and not just the task ending
-                    (lat_df.curr_state == "S")
+                    (state_df.curr_state == TaskState.TASK_INTERRUPTIBLE.char)
                 ]
             )
 
-            preempt_time = lat_df.t_delta.sum()
+            preempt_time = state_df.delta.sum()
             preempt_pct = (preempt_time / self.duration) * 100
 
             res.add_metric("{} preemption".format(task), {
@@ -282,17 +281,17 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         return max_time, max_cpu
 
-    def _test_cpus_busy(self, latency_dfs, cpus, allowed_idle_time_s):
+    def _test_cpus_busy(self, task_state_dfs, cpus, allowed_idle_time_s):
         """
         Test that for every window in which the tasks are running, :attr:`cpus`
         are not idle for more than :attr:`allowed_idle_time_s`
         """
         res = ResultBundle.from_bool(True)
 
-        for task, lat_df in latency_dfs.items():
+        for task, state_df in task_state_dfs.items():
             # Have a look at every task activation
-            task_idle_times = [self._max_idle_time(index, index + row.t_delta, cpus)
-                               for index, row in lat_df.iterrows()]
+            task_idle_times = [self._max_idle_time(index, index + row.delta, cpus)
+                               for index, row in state_df.iterrows()]
 
             if not task_idle_times:
                 continue
@@ -322,22 +321,21 @@ class StaggeredFinishes(MisfitMigrationBase):
         first migration.
         """
 
-        latency_dfs = {}
+        task_state_dfs = {}
         for task in self.rtapp_profile.keys():
-            df = self.trace.analysis.latency.df_latency(task)
-            df = self._trim_lat_df(df[
-                # Task is active
-                df.curr_state == "A"
+            df = self.trace.analysis.tasks.df_task_states(task)
+            df = self._trim_state_df(df[
+                df.curr_state == TaskState.TASK_ACTIVE.char
             ])
 
             # The first time the task runs on a big
-            first_big = df[df["__cpu"].isin(self.dst_cpus)].index[0]
+            first_big = df[df.cpu.isin(self.dst_cpus)].index[0]
 
-            df = df[df["__cpu"].isin(self.src_cpus)]
+            df = df[df.cpu.isin(self.src_cpus)]
 
-            latency_dfs[task] = df[:first_big]
+            task_state_dfs[task] = df[:first_big]
 
-        return self._test_cpus_busy(latency_dfs, self.dst_cpus, allowed_delay_s)
+        return self._test_cpus_busy(task_state_dfs, self.dst_cpus, allowed_delay_s)
 
     def test_throughput(self, allowed_idle_time_s=0.001) -> ResultBundle:
         """
@@ -350,16 +348,16 @@ class StaggeredFinishes(MisfitMigrationBase):
           pass.
         :type allowed_idle_time_s: int
         """
-        latency_dfs = {}
+        task_state_dfs = {}
         for task in self.rtapp_profile.keys():
             # This test is all about throughput: check that every time a task
             # runs on a little it's because bigs are busy
-            df = self.trace.analysis.latency.df_latency(task)
-            latency_dfs[task] = self._trim_lat_df(df[
+            df = self.trace.analysis.tasks.df_task_states(task)
+            task_state_dfs[task] = self._trim_state_df(df[
                 # Task is active
-                (df.curr_state == "A") &
+                (df.curr_state == TaskState.TASK_ACTIVE.char) &
                 # Task needs to be upmigrated
-                (df["__cpu"].isin(self.src_cpus))
+                (df.cpu.isin(self.src_cpus))
             ])
 
-        return self._test_cpus_busy(latency_dfs, self.dst_cpus, allowed_idle_time_s)
+        return self._test_cpus_busy(task_state_dfs, self.dst_cpus, allowed_idle_time_s)
