@@ -16,12 +16,12 @@
 #
 
 from collections import namedtuple, OrderedDict
-from itertools import product, groupby
+from itertools import product
 import logging
 import operator
 import re
 
-from lisa.utils import Loggable, Serializable, memoized
+from lisa.utils import Loggable, Serializable, memoized, groupby
 
 import pandas as pd
 import numpy as np
@@ -437,7 +437,7 @@ class EnergyModel(Serializable, Loggable):
         List of lists of CPUs nodes who share the same active state values
         """
         def key(node):
-            return node.active_states
+            return sorted(node.active_states.items())
 
         return [
             list(group)

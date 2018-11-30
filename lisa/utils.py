@@ -33,6 +33,7 @@ import operator
 import numbers
 import difflib
 import threading
+import itertools
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -532,17 +533,17 @@ class KeyDesc(KeyDescBase):
     def validate_val(self, val):
         # Or if that key is supposed to hold a value
         classinfo = self.classinfo
-        key = self.name
+        key = self.qualname
         def get_excep(key, val, classinfo, cls, msg):
             classinfo = ' or '.join(self._get_cls_name(cls) for cls in classinfo)
             msg = ': ' + msg if msg else ''
-            return ValueError('Key "{key}" is an instance of {actual_cls}, but should be instance of {classinfo}{msg}. Help: {help}'.format(
-                        key=self.qualname,
+            return TypeError('Key "{key}" is an instance of {actual_cls}, but should be instance of {classinfo}{msg}. Help: {help}'.format(
+                        key=key,
                         actual_cls=self._get_cls_name(type(val)),
                         classinfo=classinfo,
                         msg=msg,
                         help=self.help,
-                    ))
+                    ), key)
 
         def checkinstance(key, val, classinfo):
             excep_list = []
@@ -558,7 +559,7 @@ class KeyDesc(KeyDescBase):
                 elif hasattr(cls, 'instancecheck'):
                     try:
                         cls.instancecheck(val)
-                    except ValueError as e:
+                    except TypeError as e:
                         excep_list.append(
                             get_excep(key, val, classinfo, cls, str(e))
                         )
@@ -628,11 +629,12 @@ class LevelKeyDesc(KeyDescBase, Mapping):
             else:
                 closest_match = ', maybe you meant "{}" ?'.format(closest_match)
 
-            raise ValueError('Key "{key}" is not allowed in {parent}{maybe}'.format(
+            parent = self.qualname
+            raise KeyError('Key "{key}" is not allowed in {parent}{maybe}'.format(
                 key=key,
-                parent=self.qualname,
+                parent=parent,
                 maybe=closest_match,
-            ))
+            ), parent, key)
 
     def validate_key(self, key, val):
         self[key].validate_val(val)
@@ -640,9 +642,10 @@ class LevelKeyDesc(KeyDescBase, Mapping):
     def validate_val(self, conf):
         """Validate a mapping to be used as a source"""
         if not isinstance(conf, Mapping):
-            raise ValueError('Configuration of {key} must be a Mapping'.format(
-                key=self.qualname,
-            ))
+            key = self.qualname
+            raise TypeError('Configuration of {key} must be a Mapping'.format(
+                key=key,
+            ), key)
         for key, val in conf.items():
             self.validate_key(key, val)
 
@@ -825,10 +828,11 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
     def force_src(self, key, src_prio):
         key_desc = self._structure[key]
         if isinstance(key_desc, LevelKeyDesc):
+            key = key_desc.qualname
             raise ValueError('Cannot force source of the sub-level "{key}" in {cls}'.format(
-                key=key_desc.qualname,
+                key=key,
                 cls=type(self).__qualname__
-            ))
+            ), key)
 
         # None means removing the src override for that key
         if src_prio is None:
@@ -883,9 +887,10 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         key_desc = self._structure[key]
 
         if isinstance(key_desc, LevelKeyDesc):
+            key = key_desc.qualname
             raise ValueError('Key "{key}" is a nested configuration level, it does not have a source on its own.'.format(
-                key=key_desc.qualname,
-            ))
+                key=key,
+            ), key)
 
         # Get the priority list from the prio override list, or just the
         # default prio list
@@ -893,9 +898,10 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         if src_prio:
             return src_prio[0]
         else:
+            key = key_desc.qualname
             raise KeyError('Could not find any source for key "{key}"'.format(
-                key=key_desc.qualname,
-            ))
+                key=key,
+            ), key)
 
     def _eval_deferred_val(self, src, key):
         key_desc = self._structure[key]
@@ -950,10 +956,11 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         try:
             val = self._key_map[key][src]
         except KeyError:
+            key = key_desc.qualname
             raise KeyError('Key "{key}" is not available from source "{src}"'.format(
-                key=key_desc.qualname,
+                key=key,
                 src=src,
-            ))
+            ), key)
 
         if eval_deferred:
             val = self._eval_deferred_val(src, key)
@@ -980,10 +987,11 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
     def get_src_map(self, key):
         key_desc = self._structure[key]
         if isinstance(key_desc, LevelKeyDesc):
+            key = key_desc.qualname
             raise ValueError('Key "{key}" is a nested configuration level in {cls}, it does not have a source on its own.'.format(
-                key=key_desc.qualname,
+                key=key,
                 cls=type(self).__qualname__,
-            ))
+            ), key)
 
         return OrderedDict(
             (src, self._eval_deferred_val(src, key))
@@ -1055,7 +1063,7 @@ class GenericContainerMetaBase(type):
     def __instancecheck__(cls, instance):
         try:
             cls.instancecheck(instance)
-        except ValueError:
+        except TypeError:
             return False
         else:
             return True
@@ -1068,23 +1076,23 @@ class GenericContainerBase:
 class GenericMappingMeta(GenericContainerMetaBase, type(Mapping)):
     def instancecheck(cls, instance):
         if not isinstance(instance, Mapping):
-            raise ValueError('not a Mapping')
+            raise TypeError('not a Mapping')
 
         k_type, v_type = cls._type
         for k, v in instance.items():
             if not isinstance(k, k_type):
-                raise ValueError('Key "{key}" of type {actual_cls} should be of type {k_type}'.format(
+                raise TypeError('Key "{key}" of type {actual_cls} should be of type {k_type}'.format(
                     key=k,
                     actual_cls=type(k).__qualname__,
                     k_type=k_type.__qualname__,
-                ))
+                ), k)
 
             if not isinstance(v, v_type):
-                raise ValueError('Value of {actual_cls} key "{key}" should be of type {v_type}'.format(
+                raise TypeError('Value of {actual_cls} key "{key}" should be of type {v_type}'.format(
                     key=k,
                     actual_cls=type(v).__qualname__,
                     v_type=v_type.__qualname__,
-                ))
+                ), k)
 
 class TypedDict(GenericContainerBase, dict, metaclass=GenericMappingMeta):
     pass
@@ -1092,17 +1100,17 @@ class TypedDict(GenericContainerBase, dict, metaclass=GenericMappingMeta):
 class GenericSequenceMeta(GenericContainerMetaBase, type(Sequence)):
     def instancecheck(cls, instance):
         if not isinstance(instance, Sequence):
-            raise ValueError('not a Sequence')
+            raise TypeError('not a Sequence')
 
         type_ = cls._type
         for i, x in enumerate(instance):
             if not isinstance(x, type_):
-                raise ValueError('Item #{i} "{val}" of type {actual_cls} should be of type {type_}'.format(
+                raise TypeError('Item #{i} "{val}" of type {actual_cls} should be of type {type_}'.format(
                     i=i,
                     val=x,
                     actual_cls=type(x).__qualname__,
                     type_=type_.__qualname__
-                ))
+                ), i)
 
 class TypedList(GenericContainerBase, list, metaclass=GenericSequenceMeta):
     pass
@@ -1188,5 +1196,11 @@ class ArtifactPath(str, Loggable, HideExekallID):
 
         # Swap-in the new root and return a new instance
         return type(self)(root, relative)
+
+def groupby(iterable, key=None):
+    # We need to sort before feeding to groupby, or it will fail to establish
+    # the groups as expected.
+    iterable = sorted(iterable, key=key)
+    return itertools.groupby(iterable, key=key)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

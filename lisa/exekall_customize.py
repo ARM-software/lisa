@@ -29,7 +29,7 @@ import traceback
 
 from lisa.env import TestEnv, TargetConf
 from lisa.platforms.platinfo import PlatformInfo
-from lisa.utils import HideExekallID, Loggable, ArtifactPath
+from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, MultiSrcConf, groupby, Serializable
 from lisa.tests.kernel.test_bundle import TestBundle, Result, ResultBundle, CannotCreateError
 from lisa.tests.kernel.scheduler.load_tracking import FreqInvarianceItem
 
@@ -75,19 +75,47 @@ class LISAAdaptor(AdaptorBase):
     def get_prebuilt_list(self):
         non_reusable_type_set = self.get_non_reusable_type_set()
         op_list = []
-        if self.args.target_conf:
+
+        # Try to build as many configurations instances from all the files we
+        # are given
+        conf_cls_set = set(get_subclasses(MultiSrcConf))
+        conf_list = []
+        for conf_path in self.args.conf:
+            for conf_cls in conf_cls_set:
+                try:
+                    conf = conf_cls.from_yaml_map(conf_path)
+                except KeyError:
+                    continue
+                else:
+                    conf_list.append((conf, conf_path))
+
+        def keyfunc(conf_and_path):
+            cls = type(conf_and_path[0])
+            # We use the ID since classes are not comparable
+            return id(cls), cls
+
+        # Then aggregate all the conf from each type, so they just act as
+        # alternative sources.
+        for (_, conf_cls), conf_and_path_seq in groupby(conf_list, key=keyfunc):
+            conf_and_path_list = list(conf_and_path_seq)
+            # Since we use reversed order, we get the source override from the
+            # last one.
+            conf_and_path_list.reverse()
+
+            conf = conf_and_path_list[0][0]
+            for conf_src, conf_path in conf_and_path_list[1:]:
+                conf.add_src(conf_path, conf_src, fallback=True)
+
             op_list.append(
-                PrebuiltOperator(TargetConf, [
-                    TargetConf.from_yaml_map(self.args.target_conf)
-                ],
+                PrebuiltOperator(conf_cls, [conf],
                 non_reusable_type_set=non_reusable_type_set
             ))
 
-        if self.args.platform_info:
+        # Inject serialized objects as root operators
+        for path in self.args.inject:
+            obj = Serializable.from_path(path)
             op_list.append(
-                PrebuiltOperator(PlatformInfo, [
-                    PlatformInfo.from_yaml_map(self.args.platform_info)
-                ],
+                PrebuiltOperator(type(obj), [obj],
                 non_reusable_type_set=non_reusable_type_set
             ))
 
@@ -104,11 +132,13 @@ class LISAAdaptor(AdaptorBase):
 
     @staticmethod
     def register_cli_param(parser):
-        parser.add_argument('--target-conf',
-            help="Target config file")
+        parser.add_argument('--conf', action='append',
+            default=[],
+            help="Configuration file")
 
-        parser.add_argument('--platform-info',
-            help="Platform info file")
+        parser.add_argument('--inject', action='append',
+            default=[],
+            help="Serialized object to inject when building expressions")
 
     @staticmethod
     def get_default_type_goal_pattern_set():
@@ -140,7 +170,7 @@ class LISAAdaptor(AdaptorBase):
     def finalize_expr(self, expr):
         testcase_artifact_dir = expr.data['testcase_artifact_dir']
         artifact_dir = expr.data['artifact_dir']
-        for expr_val in expr.get_all_values():
+        for expr_val in expr.get_all_vals():
             self._finalize_expr_val(expr_val, artifact_dir, testcase_artifact_dir)
 
     def _finalize_expr_val(self, expr_val, artifact_dir, testcase_artifact_dir):
@@ -177,29 +207,25 @@ class LISAAdaptor(AdaptorBase):
 
                 symlink.symlink_to(target, target_is_directory=True)
 
-        for param, param_expr_val in expr_val.param_value_map.items():
+        for param, param_expr_val in expr_val.param_expr_val_map.items():
             self._finalize_expr_val(param_expr_val, artifact_dir, testcase_artifact_dir)
 
     @classmethod
-    def get_tag_list(cls, value):
-        tags = []
+    def get_tags(cls, value):
+        tags = {}
         if isinstance(value, TestEnv):
-            board_name = value.target_conf.get('name')
-            if board_name:
-                tags.append(board_name)
+            tags['board'] = value.target_conf.get('name')
         elif isinstance(value, PlatformInfo):
-            name = value.get('name')
-            if name:
-                tags.append(name)
+            tags['board'] = value.get('name')
         elif isinstance(value, TestBundle):
-            name = value.plat_info.get('name')
-            if name:
-                tags.append(name)
+            tags['board'] = value.plat_info.get('name')
             if isinstance(value, FreqInvarianceItem):
-                tag_str = 'cpu{cpu}@{freq}' if value.cpu is not None else '{}'
-                tags.append(tag_str.format(cpu=value.cpu, freq=value.freq))
+                if value.cpu is not None:
+                    tags['cpu'] = '{}@{}'.format(value.cpu, value.freq)
         else:
-            tags = super().get_tag_list(value)
+            tags = super().get_tags(value)
+
+        tags = {k: v for k, v in tags.items() if v is not None}
 
         return tags
 
@@ -226,7 +252,7 @@ class LISAAdaptor(AdaptorBase):
             return expr.op.mod_name
 
         # One testsuite per module where a root operator is defined
-        for mod_name, group in itertools.groupby(testcase_list, key=key):
+        for mod_name, group in groupby(testcase_list, key=key):
             testcase_list = list(group)
             et_testsuite = ET.SubElement(et_testsuites, 'testsuite', attrib=dict(
                 name = mod_name
@@ -240,6 +266,17 @@ class LISAAdaptor(AdaptorBase):
                 # assume that they testcase will have unique names using tags
                 expr_val_list = result_map[testcase]
                 for expr_val in expr_val_list:
+
+                    # Get the set of UUIDs of all TestBundle instances that were
+                    # involved in the testcase.
+                    def bundle_predicate(expr_val, param):
+                        return issubclass(expr_val.expr.op.value_type, TestBundle)
+                    bundle_uuid_set = {
+                        expr_val.value_uuid
+                        for expr_val in expr_val.get_parent_expr_vals(bundle_predicate)
+                    }
+                    bundle_uuid_set.discard(None)
+
                     et_testcase = ET.SubElement(et_testsuite, 'testcase', dict(
                         name = expr_val.get_id(
                             full_qual=False,
@@ -249,11 +286,12 @@ class LISAAdaptor(AdaptorBase):
                         ),
                         # This may help locating the artifacts, even though it
                         # will only be valid on the machine it was produced on
-                        artifact_path = str(artifact_path)
+                        artifact_path=str(artifact_path),
+                        bundle_uuids=','.join(sorted(bundle_uuid_set)),
                     ))
                     testsuite_counters['tests'] += 1
 
-                    for failed_expr_val in expr_val.get_failed_values():
+                    for failed_expr_val in expr_val.get_failed_expr_vals():
                         excep = failed_expr_val.excep
                         # When one critical object cannot be created, we assume
                         # the test was skipped.

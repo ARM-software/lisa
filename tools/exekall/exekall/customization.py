@@ -33,11 +33,11 @@ class AdaptorBase:
         return set()
 
     @staticmethod
-    def get_tag_list(value):
+    def get_tags(value):
         if isinstance(value, numbers.Number):
-            tags = [str(value)]
+            tags = {'': value}
         else:
-            tags = []
+            tags = {}
         return tags
 
     load_db = None
@@ -81,7 +81,7 @@ class AdaptorBase:
     def result_str(self, result):
         val = result.value
         if val is NoValue or val is None:
-            failed_parents = result.get_failed_values()
+            failed_parents = result.get_failed_expr_vals()
             for failed_parent in failed_parents:
                 excep = failed_parent.excep
                 return 'EXCEPTION ({type}): {msg}'.format(
@@ -101,7 +101,7 @@ class AdaptorBase:
                 hidden_callable_set=hidden_callable_set,
                 full_qual=False,
                 qual=False,
-                ) + ':'
+            )
             for expr, result_list in result_map.items()
             for result in result_list
         }

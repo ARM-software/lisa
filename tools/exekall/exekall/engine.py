@@ -34,7 +34,7 @@ import exekall._utils as utils
 def take_first(iterable):
     for i in iterable:
         return i
-    return engine.NoValue
+    return NoValue
 
 class NoOperatorError(Exception):
     pass
@@ -164,7 +164,7 @@ class ObjectStore:
 
     def _do_serial_val_dfs(cls, serial_val, callback):
         callback(serial_val)
-        for serial_val in serial_val.param_value_map.values():
+        for serial_val in serial_val.param_expr_val_map.values():
             cls._do_serial_val_dfs(serial_val, callback)
 
     def get_all(self):
@@ -358,14 +358,13 @@ class Expression:
         self.discard_result()
 
     def validate_expr(self, op_map):
-        return True
-        expr_map, valid = self._dfs_visit()
+        type_map, valid = self._get_type_map()
         if not valid:
             return False
 
         # Check that the Expression does not involve 2 classes that are compatible
         cls_bags = [set(cls_list) for cls_list in op_map.values()]
-        cls_used = set(expr_map.keys())
+        cls_used = set(type_map.keys())
         for cls1, cls2 in itertools.product(cls_used, repeat=2):
             for cls_bag in cls_bags:
                 if cls1 in cls_bag and cls2 in cls_bag:
@@ -373,21 +372,21 @@ class Expression:
 
         return True
 
-    def _dfs_visit(self):
-        expr_map = dict()
-        return (expr_map, expr._dfs_visit(expr_map))
+    def _get_type_map(self):
+        type_map = dict()
+        return (type_map, self._populate_type_map(type_map))
 
-    def _do_dfs_visit(self, expr_map):
+    def _populate_type_map(self, type_map):
         value_type = self.op.value_type
         # If there was already an Expression producing that type, the Expression
         # is not valid
-        found_callable = expr_map.get(value_type)
+        found_callable = type_map.get(value_type)
         if found_callable is not None and found_callable is not self.op.callable_:
             return False
-        expr_map[value_type] = self.op.callable_
+        type_map[value_type] = self.op.callable_
 
         for param_expr in self.param_map.values():
-            if not param_expr._do_dfs_visit(expr_map):
+            if not param_expr._populate_type_map(type_map):
                 return False
         return True
 
@@ -401,27 +400,27 @@ class Expression:
             if bool(param_expr.op.reusable) == reusable
         )
 
-    def get_all_values(self):
+    def get_all_vals(self):
         for result in self.result_list:
             yield from result.value_list
 
     def find_result_list(self, param_expr_val_map):
-        def value_map(expr_value_map):
+        def value_map(expr_val_map):
             return OrderedDict(
                 # Extract the actual value from ExprValue
                 (param, expr_val.value)
-                for param, expr_val in expr_value_map.items()
+                for param, expr_val in expr_val_map.items()
             )
-        param_value_map = value_map(param_expr_val_map)
+        param_expr_val_map = value_map(param_expr_val_map)
 
         # Find the results that are matching the param_expr_val_map
         return [
             result
             for result in self.result_list
-            # Check if param_expr_val_map is a subset of the param_value_map
+            # Check if param_expr_val_map is a subset of the param_expr_val_map
             # of the ExprValue. That allows checking for reusable parameters
             # only.
-            if param_value_map.items() <= value_map(result.param_expr_val_map).items()
+            if param_expr_val_map.items() <= value_map(result.param_expr_val_map).items()
         ]
 
     def discard_result(self):
@@ -456,11 +455,11 @@ class Expression:
             )
         return out
 
-    def get_failed_values(self):
-        for expr_val in self.get_all_values():
-            yield from expr_val.get_failed_values()
+    def get_failed_expr_vals(self):
+        for expr_val in self.get_all_vals():
+            yield from expr_val.get_failed_expr_vals()
 
-    def get_id(self, *args, marked_value_set=None, mark_excep=False, hidden_callable_set=None, **kwargs):
+    def get_id(self, *args, marked_expr_val_set=None, mark_excep=False, hidden_callable_set=None, **kwargs):
         if hidden_callable_set is None:
             hidden_callable_set = set()
 
@@ -471,18 +470,18 @@ class Expression:
         # Mark all the values that failed to be computed because of an
         # exception
         if mark_excep:
-            marked_value_set = set(self.get_failed_values())
+            marked_expr_val_set = set(self.get_failed_expr_vals())
 
         for id_, marker in self._get_id(
-                marked_value_set=marked_value_set, hidden_callable_set=hidden_callable_set,
+                marked_expr_val_set=marked_expr_val_set, hidden_callable_set=hidden_callable_set,
                 *args, **kwargs
             ):
-            if marked_value_set:
+            if marked_expr_val_set:
                 yield '\n'.join((id_, marker))
             else:
                 yield id_
 
-    def _get_id(self, with_tags=True, full_qual=True, qual=True, expr_val=None, marked_value_set=None, hidden_callable_set=None):
+    def _get_id(self, with_tags=True, full_qual=True, qual=True, expr_val=None, marked_expr_val_set=None, hidden_callable_set=None):
         # When asked about NoValue, it means the caller did not have any value
         # computed for that parameter, but still wants an ID. Obviously, it
         # cannot have any tag since there is no ExprValue available to begin
@@ -493,7 +492,7 @@ class Expression:
         # No specific value was asked for, so we will cover the IDs of all
         # values
         if expr_val is None or expr_val is NoValue:
-            def grouped_value_list():
+            def grouped_expr_val_list():
                 # Make sure we yield at least once even if no computed value
                 # is available, so _get_id() is called at least once
                 if (not self.result_list) or (not with_tags):
@@ -505,27 +504,27 @@ class Expression:
         # If we were asked about the ID of a specific value, make sure we
         # don't explore other paths that lead to different values
         else:
-            def grouped_value_list():
+            def grouped_expr_val_list():
                 # Only yield the ExprValue we are interested in
-                yield (expr_val.param_value_map, [expr_val])
+                yield (expr_val.param_expr_val_map, [expr_val])
 
-        for param_value_map, value_list in grouped_value_list():
+        for param_expr_val_map, value_list in grouped_expr_val_list():
             yield from self._get_id_internal(
-                param_value_map=param_value_map,
+                param_expr_val_map=param_expr_val_map,
                 value_list=value_list,
                 with_tags=with_tags,
-                marked_value_set=marked_value_set,
+                marked_expr_val_set=marked_expr_val_set,
                 hidden_callable_set=hidden_callable_set,
                 full_qual=full_qual,
                 qual=qual
             )
 
-    def _get_id_internal(self, param_value_map, value_list, with_tags, marked_value_set, hidden_callable_set, full_qual, qual):
+    def _get_id_internal(self, param_expr_val_map, value_list, with_tags, marked_expr_val_set, hidden_callable_set, full_qual, qual):
         separator = ':'
         marker_char = '^'
 
-        if marked_value_set is None:
-            marked_value_set = set()
+        if marked_expr_val_set is None:
+            marked_expr_val_set = set()
 
         # We only get the ID's of the parameter ExprValue that lead to the
         # ExprValue we are interested in
@@ -536,15 +535,15 @@ class Expression:
                 qual = qual,
                 # Pass a NoValue when there is no value available, since
                 # None means all possible IDs (we just want one here).
-                expr_val = param_value_map.get(param, NoValue),
-                marked_value_set = marked_value_set,
+                expr_val = param_expr_val_map.get(param, NoValue),
+                marked_expr_val_set = marked_expr_val_set,
                 hidden_callable_set = hidden_callable_set,
             )))
             for param, param_expr in self.param_map.items()
             if (
                 param_expr.op.callable_ not in hidden_callable_set
                 # If the value is marked, the ID will not be hidden
-                or param_value_map.get(param) in marked_value_set
+                or param_expr_val_map.get(param) in marked_expr_val_set
             )
         )
 
@@ -552,8 +551,7 @@ class Expression:
             if value_list:
                 for expr_val in value_list:
                     if with_tags:
-                        tag = expr_val.format_tag_list()
-                        tag = '[{}]'.format(tag) if tag else ''
+                        tag = expr_val.format_tags()
                     else:
                         tag = ''
                     yield (expr_val, tag)
@@ -563,7 +561,7 @@ class Expression:
                 yield None, ''
 
         def get_marker_char(expr_val):
-            return marker_char if expr_val in marked_value_set else ' '
+            return marker_char if expr_val in marked_expr_val_set else ' '
 
         # No parameter to worry about
         if not param_id_map:
@@ -632,7 +630,7 @@ class Expression:
                 yield (id_, marker_str)
 
     @classmethod
-    def get_all_serializable_values(cls, expr_seq, *args, **kwargs):
+    def get_all_serializable_vals(cls, expr_seq, *args, **kwargs):
         serialized_map = dict()
         result_list = list()
         for expr in expr_seq:
@@ -652,7 +650,7 @@ class Expression:
         assert expr_list
 
         if obj_store is None:
-            serial_list = Expression.get_all_serializable_values(expr_list)
+            serial_list = Expression.get_all_serializable_vals(expr_list)
             obj_store = ObjectStore(serial_list)
 
         db_var_name = obj_store.db_var_name
@@ -680,7 +678,7 @@ class Expression:
             )
             idt = IndentationManager(' '*4)
 
-            expr_val_set = set(expr.get_all_values())
+            expr_val_set = set(expr.get_all_vals())
             result_name, snippet = expr._get_script(
                 reusable_outvar_map = reusable_outvar_map,
                 prefix = prefix + str(i),
@@ -835,7 +833,7 @@ class Expression:
             out = list()
             for param, expr_val in param_expr_val_map.items():
                 try:
-                    value = format_expr_value(expr_val)
+                    value = format_expr_val(expr_val)
                 # Cannot be serialized, so we skip it
                 except utils.NotSerializableError:
                     continue
@@ -845,7 +843,7 @@ class Expression:
             return '\n' + ',\n'.join(out)
 
 
-        def format_expr_value(expr_val, com=lambda x: ' # ' + x):
+        def format_expr_val(expr_val, com=lambda x: ' # ' + x):
             excep = expr_val.excep
             value = expr_val.value
 
@@ -883,7 +881,7 @@ class Expression:
                 assert expr_val_list[1:] == expr_val_list[:-1]
 
                 expr_data = take_first(expr_val_set)
-                return (format_expr_value(expr_data, lambda x:''), '')
+                return (format_expr_val(expr_data, lambda x:''), '')
             # Prior to execution, we don't have an ExprValue yet
             else:
                 is_user_defined = True
@@ -929,7 +927,7 @@ class Expression:
                 # When there is no value for that parameter, that means it
                 # could not be computed and therefore we skip that result
                 with contextlib.suppress(KeyError):
-                    param_expr_val = expr_val.param_value_map[param]
+                    param_expr_val = expr_val.param_expr_val_map[param]
                     param_expr_val_set.add(param_expr_val)
 
             # Do a deep first search traversal of the expression.
@@ -1055,7 +1053,7 @@ class Expression:
             try:
                 if is_genfunc:
                     serialized_list = '\n' + idt.style + ('\n' + idt.style).join(
-                        format_expr_value(expr_val, lambda x: ', # ' + x)
+                        format_expr_val(expr_val, lambda x: ', # ' + x)
                         for expr_val in value_list
                     ) + '\n'
                     serialized_instance = 'for {outname} in ({values}):'.format(
@@ -1066,7 +1064,7 @@ class Expression:
                 elif value_list:
                     serialized_instance = '{outname} = {value}'.format(
                         outname = outname,
-                        value = format_expr_value(value_list[0])
+                        value = format_expr_val(value_list[0])
                     )
             # The values cannot be serialized so we hide them
             except utils.NotSerializableError:
@@ -1186,7 +1184,7 @@ class Expression:
 
         # Consume all the reusable parameters, since they are generators
         for param_expr_val_map in consume_gen_map(
-                reusable_param_exec_map, product=ExprValue.expr_value_product
+                reusable_param_exec_map, product=ExprValue.expr_val_product
             ):
             # If some parameters could not be computed, we will not get all
             # values
@@ -1206,7 +1204,7 @@ class Expression:
                     # that was computed with a given param_expr_val_map
                     assert len(result_list) == 1
                     expr_val_seq = result_list[0]
-                    yield from expr_val_seq.iter_expr_value()
+                    yield from expr_val_seq.iter_expr_val()
                     continue
 
             # Only compute the non-reusable parameters if all the reusable one
@@ -1250,7 +1248,7 @@ class Expression:
 
             # If no value has been found, compute it and save the results in
             # a list.
-            param_value_map = OrderedDict(
+            param_val_map = OrderedDict(
                 # Extract the actual computed values wrapped in ExprValue
                 (param, param_expr_val.value)
                 for param, param_expr_val in param_expr_val_map.items()
@@ -1271,7 +1269,7 @@ class Expression:
 
             # Otherwise, we just call the operators with its parameters
             else:
-                iterated = self.op.generator_wrapper(**param_value_map)
+                iterated = self.op.generator_wrapper(**param_val_map)
 
             iterator = iter(iterated)
             expr_val_seq = ExprValueSeq(
@@ -1279,7 +1277,7 @@ class Expression:
                 post_compute_cb
             )
             self.result_list.append(expr_val_seq)
-            yield from expr_val_seq.iter_expr_value()
+            yield from expr_val_seq.iter_expr_val()
 
 def infinite_iter(generator, value_list, from_gen):
     """Exhaust the `generator` when `from_gen=True`, yield from `value_list`
@@ -1314,13 +1312,13 @@ class AnnotationError(Exception):
     pass
 
 class Operator:
-    def __init__(self, callable_, non_reusable_type_set=None, tag_list_getter=None):
+    def __init__(self, callable_, non_reusable_type_set=None, tags_getter=None):
         if non_reusable_type_set is None:
             non_reusable_type_set = set()
 
-        if not tag_list_getter:
-            tag_list_getter = lambda v: []
-        self.tag_list_getter = tag_list_getter
+        if not tags_getter:
+            tags_getter = lambda v: []
+        self.tags_getter = tags_getter
 
         assert callable(callable_)
         self.callable_ = callable_
@@ -1367,7 +1365,7 @@ class Operator:
     def __repr__(self):
         return '<Operator of ' + str(self.callable_) + '>'
 
-    def force_param(self, param_callable_map, tag_list_getter=None):
+    def force_param(self, param_callable_map, tags_getter=None):
         def define_type(param_type):
             class ForcedType(param_type):
                 pass
@@ -1390,7 +1388,7 @@ class Operator:
             self.annotations[param] = ForcedType
             prebuilt_op_set.add(
                 PrebuiltOperator(ForcedType, value_list,
-                    tag_list_getter=tag_list_getter
+                    tags_getter=tags_getter
             ))
 
             # Make sure the parameter is not optional anymore
@@ -1683,7 +1681,7 @@ class ExprValueSeq:
         )
         return new
 
-    def iter_expr_value(self):
+    def iter_expr_val(self):
         callback = self.post_compute_cb
         if not callback:
             callback = lambda x, reused: None
@@ -1756,13 +1754,13 @@ class SerializableExprValue:
             if type_ is not object
         ]
 
-        self.param_value_map = OrderedDict()
-        for param, param_expr_val in expr_val.param_value_map.items():
+        self.param_expr_val_map = OrderedDict()
+        for param, param_expr_val in expr_val.param_expr_val_map.items():
             param_serialzable = param_expr_val._get_serializable(
                 serialized_map,
                 hidden_callable_set=hidden_callable_set
             )
-            self.param_value_map[param] = param_serialzable
+            self.param_expr_val_map[param] = param_serialzable
 
     def get_id(self, full_qual=True, qual=True, with_tags=True):
         args = (full_qual, qual, with_tags)
@@ -1773,13 +1771,13 @@ class SerializableExprValue:
         if predicate(self):
             parent_set.add(self)
 
-        for parent in self.param_value_map.values():
+        for parent in self.param_expr_val_map.values():
             parent.get_parent_set(predicate, _parent_set=parent_set)
 
         return parent_set
 
 class ExprValue:
-    def __init__(self, expr, param_value_map,
+    def __init__(self, expr, param_expr_val_map,
             value=NoValue, value_uuid=None,
             excep=NoValue, excep_uuid=None,
     ):
@@ -1788,12 +1786,15 @@ class ExprValue:
         self.excep = excep
         self.excep_uuid = excep_uuid
         self.expr = expr
-        self.param_value_map = param_value_map
+        self.param_expr_val_map = param_expr_val_map
 
-    def format_tag_list(self):
-        tag_list = self.expr.op.tag_list_getter(self.value)
-        if tag_list:
-            return '+'.join(str(v) for v in tag_list)
+    def format_tags(self):
+        tag_map = self.expr.op.tags_getter(self.value)
+        if tag_map:
+            return ''.join(
+                '[{}={}]'.format(k, v) if k else '[{}]'.format(val)
+                for k, v in sorted(tag_map.items())
+            )
         else:
             return ''
 
@@ -1808,27 +1809,16 @@ class ExprValue:
             serialized_map[self] = serializable
             return serializable
 
-    def _dfs_visit(self):
-        expr_map = dict()
-        self._do_dfs_visit(expr_map)
-        return expr_map
-
-    def _do_dfs_visit(self, expr_map):
-        expr_map[self.expr] = self
-
-        for param_expr_val in self.param_value_map.values():
-            param_expr_val._do_dfs_visit(expr_map)
-
     @classmethod
-    def validate_expr_value_list(cls, expr_value_list):
-        if not expr_value_list:
+    def validate_expr_val_list(cls, expr_val_list):
+        if not expr_val_list:
             return True
 
-        expr_value_ref = expr_value_list[0]
-        expr_map_ref = expr_value_ref._dfs_visit()
+        expr_val_ref = expr_val_list[0]
+        expr_map_ref = expr_val_ref._get_expr_map()
 
-        for expr_val in expr_value_list[1:]:
-            expr_map = expr_val._dfs_visit()
+        for expr_val in expr_val_list[1:]:
+            expr_map = expr_val._get_expr_map()
             # For all Expression's that directly or indirectly lead to both the
             # reference ExprValue and the ExprValue, check that it had the same
             # value. That ensures that we are not making incompatible combinations.
@@ -1843,23 +1833,23 @@ class ExprValue:
             ):
                 return False
 
-            if not cls.validate_expr_value_list(expr_value_list[2:]):
+            if not cls.validate_expr_val_list(expr_val_list[2:]):
                 return False
 
         return True
 
     @classmethod
-    def expr_value_product(cls, *gen_list):
+    def expr_val_product(cls, *gen_list):
         """Similar to the cartesian product provided by itertools.product, with
         special handling of NoValue and some checks on the yielded sequences.
 
         It will only yield the combinations of values that are validated by
-        :meth:`validate_expr_value_list`.
+        :meth:`validate_expr_val_list`.
         """
 
         generator = gen_list[0]
         sub_generator_list = gen_list[1:]
-        sub_generator_list_iterator = cls.expr_value_product(*sub_generator_list)
+        sub_generator_list_iterator = cls.expr_val_product(*sub_generator_list)
         if sub_generator_list:
             from_gen = True
             value_list = list()
@@ -1873,21 +1863,21 @@ class ExprValue:
                     yield [expr_val]
                     continue
 
-                for sub_value_list in infinite_iter(
+                for sub_expr_val_list in infinite_iter(
                         sub_generator_list_iterator, value_list, from_gen
                     ):
-                    expr_value_list = [expr_val] + sub_value_list
-                    if cls.validate_expr_value_list(expr_value_list):
-                        yield expr_value_list
+                    expr_val_list = [expr_val] + sub_expr_val_list
+                    if cls.validate_expr_val_list(expr_val_list):
+                        yield expr_val_list
 
                 # After the first traversal of sub_generator_list_iterator, we
                 # want to yield from the saved value_list
                 from_gen = False
         else:
             for expr_val in generator:
-                expr_value_list = [expr_val]
-                if cls.validate_expr_value_list(expr_value_list):
-                    yield expr_value_list
+                expr_val_list = [expr_val]
+                if cls.validate_expr_val_list(expr_val_list):
+                    yield expr_val_list
 
 
     def get_id(self, *args, with_tags=True, **kwargs):
@@ -1896,12 +1886,32 @@ class ExprValue:
         return take_first(self.expr.get_id(with_tags=with_tags,
             expr_val=self, *args, **kwargs))
 
-    def get_failed_values(self):
-        if self.excep is not NoValue:
+    def get_parent_expr_vals(self, predicate):
+        yield from self._get_parent_expr_vals(predicate)
+
+    def _get_parent_expr_vals(self, predicate, param=None):
+        if predicate(self, param):
             yield self
 
-        for param, expr_val in self.param_value_map.items():
-            yield from expr_val.get_failed_values()
+        for param, expr_val in self.param_expr_val_map.items():
+            yield from expr_val._get_parent_expr_vals(predicate, param)
+
+    def get_failed_expr_vals(self):
+        def predicate(expr_val, param):
+            return expr_val.excep is not NoValue
+
+        yield from self.get_parent_expr_vals(predicate)
+
+    def _get_expr_map(self):
+        expr_map = {}
+        def callback(expr_val, param):
+            expr_map[expr_val.expr] = expr_val
+
+        # Consume the generator
+        for _ in self.get_parent_expr_vals(callback):
+            pass
+
+        return expr_map
 
 class Consumer:
     def __init__(self):
