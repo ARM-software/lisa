@@ -1,27 +1,355 @@
 platform-info:
     conf:
-        os: linux
         abi: arm64
-        clusters:
-            big: [1, 2]
-            little: [0, 3, 4, 5]
+        cpu-capacities:
+            0: 446
+            1: 1024
+            2: 1024
+            3: 446
+            4: 446
+            5: 446
         cpus-count: 6
-        topology: !call:trappy.stats.Topology.Topology
-            clusters: [[0, 3, 4, 5], [1, 2]]
+        freq-domains:
+        -   - 0
+            - 3
+            - 4
+            - 5
+        -   - 1
+            - 2
         freqs:
-            big: [
-                450000,
-                625000,
-                800000,
-                950000,
-                1100000
-            ]
-            little: [
-                450000,
-                575000,
-                700000,
-                775000,
-                850000
-            ]
-        kernel-version: !call:devlib.target.KernelVersion
-            version_string: "4.11.0-rc6-00091-g48e946ac4235-dirty #67 SMP PREEMPT Mon Jul 3 16:23:08 BST 2017"
+            0:
+            - 450000
+            - 575000
+            - 700000
+            - 775000
+            - 850000
+            1:
+            - 450000
+            - 625000
+            - 800000
+            - 950000
+            - 1100000
+            2:
+            - 450000
+            - 625000
+            - 800000
+            - 950000
+            - 1100000
+            3:
+            - 450000
+            - 575000
+            - 700000
+            - 775000
+            - 850000
+            4:
+            - 450000
+            - 575000
+            - 700000
+            - 775000
+            - 850000
+            5:
+            - 450000
+            - 575000
+            - 700000
+            - 775000
+            - 850000
+        kernel-version: !!python/object:devlib.target.KernelVersion
+            major: 19
+            minor: 0
+            parts: !!python/tuple
+            - 4
+            - 19
+            - 0
+            rc: null
+            release: 4.19.0-07801-gf317706
+            sha1: f317706
+            version: 38 SMP PREEMPT Fri Nov 30 13:55:54 GMT 2018
+            version_number: 4
+        name: juno
+        nrg-model: !!python/object:lisa.energy_model.EnergyModel
+            cpu_nodes:
+            - &id001 !!python/object:lisa.energy_model.EnergyModelNode
+                active_states: !!omap
+                -   450000: !!python/object/new:lisa.energy_model.ActiveState
+                    - 236.11764705882354
+                    - 42
+                -   575000: !!python/object/new:lisa.energy_model.ActiveState
+                    - 301.70588235294116
+                    - 58
+                -   700000: !!python/object/new:lisa.energy_model.ActiveState
+                    - 367.29411764705884
+                    - 79
+                -   775000: !!python/object/new:lisa.energy_model.ActiveState
+                    - 406.6470588235294
+                    - 97
+                -   850000: !!python/object/new:lisa.energy_model.ActiveState
+                    - 446.0
+                    - 119
+                children: []
+                cpu: 0
+                cpus: !!python/tuple
+                - 0
+                idle_states: !!omap
+                -   WFI: 0
+                -   cpu-sleep-0: 0
+                -   cluster-sleep-0: 0
+                name: cpu0
+                parent: &id002 !!python/object:lisa.energy_model.EnergyModelRoot
+                    active_states: null
+                    children:
+                    - *id001
+                    - &id003 !!python/object:lisa.energy_model.EnergyModelNode
+                        active_states: !!omap
+                        -   450000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 418.90909090909093
+                            - 160
+                        -   625000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 581.8181818181819
+                            - 239
+                        -   800000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 744.7272727272727
+                            - 343
+                        -   950000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 884.3636363636364
+                            - 454
+                        -   1100000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 1024.0
+                            - 583
+                        children: []
+                        cpu: 1
+                        cpus: !!python/tuple
+                        - 1
+                        idle_states: !!omap
+                        -   WFI: 0
+                        -   cpu-sleep-0: 0
+                        -   cluster-sleep-0: 0
+                        name: cpu1
+                        parent: *id002
+                    - &id004 !!python/object:lisa.energy_model.EnergyModelNode
+                        active_states: !!omap
+                        -   450000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 418.90909090909093
+                            - 160
+                        -   625000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 581.8181818181819
+                            - 239
+                        -   800000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 744.7272727272727
+                            - 343
+                        -   950000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 884.3636363636364
+                            - 454
+                        -   1100000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 1024.0
+                            - 583
+                        children: []
+                        cpu: 2
+                        cpus: !!python/tuple
+                        - 2
+                        idle_states: !!omap
+                        -   WFI: 0
+                        -   cpu-sleep-0: 0
+                        -   cluster-sleep-0: 0
+                        name: cpu2
+                        parent: *id002
+                    - &id005 !!python/object:lisa.energy_model.EnergyModelNode
+                        active_states: !!omap
+                        -   450000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 236.11764705882354
+                            - 42
+                        -   575000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 301.70588235294116
+                            - 58
+                        -   700000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 367.29411764705884
+                            - 79
+                        -   775000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 406.6470588235294
+                            - 97
+                        -   850000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 446.0
+                            - 119
+                        children: []
+                        cpu: 3
+                        cpus: !!python/tuple
+                        - 3
+                        idle_states: !!omap
+                        -   WFI: 0
+                        -   cpu-sleep-0: 0
+                        -   cluster-sleep-0: 0
+                        name: cpu3
+                        parent: *id002
+                    - &id006 !!python/object:lisa.energy_model.EnergyModelNode
+                        active_states: !!omap
+                        -   450000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 236.11764705882354
+                            - 42
+                        -   575000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 301.70588235294116
+                            - 58
+                        -   700000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 367.29411764705884
+                            - 79
+                        -   775000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 406.6470588235294
+                            - 97
+                        -   850000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 446.0
+                            - 119
+                        children: []
+                        cpu: 4
+                        cpus: !!python/tuple
+                        - 4
+                        idle_states: !!omap
+                        -   WFI: 0
+                        -   cpu-sleep-0: 0
+                        -   cluster-sleep-0: 0
+                        name: cpu4
+                        parent: *id002
+                    - &id007 !!python/object:lisa.energy_model.EnergyModelNode
+                        active_states: !!omap
+                        -   450000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 236.11764705882354
+                            - 42
+                        -   575000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 301.70588235294116
+                            - 58
+                        -   700000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 367.29411764705884
+                            - 79
+                        -   775000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 406.6470588235294
+                            - 97
+                        -   850000: !!python/object/new:lisa.energy_model.ActiveState
+                            - 446.0
+                            - 119
+                        children: []
+                        cpu: 5
+                        cpus: !!python/tuple
+                        - 5
+                        idle_states: !!omap
+                        -   WFI: 0
+                        -   cpu-sleep-0: 0
+                        -   cluster-sleep-0: 0
+                        name: cpu5
+                        parent: *id002
+                    cpu: null
+                    cpus: &id015 !!python/tuple
+                    - 0
+                    - 1
+                    - 2
+                    - 3
+                    - 4
+                    - 5
+                    idle_states: null
+                    name: null
+                    parent: null
+            - *id003
+            - *id004
+            - *id005
+            - *id006
+            - *id007
+            cpu_pds:
+            - &id008 !!python/object:lisa.energy_model.PowerDomain
+                children: []
+                cpu: 0
+                cpus: !!python/tuple
+                - 0
+                idle_states:
+                - WFI
+                - cpu-sleep-0
+                - cluster-sleep-0
+                name: null
+                parent: &id009 !!python/object:lisa.energy_model.PowerDomain
+                    children:
+                    - *id008
+                    - &id010 !!python/object:lisa.energy_model.PowerDomain
+                        children: []
+                        cpu: 1
+                        cpus: !!python/tuple
+                        - 1
+                        idle_states:
+                        - WFI
+                        - cpu-sleep-0
+                        - cluster-sleep-0
+                        name: null
+                        parent: *id009
+                    - &id011 !!python/object:lisa.energy_model.PowerDomain
+                        children: []
+                        cpu: 2
+                        cpus: !!python/tuple
+                        - 2
+                        idle_states:
+                        - WFI
+                        - cpu-sleep-0
+                        - cluster-sleep-0
+                        name: null
+                        parent: *id009
+                    - &id012 !!python/object:lisa.energy_model.PowerDomain
+                        children: []
+                        cpu: 3
+                        cpus: !!python/tuple
+                        - 3
+                        idle_states:
+                        - WFI
+                        - cpu-sleep-0
+                        - cluster-sleep-0
+                        name: null
+                        parent: *id009
+                    - &id013 !!python/object:lisa.energy_model.PowerDomain
+                        children: []
+                        cpu: 4
+                        cpus: !!python/tuple
+                        - 4
+                        idle_states:
+                        - WFI
+                        - cpu-sleep-0
+                        - cluster-sleep-0
+                        name: null
+                        parent: *id009
+                    - &id014 !!python/object:lisa.energy_model.PowerDomain
+                        children: []
+                        cpu: 5
+                        cpus: !!python/tuple
+                        - 5
+                        idle_states:
+                        - WFI
+                        - cpu-sleep-0
+                        - cluster-sleep-0
+                        name: null
+                        parent: *id009
+                    cpu: null
+                    cpus: !!python/tuple
+                    - 0
+                    - 1
+                    - 2
+                    - 3
+                    - 4
+                    - 5
+                    idle_states: []
+                    name: null
+                    parent: null
+            - *id010
+            - *id011
+            - *id012
+            - *id013
+            - *id014
+            cpus: *id015
+            freq_domains:
+            -   - 1
+                - 2
+            -   - 0
+                - 3
+                - 4
+                - 5
+            pd: *id009
+            root: *id002
+        os: linux
+        rtapp:
+            calib:
+                0: 660
+                1: 313
+                2: 313
+                3: 660
+                4: 660
+                5: 661

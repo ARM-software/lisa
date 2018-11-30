@@ -79,23 +79,23 @@ class TestTrace(StorageTestCase):
         path = os.path.join(trace_dir, 'plat_info.yml')
         return PlatformInfo.from_yaml_map(path)
 
-    def test_getTaskByName(self):
-        """TestTrace: getTaskByName() returns the list of PIDs for all tasks with the specified name"""
+    def test_get_task_by_name(self):
+        """TestTrace: get_task_by_name() returns the list of PIDs for all tasks with the specified name"""
         for name, pids in [('watchdog/0', [12]),
                            ('sh', [1642, 1702, 1717, 1718]),
                            ('NOT_A_TASK', [])]:
-            self.assertEqual(self.trace.getTaskByName(name), pids)
+            self.assertEqual(self.trace.get_task_by_name(name), pids)
 
-    def test_getTaskByPid(self):
-        """TestTrace: getTaskByPid() returns the name of the task with the specified PID"""
+    def test_get_task_by_pid(self):
+        """TestTrace: get_task_by_pid() returns the name of the task with the specified PID"""
         for pid, names in [(15, 'watchdog/1'),
                            (1639, 'sshd'),
                            (987654321, None)]:
-            self.assertEqual(self.trace.getTaskByPid(pid), names)
+            self.assertEqual(self.trace.get_task_by_pid(pid), names)
 
-    def test_getTasks(self):
-        """TestTrace: getTasks() returns a dictionary mapping PIDs to a single task name"""
-        tasks_dict = self.trace.getTasks()
+    def test_get_tasks(self):
+        """TestTrace: get_tasks() returns a dictionary mapping PIDs to a single task name"""
+        tasks_dict = self.trace.get_tasks()
         for pid, name in [(1, 'init'),
                           (9, 'rcu_sched'),
                           (1383, 'jbd2/sda2-8')]:
@@ -109,9 +109,9 @@ class TestTrace(StorageTestCase):
         """
         trace = self.make_trace(in_data)
 
-        self.assertEqual(trace.getTaskByPid(1234), 'father')
-        self.assertEqual(trace.getTaskByPid(5678), 'child')
-        self.assertEqual(trace.getTaskByName('father'), [1234])
+        self.assertEqual(trace.get_task_by_pid(1234), 'father')
+        self.assertEqual(trace.get_task_by_pid(5678), 'child')
+        self.assertEqual(trace.get_task_by_name('father'), [1234])
 
     def test_time_range(self):
         """
@@ -242,7 +242,7 @@ class TestTrace(StorageTestCase):
         """
         trace = self.make_trace(in_data)
 
-        trace.analysis.idle.plot_cpu_idle_state_residency()
+        trace.analysis.idle.plot_cpu_idle_state_residency(0)
 
     def test_deriving_cpus_count(self):
         """Test that Trace derives cpus_count if it isn't provided"""
@@ -259,7 +259,7 @@ class TestTrace(StorageTestCase):
 
         self.assertEqual(trace.cpus_count, 3)
 
-    def test_df_cpu_wakeups(self):
+    def test_df_cpus_wakeups(self):
         """
         Test the cpu_wakeups DataFrame getter
         """
@@ -276,14 +276,14 @@ class TestTrace(StorageTestCase):
           <idle>-0     [004]   519.023080: cpu_idle:             state=1 cpu_id=4
         """)
 
-        df = trace.analysis.cpus.df_cpu_wakeups()
+        df = trace.analysis.idle.df_cpus_wakeups()
 
         exp_index=[519.021928, 519.022641, 519.022642, 519.022643, 519.022867]
         exp_cpus= [         4,          4,          1,          2,          3]
         self.assertListEqual(df.index.tolist(), exp_index)
         self.assertListEqual(df.cpu.tolist(), exp_cpus)
 
-        df = trace.analysis.cpus.df_cpu_wakeups([2])
+        df = df[df.cpu == 2]
 
         self.assertListEqual(df.index.tolist(), [519.022643])
         self.assertListEqual(df.cpu.tolist(), [2])
@@ -292,29 +292,18 @@ class TestTrace(StorageTestCase):
         """Helper for smoke testing _dfg methods in tasks_analysis"""
         trace = self.get_trace(trace_name)
 
-        lt_df = trace.analysis.tasks.df_load()
-        columns = ['comm', 'pid', 'load_avg', 'util_avg', 'cpu']
-        if trace.has_big_little:
-            columns += ['cluster']
-            if 'nrg-model' in trace.plat_info:
-                columns += ['min_cluster_cap']
+        lt_df = trace.analysis.load_tracking.df_tasks_signals()
+        columns = ['comm', 'pid', 'load', 'util', '__cpu']
         for column in columns:
             msg = 'Task signals parsed from {} missing {} column'.format(
                 trace.data_dir, column)
             self.assertIn(column, lt_df, msg=msg)
 
-        if trace.has_big_little:
-            df = trace.analysis.tasks.df_top_big_tasks(min_samples=1)
-            for column in ['samples', 'comm']:
-                msg = 'Big tasks parsed from {} missing {} column'.format(
-                    trace.data_dir, column)
-                self.assertIn(column, df, msg=msg)
-
         # Pick an arbitrary PID to try plotting signals for.
         pid = lt_df['pid'].unique()[0]
         # Call plot - although we won't check the results we can just check
         # that things aren't totally borken.
-        trace.analysis.tasks.plot_tasks(tasks=[pid])
+        trace.analysis.load_tracking.plot_task_signals(pid)
 
     def test_sched_load_signals(self):
         """Test parsing sched_load_se events from EAS upstream integration"""
@@ -364,7 +353,7 @@ class TestTraceNoClusterData(TestTrace):
     def _get_plat_info(self, trace_name=None):
         plat_info = super(TestTraceNoClusterData, self)._get_plat_info(trace_name)
         plat_info = copy.copy(plat_info)
-        plat_info.force_src('clusters', ['SOURCE THAT DOES NOT EXISTS'])
+        plat_info.force_src('freq-domains', ['SOURCE THAT DOES NOT EXISTS'])
         return plat_info
 
 class TestTraceNoPlatform(TestTrace):
