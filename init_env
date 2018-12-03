@@ -20,6 +20,13 @@
 
 _lisa_shell_ret=1
 
+setup_paths() {
+	# Bail out if local tools are not installed
+	[[ -d $LISA_HOME/tools/android-sdk-linux ]] || return
+	export ANDROID_HOME="$LISA_HOME/tools/android-sdk-linux"
+	export PATH="$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:$PATH"
+}
+
 # Running under BASH
 if [[ -n $BASH_VERSION ]]; then
 	# Get base installation path of LISA
@@ -29,7 +36,7 @@ if [[ -n $BASH_VERSION ]]; then
 
 	PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_RESET}\]"
 	# Make sure that bash picks up new location for all binaries
-	hash -r 
+	hash -r
 
 # Running under ZSH
 elif [[ -n $ZSH_VERSION ]]; then
@@ -56,6 +63,8 @@ else
 	echo "The LISA shell requires a BASH shell."
 	echo "Please, source this configuration from a terminal running BASH."
 fi
+
+setup_paths
 
 return $_lisa_shell_ret
 
