@@ -61,10 +61,10 @@ class TargetConf(MultiSrcConf, HideExekallID):
     .. code-block:: python
 
         TargetConf({{
-            'name': 'myboard',
-            'host': 192.0.2.1,
-            'usname': 'foo',
-            'password': 'bar',
+                'name': 'myboard',
+                'host': 192.0.2.1,
+                'usname': 'foo',
+                'password': 'bar',
         }})
 
     Or alternatively, from a YAML configuration file:
@@ -84,10 +84,10 @@ class TargetConf(MultiSrcConf, HideExekallID):
     .. code-block:: YAML
 
         target-conf:
-            # "!env:<type> ENV_VAR_NAME" can be used to reference an
-            # environment variable.
-            name: !env:str BOARD_NAME
-            port: !env:int PORT
+                # "!env:<type> ENV_VAR_NAME" can be used to reference an
+                # environment variable.
+                name: !env:str BOARD_NAME
+                port: !env:int PORT
 
             # It is possible to include another YAML file as a whole node in
             # the current YAML document.
@@ -99,7 +99,7 @@ class TargetConf(MultiSrcConf, HideExekallID):
         * file foo.yml::
 
             target-conf:
-                name: myboard
+                    name: myboard
 
         * file bar.yml::
 
@@ -111,23 +111,23 @@ class TargetConf(MultiSrcConf, HideExekallID):
 
             target-conf:
                 target-conf:
-                    name: myboard
+                        name: myboard
     """
     YAML_MAP_TOP_LEVEL_KEY = 'target-conf'
 
     STRUCTURE = TopLevelKeyDesc(YAML_MAP_TOP_LEVEL_KEY, 'target connection settings', (
-        KeyDesc('name', 'Board name, free-form value only used to embelish logs', [str]),
-        KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [str]),
+            KeyDesc('name', 'Board name, free-form value only used to embelish logs', [str]),
+            KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [str]),
 
-        KeyDesc('host', 'Hostname or IP address of the host', [str, None]),
-        KeyDesc('username', 'SSH username', [str, None]),
-        KeyDesc('password', 'SSH password', [str, None]),
-        KeyDesc('port', 'SSH or ADB server port', [int, None]),
-        KeyDesc('device', 'ADB device. Takes precedence over "host"', [str, None]),
-        KeyDesc('keyfile', 'SSH private key file', [str, None]),
+            KeyDesc('host', 'Hostname or IP address of the host', [str, None]),
+            KeyDesc('username', 'SSH username', [str, None]),
+            KeyDesc('password', 'SSH password', [str, None]),
+            KeyDesc('port', 'SSH or ADB server port', [int, None]),
+            KeyDesc('device', 'ADB device. Takes precedence over "host"', [str, None]),
+            KeyDesc('keyfile', 'SSH private key file', [str, None]),
 
-        KeyDesc('workdir', 'Remote target workdir', [str]),
-        KeyDesc('tools', 'List of tools to install on the target', [StrList]),
+            KeyDesc('workdir', 'Remote target workdir', [str]),
+            KeyDesc('tools', 'List of tools to install on the target', [StrList]),
         LevelKeyDesc('ftrace', 'FTrace configuration', (
             KeyDesc('events', 'FTrace events to trace', [StrList]),
             KeyDesc('functions', 'FTrace functions to trace', [StrList]),
@@ -146,7 +146,7 @@ class TargetConf(MultiSrcConf, HideExekallID):
         ))
     ))
 
-    DEFAULT_CONF = {
+    DEFAULT_SRC = {
         'username': USERNAME_DEFAULT,
         'ftrace': {
             'buffsize': FTRACE_BUFSIZE_DEFAULT,
@@ -160,8 +160,6 @@ class TargetConf(MultiSrcConf, HideExekallID):
 
     def __init__(self, conf, src='user'):
         super().__init__(conf=conf, src=src)
-        # Give some preset in the the lowest prio source
-        self.add_src('default', self.DEFAULT_CONF, fallback=True)
 
     # We do not allow overriding source for this kind of configuration to keep
     # the YAML interface simple and dict-like
