@@ -697,8 +697,13 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         """
         pass
 
-    def __init__(self, conf=None, src='default'):
+    DEFAULT_SRC = {}
+    """
+    Source added automatically using :meth:`add_src` under the name 'default'
+    when instances are built.
+    """
 
+    def __init__(self, conf=None, src='conf'):
         self._nested_init(
             parent=None,
             structure=self.STRUCTURE,
@@ -706,6 +711,10 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         )
         if conf is not None:
             self.add_src(src, conf)
+
+        # Give some preset in the the lowest prio source
+        if self.DEFAULT_SRC:
+            self.add_src('default', self.DEFAULT_SRC, fallback=True)
 
     @classmethod
     def get_help(cls, *args, **kwargs):

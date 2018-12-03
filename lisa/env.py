@@ -125,7 +125,6 @@ class TargetConf(MultiSrcConf, HideExekallID):
         KeyDesc('port', 'SSH or ADB server port', [int, None]),
         KeyDesc('device', 'ADB device. Takes precedence over "host"', [str, None]),
         KeyDesc('keyfile', 'SSH private key file', [str, None]),
-
         KeyDesc('workdir', 'Remote target workdir', [str]),
         KeyDesc('tools', 'List of tools to install on the target', [StrList]),
         LevelKeyDesc('ftrace', 'FTrace configuration', (
@@ -146,7 +145,7 @@ class TargetConf(MultiSrcConf, HideExekallID):
         ))
     ))
 
-    DEFAULT_CONF = {
+    DEFAULT_SRC = {
         'username': USERNAME_DEFAULT,
         'ftrace': {
             'buffsize': FTRACE_BUFSIZE_DEFAULT,
@@ -160,8 +159,6 @@ class TargetConf(MultiSrcConf, HideExekallID):
 
     def __init__(self, conf, src='user'):
         super().__init__(conf=conf, src=src)
-        # Give some preset in the the lowest prio source
-        self.add_src('default', self.DEFAULT_CONF, fallback=True)
 
     # We do not allow overriding source for this kind of configuration to keep
     # the YAML interface simple and dict-like
