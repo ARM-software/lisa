@@ -80,6 +80,9 @@ class ProcessCommand(Command):
 
         pc = ProcessContext()
         for run_output in output_list:
+            pc.run_output = run_output
+            pc.target_info = run_output.target_info
+
             if not args.recursive:
                 self.logger.info('Installing output processors')
             else:
@@ -108,8 +111,6 @@ class ProcessCommand(Command):
             pm.validate()
             pm.initialize(pc)
 
-            pc.run_output = run_output
-            pc.target_info = run_output.target_info
             for job_output in run_output.jobs:
                 pc.job_output = job_output
                 pm.enable_all()

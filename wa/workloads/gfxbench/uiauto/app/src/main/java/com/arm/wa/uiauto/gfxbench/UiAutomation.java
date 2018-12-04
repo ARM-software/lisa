@@ -49,6 +49,36 @@ public class UiAutomation extends BaseUiAutomation {
     public void setup() throws Exception{
         setScreenOrientation(ScreenOrientation.NATURAL);
         clearFirstRun();
+
+        //Calculate the location of the test selection button
+        UiObject circle =
+            mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/main_circleControl")
+            .className("android.widget.RelativeLayout"));
+        Rect bounds = circle.getBounds();
+        int selectx = bounds.width()/4;
+        selectx = bounds.centerX() + selectx;
+        int selecty = bounds.height()/4;
+        selecty = bounds.centerY() + selecty;
+
+        Log.d(TAG, "maxx " + selectx);
+        Log.d(TAG, "maxy " + selecty);
+
+        mDevice.click(selectx,selecty);
+
+        //Disable the tests
+        toggleTest("High-Level Tests");
+        toggleTest("Low-Level Tests");
+        toggleTest("Special Tests");
+        toggleTest("Fixed Time Test");
+
+        //Enable sub tests
+        toggleTest("Car Chase");
+        toggleTest("1080p Car Chase Offscreen");
+        toggleTest("Manhattan 3.1");
+        toggleTest("1080p Manhattan 3.1 Offscreen");
+        toggleTest("1440p Manhattan 3.1.1 Offscreen");
+        toggleTest("Tessellation");
+        toggleTest("1080p Tessellation Offscreen");
     }
 
     @Test
@@ -91,36 +121,6 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     public void runBenchmark() throws Exception {
-        //Calculate the location of the test selection button
-        UiObject circle =
-            mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/main_circleControl")
-            .className("android.widget.RelativeLayout"));
-        Rect bounds = circle.getBounds();
-        int selectx = bounds.width()/4;
-        selectx = bounds.width() - selectx;
-        int selecty = bounds.height()/4;
-        selecty = bounds.centerY() + selecty;
-
-        Log.d(TAG, "maxx " + selectx);
-        Log.d(TAG, "maxy " + selecty);
-
-        mDevice.click(selectx,selecty);
-
-        //Disable the tests
-        toggleTest("High-Level Tests");
-        toggleTest("Low-Level Tests");
-        toggleTest("Special Tests");
-        toggleTest("Fixed Time Test");
-
-        //Enable sub tests
-        toggleTest("Car Chase");
-        toggleTest("1080p Car Chase Offscreen");
-        toggleTest("Manhattan 3.1");
-        toggleTest("1080p Manhattan 3.1 Offscreen");
-        toggleTest("1440p Manhattan 3.1.1 Offscreen");
-        toggleTest("Tessellation");
-        toggleTest("1080p Tessellation Offscreen");
-
         //Start the tests
         UiObject start =
             mDevice.findObject(new UiSelector().text("Start"));

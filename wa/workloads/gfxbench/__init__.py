@@ -29,6 +29,7 @@ class Gfxbench(ApkUiautoWorkload):
                      re.compile(r'1440p Manhattan 3.1 Offscreen score (.+)'),
                      re.compile(r'Tessellation score (.+)'),
                      re.compile(r'Tessellation Offscreen score (.+)')]
+    score_regex = re.compile(r'.*?([\d.]+).*')
     description = '''
     Execute a subset of graphical performance benchmarks
 
@@ -39,8 +40,7 @@ class Gfxbench(ApkUiautoWorkload):
     '''
     parameters = [
         Parameter('timeout', kind=int, default=3600,
-                  description=('Timeout for a single iteration of the benchmark. This value is '
-                               'multiplied by ``times`` to calculate the overall run timeout. ')),
+                  description=('Timeout for an iteration of the benchmark.')),
     ]
 
     def __init__(self, target, **kwargs):
@@ -55,10 +55,13 @@ class Gfxbench(ApkUiautoWorkload):
             for line in fh:
                 for regex in self.regex_matches:
                     match = regex.search(line)
+                    # Check if we have matched the score string in logcat
                     if match:
-                        try:
-                            result = float(match.group(1))
-                        except ValueError:
+                        score_match = self.score_regex.search(match.group(1))
+                        # Check if there is valid number found for the score.
+                        if score_match:
+                            result = float(score_match.group(1))
+                        else:
                             result = 'NaN'
                         entry = regex.pattern.rsplit(None, 1)[0]
                         context.add_metric(entry, result, 'FPS', lower_is_better=False)

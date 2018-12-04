@@ -52,6 +52,10 @@ class Geekbench(ApkUiautoWorkload):
     """
     summary_metrics = ['score', 'multicore_score']
     versions = {
+        '4.3.1': {
+            'package': 'com.primatelabs.geekbench',
+            'activity': '.HomeActivity',
+        },
         '4.2.0': {
             'package': 'com.primatelabs.geekbench',
             'activity': '.HomeActivity',

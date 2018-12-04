@@ -126,7 +126,7 @@ public class UiAutomation extends BaseUiAutomation {
 
     public void runBenchmarks() throws Exception {
         UiObject runButton =
-           mDevice.findObject(new UiSelector().textContains("Run Benchmarks")
+           mDevice.findObject(new UiSelector().textContains("Run Benchmark")
                                          .className("android.widget.Button"));
         if (!runButton.waitForExists(WAIT_TIMEOUT_5SEC)) {
             throw new UiObjectNotFoundException("Could not find Run button");
