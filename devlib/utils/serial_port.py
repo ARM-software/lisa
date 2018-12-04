@@ -114,10 +114,13 @@ def open_serial_connection(timeout, get_conn=False, init_dtr=None,
     """
     target, conn = get_connection(timeout, init_dtr=init_dtr,
                                   logcls=logcls, *args, **kwargs)
-    if get_conn:
-        yield target, conn
-    else:
-        yield target
 
-    target.close()  # Closes the file descriptor used by the conn.
-    del conn
+    if get_conn:
+        target_and_conn = (target, conn)
+    else:
+        target_and_conn = target
+
+    try:
+        yield target_and_conn
+    finally:
+        target.close()  # Closes the file descriptor used by the conn.

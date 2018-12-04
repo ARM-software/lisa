@@ -20,6 +20,7 @@ import subprocess
 import logging
 from distutils.dir_util import copy_tree
 from getpass import getpass
+from pipes import quote
 
 from devlib.exception import TargetTransientError, TargetStableError
 from devlib.utils.misc import check_output
@@ -70,7 +71,7 @@ class LocalConnection(object):
             if self.unrooted:
                 raise TargetStableError('unrooted')
             password = self._get_password()
-            command = 'echo \'{}\' | sudo -S '.format(password) + command
+            command = 'echo {} | sudo -S '.format(quote(password)) + command
         ignore = None if check_exit_code else 'all'
         try:
             return check_output(command, shell=True, timeout=timeout, ignore=ignore)[0]
@@ -87,7 +88,7 @@ class LocalConnection(object):
             if self.unrooted:
                 raise TargetStableError('unrooted')
             password = self._get_password()
-            command = 'echo \'{}\' | sudo -S '.format(password) + command
+            command = 'echo {} | sudo -S '.format(quote(password)) + command
         return subprocess.Popen(command, stdout=stdout, stderr=stderr, shell=True)
 
     def close(self):

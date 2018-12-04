@@ -323,17 +323,14 @@ You can collected traces (currently, just ftrace) using
    # the buffer size to be used.
    trace = FtraceCollector(t, events=['power*'], buffer_size=40000)
 
-   # clear ftrace buffer
-   trace.reset()
-
-   # start trace collection
-   trace.start()
-
-   # Perform the operations you want to trace here...
-   import time; time.sleep(5)
-
-   # stop trace collection
-   trace.stop()
+   # As a context manager, clear ftrace buffer using trace.reset(),
+   # start trace collection using trace.start(), then stop it Using
+   # trace.stop(). Using a context manager brings the guarantee that
+   # tracing will stop even if an exception occurs, including 
+   # KeyboardInterrupt (ctr-C) and SystemExit (sys.exit)
+   with trace:
+      # Perform the operations you want to trace here...
+      import time; time.sleep(5)
 
    # extract the trace file from the target into a local file
    trace.get_trace('/tmp/trace.bin')

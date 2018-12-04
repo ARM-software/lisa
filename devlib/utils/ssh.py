@@ -26,6 +26,8 @@ import socket
 import sys
 import time
 import atexit
+from pipes import quote
+from future.utils import raise_from
 
 # pylint: disable=import-error,wrong-import-position,ungrouped-imports,wrong-import-order
 import pexpect
@@ -39,9 +41,7 @@ from pexpect import EOF, TIMEOUT, spawn
 # pylint: disable=redefined-builtin,wrong-import-position
 from devlib.exception import (HostError, TargetStableError, TargetNotRespondingError,
                               TimeoutError, TargetTransientError)
-from devlib.utils.misc import which, strip_bash_colors, check_output
-from devlib.utils.misc import (escape_single_quotes, escape_double_quotes,
-                               escape_spaces)
+from devlib.utils.misc import which, strip_bash_colors, check_output, sanitize_cmd_template
 from devlib.utils.types import boolean
 
 
@@ -169,7 +169,7 @@ class SshConnection(object):
                  password_prompt=None,
                  original_prompt=None,
                  platform=None,
-                 sudo_cmd="sudo -- sh -c '{}'"
+                 sudo_cmd="sudo -- sh -c {}"
                  ):
         self.host = host
         self.username = username
@@ -178,22 +178,18 @@ class SshConnection(object):
         self.port = port
         self.lock = threading.Lock()
         self.password_prompt = password_prompt if password_prompt is not None else self.default_password_prompt
-        self.sudo_cmd = sudo_cmd
+        self.sudo_cmd = sanitize_cmd_template(sudo_cmd)
         logger.debug('Logging in {}@{}'.format(username, host))
         timeout = timeout if timeout is not None else self.default_timeout
         self.conn = ssh_get_shell(host, username, password, self.keyfile, port, timeout, False, None)
         atexit.register(self.close)
 
     def push(self, source, dest, timeout=30):
-        dest = '"{}"@"{}":"{}"'.format(escape_double_quotes(self.username),
-                                       escape_spaces(escape_double_quotes(self.host)),
-                                       escape_spaces(escape_double_quotes(dest)))
+        dest = '{}@{}:{}'.format(self.username, self.host, dest)
         return self._scp(source, dest, timeout)
 
     def pull(self, source, dest, timeout=30):
-        source = '"{}"@"{}":"{}"'.format(escape_double_quotes(self.username),
-                                         escape_spaces(escape_double_quotes(self.host)),
-                                         escape_spaces(escape_double_quotes(source)))
+        source = '{}@{}:{}'.format(self.username, self.host, source)
         return self._scp(source, dest, timeout)
 
     def execute(self, command, timeout=None, check_exit_code=True,
@@ -205,9 +201,13 @@ class SshConnection(object):
         try:
             with self.lock:
                 _command = '({}); __devlib_ec=$?; echo; echo $__devlib_ec'.format(command)
-                raw_output = self._execute_and_wait_for_prompt(
-                    _command, timeout, as_root, strip_colors)
-                output, exit_code_text, _ = raw_output.rsplit('\r\n', 2)
+                full_output = self._execute_and_wait_for_prompt(_command, timeout, as_root, strip_colors)
+                split_output = full_output.rsplit('\r\n', 2)
+                try:
+                    output, exit_code_text, _ = split_output
+                except ValueError as e:
+                    raise TargetStableError(
+                        "cannot split reply (target misconfiguration?):\n'{}'".format(full_output))
                 if check_exit_code:
                     try:
                         exit_code = int(exit_code_text)
@@ -236,7 +236,7 @@ class SshConnection(object):
             command = '{} {} {} {}@{} {}'.format(ssh, keyfile_string, port_string, self.username, self.host, command)
             logger.debug(command)
             if self.password:
-                command = _give_password(self.password, command)
+                command, _ = _give_password(self.password, command)
             return subprocess.Popen(command, stdout=stdout, stderr=stderr, shell=True)
         except EOF:
             raise TargetNotRespondingError('Connection lost.')
@@ -264,7 +264,7 @@ class SshConnection(object):
             # As we're already root, there is no need to use sudo.
             as_root = False
         if as_root:
-            command = self.sudo_cmd.format(escape_single_quotes(command))
+            command = self.sudo_cmd.format(quote(command))
             if log:
                 logger.debug(command)
             self.conn.sendline(command)
@@ -306,19 +306,18 @@ class SshConnection(object):
         # fails to connect to a device if port is explicitly specified using -P
         # option, even if it is the default port, 22. To minimize this problem,
         # only specify -P for scp if the port is *not* the default.
-        port_string = '-P {}'.format(self.port) if (self.port and self.port != 22) else ''
-        keyfile_string = '-i {}'.format(self.keyfile) if self.keyfile else ''
-        command = '{} -r {} {} {} {}'.format(scp, keyfile_string, port_string, source, dest)
+        port_string = '-P {}'.format(quote(str(self.port))) if (self.port and self.port != 22) else ''
+        keyfile_string = '-i {}'.format(quote(self.keyfile)) if self.keyfile else ''
+        command = '{} -r {} {} {} {}'.format(scp, keyfile_string, port_string, quote(source), quote(dest))
         command_redacted = command
         logger.debug(command)
         if self.password:
-            command = _give_password(self.password, command)
-            command_redacted = command.replace(self.password, '<redacted>')
+            command, command_redacted = _give_password(self.password, command)
         try:
             check_output(command, timeout=timeout, shell=True)
         except subprocess.CalledProcessError as e:
-            raise HostError("Failed to copy file with '{}'. Output:\n{}".format(
-                command_redacted, e.output))
+            raise_from(HostError("Failed to copy file with '{}'. Output:\n{}".format(
+                command_redacted, e.output)), None)
         except TimeoutError as e:
             raise TimeoutError(command_redacted, e.output)
 
@@ -452,13 +451,12 @@ class Gem5Connection(TelnetConnection):
         if os.path.basename(dest) != filename:
             dest = os.path.join(dest, filename)
         # Back to the gem5 world
-        self._gem5_shell("ls -al {}{}".format(self.gem5_input_dir, filename))
-        self._gem5_shell("cat '{}''{}' > '{}'".format(self.gem5_input_dir,
-                                                     filename,
-                                                     dest))
+        filename = quote(self.gem5_input_dir + filename)
+        self._gem5_shell("ls -al {}".format(filename))
+        self._gem5_shell("cat {} > {}".format(filename, quote(dest)))
         self._gem5_shell("sync")
-        self._gem5_shell("ls -al {}".format(dest))
-        self._gem5_shell("ls -al {}".format(self.gem5_input_dir))
+        self._gem5_shell("ls -al {}".format(quote(dest)))
+        self._gem5_shell("ls -al {}".format(quote(self.gem5_input_dir)))
         logger.debug("Push complete.")
 
     def pull(self, source, dest, timeout=0): #pylint: disable=unused-argument
@@ -487,8 +485,8 @@ class Gem5Connection(TelnetConnection):
             if os.path.isabs(source):
                 if os.path.dirname(source) != self.execute('pwd',
                                               check_exit_code=False):
-                    self._gem5_shell("cat '{}' > '{}'".format(filename,
-                                                              dest_file))
+                    self._gem5_shell("cat {} > {}".format(quote(filename),
+                                                              quote(dest_file)))
             self._gem5_shell("sync")
             self._gem5_shell("ls -la {}".format(dest_file))
             logger.debug('Finished the copy in the simulator')
@@ -759,7 +757,7 @@ class Gem5Connection(TelnetConnection):
         gem5_logger.debug("gem5_shell command: {}".format(command))
 
         if as_root:
-            command = 'echo "{}" | su'.format(escape_double_quotes(command))
+            command = 'echo {} | su'.format(quote(command))
 
         # Send the actual command
         self.conn.send("{}\n".format(command))
@@ -871,7 +869,8 @@ class Gem5Connection(TelnetConnection):
         """
         Internal method to check if the target has a certain file
         """
-        command = 'if [ -e \'{}\' ]; then echo 1; else echo 0; fi'
+        filepath = quote(filepath)
+        command = 'if [ -e {} ]; then echo 1; else echo 0; fi'
         output = self.execute(command.format(filepath), as_root=self.is_rooted)
         return boolean(output.strip())
 
@@ -927,8 +926,10 @@ class AndroidGem5Connection(Gem5Connection):
 def _give_password(password, command):
     if not sshpass:
         raise HostError('Must have sshpass installed on the host in order to use password-based auth.')
-    pass_string = "sshpass -p '{}' ".format(password)
-    return pass_string + command
+    pass_template = "sshpass -p {} "
+    pass_string = pass_template.format(quote(password))
+    redacted_string = pass_template.format(quote('<redacted>'))
+    return (pass_string + command, redacted_string + command)
 
 
 def _check_env():

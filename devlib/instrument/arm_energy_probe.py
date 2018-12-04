@@ -34,6 +34,7 @@ from __future__ import division
 import os
 import subprocess
 import signal
+from pipes import quote
 
 import tempfile
 import shutil
@@ -97,7 +98,7 @@ class ArmEnergyProbeInstrument(Instrument):
         self.output_file_figure = os.path.join(self.output_directory, 'summary.txt')
         self.output_file_error = os.path.join(self.output_directory, 'error.log')
         self.output_fd_error = open(self.output_file_error, 'w')
-        self.command = 'arm-probe --config {} > {}'.format(self.config_file, self.output_file_raw)
+        self.command = 'arm-probe --config {} > {}'.format(quote(self.config_file), quote(self.output_file_raw))
 
     def start(self):
         self.logger.debug(self.command)

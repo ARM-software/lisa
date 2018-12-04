@@ -94,6 +94,7 @@ params = dict(
         'pyserial',  # Serial port interface
         'wrapt',  # Basic for construction of decorator functions
         'future', # Python 2-3 compatibility
+        'enum34;python_version<"3.4"', # Enums for Python < 3.4
         'pandas',
         'numpy',
     ],

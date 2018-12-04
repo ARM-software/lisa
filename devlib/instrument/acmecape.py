@@ -19,9 +19,11 @@ import os
 import sys
 import time
 import tempfile
+import shlex
 from fcntl import fcntl, F_GETFL, F_SETFL
 from string import Template
 from subprocess import Popen, PIPE, STDOUT
+from pipes import quote
 
 from devlib import Instrument, CONTINUOUS, MeasurementsCsv
 from devlib.exception import HostError
@@ -89,11 +91,12 @@ class AcmeCapeInstrument(Instrument):
             iio_device=self.iio_device,
             outfile=self.raw_data_file
         )
+        params = {k: quote(v) for k, v in params.items()}
         self.command = IIOCAP_CMD_TEMPLATE.substitute(**params)
         self.logger.debug('ACME cape command: {}'.format(self.command))
 
     def start(self):
-        self.process = Popen(self.command.split(), stdout=PIPE, stderr=STDOUT)
+        self.process = Popen(shlex.split(self.command), stdout=PIPE, stderr=STDOUT)
 
     def stop(self):
         self.process.terminate()
