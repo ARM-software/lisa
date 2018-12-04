@@ -283,6 +283,12 @@ class ACME(EnergyMeter):
     """
     name = 'acme'
 
+    REPORT_DELAY_S = 2.0
+    """
+    iio-capture returns an empty string if killed right after its invocation,
+    so we have to enforce a delay between reset() and report()
+    """
+
     def __init__(self, target, conf, res_dir):
         super().__init__(target, res_dir)
         logger = self.get_logger()
@@ -355,12 +361,14 @@ class ACME(EnergyMeter):
             csv_file = os.path.join(self._res_dir, 'samples_{}.csv'.format(channel))
 
             # Start a dedicated iio-capture instance for this channel
-            self._iio[ch_id] = Popen([self._iiocapturebin, '-n',
+            self._iio[ch_id] = Popen(['stdbuf', '-i0', '-o0', '-e0',
+                                       self._iiocapturebin, '-n',
                                        self._hostname, '-o',
                                        '-c', '-f',
                                        str(csv_file),
                                        self._iio_device(channel)],
-                                       stdout=PIPE, stderr=STDOUT)
+                                       stdout=PIPE, stderr=STDOUT,
+                                       universal_newlines=True)
 
         # Wait some time before to check if there is any output
         sleep(1)
@@ -384,6 +392,7 @@ class ACME(EnergyMeter):
 
         logger.debug('Started %s on %s...',
                         self._iiocapturebin, self._str(channel))
+        self.reset_time = time.monotonic()
 
     def report(self, out_dir, out_energy='energy.json'):
         """
@@ -395,6 +404,11 @@ class ACME(EnergyMeter):
         :param out_file: File name where to save energy data
         :type out_file: str
         """
+
+        delta = time.monotonic() - self.reset_time
+        if delta < self.REPORT_DELAY_S:
+            sleep(self.REPORT_DELAY_S - delta)
+
         logger = self.get_logger()
         channels_nrg = {}
         channels_stats = {}

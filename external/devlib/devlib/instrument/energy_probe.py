@@ -19,6 +19,7 @@ import tempfile
 import struct
 import subprocess
 import sys
+from pipes import quote
 
 from devlib.instrument import Instrument, CONTINUOUS, MeasurementsCsv
 from devlib.exception import HostError
@@ -65,7 +66,10 @@ class EnergyProbeInstrument(Instrument):
         parts = ['-r {}:{} '.format(i, int(1000 * rval))
                  for i, rval in enumerate(self.resistor_values)]
         rstring = ''.join(parts)
-        self.command = '{} -d {} -l {} {}'.format(self.caiman, self.device_entry, rstring, self.raw_output_directory)
+        self.command = '{} -d {} -l {} {}'.format(
+            quote(self.caiman), quote(self.device_entry),
+            rstring, quote(self.raw_output_directory)
+        )
         self.raw_data_file = None
 
     def start(self):

@@ -21,6 +21,7 @@ import tempfile
 import threading
 import time
 from collections import namedtuple
+from pipes import quote
 
 # pylint: disable=redefined-builtin
 from devlib.exception  import WorkerThreadError, TargetNotRespondingError, TimeoutError
@@ -138,8 +139,8 @@ class SurfaceFlingerFrameCollector(FrameCollector):
         self.target.execute('dumpsys SurfaceFlinger --latency-clear ')
 
     def get_latencies(self, activity):
-        cmd = 'dumpsys SurfaceFlinger --latency "{}"'
-        return self.target.execute(cmd.format(activity))
+        cmd = 'dumpsys SurfaceFlinger --latency {}'
+        return self.target.execute(cmd.format(quote(activity)))
 
     def list(self):
         text = self.target.execute('dumpsys SurfaceFlinger --list')

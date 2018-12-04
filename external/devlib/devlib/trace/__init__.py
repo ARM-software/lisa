@@ -31,5 +31,13 @@ class TraceCollector(object):
     def stop(self):
         pass
 
+    def __enter__(self):
+        self.reset()
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.stop()
+
     def get_trace(self, outfile):
         pass

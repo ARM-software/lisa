@@ -320,7 +320,7 @@ class Instrument(object):
 
             wanted = lambda ch: ((kinds is None or ch.kind in kinds) and
                                   (sites is None or ch.site in sites))
-            self.active_channels = filter(wanted, self.channels.values())
+            self.active_channels = list(filter(wanted, self.channels.values()))
 
     # instantaneous
 
