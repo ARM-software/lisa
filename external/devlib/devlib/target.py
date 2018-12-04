@@ -26,6 +26,7 @@ import threading
 import xml.dom.minidom
 import copy
 from collections import namedtuple, defaultdict
+from pipes import quote
 
 from devlib.host import LocalConnection, PACKAGE_BIN_DIRECTORY
 from devlib.module import get_module
@@ -36,7 +37,7 @@ from devlib.exception import (DevlibTransientError, TargetStableError,
 from devlib.utils.ssh import SshConnection
 from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect, INTENT_FLAGS
 from devlib.utils.misc import memoized, isiterable, convert_new_lines
-from devlib.utils.misc import commonprefix, escape_double_quotes, merge_lists
+from devlib.utils.misc import commonprefix, merge_lists
 from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list
 from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string, bytes_regex
 
@@ -45,6 +46,7 @@ FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (.+) type (\S+) \((\S+)\)')
 ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn|Display Power: state)=([0-9]+|true|false|ON|OFF)',
                                         re.IGNORECASE)
 ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'cur=(?P<width>\d+)x(?P<height>\d+)')
+ANDROID_SCREEN_ROTATION_REGEX = re.compile(r'orientation=(?P<rotation>[0-3])')
 DEFAULT_SHELL_PROMPT = re.compile(r'^.*(shell|root|juno)@?.*:[/~]\S* *[#$] ',
                                   re.MULTILINE)
 KVERSION_REGEX = re.compile(
@@ -117,7 +119,7 @@ class Target(object):
     @property
     @memoized
     def kernel_version(self):
-        return KernelVersion(self.execute('{} uname -r -v'.format(self.busybox)).strip())
+        return KernelVersion(self.execute('{} uname -r -v'.format(quote(self.busybox))).strip())
 
     @property
     def os_version(self):  # pylint: disable=no-self-use
@@ -155,7 +157,7 @@ class Target(object):
         except TargetStableError:
             for path in ['/boot/config', '/boot/config-$(uname -r)']:
                 try:
-                    return KernelConfig(self.execute('cat {}'.format(path)))
+                    return KernelConfig(self.execute('cat {}'.format(quote(path))))
                 except TargetStableError:
                     pass
         return KernelConfig('')
@@ -252,8 +254,8 @@ class Target(object):
         if check_boot_completed:
             self.wait_boot_complete(timeout)
         self._resolve_paths()
-        self.execute('mkdir -p {}'.format(self.working_directory))
-        self.execute('mkdir -p {}'.format(self.executables_directory))
+        self.execute('mkdir -p {}'.format(quote(self.working_directory)))
+        self.execute('mkdir -p {}'.format(quote(self.executables_directory)))
         self.busybox = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, self.abi, 'busybox'))
         self.platform.update_from_target(self)
         self._update_modules('connected')
@@ -285,7 +287,7 @@ class Target(object):
         # Initialize modules which requires Buxybox (e.g. shutil dependent tasks)
         self._update_modules('setup')
 
-        self.execute('mkdir -p {}'.format(self._file_transfer_cache))
+        self.execute('mkdir -p {}'.format(quote(self._file_transfer_cache)))
 
     def reboot(self, hard=False, connect=True, timeout=180):
         if hard:
@@ -319,20 +321,20 @@ class Target(object):
             self.conn.push(source, dest, timeout=timeout)
         else:
             device_tempfile = self.path.join(self._file_transfer_cache, source.lstrip(self.path.sep))
-            self.execute("mkdir -p '{}'".format(self.path.dirname(device_tempfile)))
+            self.execute("mkdir -p {}".format(quote(self.path.dirname(device_tempfile))))
             self.conn.push(source, device_tempfile, timeout=timeout)
-            self.execute("cp '{}' '{}'".format(device_tempfile, dest), as_root=True)
+            self.execute("cp {} {}".format(quote(device_tempfile), quote(dest)), as_root=True)
 
     def pull(self, source, dest, as_root=False, timeout=None):  # pylint: disable=arguments-differ
         if not as_root:
             self.conn.pull(source, dest, timeout=timeout)
         else:
             device_tempfile = self.path.join(self._file_transfer_cache, source.lstrip(self.path.sep))
-            self.execute("mkdir -p '{}'".format(self.path.dirname(device_tempfile)))
-            self.execute("cp -r '{}' '{}'".format(source, device_tempfile), as_root=True)
-            self.execute("chmod 0644 '{}'".format(device_tempfile), as_root=True)
+            self.execute("mkdir -p {}".format(quote(self.path.dirname(device_tempfile))))
+            self.execute("cp -r {} {}".format(quote(source), quote(device_tempfile)), as_root=True)
+            self.execute("chmod 0644 {}".format(quote(device_tempfile)), as_root=True)
             self.conn.pull(device_tempfile, dest, timeout=timeout)
-            self.execute("rm -r '{}'".format(device_tempfile), as_root=True)
+            self.execute("rm -r {}".format(quote(device_tempfile)), as_root=True)
 
     def get_directory(self, source_dir, dest, as_root=False):
         """ Pull a directory from the device, after compressing dir """
@@ -349,11 +351,12 @@ class Target(object):
             tar_file_name = self.path.join(self._file_transfer_cache, tar_file_name)
 
         # Does the folder exist?
-        self.execute('ls -la {}'.format(source_dir), as_root=as_root)
+        self.execute('ls -la {}'.format(quote(source_dir)), as_root=as_root)
         # Try compressing the folder
         try:
-            self.execute('{} tar -cvf {} {}'.format(self.busybox, tar_file_name,
-                                                     source_dir), as_root=as_root)
+            self.execute('{} tar -cvf {} {}'.format(
+                quote(self.busybox), quote(tar_file_name), quote(source_dir)
+            ), as_root=as_root)
         except TargetStableError:
             self.logger.debug('Failed to run tar command on target! ' \
                               'Not pulling directory {}'.format(source_dir))
@@ -406,9 +409,9 @@ class Target(object):
             command = '{} {}'.format(command, args)
         if on_cpus:
             on_cpus = bitmask(on_cpus)
-            command = '{} taskset 0x{:x} {}'.format(self.busybox, on_cpus, command)
+            command = '{} taskset 0x{:x} {}'.format(quote(self.busybox), on_cpus, command)
         if in_directory:
-            command = 'cd {} && {}'.format(in_directory, command)
+            command = 'cd {} && {}'.format(quote(in_directory), command)
         if redirect_stderr:
             command = '{} 2>&1'.format(command)
         return self.execute(command, as_root=as_root, timeout=timeout)
@@ -440,9 +443,9 @@ class Target(object):
             command = '{} {}'.format(command, args)
         if on_cpus:
             on_cpus = bitmask(on_cpus)
-            command = '{} taskset 0x{:x} {}'.format(self.busybox, on_cpus, command)
+            command = '{} taskset 0x{:x} {}'.format(quote(self.busybox), on_cpus, command)
         if in_directory:
-            command = 'cd {} && {}'.format(in_directory, command)
+            command = 'cd {} && {}'.format(quote(in_directory), command)
         return self.background(command, as_root=as_root)
 
     def kick_off(self, command, as_root=False):
@@ -451,7 +454,7 @@ class Target(object):
     # sysfs interaction
 
     def read_value(self, path, kind=None):
-        output = self.execute('cat \'{}\''.format(path), as_root=self.needs_su).strip()  # pylint: disable=E1103
+        output = self.execute('cat {}'.format(quote(path)), as_root=self.needs_su).strip()  # pylint: disable=E1103
         if kind:
             return kind(output)
         else:
@@ -465,7 +468,7 @@ class Target(object):
 
     def write_value(self, path, value, verify=True):
         value = str(value)
-        self.execute('echo {} > \'{}\''.format(value, path), check_exit_code=False, as_root=True)
+        self.execute('echo {} > {}'.format(quote(value), quote(path)), check_exit_code=False, as_root=True)
         if verify:
             output = self.read_value(path)
             if not output == value:
@@ -511,12 +514,12 @@ class Target(object):
     # files
 
     def file_exists(self, filepath):
-        command = 'if [ -e \'{}\' ]; then echo 1; else echo 0; fi'
-        output = self.execute(command.format(filepath), as_root=self.is_rooted)
+        command = 'if [ -e {} ]; then echo 1; else echo 0; fi'
+        output = self.execute(command.format(quote(filepath)), as_root=self.is_rooted)
         return boolean(output.strip())
 
     def directory_exists(self, filepath):
-        output = self.execute('if [ -d \'{}\' ]; then echo 1; else echo 0; fi'.format(filepath))
+        output = self.execute('if [ -d {} ]; then echo 1; else echo 0; fi'.format(quote(filepath)))
         # output from ssh my contain part of the expression in the buffer,
         # split out everything except the last word.
         return boolean(output.split()[-1])  # pylint: disable=maybe-no-member
@@ -553,7 +556,7 @@ class Target(object):
         raise IOError('No usable temporary filename found')
 
     def remove(self, path, as_root=False):
-        self.execute('rm -rf "{}"'.format(escape_double_quotes(path)), as_root=as_root)
+        self.execute('rm -rf {}'.format(quote(path)), as_root=as_root)
 
     # misc
     def core_cpus(self, core):
@@ -641,7 +644,7 @@ class Target(object):
     def insmod(self, path):
         target_path = self.get_workpath(os.path.basename(path))
         self.push(path, target_path)
-        self.execute('insmod {}'.format(target_path), as_root=True)
+        self.execute('insmod {}'.format(quote(target_path)), as_root=True)
 
 
     def extract(self, path, dest=None):
@@ -682,7 +685,7 @@ class Target(object):
         self.execute('sleep {}'.format(duration), timeout=timeout)
 
     def read_tree_values_flat(self, path, depth=1, check_exit_code=True):
-        command = 'read_tree_values {} {}'.format(path, depth)
+        command = 'read_tree_values {} {}'.format(quote(path), depth)
         output = self._execute_util(command, as_root=self.is_rooted,
                                     check_exit_code=check_exit_code)
 
@@ -730,17 +733,17 @@ class Target(object):
             extracted = dest
         else:
             extracted = self.path.dirname(path)
-        cmdtext = cmd.format(self.busybox, path, extracted)
+        cmdtext = cmd.format(quote(self.busybox), quote(path), quote(extracted))
         self.execute(cmdtext)
         return extracted
 
     def _extract_file(self, path, cmd, dest=None):
         cmd = '{} ' + cmd  # busybox
-        cmdtext = cmd.format(self.busybox, path)
+        cmdtext = cmd.format(quote(self.busybox), quote(path))
         self.execute(cmdtext)
         extracted = self.path.splitext(path)[0]
         if dest:
-            self.execute('mv -f {} {}'.format(extracted, dest))
+            self.execute('mv -f {} {}'.format(quote(extracted), quote(dest)))
             if dest.endswith('/'):
                 extracted = self.path.join(dest, self.path.basename(extracted))
             else:
@@ -784,7 +787,7 @@ class Target(object):
         # It would be nice to use busybox for this, but that means we'd need
         # root (ping is usually setuid so it can open raw sockets to send ICMP)
         command = 'ping -q -c 1 -w {} {} 2>&1'.format(timeout_s,
-                                                      GOOGLE_DNS_SERVER_ADDRESS)
+                                                      quote(GOOGLE_DNS_SERVER_ADDRESS))
 
         # We'll use our own retrying mechanism (rather than just using ping's -c
         # to send multiple packets) so that we don't slow things down in the
@@ -889,13 +892,13 @@ class LinuxTarget(Target):
         pass
 
     def kick_off(self, command, as_root=False):
-        command = 'sh -c "{}" 1>/dev/null 2>/dev/null &'.format(escape_double_quotes(command))
+        command = 'sh -c {} 1>/dev/null 2>/dev/null &'.format(quote(command))
         return self.conn.execute(command, as_root=as_root)
 
     def get_pids_of(self, process_name):
         """Returns a list of PIDs of all processes with the specified name."""
         # result should be a column of PIDs with the first row as "PID" header
-        result = self.execute('ps -C {} -o pid'.format(process_name),  # NOQA
+        result = self.execute('ps -C {} -o pid'.format(quote(process_name)),  # NOQA
                               check_exit_code=False).strip().split()
         if len(result) >= 2:  # at least one row besides the header
             return list(map(int, result[1:]))
@@ -923,14 +926,14 @@ class LinuxTarget(Target):
             return filtered_result
 
     def list_directory(self, path, as_root=False):
-        contents = self.execute('ls -1 "{}"'.format(escape_double_quotes(path)), as_root=as_root)
+        contents = self.execute('ls -1 {}'.format(quote(path)), as_root=as_root)
         return [x.strip() for x in contents.split('\n') if x.strip()]
 
     def install(self, filepath, timeout=None, with_name=None):  # pylint: disable=W0221
         destpath = self.path.join(self.executables_directory,
                                   with_name and with_name or self.path.basename(filepath))
         self.push(filepath, destpath)
-        self.execute('chmod a+x {}'.format(destpath), timeout=timeout)
+        self.execute('chmod a+x {}'.format(quote(destpath)), timeout=timeout)
         self._installed_binaries[self.path.basename(destpath)] = destpath
         return destpath
 
@@ -946,7 +949,7 @@ class LinuxTarget(Target):
 
             tmpfile = self.tempfile()
             cmd = 'DISPLAY=:0.0 scrot {} && {} date -u -Iseconds'
-            ts = self.execute(cmd.format(tmpfile, self.busybox)).strip()
+            ts = self.execute(cmd.format(quote(tmpfile), quote(self.busybox))).strip()
             filepath = filepath.format(ts=ts)
             self.pull(tmpfile, filepath)
             self.remove(tmpfile)
@@ -1124,7 +1127,7 @@ class AndroidTarget(Target):
         if as_root is None:
             as_root = self.needs_su
         try:
-            command = 'cd {} && {} nohup {} &'.format(self.working_directory, self.busybox, command)
+            command = 'cd {} && {} nohup {} &'.format(quote(self.working_directory), quote(self.busybox), command)
             self.execute(command, timeout=1, as_root=as_root)
         except TimeoutError:
             pass
@@ -1138,14 +1141,14 @@ class AndroidTarget(Target):
         # so we try the new version, and if it fails we use the old version.
         self.ls_command = 'ls -1'
         try:
-            self.execute('ls -1 {}'.format(self.working_directory), as_root=False)
+            self.execute('ls -1 {}'.format(quote(self.working_directory)), as_root=False)
         except TargetStableError:
             self.ls_command = 'ls'
 
     def list_directory(self, path, as_root=False):
         if self.ls_command == '':
             self.__setup_list_directory()
-        contents = self.execute('{} "{}"'.format(self.ls_command, escape_double_quotes(path)), as_root=as_root)
+        contents = self.execute('{} {}'.format(self.ls_command, quote(path)), as_root=as_root)
         return [x.strip() for x in contents.split('\n') if x.strip()]
 
     def install(self, filepath, timeout=None, with_name=None):  # pylint: disable=W0221
@@ -1193,7 +1196,7 @@ class AndroidTarget(Target):
     def capture_screen(self, filepath):
         on_device_file = self.path.join(self.working_directory, 'screen_capture.png')
         cmd = 'screencap -p  {} && {} date -u -Iseconds'
-        ts = self.execute(cmd.format(on_device_file, self.busybox)).strip()
+        ts = self.execute(cmd.format(quote(on_device_file), quote(self.busybox))).strip()
         filepath = filepath.format(ts=ts)
         self.pull(on_device_file, filepath)
         self.remove(on_device_file)
@@ -1284,14 +1287,14 @@ class AndroidTarget(Target):
         return output.split()
 
     def get_package_version(self, package):
-        output = self.execute('dumpsys package {}'.format(package))
+        output = self.execute('dumpsys package {}'.format(quote(package)))
         for line in convert_new_lines(output).split('\n'):
             if 'versionName' in line:
                 return line.split('=', 1)[1]
         return None
 
     def get_package_info(self, package):
-        output = self.execute('pm list packages -f {}'.format(package))
+        output = self.execute('pm list packages -f {}'.format(quote(package)))
         for entry in output.strip().split('\n'):
             rest, entry_package = entry.rsplit('=', 1)
             if entry_package != package:
@@ -1316,13 +1319,13 @@ class AndroidTarget(Target):
             if self.get_sdk_version() >= 23:
                 flags.append('-g')  # Grant all runtime permissions
             self.logger.debug("Replace APK = {}, ADB flags = '{}'".format(replace, ' '.join(flags)))
-            return adb_command(self.adb_name, "install {} '{}'".format(' '.join(flags), filepath), timeout=timeout)
+            return adb_command(self.adb_name, "install {} {}".format(' '.join(flags), quote(filepath)), timeout=timeout)
         else:
             raise TargetStableError('Can\'t install {}: unsupported format.'.format(filepath))
 
     def grant_package_permission(self, package, permission):
         try:
-            return self.execute('pm grant {} {}'.format(package, permission))
+            return self.execute('pm grant {} {}'.format(quote(package), quote(permission)))
         except TargetStableError as e:
             if 'is not a changeable permission type' in e.message:
                 pass # Ignore if unchangeable
@@ -1352,16 +1355,16 @@ class AndroidTarget(Target):
         """
         Force a re-index of the mediaserver cache for the specified file.
         """
-        command = 'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://'
-        self.execute(command + filepath)
+        command = 'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d {}'
+        self.execute(command.format(quote('file://' + filepath)))
 
     def broadcast_media_mounted(self, dirpath, as_root=False):
         """
         Force a re-index of the mediaserver cache for the specified directory.
         """
-        command = 'am broadcast -a  android.intent.action.MEDIA_MOUNTED -d file://{} '\
+        command = 'am broadcast -a  android.intent.action.MEDIA_MOUNTED -d {} '\
                   '-n com.android.providers.media/.MediaScannerReceiver'
-        self.execute(command.format(dirpath), as_root=as_root)
+        self.execute(command.format(quote('file://'+dirpath)), as_root=as_root)
 
     def install_executable(self, filepath, with_name=None):
         self._ensure_executables_directory_is_writable()
@@ -1370,14 +1373,14 @@ class AndroidTarget(Target):
         on_device_executable = self.path.join(self.executables_directory, executable_name)
         self.push(filepath, on_device_file)
         if on_device_file != on_device_executable:
-            self.execute('cp {} {}'.format(on_device_file, on_device_executable), as_root=self.needs_su)
+            self.execute('cp {} {}'.format(quote(on_device_file), quote(on_device_executable)), as_root=self.needs_su)
             self.remove(on_device_file, as_root=self.needs_su)
-        self.execute("chmod 0777 '{}'".format(on_device_executable), as_root=self.needs_su)
+        self.execute("chmod 0777 {}".format(quote(on_device_executable)), as_root=self.needs_su)
         self._installed_binaries[executable_name] = on_device_executable
         return on_device_executable
 
     def uninstall_package(self, package):
-        adb_command(self.adb_name, "uninstall {}".format(package), timeout=30)
+        adb_command(self.adb_name, "uninstall {}".format(quote(package)), timeout=30)
 
     def uninstall_executable(self, executable_name):
         on_device_executable = self.path.join(self.executables_directory, executable_name)
@@ -1386,8 +1389,8 @@ class AndroidTarget(Target):
 
     def dump_logcat(self, filepath, filter=None, append=False, timeout=30):  # pylint: disable=redefined-builtin
         op = '>>' if append else '>'
-        filtstr = ' -s {}'.format(filter) if filter else ''
-        command = 'logcat -d{} {} {}'.format(filtstr, op, filepath)
+        filtstr = ' -s {}'.format(quote(filter)) if filter else ''
+        command = 'logcat -d{} {} {}'.format(filtstr, op, quote(filepath))
         adb_command(self.adb_name, command, timeout=timeout)
 
     def clear_logcat(self):
@@ -1495,11 +1498,11 @@ class AndroidTarget(Target):
         self.set_rotation(3)
 
     def get_rotation(self):
-        cmd = 'settings get system user_rotation'
-        res = self.execute(cmd).strip()
-        try:
-            return int(res)
-        except ValueError:
+        output = self.execute('dumpsys input')
+        match = ANDROID_SCREEN_ROTATION_REGEX.search(output)
+        if match:
+            return int(match.group('rotation'))
+        else:
             return None
 
     def set_rotation(self, rotation):
@@ -1520,13 +1523,13 @@ class AndroidTarget(Target):
             if it is already running
         :type force_new: bool
         """
-        cmd = 'am start -a android.intent.action.VIEW -d "{}"'
+        cmd = 'am start -a android.intent.action.VIEW -d {}'
 
         if force_new:
             cmd = cmd + ' -f {}'.format(INTENT_FLAGS['ACTIVITY_NEW_TASK'] |
                                         INTENT_FLAGS['ACTIVITY_CLEAR_TASK'])
 
-        self.execute(cmd.format(escape_double_quotes(url)))
+        self.execute(cmd.format(quote(url)))
 
     def homescreen(self):
         self.execute('am start -a android.intent.action.MAIN -c android.intent.category.HOME')
@@ -1546,8 +1549,8 @@ class AndroidTarget(Target):
         if matched:
             entry = sorted(matched, key=lambda x: len(x.mount_point))[-1]
             if 'rw' not in entry.options:
-                self.execute('mount -o rw,remount {} {}'.format(entry.device,
-                                                                entry.mount_point),
+                self.execute('mount -o rw,remount {} {}'.format(quote(entry.device),
+                                                                quote(entry.mount_point)),
                              as_root=True)
         else:
             message = 'Could not find mount point for executables directory {}'

@@ -35,6 +35,7 @@ import subprocess
 import sys
 import threading
 import wrapt
+import warnings
 
 
 from past.builtins import basestring
@@ -416,24 +417,50 @@ def convert_new_lines(text):
     """ Convert new lines to a common format.  """
     return text.replace('\r\n', '\n').replace('\r', '\n')
 
+def sanitize_cmd_template(cmd):
+    msg = (
+        '''Quoted placeholder should not be used, as it will result in quoting the text twice. {} should be used instead of '{}' or "{}" in the template: '''
+    )
+    for unwanted in ('"{}"', "'{}'"):
+        if unwanted in cmd:
+            warnings.warn(msg + cmd, stacklevel=2)
+            cmd = cmd.replace(unwanted, '{}')
+
+    return cmd
 
 def escape_quotes(text):
-    """Escape quotes, and escaped quotes, in the specified text."""
+    """
+    Escape quotes, and escaped quotes, in the specified text.
+
+    .. note:: :func:`pipes.quote` should be favored where possible.
+    """
     return re.sub(r'\\("|\')', r'\\\\\1', text).replace('\'', '\\\'').replace('\"', '\\\"')
 
 
 def escape_single_quotes(text):
-    """Escape single quotes, and escaped single quotes, in the specified text."""
+    """
+    Escape single quotes, and escaped single quotes, in the specified text.
+
+    .. note:: :func:`pipes.quote` should be favored where possible.
+    """
     return re.sub(r'\\("|\')', r'\\\\\1', text).replace('\'', '\'\\\'\'')
 
 
 def escape_double_quotes(text):
-    """Escape double quotes, and escaped double quotes, in the specified text."""
+    """
+    Escape double quotes, and escaped double quotes, in the specified text.
+
+    .. note:: :func:`pipes.quote` should be favored where possible.
+    """
     return re.sub(r'\\("|\')', r'\\\\\1', text).replace('\"', '\\\"')
 
 
 def escape_spaces(text):
-    """Escape spaces in the specified text"""
+    """
+    Escape spaces in the specified text
+
+    .. note:: :func:`pipes.quote` should be favored where possible.
+    """
     return text.replace(' ', '\ ')
 
 

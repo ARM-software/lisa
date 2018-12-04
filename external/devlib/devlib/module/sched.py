@@ -15,6 +15,7 @@
 
 import logging
 import re
+from enum import Enum
 
 from past.builtins import basestring
 
@@ -138,52 +139,74 @@ class SchedProcFSNode(object):
             self._dyn_attrs[key] = self._build_node(key, nodes[key])
 
 
-class SchedDomain(SchedProcFSNode):
+class DocInt(int):
+
+    # See https://stackoverflow.com/a/50473952/5096023
+    def __new__(cls, value, doc):
+        new = super(DocInt, cls).__new__(cls, value)
+        new.__doc__ = doc
+        return new
+
+
+class SchedDomainFlag(DocInt, Enum):
     """
-    Represents a sched domain as seen through procfs
+    Represents a sched domain flag
     """
     # pylint: disable=bad-whitespace
     # Domain flags obtained from include/linux/sched/topology.h on v4.17
     # https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/v4.17/include/linux/sched/topology.h#20
-    SD_LOAD_BALANCE        = 0x0001  # Do load balancing on this domain.
-    SD_BALANCE_NEWIDLE     = 0x0002  # Balance when about to become idle
-    SD_BALANCE_EXEC        = 0x0004  # Balance on exec
-    SD_BALANCE_FORK        = 0x0008  # Balance on fork, clone
-    SD_BALANCE_WAKE        = 0x0010  # Balance on wakeup
-    SD_WAKE_AFFINE         = 0x0020  # Wake task to waking CPU
-    SD_ASYM_CPUCAPACITY    = 0x0040  # Groups have different max cpu capacities
-    SD_SHARE_CPUCAPACITY   = 0x0080  # Domain members share cpu capacity
-    SD_SHARE_POWERDOMAIN   = 0x0100  # Domain members share power domain
-    SD_SHARE_PKG_RESOURCES = 0x0200  # Domain members share cpu pkg resources
-    SD_SERIALIZE           = 0x0400  # Only a single load balancing instance
-    SD_ASYM_PACKING        = 0x0800  # Place busy groups earlier in the domain
-    SD_PREFER_SIBLING      = 0x1000  # Prefer to place tasks in a sibling domain
-    SD_OVERLAP             = 0x2000  # sched_domains of this level overlap
-    SD_NUMA                = 0x4000  # cross-node balancing
+    SD_LOAD_BALANCE =        0x0001, "Do load balancing on this domain"
+    SD_BALANCE_NEWIDLE =     0x0002, "Balance when about to become idle"
+    SD_BALANCE_EXEC =        0x0004, "Balance on exec"
+    SD_BALANCE_FORK =        0x0008, "Balance on fork, clone"
+    SD_BALANCE_WAKE =        0x0010, "Balance on wakeup"
+    SD_WAKE_AFFINE =         0x0020, "Wake task to waking CPU"
+    SD_ASYM_CPUCAPACITY =    0x0040, "Groups have different max cpu capacities"
+    SD_SHARE_CPUCAPACITY =   0x0080, "Domain members share cpu capacity"
+    SD_SHARE_POWERDOMAIN =   0x0100, "Domain members share power domain"
+    SD_SHARE_PKG_RESOURCES = 0x0200, "Domain members share cpu pkg resources"
+    SD_SERIALIZE =           0x0400, "Only a single load balancing instance"
+    SD_ASYM_PACKING =        0x0800, "Place busy groups earlier in the domain"
+    SD_PREFER_SIBLING =      0x1000, "Prefer to place tasks in a sibling domain"
+    SD_OVERLAP =             0x2000, "Sched_domains of this level overlap"
+    SD_NUMA =                0x4000, "Cross-node balancing"
     # Only defined in Android
     # https://android.googlesource.com/kernel/common/+/android-4.14/include/linux/sched/topology.h#29
-    SD_SHARE_CAP_STATES    = 0x8000  # Domain members share capacity state
+    SD_SHARE_CAP_STATES =    0x8000, "(Android only) Domain members share capacity state"
 
-    # Checked to be valid from v4.4
-    SD_FLAGS_REF_PARTS = (4, 4, 0)
-
-    @staticmethod
-    def check_version(target, logger):
+    @classmethod
+    def check_version(cls, target, logger):
         """
         Check the target and see if its kernel version matches our view of the world
         """
         parts = target.kernel_version.parts
-        if parts < SchedDomain.SD_FLAGS_REF_PARTS:
+        # Checked to be valid from v4.4
+        # Not saved as a class attribute else it'll be converted to an enum
+        ref_parts = (4, 4, 0)
+        if parts < ref_parts:
             logger.warn(
                 "Sched domain flags are defined for kernels v{} and up, "
-                "but target is running v{}".format(SchedDomain.SD_FLAGS_REF_PARTS, parts)
+                "but target is running v{}".format(ref_parts, parts)
             )
 
-    def has_flags(self, flags):
-        """
-        :returns: Whether 'flags' are set on this sched domain
-        """
-        return self.flags & flags == flags
+
+    def __str__(self):
+        return self.name
+
+
+class SchedDomain(SchedProcFSNode):
+    """
+    Represents a sched domain as seen through procfs
+    """
+    def __init__(self, nodes):
+        super(SchedDomain, self).__init__(nodes)
+
+        obj_flags = set()
+        for flag in list(SchedDomainFlag):
+            if self.flags & flag.value == flag.value:
+                obj_flags.add(flag)
+
+        self.flags = obj_flags
 
 
 class SchedProcFSData(SchedProcFSNode):
@@ -226,7 +249,7 @@ class SchedModule(Module):
     @staticmethod
     def probe(target):
         logger = logging.getLogger(SchedModule.name)
-        SchedDomain.check_version(target, logger)
+        SchedDomainFlag.check_version(target, logger)
 
         return SchedProcFSData.available(target)
 

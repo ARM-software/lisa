@@ -28,10 +28,10 @@ import tempfile
 import subprocess
 from collections import defaultdict
 import pexpect
+from pipes import quote
 
 from devlib.exception import TargetTransientError, TargetStableError, HostError
 from devlib.utils.misc import check_output, which, ABI_MAP
-from devlib.utils.misc import escape_single_quotes, escape_double_quotes
 
 
 logger = logging.getLogger('android')
@@ -235,7 +235,7 @@ class AdbConnection(object):
     def push(self, source, dest, timeout=None):
         if timeout is None:
             timeout = self.timeout
-        command = "push '{}' '{}'".format(source, dest)
+        command = "push {} {}".format(quote(source), quote(dest))
         if not os.path.exists(source):
             raise HostError('No such file "{}"'.format(source))
         return adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
@@ -249,10 +249,10 @@ class AdbConnection(object):
             command = 'shell {} {}'.format(self.ls_command, source)
             output = adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
             for line in output.splitlines():
-                command = "pull '{}' '{}'".format(line.strip(), dest)
+                command = "pull {} {}".format(quote(line.strip()), quote(dest))
                 adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
             return
-        command = "pull '{}' '{}'".format(source, dest)
+        command = "pull {} {}".format(quote(source), quote(dest))
         return adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
 
     # pylint: disable=unused-argument
@@ -285,7 +285,7 @@ class AdbConnection(object):
 
 def fastboot_command(command, timeout=None, device=None):
     _check_env()
-    target = '-s {}'.format(device) if device else ''
+    target = '-s {}'.format(quote(device)) if device else ''
     full_command = 'fastboot {} {}'.format(target, command)
     logger.debug(full_command)
     output, _ = check_output(full_command, timeout, shell=True)
@@ -293,7 +293,7 @@ def fastboot_command(command, timeout=None, device=None):
 
 
 def fastboot_flash_partition(partition, path_to_image):
-    command = 'flash {} {}'.format(partition, path_to_image)
+    command = 'flash {} {}'.format(quote(partition), quote(path_to_image))
     fastboot_command(command)
 
 
@@ -341,7 +341,7 @@ def adb_connect(device, timeout=None, attempts=MAX_ATTEMPTS):
         tries += 1
         if device:
             if "." in device: # Connect is required only for ADB-over-IP
-                command = 'adb connect {}'.format(device)
+                command = 'adb connect {}'.format(quote(device))
                 logger.debug(command)
                 output, _ = check_output(command, shell=True, timeout=timeout)
         if _ping(device):
@@ -368,7 +368,7 @@ def adb_disconnect(device):
 
 def _ping(device):
     _check_env()
-    device_string = ' -s {}'.format(device) if device else ''
+    device_string = ' -s {}'.format(quote(device)) if device else ''
     command = "adb{} shell \"ls /data/local/tmp > /dev/null\"".format(device_string)
     logger.debug(command)
     result = subprocess.call(command, stderr=subprocess.PIPE, shell=True)
@@ -383,7 +383,7 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
               as_root=False, adb_server=None):  # NOQA
     _check_env()
     if as_root:
-        command = 'echo \'{}\' | su'.format(escape_single_quotes(command))
+        command = 'echo {} | su'.format(quote(command))
     device_part = []
     if adb_server:
         device_part = ['-H', adb_server]
@@ -443,9 +443,9 @@ def adb_background_shell(device, command,
     """Runs the sepcified command in a subprocess, returning the the Popen object."""
     _check_env()
     if as_root:
-        command = 'echo \'{}\' | su'.format(escape_single_quotes(command))
+        command = 'echo {} | su'.format(quote(command))
     device_string = ' -s {}'.format(device) if device else ''
-    full_command = 'adb{} shell "{}"'.format(device_string, escape_double_quotes(command))
+    full_command = 'adb{} shell {}'.format(device_string, quote(command))
     logger.debug(full_command)
     return subprocess.Popen(full_command, stdout=stdout, stderr=stderr, shell=True)
 
@@ -610,9 +610,9 @@ class LogcatMonitor(object):
             # Logcat on older version of android do not support the -e argument
             # so fall back to using grep.
             if self.target.get_sdk_version() > 23:
-                logcat_cmd = '{} -e "{}"'.format(logcat_cmd, regexp)
+                logcat_cmd = '{} -e {}'.format(logcat_cmd, quote(regexp))
             else:
-                logcat_cmd = '{} | grep "{}"'.format(logcat_cmd, regexp)
+                logcat_cmd = '{} | grep {}'.format(logcat_cmd, quote(regexp))
 
         logcat_cmd = get_adb_command(self.target.conn.device, logcat_cmd)
 
