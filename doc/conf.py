@@ -73,6 +73,11 @@ def patched_make_field(self, types, domain, items, env=None):
 
 TypedField.make_field = patched_make_field
 
+# This shouldn't be needed, as using a virtualenv + setup.py should set up the
+# sys.path correctly. However that seems to be half broken on ReadTheDocs, so
+# manually set it here
+sys.path.insert(0, os.path.abspath('../'))
+
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
