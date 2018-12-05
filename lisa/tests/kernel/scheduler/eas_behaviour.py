@@ -476,7 +476,7 @@ class TwoBigThreeSmall(EASBehaviour):
     @classmethod
     def get_rtapp_profile(cls, te):
         # 50% of the smallest CPU's capacity
-        small_duty = cls.unscaled_utilization(cls.min_cpu_capacity(te), 50)
+        small_duty = cls.unscaled_utilization(cls.min_cpu_capacity(te), 25)
         # 80% of the biggest CPU's capacity
         big_duty = cls.unscaled_utilization(cls.max_cpu_capacity(te), 80)
 
