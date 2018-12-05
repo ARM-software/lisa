@@ -49,6 +49,14 @@ The detected location of your LISA installation
 if not LISA_HOME:
     logging.getLogger(__name__).warning('LISA_HOME env var is not set, LISA may misbehave.')
 
+def jupyter_notebook_setup():
+    """
+    Function containing generic init boilerplate to be called at the beginning
+    of notebooks. This will be called automatically upon importing lisa if the
+    LISA_DO_NOTEBOOK_SETUP environment variable is set.
+    """
+    setup_logging()
+
 class Loggable:
     """
     A simple class for uniformly named loggers
