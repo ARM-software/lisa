@@ -52,7 +52,7 @@ class FunctionsAnalysis(AnalysisBase):
         :type metrics: srt or list(str)
         """
         if not hasattr(self._trace, '_functions_stats_df'):
-            self._log.warning('Functions stats data not available')
+            self.get_logger().warning('Functions stats data not available')
             return
 
         metrics = listify(metrics)

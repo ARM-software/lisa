@@ -125,7 +125,12 @@ class Trace(Loggable):
         # By deafult, use the trace dir to save plots
         self.plots_dir = plots_dir
         if self.plots_dir is None:
-            self.plots_dir = self.data_dir
+            # In case we're passed the trace.dat
+            if os.path.isfile(data_dir):
+                self.plots_dir = os.path.dirname(data_dir)
+            else:
+                self.plots_dir = data_dir
+
         self.plots_prefix = plots_prefix
 
         self.__registerTraceEvents(events)
@@ -333,7 +338,7 @@ class Trace(Loggable):
                     name_key : 'TaskName'})
                 .set_index('PID').sort_index())
 
-    def getTaskByName(self, name):
+    def get_task_by_name(self, name):
         """
         Get the PIDs of all tasks with the specified name.
 
@@ -354,7 +359,7 @@ class Trace(Loggable):
         return (self._tasks_by_pid[self._tasks_by_pid.TaskName == name]
                     .index.tolist())
 
-    def getTaskByPid(self, pid):
+    def get_task_by_pid(self, pid):
         """
         Get the name of the task with the specified PID.
 
@@ -377,7 +382,27 @@ class Trace(Loggable):
         except KeyError:
             return None
 
-    def getTasks(self):
+    def get_task_pid(self, task):
+        """
+        Helper that takes either a name or a PID and always returns a PID
+
+        :param task: Either the task name or the task PID
+        :type task: int or str
+        """
+        if isinstance(task, str):
+            pid_list = self.get_task_by_name(task)
+            if len(pid_list) > 1:
+                self.get_logger().warning(
+                    "More than one PID found for task {}, "
+                    "using the first one ({})".format(task, pid_list[0]))
+            pid = pid_list[0]
+        else:
+            pid = task
+
+        return pid
+
+
+    def get_tasks(self):
         """
         Get a dictionary of all the tasks in the Trace.
 
@@ -465,13 +490,6 @@ class Trace(Loggable):
 ###############################################################################
 # Trace Events Sanitize Methods
 ###############################################################################
-    @property
-    def has_big_little(self):
-        return ('clusters' in self.plat_info
-                and 'big' in self.plat_info['clusters']
-                and 'little' in self.plat_info['clusters']
-                and 'nrg-model' in self.plat_info)
-
     def _sanitize_SchedCpuCapacity(self):
         """
         Add more columns to cpu_capacity data frame if the energy model is
@@ -607,7 +625,7 @@ class Trace(Loggable):
             return
 
         df = self.df_events('sched_overutilized')
-        self.addEventsDeltas(df, 'len')
+        self.add_events_deltas(df, 'len')
 
         # Build a stat on trace overutilization
         self.overutilized_time = df[df.overutilized == 1].len.sum()
@@ -664,7 +682,7 @@ class Trace(Loggable):
         """
         logger = self.get_logger()
         if not self.hasEvents('cpu_frequency_devlib') \
-           or 'clusters' not in self.plat_info:
+           or 'freq-domains' not in self.plat_info:
             return
 
         devlib_freq = self.df_events('cpu_frequency_devlib')
@@ -672,7 +690,7 @@ class Trace(Loggable):
         devlib_freq.rename(columns={'state':'frequency'}, inplace=True)
 
         df = self.df_events('cpu_frequency')
-        clusters = self.plat_info['clusters']
+        domains = self.plat_info['freq-domains']
 
         # devlib always introduces fake cpu_frequency events, in case the
         # OS has not generated cpu_frequency envets there are the only
@@ -697,29 +715,29 @@ class Trace(Loggable):
                 # Inject "initial" devlib frequencies
                 os_df = df
                 dl_df = devlib_freq.iloc[:self.cpus_count]
-                for _,c in self.plat_info['clusters'].items():
-                    dl_freqs = dl_df[dl_df.cpu.isin(c)]
-                    os_freqs = os_df[os_df.cpu.isin(c)]
-                    logger.debug("First freqs for %s:\n%s", c, dl_freqs)
+                for cpus in domains:
+                    dl_freqs = dl_df[dl_df.cpu.isin(cpus)]
+                    os_freqs = os_df[os_df.cpu.isin(cpus)]
+                    logger.debug("First freqs for %s:\n%s", cpus, dl_freqs)
                     # All devlib events "before" os-generated events
                     logger.debug("Min os freq @: %s", os_freqs.index.min())
                     if os_freqs.empty or \
                        os_freqs.index.min() > dl_freqs.index.max():
-                        logger.debug("Insert devlib freqs for %s", c)
+                        logger.debug("Insert devlib freqs for %s", cpus)
                         df = pd.concat([dl_freqs, df])
 
                 # Inject "final" devlib frequencies
                 os_df = df
                 dl_df = devlib_freq.iloc[self.cpus_count:]
-                for _,c in self.plat_info['clusters'].items():
-                    dl_freqs = dl_df[dl_df.cpu.isin(c)]
-                    os_freqs = os_df[os_df.cpu.isin(c)]
-                    logger.debug("Last freqs for %s:\n%s", c, dl_freqs)
+                for cpus in domains:
+                    dl_freqs = dl_df[dl_df.cpu.isin(cpus)]
+                    os_freqs = os_df[os_df.cpu.isin(cpus)]
+                    logger.debug("Last freqs for %s:\n%s", cpus, dl_freqs)
                     # All devlib events "after" os-generated events
                     logger.debug("Max os freq @: %s", os_freqs.index.max())
                     if os_freqs.empty or \
                        os_freqs.index.max() < dl_freqs.index.min():
-                        logger.debug("Append devlib freqs for %s", c)
+                        logger.debug("Append devlib freqs for %s", cpus)
                         df = pd.concat([df, dl_freqs])
 
                 df.sort_index(inplace=True)
@@ -727,7 +745,7 @@ class Trace(Loggable):
             setattr(self.ftrace.cpu_frequency, 'data_frame', df)
 
         # Frequency Coherency Check
-        for _, cpus in clusters.items():
+        for cpus in domains:
             cluster_df = df[df.cpu.isin(cpus)]
             for chunk in self._chunker(cluster_df, len(cpus)):
                 f = chunk.iloc[0].frequency
@@ -835,50 +853,6 @@ class Trace(Loggable):
         return handle_duplicate_index(cpu_active)
 
     @memoized
-    def getClusterActiveSignal(self, cluster):
-        """
-        Build a square wave representing the active (i.e. non-idle) cluster
-        time, i.e.:
-
-          cluster_active[t] == 1 if at least one CPU is reported to be non-idle
-          by CPUFreq at time t
-          cluster_active[t] == 0 otherwise
-
-        :param cluster: list of CPU IDs belonging to a cluster
-        :type cluster: list(int)
-
-        :returns: A :class:`pandas.Series` or ``None`` if the trace contains no
-                  "cpu_idle" events
-        """
-        if not self.hasEvents('cpu_idle'):
-            self.get_logger().warning('Events [cpu_idle] not found, '
-                              'cannot compute cluster active signal!')
-            return None
-
-        active = self.getCPUActiveSignal(cluster[0]).to_frame(name=cluster[0])
-        for cpu in cluster[1:]:
-            active = active.join(
-                self.getCPUActiveSignal(cpu).to_frame(name=cpu),
-                how='outer'
-            )
-
-        active.fillna(method='ffill', inplace=True)
-        # There might be NaNs in the signal where we got data from some CPUs
-        # before others. That will break the .astype(int) below, so drop rows
-        # with NaN in them.
-        active.dropna(inplace=True)
-
-        # Cluster active is the OR between the actives on each CPU
-        # belonging to that specific cluster
-        cluster_active = reduce(
-            operator.or_,
-            [cpu_active.astype(int) for _, cpu_active in
-             active.items()]
-        )
-
-        return cluster_active
-
-    @memoized
     def getPeripheralClockEffectiveRate(self, clk_name):
         logger = self.get_logger()
         if clk_name is None:
@@ -913,11 +887,22 @@ class Trace(Loggable):
                                           np.where(freq['state'] == 1, freq['rate'], float('nan')))
         return freq
 
-    def addEventsDeltas(self, df, col_name='delta'):
+    def add_events_deltas(self, df, col_name='delta', inplace=True):
         """
-        Compute the time between each event in a dataframe, and store it in a
-        new column. This only really makes sense for events tracking an
-        on/off state (e.g. overutilized, idle)
+        Store the time between each event in a new dataframe column
+
+        :param df: The DataFrame to operate one
+        :type df: pandas.DataFrame
+
+        :param col_name: The name of the column to add
+        :type col_name: str
+
+        :param inplace: Whether to operate on the passed DataFrame, or to use
+          a copy of it
+        :type inplace: bool
+
+        This method only really makes sense for events tracking an on/off state
+        (e.g. overutilized, idle)
         """
         if df.empty:
             return df
@@ -926,13 +911,17 @@ class Trace(Loggable):
             raise RuntimeError("Column {} is already present in the dataframe".
                                format(col_name))
 
-        df['start'] = df.index
-        df[col_name] = (df.start - df.start.shift()).fillna(0).shift(-1)
-        df.drop('start', axis=1, inplace=True)
+        if not inplace:
+            df = df.copy()
+
+        time_df = pd.DataFrame(index=df.index, data=df.index.values, columns=["start"])
+        df[col_name] = (time_df.start - time_df.start.shift()).fillna(0).shift(-1)
 
         # Fix the last event, which will have a NaN duration
         # Set duration to trace_end - last_event
         df.loc[df.index[-1], col_name] = self.start_time + self.time_range - df.index[-1]
+
+        return df
 
     @staticmethod
     def squash_df(df, start, end, column='delta'):
@@ -942,7 +931,7 @@ class Trace(Loggable):
 
         The input dataframe is expected to have a "column" which reports
         the time delta between consecutive rows, as for example dataframes
-        generated by addEventsDeltas().
+        generated by add_events_deltas().
 
         The returned dataframe is granted to have an initial and final
         event at the specified "start" ("end") index values, which values

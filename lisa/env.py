@@ -268,10 +268,6 @@ class TestEnv(Loggable, HideExekallID):
         # computed when actually needed.
         self.plat_info.add_target_src(self, fallback=True)
 
-        # Update the PlatformInfo with keys derived from the energy model
-        with contextlib.suppress(KeyError):
-            self.plat_info.add_nrg_model_src()
-
         logger.info('Effective platform information:\n%s', self.plat_info)
 
     @classmethod

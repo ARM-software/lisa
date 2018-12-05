@@ -1118,11 +1118,14 @@ class TypedList(GenericContainerBase, list, metaclass=GenericSequenceMeta):
 class IntIntDict(TypedDict):
     _type = (int, int)
 
-class IntRealDict(TypedDict):
-    _type = (int, numbers.Real)
-
 class IntList(TypedList):
     _type = int
+
+class IntIntListDict(TypedDict):
+    _type = (int, IntList)
+
+class IntListList(TypedList):
+    _type = IntList
 
 class StrList(TypedList):
     _type = str

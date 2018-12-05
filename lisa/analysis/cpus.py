@@ -17,19 +17,15 @@
 
 """ CPUs Analysis Module """
 
-import matplotlib.pyplot as plt
-import pylab as pl
 import pandas as pd
 
-from lisa.analysis.base import AnalysisBase
+from lisa.utils import memoized
+from lisa.analysis.base import AnalysisBase, requires_events
 
 
 class CpusAnalysis(AnalysisBase):
     """
-    Support for CPUs Signals Analysis
-
-    :param trace: input Trace object
-    :type trace: :class:`Trace`
+    Support for CPUs signals analysis
     """
 
     name = 'cpus'
@@ -42,175 +38,58 @@ class CpusAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
+    @requires_events(['sched_switch'])
     def df_context_switches(self):
         """
         Compute number of context switches on each CPU.
 
-        :returns: :mod:`pandas.DataFrame`
-        """
-        if not self._trace.hasEvents('sched_switch'):
-            self._log.warning('Events [sched_switch] not found, context switch '
-                              'computation not possible!')
-            return None
+        :returns: A :class:`pandas.DataFrame` with:
 
+          * A ``context_switch_cnt`` column (the number of context switch per CPU)
+        """
         sched_df = self._trace.df_events('sched_switch')
-        cpus = list(range(self._trace.plat_info['cpus-count']))
+        cpus = list(range(self._trace.cpus_count))
         ctx_sw_df = pd.DataFrame(
             [len(sched_df[sched_df['__cpu'] == cpu]) for cpu in cpus],
             index=cpus,
             columns=['context_switch_cnt']
         )
         ctx_sw_df.index.name = 'cpu'
+
         return ctx_sw_df
-
-    def df_cpu_wakeups(self, cpus=None):
-        """"
-        Get a DataFrame showing when a CPU was woken from idle
-
-        :param cpus: List of CPUs to find wakeups for. If None, all CPUs.
-        :type cpus: list(int) or None
-
-        :returns: :mod:`pandas.DataFrame` with one column ``cpu``, where each
-                  row shows a time when the given ``cpu`` was woken up from
-                  idle.
-        """
-        if not self._trace.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, cannot '
-                              'get CPU wakeup events.')
-            return None
-
-        cpus = cpus or list(range(self._trace.cpus_count))
-
-        sr = pd.Series()
-        for cpu in cpus:
-            cpu_sr = self._trace.getCPUActiveSignal(cpu)
-            cpu_sr = cpu_sr[cpu_sr == 1]
-            cpu_sr = cpu_sr.replace(1, cpu)
-            sr = sr.append(cpu_sr)
-
-        return pd.DataFrame({'cpu': sr}).sort_index()
 
 ###############################################################################
 # Plotting Methods
 ###############################################################################
 
-    def plot_cpu(self, cpus=None):
-        """
-        Plot CPU-related signals for both big and LITTLE clusters.
-
-        :param cpus: list of CPUs to be plotted
-        :type cpus: list(int)
-        """
-        if not self._trace.hasEvents('sched_load_avg_cpu'):
-            self._log.warning('Events [sched_load_avg_cpu] not found, '
-                              'plot DISABLED!')
-            return
-
-        # Filter on specified cpus
-        if cpus is None:
-            cpus = sorted(self._big_cpus + self._little_cpus)
-
-        # Plot: big CPUs
-        bcpus = set(cpus).intersection(self._big_cpus)
-        if bcpus:
-            self._plot_cpu(bcpus, "big")
-
-        # Plot: LITTLE CPUs
-        lcpus = set(cpus).intersection(self._little_cpus)
-        if lcpus:
-            self._plot_cpu(lcpus, "LITTLE")
-
-
-###############################################################################
-# Utility Methods
-###############################################################################
-
-    def _plot_cpu(self, cpus, label=''):
-        """
-        Internal method that generates plots for all input CPUs.
-
-        :param cpus: list of CPUs to be plotted
-        :type cpus: list(int)
-        """
-        if label != '':
-            label1 = '{} '.format(label)
-            label2 = '_{}s'.format(label.lower())
-
-        # Plot required CPUs
-        _, pltaxes = plt.subplots(len(cpus), 1, figsize=(16, 3*(len(cpus))))
-
-        idx = 0
-        for cpu in cpus:
-
-            # Reference axes to be used
-            axes = pltaxes
-            if len(cpus) > 1:
-                axes = pltaxes[idx]
-
-            # Add CPU utilization
-            axes.set_title('{0:s}CPU [{1:d}]'.format(label1, cpu))
-            df = self._trace.df_events('sched_load_avg_cpu')
-            df = df[df.cpu == cpu]
-            if len(df):
-                df[['util_avg']].plot(ax=axes, drawstyle='steps-post',
-                                      alpha=0.4)
-
-            # if self._trace.hasEvents('sched_boost_cpu'):
-            #     df = self._trace.df_events('sched_boost_cpu')
-            #     df = df[df.cpu == cpu]
-            #     if len(df):
-            #         df[['usage', 'boosted_usage']].plot(
-            #             ax=axes,
-            #             style=['m-', 'r-'],
-            #             drawstyle='steps-post');
-
-            # Add Capacities data if avilable
-            if self._trace.hasEvents('cpu_capacity'):
-                df = self._trace.df_events('cpu_capacity')
-                df = df[df.cpu == cpu]
-                if len(df):
-                    # data = df[['capacity', 'tip_capacity', 'max_capacity']]
-                    # data.plot(ax=axes, style=['m', 'y', 'r'],
-                    data = df[['capacity', 'tip_capacity']]
-                    data.plot(ax=axes, style=['m', '--y'],
-                              drawstyle='steps-post')
-
-            # Add overutilized signal to the plot
-            self._trace.analysis.status.plot_overutilized(axes)
-
-            axes.set_ylim(0, 1100)
-            axes.set_xlim(self._trace.x_min, self._trace.x_max)
-
-            if idx == 0:
-                axes.annotate("{}CPUs Signals".format(label1),
-                              xy=(0, axes.get_ylim()[1]),
-                              xytext=(-50, 25),
-                              textcoords='offset points', fontsize=16)
-            # Disable x-axis timestamp for top-most cpus
-            if len(cpus) > 1 and idx < len(cpus)-1:
-                axes.set_xticklabels([])
-                axes.set_xlabel('')
-            axes.grid(True)
-
-            idx += 1
-
-        # Save generated plots into datadir
-        figname = '{}/{}cpus{}.png'.format(self._trace.plots_dir,
-                                           self._trace.plots_prefix, label2)
-        pl.savefig(figname, bbox_inches='tight')
-
-    def plot_context_switch(self):
+    @requires_events(df_context_switches.required_events)
+    def plot_context_switches(self, filepath=None):
         """
         Plot histogram of context switches on each CPU.
         """
-        if not self._trace.hasEvents('sched_switch'):
-            self._log.warning('Events [sched_switch] not found, plot DISABLED!')
-            return
+        fig, axis = self.setup_plot(height=8)
 
         ctx_sw_df = self.df_context_switches()
-        ax = ctx_sw_df.plot.bar(title="Per-CPU Task Context Switches",
-                                legend=False,
-                                figsize=(16, 8))
-        ax.grid()
+        ctx_sw_df["context_switch_cnt"].plot.bar(
+            title="Per-CPU Task Context Switches", legend=False, ax=axis)
+        axis.grid()
+
+        self.save_plot(fig, filepath)
+        return axis
+
+    def plot_orig_capacity(self, axis, cpu):
+        """
+        Plot the orig capacity of a CPU onto a given axis
+
+        :param axis: The axis
+        :type axis: matplotlib.axes.Axes
+
+        :param cpu: The CPU
+        :type cpu: int
+        """
+        if "cpu-capacities" in self._trace.plat_info:
+            axis.axhline(self._trace.plat_info["cpu-capacities"][cpu],
+                         color=self.get_next_color(axis),
+                         linestyle='--', label="orig_capacity")
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

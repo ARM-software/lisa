@@ -19,11 +19,7 @@
 
 """ System Status Analaysis Module """
 
-import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as plt
-
-from lisa.analysis.base import AnalysisBase
-
+from lisa.analysis.base import AnalysisBase, requires_events
 
 class StatusAnalysis(AnalysisBase):
     """
@@ -43,13 +39,16 @@ class StatusAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
+    @requires_events(["sched_overutilized"])
     def df_overutilized(self):
         """
-        Get data frame with sched_overutilized data.
-        """
-        if not self._trace.hasEvents('sched_overutilized'):
-            return None
+        Get overutilized events
 
+        :returns: A :class:`pandas.DataFrame` with:
+
+          * A ``overutilized`` column (the overutilized status at a given time)
+          * A ``len`` column (the time spent in that overutilized status)
+        """
         # Build sequence of overutilization "bands"
         df = self._trace.df_events('sched_overutilized')
 
@@ -61,7 +60,6 @@ class StatusAnalysis(AnalysisBase):
         # df = df.reset_index()\
         #         .drop_duplicates(subset='Time', keep='last')\
         #         .set_index('Time')
-
         return df[['len', 'overutilized']]
 
 
@@ -69,44 +67,41 @@ class StatusAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    def plot_overutilized(self, axes=None):
+    @requires_events(df_overutilized.required_events)
+    def plot_overutilized(self, filepath=None, axis=None):
         """
-        Draw a plot that shows intervals of time where the system was reported
-        as overutilized.
+        Draw the system's overutilized status as colored bands
 
-        The optional axes parameter allows to plot the signal on an existing
-        graph.
-
-        :param axes: axes on which to plot the signal
-        :type axes: :mod:`matplotlib.axes.Axes`
+        :param axis: If provided, overlay the bands on this axis
+        :type axis: matplotlib.axes.Axes
         """
-        if not self._trace.hasEvents('sched_overutilized'):
-            self._log.warning('Event [sched_overutilized] not found, '
-                              'plot DISABLED!')
-            return
+        local_fig = axis is None
+
+        if local_fig:
+            fig, axis = self.setup_plot()
 
         df = self.df_overutilized()
 
         # Compute intervals in which the system is reported to be overutilized
         bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]
 
-        # If not axis provided: generate a standalone plot
-        if not axes:
-            gs = gridspec.GridSpec(1, 1)
-            plt.figure(figsize=(16, 1))
-            axes = plt.subplot(gs[0, 0])
-            axes.set_title('System Status {white: EAS mode, '
-                           'red: Non EAS mode}')
-            axes.set_xlim(self._trace.x_min, self._trace.x_max)
-            axes.set_yticklabels([])
-            axes.set_xlabel('Time [s]')
-            axes.grid(True)
-
-        # Otherwise: draw overutilized bands on top of the specified plot
+        color = self.get_next_color(axis)
+        label = "Overutilized"
         for (start, delta, overutilized) in bands:
             if not overutilized:
                 continue
+
             end = start + delta
-            axes.axvspan(start, end, facecolor='r', alpha=0.1)
+            axis.axvspan(start, end, alpha=0.2, facecolor=color, label=label)
+
+            if label:
+                label = None
+
+        axis.legend()
+
+        if local_fig:
+            axis.set_title("System-wide overutilized status")
+            axis.set_xlim(self._trace.x_min, self._trace.x_max)
+            self.save_plot(fig, filepath)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

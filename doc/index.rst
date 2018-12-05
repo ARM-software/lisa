@@ -34,6 +34,7 @@ Contents:
    kernel_tests
    wlgen
    internals
+   analysis
    lisa_tests
 
 

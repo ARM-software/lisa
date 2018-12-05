@@ -15,22 +15,12 @@
 # limitations under the License.
 #
 
-""" Thermal Analysis Module """
+from matplotlib.ticker import MaxNLocator
 
-import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as plt
-import pandas as pd
-import pylab as pl
-import operator
-import os
-
-from trappy.utils import listify
 from devlib.utils.misc import list_to_mask, mask_to_list
 
-from lisa.analysis.base import AnalysisBase, ResidencyTime, ResidencyData
+from lisa.analysis.base import AnalysisBase, requires_events
 from lisa.utils import memoized
-from bart.common.Utils import area_under_curve
-from matplotlib.ticker import MaxNLocator
 
 
 class ThermalAnalysis(AnalysisBase):
@@ -38,72 +28,43 @@ class ThermalAnalysis(AnalysisBase):
     Support for plotting Thermal Analysis data
 
     :param trace: input Trace object
-    :type trace: lisa.Trace
+    :type trace: :class:`trace.Trace`
     """
 
     name = 'thermal'
 
-###############################################################################
-# Analysis properties
-###############################################################################
+    @requires_events(["thermal_temperature"])
+    def df_thermal_zones_temperature(self):
+        """
+        Get the temperature of the thermal zones
 
-    @property
-    @memoized
-    def thermal_zones(self):
-        """
-        Get thermal zone ids that appear in the trace
-        """
-        df = self._trace.df_events('thermal_temperature')
-        return df["thermal_zone"].unique().tolist()
+        :returns: a :class:`pandas.DataFrame` with:
 
-    @property
-    @memoized
-    def cpufreq_cdevs(self):
+          * An ``id`` column (The thermal zone ID)
+          * A ``thermal_zone`` column (The thermal zone name)
+          * A ``temp`` column (The reported temperature)
         """
-        Get cpufreq cooling devices that appear in the trace
-        """
-        df = self._trace.df_events('thermal_power_cpu_limit')
-        res = df['cpus'].unique().tolist()
-        return [mask_to_list(mask) for mask in res]
-
-    @property
-    @memoized
-    def devfreq_cdevs(self):
-        """
-        Get devfreq cooling devices that appear in the trace
-        """
-        df = self._trace.df_events('thermal_power_devfreq_limit')
-        return df['type'].unique().tolist()
-
-###############################################################################
-# DataFrame Getter Methods
-###############################################################################
-
-    def df_thermal_zone_temperature(self, ids=None):
-        """
-        Get the temperature readings of one or more thermal zone(s)
-        (all by default)
-
-        :param ids: The thermal zones to consider
-        :type ids: list(int)
-        """
-        df = self._trace.df_events('thermal_temperature')
+        df = self._trace.df_events("thermal")
         df = df[['id', 'thermal_zone', 'temp']]
-
-        if ids is not None:
-            df = df[df.id.isin(ids)]
 
         return df
 
+    @requires_events(["thermal_power_cpu_limit"])
     def df_cpufreq_cooling_state(self, cpus=None):
         """
-        Get the cooling states of one or more cpufreq cooling device(s)
-        (all by default)
+        Get cpufreq cooling device states
 
-        :param cpus: The CPUs to consider
+        :param cpus: The CPUs to consider (all by default)
         :type cpus: list(int)
+
+        :returns: a :class:`pandas.DataFrame` with:
+
+          * An ``cpus`` column (The CPUs affected by the cooling device)
+          * A ``freq`` column (The frequency limit)
+          * A ``cdev_state`` column (The cooling device state index)
+
         """
-        df = self._trace.df_events('thermal_power_cpu_limit')
+        df = self._trace.df_events("cpu_out_power")
         df = df[['cpus', 'freq', 'cdev_state']]
 
         if cpus is not None:
@@ -114,15 +75,21 @@ class ThermalAnalysis(AnalysisBase):
 
         return df
 
+    @requires_events(["thermal_power_devfreq_limit"])
     def df_devfreq_cooling_state(self, devices=None):
         """
-        Get the cooling states of one or more devfreq cooling device(s)
-        (all by default)
+        Get devfreq cooling device states
 
-        :param devices: The devfreq devices to consider
+        :param devices: The devfreq devices to consider (all by default)
         :type device: list(str)
+
+        :returns: a :class:`pandas.DataFrame` with:
+
+          * An ``cpus`` column (The CPUs affected by the cooling device)
+          * A ``freq`` column (The frequency limit)
+          * A ``cdev_state`` column (The cooling device state index)
         """
-        df = self._trace.df_events('thermal_power_devfreq_limit')
+        df = self._trace.df_events("devfreq_out_power")
         df = df[['type', 'freq', 'cdev_state']]
 
         if devices is not None:
@@ -130,153 +97,134 @@ class ThermalAnalysis(AnalysisBase):
 
         return df
 
+    @property
+    @memoized
+    @requires_events(df_thermal_zones_temperature.required_events)
+    def thermal_zones(self):
+        """
+        Get thermal zone ids that appear in the trace
+        """
+        df = self.df_thermal_zones_temperature()
+        return df["thermal_zone"].unique().tolist()
+
+    @property
+    @memoized
+    @requires_events(df_cpufreq_cooling_state.required_events)
+    def cpufreq_cdevs(self):
+        """
+        Get cpufreq cooling devices that appear in the trace
+        """
+        df = self.df_cpufreq_cooling_state()
+        res = df['cpus'].unique().tolist()
+        return [mask_to_list(mask) for mask in res]
+
+    @property
+    @memoized
+    @requires_events(df_devfreq_cooling_state.required_events)
+    def devfreq_cdevs(self):
+        """
+        Get devfreq cooling devices that appear in the trace
+        """
+        df = self.df_devfreq_cooling_state()
+        return df['type'].unique().tolist()
 
 ###############################################################################
 # Plotting Methods
 ###############################################################################
 
-    def plot_temperature(self, thermal_zones=None, ax=None):
+    @requires_events(df_thermal_zones_temperature.required_events)
+    def plot_thermal_zone_temperature(self, thermal_zone_id, filepath=None, axis=None):
         """
         Plot temperature of thermal zones (all by default)
 
-        Requires the following trace event:
-            - thermal_temperature
-
-        :param thermal_zones: ID(s) of the zones to be plotted.
-            All the zones are plotted by default.
-            IDs can be found in syfs:  /sys/class/thermal/thermal_zone<ID>
-        :type thermal_zones: list(int)
+        :param thermal_zone_id: ID of the zone
+        :type thermal_zone_id: int
         """
-        if not self._trace.hasEvents('thermal_temperature'):
-            self._log.warning('Event [{}] not found, plot DISABLED!'
-                              .format('thermal_temperature'))
-            return
+        local_fig = axis is None
 
-        plot_df = self.df_thermal_zone_temperature(thermal_zones)
+        if local_fig:
+            fig, axis = self.setup_plot()
 
-        def stringify_tz(id):
-            return plot_df[plot_df.id == id]['thermal_zone'].unique()[0]
+        df = self.df_thermal_zones_temperature()
+        df = df[df.id == thermal_zone_id]
 
-        filters = None if thermal_zones is None else {'thermal_zone' : thermal_zones}
-        self._plot_generic(plot_df, 'id', filters=filters, columns=['temp'],
-                          prettify_name=stringify_tz,
-                          drawstyle='steps-post', ax=ax
-        )
+        tz_name = df.thermal_zone.unique()[0]
 
-        if thermal_zones is None:
-            suffix = ''
-        else:
-            suffix = '_' + '_'.join(map(str, thermal_zones))
+        df.temp.plot(drawstyle="steps-post", ax=axis,
+                     label="Thermal zone \"{}\"".format(tz_name))
 
-        # Save generated plots into datadir
-        figname = os.path.join(
-            self._trace.plots_dir,
-            '{}thermal_temperature{}.png'.format(
-                self._trace.plots_dir, self._trace.plots_prefix, suffix
-            )
-        )
+        axis.legend()
 
-        pl.savefig(figname, bbox_inches='tight')
+        if local_fig:
+            axis.grid(True)
+            axis.set_title("Temperature evolution")
+            axis.set_ylabel("Temperature (°C.10e3)")
+            axis.set_xlim(self._trace.x_min, self._trace.x_max)
+            self.save_plot(fig, filepath)
 
-    def plot_cpu_cooling_states(self, cpus=None, ax=None):
+        return axis
+
+    @requires_events(df_cpufreq_cooling_state.required_events)
+    def plot_cpu_cooling_states(self, cpu, filepath=None, axis=None):
         """
-        Plot the state evolution of cpufreq cooling devices (all by default)
+        Plot the state evolution of a cpufreq cooling device
 
-        Requires the following trace event:
-            - thermal_power_cpu_limit
-
-        :param cpus: list of CPUs to plot. Whole clusters can be controlled as
-            a single cooling device, they will be plotted as long as one of their
-            CPUs is in the list.
-        :type cpus: list(int)
+        :param cpu: The CPU. Whole clusters can be controlled as
+          a single cooling device, they will be plotted as long this CPU
+          belongs to the cluster.
+        :type cpu: int
         """
-        if not self._trace.hasEvents('thermal_power_cpu_limit'):
-            self._log.warning('Event [{}] not found, plot DISABLED!'
-                              .format('thermal_power_cpu_limit'))
-            return
+        local_fig = axis is None
 
-        plot_df = self._trace.df_events('thermal_power_cpu_limit')
+        if local_fig:
+            fig, axis = self.setup_plot()
 
-        def stringify_mask(mask):
-            return 'CPUs {}'.format(mask_to_list(mask))
+        df = self.df_cpufreq_cooling_state([cpu])
+        cdev_name = "CPUs {}".format(mask_to_list(df.cpus.unique()[0]))
 
-        # Find masks that match the requested CPUs
-        # This can include other CPUs
-        masks = None
-        if cpus is not None:
-            masks = self._matching_masks(cpus)
+        df.cdev_state.plot(drawstyle="steps-post", ax=axis,
+                           label="\"{}\"".format(cdev_name))
 
-        filters = None if masks is None else {'cpus' : masks}
-        _ax = self._plot_generic(plot_df, 'cpus', filters=filters, columns=['cdev_state'],
-                          prettify_name=stringify_mask,
-                          drawstyle='steps-post', ax=ax
-        )
+        axis.legend()
 
-        if ax is None:
-            ax = _ax
+        if local_fig:
+            axis.grid(True)
+            axis.set_title("cpufreq cooling devices status")
+            axis.yaxis.set_major_locator(MaxNLocator(integer=True))
+            axis.grid(axis='y')
+            axis.set_xlim(self._trace.x_min, self._trace.x_max)
+            self.save_plot(fig, filepath)
 
-        # Cdev status is an integer series
-        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax.grid(axis='y')
+        return axis
 
-        if cpus is None:
-            suffix = ''
-        else:
-            suffix = '_' + '_'.join(map(str, cpus))
-
-        # Save generated plots into datadir
-        figname = os.path.join(
-            self._trace.plots_dir,
-            '{}thermal_cpufreq_cdev_state{}.png'.format(
-                self._trace.plots_dir, self._trace.plots_prefix, suffix
-            )
-        )
-        pl.savefig(figname, bbox_inches='tight')
-
-    def plot_dev_freq_cooling_states(self, devices=None, ax=None):
+    def plot_dev_freq_cooling_states(self, device, filepath=None, axis=None):
         """
-        Plot the state evolution of devfreq cooling devices (all by default)
+        Plot the state evolution of a devfreq cooling device
 
-        Requires the following trace event:
-            - thermal_power_devfreq_limit
-
-        :param devices: list of devfreq devices to plot.
-        :type cpus: list(int)
+        :param device: The devfreq devices to consider
+        :type device: str
         """
-        if not self._trace.hasEvents('thermal_power_devfreq_limit'):
-            self._log.warning('Event [{}] not found, plot DISABLED!'
-                              .format('thermal_power_devfreq_limit'))
-            return
+        local_fig = axis is None
 
-        plot_df = self._trace.df_events('thermal_power_devfreq_limit')
+        if local_fig:
+            fig, axis = self.setup_plot()
 
-        # Might have more than one device selected by 'type', but that's
-        # the best we can do
-        filters = None if devices is None else {'type' : devices}
-        _ax = self._plot_generic(plot_df, 'type', filters=filters, columns=['cdev_state'],
-                          drawstyle='steps-post', ax=ax
-        )
+        df = self.df_devfreq_cooling_state([device])
 
-        if ax is None:
-            ax = _ax
+        df.cdev_state.plot(drawstyle="steps-post", ax=axis,
+                           label="Device \"{}\"".format(device))
 
-        # Cdev status is an integer series
-        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax.grid(axis='y')
+        axis.legend()
 
-        if devices is None:
-            suffix = ''
-        else:
-            suffix = '_' + '_'.join(map(str, devices))
+        if local_fig:
+            axis.grid(True)
+            axis.set_title("devfreq cooling devices status")
+            axis.yaxis.set_major_locator(MaxNLocator(integer=True))
+            axis.grid(axis='y')
+            axis.set_xlim(self._trace.x_min, self._trace.x_max)
+            self.save_plot(fig, filepath)
 
-        # Save generated plots into datadir
-        figname = os.path.join(
-            self._trace.plots_dir,
-            '{}thermal_devfreq_cdev_state{}.png'.format(
-                self._trace.plots_dir, self._trace.plots_prefix, suffix
-            )
-        )
-        pl.savefig(figname, bbox_inches='tight')
+        return axis
 
 ###############################################################################
 # Utility Methods

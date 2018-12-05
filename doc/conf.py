@@ -326,7 +326,7 @@ texinfo_documents = [
 intersphinx_mapping = {
     'python' : ('https://docs.python.org/3', None),
     'pandas' : ('https://pandas.pydata.org/pandas-docs/stable/', None),
-    'matplotlib' : ('http://matplotlib.sourceforge.net/', None),
+    'matplotlib' : ('https://matplotlib.org', None),
     # XXX: Doesn't seem to work, might be due to how devlib doc is generated
     'devlib' : ('https://pythonhosted.org/devlib/', None),
     'trappy' : ('https://pythonhosted.org/TRAPpy', None),
@@ -368,7 +368,7 @@ def is_test(method):
             for cls in base_cls_list
         )
 
-def autodoc_process_docstring(app, what, name, obj, options, lines):
+def autodoc_process_test_method(app, what, name, obj, options, lines):
     # Append the list of available test methods for all classes that appear to
     # have some.
     if what == 'class':
@@ -386,7 +386,20 @@ def autodoc_process_docstring(app, what, name, obj, options, lines):
 
             lines.extend(test_list_doc.splitlines())
 
+def autodoc_process_analysis_events(app, what, name, obj, options, lines):
+    # Append the list of required trace events
+    if what != 'method' or not hasattr(obj, "required_events"):
+        return
+
+    events = obj.required_events
+
+    events_doc = "\n:Required trace events:\n\n{}\n\n".format(
+        "\n".join(["    * ``{}``".format(event) for event in events]))
+
+    lines.extend(events_doc.splitlines())
+
 def setup(app):
-    app.connect('autodoc-process-docstring', autodoc_process_docstring)
+    app.connect('autodoc-process-docstring', autodoc_process_test_method)
+    app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

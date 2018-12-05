@@ -15,168 +15,185 @@
 # limitations under the License.
 #
 
-import logging
-from collections import namedtuple
+import functools
+import os
+import inspect
 
-import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
-import pandas as pd
-import pylab as pl
+from cycler import cycler
 
-from trappy.utils import listify
+from lisa.utils import Loggable
 
-""" Helper module for Analysis classes """
+# Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
+COLOR_CYCLES = [
+    '#377eb8', '#ff7f00', '#4daf4a',
+    '#f781bf', '#a65628', '#984ea3',
+    '#999999', '#e41a1c', '#dede00']
 
-ResidencyTime = namedtuple('ResidencyTime', ['total', 'active'])
-ResidencyData = namedtuple('ResidencyData', ['label', 'residency'])
+plt.rcParams['axes.prop_cycle'] = cycler(color=COLOR_CYCLES)
 
-class AnalysisBase:
+class MissingTraceEventError(RuntimeError):
+    """
+    :param missing_events: The missing trace events
+    :type missing_events: list(str)
+    """
+    def __init__(self, missing_events):
+        super().__init__(
+            "Trace is missing the following required events: {}".format(missing_events))
+
+        self.missing_events = missing_events
+
+def requires_events(events):
+    """
+    Decorator for methods that require some given trace events
+
+    :param events: The list of required events
+    :type events: list(str)
+
+    The decorate method must inherit from :class:`AnalysisBase`
+    """
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(self, *args, **kwargs):
+            self.check_events(events)
+            return f(self, *args, **kwargs)
+
+        # Set an attribute on the wrapper itself, so it can be e.g. added
+        # to the method documentation
+        wrapper.required_events = sorted(set(events))
+        return wrapper
+
+    return decorator
+
+class AnalysisBase(Loggable):
     """
     Base class for Analysis modules.
 
     :param trace: input Trace object
     :type trace: :class:`trace.Trace`
+
+    :Design notes:
+
+    Method depending on certain trace events *must* be decorated with
+    :meth:`lisa.analysis.base.requires_events`
+
+    Plotting methods *must* return the :class:`matplotlib.axes.Axes` instance
+    used by the plotting method. This lets users further modify them.
     """
 
     def __init__(self, trace):
-        self._log = logging.getLogger('Analysis')
         self._trace = trace
 
-        plat_info = self._trace.plat_info
+    @classmethod
+    def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, **kwargs):
+        """
+        Common helper for setting up a matplotlib plot
 
-        # By default assume SMP system
-        self._big_cap = 1024
-        self._little_cap = 1024
-        self._big_cpus = list(range(trace.cpus_count))
-        self._little_cpus = []
+        :param width: Width of the plot (inches)
+        :type width: int or float
 
-        if self._trace.has_big_little:
-            nrg_model = plat_info['nrg-model']
-            self._little_cap = nrg_model.get_cpu_capacity(nrg_model.littlest_cpus[0])
+        :param height: Height of each subplot (inches)
+        :type height: int or float
 
-        if ('clusters' in plat_info and
-            'big' in plat_info['clusters'] and
-            'little' in plat_info['clusters']):
-            self._big_cpus = plat_info['clusters']['big']
-            self._little_cpus = plat_info['clusters']['little']
+        :param ncols: Number of plots on a single row
+        :type ncols: int
 
-    def _plot_setup(self, width=16, height=4, ncols=1, nrows=1):
+        :param nrows: Number of plots in a single column
+        :type nrows: int
+
+        :Keywords arguments: Extra arguments to pass to
+          :obj:`matplotlib.pyplot.subplots`
+
+        :returns: tuple(matplotlib.figure.Figure, matplotlib.axes.Axes (or an
+          array of, if ``nrows`` > 1))
+        """
         figure, axes = plt.subplots(
-            ncols=ncols, nrows=nrows, figsize=(width, height * nrows)
+            ncols=ncols, nrows=nrows, figsize=(width, height * nrows), **kwargs
         )
         # Needed for multirow plots to not overlap with each other
         plt.tight_layout(h_pad=3.5)
         return figure, axes
 
-    def _plot_generic(self, dfr, pivot, filters=None, columns=None,
-                     prettify_name=None, width=16, height=4,
-                     drawstyle="default", ax=None, title=""):
+    @classmethod
+    def cycle_colors(cls, axis, nr_cycles):
         """
-        Generic trace plotting method
+        Cycle the axis color cycle ``nr_cycles`` forward
 
-        The values in the column 'pivot' will be used as discriminant
+        :param axis: The axis to manipulate
+        :type axis: matplotlib.axes.Axes
 
-        Let's consider a df with these columns:
+        :param nr_cycles: The number of colors to cycle through.
+        :type nr_cycles: int
 
-        | time | cpu | load_avg | util_avg |
-        ====================================
-        |  42  |  2  |   1812   |   400    |
-        ------------------------------------
-        |  43  |  0  |   1337   |   290    |
-        ------------------------------------
-        |  ..  | ... |    ..    |    ..    |
+        .. note::
 
-        To plot the 'util_avg' value of CPU2, the function would be used like so:
-        ::
-        plot_generic(df, pivot='cpu', filters={'cpu' : [2]}, columns='util_avg')
+          This is an absolute cycle, as in, it will always start from the first
+          color defined in the color cycle.
 
-        CPUs could be compared by using:
-        ::
-        plot_generic(df, pivot='cpu', filters={'cpu' : [2, 3]}, columns='util_avg')
-
-        :param dfr: Trace dataframe
-        :type dfr: `pandas.DataFrame`
-
-        :param pivot: Name of column that will serve as a pivot
-        :type pivot: str
-
-        :param filters: Dataframe column filters
-        :type filters: dict
-
-        :param columns: Name of columns whose data will be plotted
-        :type columns: str or list(str)
-
-        :param prettify_name: user-friendly stringify function for pivot values
-        :type prettify_name: callable[str]
-
-        :param width: The width of the plot
-        :type width: int
-
-        :param height: The height of the plot
-        :type height: int
-
-        :param drawstyle: The drawstyle setting of the plot
-        :type drawstyle: str
         """
+        if nr_cycles < 1:
+            return
 
-        if prettify_name is None:
-            def prettify_name(name): return '{}={}'.format(pivot, name)
+        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-        if pivot not in dfr.columns:
-            raise ValueError('Invalid "pivot" parameter value: no {} column'
-                             .format(pivot)
-            )
+        if nr_cycles > len(colors):
+            nr_cycles -= len(colors)
 
-        if columns is None:
-            # Find available columns
-            columns = dfr.columns.tolist()
-            columns.remove(pivot)
-        else:
-            # Filter out unwanted columns
-            columns = listify(columns)
-            try:
-                dfr = dfr[columns + [pivot]]
-            except KeyError as err:
-                raise ValueError('Invalid "columns" parameter value: {}'
-                                 .format(err.message)
-                )
+        axis.set_prop_cycle(cycler(color=colors[nr_cycles:] + colors[:nr_cycles]))
 
-        # Apply filters
-        if filters is None:
-            filters = {}
+    @classmethod
+    def get_next_color(cls, axis):
+        """
+        Get the next color that will be used to draw lines on the axis
 
-        for col, vals in filters.items():
-            dfr = dfr[dfr[col].isin(vals)]
+        :param axis: The axis
+        :type axis: matplotlib.axes.Axes
 
-        setup_plot = False
-        if ax is None:
-            _, ax = self._plot_setup(width, height)
-            setup_plot = True
+        .. warning::
 
-        matches = dfr[pivot].unique().tolist()
+          This will consume the color from the cycler, which means it will
+          change which color is to be used next.
 
-        for match in matches:
-            renamed_cols = []
-            for col in columns:
-                renamed_cols.append('{} {}'.format(prettify_name(match), col))
+        """
+        # XXX: We're accessing some private data here, so that could break eventually
+        # Need to find another way to get the current color from the cycler, or to
+        # plot all data from a dataframe in the same color.
+        return next(axis._get_lines.prop_cycler)['color']
 
-            plot_dfr = dfr[dfr[pivot] == match][columns]
-            plot_dfr.columns = renamed_cols
-            plot_dfr.plot(ax=ax, drawstyle=drawstyle)
+    def save_plot(self, figure, filepath=None, img_format="png"):
+        """
+        Save the plot stored in the ``figure``
 
-        if setup_plot:
-            ax.set_title(title)
+        :param figure: The plot figure
+        :type figure: matplotlib.figure.Figure
 
-        ax.set_xlim(self._trace.x_min, self._trace.x_max)
+        :param filepath: The path of the file into which the plot will be saved.
+          If ``None``, a path based on the trace directory and the calling method
+          will be used.
+        :type filepath: str
 
-        # Extend ylim for better visibility
-        cur_lim = ax.get_ylim()
-        lim = (cur_lim[0] - 0.1 * (cur_lim[1] - cur_lim[0]),
-               cur_lim[1] + 0.1 * (cur_lim[1] - cur_lim[0]))
-        ax.set_ylim(lim)
+        :param img_format: The image format to generate
+        :type img_format: str
+        """
+        if filepath is None:
+            module = self.__module__
+            caller = inspect.stack()[1][3]
+            filepath = os.path.join(
+                self._trace.plots_dir,
+                "{}.{}.{}".format(module, caller, img_format))
 
-        plt.legend()
+        figure.savefig(filepath, format=img_format)
 
-        return ax
+    def check_events(self, required_events):
+        """
+        Check that certain trace events are available in the trace
+
+        :raises: MissingTraceEventError if some events are not available
+        """
+        available_events = sorted(set(self._trace.available_events))
+        missing_events = sorted(set(required_events).difference(available_events))
+
+        if missing_events:
+            raise MissingTraceEventError(missing_events)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

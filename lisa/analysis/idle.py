@@ -15,15 +15,15 @@
 # limitations under the License.
 #
 
-""" Idle Analysis Module """
+from functools import reduce
+import operator
 
-import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as plt
 import pandas as pd
-import pylab as pl
 
-from lisa.analysis.base import AnalysisBase, ResidencyTime, ResidencyData
-from trappy.utils import listify
+from trappy.utils import handle_duplicate_index
+
+from lisa.utils import memoized
+from lisa.analysis.base import AnalysisBase, requires_events
 
 
 class IdleAnalysis(AnalysisBase):
@@ -43,24 +43,112 @@ class IdleAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
+    @memoized
+    @requires_events(['cpu_idle'])
+    def signal_cpu_active(self, cpu):
+        """
+        Build a square wave representing the active (i.e. non-idle) CPU time
+
+        :param cpu: CPU ID
+        :type cpu: int
+
+        :returns: A :class:`pandas.Series` that equals 1 at timestamps where the
+          CPU is reported to be non-idle, 0 otherwise
+        """
+        idle_df = self._trace.df_events('cpu_idle')
+        cpu_df = idle_df[idle_df.cpu_id == cpu]
+
+        cpu_active = cpu_df.state.apply(
+            lambda s: 1 if s == -1 else 0
+        )
+
+        start_time = 0.0
+        if not self._trace.ftrace.normalized_time:
+            start_time = self._trace.ftrace.basetime
+
+        if cpu_active.empty:
+            cpu_active = pd.Series([0], index=[start_time])
+        elif cpu_active.index[0] != start_time:
+            entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[start_time])
+            cpu_active = pd.concat([entry_0, cpu_active])
+
+        # Fix sequences of wakeup/sleep events reported with the same index
+        return handle_duplicate_index(cpu_active)
+
+    @requires_events(signal_cpu_active.required_events)
+    def signal_cluster_active(self, cluster):
+        """
+        Build a square wave representing the active (i.e. non-idle) cluster time
+
+        :param cluster: list of CPU IDs belonging to a cluster
+        :type cluster: list(int)
+
+        :returns: A :class:`pandas.Series` that equals 1 at timestamps where at
+          least one CPU is reported to be non-idle, 0 otherwise
+        """
+        active = self.signal_cpu_active(cluster[0]).to_frame(name=cluster[0])
+        for cpu in cluster[1:]:
+            active = active.join(
+                self.signal_cpu_active(cpu).to_frame(name=cpu),
+                how='outer'
+            )
+
+        active.fillna(method='ffill', inplace=True)
+        # There might be NaNs in the signal where we got data from some CPUs
+        # before others. That will break the .astype(int) below, so drop rows
+        # with NaN in them.
+        active.dropna(inplace=True)
+
+        # Cluster active is the OR between the actives on each CPU
+        # belonging to that specific cluster
+        cluster_active = reduce(
+            operator.or_,
+            [cpu_active.astype(int) for _, cpu_active in
+             active.items()]
+        )
+
+        return cluster_active
+
+    @requires_events(['cpu_idle'])
+    def df_cpus_wakeups(self):
+        """"
+        Get a DataFrame showing when CPUs have woken from idle
+
+        :param cpus: List of CPUs to find wakeups for. If None, all CPUs.
+        :type cpus: list(int) or None
+
+        :returns: A :class:`pandas.DataFrame` with
+
+          * A ``cpu`` column (the CPU that woke up at the row index)
+        """
+        cpus = list(range(self._trace.cpus_count))
+
+        sr = pd.Series()
+        for cpu in cpus:
+            cpu_sr = self._trace.getCPUActiveSignal(cpu)
+            cpu_sr = cpu_sr[cpu_sr == 1]
+            cpu_sr = cpu_sr.replace(1, cpu)
+            sr = sr.append(cpu_sr)
+
+        return pd.DataFrame({'cpu': sr}).sort_index()
+
+    @requires_events(["cpu_idle"])
     def df_cpu_idle_state_residency(self, cpu):
         """
         Compute time spent by a given CPU in each idle state.
 
-        :param entity: CPU ID
-        :type entity: int
+        :param cpu: CPU ID
+        :type cpu: int
 
-        :returns: :mod:`pandas.DataFrame` - idle state residency dataframe
+        :returns: a :class:`pandas.DataFrame` with:
+
+          * Idle states as index
+          * A ``time`` column (The time spent in the idle state)
         """
-        if not self._trace.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, '
-                              'idle state residency computation not possible!')
-            return None
-
         idle_df = self._trace.df_events('cpu_idle')
         cpu_idle = idle_df[idle_df.cpu_id == cpu]
 
-        cpu_is_idle = self._trace.getCPUActiveSignal(cpu) ^ 1
+        cpu_is_idle = self.signal_cpu_active(cpu) ^ 1
 
         # In order to compute the time spent in each idle state we
         # multiply 2 square waves:
@@ -93,35 +181,26 @@ class IdleAnalysis(AnalysisBase):
         idle_time_df.index.name = 'idle_state'
         return idle_time_df
 
+    @requires_events(['cpu_idle'])
     def df_cluster_idle_state_residency(self, cluster):
         """
         Compute time spent by a given cluster in each idle state.
 
-        :param cluster: cluster name or list of CPU IDs
-        :type cluster: str or list(int)
+        :param cluster: list of CPU IDs
+        :type cluster: list(int)
 
-        :returns: :mod:`pandas.DataFrame` - idle state residency dataframe
+        :returns: a :class:`pandas.DataFrame` with:
+
+          * Idle states as index
+          * A ``time`` column (The time spent in the idle state)
         """
-        if not self._trace.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, '
-                              'idle state residency computation not possible!')
-            return None
-
-        _cluster = cluster
-        if isinstance(cluster, str) or isinstance(cluster, str):
-            try:
-                _cluster = self._trace.plat_info['clusters'][cluster.lower()]
-            except KeyError:
-                self._log.warning('%s cluster not found!', cluster)
-                return None
-
         idle_df = self._trace.df_events('cpu_idle')
         # Each core in a cluster can be in a different idle state, but the
         # cluster lies in the idle state with lowest ID, that is the shallowest
         # idle state among the idle states of its CPUs
-        cl_idle = idle_df[idle_df.cpu_id == _cluster[0]].state.to_frame(
-            name=_cluster[0])
-        for cpu in _cluster[1:]:
+        cl_idle = idle_df[idle_df.cpu_id == cluster[0]].state.to_frame(
+            name=cluster[0])
+        for cpu in cluster[1:]:
             cl_idle = cl_idle.join(
                 idle_df[idle_df.cpu_id == cpu].state.to_frame(name=cpu),
                 how='outer'
@@ -133,9 +212,9 @@ class IdleAnalysis(AnalysisBase):
         #     cl_is_idle[t] == 1 if all CPUs in the cluster are reported
         #                      to be idle by cpufreq at time t
         #     cl_is_idle[t] == 0 otherwise
-        cl_is_idle = self._trace.getClusterActiveSignal(_cluster) ^ 1
+        cl_is_idle = self.signal_cluster_active(cluster) ^ 1
 
-        # In order to compute the time spent in each idle statefrequency we
+        # In order to compute the time spent in each idle state frequency we
         # multiply 2 square waves:
         # - cluster_is_idle
         # - idle_state, square wave of the form:
@@ -165,161 +244,103 @@ class IdleAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    def plot_cpu_idle_state_residency(self, cpus=None, pct=False):
+    @requires_events(df_cpu_idle_state_residency.required_events)
+    def plot_cpu_idle_state_residency(self, cpu, filepath=None, pct=False):
         """
-        Plot per-CPU idle state residency. big CPUs are plotted first and then
-        LITTLEs.
+        Plot the idle state residency of a CPU
 
-        Requires cpu_idle trace events.
+        :param cpu: The CPU
+        :type cpu: int
 
-        :param cpus: list of CPU IDs. By default plot all CPUs
-        :type cpus: list(int) or int
-
-        :param pct: plot residencies in percentage
+        :param pct: Plot residencies in percentage
         :type pct: bool
         """
-        if not self._trace.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, '
-                              'plot DISABLED!')
-            return
+        fig, axis = self.setup_plot()
 
-        if cpus is None:
-            # Generate plots only for available CPUs
-            cpuidle_data = self._trace.df_events('cpu_idle')
-            _cpus = list(range(cpuidle_data.cpu_id.max() + 1))
-        else:
-            _cpus = listify(cpus)
+        df = self.df_cpu_idle_state_residency(cpu)
 
-        # Split between big and LITTLE CPUs ordered from higher to lower ID
-        _cpus.reverse()
-        big_cpus = [c for c in _cpus if c in self._big_cpus]
-        little_cpus = [c for c in _cpus if c in self._little_cpus]
-        _cpus = big_cpus + little_cpus
+        self._plot_idle_state_residency(df, axis, pct)
 
-        residencies = []
-        xmax = 0.0
-        for cpu in _cpus:
-            r = self.df_cpu_idle_state_residency(cpu)
-            residencies.append(ResidencyData('CPU{}'.format(cpu), r))
+        axis.set_title("CPU{} idle state residency".format(cpu))
 
-            max_time = r.max().values[0]
-            if xmax < max_time:
-                xmax = max_time
+        self.save_plot(fig, filepath)
 
-        self._plot_idle_state_residency(residencies, 'cpu', xmax, pct=pct)
+        return axis
 
-    def plot_cluster_idle_state_residency(self, clusters=None, pct=False):
+    @requires_events(df_cluster_idle_state_residency.required_events)
+    def plot_cluster_idle_state_residency(self, cluster, filepath=None,
+                                          pct=False, axis=None):
         """
-        Plot per-cluster idle state residency in a given cluster, i.e. the
-        amount of time cluster `cluster` spent in idle state `i`. By default,
-        both 'big' and 'LITTLE' clusters data are plotted.
+        Plot the idle state residency of a cluster
 
-        Requires cpu_idle following trace events.
-        :param clusters: name of the clusters to be plotted (all of them by
-            default)
-        :type clusters: str ot list(str)
+        :param cluster: The cluster
+        :type cpu: list(int)
+
+        :param pct: Plot residencies in percentage
+        :type pct: bool
+
+        :param axes: If specified, the axis to use for plotting
+        :type axis: matplotlib.axes.Axes
         """
-        if not self._trace.hasEvents('cpu_idle'):
-            self._log.warning('Events [cpu_idle] not found, plot DISABLED!')
-            return
-        if 'clusters' not in self._trace.plat_info:
-            self._log.warning('No platform cluster info. Plot DISABLED!')
-            return
+        local_fig = axis is None
 
-        # Sanitize clusters
-        if clusters is None:
-            _clusters = list(self._trace.plat_info['clusters'].keys())
-        else:
-            _clusters = listify(clusters)
+        if local_fig:
+            fig, axis = self.setup_plot()
 
-        # Precompute residencies for each cluster
-        residencies = []
-        xmax = 0.0
-        for c in _clusters:
-            r = self.df_cluster_idle_state_residency(c.lower())
-            residencies.append(ResidencyData('{} Cluster'.format(c), r))
+        df = self.df_cluster_idle_state_residency(cluster)
 
-            max_time = r.max().values[0]
-            if xmax < max_time:
-                xmax = max_time
+        self._plot_idle_state_residency(df, axis, pct)
 
-        self._plot_idle_state_residency(residencies, 'cluster', xmax, pct=pct)
+        axis.set_title("CPUs {} idle state residency".format(cluster))
+
+        if local_fig:
+            self.save_plot(fig, filepath)
+
+        return axis
+
+    @requires_events(plot_cluster_idle_state_residency.required_events)
+    def plot_clusters_idle_state_residency(self, filepath=None, pct=False):
+        """
+        Plot the idle state residency of all clusters
+
+        :param pct: Plot residencies in percentage
+        :type pct: bool
+
+        .. note:: This assumes clusters == frequency domains, which may
+          not hold true...
+        """
+        clusters = self._trace.plat_info['freq-domains']
+
+        fig, axes = self.setup_plot(nrows=len(clusters), sharex=True)
+
+        for idx, cluster in enumerate(clusters):
+            axis = axes[idx]
+
+            self.plot_cluster_idle_state_residency(cluster, pct=pct, axis=axis)
+
+        self.save_plot(fig, filepath)
+
+        return axes
 
 ###############################################################################
 # Utility Methods
 ###############################################################################
 
-    def _plot_idle_state_residency(self, residencies, entity_name, xmax,
-                                pct=False):
+    def _plot_idle_state_residency(self, df, axis, pct):
         """
-        Generate Idle state residency plots for the given entities.
-
-        :param residencies: list of residencies to be plot
-        :type residencies: list(namedtuple(ResidencyData)) - each tuple
-            contains:
-            - a label to be used as subplot title
-            - a dataframe with residency for each idle state
-
-        :param entity_name: name of the entity ('cpu' or 'cluster') used in the
-            figure name
-        :type entity_name: str
-
-        :param xmax: upper bound of x-axes
-        :type xmax: double
-
-        :param pct: plot residencies in percentage
-        :type pct: bool
+        A convenient helper to plot idle state residency
         """
-        n_plots = len(residencies)
-        gs = gridspec.GridSpec(n_plots, 1)
-        fig = plt.figure()
+        if pct:
+            df = df * 100 / df.sum()
 
-        for idx, data in enumerate(residencies):
-            r = data.residency
-            if r is None:
-                plt.close(fig)
-                return
+        df["time"].plot.barh(ax=axis)
 
-            axes = fig.add_subplot(gs[idx])
-            is_first = idx == 0
-            is_last = idx+1 == n_plots
-            yrange = 0.4 * max(6, len(r)) * n_plots
-            if pct:
-                duration = r.time.sum()
-                r_pct = r.apply(lambda x: x*100/duration)
-                r_pct.columns = [data.label]
-                r_pct.T.plot.barh(ax=axes, stacked=True, figsize=(16, yrange))
+        if pct:
+            axis.set_xlabel("Time share (%)")
+        else:
+            axis.set_xlabel("Time (s)")
 
-                axes.legend(loc='lower center', ncol=7)
-                axes.set_xlim(0, 100)
-            else:
-                r.plot.barh(ax=axes, color='g',
-                            legend=False, figsize=(16, yrange))
-
-                axes.set_xlim(0, 1.05*xmax)
-                axes.set_ylabel('Idle State')
-                axes.set_title(data.label)
-
-            axes.grid(True)
-            if is_last:
-                if pct:
-                    axes.set_xlabel('Residency [%]')
-                else:
-                    axes.set_xlabel('Time [s]')
-            else:
-                axes.set_xticklabels([])
-
-            if is_first:
-                legend_y = axes.get_ylim()[1]
-                axes.annotate('Idle State Residency Time', xy=(0, legend_y),
-                              xytext=(-50, 45), textcoords='offset points',
-                              fontsize=18)
-
-        figname = '{}/{}{}_idle_state_residency.png'\
-                  .format(self._trace.plots_dir,
-                          self._trace.plots_prefix,
-                          entity_name)
-
-        pl.savefig(figname, bbox_inches='tight')
+        axis.set_ylabel("Idle state")
+        axis.grid(True)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

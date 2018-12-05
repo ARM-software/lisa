@@ -127,8 +127,8 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         start_time = self.trace.start_time + self.trace.time_range
 
         for task in tasks:
-            pid = self.trace.getTaskByName(task)
-            assert len(pid) == 1, "getTaskByName returned more than one PID"
+            pid = self.trace.get_task_by_name(task)
+            assert len(pid) == 1, "get_task_by_name returned more than one PID"
             pid = pid[0]
             start_time = min(start_time, sdf[sdf.next_pid == pid].index[0])
 
