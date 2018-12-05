@@ -308,7 +308,7 @@ function _lisa-jupyter-start {
     cd $PYDIR
     echo
     echo -n 'Notebook server task: '
-    nohup jupyter lab --ip="$IPADDR" --port="$PORT" \
+    nohup LISA_DO_NOTEBOOK_SETUP=1 jupyter lab --ip="$IPADDR" --port="$PORT" \
                       --NotebookApp.token="$TOKEN" \
                       >"$LOGFILE" 2>&1 &
     echo $! >"$PIDFILE"
