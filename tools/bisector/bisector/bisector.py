@@ -886,10 +886,7 @@ def read_stdout(p, timeout=None, kill_timeout=3):
 
         # Store the output and print it on the output.
         if stdout:
-            sys.stdout.buffer.write(stdout)
-            sys.stdout.buffer.flush()
-            LOG_FILE.buffer.write(stdout)
-            LOG_FILE.buffer.flush()
+            write_stdout(stdout)
             stdout_list.append(stdout)
 
     ret = p.wait()
@@ -897,6 +894,12 @@ def read_stdout(p, timeout=None, kill_timeout=3):
     ret = None if timed_out else ret
 
     return (ret, b''.join(stdout_list))
+
+def write_stdout(txt):
+    sys.stdout.buffer.write(txt)
+    sys.stdout.buffer.flush()
+    LOG_FILE.buffer.write(txt)
+    LOG_FILE.buffer.flush()
 
 def call_process(cmd, *args, merge_stderr=True, **kwargs):
     """Call a given command with the given arguments and return its standard output.
@@ -3934,18 +3937,6 @@ def check_report_path(path, probe_file):
 
     is_yaml = not (path.endswith('.pickle') or path.endswith('.pickle.gz'))
     return (open_f, is_yaml)
-
-# Reimplementation of Python 3.7 contextlib.nullcontext
-def nullcontext(obj):
-    """Returns a dummy context manager that just returns the value it was built
-    with."""
-    class _nullcontext:
-        def __enter__(self):
-            return obj
-        def __exit__(self, *args, **kwargs):
-            pass
-
-    return _nullcontext
 
 class Report(Serializable):
     """
