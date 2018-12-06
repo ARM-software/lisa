@@ -18,6 +18,7 @@
 import sys
 import random
 import os.path
+import collections
 
 from devlib.module.hotplug import HotplugModule
 from devlib.exception import TimeoutError
@@ -27,6 +28,9 @@ from lisa.target_script import TargetScript
 from lisa.env import TestEnv
 from lisa.utils import ArtifactPath
 
+class CPUHPSequenceError(Exception):
+    pass
+
 class HotplugTorture(TestBundle):
 
     def __init__(self, plat_info, target_alive, hotpluggable_cpus, live_cpus):
@@ -35,6 +39,55 @@ class HotplugTorture(TestBundle):
         self.target_alive = target_alive
         self.hotpluggable_cpus = hotpluggable_cpus
         self.live_cpus = live_cpus
+
+    @classmethod
+    def _check_cpuhp_seq_consistency(cls, nr_operations, hotpluggable_cpus,
+                                     max_cpus_off, sequence):
+        """
+        Check that a hotplug sequence given by :meth:`_random_cpuhp_seq`
+        is consistent. Parameters are the same as for :meth:`_random_cpuhp_seq`,
+        with the addition of:
+
+        :param sequence: A hotplug sequence, consisting of a sequence of
+            2-tuples (CPU and hot plug way)
+        :type sequence: Sequence
+
+        """
+        if len(sequence) != nr_operations:
+            raise CPUHPSequenceError('{} operations requested, but got {}'.fromat(
+                nr_operations, len(sequence)
+            ))
+
+        # Assume als CPUs are plugged in at the beginning
+        state = collections.defaultdict(lambda: 1)
+
+        for step, (cpu, plug_way) in enumerate(sequence):
+            if cpu not in hotpluggable_cpus:
+                raise CPUHPSequenceError('CPU {cpu} is plugged {way} but is not part of hotpluggable CPUs: {cpu_list}'.format(
+                    cpu=cpu,
+                    way='in' if plug_way else 'out',
+                    cpu_list=str(hotpluggable_cpus),
+                ))
+
+            # Forbid plugging OFF offlined CPUs and plugging IN online CPUs
+            if plug_way == state[cpu]:
+                raise CPUHPSequenceError('Cannot plug {way} a CPU that is already plugged {way}'.format(
+                    way='in' if plug_way else 'out'
+                ))
+
+            state[cpu] = plug_way
+            cpus_off = [cpu for cpu, state in state.items() if state == 0]
+            if len(cpus_off) > max_cpus_off:
+                raise CPUHPSequenceError('A maximum of {} CPUs is allowed to be plugged out, but {} CPUs were plugged out at step {}'.format(
+                    max_cpus_off, len(cpus_off), step,
+                ))
+
+        for cpu, state in state.items():
+            if state != 1:
+                raise CPUHPSequenceError('CPU {} is plugged out but not plugged in at the end of the sequence'.format(
+                    cpu
+                ))
+
 
     @classmethod
     def _random_cpuhp_seq(cls, nr_operations,
@@ -49,6 +102,7 @@ class HotplugTorture(TestBundle):
         plugged-off before (and vice versa). Moreover the state of the CPUs
         once the sequence has completed should the same as it was before.
 
+        FIXME: is that actually still true ?
         The actual length of the sequence might differ from the requested one
         by 1 because it's easier to implement and it shouldn't be an issue for
         most test cases.
@@ -120,17 +174,19 @@ class HotplugTorture(TestBundle):
     @classmethod
     def _from_testenv(cls, te, res_dir, seed, nr_operations, sleep_min_ms,
                       sleep_max_ms, duration_s, max_cpus_off):
-        if not seed:
-            random.seed()
-            seed = random.randint(0, sys.maxsize)
-        else:
+        if seed:
             random.seed(seed)
+        else:
+            random.seed()
 
         te.target.hotplug.online_all()
         hotpluggable_cpus = te.target.hotplug.list_hotpluggable_cpus()
 
         sequence = list(cls._random_cpuhp_seq(
             nr_operations, hotpluggable_cpus, max_cpus_off))
+
+        cls._check_cpuhp_seq_consistency(nr_operations, hotpluggable_cpus,
+            max_cpus_off, sequence)
 
         script = cls._random_cpuhp_script(
             te, res_dir, sequence, sleep_min_ms, sleep_max_ms, duration_s)
