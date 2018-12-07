@@ -170,7 +170,7 @@ class TargetConf(MultiSrcConf, HideExekallID):
         return cls(mapping)
 
     def to_map(self):
-        return dict(self._get_chainmap())
+        return dict(self._get_effective_map())
 
 class TestEnv(Loggable, HideExekallID):
     """
