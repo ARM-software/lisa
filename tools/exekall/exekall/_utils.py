@@ -342,6 +342,16 @@ def find_customization_module_set(module_set):
 
 def import_file(python_src, module_name=None, is_package=False):
     python_src = pathlib.Path(python_src)
+
+    # Directly importing __init__.py does not really make much sense and may
+    # even break, so just import its package instead.
+    if python_src.name == '__init__.py':
+        return import_file(
+            python_src=python_src.parent,
+            module_name=module_name,
+            is_package=True
+        )
+
     if python_src.is_dir():
         is_package = True
 
