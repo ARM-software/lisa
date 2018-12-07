@@ -452,15 +452,17 @@ class FreqInvariance(TestBundle, LoadTrackingHelpers):
     # Combined version of some other tests, applied on all available
     # FreqInvarianceItem with the result merged.
 
-    def test_task_util_avg(self, *args, **kwargs):
+    def test_task_util_avg(self, allowed_error_pct=15) -> ResultBundle:
         """
         Aggregated version of :meth:`InvarianceBase.test_task_util_avg`
         """
         def item_test(test_item):
-            return test_item.test_task_util_avg(*args, **kwargs)
+            return test_item.test_task_util_avg(
+                allowed_error_pct=allowed_error_pct
+            )
         return self._test_all_freq(item_test)
 
-    def test_task_load_avg(self, allowed_error_pct=15):
+    def test_task_load_avg(self, allowed_error_pct=15) -> ResultBundle:
         """
         Aggregated version of :meth:`FreqInvarianceItem.test_task_load_avg`
         """
