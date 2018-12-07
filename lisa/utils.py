@@ -412,9 +412,6 @@ class Serializable(Loggable):
        """
        return super().__copy__()
 
-    def __deepcopy__(self):
-       return super().__deepcopy__()
-
 Serializable._init_yaml()
 
 class SerializableConfABC(Serializable, abc.ABC):
