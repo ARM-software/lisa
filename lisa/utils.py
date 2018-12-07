@@ -493,6 +493,12 @@ class DeferredValue:
         return '<lazy value of {}>'.format(self.callback.__qualname__)
 
 class KeyDescBase(abc.ABC):
+    """
+    Base class for configuration files key descriptor.
+
+    This allows defining the structure of the configuration file, in order
+    to sanitize user input and generate help snippets used in various places.
+    """
     INDENTATION = 4 * ' '
     def __init__(self, name, help):
         self.name = name
@@ -501,12 +507,29 @@ class KeyDescBase(abc.ABC):
 
     @property
     def qualname(self):
+        """
+        "Qualified" name of the key.
+
+        This is a slash-separated path in the config file from the root to that
+        key:
+        <parent qualname>/<name>
+        """
         if self.parent is None:
             return self.name
         return '/'.join((self.parent.qualname, self.name))
 
     @staticmethod
     def _get_cls_name(cls, style=None):
+        """
+        Get a prettily-formated name for the class given as parameter
+
+        :param cls: class to get the name from
+        :type cls: type
+
+        :param style: When "rst", a RestructuredText snippet is returned
+        :param style: str
+
+        """
         if cls is None:
             return 'None'
         mod_name = inspect.getmodule(cls).__name__
@@ -518,19 +541,53 @@ class KeyDescBase(abc.ABC):
 
     @abc.abstractmethod
     def get_help(self, style=None):
+        """
+        Get a help message describing the key.
+
+        :param style: When "rst", ResStructuredText formatting may be applied
+        :param style: str
+        """
         pass
 
     @abc.abstractmethod
     def validate_val(self, val):
+        """
+        Validate a value to be used for that key.
+
+        :raises TypeError: When the value has the wrong type
+        :raises ValueError: If the value does not comply with some other
+            constraints. Note that constraints should ideally be encoded in the
+            type itself, to make help message as straightforward as possible.
+        """
         pass
 
 class KeyDesc(KeyDescBase):
+    """
+    Key descriptor describing a leaf key in the configuration.
+
+    :param name: Name of the key
+
+    :param help: Short help message describing the use of that key
+
+    :param classinfo: sequence of allowed types for that key. As a special
+        case, `None` is allowed in that sequence of types, even though it is
+        not strictly speaking a type.
+    :type classinfo: collections.abc.Sequence
+    """
     def __init__(self, name, help, classinfo):
         super().__init__(name=name, help=help)
         # isinstance's style classinfo
         self.classinfo = tuple(classinfo)
 
     def validate_val(self, val):
+        """
+        Check that the value is an instance of one of the type specified in the
+        ``self.classinfo``.
+
+        If the value is not an instance of any of these types, then a
+        :exc:`TypeError` is raised corresponding to the first type in the
+        tuple, which is assumed to be the main one.
+        """
         # Or if that key is supposed to hold a value
         classinfo = self.classinfo
         key = self.qualname
@@ -592,6 +649,21 @@ class KeyDesc(KeyDescBase):
         )
 
 class LevelKeyDesc(KeyDescBase, Mapping):
+    """
+    Key descriptor defining a hierarchical level in the configuration.
+
+    :param name: name of the key in the configuration
+
+    :param help: Short help describing the use of the keys inside that level
+
+    :param children: collections.abc.Sequence of :class:`KeyDescBase` defining the allowed keys
+        under that level
+    :type children: collections.abc.Sequence
+
+    Children keys will get this key assigned as a parent when passed to the
+    constructor.
+
+    """
     def __init__(self, name, help, children):
         super().__init__(name=name, help=help)
         self.children = children
@@ -615,6 +687,9 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         return self._key_map[key]
 
     def check_allowed_key(self, key):
+        """
+        Checks that a given key is allowed under that levels
+        """
         try:
             key_desc = self._key_map[key]
         except KeyError:
@@ -636,18 +711,15 @@ class LevelKeyDesc(KeyDescBase, Mapping):
                 maybe=closest_match,
             ), parent, key)
 
-    def validate_key(self, key, val):
-        self[key].validate_val(val)
-
     def validate_val(self, conf):
-        """Validate a mapping to be used as a source"""
+        """Validate a mapping to be used as a configuration source"""
         if not isinstance(conf, Mapping):
             key = self.qualname
             raise TypeError('Configuration of {key} must be a Mapping'.format(
                 key=key,
             ), key)
         for key, val in conf.items():
-            self.validate_key(key, val)
+            self[key].validate_val(val)
 
     def get_help(self, style=None):
         idt = self.INDENTATION
@@ -675,9 +747,26 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         return help_
 
 class TopLevelKeyDesc(LevelKeyDesc):
+    """
+    Top-level key descriptor, which defines the top-level key to use in the
+    configuration files.
+
+    This top-level key is omitted in all interfaces except for the
+    configuration file, since it only reflects the configuration class
+    """
     pass
 
 class MultiSrcConfMeta(abc.ABCMeta):
+    """
+    Metaclass of :class:`MultiSrcConf`.
+
+    It will use the docstring of the class, using it as a ``str.format`` template
+    with the ``{generated_help}`` placeholder replaced by a snippet of
+    ResStructuredText containing the list of allowed keys.
+
+    .. note:: Since the dosctring is interpreted as a template, "{" and "}"
+        characters must be doubled to appear in the final output.
+    """
     def __new__(metacls, name, bases, dct, **kwargs):
         new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
         if not inspect.isabstract(new_cls):
@@ -689,6 +778,33 @@ class MultiSrcConfMeta(abc.ABCMeta):
         return new_cls
 
 class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcConfMeta):
+    """
+    Base class providing layered configuration management.
+
+    :param conf: collections.abc.Mapping to initialize the configuration with. This must be
+        optional, in which case it is assumed the object will contain a default
+        base configuration.
+    :type conf: collections.abc.Mapping
+
+    :param src: Name of the source added when passing ``conf``
+    :param src: str
+
+    The class inherits from :class:`collections.abc.Mapping`, which means it
+    can be used like a readonly dict. Writing to it is handled by a different
+    API that allows naming the source of values that are stored.
+
+    Each configuration key can be either a leaf key, that holds a value, or
+    a level key that allows to defined nested levels. The allowed keys is set
+    by the ``STRUCTURE`` class attribute.
+
+    Each leaf key can hold different values coming from different named
+    sources.  By default, the last added source will have the highest priority
+    and will be served when looking up that key. A different priority order can
+    be defined for a specific key if needed.
+
+    .. seealso:: :class:`KeyDescBase`
+    """
+
     @abc.abstractmethod
     def STRUCTURE():
         """
@@ -713,7 +829,7 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
 
     def _nested_init(self, parent, structure, src_prio):
         """Called to initialize nested instances of the class for nested
-        configuration."""
+        configuration levels."""
         self._structure = structure
         "Structure of that level of configuration"
         # Make a copy to avoid sharing it with the parent
@@ -765,6 +881,12 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         return new
 
     def to_map(self):
+        """
+        Export the configuration as a mapping.
+
+        The return value should preserve key-specific priority override list,
+        which is not done if directly passing that instance to ``dict()``.
+        """
         mapping = dict()
         # For each key, get the highest prio value
         mapping['conf'] = self._get_effective_map()
@@ -775,6 +897,9 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
 
     @classmethod
     def from_map(cls, mapping):
+        """
+        Create a new configuration instance, using the output of :meth:`to_map`
+        """
         conf = mapping.get('conf', {})
         src_override = mapping.get('source', {})
 
@@ -783,6 +908,30 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         return plat_conf
 
     def add_src(self, src, conf, filter_none=False, fallback=False):
+        """
+        Add a source of configuration.
+
+        :param src: Name of the soruce to add
+        :type src: str
+
+        :param conf: Nested mapping of key/values to overlay
+        :type conf: collections.abc.Mapping
+
+        :param filter_none: Ignores the keys that have a ``None`` value. That
+            simplifies the creation of the mapping, by having keys always
+            present. That should not be used if ``None`` value for a key is
+            expected, as opposit to not having that key set at all.
+        :type filter_none: bool
+
+        :param fallback: If True, the source will be added as a fallback, which
+            means at the end of the priority list. By default, the source will
+            have the highest priority and will be used unless a key-specific
+            priority override is setup.
+        :type fallback: bool
+
+        This method provides a way to update the configuration, by importing a
+        mapping as a new source.
+        """
         # Filter-out None values, so they won't override actual data from
         # another source
         if filter_none:
@@ -811,12 +960,29 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
                 self._src_prio.insert(0, src)
 
     def set_default_src(self, src_prio):
+        """
+        Set the default source priority list.
+
+        :param src_prio: list of source names, first is the highest priority
+        :type src_prio: collections.abc.Sequence(str)
+
+        Adding sources using :meth:`add_src` in the right order is preferable,
+        but the default priority order can be specified using that method.
+        """
+
         # Make a copy of the list to make sure it is not modified behind our back
         self._src_prio = list(src_prio)
         for sublevel in self._sublevel_map.values():
             sublevel.set_default_src(src_prio)
 
     def force_src_nested(self, key_src_map):
+        """
+        Force the source priority list for all the keys defined in the nested
+        mapping ``key_src_map``
+
+        :param key_src_map: nested mapping of keys to priority list of sources
+        :type key_src_map: collections.abc.Mapping
+        """
         for key, src_or_map in key_src_map.items():
             key_desc = self._structure[key]
             if isinstance(key_desc, LevelKeyDesc):
@@ -826,6 +992,20 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
                 self.force_src(key, src_or_map)
 
     def force_src(self, key, src_prio):
+        """
+        Force the source priority list for a given key
+
+        :param key: name of the key. Only leaf keys are allowed here, since
+            level keys have no source on their own.
+        :type key: str
+
+        :param src_prio: List of sources in priority order (first is highest
+            priority).  Special value ``None`` can be used to remove the
+            key-specific priority override, so the default priority list will
+            be used instead.
+        :type src_prio: collections.abc.Sequence(str) or None
+        """
+
         key_desc = self._structure[key]
         if isinstance(key_desc, LevelKeyDesc):
             key = key_desc.qualname
@@ -851,6 +1031,10 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         return override
 
     def _get_effective_map(self, eval_deferred=True):
+        """
+        Return the effective mapping by taking values from the highest
+        priority source for each key, recursively.
+        """
         mapping = {}
         for key in self._key_map.keys():
             try:
@@ -884,6 +1068,9 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         return src_list
 
     def resolve_src(self, key):
+        """
+        Get the source name that will be used to serve the value of ``key``.
+        """
         key_desc = self._structure[key]
 
         if isinstance(key_desc, LevelKeyDesc):
@@ -913,6 +1100,19 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         return val
 
     def eval_deferred(self, cls=DeferredValue, src=None):
+        """
+        Evaluate instances of :class:`DeferredValue` that can be used for
+        values that are expensive to compute.
+
+        :param cls: Only evaluate values of instances of that class. This can
+            be used to have different categories of :class:`DeferredValue` by
+            subclassing.
+        :type cls: subclass of :class:`DeferredValue`
+
+        :param src: If not ``None``, only evaluate values that were added under
+            that source name.
+        :type src: str or None
+        """
         for key, src_map in self._key_map.items():
             for src_, val in src_map.items():
                 if src is not None and src != src_:
@@ -924,6 +1124,13 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
             sublevel.eval_deferred(cls, src)
 
     def __getstate__(self):
+        """
+        Filter instances of :class:`DeferredValue` that are not computed
+        already since their runtime parameters will probably not be available
+        after deserialization.
+
+        If needed, call :meth:`eval_deferred` before serializing.
+        """
         # Filter-out DeferredValue key-value pairs before serialization
         key_map = {
             key: {
@@ -944,6 +1151,22 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         return state
 
     def get_key(self, key, src=None, eval_deferred=True):
+        """
+        Get the value of the given key.
+
+        :param key: name of the key to lookup
+        :type key: str
+
+        :param src: If not None, look up the value of the key in that source
+        :type src: str or None
+
+        :param eval_deferred: If True, evaluate instances of
+            :class:`DeferredValue` if needed
+        :type eval_deferred: bool
+
+        .. note:: Using the indexing operator ``self[key]`` is preferable in
+            most cases , but this method provides more parameters.
+        """
         key_desc = self._structure[key]
 
         if isinstance(key_desc, LevelKeyDesc):
@@ -985,6 +1208,10 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         return val
 
     def get_src_map(self, key):
+        """
+        Get a mapping of all sources for the given ``key``, in priority order
+        (first item is the highest priority source).
+        """
         key_desc = self._structure[key]
         if isinstance(key_desc, LevelKeyDesc):
             key = key_desc.qualname
@@ -999,6 +1226,13 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         )
 
     def pretty_format(self, eval_deferred=False):
+        """
+        Give a pretty string representation of the configuration.
+
+        :param eval_deferred: If True, evaluate all deferred values before
+            printing.
+        :type eval_deferred: bool
+        """
         out = []
         idt_style = ' '
         for k, v in self.items(eval_deferred=eval_deferred):
@@ -1050,16 +1284,25 @@ class MultiSrcConf(SerializableConfABC, Loggable, Mapping, metaclass=MultiSrcCon
         return len(self._get_key_names())
 
     def items(self, eval_deferred=True):
+        """
+        Override the default definition of
+        ``collections.abc.Mapping.items()`` to allow not evaluating deferred
+        values if necessary.
+        """
+
         return (
             (k, self.get_key(k, eval_deferred=eval_deferred))
             for k in self.keys()
         )
 
-    # Allow Jupyter keys completion in interactive notebooks
     def _ipython_key_completions_(self):
+        "Allow Jupyter keys completion in interactive notebooks"
         return self.keys()
 
 class GenericContainerMetaBase(type):
+    """
+    Base class for the metaclass of generic containers.
+    """
     def __instancecheck__(cls, instance):
         try:
             cls.instancecheck(instance)
@@ -1069,11 +1312,21 @@ class GenericContainerMetaBase(type):
             return True
 
 class GenericContainerBase:
+    """
+    Base class for generic containers.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         type(self).instancecheck(self)
 
 class GenericMappingMeta(GenericContainerMetaBase, type(Mapping)):
+    """
+    Metaclass for generic mapping containers.
+
+    It provides an ``__instancecheck__`` implementation that checks the type
+    of the keys and values. This make it suitable for input sanitizing based
+    on type checking.
+    """
     def instancecheck(cls, instance):
         if not isinstance(instance, Mapping):
             raise TypeError('not a Mapping')
@@ -1095,9 +1348,13 @@ class GenericMappingMeta(GenericContainerMetaBase, type(Mapping)):
                 ), k)
 
 class TypedDict(GenericContainerBase, dict, metaclass=GenericMappingMeta):
+    """
+    Subclass of dict providing keys and values type check.
+    """
     pass
 
 class GenericSequenceMeta(GenericContainerMetaBase, type(Sequence)):
+    """Similar to :class:`GenericMappingMeta` for sequences"""
     def instancecheck(cls, instance):
         if not isinstance(instance, Sequence):
             raise TypeError('not a Sequence')
@@ -1113,6 +1370,9 @@ class GenericSequenceMeta(GenericContainerMetaBase, type(Sequence)):
                 ), i)
 
 class TypedList(GenericContainerBase, list, metaclass=GenericSequenceMeta):
+    """
+    Subclass of list providing keys and values type check.
+    """
     pass
 
 class IntIntDict(TypedDict):
