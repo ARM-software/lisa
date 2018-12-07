@@ -17,7 +17,7 @@
 
 import pandas as pd
 
-from devlib.module.sched import SchedDomain
+from devlib.module.sched import SchedDomain, SchedDomainFlag
 
 from lisa.utils import memoized, ArtifactPath
 from lisa.trace import Trace
@@ -51,7 +51,7 @@ class MisfitMigrationBase(RTATestBundle):
 
         for cpu, domain_node in sd_info.cpus.items():
             for domain in domain_node.domains.values():
-                if domain.has_flags(SchedDomain.SD_ASYM_CPUCAPACITY):
+                if SchedDomainFlag.SD_ASYM_CPUCAPACITY in domain.flags:
                     return True
 
         return False
