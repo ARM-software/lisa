@@ -20,7 +20,8 @@
 import pandas as pd
 
 from lisa.utils import memoized
-from lisa.analysis.base import AnalysisBase, requires_events
+from lisa.analysis.base import AnalysisBase
+from lisa.trace import requires_events
 
 
 class CpusAnalysis(AnalysisBase):
@@ -62,7 +63,7 @@ class CpusAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @requires_events(df_context_switches.required_events)
+    @df_context_switches.required_events
     def plot_context_switches(self, filepath=None):
         """
         Plot histogram of context switches on each CPU.

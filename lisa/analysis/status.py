@@ -19,7 +19,8 @@
 
 """ System Status Analaysis Module """
 
-from lisa.analysis.base import AnalysisBase, requires_events
+from lisa.analysis.base import AnalysisBase
+from lisa.trace import requires_events
 
 class StatusAnalysis(AnalysisBase):
     """
@@ -67,7 +68,7 @@ class StatusAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @requires_events(df_overutilized.required_events)
+    @df_overutilized.required_events
     def plot_overutilized(self, filepath=None, axis=None):
         """
         Draw the system's overutilized status as colored bands

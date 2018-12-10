@@ -23,7 +23,8 @@ import pandas as pd
 from trappy.utils import handle_duplicate_index
 
 from lisa.utils import memoized
-from lisa.analysis.base import AnalysisBase, requires_events
+from lisa.analysis.base import AnalysisBase
+from lisa.trace import requires_events
 
 
 class IdleAnalysis(AnalysisBase):
@@ -75,7 +76,7 @@ class IdleAnalysis(AnalysisBase):
         # Fix sequences of wakeup/sleep events reported with the same index
         return handle_duplicate_index(cpu_active)
 
-    @requires_events(signal_cpu_active.required_events)
+    @signal_cpu_active.required_events
     def signal_cluster_active(self, cluster):
         """
         Build a square wave representing the active (i.e. non-idle) cluster time
@@ -244,7 +245,7 @@ class IdleAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @requires_events(df_cpu_idle_state_residency.required_events)
+    @df_cpu_idle_state_residency.required_events
     def plot_cpu_idle_state_residency(self, cpu, filepath=None, pct=False):
         """
         Plot the idle state residency of a CPU
@@ -267,7 +268,7 @@ class IdleAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(df_cluster_idle_state_residency.required_events)
+    @df_cluster_idle_state_residency.required_events
     def plot_cluster_idle_state_residency(self, cluster, filepath=None,
                                           pct=False, axis=None):
         """
@@ -298,7 +299,7 @@ class IdleAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(plot_cluster_idle_state_residency.required_events)
+    @plot_cluster_idle_state_residency.required_events
     def plot_clusters_idle_state_residency(self, filepath=None, pct=False):
         """
         Plot the idle state residency of all clusters

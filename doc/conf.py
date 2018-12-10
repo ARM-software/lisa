@@ -391,11 +391,7 @@ def autodoc_process_analysis_events(app, what, name, obj, options, lines):
     if what != 'method' or not hasattr(obj, "required_events"):
         return
 
-    events = obj.required_events
-
-    events_doc = "\n:Required trace events:\n\n{}\n\n".format(
-        "\n".join(["    * ``{}``".format(event) for event in events]))
-
+    events_doc = "\n:Required trace events:\n\n{}\n\n".format(obj.required_events.doc_str())
     lines.extend(events_doc.splitlines())
 
 def setup(app):

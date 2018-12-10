@@ -25,8 +25,9 @@ from matplotlib.ticker import FuncFormatter
 import pandas as pd
 import pylab as pl
 
-from lisa.analysis.base import AnalysisBase, requires_events
+from lisa.analysis.base import AnalysisBase
 from lisa.utils import memoized
+from lisa.trace import requires_events
 
 class FrequencyAnalysis(AnalysisBase):
     """
@@ -99,7 +100,7 @@ class FrequencyAnalysis(AnalysisBase):
         time_df["active_time"] = pd.DataFrame(index=available_freqs, data=nonidle_time)
         return time_df
 
-    @requires_events(_get_frequency_residency.required_events)
+    @_get_frequency_residency.required_events
     def df_cpu_frequency_residency(self, cpu):
         """
         Get per-CPU frequency residency, i.e. amount of
@@ -118,7 +119,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return self._get_frequency_residency((cpu,))
 
-    @requires_events(_get_frequency_residency.required_events)
+    @_get_frequency_residency.required_events
     def df_domain_frequency_residency(self, cpu):
         """
         Get per-frequency-domain frequency residency, i.e. amount of time each
@@ -163,7 +164,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return pd.DataFrame(transitions)
 
-    @requires_events(df_cpu_frequency_transitions.required_events)
+    @df_cpu_frequency_transitions.required_events
     def df_cpu_frequency_transition_rate(self, cpu):
         """
         Compute frequency transition rate of a given CPU.
@@ -339,7 +340,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(plot_cpu_frequencies.required_events)
+    @plot_cpu_frequencies.required_events
     def plot_domain_frequencies(self, filepath=None):
         """
         Plot frequency trend for all frequency domains.
@@ -362,7 +363,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return axes
 
-    @requires_events(df_cpu_frequency_residency.required_events)
+    @df_cpu_frequency_residency.required_events
     def plot_cpu_frequency_residency(self, cpu, filepath=None, pct=False, axes=None):
         """
         Plot per-CPU frequency residency.
@@ -411,7 +412,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return axes
 
-    @requires_events(plot_cpu_frequency_residency.required_events)
+    @plot_cpu_frequency_residency.required_events
     def plot_domain_frequency_residency(self, filepath=None, pct=False):
         """
         Plot the frequency residency for all frequency domains.
@@ -434,7 +435,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return axes
 
-    @requires_events(df_cpu_frequency_transitions.required_events)
+    @df_cpu_frequency_transitions.required_events
     def plot_cpu_frequency_transitions(self, cpu, filepath=None, pct=False, axis=None):
         """
         Plot frequency transitions count of the specified CPU
@@ -472,7 +473,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(plot_cpu_frequency_transitions.required_events)
+    @plot_cpu_frequency_transitions.required_events
     def plot_domain_frequency_transitions(self, filepath=None, pct=False):
         """
         Plot frequency transitions count for all frequency domains

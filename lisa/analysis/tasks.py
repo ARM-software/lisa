@@ -20,8 +20,9 @@ from enum import Enum
 import numpy as np
 import pandas as pd
 
-from lisa.analysis.base import AnalysisBase, requires_events
+from lisa.analysis.base import AnalysisBase
 from lisa.utils import memoized
+from lisa.trace import requires_events
 
 class StateInt(int):
     """
@@ -143,7 +144,7 @@ class TasksAnalysis(AnalysisBase):
 
         return df
 
-    @requires_events(df_tasks_wakeups.required_events)
+    @df_tasks_wakeups.required_events
     def df_top_wakeup(self, min_wakeups=100):
         """
         Tasks which wakeup more frequently than a specified threshold.
@@ -260,7 +261,7 @@ class TasksAnalysis(AnalysisBase):
 
         return task_state_df
 
-    @requires_events(df_task_states.required_events)
+    @df_task_states.required_events
     def df_task_total_residency(self, task):
         """
         DataFrame of a task's execution time on each CPU
@@ -343,7 +344,7 @@ class TasksAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(df_task_total_residency.required_events)
+    @df_task_total_residency.required_events
     def plot_task_total_residency(self, task, filepath=None):
         """
         Plot a task's total time spent on each CPU

@@ -19,8 +19,9 @@ from matplotlib.ticker import MaxNLocator
 
 from devlib.utils.misc import list_to_mask, mask_to_list
 
-from lisa.analysis.base import AnalysisBase, requires_events
+from lisa.analysis.base import AnalysisBase
 from lisa.utils import memoized
+from lisa.trace import requires_events
 
 
 class ThermalAnalysis(AnalysisBase):
@@ -99,7 +100,7 @@ class ThermalAnalysis(AnalysisBase):
 
     @property
     @memoized
-    @requires_events(df_thermal_zones_temperature.required_events)
+    @df_thermal_zones_temperature.required_events
     def thermal_zones(self):
         """
         Get thermal zone ids that appear in the trace
@@ -109,7 +110,7 @@ class ThermalAnalysis(AnalysisBase):
 
     @property
     @memoized
-    @requires_events(df_cpufreq_cooling_state.required_events)
+    @df_cpufreq_cooling_state.required_events
     def cpufreq_cdevs(self):
         """
         Get cpufreq cooling devices that appear in the trace
@@ -120,7 +121,7 @@ class ThermalAnalysis(AnalysisBase):
 
     @property
     @memoized
-    @requires_events(df_devfreq_cooling_state.required_events)
+    @df_devfreq_cooling_state.required_events
     def devfreq_cdevs(self):
         """
         Get devfreq cooling devices that appear in the trace
@@ -132,7 +133,7 @@ class ThermalAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @requires_events(df_thermal_zones_temperature.required_events)
+    @df_thermal_zones_temperature.required_events
     def plot_thermal_zone_temperature(self, thermal_zone_id, filepath=None, axis=None):
         """
         Plot temperature of thermal zones (all by default)
@@ -164,7 +165,7 @@ class ThermalAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(df_cpufreq_cooling_state.required_events)
+    @df_cpufreq_cooling_state.required_events
     def plot_cpu_cooling_states(self, cpu, filepath=None, axis=None):
         """
         Plot the state evolution of a cpufreq cooling device

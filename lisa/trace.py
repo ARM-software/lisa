@@ -17,6 +17,7 @@
 
 """ Trace Parser Module """
 
+import abc
 import numpy as np
 import os
 import os.path
@@ -28,10 +29,9 @@ import warnings
 import operator
 import logging
 import webbrowser
-from functools import reduce
+from functools import reduce, wraps
 
-from lisa.analysis.proxy import AnalysisProxy
-from lisa.utils import Loggable, memoized
+from lisa.utils import Loggable, memoized, deduplicate
 from lisa.platforms.platinfo import PlatformInfo
 from devlib.target import KernelVersion
 from trappy.utils import listify, handle_duplicate_index
@@ -136,6 +136,9 @@ class Trace(Loggable):
         self._register_trace_events(events)
         self._parse_trace(self.data_dir, window, trace_format)
 
+        # Import here to avoid a circular dependency issue at import time
+        # with lisa.analysis.base
+        from lisa.analysis.proxy import AnalysisProxy
         self.analysis = AnalysisProxy(self)
 
     @property
@@ -291,18 +294,25 @@ class Trace(Loggable):
 
         self.get_logger().warning('Failed to load tasks names from trace events')
 
-    def has_events(self, dataset):
+    def has_events(self, events):
         """
         Returns True if the specified event is present in the parsed trace,
         False otherwise.
 
-        :param dataset: trace event name or list of trace events
-        :type dataset: str or list(str)
+        :param events: trace event name or list of trace events
+        :type events: str or list(str) or TraceEventCheckerBase
         """
-        if isinstance(dataset, str):
-            return dataset in self.available_events
-
-        return set(dataset).issubset(set(self.available_events))
+        if isinstance(events, str):
+            return events in self.available_events
+        elif isinstance(events, TraceEventCheckerBase):
+            try:
+                events.check_events(self.available_events)
+            except MissingTraceEventError:
+                return False
+            else:
+                return True
+        else:
+            return set(events).issubset(set(self.available_events))
 
     def _compute_timespan(self):
         """
@@ -1022,5 +1032,232 @@ class Trace(Loggable):
                 res_df.at[res_df.index[-1], column] = delta
 
         return res_df
+
+class TraceEventCheckerBase(abc.ABC, Loggable):
+    """
+    ABC for events checker classes.
+
+    Event checking can be achieved using a boolean expression on expected
+    events.
+    """
+    @abc.abstractmethod
+    def check_events(self, event_set):
+        """
+        Check that certain trace events are available in the given set of
+        events.
+
+        :raises: MissingTraceEventError if some events are not available
+        """
+        pass
+
+    def __call__(self, f):
+        """
+        Decorator for methods that require some given trace events
+
+        :param events: The list of required events
+        :type events: list(str or TraceEventCheckerBase)
+
+        The decorated method must operate on instances that have a ``self.trace``
+        attribute.
+        """
+        checker = self
+
+        @wraps(f)
+        def wrapper(self, *args, **kwargs):
+            available_events = set(self.trace.available_events)
+            checker.check_events(available_events)
+            return f(self, *args, **kwargs)
+
+        # Set an attribute on the wrapper itself, so it can be e.g. added
+        # to the method documentation
+        wrapper.required_events = checker
+        return wrapper
+
+    @abc.abstractmethod
+    def _str_internal(self, style=None, wrapped=True):
+        """
+        Format the boolean expression that this checker represents.
+
+        :param style: When 'rst', a reStructuredText output is expected
+        :type style: str
+
+        :param wrapped: When True, the expression should be wrapped with
+            parenthesis so it can be composed with other expressions.
+        :type wrapped: bool
+        """
+
+        pass
+
+    def doc_str(self):
+        """
+        Top-level function called by Sphinx's autodoc extension to augment
+        docstrings of the functions.
+        """
+        return '\n    * {}'.format(self._str_internal(style='rst', wrapped=False))
+
+    def __str__(self):
+        return self._str_internal()
+
+class TraceEventChecker(TraceEventCheckerBase):
+    """
+    Check for one single event.
+    """
+    def __init__(self, event):
+        self.event = event
+
+    def check_events(self, event_set):
+        if self.event not in event_set:
+            raise MissingTraceEventError(self)
+
+    def _str_internal(self, style=None, wrapped=True):
+        template = '``{}``' if style == 'rst' else '{}'
+        return template.format(self.event)
+
+class AssociativeTraceEventChecker(TraceEventCheckerBase):
+    """
+    Base class for associative operators like `and` and `or`
+    """
+    def __init__(self, op_str, event_checkers):
+        checker_list = []
+        for checker in event_checkers:
+            # "unwrap" checkers of the same type, to avoid useless levels of
+            # nesting. This is valid since the operator is known to be
+            # associative. We don't use isinstance to avoid merging checkers
+            # that may have different semantics.
+            if type(checker) is type(self):
+                checker_list.extend(checker.checkers)
+            else:
+                checker_list.append(checker)
+
+        # Avoid having the same event twice at the same level
+        def key(checker):
+            if isinstance(checker, TraceEventChecker):
+                return checker.event
+            else:
+                return checker
+        checker_list = deduplicate(checker_list, key=key)
+
+        self.checkers = checker_list
+        self.op_str = op_str
+
+    @classmethod
+    def from_events(cls, events):
+        """
+        Build an instance of the class, converting ``str`` to
+        ``TraceEventChecker``.
+
+        :param events: Sequence of events
+        :type events: list(str or TraceEventCheckerBase)
+        """
+        return cls({
+            e if isinstance(e, TraceEventCheckerBase) else TraceEventChecker(e)
+            for e in events
+        })
+
+    def _str_internal(self, style=None, wrapped=True):
+        op_str = ' {} '.format(self.op_str)
+        # Sort for stable output
+        checker_list = sorted(self.checkers, key=lambda c: str(c))
+        unwrapped_str = op_str.join(
+            c._str_internal(style=style, wrapped=True)
+            for c in checker_list
+        )
+
+        template = '({})' if len(self.checkers) > 1 and wrapped else '{}'
+        return template.format(unwrapped_str)
+
+class OrTraceEventChecker(AssociativeTraceEventChecker):
+    """
+    Check that one of the given event checkers is satisfied.
+
+    :param event_checkers: Event checkers to check for
+    :type event_checkers: list(TraceEventCheckerBase)
+    """
+    def __init__(self, event_checkers):
+        super().__init__('or', event_checkers)
+
+    def check_events(self, event_set):
+        if not self.checkers:
+            return
+
+        failed_checker_set = set()
+        for checker in self.checkers:
+            try:
+                checker.check_events(event_set)
+            except MissingTraceEventError as e:
+                failed_checker_set.add(e.missing_events)
+            else:
+                break
+        else:
+            cls = type(self)
+            raise MissingTraceEventError(
+                cls(failed_checker_set)
+            )
+
+class AndTraceEventChecker(AssociativeTraceEventChecker):
+    """
+    Check that all the given event checkers are satisfied.
+
+    :param event_checkers: Event checkers to check for
+    :type event_checkers: list(TraceEventCheckerBase)
+    """
+    def __init__(self, event_checkers):
+        super().__init__('and', event_checkers)
+
+    def check_events(self, event_set):
+        if not self.checkers:
+            return
+
+        failed_checker_set = set()
+        for checker in self.checkers:
+            try:
+                checker.check_events(event_set)
+            except MissingTraceEventError as e:
+                failed_checker_set.add(e.missing_events)
+
+        if failed_checker_set:
+            cls = type(self)
+            raise MissingTraceEventError(
+                cls(failed_checker_set)
+            )
+
+    def doc_str(self):
+        joiner = '\n' + '    '
+        rst = joiner + joiner.join(
+            '* {}'.format(c._str_internal(style='rst', wrapped=False))
+            # Sort for stable output
+            for c in sorted(self.checkers, key=lambda c: str(c))
+        )
+        return rst
+
+def requires_events(events):
+    """
+    Decorator for methods that require some given trace events.
+
+    :param events: The list of required events
+    :type events: list(str or TraceEventCheckerBase)
+
+    The decorated method must operate on instances that have a
+    ``self.trace`` attribute.
+    """
+    return AndTraceEventChecker.from_events(events)
+
+def requires_one_event_of(*events):
+    """
+    Same as :func:``required_events`` with logical `OR` semantic.
+    """
+    return OrTraceEventChecker.from_events(events)
+
+class MissingTraceEventError(RuntimeError):
+    """
+    :param missing_events: The missing trace events
+    :type missing_events: TraceEventCheckerBase
+    """
+    def __init__(self, missing_events):
+        super().__init__(
+            "Trace is missing the following required events: {}".format(missing_events))
+
+        self.missing_events = missing_events
+
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

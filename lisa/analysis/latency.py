@@ -18,7 +18,7 @@
 import pandas as pd
 import numpy as np
 
-from lisa.analysis.base import AnalysisBase, requires_events, COLOR_CYCLES
+from lisa.analysis.base import AnalysisBase, COLOR_CYCLES
 from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.utils import memoized
 
@@ -42,7 +42,7 @@ class LatencyAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @requires_events(TasksAnalysis.df_task_states.required_events)
+    @TasksAnalysis.df_task_states.required_events
     def df_latency_wakeup(self, task):
         """
         DataFrame of a task's wakeup latencies
@@ -63,7 +63,7 @@ class LatencyAnalysis(AnalysisBase):
         df.rename(columns={'delta' : 'wakeup_latency'}, inplace=True)
         return df
 
-    @requires_events(TasksAnalysis.df_task_states.required_events)
+    @TasksAnalysis.df_task_states.required_events
     def df_latency_preemption(self, task):
         """
         DataFrame of a task's preemption latencies
@@ -83,7 +83,7 @@ class LatencyAnalysis(AnalysisBase):
         df.rename(columns={'delta' : 'preempt_latency'}, inplace=True)
         return df
 
-    @requires_events(TasksAnalysis.df_task_states.required_events)
+    @TasksAnalysis.df_task_states.required_events
     def df_activations(self, task):
         """
         DataFrame of a task's activations
@@ -103,7 +103,7 @@ class LatencyAnalysis(AnalysisBase):
 
         return wkp_df[["activation_interval"]]
 
-    @requires_events(TasksAnalysis.df_task_states.required_events)
+    @TasksAnalysis.df_task_states.required_events
     def df_runtimes(self, task):
         """
         DataFrame of task's runtime each time the task blocks
@@ -173,7 +173,7 @@ class LatencyAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @requires_events(df_latency_wakeup.required_events)
+    @df_latency_wakeup.required_events
     def plot_latencies(self, task, wakeup=True, preempt=True, threshold_ms=1,
                        filepath=None):
         """
@@ -233,7 +233,7 @@ class LatencyAnalysis(AnalysisBase):
         above = 1 - below
         return df, above, below
 
-    @requires_events(df_latency_wakeup.required_events)
+    @df_latency_wakeup.required_events
     def _get_latencies_df(self, task, wakeup, preempt):
         wkp_df = None
         prt_df = None
@@ -253,7 +253,7 @@ class LatencyAnalysis(AnalysisBase):
 
         return df
 
-    @requires_events(_get_latencies_df.required_events)
+    @_get_latencies_df.required_events
     def plot_latencies_cdf(self, task, wakeup=True, preempt=True,
                            threshold_ms=1, filepath=None):
         """
@@ -292,7 +292,7 @@ class LatencyAnalysis(AnalysisBase):
         self.save_plot(fig, filepath)
         return axis
 
-    @requires_events(_get_latencies_df.required_events)
+    @_get_latencies_df.required_events
     def plot_latencies_histogram(self, task, wakeup=True, preempt=True,
                                  threshold_ms=1, bins=64, filepath=None):
         """
@@ -326,7 +326,7 @@ class LatencyAnalysis(AnalysisBase):
         self.save_plot(fig, filepath)
         return axis
 
-    @requires_events(df_latency_wakeup.required_events)
+    @df_latency_wakeup.required_events
     def plot_latency_bands(self, task, filepath=None, axis=None):
         """
         Draw the task wakeup/preemption latencies as colored bands
@@ -366,7 +366,7 @@ class LatencyAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(df_activations.required_events)
+    @df_activations.required_events
     def plot_activations(self, task, filepath=None):
         """
         Plot the :meth:`lisa.analysis.latency.LatencyAnalysis.df_activations` of a task
@@ -391,7 +391,7 @@ class LatencyAnalysis(AnalysisBase):
         self.save_plot(fig, filepath)
         return axis
 
-    @requires_events(df_runtimes.required_events)
+    @df_runtimes.required_events
     def plot_runtimes(self, task, filepath=None):
         """
         Plot the :meth:`lisa.analysis.latency.LatencyAnalysis.df_runtimes` of a task
