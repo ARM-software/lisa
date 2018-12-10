@@ -51,12 +51,12 @@ class FunctionsAnalysis(AnalysisBase):
                         time  - total execution time
         :type metrics: srt or list(str)
         """
-        if not hasattr(self._trace, '_functions_stats_df'):
+        if not hasattr(self.trace, '_functions_stats_df'):
             self.get_logger().warning('Functions stats data not available')
             return
 
         metrics = listify(metrics)
-        df = self._trace.df_functions_stats(functions)
+        df = self.trace.df_functions_stats(functions)
 
         # Check that all the required metrics are acutally availabe
         available_metrics = df.columns.tolist()

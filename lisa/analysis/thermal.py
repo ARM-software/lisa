@@ -44,7 +44,7 @@ class ThermalAnalysis(AnalysisBase):
           * A ``thermal_zone`` column (The thermal zone name)
           * A ``temp`` column (The reported temperature)
         """
-        df = self._trace.df_events("thermal")
+        df = self.trace.df_events("thermal")
         df = df[['id', 'thermal_zone', 'temp']]
 
         return df
@@ -64,7 +64,7 @@ class ThermalAnalysis(AnalysisBase):
           * A ``cdev_state`` column (The cooling device state index)
 
         """
-        df = self._trace.df_events("cpu_out_power")
+        df = self.trace.df_events("cpu_out_power")
         df = df[['cpus', 'freq', 'cdev_state']]
 
         if cpus is not None:
@@ -89,7 +89,7 @@ class ThermalAnalysis(AnalysisBase):
           * A ``freq`` column (The frequency limit)
           * A ``cdev_state`` column (The cooling device state index)
         """
-        df = self._trace.df_events("devfreq_out_power")
+        df = self.trace.df_events("devfreq_out_power")
         df = df[['type', 'freq', 'cdev_state']]
 
         if devices is not None:
@@ -159,7 +159,7 @@ class ThermalAnalysis(AnalysisBase):
             axis.grid(True)
             axis.set_title("Temperature evolution")
             axis.set_ylabel("Temperature (°C.10e3)")
-            axis.set_xlim(self._trace.x_min, self._trace.x_max)
+            axis.set_xlim(self.trace.x_min, self.trace.x_max)
             self.save_plot(fig, filepath)
 
         return axis
@@ -192,7 +192,7 @@ class ThermalAnalysis(AnalysisBase):
             axis.set_title("cpufreq cooling devices status")
             axis.yaxis.set_major_locator(MaxNLocator(integer=True))
             axis.grid(axis='y')
-            axis.set_xlim(self._trace.x_min, self._trace.x_max)
+            axis.set_xlim(self.trace.x_min, self.trace.x_max)
             self.save_plot(fig, filepath)
 
         return axis
@@ -221,7 +221,7 @@ class ThermalAnalysis(AnalysisBase):
             axis.set_title("devfreq cooling devices status")
             axis.yaxis.set_major_locator(MaxNLocator(integer=True))
             axis.grid(axis='y')
-            axis.set_xlim(self._trace.x_min, self._trace.x_max)
+            axis.set_xlim(self.trace.x_min, self.trace.x_max)
             self.save_plot(fig, filepath)
 
         return axis
@@ -231,7 +231,7 @@ class ThermalAnalysis(AnalysisBase):
 ###############################################################################
 
     def _matching_masks(self, cpus):
-        df = self._trace.df_events('thermal_power_cpu_limit')
+        df = self.trace.df_events('thermal_power_cpu_limit')
 
         global_mask = list_to_mask(cpus)
         cpumasks = df['cpus'].unique().tolist()

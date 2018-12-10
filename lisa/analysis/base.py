@@ -82,7 +82,7 @@ class AnalysisBase(Loggable):
     """
 
     def __init__(self, trace):
-        self._trace = trace
+        self.trace = trace
 
     @classmethod
     def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, **kwargs):
@@ -179,7 +179,7 @@ class AnalysisBase(Loggable):
             module = self.__module__
             caller = inspect.stack()[1][3]
             filepath = os.path.join(
-                self._trace.plots_dir,
+                self.trace.plots_dir,
                 "{}.{}.{}".format(module, caller, img_format))
 
         figure.savefig(filepath, format=img_format)
@@ -190,7 +190,7 @@ class AnalysisBase(Loggable):
 
         :raises: MissingTraceEventError if some events are not available
         """
-        available_events = sorted(set(self._trace.available_events))
+        available_events = sorted(set(self.trace.available_events))
         missing_events = sorted(set(required_events).difference(available_events))
 
         if missing_events:

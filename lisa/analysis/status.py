@@ -50,7 +50,7 @@ class StatusAnalysis(AnalysisBase):
           * A ``len`` column (the time spent in that overutilized status)
         """
         # Build sequence of overutilization "bands"
-        df = self._trace.df_events('sched_overutilized')
+        df = self.trace.df_events('sched_overutilized')
 
         # Remove duplicated index events, keep only last event which is the
         # only one with a non null length
@@ -101,7 +101,7 @@ class StatusAnalysis(AnalysisBase):
 
         if local_fig:
             axis.set_title("System-wide overutilized status")
-            axis.set_xlim(self._trace.x_min, self._trace.x_max)
+            axis.set_xlim(self.trace.x_min, self.trace.x_max)
             self.save_plot(fig, filepath)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

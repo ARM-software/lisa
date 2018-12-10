@@ -47,8 +47,8 @@ class CpusAnalysis(AnalysisBase):
 
           * A ``context_switch_cnt`` column (the number of context switch per CPU)
         """
-        sched_df = self._trace.df_events('sched_switch')
-        cpus = list(range(self._trace.cpus_count))
+        sched_df = self.trace.df_events('sched_switch')
+        cpus = list(range(self.trace.cpus_count))
         ctx_sw_df = pd.DataFrame(
             [len(sched_df[sched_df['__cpu'] == cpu]) for cpu in cpus],
             index=cpus,
@@ -87,8 +87,8 @@ class CpusAnalysis(AnalysisBase):
         :param cpu: The CPU
         :type cpu: int
         """
-        if "cpu-capacities" in self._trace.plat_info:
-            axis.axhline(self._trace.plat_info["cpu-capacities"][cpu],
+        if "cpu-capacities" in self.trace.plat_info:
+            axis.axhline(self.trace.plat_info["cpu-capacities"][cpu],
                          color=self.get_next_color(axis),
                          linestyle='--', label="orig_capacity")
 
