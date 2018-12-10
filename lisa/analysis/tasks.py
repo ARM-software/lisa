@@ -126,7 +126,7 @@ class TasksAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @requires_events(['sched_wakeup'])
+    @requires_events('sched_wakeup')
     def df_tasks_wakeups(self):
         """
         The number of wakeups per task
@@ -160,7 +160,7 @@ class TasksAnalysis(AnalysisBase):
 
         return df
 
-    @requires_events(['sched_switch'])
+    @requires_events('sched_switch')
     def df_rt_tasks(self, min_prio=100):
         """
         Tasks with RT priority
@@ -199,7 +199,7 @@ class TasksAnalysis(AnalysisBase):
 
         return rt_tasks
 
-    @requires_events(['sched_switch', 'sched_wakeup'])
+    @requires_events('sched_switch', 'sched_wakeup')
     def df_task_states(self, task):
         """
         DataFrame of task's state updates events
@@ -295,7 +295,7 @@ class TasksAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @requires_events(['sched_switch'])
+    @requires_events('sched_switch')
     def plot_task_residency(self, task, filepath=None):
         """
         Plot on which CPUs the task ran on over time
@@ -392,7 +392,7 @@ class TasksAnalysis(AnalysisBase):
 
         return fig, axis
 
-    @requires_events(["sched_wakeup"])
+    @requires_events("sched_wakeup")
     def plot_tasks_wakeups(self, target_cpus=None, time_delta=0.01, filepath=None):
         """
         Plot task wakeups over time
@@ -421,7 +421,7 @@ class TasksAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(["sched_wakeup"])
+    @requires_events("sched_wakeup")
     def plot_tasks_wakeups_heatmap(self, xbins=100, colormap=None, filepath=None):
         """
         :param xbins: Number of x-axis bins, i.e. in how many slices should
@@ -445,7 +445,7 @@ class TasksAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(["sched_wakeup_new"])
+    @requires_events("sched_wakeup_new")
     def plot_tasks_forks(self, target_cpus=None, time_delta=0.01, filepath=None):
         """
         Plot task forks over time
@@ -474,7 +474,7 @@ class TasksAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(["sched_wakeup_new"])
+    @requires_events("sched_wakeup_new")
     def plot_tasks_forks_heatmap(self, xbins=100, colormap=None, filepath=None):
         """
         :param xbins: Number of x-axis bins, i.e. in how many slices should

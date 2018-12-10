@@ -45,7 +45,7 @@ class IdleAnalysis(AnalysisBase):
 ###############################################################################
 
     @memoized
-    @requires_events(['cpu_idle'])
+    @requires_events('cpu_idle')
     def signal_cpu_active(self, cpu):
         """
         Build a square wave representing the active (i.e. non-idle) CPU time
@@ -110,7 +110,7 @@ class IdleAnalysis(AnalysisBase):
 
         return cluster_active
 
-    @requires_events(['cpu_idle'])
+    @requires_events('cpu_idle')
     def df_cpus_wakeups(self):
         """"
         Get a DataFrame showing when CPUs have woken from idle
@@ -133,7 +133,7 @@ class IdleAnalysis(AnalysisBase):
 
         return pd.DataFrame({'cpu': sr}).sort_index()
 
-    @requires_events(["cpu_idle"])
+    @requires_events("cpu_idle")
     def df_cpu_idle_state_residency(self, cpu):
         """
         Compute time spent by a given CPU in each idle state.
@@ -182,7 +182,7 @@ class IdleAnalysis(AnalysisBase):
         idle_time_df.index.name = 'idle_state'
         return idle_time_df
 
-    @requires_events(['cpu_idle'])
+    @requires_events('cpu_idle')
     def df_cluster_idle_state_residency(self, cluster):
         """
         Compute time spent by a given cluster in each idle state.

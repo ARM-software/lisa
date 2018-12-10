@@ -43,7 +43,7 @@ class FrequencyAnalysis(AnalysisBase):
         super(FrequencyAnalysis, self).__init__(trace)
 
     @memoized
-    @requires_events(['cpu_frequency', 'cpu_idle'])
+    @requires_events('cpu_frequency', 'cpu_idle')
     def _get_frequency_residency(self, cpus):
         """
         Get a DataFrame with per cluster frequency residency, i.e. amount of
@@ -138,7 +138,7 @@ class FrequencyAnalysis(AnalysisBase):
             if cpu in domain:
                 return self._get_frequency_residency(tuple(domain))
 
-    @requires_events(['cpu_frequency'])
+    @requires_events('cpu_frequency')
     def df_cpu_frequency_transitions(self, cpu):
         """
         Compute number of frequency transitions of a given CPU.
@@ -184,7 +184,7 @@ class FrequencyAnalysis(AnalysisBase):
             lambda x: x / (self.trace.x_max - self.trace.x_min)
         )
 
-    @requires_events(['cpu_frequency'])
+    @requires_events('cpu_frequency')
     def get_average_cpu_frequency(self, cpu):
         """
         Get the average frequency for a given CPU
@@ -286,7 +286,7 @@ class FrequencyAnalysis(AnalysisBase):
         pl.savefig(figname, bbox_inches='tight')
 
 
-    @requires_events(['cpu_frequency'])
+    @requires_events('cpu_frequency')
     def plot_cpu_frequencies(self, cpu, filepath=None, axis=None):
         """
         Plot frequency for the specified CPU

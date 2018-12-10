@@ -40,7 +40,7 @@ class StatusAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @requires_events(["sched_overutilized"])
+    @requires_events("sched_overutilized")
     def df_overutilized(self):
         """
         Get overutilized events

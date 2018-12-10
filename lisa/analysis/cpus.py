@@ -39,7 +39,7 @@ class CpusAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @requires_events(['sched_switch'])
+    @requires_events('sched_switch')
     def df_context_switches(self):
         """
         Compute number of context switches on each CPU.

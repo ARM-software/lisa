@@ -1230,7 +1230,7 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
         )
         return rst
 
-def requires_events(events):
+def requires_events(*events):
     """
     Decorator for methods that require some given trace events.
 

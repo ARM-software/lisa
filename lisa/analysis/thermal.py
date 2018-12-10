@@ -34,7 +34,7 @@ class ThermalAnalysis(AnalysisBase):
 
     name = 'thermal'
 
-    @requires_events(["thermal_temperature"])
+    @requires_events("thermal_temperature")
     def df_thermal_zones_temperature(self):
         """
         Get the temperature of the thermal zones
@@ -50,7 +50,7 @@ class ThermalAnalysis(AnalysisBase):
 
         return df
 
-    @requires_events(["thermal_power_cpu_limit"])
+    @requires_events("thermal_power_cpu_limit")
     def df_cpufreq_cooling_state(self, cpus=None):
         """
         Get cpufreq cooling device states
@@ -76,7 +76,7 @@ class ThermalAnalysis(AnalysisBase):
 
         return df
 
-    @requires_events(["thermal_power_devfreq_limit"])
+    @requires_events("thermal_power_devfreq_limit")
     def df_devfreq_cooling_state(self, devices=None):
         """
         Get devfreq cooling device states
