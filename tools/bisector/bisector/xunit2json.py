@@ -52,6 +52,9 @@ def compare_df(json_df1, json_df2, alpha, alternative='two-sided', non_significa
     merged_df = pd.merge(json_df1, json_df2, how='inner', right_index=True,
             left_index=True, suffixes=('_old','_new'))
 
+    if merged_df.empty:
+        raise ValueError("Merged dataframe is empty, there was no test in common")
+
     # Apply the Fisher exact test to all tests failures.
     regression_map = collections.defaultdict(dict)
     for row in merged_df.itertuples(index=True):
