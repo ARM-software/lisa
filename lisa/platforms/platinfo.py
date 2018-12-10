@@ -40,12 +40,11 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     {generated_help}
 
     """
-    YAML_MAP_TOP_LEVEL_KEY = 'platform-info'
 
     # we could use mypy.subtypes.is_subtype and use the infrastructure provided
     # by typing module, but adding an external dependency is overkill for what
     # we need.
-    STRUCTURE = TopLevelKeyDesc(YAML_MAP_TOP_LEVEL_KEY, 'Platform-specific information', (
+    STRUCTURE = TopLevelKeyDesc('platform-info', 'Platform-specific information', (
         LevelKeyDesc('rtapp', 'RTapp configuration', (
             KeyDesc('calib', 'RTapp calibration dictionary', [IntIntDict]),
         )),
