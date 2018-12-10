@@ -32,6 +32,7 @@ from lisa.tests.kernel.test_bundle import ResultBundle, CannotCreateError, RTATe
 from lisa.env import TestEnv
 from lisa.utils import ArtifactPath
 from lisa.energy_model import EnergyModel
+from lisa.trace import requires_events
 
 class EASBehaviour(RTATestBundle, abc.ABC):
     """
@@ -335,6 +336,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         return self._sort_power_df_columns(df.apply(est_power, axis=1), nrg_model)
 
 
+    @requires_events('sched_switch')
     def test_task_placement(self, energy_est_threshold_pct=5, nrg_model:EnergyModel=None) -> ResultBundle:
         """
         Test that task placement was energy-efficient
@@ -414,6 +416,7 @@ class ThreeSmallTasks(EASBehaviour):
     """
     task_prefix = "small"
 
+    @EASBehaviour.test_task_placement.used_events
     def test_task_placement(self, energy_est_threshold_pct=20, nrg_model:EnergyModel=None) -> ResultBundle:
         """
         Same as :meth:`EASBehaviour.test_task_placement` but with a higher
@@ -534,6 +537,7 @@ class RampUp(EASBehaviour):
     """
     task_name = "ramp_up"
 
+    @EASBehaviour.test_task_placement.used_events
     def test_task_placement(self, energy_est_threshold_pct=15, nrg_model:EnergyModel=None) -> ResultBundle:
         """
         Same as :meth:`EASBehaviour.test_task_placement` but with a higher
@@ -570,6 +574,7 @@ class RampDown(EASBehaviour):
     """
     task_name = "ramp_down"
 
+    @EASBehaviour.test_task_placement.used_events
     def test_task_placement(self, energy_est_threshold_pct=18, nrg_model:EnergyModel=None) -> ResultBundle:
         """
         Same as :meth:`EASBehaviour.test_task_placement` but with a higher
