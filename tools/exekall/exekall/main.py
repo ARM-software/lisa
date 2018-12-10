@@ -70,7 +70,7 @@ only be produced by these (other callables will be excluded).""")
 
     run_parser.add_argument('--allow', action='append',
         default=[],
-        help="""Allow using callable with a fully qualified name matching these patterns, even if they have been not selected for various reasons..""")
+        help="""Allow using callable with a fully qualified name matching these patterns, even if they have been not selected for various reasons.""")
 
     run_parser.add_argument('--modules-root', action='append', default=[],
         help="Equivalent to setting PYTHONPATH")
@@ -584,7 +584,6 @@ the name of the parameter, the start value, stop value and step size.""")
 
         testcase_artifact_dir = pathlib.Path(
             artifact_dir,
-            testcase.op.get_name(full_qual=False),
             testcase_short_id,
             testcase.uuid
         )
@@ -616,7 +615,7 @@ the name of the parameter, the start value, stop value and step size.""")
             f.write(
                 testcase.get_script(
                     prefix = 'testcase',
-                    db_path = '../../storage.yml.gz',
+                    db_path = '../storage.yml.gz',
                     db_relative_to = '__file__',
                     db_loader=db_loader
                 )[1]+'\n',
@@ -727,7 +726,7 @@ the name of the parameter, the start value, stop value and step size.""")
             f.write(
                 testcase.get_script(
                     prefix = 'testcase',
-                    db_path = '../../../storage.yml.gz',
+                    db_path = '../../storage.yml.gz',
                     db_relative_to = '__file__',
                     db_loader=db_loader
                 )[1]+'\n',
