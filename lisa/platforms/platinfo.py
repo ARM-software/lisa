@@ -17,8 +17,8 @@
 
 from collections.abc import Mapping
 
-from lisa.utils import HideExekallID, memoized, DeferredValue, IntIntDict, IntListList, IntIntListDict, StrIntListDict
-from lisa.utils import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc
+from lisa.utils import HideExekallID, memoized
+from lisa.conf import DeferredValue, IntIntDict, IntListList, IntIntListDict, StrIntListDict, MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc
 from lisa.energy_model import EnergyModel
 from lisa.wlgen.rta import RTA
 
