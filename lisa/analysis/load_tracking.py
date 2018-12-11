@@ -206,7 +206,7 @@ class LoadTrackingAnalysis(AnalysisBase):
 
             # Add overutilized signal to the plot
             plot_overutilized = self.trace.analysis.status.plot_overutilized
-            if self.trace.has_events(plot_overutilized.required_events):
+            if self.trace.has_events(plot_overutilized.used_events):
                 plot_overutilized(axis=axis)
 
             axis.set_ylim(0, 1100)
@@ -234,7 +234,7 @@ class LoadTrackingAnalysis(AnalysisBase):
         df[['load']].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
-        if self.trace.has_events(plot_overutilized.required_events):
+        if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
         axis.set_title('Load-tracking signals of task "{}"'.format(task))
@@ -322,7 +322,7 @@ class LoadTrackingAnalysis(AnalysisBase):
             df[df.placement == stat]["__cpu"].plot(ax=axis, style="+", label=stat)
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
-        if self.trace.has_events(plot_overutilized.required_events):
+        if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
         axis.set_title("Utilization vs placement of task \"{}\"".format(task))

@@ -144,7 +144,7 @@ class TasksAnalysis(AnalysisBase):
 
         return df
 
-    @df_tasks_wakeups.required_events
+    @df_tasks_wakeups.used_events
     def df_top_wakeup(self, min_wakeups=100):
         """
         Tasks which wakeup more frequently than a specified threshold.
@@ -261,7 +261,7 @@ class TasksAnalysis(AnalysisBase):
 
         return task_state_df
 
-    @df_task_states.required_events
+    @df_task_states.used_events
     def df_task_total_residency(self, task):
         """
         DataFrame of a task's execution time on each CPU
@@ -328,7 +328,7 @@ class TasksAnalysis(AnalysisBase):
             sw_df["__cpu"].plot(ax=axis, style='+')
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
-        if self.trace.has_events(plot_overutilized.required_events):
+        if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
         # Add an extra CPU lane to make room for the legend
@@ -344,7 +344,7 @@ class TasksAnalysis(AnalysisBase):
 
         return axis
 
-    @df_task_total_residency.required_events
+    @df_task_total_residency.used_events
     def plot_task_total_residency(self, task, filepath=None):
         """
         Plot a task's total time spent on each CPU

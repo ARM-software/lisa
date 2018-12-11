@@ -1070,7 +1070,7 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
 
         # Set an attribute on the wrapper itself, so it can be e.g. added
         # to the method documentation
-        wrapper.required_events = checker
+        wrapper.used_events = checker
         return wrapper
 
     @abc.abstractmethod
@@ -1244,7 +1244,7 @@ def requires_events(*events):
 
 def requires_one_event_of(*events):
     """
-    Same as :func:``required_events`` with logical `OR` semantic.
+    Same as :func:``used_events`` with logical `OR` semantic.
     """
     return OrTraceEventChecker.from_events(events)
 

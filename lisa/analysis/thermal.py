@@ -100,7 +100,7 @@ class ThermalAnalysis(AnalysisBase):
 
     @property
     @memoized
-    @df_thermal_zones_temperature.required_events
+    @df_thermal_zones_temperature.used_events
     def thermal_zones(self):
         """
         Get thermal zone ids that appear in the trace
@@ -110,7 +110,7 @@ class ThermalAnalysis(AnalysisBase):
 
     @property
     @memoized
-    @df_cpufreq_cooling_state.required_events
+    @df_cpufreq_cooling_state.used_events
     def cpufreq_cdevs(self):
         """
         Get cpufreq cooling devices that appear in the trace
@@ -121,7 +121,7 @@ class ThermalAnalysis(AnalysisBase):
 
     @property
     @memoized
-    @df_devfreq_cooling_state.required_events
+    @df_devfreq_cooling_state.used_events
     def devfreq_cdevs(self):
         """
         Get devfreq cooling devices that appear in the trace
@@ -133,7 +133,7 @@ class ThermalAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @df_thermal_zones_temperature.required_events
+    @df_thermal_zones_temperature.used_events
     def plot_thermal_zone_temperature(self, thermal_zone_id, filepath=None, axis=None):
         """
         Plot temperature of thermal zones (all by default)
@@ -165,7 +165,7 @@ class ThermalAnalysis(AnalysisBase):
 
         return axis
 
-    @df_cpufreq_cooling_state.required_events
+    @df_cpufreq_cooling_state.used_events
     def plot_cpu_cooling_states(self, cpu, filepath=None, axis=None):
         """
         Plot the state evolution of a cpufreq cooling device

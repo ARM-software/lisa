@@ -68,7 +68,7 @@ class StatusAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @df_overutilized.required_events
+    @df_overutilized.used_events
     def plot_overutilized(self, filepath=None, axis=None):
         """
         Draw the system's overutilized status as colored bands
