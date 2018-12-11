@@ -20,11 +20,11 @@ import pandas as pd
 from devlib.module.sched import SchedDomain, SchedDomainFlag
 
 from lisa.utils import memoized, ArtifactPath
-from lisa.trace import Trace
+from lisa.trace import Trace, requires_events
 from lisa.wlgen.rta import Periodic
 from lisa.tests.kernel.test_bundle import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
 from lisa.env import TestEnv
-from lisa.analysis.tasks import TaskState
+from lisa.analysis.tasks import TasksAnalysis, TaskState
 
 class MisfitMigrationBase(RTATestBundle):
     """
@@ -210,6 +210,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         return Trace.squash_df(state_df, self.start_time,
                                state_df.index[-1] + state_df.delta.values[-1], "delta")
 
+    @requires_events('sched_switch', TasksAnalysis.df_task_states.used_events)
     def test_preempt_time(self, allowed_preempt_pct=1) -> ResultBundle:
         """
         Test that tasks are not being preempted too much
@@ -305,6 +306,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         return res
 
+    @requires_events('sched_switch')
     def test_migration_delay(self, allowed_delay_s=0.001) -> ResultBundle:
         """
         Test that big CPUs pull tasks ASAP
@@ -337,6 +339,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         return self._test_cpus_busy(task_state_dfs, self.dst_cpus, allowed_delay_s)
 
+    @requires_events('sched_switch')
     def test_throughput(self, allowed_idle_time_s=0.001) -> ResultBundle:
         """
         Test that big CPUs are not idle when there are misfit tasks to upmigrate
