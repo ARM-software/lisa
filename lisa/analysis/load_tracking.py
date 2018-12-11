@@ -54,7 +54,7 @@ class LoadTrackingAnalysis(AnalysisBase):
         The extra columns not shared between trace event versions
         """
         if event in ['sched_load_cfs_rq', 'sched_load_se']:
-            return ['path', 'rbl_load', 'cpu']
+            return ['path', 'rbl_load']
 
         if event in ['sched_load_avg_task']:
             return ['load_sum', 'period_contrib', 'util_sum']
