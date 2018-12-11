@@ -217,7 +217,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         :raises: KeyError
         """
-        freq = self.trace.getPeripheralClockEffectiveRate(clk)
+        freq = self.trace.get_peripheral_clock_effective_rate(clk)
         if freq is None or freq.empty:
             self.get_logger().warning('no peripheral clock events found for clock')
             return
@@ -321,7 +321,7 @@ class FrequencyAnalysis(AnalysisBase):
                          label="average")
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
-        if self.trace.hasEvents(plot_overutilized.required_events):
+        if self.trace.has_events(plot_overutilized.required_events):
             plot_overutilized(axis=axis)
 
         axis.set_ylim(frequencies[0] * 0.9, frequencies[-1] * 1.1)

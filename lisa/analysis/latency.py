@@ -381,7 +381,7 @@ class LatencyAnalysis(AnalysisBase):
         wkp_df.plot(style='+', logy=False, ax=axis)
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
-        if self.trace.hasEvents(plot_overutilized.required_events):
+        if self.trace.has_events(plot_overutilized.required_events):
             plot_overutilized(axis=axis)
 
         axis.set_title("Activation intervals of task \"{}\"".format(task))
@@ -406,7 +406,7 @@ class LatencyAnalysis(AnalysisBase):
         df.plot(style='+', ax=axis)
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
-        if self.trace.hasEvents(plot_overutilized.required_events):
+        if self.trace.has_events(plot_overutilized.required_events):
             plot_overutilized(axis=axis)
 
         axis.set_title("Per-activation runtimes of task \"{}\"".format(task))

@@ -133,8 +133,8 @@ class Trace(Loggable):
 
         self.plots_prefix = plots_prefix
 
-        self.__registerTraceEvents(events)
-        self.__parseTrace(self.data_dir, window, trace_format)
+        self._register_trace_events(events)
+        self._parse_trace(self.data_dir, window, trace_format)
 
         self.analysis = AnalysisProxy(self)
 
@@ -150,7 +150,7 @@ class Trace(Loggable):
                           for e in self.available_events)
             return max_cpu + 1
 
-    def setXTimeRange(self, t_min=None, t_max=None):
+    def set_x_time_range(self, t_min=None, t_max=None):
         """
         Set x axis time range to the specified values.
 
@@ -166,7 +166,7 @@ class Trace(Loggable):
         self.get_logger().debug('Set plots time range to (%.6f, %.6f)[s]',
                        self.x_min, self.x_max)
 
-    def __registerTraceEvents(self, events):
+    def _register_trace_events(self, events):
         """
         Save a copy of the parsed events.
 
@@ -187,7 +187,7 @@ class Trace(Loggable):
         if 'cpu_frequency' in events:
             self.events.append('cpu_frequency_devlib')
 
-    def __parseTrace(self, path, window, trace_format):
+    def _parse_trace(self, path, window, trace_format):
         """
         Internal method in charge of performing the actual parsing of the
         trace.
@@ -233,7 +233,7 @@ class Trace(Loggable):
         has_function_stats = self._loadFunctionsStats(path)
 
         # Check for events available on the parsed trace
-        self.__checkAvailableEvents()
+        self._check_available_events()
         if len(self.available_events) == 0:
             if has_function_stats:
                 logger.info('Trace contains only functions stats')
@@ -242,9 +242,9 @@ class Trace(Loggable):
                              'nor function stats')
 
         # Index PIDs and Task names
-        self.__loadTasksNames()
+        self._load_tasks_names()
 
-        self.__computeTimeSpan()
+        self._compute_timespan()
 
         # Setup internal data reference to interesting events/dataframes
         self._sanitize_SchedLoadAvgCpu()
@@ -257,7 +257,7 @@ class Trace(Loggable):
         self._sanitize_CpuFrequency()
         self._sanitize_ThermalPowerCpu()
 
-    def __checkAvailableEvents(self, key=""):
+    def _check_available_events(self, key=""):
         """
         Internal method used to build a list of available events.
 
@@ -273,13 +273,13 @@ class Trace(Loggable):
         for evt in self.available_events:
             logger.debug(' - %s', evt)
 
-    def __loadTasksNames(self):
+    def _load_tasks_names(self):
         """
         Try to load tasks names using one of the supported events.
         """
         def load(event, name_key, pid_key):
             df = self.df_events(event)
-            self._scanTasks(df, name_key=name_key, pid_key=pid_key)
+            self._scan_tasks(df, name_key=name_key, pid_key=pid_key)
 
         if 'sched_switch' in self.available_events:
             load('sched_switch', 'prev_comm', 'prev_pid')
@@ -291,7 +291,7 @@ class Trace(Loggable):
 
         self.get_logger().warning('Failed to load tasks names from trace events')
 
-    def hasEvents(self, dataset):
+    def has_events(self, dataset):
         """
         Returns True if the specified event is present in the parsed trace,
         False otherwise.
@@ -304,7 +304,7 @@ class Trace(Loggable):
 
         return set(dataset).issubset(set(self.available_events))
 
-    def __computeTimeSpan(self):
+    def _compute_timespan(self):
         """
         Compute time axis range, considering all the parsed events.
         """
@@ -313,9 +313,9 @@ class Trace(Loggable):
         self.get_logger().debug('Collected events spans a %.3f [s] time interval',
                        self.time_range)
 
-        self.setXTimeRange(max(self.start_time, self.window[0]), self.window[1])
+        self.set_x_time_range(max(self.start_time, self.window[0]), self.window[1])
 
-    def _scanTasks(self, df, name_key='comm', pid_key='pid'):
+    def _scan_tasks(self, df, name_key='comm', pid_key='pid'):
         """
         Extract tasks names and PIDs from the input data frame. The data frame
         should contain a task name column and PID column.
@@ -495,7 +495,7 @@ class Trace(Loggable):
         Add more columns to cpu_capacity data frame if the energy model is
         available and the platform is big.LITTLE.
         """
-        if not self.hasEvents('cpu_capacity') \
+        if not self.has_events('cpu_capacity') \
            or 'nrg-model' not in self.plat_info \
            or not self.has_big_little:
             return
@@ -520,7 +520,7 @@ class Trace(Loggable):
         """
         If necessary, rename certain signal names from v5.0 to v5.1 format.
         """
-        if not self.hasEvents('sched_load_avg_cpu'):
+        if not self.has_events('sched_load_avg_cpu'):
             return
         df = self.df_events('sched_load_avg_cpu')
         if 'utilization' in df:
@@ -531,7 +531,7 @@ class Trace(Loggable):
         """
         If necessary, rename certain signal names from v5.0 to v5.1 format.
         """
-        if not self.hasEvents('sched_load_avg_task'):
+        if not self.has_events('sched_load_avg_task'):
             return
         df = self.df_events('sched_load_avg_task')
         if 'utilization' in df:
@@ -548,7 +548,7 @@ class Trace(Loggable):
         Also, if necessary, rename certain signal names from v5.0 to v5.1
         format.
         """
-        if not self.hasEvents('sched_boost_cpu'):
+        if not self.has_events('sched_boost_cpu'):
             return
         df = self.df_events('sched_boost_cpu')
         if 'usage' in df:
@@ -562,7 +562,7 @@ class Trace(Loggable):
         Also, if necessary, rename certain signal names from v5.0 to v5.1
         format.
         """
-        if not self.hasEvents('sched_boost_task'):
+        if not self.has_events('sched_boost_task'):
             return
         df = self.df_events('sched_boost_task')
         if 'utilization' in df:
@@ -578,7 +578,7 @@ class Trace(Loggable):
         Also convert between existing field name formats for sched_energy_diff
         """
         logger = self.get_logger()
-        if not self.hasEvents('sched_energy_diff') \
+        if not self.has_events('sched_energy_diff') \
            or 'nrg-model' not in self.plat_info \
            or not self.has_big_little:
             return
@@ -621,7 +621,7 @@ class Trace(Loggable):
 
     def _sanitize_SchedOverutilized(self):
         """ Add a column with overutilized status duration. """
-        if not self.hasEvents('sched_overutilized'):
+        if not self.has_events('sched_overutilized'):
             return
 
         df = self.df_events('sched_overutilized')
@@ -643,7 +643,7 @@ class Trace(Loggable):
         return int(mask.replace(',', ''), 16)
 
     def _sanitize_ThermalPowerCpuGetPower(self):
-        if not self.hasEvents('thermal_power_cpu_get_power'):
+        if not self.has_events('thermal_power_cpu_get_power'):
             return
 
         df = self.df_events('thermal_power_cpu_get_power')
@@ -653,7 +653,7 @@ class Trace(Loggable):
         )
 
     def _sanitize_ThermalPowerCpuLimit(self):
-        if not self.hasEvents('thermal_power_cpu_limit'):
+        if not self.has_events('thermal_power_cpu_limit'):
             return
 
         df = self.df_events('thermal_power_cpu_limit')
@@ -681,7 +681,7 @@ class Trace(Loggable):
         frequency scaling is performed at a cluster level).
         """
         logger = self.get_logger()
-        if not self.hasEvents('cpu_frequency_devlib') \
+        if not self.has_events('cpu_frequency_devlib') \
            or 'freq-domains' not in self.plat_info:
             return
 
@@ -812,7 +812,7 @@ class Trace(Loggable):
         return len(self._functions_stats_df) > 0
 
     @memoized
-    def getCPUActiveSignal(self, cpu):
+    def get_cpu_active_signal(self, cpu):
         """
         Build a square wave representing the active (i.e. non-idle) CPU time,
         i.e.:
@@ -827,7 +827,7 @@ class Trace(Loggable):
         :returns: A :class:`pandas.Series` or ``None`` if the trace contains no
                   "cpu_idle" events
         """
-        if not self.hasEvents('cpu_idle'):
+        if not self.has_events('cpu_idle'):
             self.get_logger().warning('Events [cpu_idle] not found, '
                               'cannot compute CPU active signal!')
             return None
@@ -853,12 +853,12 @@ class Trace(Loggable):
         return handle_duplicate_index(cpu_active)
 
     @memoized
-    def getPeripheralClockEffectiveRate(self, clk_name):
+    def get_peripheral_clock_effective_rate(self, clk_name):
         logger = self.get_logger()
         if clk_name is None:
             logger.warning('no specified clk_name in computing peripheral clock, returning None')
             return
-        if not self.hasEvents('clock_set_rate'):
+        if not self.has_events('clock_set_rate'):
             logger.warning('Events [clock_set_rate] not found, returning None!')
             return
         rate_df = self.df_events('clock_set_rate')

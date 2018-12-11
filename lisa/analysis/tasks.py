@@ -327,7 +327,7 @@ class TasksAnalysis(AnalysisBase):
             sw_df["__cpu"].plot(ax=axis, style='+')
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
-        if self.trace.hasEvents(plot_overutilized.required_events):
+        if self.trace.has_events(plot_overutilized.required_events):
             plot_overutilized(axis=axis)
 
         # Add an extra CPU lane to make room for the legend
