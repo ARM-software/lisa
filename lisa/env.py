@@ -113,9 +113,8 @@ class TargetConf(MultiSrcConf, HideExekallID):
                 target-conf:
                     name: myboard
     """
-    YAML_MAP_TOP_LEVEL_KEY = 'target-conf'
 
-    STRUCTURE = TopLevelKeyDesc(YAML_MAP_TOP_LEVEL_KEY, 'target connection settings', (
+    STRUCTURE = TopLevelKeyDesc('target-conf', 'target connection settings', (
         KeyDesc('name', 'Board name, free-form value only used to embelish logs', [str]),
         KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [str]),
 

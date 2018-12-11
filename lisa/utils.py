@@ -418,13 +418,6 @@ class SerializableConfABC(Serializable, abc.ABC):
     _registered_toplevel_keys = {}
 
     @abc.abstractmethod
-    def YAML_MAP_TOP_LEVEL_KEY():
-        """Top-level key used when dumping and loading the data to a YAML file.
-        This allows using a single file for different purposes.
-        """
-        pass
-
-    @abc.abstractmethod
     def to_map(self):
         raise NotImplementedError
 
@@ -437,37 +430,41 @@ class SerializableConfABC(Serializable, abc.ABC):
     def from_yaml_map(cls, path):
         """
         Allow reloading from a plain mapping, to avoid having to specify a tag
-        in the configuration file. The content is hosted under a top-level key
-        specified in :attr:`YAML_MAP_TOP_LEVEL_KEY`.
+        in the configuration file. The content is hosted under the top-level
+        key specified in ``STRUCTURE``.
         """
+
+        toplevel_key = cls.STRUCTURE.name
 
         mapping = cls._from_path(path, fmt='yaml')
         assert isinstance(mapping, Mapping)
-        data = mapping[cls.YAML_MAP_TOP_LEVEL_KEY]
+        data = mapping[toplevel_key]
         # "unwrap" an extra layer of toplevel key, to play well with !include
-        if len(data) == 1 and cls.YAML_MAP_TOP_LEVEL_KEY in data.keys():
-            data = data[cls.YAML_MAP_TOP_LEVEL_KEY]
+        if len(data) == 1 and toplevel_key in data.keys():
+            data = data[toplevel_key]
         return cls.from_map(data)
 
     def to_yaml_map(self, path):
         data = self.to_map()
-        mapping = {self.YAML_MAP_TOP_LEVEL_KEY: data}
+        mapping = {self.STRUCTURE.name: data}
         return self._to_path(mapping, path, fmt='yaml')
 
     # Only used with Python >= 3.6, but since that is just a sanity check it
     # should be okay
     @classmethod
     def __init_subclass__(cls, **kwargs):
-        # Ensure uniqueness of toplevel key
-        toplevel_key = cls.YAML_MAP_TOP_LEVEL_KEY
-        if toplevel_key in cls._registered_toplevel_keys:
-            raise RuntimeError('Class {name} cannot reuse YAML_MAP_TOP_LEVEL_KEY="{key}" as it is already used by {user}'.format(
-                name = cls.__qualname__,
-                key = toplevel_key,
-                user = cls._registered_toplevel_keys[toplevel_key]
-            ))
-        else:
-            cls._registered_toplevel_keys[toplevel_key] = cls
+        # Ignore abstract classes, since there can be no instance of them
+        if not inspect.isabstract(cls):
+            # Ensure uniqueness of toplevel key
+            toplevel_key = cls.STRUCTURE.name
+            if toplevel_key in cls._registered_toplevel_keys:
+                raise RuntimeError('Class {name} cannot reuse top level key "{key}" as it is already used by {user}'.format(
+                    name = cls.__qualname__,
+                    key = toplevel_key,
+                    user = cls._registered_toplevel_keys[toplevel_key]
+                ))
+            else:
+                cls._registered_toplevel_keys[toplevel_key] = cls
 
         super().__init_subclass__(**kwargs)
 
