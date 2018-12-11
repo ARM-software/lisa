@@ -1779,6 +1779,7 @@ class ExekallLISATestStep(ShellStep):
             show_details = ChoiceOrBoolParam(['msg'], 'show details of results. Use "msg" for only a brief message'),
             show_artifact_dirs = BoolParam('show exekall artifact directory for all iterations'),
             testcase = CommaListParam('show only the test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
+            ignore_testcase = CommaListParam('completely ignore test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
             ignore_non_issue = BoolParam('consider only tests that failed'),
             ignore_excep = CommaListParam('ignore the given comma-separated list of exceptions that caused tests failure or error. * can be used to match any part of the name'),
             dump_artifact_dirs = BoolOrStrParam('write the list of exekall artifact directories to a file. Useful to implement garbage collection of unreferenced artifact archives'),
@@ -1923,6 +1924,7 @@ class ExekallLISATestStep(ShellStep):
             show_pass_rate = False,
             show_artifact_dirs = False,
             testcase = [],
+            ignore_testcase = [],
             iterations = [],
             ignore_non_issue = False,
             ignore_excep = [],
@@ -1951,6 +1953,7 @@ class ExekallLISATestStep(ShellStep):
         }
 
         considered_testcase_set = set(testcase)
+        ignored_testcase_set = set(ignore_testcase)
         considered_iteration_set = set(iterations)
 
         # Parse the xUnit XML report from LISA to know the failing tests
@@ -1986,9 +1989,16 @@ class ExekallLISATestStep(ShellStep):
                     testcase_id = et_testcase.get('name')
 
                     # Ignore tests we are not interested in
-                    if considered_testcase_set and not any(
+                    if (
+                        (considered_testcase_set and not any(
                             fnmatch.fnmatch(testcase_id, pattern)
                             for pattern in considered_testcase_set
+                        ))
+                        or
+                        (ignored_testcase_set and any(
+                            fnmatch.fnmatch(testcase_id, pattern)
+                            for pattern in ignored_testcase_set
+                        ))
                     ):
                         continue
 
