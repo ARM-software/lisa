@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import pylab as pl
 from collections import OrderedDict
 
-from bart.common.Utils import select_window
+from bart.common.Utils import select_window, area_under_curve
 from bart.sched import pelt
 from bart.sched.SchedAssert import SchedAssert
 
@@ -203,7 +203,9 @@ class InvarianceBase(LoadTrackingBase):
                           trace, cpu, task_name, capacity=None):
         exp_util = self.get_expected_util_avg(trace, cpu, task_name, capacity)
         signal_df = self.get_task_sched_signals(trace, cpu, task_name, [signal_name])
-        signal_mean = signal_df[UTIL_AVG_CONVERGENCE_TIME_S:][signal_name].describe()['mean']
+        signal = signal_df[UTIL_AVG_CONVERGENCE_TIME_S:][signal_name]
+
+        signal_mean = area_under_curve(signal) / (signal.index[-1] - signal.index[0])
 
         ok = self.is_almost_equal(exp_util, signal_mean, allowed_error_pct)
 
