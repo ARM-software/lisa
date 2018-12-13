@@ -504,4 +504,53 @@ def deduplicate(seq, keep_last=True, key=lambda x: x):
     )
     return list(reorder(dedup.values()))
 
+def get_nested_key(mapping, key_path):
+    """
+    Get a key in a nested mapping
+
+    :param mapping: The mapping to lookup in
+    :type mapping: collections.abc.Mapping
+
+    :param key_path: Path to the key in the mapping, in the form of a list of
+        keys.
+    :type key_path: list
+    """
+    if not key_path:
+        return mapping
+    for key in key_path[:-1]:
+        mapping = mapping[key]
+    return mapping[key_path[-1]]
+
+def set_nested_key(mapping, key_path, val, level=None):
+    """
+    Set a key in a nested mapping
+
+    :param mapping: The mapping to update
+    :type mapping: collections.abc.MutableMapping
+
+    :param key_path: Path to the key in the mapping, in the form of a list of
+        keys.
+    :type key_path: list
+
+    :param level: Factory used when creating a level is needed. By default,
+        ``type(mapping)`` will be called without any parameter.
+    :type level: collections.abc.Callable
+    """
+    assert key_path
+
+    if level is None:
+        # This should work for dict and most basic structures
+        level = type(mapping)
+
+    for key in key_path[:-1]:
+        try:
+            mapping = mapping[key]
+        except KeyError:
+            new_level = level()
+            mapping[key] = new_level
+            mapping = new_level
+
+    mapping[key_path[-1]] = val
+
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

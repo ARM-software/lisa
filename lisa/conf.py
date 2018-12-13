@@ -21,8 +21,9 @@ from collections.abc import Mapping, Sequence
 from collections import OrderedDict
 import difflib
 import inspect
+import itertools
 
-from lisa.utils import Serializable, Loggable
+from lisa.utils import Serializable, Loggable, get_nested_key, set_nested_key
 
 class DeferredValue:
     """
@@ -196,6 +197,91 @@ class KeyDesc(KeyDescBase):
                 for key_cls in self.classinfo
             ),
             help=': ' + self.help if self.help else ''
+        )
+
+class MissingBaseKeyError(KeyError):
+    """
+    Exception raised when a base key needed to compute a derived key is missing.
+    """
+    pass
+
+class DerivedKeyDesc(KeyDesc):
+    """
+    Key descriptor describing a key derived from other keys
+
+    Derived keys cannot be added from a source, since they are purely computed
+    out of other keys. It is also not possible to change their source
+    priorities. To achieve that, set the source priorities on the keys it is
+    based on.
+
+    :param base_key_paths: List of paths to the keys this key is derived from.
+        The paths in the form of a list of string are relative to the current
+        level, and cannot reference any level above the current one.
+    :type base_key_paths: list(list(str))
+
+    :param compute: Function used to compute the value of the key. It takes a
+        dictionary of base keys specified in ``base_key_paths`` as only
+        parameter and is expected to return the key's value.
+    :type compute: collections.abc.Callable
+    """
+
+    def __init__(self, name, help, classinfo, base_key_paths, compute):
+        super().__init__(name=name, help=help, classinfo=classinfo)
+        self._base_key_paths = base_key_paths
+        self._compute = compute
+
+    @property
+    def help(self):
+        return '(derived from {}) '.format(
+            ', '.join(sorted(
+                self._get_base_key_qualname(path)
+                for path in self._base_key_paths
+            ))
+        ) + self._help
+
+    @help.setter
+    def help(self, val):
+        self._help = val
+
+    @staticmethod
+    def _get_base_key_val(conf, path):
+        return get_nested_key(conf, path)
+
+    @staticmethod
+    def _get_base_key_src(conf, path):
+        conf = get_nested_key(conf, path[:-1])
+        return conf.resolve_src(path[-1])
+
+    def _get_base_key_qualname(self, key_path):
+        return self.parent.qualname + '/' + '/'.join(key_path)
+
+    def _get_base_conf(self, conf):
+        try:
+            base_conf = {}
+            for key_path in self._base_key_paths:
+                val = self._get_base_key_val(conf, key_path)
+                set_nested_key(base_conf, key_path, val)
+            return base_conf
+        except KeyError as e:
+            raise MissingBaseKeyError('Missing value for base key "{base_key}" in order to compute derived key "{derived_key}": {msg}'.format(
+                derived_key=self.qualname,
+                base_key=e.args[1],
+                msg=e.args[0],
+            )) from e
+
+    def compute_val(self, conf):
+        base_conf = self._get_base_conf(conf)
+        val = self._compute(base_conf)
+        self.validate_val(val)
+        return val
+
+    def get_src(self, conf):
+        return ','.join(
+            '{src}({key})'.format(
+                src=self._get_base_key_src(conf, path),
+                key=self._get_base_key_qualname(path),
+            )
+            for path in self._base_key_paths
         )
 
 class LevelKeyDesc(KeyDescBase, Mapping):
@@ -426,7 +512,6 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
     def __init__(self, conf=None, src='conf'):
         self._nested_init(
-            parent=None,
             structure=self.STRUCTURE,
             src_prio=[]
         )
@@ -441,7 +526,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     def get_help(cls, *args, **kwargs):
         return cls.STRUCTURE.get_help(*args, **kwargs)
 
-    def _nested_init(self, parent, structure, src_prio):
+    def _nested_init(self, structure, src_prio):
         """Called to initialize nested instances of the class for nested
         configuration levels."""
         self._structure = structure
@@ -460,7 +545,6 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         for key, key_desc in self._structure.items():
             if isinstance(key_desc, LevelKeyDesc):
                 self._sublevel_map[key] = self._nested_new(
-                    parent = self,
                     structure = key_desc,
                     src_prio = self._src_prio,
                 )
@@ -563,6 +647,12 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 # sublevels have already been initialized when the root object
                 # was created.
                 self._sublevel_map[key].add_src(src, val, filter_none=filter_none, fallback=fallback)
+            # Derived keys cannot be set, since they are purely derived from
+            # other keys
+            elif isinstance(key_desc, DerivedKeyDesc):
+                raise ValueError('Cannot set a value for a derived key "{key}"'.format(
+                    key=key_desc.qualname,
+                ), key_desc.qualname)
             # Otherwise that is a leaf value that we store at that level
             else:
                 self._key_map.setdefault(key, {})[src] = val
@@ -621,17 +711,21 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         """
 
         key_desc = self._structure[key]
+        qual_key = key_desc.qualname
         if isinstance(key_desc, LevelKeyDesc):
-            key = key_desc.qualname
             raise ValueError('Cannot force source of the sub-level "{key}"'.format(
-                key=key,
-            ), key)
-
-        # None means removing the src override for that key
-        if src_prio is None:
-            self._src_override.pop(key, None)
+                key=qual_key,
+            ), qual_key)
+        elif isinstance(key_desc, DerivedKeyDesc):
+            raise ValueError('Cannot force source of a derived key "{key}"'.format(
+                key=qual_key,
+            ), qual_key)
         else:
-            self._src_override[key] = src_prio
+            # None means removing the src override for that key
+            if src_prio is None:
+                self._src_override.pop(key, None)
+            else:
+                self._src_override[key] = src_prio
 
     def _get_nested_src_override(self):
         # Make a copy to avoid modifying it
@@ -666,19 +760,23 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         return mapping
 
     def _resolve_prio(self, key):
-        if key not in self._key_map:
+        key_desc = self._structure[key]
+
+        if isinstance(key_desc, DerivedKeyDesc):
+            return [key_desc.get_src(self)]
+        elif key not in self._key_map:
             return []
+        else:
+            # Get the priority list from the prio override list, or just the
+            # default prio list
+            src_list = self._src_override.get(key, self._src_prio)
 
-        # Get the priority list from the prio override list, or just the
-        # default prio list
-        src_list = self._src_override.get(key, self._src_prio)
-
-        # Only include a source if it holds an actual value for that key
-        src_list = [
-            src for src in src_list
-            if src in self._key_map[key]
-        ]
-        return src_list
+            # Only include a source if it holds an actual value for that key
+            src_list = [
+                src for src in src_list
+                if src in self._key_map[key]
+            ]
+            return src_list
 
     def resolve_src(self, key):
         """
@@ -784,22 +882,33 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
         if isinstance(key_desc, LevelKeyDesc):
             return self._sublevel_map[key]
+        elif isinstance(key_desc, DerivedKeyDesc):
+            # Specifying a source is an error for a derived key
+            if src is not None:
+                key = key_desc.qualname
+                raise ValueError('Cannot specify the source when getting "{key}" since it is a derived key'.format(
+                    key=key,
+                    src=src,
+                ), key)
 
-        # Compute the source to use for that key
-        if src is None:
+            val = key_desc.compute_val(self)
             src = self.resolve_src(key)
+        else:
+            # Compute the source to use for that key
+            if src is None:
+                src = self.resolve_src(key)
 
-        try:
-            val = self._key_map[key][src]
-        except KeyError:
-            key = key_desc.qualname
-            raise KeyError('Key "{key}" is not available from source "{src}"'.format(
-                key=key,
-                src=src,
-            ), key)
+            try:
+                val = self._key_map[key][src]
+            except KeyError:
+                key = key_desc.qualname
+                raise KeyError('Key "{key}" is not available from source "{src}"'.format(
+                    key=key,
+                    src=src,
+                ), key)
 
-        if eval_deferred:
-            val = self._eval_deferred_val(src, key)
+            if eval_deferred:
+                val = self._eval_deferred_val(src, key)
 
         try:
             frame_conf = inspect.stack()[2]
@@ -847,7 +956,20 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         """
         out = []
         idt_style = ' '
-        for k, v in self.items(eval_deferred=eval_deferred):
+
+        # We add the derived keys when pretty-printing, for the sake of
+        # completeness. This will not honor eval_deferred for base keys.
+        def derived_items():
+            for key in self._get_derived_key_names():
+                try:
+                    yield key, self[key]
+                except MissingBaseKeyError:
+                    continue
+
+        for k, v in itertools.chain(
+            self.items(eval_deferred=eval_deferred),
+            derived_items()
+        ):
             v_cls = type(v)
             is_sublevel = k in self._sublevel_map
             if is_sublevel:
@@ -887,7 +1009,14 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         return self.get_key(key)
 
     def _get_key_names(self):
-        return list(self._key_map.keys()) + list(self._sublevel_map.keys())
+        return sorted(list(self._key_map.keys()) + list(self._sublevel_map.keys()))
+
+    def _get_derived_key_names(self):
+        return sorted(
+            key
+            for key, key_desc in self._structure.items()
+            if isinstance(key_desc, DerivedKeyDesc)
+        )
 
     def __iter__(self):
         return iter(self._get_key_names())
@@ -909,7 +1038,11 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
     def _ipython_key_completions_(self):
         "Allow Jupyter keys completion in interactive notebooks"
-        return self.keys()
+        regular_keys = set(self.keys())
+        # For autocompletion purposes, we show the derived keys
+        derived_keys = set(self._get_derived_key_names())
+        return sorted(regular_keys + derived_keys)
+
 
 class GenericContainerMetaBase(type):
     """
