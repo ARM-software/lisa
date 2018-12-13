@@ -126,17 +126,7 @@ class StaggeredFinishes(MisfitMigrationBase):
     def __init__(self, res_dir, plat_info, rtapp_profile):
         super().__init__(res_dir, plat_info, rtapp_profile)
 
-        cpu_capacities = plat_info['cpu-capacities']
-
-        cpu_classes = {}
-        for cpu, capacity in cpu_capacities.items():
-            if capacity not in cpu_classes.keys():
-                cpu_classes[capacity] = []
-
-            cpu_classes[capacity].append(cpu)
-
-        capacities = sorted(cpu_classes.keys())
-        self.cpu_classes = [cpu_classes[capacity] for capacity in capacities]
+        cpu_classes = plat_info['capacity-classes']
 
         sdf = self.trace.df_events('sched_switch')
         # Get the time where the first rt-app task spawns
@@ -158,11 +148,11 @@ class StaggeredFinishes(MisfitMigrationBase):
         self.end_time = sdf[sdf.prev_comm.str.contains(self.task_prefix)].index[-1]
         self.duration = self.end_time - self.start_time
 
-        self.src_cpus = self.cpu_classes[0]
+        self.src_cpus = cpu_classes[0]
         # XXX: Might need to check the tasks can fit on all of those, rather
         # than just pick all but the smallest CPUs
         self.dst_cpus = []
-        for group in self.cpu_classes[1:]:
+        for group in cpu_classes[1:]:
             self.dst_cpus += group
 
     @classmethod
