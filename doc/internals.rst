@@ -18,6 +18,17 @@ be contributed to Devlib instead.
 .. automodule:: lisa.env
    :members:
 
+Configuration management
+========================
+
+Configuration files are managed by sublcasses of
+:class:`lisa.conf.MultiSrcConf`. It allows loading from a YAML file (not to be
+confused with serializing the instance).
+
+
+.. automodule:: lisa.conf
+   :members:
+
 PlatformInfo
 ============
 
