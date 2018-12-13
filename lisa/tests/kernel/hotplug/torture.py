@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import abc
 import sys
 import random
 import os.path
@@ -31,8 +32,7 @@ from lisa.utils import ArtifactPath
 class CPUHPSequenceError(Exception):
     pass
 
-class HotplugTorture(TestBundle):
-
+class HotplugBase(TestBundle, abc.ABC):
     def __init__(self, plat_info, target_alive, hotpluggable_cpus, live_cpus):
         res_dir = None
         super().__init__(res_dir, plat_info)
@@ -44,8 +44,8 @@ class HotplugTorture(TestBundle):
     def _check_cpuhp_seq_consistency(cls, nr_operations, hotpluggable_cpus,
                                      max_cpus_off, sequence):
         """
-        Check that a hotplug sequence given by :meth:`_random_cpuhp_seq`
-        is consistent. Parameters are the same as for :meth:`_random_cpuhp_seq`,
+        Check that a hotplug sequence given by :meth:`cpuhp_seq`
+        is consistent. Parameters are the same as for :meth:`cpuhp_seq`,
         with the addition of:
 
         :param sequence: A hotplug sequence, consisting of a sequence of
@@ -88,10 +88,9 @@ class HotplugTorture(TestBundle):
                     cpu
                 ))
 
-
     @classmethod
-    def _random_cpuhp_seq(cls, nr_operations,
-                          hotpluggable_cpus, max_cpus_off):
+    @abc.abstractmethod
+    def cpuhp_seq(cls, nr_operations, hotpluggable_cpus, max_cpus_off):
         """
         Yield a consistent random sequence of CPU hotplug operations
 
@@ -101,39 +100,11 @@ class HotplugTorture(TestBundle):
         "Consistent" means that a CPU will be plugged-in only if it was
         plugged-off before (and vice versa). Moreover the state of the CPUs
         once the sequence has completed should the same as it was before.
-
-        FIXME: is that actually still true ?
-        The actual length of the sequence might differ from the requested one
-        by 1 because it's easier to implement and it shouldn't be an issue for
-        most test cases.
         """
-        cur_on_cpus = hotpluggable_cpus[:]
-        cur_off_cpus = []
-        i = 0
-        while i < nr_operations - len(cur_off_cpus):
-            if not (1 < len(cur_on_cpus) < max_cpus_off):
-                # Force plug IN when only 1 CPU is on or too many are off
-                plug_way = 1
-            elif not cur_off_cpus:
-                # Force plug OFF if all CPUs are on
-                plug_way = 0 # Plug OFF
-            else:
-                plug_way = random.randint(0,1)
-
-            src = cur_off_cpus if plug_way else cur_on_cpus
-            dst = cur_on_cpus if plug_way else cur_off_cpus
-            cpu = random.choice(src)
-            src.remove(cpu)
-            dst.append(cpu)
-            i += 1
-            yield cpu, plug_way
-
-        # Re-plug offline cpus to come back to original state
-        for cpu in cur_off_cpus:
-            yield cpu, 1
+        pass
 
     @classmethod
-    def _random_cpuhp_script(cls, te, res_dir, sequence, sleep_min_ms,
+    def _cpuhp_script(cls, te, res_dir, sequence, sleep_min_ms,
                              sleep_max_ms, timeout_s):
         """
         Generate a script consisting of a random sequence of hotplugs operations
@@ -182,13 +153,13 @@ class HotplugTorture(TestBundle):
         te.target.hotplug.online_all()
         hotpluggable_cpus = te.target.hotplug.list_hotpluggable_cpus()
 
-        sequence = list(cls._random_cpuhp_seq(
+        sequence = list(cls.cpuhp_seq(
             nr_operations, hotpluggable_cpus, max_cpus_off))
 
         cls._check_cpuhp_seq_consistency(nr_operations, hotpluggable_cpus,
             max_cpus_off, sequence)
 
-        script = cls._random_cpuhp_script(
+        script = cls._cpuhp_script(
             te, res_dir, sequence, sleep_min_ms, sleep_max_ms, duration_s)
 
         script.push()
@@ -211,7 +182,7 @@ class HotplugTorture(TestBundle):
     @classmethod
     def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None, seed=None,
                      nr_operations=100, sleep_min_ms=10, sleep_max_ms=100,
-                     duration_s=10, max_cpus_off=sys.maxsize) -> 'HotplugTorture':
+                     duration_s=10, max_cpus_off=sys.maxsize) -> 'HotplugBase':
         """
         :param seed: Seed of the RNG used to create the hotplug sequences
         :type seed: int
@@ -253,5 +224,41 @@ class HotplugTorture(TestBundle):
         res.add_metric("hotpluggable CPUs", self.hotpluggable_cpus)
         res.add_metric("Online CPUs", self.live_cpus)
         return res
+
+class HotplugTorture(HotplugBase):
+
+    @classmethod
+    def cpuhp_seq(cls, nr_operations, hotpluggable_cpus, max_cpus_off):
+        """
+        FIXME: is that actually still true ?
+        The actual length of the sequence might differ from the requested one
+        by 1 because it's easier to implement and it shouldn't be an issue for
+        most test cases.
+        """
+
+        cur_on_cpus = hotpluggable_cpus[:]
+        cur_off_cpus = []
+        i = 0
+        while i < nr_operations - len(cur_off_cpus):
+            if not (1 < len(cur_on_cpus) < max_cpus_off):
+                # Force plug IN when only 1 CPU is on or too many are off
+                plug_way = 1
+            elif not cur_off_cpus:
+                # Force plug OFF if all CPUs are on
+                plug_way = 0 # Plug OFF
+            else:
+                plug_way = random.randint(0,1)
+
+            src = cur_off_cpus if plug_way else cur_on_cpus
+            dst = cur_on_cpus if plug_way else cur_off_cpus
+            cpu = random.choice(src)
+            src.remove(cpu)
+            dst.append(cpu)
+            i += 1
+            yield cpu, plug_way
+
+        # Re-plug offline cpus to come back to original state
+        for cpu in cur_off_cpus:
+            yield cpu, 1
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
