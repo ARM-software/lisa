@@ -62,7 +62,7 @@ class LoadTrackingAnalysis(AnalysisBase):
         return []
 
     def _df_uniformized_signal(self, event):
-        df = self._trace.df_events(event)
+        df = self.trace.df_events(event)
 
         df = df.rename(columns=self._columns_renaming(event))
 
@@ -80,7 +80,7 @@ class LoadTrackingAnalysis(AnalysisBase):
 
     def _df_either_event(self, events):
         for event in events:
-            if event not in self._trace.available_events:
+            if event not in self.trace.available_events:
                 continue
 
             return self._df_uniformized_signal(event)
@@ -126,10 +126,10 @@ class LoadTrackingAnalysis(AnalysisBase):
         """
         df =  self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
 
-        if "cpu-capacities" in self._trace.plat_info:
+        if "cpu-capacities" in self.trace.plat_info:
             # Add a column which represents the max capacity of the smallest
             # CPU which can accomodate the task utilization
-            capacities = sorted(self._trace.plat_info["cpu-capacities"].values())
+            capacities = sorted(self.trace.plat_info["cpu-capacities"].values())
 
             def fits_capacity(util):
                 for capacity in capacities:
@@ -167,7 +167,7 @@ class LoadTrackingAnalysis(AnalysisBase):
         samples = samples.sort_values(ascending=False)
 
         top_df = pd.DataFrame(samples).rename(columns={"util" : "samples"})
-        top_df["comm"] = top_df.index.map(self._trace.get_task_by_pid)
+        top_df["comm"] = top_df.index.map(self.trace.get_task_by_pid)
 
         return top_df
 
@@ -178,7 +178,7 @@ class LoadTrackingAnalysis(AnalysisBase):
         :param cpus: list of CPUs to be plotted
         :type cpus: list(int)
         """
-        cpus = cpus or list(range(self._trace.cpus_count))
+        cpus = cpus or list(range(self.trace.cpus_count))
         fig, axes = self.setup_plot(nrows=len(cpus), sharex=True)
 
         cpus_df = self.df_cpus_signals()
@@ -193,11 +193,11 @@ class LoadTrackingAnalysis(AnalysisBase):
             df[['util']].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
             df[['load']].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
-            self._trace.analysis.cpus.plot_orig_capacity(axis, cpu)
+            self.trace.analysis.cpus.plot_orig_capacity(axis, cpu)
 
             # Add capacities data if available
-            if self._trace.hasEvents('cpu_capacity'):
-                df = self._trace.df_events('cpu_capacity')
+            if self.trace.has_events('cpu_capacity'):
+                df = self.trace.df_events('cpu_capacity')
                 df = df[df["__cpu"] == cpu]
                 if len(df):
                     data = df[['capacity', 'tip_capacity']]
@@ -205,12 +205,12 @@ class LoadTrackingAnalysis(AnalysisBase):
                               drawstyle='steps-post')
 
             # Add overutilized signal to the plot
-            plot_overutilized = self._trace.analysis.status.plot_overutilized
-            if self._trace.hasEvents(plot_overutilized.required_events):
+            plot_overutilized = self.trace.analysis.status.plot_overutilized
+            if self.trace.has_events(plot_overutilized.used_events):
                 plot_overutilized(axis=axis)
 
             axis.set_ylim(0, 1100)
-            axis.set_xlim(self._trace.x_min, self._trace.x_max)
+            axis.set_xlim(self.trace.x_min, self.trace.x_max)
             axis.legend()
 
         self.save_plot(fig, filepath)
@@ -227,20 +227,20 @@ class LoadTrackingAnalysis(AnalysisBase):
 
         df = self.df_tasks_signals()
 
-        pid = self._trace.get_task_pid(task)
+        pid = self.trace.get_task_pid(task)
         df = df[df.pid == pid]
 
         df[['util']].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
         df[['load']].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
-        plot_overutilized = self._trace.analysis.status.plot_overutilized
-        if self._trace.hasEvents(plot_overutilized.required_events):
+        plot_overutilized = self.trace.analysis.status.plot_overutilized
+        if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
         axis.set_title('Load-tracking signals of task "{}"'.format(task))
         axis.legend()
         axis.grid(True)
-        axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        axis.set_xlim(self.trace.x_min, self.trace.x_max)
 
         self.save_plot(fig, filepath)
         return axis
@@ -260,13 +260,13 @@ class LoadTrackingAnalysis(AnalysisBase):
         if local_fig:
             fig, axis = self.setup_plot(height=8)
 
-        pid = self._trace.get_task_pid(task)
+        pid = self.trace.get_task_pid(task)
 
         df = self.df_tasks_signals()
         df = df[df.pid == pid]
 
         # Build task names (there could be multiple, during the task lifetime)
-        task_name = 'Task ({}:{})'.format(pid, self._trace.get_task_by_pid(pid))
+        task_name = 'Task ({}:{})'.format(pid, self.trace.get_task_by_pid(pid))
 
         df["required_capacity"].plot(
             drawstyle='steps-post',
@@ -278,7 +278,7 @@ class LoadTrackingAnalysis(AnalysisBase):
         if local_fig:
             axis.set_title(task_name)
             axis.set_ylim(0, 1100)
-            axis.set_xlim(self._trace.x_min, self._trace.x_max)
+            axis.set_xlim(self.trace.x_min, self.trace.x_max)
             axis.set_ylabel('Utilization')
             axis.set_xlabel('Time (s)')
 
@@ -298,10 +298,10 @@ class LoadTrackingAnalysis(AnalysisBase):
         # Get all utilization update events
         df = self.df_tasks_signals()
 
-        pid = self._trace.get_task_pid(task)
+        pid = self.trace.get_task_pid(task)
         df = df[df.pid == pid]
 
-        cpu_capacities = self._trace.plat_info["cpu-capacities"]
+        cpu_capacities = self.trace.plat_info["cpu-capacities"]
 
         def evaluate_placement(cpu, required_capacity):
             capacity = cpu_capacities[cpu]
@@ -321,13 +321,13 @@ class LoadTrackingAnalysis(AnalysisBase):
         for stat in df["placement"].unique():
             df[df.placement == stat]["__cpu"].plot(ax=axis, style="+", label=stat)
 
-        plot_overutilized = self._trace.analysis.status.plot_overutilized
-        if self._trace.hasEvents(plot_overutilized.required_events):
+        plot_overutilized = self.trace.analysis.status.plot_overutilized
+        if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
         axis.set_title("Utilization vs placement of task \"{}\"".format(task))
 
-        axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        axis.set_xlim(self.trace.x_min, self.trace.x_max)
         axis.grid(True)
         axis.legend()
 

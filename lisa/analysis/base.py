@@ -32,39 +32,6 @@ COLOR_CYCLES = [
 
 plt.rcParams['axes.prop_cycle'] = cycler(color=COLOR_CYCLES)
 
-class MissingTraceEventError(RuntimeError):
-    """
-    :param missing_events: The missing trace events
-    :type missing_events: list(str)
-    """
-    def __init__(self, missing_events):
-        super().__init__(
-            "Trace is missing the following required events: {}".format(missing_events))
-
-        self.missing_events = missing_events
-
-def requires_events(events):
-    """
-    Decorator for methods that require some given trace events
-
-    :param events: The list of required events
-    :type events: list(str)
-
-    The decorate method must inherit from :class:`AnalysisBase`
-    """
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapper(self, *args, **kwargs):
-            self.check_events(events)
-            return f(self, *args, **kwargs)
-
-        # Set an attribute on the wrapper itself, so it can be e.g. added
-        # to the method documentation
-        wrapper.required_events = sorted(set(events))
-        return wrapper
-
-    return decorator
-
 class AnalysisBase(Loggable):
     """
     Base class for Analysis modules.
@@ -75,14 +42,14 @@ class AnalysisBase(Loggable):
     :Design notes:
 
     Method depending on certain trace events *must* be decorated with
-    :meth:`lisa.analysis.base.requires_events`
+    :meth:`lisa.trace.requires_events`
 
     Plotting methods *must* return the :class:`matplotlib.axes.Axes` instance
     used by the plotting method. This lets users further modify them.
     """
 
     def __init__(self, trace):
-        self._trace = trace
+        self.trace = trace
 
     @classmethod
     def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, **kwargs):
@@ -179,21 +146,10 @@ class AnalysisBase(Loggable):
             module = self.__module__
             caller = inspect.stack()[1][3]
             filepath = os.path.join(
-                self._trace.plots_dir,
+                self.trace.plots_dir,
                 "{}.{}.{}".format(module, caller, img_format))
 
         figure.savefig(filepath, format=img_format)
 
-    def check_events(self, required_events):
-        """
-        Check that certain trace events are available in the trace
-
-        :raises: MissingTraceEventError if some events are not available
-        """
-        available_events = sorted(set(self._trace.available_events))
-        missing_events = sorted(set(required_events).difference(available_events))
-
-        if missing_events:
-            raise MissingTraceEventError(missing_events)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

@@ -20,7 +20,8 @@
 import pandas as pd
 
 from lisa.utils import memoized
-from lisa.analysis.base import AnalysisBase, requires_events
+from lisa.analysis.base import AnalysisBase
+from lisa.trace import requires_events
 
 
 class CpusAnalysis(AnalysisBase):
@@ -38,7 +39,7 @@ class CpusAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @requires_events(['sched_switch'])
+    @requires_events('sched_switch')
     def df_context_switches(self):
         """
         Compute number of context switches on each CPU.
@@ -47,8 +48,8 @@ class CpusAnalysis(AnalysisBase):
 
           * A ``context_switch_cnt`` column (the number of context switch per CPU)
         """
-        sched_df = self._trace.df_events('sched_switch')
-        cpus = list(range(self._trace.cpus_count))
+        sched_df = self.trace.df_events('sched_switch')
+        cpus = list(range(self.trace.cpus_count))
         ctx_sw_df = pd.DataFrame(
             [len(sched_df[sched_df['__cpu'] == cpu]) for cpu in cpus],
             index=cpus,
@@ -62,7 +63,7 @@ class CpusAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @requires_events(df_context_switches.required_events)
+    @df_context_switches.used_events
     def plot_context_switches(self, filepath=None):
         """
         Plot histogram of context switches on each CPU.
@@ -87,8 +88,8 @@ class CpusAnalysis(AnalysisBase):
         :param cpu: The CPU
         :type cpu: int
         """
-        if "cpu-capacities" in self._trace.plat_info:
-            axis.axhline(self._trace.plat_info["cpu-capacities"][cpu],
+        if "cpu-capacities" in self.trace.plat_info:
+            axis.axhline(self.trace.plat_info["cpu-capacities"][cpu],
                          color=self.get_next_color(axis),
                          linestyle='--', label="orig_capacity")
 

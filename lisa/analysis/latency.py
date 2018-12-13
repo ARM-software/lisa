@@ -18,7 +18,7 @@
 import pandas as pd
 import numpy as np
 
-from lisa.analysis.base import AnalysisBase, requires_events, COLOR_CYCLES
+from lisa.analysis.base import AnalysisBase, COLOR_CYCLES
 from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.utils import memoized
 
@@ -42,7 +42,7 @@ class LatencyAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @requires_events(TasksAnalysis.df_task_states.required_events)
+    @TasksAnalysis.df_task_states.used_events
     def df_latency_wakeup(self, task):
         """
         DataFrame of a task's wakeup latencies
@@ -55,7 +55,7 @@ class LatencyAnalysis(AnalysisBase):
           * A ``wakeup_latency`` column (the wakeup latency at that timestamp).
         """
 
-        df = self._trace.analysis.tasks.df_task_states(task)
+        df = self.trace.analysis.tasks.df_task_states(task)
 
         df = df[(df.curr_state == TaskState.TASK_WAKING.char) &
                 (df.next_state == TaskState.TASK_ACTIVE.char)][["delta"]]
@@ -63,7 +63,7 @@ class LatencyAnalysis(AnalysisBase):
         df.rename(columns={'delta' : 'wakeup_latency'}, inplace=True)
         return df
 
-    @requires_events(TasksAnalysis.df_task_states.required_events)
+    @TasksAnalysis.df_task_states.used_events
     def df_latency_preemption(self, task):
         """
         DataFrame of a task's preemption latencies
@@ -75,7 +75,7 @@ class LatencyAnalysis(AnalysisBase):
 
           * A ``preempt_latency`` column (the preemption latency at that timestamp).
         """
-        df = self._trace.analysis.tasks.df_task_states(task)
+        df = self.trace.analysis.tasks.df_task_states(task)
 
         df = df[(df.curr_state.str.contains(TaskState.TASK_RUNNING.char)) &
                 (df.next_state == TaskState.TASK_ACTIVE.char)][["delta"]]
@@ -83,7 +83,7 @@ class LatencyAnalysis(AnalysisBase):
         df.rename(columns={'delta' : 'preempt_latency'}, inplace=True)
         return df
 
-    @requires_events(TasksAnalysis.df_task_states.required_events)
+    @TasksAnalysis.df_task_states.used_events
     def df_activations(self, task):
         """
         DataFrame of a task's activations
@@ -95,7 +95,7 @@ class LatencyAnalysis(AnalysisBase):
 
           * An ``activation_interval`` column (the time since the last activation).
         """
-        wkp_df = self._trace.analysis.tasks.df_task_states(task)
+        wkp_df = self.trace.analysis.tasks.df_task_states(task)
         wkp_df = wkp_df[wkp_df.curr_state == TaskState.TASK_WAKING.char]
 
         index = wkp_df.index.to_frame()
@@ -103,7 +103,7 @@ class LatencyAnalysis(AnalysisBase):
 
         return wkp_df[["activation_interval"]]
 
-    @requires_events(TasksAnalysis.df_task_states.required_events)
+    @TasksAnalysis.df_task_states.used_events
     def df_runtimes(self, task):
         """
         DataFrame of task's runtime each time the task blocks
@@ -119,7 +119,7 @@ class LatencyAnalysis(AnalysisBase):
           * A ``running_time`` column (the cumulated running time since the
             last activation).
         """
-        df = self._trace.analysis.tasks.df_task_states(task)
+        df = self.trace.analysis.tasks.df_task_states(task)
 
         runtimes = []
         spurious_wkp = False
@@ -173,7 +173,7 @@ class LatencyAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @requires_events(df_latency_wakeup.required_events)
+    @df_latency_wakeup.used_events
     def plot_latencies(self, task, wakeup=True, preempt=True, threshold_ms=1,
                        filepath=None):
         """
@@ -214,7 +214,7 @@ class LatencyAnalysis(AnalysisBase):
         axis.set_title("Latencies of task \"{}\"".format(task))
         axis.set_ylabel("Latency (s)")
         axis.legend()
-        axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        axis.set_xlim(self.trace.x_min, self.trace.x_max)
 
         self.save_plot(fig, filepath)
         return axis
@@ -233,7 +233,7 @@ class LatencyAnalysis(AnalysisBase):
         above = 1 - below
         return df, above, below
 
-    @requires_events(df_latency_wakeup.required_events)
+    @df_latency_wakeup.used_events
     def _get_latencies_df(self, task, wakeup, preempt):
         wkp_df = None
         prt_df = None
@@ -253,7 +253,7 @@ class LatencyAnalysis(AnalysisBase):
 
         return df
 
-    @requires_events(_get_latencies_df.required_events)
+    @_get_latencies_df.used_events
     def plot_latencies_cdf(self, task, wakeup=True, preempt=True,
                            threshold_ms=1, filepath=None):
         """
@@ -292,7 +292,7 @@ class LatencyAnalysis(AnalysisBase):
         self.save_plot(fig, filepath)
         return axis
 
-    @requires_events(_get_latencies_df.required_events)
+    @_get_latencies_df.used_events
     def plot_latencies_histogram(self, task, wakeup=True, preempt=True,
                                  threshold_ms=1, bins=64, filepath=None):
         """
@@ -326,7 +326,7 @@ class LatencyAnalysis(AnalysisBase):
         self.save_plot(fig, filepath)
         return axis
 
-    @requires_events(df_latency_wakeup.required_events)
+    @df_latency_wakeup.used_events
     def plot_latency_bands(self, task, filepath=None, axis=None):
         """
         Draw the task wakeup/preemption latencies as colored bands
@@ -359,14 +359,14 @@ class LatencyAnalysis(AnalysisBase):
         plot_bands(wkl_df, "wakeup_latency", "Wakeup latencies")
         plot_bands(prt_df, "preempt_latency", "Preemption latencies")
         axis.legend()
-        axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        axis.set_xlim(self.trace.x_min, self.trace.x_max)
 
         if local_fig:
             self.save_plot(fig, filepath)
 
         return axis
 
-    @requires_events(df_activations.required_events)
+    @df_activations.used_events
     def plot_activations(self, task, filepath=None):
         """
         Plot the :meth:`lisa.analysis.latency.LatencyAnalysis.df_activations` of a task
@@ -380,18 +380,18 @@ class LatencyAnalysis(AnalysisBase):
 
         wkp_df.plot(style='+', logy=False, ax=axis)
 
-        plot_overutilized = self._trace.analysis.status.plot_overutilized
-        if self._trace.hasEvents(plot_overutilized.required_events):
+        plot_overutilized = self.trace.analysis.status.plot_overutilized
+        if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
         axis.set_title("Activation intervals of task \"{}\"".format(task))
 
-        axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        axis.set_xlim(self.trace.x_min, self.trace.x_max)
 
         self.save_plot(fig, filepath)
         return axis
 
-    @requires_events(df_runtimes.required_events)
+    @df_runtimes.used_events
     def plot_runtimes(self, task, filepath=None):
         """
         Plot the :meth:`lisa.analysis.latency.LatencyAnalysis.df_runtimes` of a task
@@ -405,13 +405,13 @@ class LatencyAnalysis(AnalysisBase):
 
         df.plot(style='+', ax=axis)
 
-        plot_overutilized = self._trace.analysis.status.plot_overutilized
-        if self._trace.hasEvents(plot_overutilized.required_events):
+        plot_overutilized = self.trace.analysis.status.plot_overutilized
+        if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
         axis.set_title("Per-activation runtimes of task \"{}\"".format(task))
 
-        axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        axis.set_xlim(self.trace.x_min, self.trace.x_max)
 
         self.save_plot(fig, filepath)
         return axis

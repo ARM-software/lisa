@@ -17,6 +17,7 @@
 
 """ Trace Parser Module """
 
+import abc
 import numpy as np
 import os
 import os.path
@@ -28,10 +29,9 @@ import warnings
 import operator
 import logging
 import webbrowser
-from functools import reduce
+from functools import reduce, wraps
 
-from lisa.analysis.proxy import AnalysisProxy
-from lisa.utils import Loggable, memoized
+from lisa.utils import Loggable, memoized, deduplicate
 from lisa.platforms.platinfo import PlatformInfo
 from devlib.target import KernelVersion
 from trappy.utils import listify, handle_duplicate_index
@@ -133,9 +133,12 @@ class Trace(Loggable):
 
         self.plots_prefix = plots_prefix
 
-        self.__registerTraceEvents(events)
-        self.__parseTrace(self.data_dir, window, trace_format)
+        self._register_trace_events(events)
+        self._parse_trace(self.data_dir, window, trace_format)
 
+        # Import here to avoid a circular dependency issue at import time
+        # with lisa.analysis.base
+        from lisa.analysis.proxy import AnalysisProxy
         self.analysis = AnalysisProxy(self)
 
     @property
@@ -150,7 +153,7 @@ class Trace(Loggable):
                           for e in self.available_events)
             return max_cpu + 1
 
-    def setXTimeRange(self, t_min=None, t_max=None):
+    def set_x_time_range(self, t_min=None, t_max=None):
         """
         Set x axis time range to the specified values.
 
@@ -166,7 +169,7 @@ class Trace(Loggable):
         self.get_logger().debug('Set plots time range to (%.6f, %.6f)[s]',
                        self.x_min, self.x_max)
 
-    def __registerTraceEvents(self, events):
+    def _register_trace_events(self, events):
         """
         Save a copy of the parsed events.
 
@@ -187,7 +190,7 @@ class Trace(Loggable):
         if 'cpu_frequency' in events:
             self.events.append('cpu_frequency_devlib')
 
-    def __parseTrace(self, path, window, trace_format):
+    def _parse_trace(self, path, window, trace_format):
         """
         Internal method in charge of performing the actual parsing of the
         trace.
@@ -233,7 +236,7 @@ class Trace(Loggable):
         has_function_stats = self._loadFunctionsStats(path)
 
         # Check for events available on the parsed trace
-        self.__checkAvailableEvents()
+        self._check_available_events()
         if len(self.available_events) == 0:
             if has_function_stats:
                 logger.info('Trace contains only functions stats')
@@ -242,9 +245,9 @@ class Trace(Loggable):
                              'nor function stats')
 
         # Index PIDs and Task names
-        self.__loadTasksNames()
+        self._load_tasks_names()
 
-        self.__computeTimeSpan()
+        self._compute_timespan()
 
         # Setup internal data reference to interesting events/dataframes
         self._sanitize_SchedLoadAvgCpu()
@@ -257,7 +260,7 @@ class Trace(Loggable):
         self._sanitize_CpuFrequency()
         self._sanitize_ThermalPowerCpu()
 
-    def __checkAvailableEvents(self, key=""):
+    def _check_available_events(self, key=""):
         """
         Internal method used to build a list of available events.
 
@@ -273,13 +276,13 @@ class Trace(Loggable):
         for evt in self.available_events:
             logger.debug(' - %s', evt)
 
-    def __loadTasksNames(self):
+    def _load_tasks_names(self):
         """
         Try to load tasks names using one of the supported events.
         """
         def load(event, name_key, pid_key):
             df = self.df_events(event)
-            self._scanTasks(df, name_key=name_key, pid_key=pid_key)
+            self._scan_tasks(df, name_key=name_key, pid_key=pid_key)
 
         if 'sched_switch' in self.available_events:
             load('sched_switch', 'prev_comm', 'prev_pid')
@@ -291,20 +294,27 @@ class Trace(Loggable):
 
         self.get_logger().warning('Failed to load tasks names from trace events')
 
-    def hasEvents(self, dataset):
+    def has_events(self, events):
         """
         Returns True if the specified event is present in the parsed trace,
         False otherwise.
 
-        :param dataset: trace event name or list of trace events
-        :type dataset: str or list(str)
+        :param events: trace event name or list of trace events
+        :type events: str or list(str) or TraceEventCheckerBase
         """
-        if isinstance(dataset, str):
-            return dataset in self.available_events
+        if isinstance(events, str):
+            return events in self.available_events
+        elif isinstance(events, TraceEventCheckerBase):
+            try:
+                events.check_events(self.available_events)
+            except MissingTraceEventError:
+                return False
+            else:
+                return True
+        else:
+            return set(events).issubset(set(self.available_events))
 
-        return set(dataset).issubset(set(self.available_events))
-
-    def __computeTimeSpan(self):
+    def _compute_timespan(self):
         """
         Compute time axis range, considering all the parsed events.
         """
@@ -313,9 +323,9 @@ class Trace(Loggable):
         self.get_logger().debug('Collected events spans a %.3f [s] time interval',
                        self.time_range)
 
-        self.setXTimeRange(max(self.start_time, self.window[0]), self.window[1])
+        self.set_x_time_range(max(self.start_time, self.window[0]), self.window[1])
 
-    def _scanTasks(self, df, name_key='comm', pid_key='pid'):
+    def _scan_tasks(self, df, name_key='comm', pid_key='pid'):
         """
         Extract tasks names and PIDs from the input data frame. The data frame
         should contain a task name column and PID column.
@@ -495,7 +505,7 @@ class Trace(Loggable):
         Add more columns to cpu_capacity data frame if the energy model is
         available and the platform is big.LITTLE.
         """
-        if not self.hasEvents('cpu_capacity') \
+        if not self.has_events('cpu_capacity') \
            or 'nrg-model' not in self.plat_info \
            or not self.has_big_little:
             return
@@ -520,7 +530,7 @@ class Trace(Loggable):
         """
         If necessary, rename certain signal names from v5.0 to v5.1 format.
         """
-        if not self.hasEvents('sched_load_avg_cpu'):
+        if not self.has_events('sched_load_avg_cpu'):
             return
         df = self.df_events('sched_load_avg_cpu')
         if 'utilization' in df:
@@ -531,7 +541,7 @@ class Trace(Loggable):
         """
         If necessary, rename certain signal names from v5.0 to v5.1 format.
         """
-        if not self.hasEvents('sched_load_avg_task'):
+        if not self.has_events('sched_load_avg_task'):
             return
         df = self.df_events('sched_load_avg_task')
         if 'utilization' in df:
@@ -548,7 +558,7 @@ class Trace(Loggable):
         Also, if necessary, rename certain signal names from v5.0 to v5.1
         format.
         """
-        if not self.hasEvents('sched_boost_cpu'):
+        if not self.has_events('sched_boost_cpu'):
             return
         df = self.df_events('sched_boost_cpu')
         if 'usage' in df:
@@ -562,7 +572,7 @@ class Trace(Loggable):
         Also, if necessary, rename certain signal names from v5.0 to v5.1
         format.
         """
-        if not self.hasEvents('sched_boost_task'):
+        if not self.has_events('sched_boost_task'):
             return
         df = self.df_events('sched_boost_task')
         if 'utilization' in df:
@@ -578,7 +588,7 @@ class Trace(Loggable):
         Also convert between existing field name formats for sched_energy_diff
         """
         logger = self.get_logger()
-        if not self.hasEvents('sched_energy_diff') \
+        if not self.has_events('sched_energy_diff') \
            or 'nrg-model' not in self.plat_info \
            or not self.has_big_little:
             return
@@ -621,7 +631,7 @@ class Trace(Loggable):
 
     def _sanitize_SchedOverutilized(self):
         """ Add a column with overutilized status duration. """
-        if not self.hasEvents('sched_overutilized'):
+        if not self.has_events('sched_overutilized'):
             return
 
         df = self.df_events('sched_overutilized')
@@ -643,7 +653,7 @@ class Trace(Loggable):
         return int(mask.replace(',', ''), 16)
 
     def _sanitize_ThermalPowerCpuGetPower(self):
-        if not self.hasEvents('thermal_power_cpu_get_power'):
+        if not self.has_events('thermal_power_cpu_get_power'):
             return
 
         df = self.df_events('thermal_power_cpu_get_power')
@@ -653,7 +663,7 @@ class Trace(Loggable):
         )
 
     def _sanitize_ThermalPowerCpuLimit(self):
-        if not self.hasEvents('thermal_power_cpu_limit'):
+        if not self.has_events('thermal_power_cpu_limit'):
             return
 
         df = self.df_events('thermal_power_cpu_limit')
@@ -681,7 +691,7 @@ class Trace(Loggable):
         frequency scaling is performed at a cluster level).
         """
         logger = self.get_logger()
-        if not self.hasEvents('cpu_frequency_devlib') \
+        if not self.has_events('cpu_frequency_devlib') \
            or 'freq-domains' not in self.plat_info:
             return
 
@@ -812,7 +822,7 @@ class Trace(Loggable):
         return len(self._functions_stats_df) > 0
 
     @memoized
-    def getCPUActiveSignal(self, cpu):
+    def get_cpu_active_signal(self, cpu):
         """
         Build a square wave representing the active (i.e. non-idle) CPU time,
         i.e.:
@@ -827,7 +837,7 @@ class Trace(Loggable):
         :returns: A :class:`pandas.Series` or ``None`` if the trace contains no
                   "cpu_idle" events
         """
-        if not self.hasEvents('cpu_idle'):
+        if not self.has_events('cpu_idle'):
             self.get_logger().warning('Events [cpu_idle] not found, '
                               'cannot compute CPU active signal!')
             return None
@@ -853,12 +863,12 @@ class Trace(Loggable):
         return handle_duplicate_index(cpu_active)
 
     @memoized
-    def getPeripheralClockEffectiveRate(self, clk_name):
+    def get_peripheral_clock_effective_rate(self, clk_name):
         logger = self.get_logger()
         if clk_name is None:
             logger.warning('no specified clk_name in computing peripheral clock, returning None')
             return
-        if not self.hasEvents('clock_set_rate'):
+        if not self.has_events('clock_set_rate'):
             logger.warning('Events [clock_set_rate] not found, returning None!')
             return
         rate_df = self.df_events('clock_set_rate')
@@ -1022,5 +1032,232 @@ class Trace(Loggable):
                 res_df.at[res_df.index[-1], column] = delta
 
         return res_df
+
+class TraceEventCheckerBase(abc.ABC, Loggable):
+    """
+    ABC for events checker classes.
+
+    Event checking can be achieved using a boolean expression on expected
+    events.
+    """
+    @abc.abstractmethod
+    def check_events(self, event_set):
+        """
+        Check that certain trace events are available in the given set of
+        events.
+
+        :raises: MissingTraceEventError if some events are not available
+        """
+        pass
+
+    def __call__(self, f):
+        """
+        Decorator for methods that require some given trace events
+
+        :param events: The list of required events
+        :type events: list(str or TraceEventCheckerBase)
+
+        The decorated method must operate on instances that have a ``self.trace``
+        attribute.
+        """
+        checker = self
+
+        @wraps(f)
+        def wrapper(self, *args, **kwargs):
+            available_events = set(self.trace.available_events)
+            checker.check_events(available_events)
+            return f(self, *args, **kwargs)
+
+        # Set an attribute on the wrapper itself, so it can be e.g. added
+        # to the method documentation
+        wrapper.used_events = checker
+        return wrapper
+
+    @abc.abstractmethod
+    def _str_internal(self, style=None, wrapped=True):
+        """
+        Format the boolean expression that this checker represents.
+
+        :param style: When 'rst', a reStructuredText output is expected
+        :type style: str
+
+        :param wrapped: When True, the expression should be wrapped with
+            parenthesis so it can be composed with other expressions.
+        :type wrapped: bool
+        """
+
+        pass
+
+    def doc_str(self):
+        """
+        Top-level function called by Sphinx's autodoc extension to augment
+        docstrings of the functions.
+        """
+        return '\n    * {}'.format(self._str_internal(style='rst', wrapped=False))
+
+    def __str__(self):
+        return self._str_internal()
+
+class TraceEventChecker(TraceEventCheckerBase):
+    """
+    Check for one single event.
+    """
+    def __init__(self, event):
+        self.event = event
+
+    def check_events(self, event_set):
+        if self.event not in event_set:
+            raise MissingTraceEventError(self)
+
+    def _str_internal(self, style=None, wrapped=True):
+        template = '``{}``' if style == 'rst' else '{}'
+        return template.format(self.event)
+
+class AssociativeTraceEventChecker(TraceEventCheckerBase):
+    """
+    Base class for associative operators like `and` and `or`
+    """
+    def __init__(self, op_str, event_checkers):
+        checker_list = []
+        for checker in event_checkers:
+            # "unwrap" checkers of the same type, to avoid useless levels of
+            # nesting. This is valid since the operator is known to be
+            # associative. We don't use isinstance to avoid merging checkers
+            # that may have different semantics.
+            if type(checker) is type(self):
+                checker_list.extend(checker.checkers)
+            else:
+                checker_list.append(checker)
+
+        # Avoid having the same event twice at the same level
+        def key(checker):
+            if isinstance(checker, TraceEventChecker):
+                return checker.event
+            else:
+                return checker
+        checker_list = deduplicate(checker_list, key=key)
+
+        self.checkers = checker_list
+        self.op_str = op_str
+
+    @classmethod
+    def from_events(cls, events):
+        """
+        Build an instance of the class, converting ``str`` to
+        ``TraceEventChecker``.
+
+        :param events: Sequence of events
+        :type events: list(str or TraceEventCheckerBase)
+        """
+        return cls({
+            e if isinstance(e, TraceEventCheckerBase) else TraceEventChecker(e)
+            for e in events
+        })
+
+    def _str_internal(self, style=None, wrapped=True):
+        op_str = ' {} '.format(self.op_str)
+        # Sort for stable output
+        checker_list = sorted(self.checkers, key=lambda c: str(c))
+        unwrapped_str = op_str.join(
+            c._str_internal(style=style, wrapped=True)
+            for c in checker_list
+        )
+
+        template = '({})' if len(self.checkers) > 1 and wrapped else '{}'
+        return template.format(unwrapped_str)
+
+class OrTraceEventChecker(AssociativeTraceEventChecker):
+    """
+    Check that one of the given event checkers is satisfied.
+
+    :param event_checkers: Event checkers to check for
+    :type event_checkers: list(TraceEventCheckerBase)
+    """
+    def __init__(self, event_checkers):
+        super().__init__('or', event_checkers)
+
+    def check_events(self, event_set):
+        if not self.checkers:
+            return
+
+        failed_checker_set = set()
+        for checker in self.checkers:
+            try:
+                checker.check_events(event_set)
+            except MissingTraceEventError as e:
+                failed_checker_set.add(e.missing_events)
+            else:
+                break
+        else:
+            cls = type(self)
+            raise MissingTraceEventError(
+                cls(failed_checker_set)
+            )
+
+class AndTraceEventChecker(AssociativeTraceEventChecker):
+    """
+    Check that all the given event checkers are satisfied.
+
+    :param event_checkers: Event checkers to check for
+    :type event_checkers: list(TraceEventCheckerBase)
+    """
+    def __init__(self, event_checkers):
+        super().__init__('and', event_checkers)
+
+    def check_events(self, event_set):
+        if not self.checkers:
+            return
+
+        failed_checker_set = set()
+        for checker in self.checkers:
+            try:
+                checker.check_events(event_set)
+            except MissingTraceEventError as e:
+                failed_checker_set.add(e.missing_events)
+
+        if failed_checker_set:
+            cls = type(self)
+            raise MissingTraceEventError(
+                cls(failed_checker_set)
+            )
+
+    def doc_str(self):
+        joiner = '\n' + '    '
+        rst = joiner + joiner.join(
+            '* {}'.format(c._str_internal(style='rst', wrapped=False))
+            # Sort for stable output
+            for c in sorted(self.checkers, key=lambda c: str(c))
+        )
+        return rst
+
+def requires_events(*events):
+    """
+    Decorator for methods that require some given trace events.
+
+    :param events: The list of required events
+    :type events: list(str or TraceEventCheckerBase)
+
+    The decorated method must operate on instances that have a
+    ``self.trace`` attribute.
+    """
+    return AndTraceEventChecker.from_events(events)
+
+def requires_one_event_of(*events):
+    """
+    Same as :func:``used_events`` with logical `OR` semantic.
+    """
+    return OrTraceEventChecker.from_events(events)
+
+class MissingTraceEventError(RuntimeError):
+    """
+    :param missing_events: The missing trace events
+    :type missing_events: TraceEventCheckerBase
+    """
+    def __init__(self, missing_events):
+        super().__init__(
+            "Trace is missing the following required events: {}".format(missing_events))
+
+        self.missing_events = missing_events
+
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

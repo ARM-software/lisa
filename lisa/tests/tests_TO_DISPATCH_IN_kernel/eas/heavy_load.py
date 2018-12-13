@@ -78,7 +78,7 @@ class HeavyLoadTest(LisaTest):
         total_cpu_time = 0
         active_proportions = []
         for cpu, _ in enumerate(self.target.core_names):
-            cpu_active = trace.getCPUActiveSignal(cpu)
+            cpu_active = trace.get_cpu_active_signal(cpu)
             if cpu_active is None:
                 raise RuntimeError(
                     "Couldn't get CPU-active signal. "

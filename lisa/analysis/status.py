@@ -19,7 +19,8 @@
 
 """ System Status Analaysis Module """
 
-from lisa.analysis.base import AnalysisBase, requires_events
+from lisa.analysis.base import AnalysisBase
+from lisa.trace import requires_events
 
 class StatusAnalysis(AnalysisBase):
     """
@@ -39,7 +40,7 @@ class StatusAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @requires_events(["sched_overutilized"])
+    @requires_events("sched_overutilized")
     def df_overutilized(self):
         """
         Get overutilized events
@@ -50,7 +51,7 @@ class StatusAnalysis(AnalysisBase):
           * A ``len`` column (the time spent in that overutilized status)
         """
         # Build sequence of overutilization "bands"
-        df = self._trace.df_events('sched_overutilized')
+        df = self.trace.df_events('sched_overutilized')
 
         # Remove duplicated index events, keep only last event which is the
         # only one with a non null length
@@ -67,7 +68,7 @@ class StatusAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @requires_events(df_overutilized.required_events)
+    @df_overutilized.used_events
     def plot_overutilized(self, filepath=None, axis=None):
         """
         Draw the system's overutilized status as colored bands
@@ -101,7 +102,7 @@ class StatusAnalysis(AnalysisBase):
 
         if local_fig:
             axis.set_title("System-wide overutilized status")
-            axis.set_xlim(self._trace.x_min, self._trace.x_max)
+            axis.set_xlim(self.trace.x_min, self.trace.x_max)
             self.save_plot(fig, filepath)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

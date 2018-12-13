@@ -331,7 +331,7 @@ class TestTrace(StorageTestCase):
           <idle>-0 [000] 380335000000: clock_disable: bus_clk state=0 cpu_id=0
           <idle>-0 [004] 380339000000: cpu_idle:             state=1 cpu_id=4
         """)
-        df = trace.getPeripheralClockEffectiveRate(clk_name='bus_clk')
+        df = trace.get_peripheral_clock_effective_rate(clk_name='bus_clk')
         exp_effective_rate=[ float('NaN'), 750000000, 0.0, 750000000, 100000000, 0.0]
         effective_rate = df['effective_rate'].tolist()
         self.assertEqual(len(exp_effective_rate), len(effective_rate))

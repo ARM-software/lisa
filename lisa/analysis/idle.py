@@ -23,7 +23,8 @@ import pandas as pd
 from trappy.utils import handle_duplicate_index
 
 from lisa.utils import memoized
-from lisa.analysis.base import AnalysisBase, requires_events
+from lisa.analysis.base import AnalysisBase
+from lisa.trace import requires_events
 
 
 class IdleAnalysis(AnalysisBase):
@@ -44,7 +45,7 @@ class IdleAnalysis(AnalysisBase):
 ###############################################################################
 
     @memoized
-    @requires_events(['cpu_idle'])
+    @requires_events('cpu_idle')
     def signal_cpu_active(self, cpu):
         """
         Build a square wave representing the active (i.e. non-idle) CPU time
@@ -55,7 +56,7 @@ class IdleAnalysis(AnalysisBase):
         :returns: A :class:`pandas.Series` that equals 1 at timestamps where the
           CPU is reported to be non-idle, 0 otherwise
         """
-        idle_df = self._trace.df_events('cpu_idle')
+        idle_df = self.trace.df_events('cpu_idle')
         cpu_df = idle_df[idle_df.cpu_id == cpu]
 
         cpu_active = cpu_df.state.apply(
@@ -63,8 +64,8 @@ class IdleAnalysis(AnalysisBase):
         )
 
         start_time = 0.0
-        if not self._trace.ftrace.normalized_time:
-            start_time = self._trace.ftrace.basetime
+        if not self.trace.ftrace.normalized_time:
+            start_time = self.trace.ftrace.basetime
 
         if cpu_active.empty:
             cpu_active = pd.Series([0], index=[start_time])
@@ -75,7 +76,7 @@ class IdleAnalysis(AnalysisBase):
         # Fix sequences of wakeup/sleep events reported with the same index
         return handle_duplicate_index(cpu_active)
 
-    @requires_events(signal_cpu_active.required_events)
+    @signal_cpu_active.used_events
     def signal_cluster_active(self, cluster):
         """
         Build a square wave representing the active (i.e. non-idle) cluster time
@@ -109,7 +110,7 @@ class IdleAnalysis(AnalysisBase):
 
         return cluster_active
 
-    @requires_events(['cpu_idle'])
+    @requires_events('cpu_idle')
     def df_cpus_wakeups(self):
         """"
         Get a DataFrame showing when CPUs have woken from idle
@@ -121,18 +122,18 @@ class IdleAnalysis(AnalysisBase):
 
           * A ``cpu`` column (the CPU that woke up at the row index)
         """
-        cpus = list(range(self._trace.cpus_count))
+        cpus = list(range(self.trace.cpus_count))
 
         sr = pd.Series()
         for cpu in cpus:
-            cpu_sr = self._trace.getCPUActiveSignal(cpu)
+            cpu_sr = self.trace.get_cpu_active_signal(cpu)
             cpu_sr = cpu_sr[cpu_sr == 1]
             cpu_sr = cpu_sr.replace(1, cpu)
             sr = sr.append(cpu_sr)
 
         return pd.DataFrame({'cpu': sr}).sort_index()
 
-    @requires_events(["cpu_idle"])
+    @requires_events("cpu_idle")
     def df_cpu_idle_state_residency(self, cpu):
         """
         Compute time spent by a given CPU in each idle state.
@@ -145,7 +146,7 @@ class IdleAnalysis(AnalysisBase):
           * Idle states as index
           * A ``time`` column (The time spent in the idle state)
         """
-        idle_df = self._trace.df_events('cpu_idle')
+        idle_df = self.trace.df_events('cpu_idle')
         cpu_idle = idle_df[idle_df.cpu_id == cpu]
 
         cpu_is_idle = self.signal_cpu_active(cpu) ^ 1
@@ -165,7 +166,7 @@ class IdleAnalysis(AnalysisBase):
 
         # Extend the last cpu_idle event to the end of the time window under
         # consideration
-        final_entry = pd.DataFrame([cpu_idle.iloc[-1]], index=[self._trace.x_max])
+        final_entry = pd.DataFrame([cpu_idle.iloc[-1]], index=[self.trace.x_max])
         cpu_idle = cpu_idle.append(final_entry)
 
         idle_time = []
@@ -175,13 +176,13 @@ class IdleAnalysis(AnalysisBase):
             )
             idle_t = cpu_idle.is_idle * idle_state
             # Compute total time by integrating the square wave
-            idle_time.append(self._trace.integrate_square_wave(idle_t))
+            idle_time.append(self.trace.integrate_square_wave(idle_t))
 
         idle_time_df = pd.DataFrame({'time' : idle_time}, index=available_idles)
         idle_time_df.index.name = 'idle_state'
         return idle_time_df
 
-    @requires_events(['cpu_idle'])
+    @requires_events('cpu_idle')
     def df_cluster_idle_state_residency(self, cluster):
         """
         Compute time spent by a given cluster in each idle state.
@@ -194,7 +195,7 @@ class IdleAnalysis(AnalysisBase):
           * Idle states as index
           * A ``time`` column (The time spent in the idle state)
         """
-        idle_df = self._trace.df_events('cpu_idle')
+        idle_df = self.trace.df_events('cpu_idle')
         # Each core in a cluster can be in a different idle state, but the
         # cluster lies in the idle state with lowest ID, that is the shallowest
         # idle state among the idle states of its CPUs
@@ -233,7 +234,7 @@ class IdleAnalysis(AnalysisBase):
             )
             idle_t = cl_idle.is_idle * idle_state
             # Compute total time by integrating the square wave
-            idle_time.append(self._trace.integrate_square_wave(idle_t))
+            idle_time.append(self.trace.integrate_square_wave(idle_t))
 
         idle_time_df = pd.DataFrame({'time' : idle_time}, index=available_idles)
         idle_time_df.index.name = 'idle_state'
@@ -244,7 +245,7 @@ class IdleAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @requires_events(df_cpu_idle_state_residency.required_events)
+    @df_cpu_idle_state_residency.used_events
     def plot_cpu_idle_state_residency(self, cpu, filepath=None, pct=False):
         """
         Plot the idle state residency of a CPU
@@ -267,7 +268,7 @@ class IdleAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(df_cluster_idle_state_residency.required_events)
+    @df_cluster_idle_state_residency.used_events
     def plot_cluster_idle_state_residency(self, cluster, filepath=None,
                                           pct=False, axis=None):
         """
@@ -298,7 +299,7 @@ class IdleAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(plot_cluster_idle_state_residency.required_events)
+    @plot_cluster_idle_state_residency.used_events
     def plot_clusters_idle_state_residency(self, filepath=None, pct=False):
         """
         Plot the idle state residency of all clusters
@@ -309,7 +310,7 @@ class IdleAnalysis(AnalysisBase):
         .. note:: This assumes clusters == frequency domains, which may
           not hold true...
         """
-        clusters = self._trace.plat_info['freq-domains']
+        clusters = self.trace.plat_info['freq-domains']
 
         fig, axes = self.setup_plot(nrows=len(clusters), sharex=True)
 

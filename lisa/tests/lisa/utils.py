@@ -55,3 +55,17 @@ class StorageTestCase(TestCase):
 
     def tearDown(self):
         shutil.rmtree(self.res_dir)
+
+def nullcontext(enter_result=None):
+    """
+    Backport of Python 3.7 contextlib.nullcontext
+    """
+
+    class CM:
+        def __enter__(self):
+            return enter_result
+
+        def __exit__(self, *args, **kwargs):
+            return
+
+    return CM()

@@ -20,8 +20,9 @@ from enum import Enum
 import numpy as np
 import pandas as pd
 
-from lisa.analysis.base import AnalysisBase, requires_events
+from lisa.analysis.base import AnalysisBase
 from lisa.utils import memoized
+from lisa.trace import requires_events
 
 class StateInt(int):
     """
@@ -125,7 +126,7 @@ class TasksAnalysis(AnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @requires_events(['sched_wakeup'])
+    @requires_events('sched_wakeup')
     def df_tasks_wakeups(self):
         """
         The number of wakeups per task
@@ -135,15 +136,15 @@ class TasksAnalysis(AnalysisBase):
           * Task PIDs as index
           * A ``wakeups`` column (The number of wakeups)
         """
-        df = self._trace.df_events('sched_wakeup')
+        df = self.trace.df_events('sched_wakeup')
 
         wakeups = df.groupby('pid').count()["comm"]
         df = pd.DataFrame(wakeups).rename(columns={"comm" : "wakeups"})
-        df["comm"] = df.index.map(self._trace.get_task_by_pid)
+        df["comm"] = df.index.map(self.trace.get_task_by_pid)
 
         return df
 
-    @requires_events(df_tasks_wakeups.required_events)
+    @df_tasks_wakeups.used_events
     def df_top_wakeup(self, min_wakeups=100):
         """
         Tasks which wakeup more frequently than a specified threshold.
@@ -159,7 +160,7 @@ class TasksAnalysis(AnalysisBase):
 
         return df
 
-    @requires_events(['sched_switch'])
+    @requires_events('sched_switch')
     def df_rt_tasks(self, min_prio=100):
         """
         Tasks with RT priority
@@ -178,7 +179,7 @@ class TasksAnalysis(AnalysisBase):
           * A ``prio`` column (The priority of the task)
           * A ``comm`` column (The name of the task)
         """
-        df = self._trace.df_events('sched_switch')
+        df = self.trace.df_events('sched_switch')
 
         # Filters tasks which have a priority bigger than threshold
         df = df[df.next_prio <= min_prio]
@@ -194,11 +195,11 @@ class TasksAnalysis(AnalysisBase):
             columns={'next_pid': 'pid', 'next_prio': 'prio'}, inplace=True)
 
         rt_tasks.set_index('pid', inplace=True)
-        rt_tasks['comm'] = rt_tasks.index.map(self._trace.get_task_by_pid)
+        rt_tasks['comm'] = rt_tasks.index.map(self.trace.get_task_by_pid)
 
         return rt_tasks
 
-    @requires_events(['sched_switch', 'sched_wakeup'])
+    @requires_events('sched_switch', 'sched_wakeup')
     def df_task_states(self, task):
         """
         DataFrame of task's state updates events
@@ -215,13 +216,13 @@ class TasksAnalysis(AnalysisBase):
           * A ``delta`` column (the duration for which the task will remain in
             this state)
         """
-        pid = self._trace.get_task_pid(task)
+        pid = self.trace.get_task_pid(task)
 
-        wk_df = self._trace.df_events('sched_wakeup')
-        sw_df = self._trace.df_events('sched_switch')
+        wk_df = self.trace.df_events('sched_wakeup')
+        sw_df = self.trace.df_events('sched_switch')
 
-        if "sched_wakeup_new" in self._trace.events:
-            wkn_df = self._trace.df_events('sched_wakeup_new')
+        if "sched_wakeup_new" in self.trace.events:
+            wkn_df = self.trace.df_events('sched_wakeup_new')
             wk_df = pd.concat([wk_df, wkn_df]).sort_index()
 
         task_wakeup = wk_df[wk_df.pid == pid][['target_cpu', '__cpu']]
@@ -256,11 +257,11 @@ class TasksAnalysis(AnalysisBase):
         task_state_df.rename(columns={'__cpu' : 'cpu'}, inplace=True)
         task_state_df = task_state_df[['target_cpu', 'cpu', 'curr_state']]
         task_state_df['next_state'] = task_state_df.curr_state.shift(-1)
-        self._trace.add_events_deltas(task_state_df, inplace=True)
+        self.trace.add_events_deltas(task_state_df, inplace=True)
 
         return task_state_df
 
-    @requires_events(df_task_states.required_events)
+    @df_task_states.used_events
     def df_task_total_residency(self, task):
         """
         DataFrame of a task's execution time on each CPU
@@ -273,7 +274,7 @@ class TasksAnalysis(AnalysisBase):
           * CPU IDs as index
           * A ``runtime`` column (the time the task spent being active)
         """
-        cpus = set(range(self._trace.plat_info['cpus-count']))
+        cpus = set(range(self.trace.plat_info['cpus-count']))
 
         df = self.df_task_states(task)
         df = df[df.curr_state == TaskState.TASK_ACTIVE.char]
@@ -294,7 +295,7 @@ class TasksAnalysis(AnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @requires_events(['sched_switch'])
+    @requires_events('sched_switch')
     def plot_task_residency(self, task, filepath=None):
         """
         Plot on which CPUs the task ran on over time
@@ -303,14 +304,14 @@ class TasksAnalysis(AnalysisBase):
         """
         fig, axis = self.setup_plot()
 
-        pid = self._trace.get_task_pid(task)
+        pid = self.trace.get_task_pid(task)
 
-        sw_df = self._trace.df_events("sched_switch")
+        sw_df = self.trace.df_events("sched_switch")
         sw_df = sw_df[sw_df.next_pid == pid]
 
-        if "freq-domains" in self._trace.plat_info:
+        if "freq-domains" in self.trace.plat_info:
             # If we are aware of frequency domains, use one color per domain
-            for domain in self._trace.plat_info["freq-domains"]:
+            for domain in self.trace.plat_info["freq-domains"]:
                 df = sw_df[sw_df["__cpu"].isin(domain)]["__cpu"]
 
                 print(domain)
@@ -326,24 +327,24 @@ class TasksAnalysis(AnalysisBase):
         else:
             sw_df["__cpu"].plot(ax=axis, style='+')
 
-        plot_overutilized = self._trace.analysis.status.plot_overutilized
-        if self._trace.hasEvents(plot_overutilized.required_events):
+        plot_overutilized = self.trace.analysis.status.plot_overutilized
+        if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
         # Add an extra CPU lane to make room for the legend
-        axis.set_ylim(-0.95, self._trace.cpus_count - 0.05)
+        axis.set_ylim(-0.95, self.trace.cpus_count - 0.05)
 
         axis.set_title("CPU residency of task \"{}\"".format(task))
         axis.set_ylabel('CPUs')
         axis.grid(True)
         axis.legend()
-        axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        axis.set_xlim(self.trace.x_min, self.trace.x_max)
 
         self.save_plot(fig, filepath)
 
         return axis
 
-    @requires_events(df_task_total_residency.required_events)
+    @df_task_total_residency.used_events
     def plot_task_total_residency(self, task, filepath=None):
         """
         Plot a task's total time spent on each CPU
@@ -369,10 +370,10 @@ class TasksAnalysis(AnalysisBase):
         """
         Discrete the contents of ``series`` in ``time_delta`` buckets
         """
-        left = self._trace.x_min
+        left = self.trace.x_min
         data = []
         index = []
-        for right in np.arange(left + time_delta, self._trace.x_max, time_delta):
+        for right in np.arange(left + time_delta, self.trace.x_max, time_delta):
             index.append(left)
             data.append(series[left:right].count())
             left = right
@@ -383,7 +384,7 @@ class TasksAnalysis(AnalysisBase):
         """
         Plot some data in a heatmap-style 2d histogram
         """
-        nr_cpus = self._trace.cpus_count
+        nr_cpus = self.trace.cpus_count
         fig, axis = self.setup_plot(height=min(4, nr_cpus // 2), width=20)
 
         _, _, _, img = axis.hist2d(x, y, bins=[xbins, nr_cpus], **kwargs)
@@ -391,7 +392,7 @@ class TasksAnalysis(AnalysisBase):
 
         return fig, axis
 
-    @requires_events(["sched_wakeup"])
+    @requires_events("sched_wakeup")
     def plot_tasks_wakeups(self, target_cpus=None, time_delta=0.01, filepath=None):
         """
         Plot task wakeups over time
@@ -405,7 +406,7 @@ class TasksAnalysis(AnalysisBase):
         """
         fig, axis = self.setup_plot()
 
-        df = self._trace.df_events("sched_wakeup")
+        df = self.trace.df_events("sched_wakeup")
 
         if target_cpus:
             df = df[df.target_cpu.isin(target_cpus)]
@@ -414,13 +415,13 @@ class TasksAnalysis(AnalysisBase):
         df.plot(ax=axis, legend=False)
 
         axis.set_title("Number of task wakeups within {}s windows".format(time_delta))
-        axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        axis.set_xlim(self.trace.x_min, self.trace.x_max)
 
         self.save_plot(fig, filepath)
 
         return axis
 
-    @requires_events(["sched_wakeup"])
+    @requires_events("sched_wakeup")
     def plot_tasks_wakeups_heatmap(self, xbins=100, colormap=None, filepath=None):
         """
         :param xbins: Number of x-axis bins, i.e. in how many slices should
@@ -432,19 +433,19 @@ class TasksAnalysis(AnalysisBase):
         :type colormap: str or matplotlib.colors.Colormap
         """
 
-        df = self._trace.df_events("sched_wakeup")
+        df = self.trace.df_events("sched_wakeup")
 
         fig, axis = self._plot_cpu_heatmap(
             df.index, df.target_cpu, xbins, "Number of wakeups", cmap=colormap)
 
         axis.set_title("Tasks wakeups over time")
-        axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        axis.set_xlim(self.trace.x_min, self.trace.x_max)
 
         self.save_plot(fig, filepath)
 
         return axis
 
-    @requires_events(["sched_wakeup_new"])
+    @requires_events("sched_wakeup_new")
     def plot_tasks_forks(self, target_cpus=None, time_delta=0.01, filepath=None):
         """
         Plot task forks over time
@@ -458,7 +459,7 @@ class TasksAnalysis(AnalysisBase):
         """
         fig, axis = self.setup_plot()
 
-        df = self._trace.df_events("sched_wakeup_new")
+        df = self.trace.df_events("sched_wakeup_new")
 
         if target_cpus:
             df = df[df.target_cpu.isin(target_cpus)]
@@ -467,13 +468,13 @@ class TasksAnalysis(AnalysisBase):
         df.plot(ax=axis, legend=False)
 
         axis.set_title("Number of task forks within {}s windows".format(time_delta))
-        axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        axis.set_xlim(self.trace.x_min, self.trace.x_max)
 
         self.save_plot(fig, filepath)
 
         return axis
 
-    @requires_events(["sched_wakeup_new"])
+    @requires_events("sched_wakeup_new")
     def plot_tasks_forks_heatmap(self, xbins=100, colormap=None, filepath=None):
         """
         :param xbins: Number of x-axis bins, i.e. in how many slices should
@@ -485,13 +486,13 @@ class TasksAnalysis(AnalysisBase):
         :type colormap: str or matplotlib.colors.Colormap
         """
 
-        df = self._trace.df_events("sched_wakeup_new")
+        df = self.trace.df_events("sched_wakeup_new")
 
         fig, axis = self._plot_cpu_heatmap(
             df.index, df.target_cpu, xbins, "Number of forks", cmap=colormap)
 
         axis.set_title("Tasks forks over time")
-        axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        axis.set_xlim(self.trace.x_min, self.trace.x_max)
 
         self.save_plot(fig, filepath)
 

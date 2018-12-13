@@ -487,4 +487,26 @@ def groupby(iterable, key=None):
     iterable = sorted(iterable, key=key)
     return itertools.groupby(iterable, key=key)
 
+def deduplicate(seq, keep_last=True, key=lambda x: x):
+    """
+    Deduplicate items in the given sequence and return a list.
+    :param seq: Sequence to deduplicate
+    :type Seq: collections.abc.Sequence
+
+    :param key: Key function that will be used to determine duplication.  It
+        takes one item at a time, returning a hashable key value
+    :type key: collections.abc.Callable
+
+    :param keep_last: If True, will keep the last occurence of each duplicated
+        items. Otherwise, keep the first occurence.
+    :type keep_last: bool
+    """
+    reorder = (lambda seq: seq) if keep_last else reversed
+    # Use an OrderedDict to keep original ordering of the sequence
+    dedup = OrderedDict(
+        (key(x), x)
+        for x in reorder(seq)
+    )
+    return list(reorder(dedup.values()))
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

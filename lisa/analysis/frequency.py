@@ -25,8 +25,9 @@ from matplotlib.ticker import FuncFormatter
 import pandas as pd
 import pylab as pl
 
-from lisa.analysis.base import AnalysisBase, requires_events
+from lisa.analysis.base import AnalysisBase
 from lisa.utils import memoized
+from lisa.trace import requires_events
 
 class FrequencyAnalysis(AnalysisBase):
     """
@@ -42,7 +43,7 @@ class FrequencyAnalysis(AnalysisBase):
         super(FrequencyAnalysis, self).__init__(trace)
 
     @memoized
-    @requires_events(['cpu_frequency', 'cpu_idle'])
+    @requires_events('cpu_frequency', 'cpu_idle')
     def _get_frequency_residency(self, cpus):
         """
         Get a DataFrame with per cluster frequency residency, i.e. amount of
@@ -56,12 +57,12 @@ class FrequencyAnalysis(AnalysisBase):
           * A ``total_time`` column (the total time spent at a frequency)
           * A ``active_time`` column (the non-idle time spent at a frequency)
         """
-        freq_df = self._trace.df_events('cpu_frequency')
+        freq_df = self.trace.df_events('cpu_frequency')
         # Assumption: all CPUs in a cluster run at the same frequency, i.e. the
         # frequency is scaled per-cluster not per-CPU. Hence, we can limit the
         # cluster frequencies data to a single CPU. This assumption is verified
         # by the Trace module when parsing the trace.
-        if len(cpus) > 1 and not self._trace.freq_coherency:
+        if len(cpus) > 1 and not self.trace.freq_coherency:
             self.get_logger().warning('Cluster frequency is NOT coherent,'
                               'cannot compute residency!')
             return None
@@ -69,12 +70,12 @@ class FrequencyAnalysis(AnalysisBase):
         cluster_freqs = freq_df[freq_df.cpu == cpus[0]]
 
         # Compute TOTAL Time
-        cluster_freqs = self._trace.add_events_deltas(
+        cluster_freqs = self.trace.add_events_deltas(
             cluster_freqs, col_name="total_time", inplace=False)
         time_df = cluster_freqs[["total_time", "frequency"]].groupby(["frequency"]).sum()
 
         # Compute ACTIVE Time
-        cluster_active = self._trace.analysis.idle.signal_cluster_active(cpus)
+        cluster_active = self.trace.analysis.idle.signal_cluster_active(cpus)
 
         # In order to compute the active time spent at each frequency we
         # multiply 2 square waves:
@@ -94,12 +95,12 @@ class FrequencyAnalysis(AnalysisBase):
             freq_active = cluster_freqs.frequency.apply(lambda x: 1 if x == freq else 0)
             active_t = cluster_freqs.active * freq_active
             # Compute total time by integrating the square wave
-            nonidle_time.append(self._trace.integrate_square_wave(active_t))
+            nonidle_time.append(self.trace.integrate_square_wave(active_t))
 
         time_df["active_time"] = pd.DataFrame(index=available_freqs, data=nonidle_time)
         return time_df
 
-    @requires_events(_get_frequency_residency.required_events)
+    @_get_frequency_residency.used_events
     def df_cpu_frequency_residency(self, cpu):
         """
         Get per-CPU frequency residency, i.e. amount of
@@ -118,7 +119,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return self._get_frequency_residency((cpu,))
 
-    @requires_events(_get_frequency_residency.required_events)
+    @_get_frequency_residency.used_events
     def df_domain_frequency_residency(self, cpu):
         """
         Get per-frequency-domain frequency residency, i.e. amount of time each
@@ -132,12 +133,12 @@ class FrequencyAnalysis(AnalysisBase):
           * A ``total_time`` column (the total time spent at a frequency)
           * A ``active_time`` column (the non-idle time spent at a frequency)
         """
-        domains = self._trace.plat_info['freq-domains']
+        domains = self.trace.plat_info['freq-domains']
         for domain in domains:
             if cpu in domain:
                 return self._get_frequency_residency(tuple(domain))
 
-    @requires_events(['cpu_frequency'])
+    @requires_events('cpu_frequency')
     def df_cpu_frequency_transitions(self, cpu):
         """
         Compute number of frequency transitions of a given CPU.
@@ -150,7 +151,7 @@ class FrequencyAnalysis(AnalysisBase):
           * A ``transitions`` column (the number of frequency transitions)
         """
 
-        freq_df = self._trace.df_events('cpu_frequency')
+        freq_df = self.trace.df_events('cpu_frequency')
         cpu_freqs = freq_df[freq_df.cpu == cpu].frequency
 
         # Remove possible duplicates (example: when devlib sets trace markers
@@ -163,7 +164,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return pd.DataFrame(transitions)
 
-    @requires_events(df_cpu_frequency_transitions.required_events)
+    @df_cpu_frequency_transitions.used_events
     def df_cpu_frequency_transition_rate(self, cpu):
         """
         Compute frequency transition rate of a given CPU.
@@ -180,10 +181,10 @@ class FrequencyAnalysis(AnalysisBase):
             return None
 
         return transitions.apply(
-            lambda x: x / (self._trace.x_max - self._trace.x_min)
+            lambda x: x / (self.trace.x_max - self.trace.x_min)
         )
 
-    @requires_events(['cpu_frequency'])
+    @requires_events('cpu_frequency')
     def get_average_cpu_frequency(self, cpu):
         """
         Get the average frequency for a given CPU
@@ -191,12 +192,12 @@ class FrequencyAnalysis(AnalysisBase):
         :param cpu: The CPU to analyse
         :type cpu: int
         """
-        df = self._trace.df_events('cpu_frequency')
+        df = self.trace.df_events('cpu_frequency')
         df = df[df.cpu == cpu]
 
         # We can't use the pandas average because it's not weighted by
         # time spent in each frequency, so we have to craft our own.
-        df = self._trace.add_events_deltas(df, inplace=False)
+        df = self.trace.add_events_deltas(df, inplace=False)
         timespan = df.index[-1] - df.index[0]
 
         return (df['frequency'] * df['delta']).sum() / timespan
@@ -217,7 +218,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         :raises: KeyError
         """
-        freq = self._trace.getPeripheralClockEffectiveRate(clk)
+        freq = self.trace.get_peripheral_clock_effective_rate(clk)
         if freq is None or freq.empty:
             self.get_logger().warning('no peripheral clock events found for clock')
             return
@@ -237,7 +238,7 @@ class FrequencyAnalysis(AnalysisBase):
         if len(set_rate) > 0:
             rate_axis_lib = set_rate.max()
             set_rate.plot(style=['b--'], ax=freq_axis, drawstyle='steps-post', alpha=0.4, label="clock_set_rate value")
-            freq_axis.hlines(set_rate.iloc[-1], set_rate.index[-1], self._trace.x_max, linestyle='--', color='b', alpha=0.4)
+            freq_axis.hlines(set_rate.iloc[-1], set_rate.index[-1], self.trace.x_max, linestyle='--', color='b', alpha=0.4)
         else:
             self.get_logger().warning('No clock_set_rate events to plot')
 
@@ -246,12 +247,12 @@ class FrequencyAnalysis(AnalysisBase):
         if len(eff_rate) > 0 and eff_rate.max() > 0:
             rate_axis_lib = max(rate_axis_lib, eff_rate.max())
             eff_rate.plot(style=['b-'], ax=freq_axis, drawstyle='steps-post', alpha=1.0, label="Effective rate (with on/off)")
-            freq_axis.hlines(eff_rate.iloc[-1], eff_rate.index[-1], self._trace.x_max, linestyle='-', color='b', alpha=1.0)
+            freq_axis.hlines(eff_rate.iloc[-1], eff_rate.index[-1], self.trace.x_max, linestyle='-', color='b', alpha=1.0)
         else:
             self.get_logger().warning('No effective frequency events to plot')
 
         freq_axis.set_ylim(0, rate_axis_lib * 1.1)
-        freq_axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        freq_axis.set_xlim(self.trace.x_min, self.trace.x_max)
         freq_axis.set_xlabel('')
         freq_axis.grid(True)
         freq_axis.legend()
@@ -272,20 +273,20 @@ class FrequencyAnalysis(AnalysisBase):
         # Plot time period that the clock state was unknown from the trace
         indeterminate = pd.concat([on, off]).sort_index()
         if indeterminate.empty:
-            indet_range_max = self._trace.x_max
+            indet_range_max = self.trace.x_max
         else:
             indet_range_max = indeterminate.index[0]
         state_axis.hlines(0, 0, indet_range_max, linewidth = 1.0, label='indeterminate clock state', linestyle='--')
         state_axis.legend(bbox_to_anchor=(0., 1.02, 1., 0.102), loc=3, ncol=3, mode='expand')
         state_axis.set_yticks([])
         state_axis.set_xlabel('seconds')
-        state_axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        state_axis.set_xlim(self.trace.x_min, self.trace.x_max)
 
-        figname = os.path.join(self._trace.plots_dir, '{}{}.png'.format(self._trace.plots_prefix, clk))
+        figname = os.path.join(self.trace.plots_dir, '{}{}.png'.format(self.trace.plots_prefix, clk))
         pl.savefig(figname, bbox_inches='tight')
 
 
-    @requires_events(['cpu_frequency'])
+    @requires_events('cpu_frequency')
     def plot_cpu_frequencies(self, cpu, filepath=None, axis=None):
         """
         Plot frequency for the specified CPU
@@ -299,7 +300,7 @@ class FrequencyAnalysis(AnalysisBase):
         If ``sched_overutilized`` events are available, the plots will also
         show the intervals of time where the system was overutilized.
         """
-        df = self._trace.df_events('cpu_frequency')
+        df = self.trace.df_events('cpu_frequency')
         df = df[df.cpu == cpu]
 
         local_fig = not axis
@@ -307,7 +308,7 @@ class FrequencyAnalysis(AnalysisBase):
         if local_fig:
             fig, axis = self.setup_plot()
 
-        frequencies = self._trace.plat_info['freqs'][cpu]
+        frequencies = self.trace.plat_info['freqs'][cpu]
 
         avg = self.get_average_cpu_frequency(cpu)
         self.get_logger().info(
@@ -320,12 +321,12 @@ class FrequencyAnalysis(AnalysisBase):
             axis.axhline(avg, color=self.get_next_color(axis), linestyle='--',
                          label="average")
 
-        plot_overutilized = self._trace.analysis.status.plot_overutilized
-        if self._trace.hasEvents(plot_overutilized.required_events):
+        plot_overutilized = self.trace.analysis.status.plot_overutilized
+        if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
         axis.set_ylim(frequencies[0] * 0.9, frequencies[-1] * 1.1)
-        axis.set_xlim(self._trace.x_min, self._trace.x_max)
+        axis.set_xlim(self.trace.x_min, self.trace.x_max)
 
         axis.set_ylabel('Frequency (Hz)')
         axis.set_xlabel('Time')
@@ -339,7 +340,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(plot_cpu_frequencies.required_events)
+    @plot_cpu_frequencies.used_events
     def plot_domain_frequencies(self, filepath=None):
         """
         Plot frequency trend for all frequency domains.
@@ -347,7 +348,7 @@ class FrequencyAnalysis(AnalysisBase):
         If ``sched_overutilized`` events are available, the plots will also show
         the intervals of time where the cluster was overutilized.
         """
-        domains = self._trace.plat_info['freq-domains']
+        domains = self.trace.plat_info['freq-domains']
 
         fig, axes = self.setup_plot(nrows=len(domains), sharex=True)
         for idx, domain in enumerate(domains):
@@ -356,13 +357,13 @@ class FrequencyAnalysis(AnalysisBase):
             self.plot_cpu_frequencies(domain[0], filepath, axis)
 
             axis.set_title('Frequencies of CPUS {}'.format(domain))
-            axis.set_xlim(self._trace.x_min, self._trace.x_max)
+            axis.set_xlim(self.trace.x_min, self.trace.x_max)
 
         self.save_plot(fig, filepath)
 
         return axes
 
-    @requires_events(df_cpu_frequency_residency.required_events)
+    @df_cpu_frequency_residency.used_events
     def plot_cpu_frequency_residency(self, cpu, filepath=None, pct=False, axes=None):
         """
         Plot per-CPU frequency residency.
@@ -411,7 +412,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return axes
 
-    @requires_events(plot_cpu_frequency_residency.required_events)
+    @plot_cpu_frequency_residency.used_events
     def plot_domain_frequency_residency(self, filepath=None, pct=False):
         """
         Plot the frequency residency for all frequency domains.
@@ -419,7 +420,7 @@ class FrequencyAnalysis(AnalysisBase):
         :param pct: Plot residencies in percentage
         :type pct: bool
         """
-        domains = self._trace.plat_info['freq-domains']
+        domains = self.trace.plat_info['freq-domains']
 
         fig, axes = self.setup_plot(nrows=2*len(domains), sharex=True)
         for idx, domain in enumerate(domains):
@@ -434,7 +435,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return axes
 
-    @requires_events(df_cpu_frequency_transitions.required_events)
+    @df_cpu_frequency_transitions.used_events
     def plot_cpu_frequency_transitions(self, cpu, filepath=None, pct=False, axis=None):
         """
         Plot frequency transitions count of the specified CPU
@@ -472,7 +473,7 @@ class FrequencyAnalysis(AnalysisBase):
 
         return axis
 
-    @requires_events(plot_cpu_frequency_transitions.required_events)
+    @plot_cpu_frequency_transitions.used_events
     def plot_domain_frequency_transitions(self, filepath=None, pct=False):
         """
         Plot frequency transitions count for all frequency domains
@@ -480,7 +481,7 @@ class FrequencyAnalysis(AnalysisBase):
         :param pct: Plot frequency transitions in percentage
         :type pct: bool
         """
-        domains = self._trace.plat_info['freq-domains']
+        domains = self.trace.plat_info['freq-domains']
 
         fig, axes = self.setup_plot(nrows=len(domains))
 

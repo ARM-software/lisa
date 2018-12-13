@@ -412,7 +412,7 @@ class WaResultsCollector(Loggable):
 
         # Helper to get area under curve of multiple CPU active signals
         def get_cpu_time(trace, cpus):
-            df = pd.DataFrame([trace.getCPUActiveSignal(cpu) for cpu in cpus])
+            df = pd.DataFrame([trace.get_cpu_active_signal(cpu) for cpu in cpus])
             return df.sum(axis=1).sum(axis=0)
 
         clusters = trace.platform.get('clusters')
@@ -446,11 +446,11 @@ class WaResultsCollector(Loggable):
                         'cpu-seconds'))
 
         event = None
-        if trace.hasEvents('sched_load_cfs_rq'):
+        if trace.has_events('sched_load_cfs_rq'):
             event = 'sched_load_cfs_rq'
             row_filter = lambda r: r.path == '/'
             column = 'util'
-        elif trace.hasEvents('sched_load_avg_cpu'):
+        elif trace.has_events('sched_load_avg_cpu'):
             event = 'sched_load_avg_cpu'
             row_filter = lambda r: True
             column = 'util_avg'
@@ -461,7 +461,7 @@ class WaResultsCollector(Loggable):
             avg_util_sum = area_under_curve(util_sum) / (util_sum.index[-1] - util_sum.index[0])
             metrics.append(('avg_util_sum', avg_util_sum, None))
 
-        if trace.hasEvents('thermal_temperature'):
+        if trace.has_events('thermal_temperature'):
             df = trace.df_events('thermal_temperature')
             for zone, zone_df in df.groupby('thermal_zone'):
                 metrics.append(('tz_{}_start_temp'.format(zone),
