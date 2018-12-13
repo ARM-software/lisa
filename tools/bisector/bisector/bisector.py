@@ -26,6 +26,7 @@ import enum
 import fcntl
 import fnmatch
 import functools
+import glob
 import gzip
 import hashlib
 import importlib
@@ -38,7 +39,7 @@ import multiprocessing
 import mimetypes
 import numbers
 import os
-import pathlib
+import os.path
 import pickle
 import queue
 import re
@@ -1808,14 +1809,14 @@ class ExekallLISATestStep(ShellStep):
 
     def run(self, i_stack, service_hub):
         # Add a level of UUID under the root, so we can handle multiple trials
-        artifact_path = pathlib.Path(
-            os.getenv('EXEKALL_ARTIFACT_ROOT', 'exekall_artifact'),
+        artifact_path = os.path.join(
+            os.getenv('EXEKALL_ARTIFACT_ROOT', './exekall_artifact'),
             uuid.uuid4().hex,
         )
 
         # This also strips the trailing /, which is needed later on when
         # archiving the artifact.
-        artifact_path = artifact_path.resolve()
+        artifact_path = os.path.realpath(artifact_path)
 
         env = {
             # exekall will use that folder directly, so it has to be empty and
@@ -1836,7 +1837,7 @@ class ExekallLISATestStep(ShellStep):
 
         # First item is the oldest created file
         xunit_path_list = sorted(
-            artifact_path.glob('**/xunit.xml'),
+            glob.glob(artifact_path, '**/xunit.xml', recursive=True),
             key=lambda x: os.path.getmtime(x)
         )
         xunit_report = ''
@@ -1881,7 +1882,7 @@ class ExekallLISATestStep(ShellStep):
                 # Delete the original artifact directory since we archived it
                 # successfully.
                 info('Deleting exekall artifact root directory {} ...'.format(orig_artifact_path))
-                shutil.rmtree(orig_artifact_path)
+                shutil.rmtree(str(orig_artifact_path))
                 info('exekall artifact directory {} deleted.'.format(orig_artifact_path))
 
             except Exception as e:
