@@ -383,6 +383,24 @@ class RTATestBundle(TestBundle, abc.ABC):
         self.rtapp_profile = rtapp_profile
 
     @classmethod
+    def unscaled_utilization(cls, te, cpu, utilization_pct):
+        """
+        Convert utilization scaled to a CPU to a 'raw', unscaled one.
+
+        :param capacity: The CPU against which ``utilization_pct``` is scaled
+        :type capacity: int
+
+        :param utilization_pct: The scaled utilization in %
+        :type utilization_pct: int
+        """
+        if "nrg-model" in te.plat_info:
+            capacity_scale = te.plat_info["nrg-model"].capacity_scale
+        else:
+            capacity_scale = 1024
+
+        return int((te.plat_info["cpu-capacities"][cpu] / capacity_scale) * utilization_pct)
+
+    @classmethod
     @abc.abstractmethod
     def get_rtapp_profile(cls, te):
         """
