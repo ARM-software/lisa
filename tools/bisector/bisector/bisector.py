@@ -26,6 +26,7 @@ import enum
 import fcntl
 import fnmatch
 import functools
+import glob
 import gzip
 import hashlib
 import importlib
@@ -38,7 +39,7 @@ import multiprocessing
 import mimetypes
 import numbers
 import os
-import pathlib
+import os.path
 import pickle
 import queue
 import re
@@ -886,10 +887,7 @@ def read_stdout(p, timeout=None, kill_timeout=3):
 
         # Store the output and print it on the output.
         if stdout:
-            sys.stdout.buffer.write(stdout)
-            sys.stdout.buffer.flush()
-            LOG_FILE.buffer.write(stdout)
-            LOG_FILE.buffer.flush()
+            write_stdout(stdout)
             stdout_list.append(stdout)
 
     ret = p.wait()
@@ -897,6 +895,12 @@ def read_stdout(p, timeout=None, kill_timeout=3):
     ret = None if timed_out else ret
 
     return (ret, b''.join(stdout_list))
+
+def write_stdout(txt):
+    sys.stdout.buffer.write(txt)
+    sys.stdout.buffer.flush()
+    LOG_FILE.buffer.write(txt)
+    LOG_FILE.buffer.flush()
 
 def call_process(cmd, *args, merge_stderr=True, **kwargs):
     """Call a given command with the given arguments and return its standard output.
@@ -1776,6 +1780,7 @@ class ExekallLISATestStep(ShellStep):
             show_details = ChoiceOrBoolParam(['msg'], 'show details of results. Use "msg" for only a brief message'),
             show_artifact_dirs = BoolParam('show exekall artifact directory for all iterations'),
             testcase = CommaListParam('show only the test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
+            ignore_testcase = CommaListParam('completely ignore test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
             ignore_non_issue = BoolParam('consider only tests that failed'),
             ignore_excep = CommaListParam('ignore the given comma-separated list of exceptions that caused tests failure or error. * can be used to match any part of the name'),
             dump_artifact_dirs = BoolOrStrParam('write the list of exekall artifact directories to a file. Useful to implement garbage collection of unreferenced artifact archives'),
@@ -1804,14 +1809,14 @@ class ExekallLISATestStep(ShellStep):
 
     def run(self, i_stack, service_hub):
         # Add a level of UUID under the root, so we can handle multiple trials
-        artifact_path = pathlib.Path(
-            os.getenv('EXEKALL_ARTIFACT_ROOT', 'exekall_artifact'),
+        artifact_path = os.path.join(
+            os.getenv('EXEKALL_ARTIFACT_ROOT', './exekall_artifact'),
             uuid.uuid4().hex,
         )
 
         # This also strips the trailing /, which is needed later on when
         # archiving the artifact.
-        artifact_path = artifact_path.resolve()
+        artifact_path = os.path.realpath(artifact_path)
 
         env = {
             # exekall will use that folder directly, so it has to be empty and
@@ -1832,7 +1837,7 @@ class ExekallLISATestStep(ShellStep):
 
         # First item is the oldest created file
         xunit_path_list = sorted(
-            artifact_path.glob('**/xunit.xml'),
+            glob.glob(artifact_path, '**/xunit.xml', recursive=True),
             key=lambda x: os.path.getmtime(x)
         )
         xunit_report = ''
@@ -1877,7 +1882,7 @@ class ExekallLISATestStep(ShellStep):
                 # Delete the original artifact directory since we archived it
                 # successfully.
                 info('Deleting exekall artifact root directory {} ...'.format(orig_artifact_path))
-                shutil.rmtree(orig_artifact_path)
+                shutil.rmtree(str(orig_artifact_path))
                 info('exekall artifact directory {} deleted.'.format(orig_artifact_path))
 
             except Exception as e:
@@ -1920,6 +1925,7 @@ class ExekallLISATestStep(ShellStep):
             show_pass_rate = False,
             show_artifact_dirs = False,
             testcase = [],
+            ignore_testcase = [],
             iterations = [],
             ignore_non_issue = False,
             ignore_excep = [],
@@ -1948,6 +1954,7 @@ class ExekallLISATestStep(ShellStep):
         }
 
         considered_testcase_set = set(testcase)
+        ignored_testcase_set = set(ignore_testcase)
         considered_iteration_set = set(iterations)
 
         # Parse the xUnit XML report from LISA to know the failing tests
@@ -1983,9 +1990,16 @@ class ExekallLISATestStep(ShellStep):
                     testcase_id = et_testcase.get('name')
 
                     # Ignore tests we are not interested in
-                    if considered_testcase_set and not any(
+                    if (
+                        (considered_testcase_set and not any(
                             fnmatch.fnmatch(testcase_id, pattern)
                             for pattern in considered_testcase_set
+                        ))
+                        or
+                        (ignored_testcase_set and any(
+                            fnmatch.fnmatch(testcase_id, pattern)
+                            for pattern in ignored_testcase_set
+                        ))
                     ):
                         continue
 
@@ -3934,18 +3948,6 @@ def check_report_path(path, probe_file):
 
     is_yaml = not (path.endswith('.pickle') or path.endswith('.pickle.gz'))
     return (open_f, is_yaml)
-
-# Reimplementation of Python 3.7 contextlib.nullcontext
-def nullcontext(obj):
-    """Returns a dummy context manager that just returns the value it was built
-    with."""
-    class _nullcontext:
-        def __enter__(self):
-            return obj
-        def __exit__(self, *args, **kwargs):
-            pass
-
-    return _nullcontext
 
 class Report(Serializable):
     """
