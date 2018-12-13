@@ -1837,7 +1837,7 @@ class ExekallLISATestStep(ShellStep):
 
         # First item is the oldest created file
         xunit_path_list = sorted(
-            glob.glob(artifact_path, '**/xunit.xml', recursive=True),
+            glob.glob(os.path.join(artifact_path, '**/xunit.xml'), recursive=True),
             key=lambda x: os.path.getmtime(x)
         )
         xunit_report = ''
