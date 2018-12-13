@@ -29,7 +29,8 @@ import traceback
 
 from lisa.env import TestEnv, TargetConf
 from lisa.platforms.platinfo import PlatformInfo
-from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, MultiSrcConf, groupby, Serializable
+from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable
+from lisa.conf import MultiSrcConf
 from lisa.tests.kernel.test_bundle import TestBundle, Result, ResultBundle, CannotCreateError
 from lisa.tests.kernel.scheduler.load_tracking import FreqInvarianceItem
 

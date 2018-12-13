@@ -35,8 +35,8 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
 from lisa.energy_meter import EnergyMeter
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, StrList, setup_logging, ArtifactPath
-from lisa.utils import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, setup_logging, ArtifactPath
+from lisa.conf import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrList
 
 from lisa.platforms.platinfo import PlatformInfo
 
