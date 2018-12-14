@@ -175,11 +175,6 @@ class Serializable(Loggable):
         # was deserialized
         yaml.Constructor.add_constructor(None, cls._yaml_unknown_tag_constructor)
 
-        #TODO: remove that once the issue is fixed
-        # Workaround for ruamel.yaml bug #244:
-        # https://bitbucket.org/ruamel/yaml/issues/244
-        yaml.Representer.add_multi_representer(type, yaml.Representer.represent_name)
-
     @classmethod
     def _yaml_unknown_tag_constructor(cls, loader, node):
         # Get the basic data types that can be expressed using the YAML syntax,

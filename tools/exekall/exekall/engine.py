@@ -87,12 +87,6 @@ class StorageDB:
         yaml.default_flow_style = False
         yaml.indent = 4
 
-        #TODO: remove that once the issue is fixed
-        # Workaround for ruamel.yaml bug #244:
-        # https://bitbucket.org/ruamel/yaml/issues/244
-        yaml.Representer.add_multi_representer(type, ruamel.yaml.representer.Representer.represent_name)
-
-
     def __init__(self, obj_store):
         self.obj_store = obj_store
 
