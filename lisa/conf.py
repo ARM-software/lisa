@@ -192,7 +192,7 @@ class KeyDesc(KeyDescBase):
             prefix=prefix,
             key=self.name,
             classinfo=' or '.join(
-                self._get_cls_name(key_cls, style='rst')
+                self._get_cls_name(key_cls, style=style)
                 for key_cls in self.classinfo
             ),
             help=': ' + self.help if self.help else ''
@@ -278,7 +278,8 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         # of nested list avoids getting extra blank line between list items.
         # That prevents ResStructuredText from thinking each item must be a
         # paragraph.
-        suffix = '\n\n..\n\n' + idt if style == 'rst' else '\n'
+        suffix = '\n\n..\n\n' if style == 'rst' else '\n'
+        suffix += idt
         help_ = '{prefix} {key}:{help}{suffix}'.format(
             prefix=prefix,
             suffix=suffix,
