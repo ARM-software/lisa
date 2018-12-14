@@ -622,9 +622,8 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         key_desc = self._structure[key]
         if isinstance(key_desc, LevelKeyDesc):
             key = key_desc.qualname
-            raise ValueError('Cannot force source of the sub-level "{key}" in {cls}'.format(
+            raise ValueError('Cannot force source of the sub-level "{key}"'.format(
                 key=key,
-                cls=type(self).__qualname__
             ), key)
 
         # None means removing the src override for that key
@@ -828,9 +827,8 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         key_desc = self._structure[key]
         if isinstance(key_desc, LevelKeyDesc):
             key = key_desc.qualname
-            raise ValueError('Key "{key}" is a nested configuration level in {cls}, it does not have a source on its own.'.format(
+            raise ValueError('Key "{key}" is a nested configuration level, it does not have a source on its own.'.format(
                 key=key,
-                cls=type(self).__qualname__,
             ), key)
 
         return OrderedDict(
