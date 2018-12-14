@@ -3248,8 +3248,7 @@ class MacroStep(StepBase):
         iterations = parse_iterations('inf'),
         steps_list = [],
 
-        # bail_out_early class attribute is overwritten to match the CLI parameters.
-        bail_out_early = True,
+        bail_out_early = False,
     )
 
     options = dict(
@@ -3770,7 +3769,7 @@ def do_steps_help(cls_list):
     return 0
 
 def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
-        bail_out_early=True, inline_step_list=[], steps_path=None,
+        bail_out_early=False, inline_step_list=[], steps_path=None,
         report_options=None, overall_timeout=0, step_options=None,
         git_clean=False, relative_root=None, resume_path=None,
         service_hub=None):
