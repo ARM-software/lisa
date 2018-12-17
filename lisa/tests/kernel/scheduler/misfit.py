@@ -111,15 +111,13 @@ class StaggeredFinishes(MisfitMigrationBase):
 
     task_prefix = "misfit"
 
-    pin_delay_s = 0.001
+    PIN_DELAY_S = 0.001
     """
     How long the tasks will be pinned to their "starting" CPU. Doesn't have
     to be long (we just have to ensure they spawn there), so arbitrary value
     """
 
-    # Somewhat arbitrary delay - long enough to ensure
-    # rq->avg_idle > sysctl_sched_migration_cost
-    idling_delay_s = 1
+    IDLING_DELAY_S = 1
     """
     A somewhat arbitray delay - long enough to ensure
     rq->avg_idle > sysctl_sched_migration_cost
@@ -148,7 +146,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         # the last to wake up.
         last_start = 0
 
-        sdf = sdf[init_start + self.idling_delay_s * 0.9 :]
+        sdf = sdf[init_start + self.IDLING_DELAY_S * 0.9 :]
 
         for task in self.rtapp_profile.keys():
             task_cpu = int(task.strip("{}_".format(self.task_prefix)))
@@ -188,8 +186,8 @@ class StaggeredFinishes(MisfitMigrationBase):
             profile["{}_{}".format(cls.task_prefix, cpu)] = (
                 Periodic(
                     duty_cycle_pct=100,
-                    duration_s=cls.pin_delay_s,
-                    delay_s=cls.idling_delay_s,
+                    duration_s=cls.PIN_DELAY_S,
+                    delay_s=cls.IDLING_DELAY_S,
                     period_ms=cls.TASK_PERIOD_MS,
                     cpus=[cpu]
                 ) + Periodic(
