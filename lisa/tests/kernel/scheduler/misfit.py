@@ -111,15 +111,13 @@ class StaggeredFinishes(MisfitMigrationBase):
 
     task_prefix = "misfit"
 
-    pin_delay_s = 0.001
+    PIN_DELAY_S = 0.001
     """
     How long the tasks will be pinned to their "starting" CPU. Doesn't have
     to be long (we just have to ensure they spawn there), so arbitrary value
     """
 
-    # Somewhat arbitrary delay - long enough to ensure
-    # rq->avg_idle > sysctl_sched_migration_cost
-    idling_delay_s = 1
+    IDLING_DELAY_S = 1
     """
     A somewhat arbitray delay - long enough to ensure
     rq->avg_idle > sysctl_sched_migration_cost
@@ -148,7 +146,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         # the last to wake up.
         last_start = 0
 
-        sdf = sdf[init_start + self.idling_delay_s * 0.9 :]
+        sdf = sdf[init_start + self.IDLING_DELAY_S * 0.9 :]
 
         for task in self.rtapp_profile.keys():
             task_cpu = int(task.strip("{}_".format(self.task_prefix)))
@@ -188,8 +186,8 @@ class StaggeredFinishes(MisfitMigrationBase):
             profile["{}_{}".format(cls.task_prefix, cpu)] = (
                 Periodic(
                     duty_cycle_pct=100,
-                    duration_s=cls.pin_delay_s,
-                    delay_s=cls.idling_delay_s,
+                    duration_s=cls.PIN_DELAY_S,
+                    delay_s=cls.IDLING_DELAY_S,
                     period_ms=cls.TASK_PERIOD_MS,
                     cpus=[cpu]
                 ) + Periodic(
@@ -287,6 +285,9 @@ class StaggeredFinishes(MisfitMigrationBase):
         Test that for every window in which the tasks are running, :attr:`cpus`
         are not idle for more than :attr:`allowed_idle_time_s`
         """
+        if allowed_idle_time_s is None:
+            allowed_idle_time_s = 1e-3 * self.plat_info["cpus-count"]
+
         res = ResultBundle.from_bool(True)
 
         for task, state_df in task_state_dfs.items():
@@ -306,8 +307,8 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         return res
 
-    @requires_events('sched_switch')
-    def test_migration_delay(self, allowed_delay_s=0.001) -> ResultBundle:
+    @TasksAnalysis.df_task_states.used_events
+    def test_migration_delay(self, allowed_idle_time_s=None) -> ResultBundle:
         """
         Test that big CPUs pull tasks ASAP
 
@@ -316,6 +317,13 @@ class StaggeredFinishes(MisfitMigrationBase):
           a newidle balance should lead to a null delay, but in practice
           there's a tiny one, so don't set that to 0 and expect the test to
           pass.
+
+          Furthermore, we're not always guaranteed to get a newidle pull, so
+          allow time for a regular load balance to happen.
+
+          When ``None``, this defaults to (1ms x number_of_cpus) to mimic the
+          default balance_interval (balance_interval = sd_weight), see
+          kernel/sched/topology.c:sd_init().
         :type allowed_idle_time_s: int
 
         This test is about the very first migration from LITTLE to big.
@@ -337,10 +345,10 @@ class StaggeredFinishes(MisfitMigrationBase):
 
             task_state_dfs[task] = df[:first_big]
 
-        return self._test_cpus_busy(task_state_dfs, self.dst_cpus, allowed_delay_s)
+        return self._test_cpus_busy(task_state_dfs, self.dst_cpus, allowed_idle_time_s)
 
-    @requires_events('sched_switch')
-    def test_throughput(self, allowed_idle_time_s=0.001) -> ResultBundle:
+    @TasksAnalysis.df_task_states.used_events
+    def test_throughput(self, allowed_idle_time_s=None) -> ResultBundle:
         """
         Test that big CPUs are not idle when there are misfit tasks to upmigrate
 
@@ -349,6 +357,13 @@ class StaggeredFinishes(MisfitMigrationBase):
           a newidle balance should lead to a null delay, but in practice
           there's a tiny one, so don't set that to 0 and expect the test to
           pass.
+
+          Furthermore, we're not always guaranteed to get a newidle pull, so
+          allow time for a regular load balance to happen.
+
+          When ``None``, this defaults to (1ms x number_of_cpus) to mimic the
+          default balance_interval (balance_interval = sd_weight), see
+          kernel/sched/topology.c:sd_init().
         :type allowed_idle_time_s: int
         """
         task_state_dfs = {}
