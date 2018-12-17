@@ -292,10 +292,9 @@ def infer_mod_name(python_src):
                 is_package = True,
             )
 
-        module_name = '.'.join((
-            ('.'.join(module_parents[0].parts)),
-            module_basename
-        ))
+        module_dotted_path = list(module_parents[0].parts) + [module_basename]
+        module_name = '.'.join(module_dotted_path)
+
     else:
         module_name = get_module_basename(python_src)
 
@@ -341,7 +340,7 @@ def find_customization_module_set(module_set):
     return customization_module_set
 
 def import_file(python_src, module_name=None, is_package=False):
-    python_src = pathlib.Path(python_src)
+    python_src = pathlib.Path(python_src).resolve()
 
     # Directly importing __init__.py does not really make much sense and may
     # even break, so just import its package instead.

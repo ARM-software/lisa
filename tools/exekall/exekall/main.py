@@ -27,6 +27,7 @@ import itertools
 import os
 import pathlib
 import sys
+import glob
 
 from exekall.customization import AdaptorBase
 import exekall.engine as engine
@@ -48,9 +49,13 @@ def _main(argv):
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
+    # It is not possible to give a default value to that option, otherwise
+    # adaptor-specific options' values will be picked up as Python sources, and
+    # import the modules will therefore fail with unknown files.
     run_parser.add_argument('python_files', nargs='+',
         metavar='PYTHON_SRC',
-        help="Python modules files")
+        help="""Python modules files. If passed a folder, all contained files
+are selected, recursively. By default, the current directory is selected.""")
 
     run_parser.add_argument('--adaptor',
         help="""Adaptor to use from the customization module, if there is more
@@ -161,7 +166,16 @@ the name of the parameter, the start value, stop value and step size.""")
     show_traceback = args.debug
 
     # Import all modules, before selecting the adaptor
-    module_set = {utils.import_file(path) for path in args.python_files}
+    module_set = set()
+    for path in args.python_files:
+        path = pathlib.Path(path)
+        # Recursively import all modules when passed folders
+        if path.is_dir():
+            for python_src in glob.iglob(str(path.joinpath('**/*.py')), recursive=True):
+                module_set.add(utils.import_file(python_src))
+        # If passed a file, just import it directly
+        else:
+            module_set.add(utils.import_file(path))
 
     # Look for a customization submodule in one of the parent packages of the
     # modules we specified on the command line.
