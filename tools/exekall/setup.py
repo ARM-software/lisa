@@ -39,7 +39,7 @@ setup(
     install_requires=[
         # Older versions will have troubles with serializing complex nested
         # objects hierarchy implementing custom __getstate__ and __setstate__
-        "ruamel.yaml >= 0.15.72",
+        "ruamel.yaml >= 0.15.81",
     ],
 
     classifiers=[
