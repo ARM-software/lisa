@@ -287,6 +287,9 @@ class StaggeredFinishes(MisfitMigrationBase):
         Test that for every window in which the tasks are running, :attr:`cpus`
         are not idle for more than :attr:`allowed_idle_time_s`
         """
+        if allowed_idle_time_s is None:
+            allowed_idle_time_s = 1e-3 * self.plat_info["cpus-count"]
+
         res = ResultBundle.from_bool(True)
 
         for task, state_df in task_state_dfs.items():
@@ -307,7 +310,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         return res
 
     @requires_events('sched_switch')
-    def test_migration_delay(self, allowed_idle_time_s=0.001) -> ResultBundle:
+    def test_migration_delay(self, allowed_idle_time_s=None) -> ResultBundle:
         """
         Test that big CPUs pull tasks ASAP
 
@@ -316,6 +319,13 @@ class StaggeredFinishes(MisfitMigrationBase):
           a newidle balance should lead to a null delay, but in practice
           there's a tiny one, so don't set that to 0 and expect the test to
           pass.
+
+          Furthermore, we're not always guaranteed to get a newidle pull, so
+          allow time for a regular load balance to happen.
+
+          When ``None``, this defaults to (1ms x number_of_cpus) to mimic the
+          default balance_interval (balance_interval = sd_weight), see
+          kernel/sched/topology.c:sd_init().
         :type allowed_idle_time_s: int
 
         This test is about the very first migration from LITTLE to big.
@@ -340,7 +350,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         return self._test_cpus_busy(task_state_dfs, self.dst_cpus, allowed_idle_time_s)
 
     @requires_events('sched_switch')
-    def test_throughput(self, allowed_idle_time_s=0.001) -> ResultBundle:
+    def test_throughput(self, allowed_idle_time_s=None) -> ResultBundle:
         """
         Test that big CPUs are not idle when there are misfit tasks to upmigrate
 
@@ -349,6 +359,13 @@ class StaggeredFinishes(MisfitMigrationBase):
           a newidle balance should lead to a null delay, but in practice
           there's a tiny one, so don't set that to 0 and expect the test to
           pass.
+
+          Furthermore, we're not always guaranteed to get a newidle pull, so
+          allow time for a regular load balance to happen.
+
+          When ``None``, this defaults to (1ms x number_of_cpus) to mimic the
+          default balance_interval (balance_interval = sd_weight), see
+          kernel/sched/topology.c:sd_init().
         :type allowed_idle_time_s: int
         """
         task_state_dfs = {}
