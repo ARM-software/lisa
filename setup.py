@@ -92,7 +92,7 @@ setup(
         "matplotlib >= 1.4.2",
         "pandas >= 0.23.0",
         "numpy",
-        "ruamel.yaml >= 0.15.72",
+        "ruamel.yaml >= 0.15.81",
 
         # Depdendencies that are shipped as part of the LISA repo as
         # subtree/submodule
