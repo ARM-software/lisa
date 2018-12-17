@@ -307,7 +307,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         return res
 
-    @requires_events('sched_switch')
+    @TasksAnalysis.df_task_states.used_events
     def test_migration_delay(self, allowed_idle_time_s=None) -> ResultBundle:
         """
         Test that big CPUs pull tasks ASAP
@@ -347,7 +347,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         return self._test_cpus_busy(task_state_dfs, self.dst_cpus, allowed_idle_time_s)
 
-    @requires_events('sched_switch')
+    @TasksAnalysis.df_task_states.used_events
     def test_throughput(self, allowed_idle_time_s=None) -> ResultBundle:
         """
         Test that big CPUs are not idle when there are misfit tasks to upmigrate
