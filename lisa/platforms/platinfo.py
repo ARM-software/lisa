@@ -54,8 +54,8 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         KeyDesc('abi', 'ABI, e.g. "arm64"', [str]),
         KeyDesc('os', 'OS being used, e.g. "linux"', [str]),
         KeyDesc('name', 'Free-form name of the board', [str]),
-        KeyDesc('cpus-count', 'Compat key: number of CPUs', [int]),
-        KeyDesc('freq-domains', 'Frequency domains', [IntListList]),
+        KeyDesc('cpus-count', 'Number of CPUs', [int]),
+        KeyDesc('freq-domains', 'Frequency domains modeled by a list of CPU id for each domain', [IntListList]),
         KeyDesc('freqs', 'Dictionnary of CPU ID to list of frequencies', [IntIntListDict]),
     ))
     """Some keys have a reserved meaning with an associated type."""
