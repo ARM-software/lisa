@@ -24,6 +24,15 @@ In case the venv becomes unusable for some reason, the ``lisa-install``
 shell command available after sourcing ``init_env`` will allow to create a new
 clean venv from scratch.
 
+Git hooks
+---------
+
+A git `post-checkout` hook is provided in tools/post-checkout. It will check
+that no `setup.py` file have been updated since last time ``lisa-install`` was
+executed. If a modification is detected, it will ask the user to run
+``lisa-install`` again, since a dependency might have been added, or a version
+requirement might have been updated.
+
 Without automatic ``venv``
 --------------------------
 
