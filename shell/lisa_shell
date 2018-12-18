@@ -32,7 +32,7 @@ source "$LISA_HOME/shell/lisa_colors"
 # Add some shell utilities to the PATH, with lower priority than system's one
 # in case the user needs a different version of them
 export LISA_HOST_ABI=${LISA_HOST_ABI:-x86_64}
-export PATH=$PATH:$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI
+export PATH=$PATH:$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI:$LISA_HOME/tools
 
 ################################################################################
 # Helpers
@@ -103,6 +103,10 @@ function lisa-venv-activate {
         echo "Activating LISA Python venv ($LISA_VENV_PATH) ..."
         VIRTUAL_ENV_DISABLE_PROMPT=1 source "$LISA_VENV_PATH/bin/activate"
     fi
+
+    # Check if lisa-install needs to be run again, but ignore the return value
+    # so it won't make activation fail just because of that
+    (check-setuppy; exit 0)
 }
 
 function lisa-venv-deactivate {
@@ -126,6 +130,9 @@ function lisa-install {
     # Check that some prerequisites are available on the system, since they
     # cannot be installed using pip in a venv
     python3 "$LISA_HOME/setup.py" systemcheck
+
+    # Record the point in time when we ran that install command
+    check-setuppy --update-recorded-commit HEAD
 
     _lisa-venv-create &&
     _lisa-upgrade-pip || return 1
