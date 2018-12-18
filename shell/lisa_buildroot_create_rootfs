@@ -89,6 +89,8 @@ function br_post_patch {
 	sed -i 's/#PermitRootLogin.*/PermitRootLogin	yes/' "$BUILDROOT_DIR/output/target/etc/ssh/sshd_config"
 	# run udhcpc by default at startup
 	echo "null::once:/sbin/udhcpc # PATCHED BY LISA" >> "$BUILDROOT_DIR/output/target/etc/inittab"
+	# setup mdev rule to auto bringup ethernet devices
+	echo '(eth.*)         root:netdev 660 >net/%1 @/sbin/udhcpc' >> "$BUILDROOT_DIR/output/target/etc/mdev.conf"
 
 	popd >/dev/null
 
