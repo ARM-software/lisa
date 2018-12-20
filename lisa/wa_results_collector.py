@@ -1083,7 +1083,7 @@ class WaResultsCollector(Loggable):
             return
 
         # Separate plot for each test (e.g. one plot for Jankbench list_view)
-        for (test, inv_id), test_comparisons in df.groupby(('test', 'inv_id')):
+        for (test, inv_id), test_comparisons in df.groupby(['test', 'inv_id']):
             # Vertical size of plot depends on how many metrics we're comparing
             # and how many things (kernels/tags) we're comparing metrics for.
             # a.k.a the total length of the comparisons df.
