@@ -1134,7 +1134,7 @@ class WaResultsCollector(Loggable):
                 # For each of the things we're comparing we'll plot a bar chart
                 # but slightly shifted. That's how we get multiple bars on each
                 # y-axis point.
-                bars = ax.barh(bottom=pos + (i * thickness),
+                bars = ax.barh(pos + (i * thickness),
                                width=gdf['diff_pct'],
                                height=thickness, label=group,
                                color=colors[i % len(colors)], align='center')
