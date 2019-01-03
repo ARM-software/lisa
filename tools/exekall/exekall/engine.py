@@ -91,6 +91,14 @@ class StorageDB:
         self.obj_store = obj_store
 
     @classmethod
+    def merge(cls, db_seq):
+        obj_store = ObjectStore.merge(
+            db.obj_store
+            for db in db_seq
+        )
+        return cls(obj_store)
+
+    @classmethod
     def from_path(cls, path, relative_to=None):
         if relative_to is not None:
             relative_to = pathlib.Path(relative_to).resolve()
@@ -120,6 +128,15 @@ class ObjectStore:
     def __init__(self, serial_seq_list, db_var_name='db'):
         self.db_var_name = db_var_name
         self.serial_seq_list = serial_seq_list
+
+    @classmethod
+    def merge(cls, store_seq):
+        serial_seq_list = list(itertools.chain(*(
+            store.serial_seq_list
+            for store in store_seq
+        )))
+
+        return cls(serial_seq_list)
 
     def get_value_snippet(self, value):
         _, id_uuid_map = self.get_indexes()
