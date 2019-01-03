@@ -36,12 +36,6 @@ setup(
         'console_scripts': ['exekall=exekall.main:main'],
     },
     python_requires='>= 3.5',
-    install_requires=[
-        # Older versions will have troubles with serializing complex nested
-        # objects hierarchy implementing custom __getstate__ and __setstate__
-        "ruamel.yaml >= 0.15.81",
-    ],
-
     classifiers=[
         "Programming Language :: Python :: 3 :: Only",
         # This is not a standard classifier, as there is nothing defined for
