@@ -20,7 +20,7 @@ import os
 import copy
 from unittest import TestCase
 
-from lisa.conf import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, IntList
+from lisa.conf import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, IntList, DerivedKeyDesc
 from lisa.tests.lisa.utils import StorageTestCase, HOST_PLAT_INFO, HOST_TARGET_CONF
 
 """ A test suite for the MultiSrcConf subclasses."""
@@ -68,10 +68,18 @@ class TestTargetConf(StorageTestCase, TestMultiSrcConfBase):
         # Make copies to avoid mutating the original one
         self.conf = copy.copy(HOST_TARGET_CONF)
 
+def compute_derived(base_conf):
+    return base_conf['foo'] + sum(base_conf['bar']) + base_conf['sublevel']['subkey']
+
 INTERNAL_STRUCTURE = (
     KeyDesc('foo', 'foo help', [int]),
     KeyDesc('bar', 'bar help', [IntList]),
     KeyDesc('multitypes', 'multitypes help', [IntList, str, None]),
+    LevelKeyDesc('sublevel', 'sublevel help', (
+        KeyDesc('subkey', 'subkey help', [int]),
+    )),
+    DerivedKeyDesc('derived', 'derived help', [int],
+        [['foo'], ['bar'], ['sublevel', 'subkey']], compute_derived),
 )
 
 class TestConf(MultiSrcConf):
@@ -84,7 +92,9 @@ class TestConfWithDefault(MultiSrcConf):
         INTERNAL_STRUCTURE
     )
 
-    DEFAULT_SRC = {'bar': [0, 1, 2]}
+    DEFAULT_SRC = {
+        'bar': [0, 1, 2],
+    }
 
 class TestMultiSrcConf(TestMultiSrcConfBase):
     def test_add_src_one_key(self):
@@ -117,6 +127,20 @@ class TestTestConf(StorageTestCase, TestMultiSrcConf):
     def test_unset_key(self):
         with self.assertRaises(KeyError):
             self.conf['foo']
+
+    def test_derived(self):
+        conf = copy.deepcopy(self.conf)
+        conf.add_src('mysrc', {'foo': 1})
+        # Two missing base keys
+        with self.assertRaises(KeyError):
+            conf['derived']
+        conf.add_src('mysrc2', {
+            'bar': [1, 2],
+            'sublevel': {
+                'subkey': 42
+            }
+        })
+        self.assertEqual(conf['derived'], 46)
 
     def test_force_src_nested(self):
         conf = copy.deepcopy(self.conf)
@@ -153,7 +177,11 @@ class TestTestConfWithDefault(StorageTestCase, TestMultiSrcConf):
         self.conf = TestConfWithDefault()
 
     def test_default_src(self):
-        self.assertEqual(dict(self.conf), dict(TestConfWithDefault.DEFAULT_SRC))
+        ref = dict(TestConfWithDefault.DEFAULT_SRC)
+        # A freshly built object still has all the level keys, even if it has
+        # no leaves
+        ref['sublevel'] = {}
+        self.assertEqual(dict(self.conf), ref)
 
     def test_add_src_one_key_fallback(self):
         conf = copy.deepcopy(self.conf)
