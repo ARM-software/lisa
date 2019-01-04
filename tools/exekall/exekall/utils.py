@@ -79,6 +79,8 @@ def sweep_number(
     callable_, param,
     start, stop=None, step=1):
 
+    step = step if step > 0 else 1
+
     annot = engine.Operator(callable_).get_prototype()[0]
     try:
         type_ = annot[param]
