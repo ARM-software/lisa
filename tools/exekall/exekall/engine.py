@@ -1883,6 +1883,10 @@ class ExprValue:
     def get_parent_expr_vals(self, predicate):
         yield from self._get_parent_expr_vals(predicate)
 
+    def get_all_parents(self):
+        predicate = lambda expr_val, param: True
+        return set(self.get_parent_expr_vals(predicate))
+
     def _get_parent_expr_vals(self, predicate, param=None):
         if predicate(self, param):
             yield self

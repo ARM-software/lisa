@@ -795,14 +795,23 @@ def do_run(args, parser, run_parser, argv):
             else:
                 return ''
 
+        computed_expr_val_set = set()
+        reused_expr_val_set = set()
         def log_expr_val(expr_val, reused):
             if expr_val.expr.op.callable_ in hidden_callable_set:
                 return
 
+            # Consider that PrebuiltOperator reuse values instead of actually
+            # computing them.
+            if isinstance(expr_val.expr.op, engine.PrebuiltOperator):
+                reused = True
+
             if reused:
-                msg='Reusing already computed {id}{uuid}'
+                msg = 'Reusing already computed {id}{uuid}'
+                reused_expr_val_set.add(expr_val)
             else:
-                msg='Computed {id}{uuid}'
+                msg = 'Computed {id}{uuid}'
+                computed_expr_val_set.add(expr_val)
 
             info(msg.format(
                 id=expr_val.get_id(
@@ -861,13 +870,23 @@ def do_run(args, parser, run_parser, argv):
                 )[1]+'\n',
             )
 
-        with (testcase_artifact_dir/'VALUES_UUID').open('wt') as f:
-            for expr_val in result_list:
-                if expr_val.value is not NoValue:
-                    f.write(expr_val.value_uuid + '\n')
+        def write_uuid(expr_val_list, f):
+            uuid_list = sorted(
+                (expr_val.value_uuid, expr_val.excep_uuid)
+                for expr_val in expr_val_list
+            )
+            for uuid_ in utils.flatten_nested_seq(uuid_list):
+                if uuid_:
+                    f.write(uuid_ + '\n')
 
-                if expr_val.excep is not NoValue:
-                    f.write(expr_val.excep_uuid + '\n')
+        with (testcase_artifact_dir/'VALUES_UUID').open('wt') as f:
+            write_uuid(result_list, f)
+
+        with (testcase_artifact_dir/'REUSED_VALUES_UUID').open('wt') as f:
+            write_uuid(reused_expr_val_set, f)
+
+        with (testcase_artifact_dir/'COMPUTED_VALUES_UUID').open('wt') as f:
+            write_uuid(computed_expr_val_set, f)
 
     db = engine.ValueDB(
         engine.Expression.get_all_serializable_vals(
