@@ -173,7 +173,7 @@ the name of the parameter, the start value, stop value and step size.""")
         path = pathlib.Path(path)
         # Recursively import all modules when passed folders
         if path.is_dir():
-            for python_src in glob.iglob(str(path.joinpath('**/*.py')), recursive=True):
+            for python_src in glob.iglob(str(path/'**'/'*.py'), recursive=True):
                 module_set.add(utils.import_file(python_src))
         # If passed a file, just import it directly
         else:
@@ -243,8 +243,8 @@ the name of the parameter, the start value, stop value and step size.""")
         # Update the CLI arguments so the customization module has access to the
         # correct value
         args.artifact_dir = artifact_dir
-        debug_log = artifact_dir.joinpath('debug_log.txt')
-        info_log = artifact_dir.joinpath('info_log.txt')
+        debug_log = artifact_dir/'debug_log.txt'
+        info_log = artifact_dir/'info_log.txt'
 
     utils.setup_logging(args.log_level, debug_log, info_log, verbose=verbose)
 
@@ -575,7 +575,7 @@ the name of the parameter, the start value, stop value and step size.""")
         return 0
 
     if not only_template_scripts:
-        with open(str(artifact_dir.joinpath('UUID')), 'wt') as f:
+        with (artifact_dir/'UUID').open('wt') as f:
             f.write(testsession_uuid+'\n')
 
     db_loader = adaptor.load_db
@@ -610,13 +610,13 @@ the name of the parameter, the start value, stop value and step size.""")
 
         adaptor.update_expr_data(data)
 
-        with open(str(testcase_artifact_dir.joinpath('UUID')), 'wt') as f:
+        with (testcase_artifact_dir/'UUID').open('wt') as f:
             f.write(testcase.uuid + '\n')
 
-        with open(str(testcase_artifact_dir.joinpath('ID')), 'wt') as f:
+        with (testcase_artifact_dir/'ID').open('wt') as f:
             f.write(testcase_short_id+'\n')
 
-        with open(str(testcase_artifact_dir.joinpath('STRUCTURE')), 'wt') as f:
+        with (testcase_artifact_dir/'STRUCTURE').open('wt') as f:
             f.write(take_first(testcase.get_id(
                 hidden_callable_set=hidden_callable_set,
                 with_tags=False,
@@ -624,10 +624,8 @@ the name of the parameter, the start value, stop value and step size.""")
             )) + '\n\n')
             f.write(testcase.pretty_structure())
 
-        with open(
-            str(testcase_artifact_dir.joinpath('testcase_template.py')),
-            'wt', encoding='utf-8'
-        ) as f:
+        with (testcase_artifact_dir/'testcase_template.py').open(
+                'wt', encoding='utf-8') as f:
             f.write(
                 testcase.get_script(
                     prefix = 'testcase',
@@ -735,10 +733,7 @@ the name of the parameter, the start value, stop value and step size.""")
         adaptor.finalize_expr(testcase)
 
         # Dump the reproducer script
-        with open(
-            str(testcase_artifact_dir.joinpath('testcase.py')),
-            'wt', encoding='utf-8'
-        ) as f:
+        with (testcase_artifact_dir/'testcase.py').open('wt', encoding='utf-8') as f:
             f.write(
                 testcase.get_script(
                     prefix = 'testcase',
@@ -748,7 +743,7 @@ the name of the parameter, the start value, stop value and step size.""")
                 )[1]+'\n',
             )
 
-        with open(str(testcase_artifact_dir.joinpath('VALUES_UUID')), 'wt') as f:
+        with (testcase_artifact_dir/'VALUES_UUID').open('wt') as f:
             for expr_val in result_list:
                 if expr_val.value is not NoValue:
                     f.write(expr_val.value_uuid + '\n')
@@ -774,7 +769,7 @@ the name of the parameter, the start value, stop value and step size.""")
     adaptor.process_results(result_map)
 
     # Output the merged script with all subscripts
-    script_path = artifact_dir.joinpath('all_scripts.py')
+    script_path = artifact_dir/'all_scripts.py'
     result_name_map, all_scripts = engine.Expression.get_all_script(
         testcase_list, prefix='testcase',
         db_path=db_path.relative_to(artifact_dir),
@@ -783,8 +778,8 @@ the name of the parameter, the start value, stop value and step size.""")
         db_loader=db_loader,
     )
 
-    with open(str(script_path), 'wt', encoding='utf-8') as f:
-        f.write(all_scripts+'\n')
+    with script_path.open('wt', encoding='utf-8') as f:
+        f.write(all_scripts + '\n')
 
 SILENT_EXCEPTIONS = (KeyboardInterrupt, BrokenPipeError)
 GENERIC_ERROR_CODE = 1
