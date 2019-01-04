@@ -35,6 +35,8 @@ from exekall.engine import NoValue
 import exekall.utils as utils
 from exekall.utils import take_first, error, warn, debug, info, out
 
+DB_FILENAME = 'VALUE_DB.pickle.xz'
+
 def _main(argv):
     parser = argparse.ArgumentParser(description="""
     LISA test runner
@@ -629,7 +631,7 @@ the name of the parameter, the start value, stop value and step size.""")
             f.write(
                 testcase.get_script(
                     prefix = 'testcase',
-                    db_path = '../storage.yml.gz',
+                    db_path = os.path.join('..', DB_FILENAME),
                     db_relative_to = '__file__',
                     db_loader=db_loader
                 )[1]+'\n',
@@ -740,7 +742,7 @@ the name of the parameter, the start value, stop value and step size.""")
             f.write(
                 testcase.get_script(
                     prefix = 'testcase',
-                    db_path = '../../storage.yml.gz',
+                    db_path = os.path.join('..', '..', DB_FILENAME),
                     db_relative_to = '__file__',
                     db_loader=db_loader
                 )[1]+'\n',
@@ -761,7 +763,7 @@ the name of the parameter, the start value, stop value and step size.""")
     )
     db = engine.StorageDB(obj_store)
 
-    db_path = artifact_dir.joinpath('storage.yml.gz')
+    db_path = artifact_dir/DB_FILENAME
     db.to_path(db_path)
 
     out('#'*80)

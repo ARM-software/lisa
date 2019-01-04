@@ -643,7 +643,7 @@ class Expression:
         return self.get_all_script([self], *args, **kwargs)
 
     @classmethod
-    def get_all_script(cls, expr_list, prefix='value', db_path='storage.yml.gz', db_relative_to=None, db_loader=None, obj_store=None):
+    def get_all_script(cls, expr_list, prefix='value', db_path='VALUE_DB.pickle.xz', db_relative_to=None, db_loader=None, obj_store=None):
         assert expr_list
 
         if obj_store is None:
