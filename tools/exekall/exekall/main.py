@@ -20,12 +20,14 @@ import argparse
 import collections
 import contextlib
 import datetime
+import hashlib
 import importlib
 import inspect
 import io
 import itertools
 import os
 import pathlib
+import shutil
 import sys
 import glob
 
@@ -42,6 +44,9 @@ def _main(argv):
     LISA test runner
     """,
     formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument('--debug', action='store_true',
+        help="""Show complete Python backtrace when exekall crashes.""")
 
     subparsers = parser.add_subparsers(title='subcommands', dest='subcommand')
 
@@ -138,12 +143,25 @@ the name of the parameter, the start value, stop value and step size.""")
         choices=('debug', 'info', 'warn', 'error', 'critical'),
         help="""Change the default log level of the standard logging module.""")
 
-    run_parser.add_argument('--debug', action='store_true',
-        help="""Show complete Python backtrace when exekall crashes.""")
+
+    merge_parser = subparsers.add_parser('merge',
+    description="""
+    Merge artifact directories of "exekall run" executions
+    """,
+    formatter_class=argparse.RawTextHelpFormatter)
+
+    merge_parser.add_argument('artifact_dirs', nargs='+',
+        help="""Artifact directories created using "exekall run", or value databases to merge.""")
+
+    merge_parser.add_argument('--output', '-o', required=True,
+        help="""Output merged artifacts directory or value database.""")
+
+    merge_parser.add_argument('--copy', action='store_true',
+        help="""Force copying files, instead of using hardlinks.""")
 
     # Avoid showing help message on the incomplete parser. Instead, we carry on
-    # and the help will be displayed after the parser customization has a
-    # chance to take place.
+    # and the help will be displayed after the parser customization of run
+    # subcommand has a chance to take place.
     help_options =  ('-h', '--help')
     no_help_argv = [
         arg for arg in argv
@@ -158,7 +176,9 @@ the name of the parameter, the start value, stop value and step size.""")
     # --help for example. If it was for another reason, it will fail again and
     # show the message.
     except SystemExit:
-        args, _ = parser.parse_known_args(argv)
+        parser.parse_known_args(argv)
+        # That should never be reached
+        assert False
 
     if not args.subcommand:
         parser.print_help()
@@ -167,6 +187,105 @@ the name of the parameter, the start value, stop value and step size.""")
     global show_traceback
     show_traceback = args.debug
 
+    # Some subcommands need not parser customization, in which case we more
+    # strictly parse the command line
+    if args.subcommand not in ['run']:
+        parser.parse_args(argv)
+
+    if args.subcommand == 'run':
+        # do_run needs to reparse the CLI, so it needs the parser and argv
+        return do_run(args, parser, run_parser, argv)
+
+    elif args.subcommand == 'merge':
+        return do_merge(
+            artifact_dirs=args.artifact_dirs,
+            output_dir=args.output,
+            use_hardlink=(not args.copy),
+        )
+
+def do_merge(artifact_dirs, output_dir, use_hardlink=True):
+    output_dir = pathlib.Path(output_dir)
+
+    artifact_dirs = [pathlib.Path(path) for path in artifact_dirs]
+    # Dispatch folders and databases
+    db_path_list = [path for path in artifact_dirs if path.is_file()]
+    artifact_dirs = [path for path in artifact_dirs if path.is_dir()]
+
+    # Only DB paths
+    if not artifact_dirs:
+        merged_db_path = output_dir
+    else:
+        # This will fail loudly if the folder already exists
+        os.makedirs(str(output_dir))
+        merged_db_path = output_dir/DB_FILENAME
+
+    testsession_uuid_list = []
+    for artifact_dir in artifact_dirs:
+        with (artifact_dir/'UUID').open(encoding='utf-8') as f:
+            testsession_uuid = f.read().strip()
+            testsession_uuid_list.append(testsession_uuid)
+
+        link_base_path = pathlib.Path('ORIGIN', testsession_uuid)
+
+        # Copy all the files recursively
+        for dirpath, dirnames, filenames in os.walk(str(artifact_dir)):
+            dirpath = pathlib.Path(dirpath)
+            for name in filenames:
+                path = dirpath/name
+                rel_path = pathlib.Path(os.path.relpath(str(path), str(artifact_dir)))
+                link_path = output_dir/link_base_path/rel_path
+
+                levels = pathlib.Path(*(['..'] * (
+                      len(rel_path.parents)
+                    + len(link_base_path.parents)
+                    - 1
+                )))
+                src_link_path = levels/rel_path
+
+                # top-level files are relocated under a ORIGIN instead of having
+                # a symlink, otherwise they would clash
+                if dirpath == artifact_dir:
+                    dst_path = link_path
+                    create_link = False
+                # Otherwise, UUIDs will ensure that there is no clash
+                else:
+                    dst_path = output_dir/rel_path
+                    create_link = True
+
+                os.makedirs(str(dst_path.parent), exist_ok=True)
+
+                # Create a mirror of the original hierarchy
+                if create_link:
+                    os.makedirs(str(link_path.parent), exist_ok=True)
+                    link_path.symlink_to(src_link_path)
+
+                if use_hardlink:
+                    os.link(path, dst_path)
+                else:
+                    shutil.copy2(path, dst_path)
+
+                if dirpath == artifact_dir and name == DB_FILENAME:
+                    db_path_list.append(path)
+
+    if artifact_dirs:
+        # Combine the origin UUIDs to have a stable UUID for the merged
+        # artifacts
+        combined_uuid = hashlib.sha256(
+            b'\n'.join(
+                uuid_.encode('ascii')
+                for uuid_ in sorted(testsession_uuid_list)
+            )
+        ).hexdigest()[:32]
+        with (output_dir/'UUID').open('wt') as f:
+            f.write(combined_uuid+'\n')
+
+    merged_db = engine.StorageDB.merge(
+        engine.StorageDB.from_path(path)
+        for path in db_path_list
+    )
+    merged_db.to_path(merged_db_path)
+
+def do_run(args, parser, run_parser, argv):
     # Import all modules, before selecting the adaptor
     module_set = set()
     for path in args.python_files:
