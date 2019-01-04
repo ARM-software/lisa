@@ -230,8 +230,8 @@ class LISAAdaptor(AdaptorBase):
 
         return tags
 
-    def process_results(self, result_map):
-        super().process_results(result_map)
+    def get_summary(self, result_map):
+        summary = super().get_summary(result_map)
 
         # The goal is to implement something that is roughly compatible with:
         #  https://github.com/jenkinsci/xunit-plugin/blob/master/src/main/resources/org/jenkinsci/plugins/xunit/types/model/xsd/junit-10.xsd
@@ -242,6 +242,7 @@ class LISAAdaptor(AdaptorBase):
         et_tree = ET.ElementTree(et_root)
         info('Writing xUnit file at: ' + str(xunit_path))
         et_tree.write(str(xunit_path))
+        return summary
 
     def create_xunit(self, result_map, hidden_callable_set):
         et_testsuites = ET.Element('testsuites')

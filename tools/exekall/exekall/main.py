@@ -94,8 +94,7 @@ only be produced by these (other callables will be excluded).""")
 
     artifact_dir_group.add_argument('--artifact-dir',
         default=os.getenv('EXEKALL_ARTIFACT_DIR'),
-        help="""Folder in which the artifacts will be stored. This take
-precedence over --artifact-root""")
+        help="""Folder in which the artifacts will be stored.""")
 
     run_parser.add_argument('--load-db',
         help="""Reload a database and use its results as prebuilt objects.""")
@@ -884,8 +883,11 @@ def do_run(args, parser, run_parser, argv):
     info('Artifacts dir: {}'.format(artifact_dir))
     info('Result summary:')
 
-    # Display the results
-    adaptor.process_results(result_map)
+    # Display the results summary
+    summary = adaptor.get_summary(result_map)
+    out(summary)
+    with (artifact_dir/'SUMMARY.txt').open('wt', encoding='utf-8') as f:
+        f.write(summary + '\n')
 
     # Output the merged script with all subscripts
     script_path = artifact_dir/'all_scripts.py'
