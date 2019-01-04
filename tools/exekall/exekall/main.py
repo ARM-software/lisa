@@ -361,8 +361,8 @@ def do_run(args, parser, run_parser, argv):
         # Update the CLI arguments so the customization module has access to the
         # correct value
         args.artifact_dir = artifact_dir
-        debug_log = artifact_dir/'debug_log.txt'
-        info_log = artifact_dir/'info_log.txt'
+        debug_log = artifact_dir/'DEBUG.log'
+        info_log = artifact_dir/'INFO.log'
 
     utils.setup_logging(args.log_level, debug_log, info_log, verbose=verbose)
 
@@ -742,7 +742,7 @@ def do_run(args, parser, run_parser, argv):
             )) + '\n\n')
             f.write(testcase.pretty_structure())
 
-        with (testcase_artifact_dir/'testcase_template.py').open(
+        with (testcase_artifact_dir/'TESTCASE_TEMPLATE.py').open(
                 'wt', encoding='utf-8') as f:
             f.write(
                 testcase.get_script(
@@ -851,7 +851,7 @@ def do_run(args, parser, run_parser, argv):
         adaptor.finalize_expr(testcase)
 
         # Dump the reproducer script
-        with (testcase_artifact_dir/'testcase.py').open('wt', encoding='utf-8') as f:
+        with (testcase_artifact_dir/'TESTCASE.py').open('wt', encoding='utf-8') as f:
             f.write(
                 testcase.get_script(
                     prefix = 'testcase',
@@ -885,11 +885,11 @@ def do_run(args, parser, run_parser, argv):
     # Display the results summary
     summary = adaptor.get_summary(result_map)
     out(summary)
-    with (artifact_dir/'SUMMARY.txt').open('wt', encoding='utf-8') as f:
+    with (artifact_dir/'SUMMARY').open('wt', encoding='utf-8') as f:
         f.write(summary + '\n')
 
     # Output the merged script with all subscripts
-    script_path = artifact_dir/'all_scripts.py'
+    script_path = artifact_dir/'ALL_SCRIPTS.py'
     result_name_map, all_scripts = engine.Expression.get_all_script(
         testcase_list, prefix='testcase',
         db_path=db_path.relative_to(artifact_dir),
