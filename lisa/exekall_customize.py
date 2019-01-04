@@ -145,8 +145,8 @@ class LISAAdaptor(AdaptorBase):
     def get_default_type_goal_pattern_set():
         return {'*.ResultBundle'}
 
-    @classmethod
-    def load_db(cls, db_path, *args, **kwargs):
+    @staticmethod
+    def load_db(db_path, *args, **kwargs):
         # This will relocate ArtifactPath instances to the new absolute path of
         # the results folder, in case it has been moved to another place
         artifact_dir = Path(db_path).parent.resolve()
@@ -162,9 +162,12 @@ class LISAAdaptor(AdaptorBase):
                 continue
             for attr, attr_val in dct.items():
                 if isinstance(attr_val, ArtifactPath):
-                    setattr(val, attr,
-                        attr_val.with_root(artifact_dir)
-                    )
+                    new_path = attr_val.with_root(artifact_dir)
+                    # Only update paths to existing files, otherwise assume it
+                    # was pointing outside the artifact_dir and therefore
+                    # should not be fixed up
+                    if os.path.exists(new_path):
+                        setattr(val, attr, new_path)
 
         return db
 
@@ -327,6 +330,8 @@ class LISAAdaptor(AdaptorBase):
 
         return et_testsuites
 
+# Expose it as a module-level name
+load_db = LISAAdaptor.load_db
 
 def append_result_tag(et_testcase, result, type_, short_msg, msg):
     et_result = ET.SubElement(et_testcase, result, dict(
