@@ -154,7 +154,7 @@ class LISAAdaptor(AdaptorBase):
 
         # Relocate ArtifactPath embeded in objects so they will always
         # contain an absolute path that adapts to the local filesystem
-        for serial in db.obj_store.get_all():
+        for serial in db.get_all():
             val = serial.value
             try:
                 dct = val.__dict__

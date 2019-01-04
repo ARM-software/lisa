@@ -416,7 +416,7 @@ def do_run(args, parser, run_parser, argv):
         else:
             serial_res_set.update(
                 frozenset(l)
-                for l in db.obj_store.serial_seq_list
+                for l in db.serial_seq_list
             )
 
         # Remove duplicates accross sets
@@ -869,12 +869,11 @@ def do_run(args, parser, run_parser, argv):
                 if expr_val.excep is not NoValue:
                     f.write(expr_val.excep_uuid + '\n')
 
-    obj_store = engine.ObjectStore(
+    db = engine.ValueDB(
         engine.Expression.get_all_serializable_vals(
             testcase_list, hidden_callable_set,
         )
     )
-    db = engine.ValueDB(obj_store)
 
     db_path = artifact_dir/DB_FILENAME
     db.to_path(db_path)
@@ -895,7 +894,7 @@ def do_run(args, parser, run_parser, argv):
         testcase_list, prefix='testcase',
         db_path=db_path.relative_to(artifact_dir),
         db_relative_to='__file__',
-        obj_store=obj_store,
+        db=db,
         db_loader=db_loader,
     )
 

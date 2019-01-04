@@ -75,16 +75,17 @@ class IndentationManager:
         return str(self.style) * self.level
 
 class ValueDB:
-    def __init__(self, obj_store):
-        self.obj_store = obj_store
+    def __init__(self, serial_seq_list):
+        self.serial_seq_list = serial_seq_list
 
     @classmethod
     def merge(cls, db_seq):
-        obj_store = ObjectStore.merge(
-            db.obj_store
+        serial_seq_list = list(itertools.chain(*(
+            db.serial_seq_list
             for db in db_seq
-        )
-        return cls(obj_store)
+        )))
+
+        return cls(serial_seq_list)
 
     @classmethod
     def from_path(cls, path, relative_to=None):
@@ -104,41 +105,10 @@ class ValueDB:
         with lzma.open(str(path), 'wb') as f:
             pickle.dump(self, f)
 
-    # Having it there shortens the output of the generated scripts and makes
-    # them more readable while avoiding to expose to much of the ValueDB
-    # internals
-    def by_uuid(self, *args, **kwargs):
-        return self.obj_store.by_uuid(*args, **kwargs)
-
-class ObjectStore:
-    def __init__(self, serial_seq_list, db_var_name='db'):
-        self.db_var_name = db_var_name
-        self.serial_seq_list = serial_seq_list
-
-    @classmethod
-    def merge(cls, store_seq):
-        serial_seq_list = list(itertools.chain(*(
-            store.serial_seq_list
-            for store in store_seq
-        )))
-
-        return cls(serial_seq_list)
-
-    def get_value_snippet(self, value):
-        _, id_uuid_map = self.get_indexes()
-        return '{db}.by_uuid({key})'.format(
-            db = self.db_var_name,
-            key = repr(id_uuid_map[id(value)])
-        )
-
-    def by_uuid(self, uuid):
-        uuid_value_map, _ = self.get_indexes()
-        return uuid_value_map[uuid]
-
     # Since the content of the cache is not serialized, the maps will be
     # regenerated when the object is restored.
     @utils.once
-    def get_indexes(self):
+    def _get_indexes(self):
         uuid_value_map = dict()
         id_uuid_map = dict()
 
@@ -164,19 +134,18 @@ class ObjectStore:
         for serial_val in serial_val.param_expr_val_map.values():
             cls._do_serial_val_dfs(serial_val, callback)
 
-    def get_all(self):
-        serial_seq_set = self.get_by_predicate(lambda serial: True)
-        all_set = set()
-        for serial_seq in serial_seq_set:
-            all_set.update(serial_seq)
-        return all_set
+    def get_by_uuid(self, uuid):
+        uuid_value_map, _ = self._get_indexes()
+        return uuid_value_map[uuid]
 
-    def get_by_predicate(self, predicate):
+    def get_by_predicate(self, predicate, flatten=True):
         """
-        Return a set of sets, containing objects matching the predicate.
-        There is a set for each computed expression in the store, but the same
-        object will not be included twice (in case it is refered by different
-        expressions).
+        Get objects matching the predicate.
+
+        :param flatten: If False, return a set of frozenset of objects.
+            There is a frozenset set for each computed expression in the store.
+            If False, the top-level set is flattened into a set of objects
+            matching the predicate.
         """
         serial_seq_set = set()
 
@@ -187,11 +156,36 @@ class ObjectStore:
         for serial_seq in self.serial_seq_list:
             serial_set = set()
             for serial in serial_seq:
-                serial_set.update(serial.get_parent_set(predicate))
+                serial_set.update(serial.get_parent_by_predicate(predicate))
 
             serial_seq_set.add(frozenset(serial_set))
 
-        return serial_seq_set
+        if flatten:
+            return set(utils.flatten_seq(serial_seq_set))
+        else:
+            return serial_seq_set
+
+    def get_all(self, **kwargs):
+        return self.get_by_predicate(lambda serial: True, **kwargs)
+
+    def get_by_type(self, cls, include_subclasses=True, **kwargs):
+        if include_subclasses:
+            predicate = lambda serial: isinstance(serial.value, cls)
+        else:
+            predicate = lambda serial: type(serial.value) is cls
+        return self.get_by_predicate(predicate, **kwargs)
+
+class ScriptValueDB:
+    def __init__(self, db, var_name='db'):
+        self.db = db
+        self.var_name = var_name
+
+    def get_value_snippet(self, value):
+        _, id_uuid_map = self.db._get_indexes()
+        return '{db}.get_by_uuid({key})'.format(
+            db=self.var_name,
+            key=repr(id_uuid_map[id(value)])
+        )
 
 class CycleError(Exception):
     pass
@@ -643,14 +637,15 @@ class Expression:
         return self.get_all_script([self], *args, **kwargs)
 
     @classmethod
-    def get_all_script(cls, expr_list, prefix='value', db_path='VALUE_DB.pickle.xz', db_relative_to=None, db_loader=None, obj_store=None):
+    def get_all_script(cls, expr_list, prefix='value', db_path='VALUE_DB.pickle.xz', db_relative_to=None, db_loader=None, db=None):
         assert expr_list
 
-        if obj_store is None:
+        if db is None:
             serial_list = Expression.get_all_serializable_vals(expr_list)
-            obj_store = ObjectStore(serial_list)
+            script_db = ScriptValueDB(ValueDB(serial_list))
+        else:
+            script_db = ScriptValueDB(db)
 
-        db_var_name = obj_store.db_var_name
 
         def make_comment(txt):
             joiner = '\n# '
@@ -679,7 +674,7 @@ class Expression:
             result_name, snippet = expr._get_script(
                 reusable_outvar_map = reusable_outvar_map,
                 prefix = prefix + str(i),
-                obj_store = obj_store,
+                script_db = script_db,
                 module_name_set = module_name_set,
                 idt = idt,
                 expr_val_set = expr_val_set,
@@ -693,7 +688,7 @@ class Expression:
             else:
                 # Otherwise, we try to get it from the DB
                 try:
-                    expr_data = obj_store.get_value_snippet(expr.data)
+                    expr_data = script_db.get_value_snippet(expr.data)
                 # If the expr_data was not used when computing subexpressions
                 # (that may happen if some subrexpressions were already
                 # computed for an other expression), we just bail out, hoping
@@ -758,7 +753,7 @@ class Expression:
                 db_relative_to = ''
 
             header += '{db} = {db_loader_name}({path}{db_relative_to})\n'.format(
-                db = db_var_name,
+                db = script_db.var_name,
                 db_loader_name = db_loader_name,
                 path = repr(str(db_path)),
                 db_relative_to = db_relative_to
@@ -780,7 +775,7 @@ class Expression:
             reusable_outvar_map[self] = outvar
         return (outvar, script)
 
-    def _get_script_internal(self, reusable_outvar_map, prefix, obj_store, module_name_set, idt, expr_val_set, consumer_expr_stack):
+    def _get_script_internal(self, reusable_outvar_map, prefix, script_db, module_name_set, idt, expr_val_set, consumer_expr_stack):
         def make_method_self_name(expr):
             return expr.op.value_type.__name__.replace('.', '')
 
@@ -824,7 +819,7 @@ class Expression:
             elif attr == 'value' and callable_ is ExprData:
                 return self.EXPR_DATA_VAR_NAME
             else:
-                return obj_store.get_value_snippet(obj)
+                return script_db.get_value_snippet(obj)
 
         def format_build_param(param_expr_val_map):
             out = list()
@@ -929,7 +924,7 @@ class Expression:
 
             # Do a deep first search traversal of the expression.
             param_outvar, param_out = param_expr._get_script(
-                reusable_outvar_map, param_prefix, obj_store, module_name_set, idt,
+                reusable_outvar_map, param_prefix, script_db, module_name_set, idt,
                 param_expr_val_set,
                 consumer_expr_stack = consumer_expr_stack + [self],
             )
@@ -1763,15 +1758,17 @@ class SerializableExprValue:
         args = (full_qual, qual, with_tags)
         return self.recorded_id_map[args]
 
-    def get_parent_set(self, predicate, _parent_set=None):
-        parent_set = set() if _parent_set is None else _parent_set
+    def get_parent_by_predicate(self, predicate):
+        parent_set = set()
+        self._get_parent_by_predicate(predicate, parent_set)
+        return parent_set
+
+    def _get_parent_by_predicate(self, predicate, parent_set):
         if predicate(self):
             parent_set.add(self)
 
         for parent in self.param_expr_val_map.values():
-            parent.get_parent_set(predicate, _parent_set=parent_set)
-
-        return parent_set
+            parent._get_parent_by_predicate(predicate, parent_set)
 
 class ExprValue:
     def __init__(self, expr, param_expr_val_map,
@@ -1789,7 +1786,7 @@ class ExprValue:
         tag_map = self.expr.op.tags_getter(self.value)
         if tag_map:
             return ''.join(
-                '[{}={}]'.format(k, v) if k else '[{}]'.format(val)
+                '[{}={}]'.format(k, v) if k else '[{}]'.format(v)
                 for k, v in sorted(tag_map.items())
             )
         else:

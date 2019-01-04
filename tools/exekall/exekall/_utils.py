@@ -149,6 +149,10 @@ def once(callable_):
 def remove_indices(iterable, ignored_indices):
     return [v for i, v in enumerate(iterable) if i not in ignored_indices]
 
+def flatten_seq(seq):
+    "Flatten a nested sequence into a list"
+    return list(itertools.chain(*seq))
+
 # Basic reimplementation of typing.get_type_hints for Python versions that
 # do not have a typing module available, and also avoids creating Optional[]
 # when the parameter has a None default value.
@@ -410,8 +414,12 @@ def import_file(python_src, module_name=None, is_package=False):
     importlib.invalidate_caches()
     return module
 
-def flatten_nested_seq(seq):
-    return list(itertools.chain.from_iterable(seq))
+def flatten_nested_seq(seq, levels=1):
+    if levels == 0:
+        return seq
+    else:
+        seq = list(itertools.chain.from_iterable(seq))
+        return flatten_nested_seq(seq, levels=levels - 1)
 
 def load_serial_from_db(db, uuid_seq=None, type_pattern_seq=None):
 
@@ -437,7 +445,7 @@ def load_serial_from_db(db, uuid_seq=None, type_pattern_seq=None):
         def predicate(serial):
             return uuid_predicate(serial) and type_pattern_predicate(serial)
 
-    return db.obj_store.get_by_predicate(predicate)
+    return db.get_by_predicate(predicate, flatten=False)
 
 def match_base_cls(cls, pattern_list):
     # Match on the name of the class of the object and all its base classes
