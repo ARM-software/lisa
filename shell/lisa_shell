@@ -380,7 +380,6 @@ function lisa-test {
 function lisa-wltest-init {
     export WLTEST_HOME="$LISA_HOME/tools/wltests"
     export WA_USER_DIRECTORY="$LISA_HOME/tools/wa_user_directory"
-    lisa-venv-activate
 
     # Check that the environment is properly configured
     if [[ -z "$ANDROID_HOME" ]]; then
