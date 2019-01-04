@@ -279,8 +279,8 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True):
         with (output_dir/'UUID').open('wt') as f:
             f.write(combined_uuid+'\n')
 
-    merged_db = engine.StorageDB.merge(
-        engine.StorageDB.from_path(path)
+    merged_db = engine.ValueDB.merge(
+        engine.ValueDB.from_path(path)
         for path in db_path_list
     )
     merged_db.to_path(merged_db_path)
@@ -875,7 +875,7 @@ def do_run(args, parser, run_parser, argv):
             testcase_list, hidden_callable_set,
         )
     )
-    db = engine.StorageDB(obj_store)
+    db = engine.ValueDB(obj_store)
 
     db_path = artifact_dir/DB_FILENAME
     db.to_path(db_path)

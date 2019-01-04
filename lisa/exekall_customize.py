@@ -35,7 +35,7 @@ from lisa.tests.kernel.test_bundle import TestBundle, Result, ResultBundle, Cann
 from lisa.tests.kernel.scheduler.load_tracking import FreqInvarianceItem
 
 from exekall.utils import info, get_name, get_mro
-from exekall.engine import ExprData, Consumer, PrebuiltOperator, NoValue, StorageDB
+from exekall.engine import ExprData, Consumer, PrebuiltOperator, NoValue, ValueDB
 from exekall.customization import AdaptorBase
 
 class ExekallArtifactPath(ArtifactPath):
@@ -150,7 +150,7 @@ class LISAAdaptor(AdaptorBase):
         # This will relocate ArtifactPath instances to the new absolute path of
         # the results folder, in case it has been moved to another place
         artifact_dir = Path(db_path).parent.resolve()
-        db = StorageDB.from_path(db_path, *args, **kwargs)
+        db = ValueDB.from_path(db_path, *args, **kwargs)
 
         # Relocate ArtifactPath embeded in objects so they will always
         # contain an absolute path that adapts to the local filesystem

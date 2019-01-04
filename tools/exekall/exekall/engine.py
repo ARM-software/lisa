@@ -74,7 +74,7 @@ class IndentationManager:
     def __str__(self):
         return str(self.style) * self.level
 
-class StorageDB:
+class ValueDB:
     def __init__(self, obj_store):
         self.obj_store = obj_store
 
@@ -105,7 +105,7 @@ class StorageDB:
             pickle.dump(self, f)
 
     # Having it there shortens the output of the generated scripts and makes
-    # them more readable while avoiding to expose to much of the StorageDB
+    # them more readable while avoiding to expose to much of the ValueDB
     # internals
     def by_uuid(self, *args, **kwargs):
         return self.obj_store.by_uuid(*args, **kwargs)
@@ -718,7 +718,7 @@ class Expression:
         # Get the name of the customized db_loader
         if db_loader is None:
             db_loader_name = '{cls_name}.from_path'.format(
-                cls_name=utils.get_name(StorageDB, full_qual=True),
+                cls_name=utils.get_name(ValueDB, full_qual=True),
             )
         else:
             module_name_set.add(inspect.getmodule(db_loader).__name__)
@@ -750,7 +750,7 @@ class Expression:
         header += '\n\n'
 
         # If there is no ExprValue referenced by that script, we don't need
-        # to access any StorageDB
+        # to access any ValueDB
         if expr_val_set:
             if db_relative_to is not None:
                 db_relative_to = ', relative_to='+db_relative_to

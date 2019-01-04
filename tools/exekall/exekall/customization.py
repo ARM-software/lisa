@@ -18,7 +18,7 @@
 
 import numbers
 
-from exekall.engine import NoValue, StorageDB
+from exekall.engine import NoValue, ValueDB
 from exekall.utils import out, get_name
 
 class AdaptorBase:
@@ -73,7 +73,7 @@ class AdaptorBase:
         return utils.get_class_from_name(goal, sys.modules)
 
     def load_db(self, db_path):
-        return StorageDB.from_path(db_path)
+        return ValueDB.from_path(db_path)
 
     def finalize_expr(self, expr):
         pass
