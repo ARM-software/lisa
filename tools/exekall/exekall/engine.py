@@ -27,6 +27,7 @@ import pathlib
 import contextlib
 import pickle
 import pprint
+import pickletools
 
 import exekall._utils as utils
 
@@ -75,6 +76,10 @@ class IndentationManager:
         return str(self.style) * self.level
 
 class ValueDB:
+    # Version 4 is available since Python 3.4 and improves a bit loading and
+    # dumping speed.
+    PICKLE_PROTOCOL = 4
+
     def __init__(self, serial_seq_list):
         self.serial_seq_list = serial_seq_list
 
@@ -96,14 +101,35 @@ class ValueDB:
             path = pathlib.Path(relative_to, path)
 
         with lzma.open(str(path), 'rb') as f:
-            db = pickle.load(f)
+            # Disabling garbage collection while loading result in significant
+            # speed improvement, since it creates a lot of new objects in a
+            # very short amount of time.
+            with utils.disable_gc():
+                db = pickle.load(f)
         assert isinstance(db, cls)
 
         return db
 
-    def to_path(self, path):
+    def to_path(self, path, optimize=True):
+        """
+        Write the DB to the given file.
+
+        :param path: path to file to write the DB into
+        :type path: pathlib.Path or str
+
+        :param optimize: Optimize the representation of the DB. This may
+            increase the dump time, but should speed-up loading/file size.
+        :type optimize: bool
+        """
+        if optimize:
+            bytes_ = pickle.dumps(self, protocol=self.PICKLE_PROTOCOL)
+            bytes_ = pickletools.optimize(bytes_)
+            dumper = lambda f: f.write(bytes_)
+        else:
+            dumper = lambda f: pickle.dump(self, f, protocol=self.PICKLE_PROTOCOL)
+
         with lzma.open(str(path), 'wb') as f:
-            pickle.dump(self, f)
+            dumper(f)
 
     # Since the content of the cache is not serialized, the maps will be
     # regenerated when the object is restored.

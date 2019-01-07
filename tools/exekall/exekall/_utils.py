@@ -21,6 +21,7 @@ import uuid
 import inspect
 import functools
 import fnmatch
+import gc
 import collections
 import contextlib
 import importlib
@@ -499,4 +500,22 @@ def _get_recursive_module_set(module, module_set, package_set):
         ):
             _get_recursive_module_set(imported_module, module_set, package_set)
 
+
+@contextlib.contextmanager
+def disable_gc():
+    """
+    Context manager to disable garbage collection.
+
+    This can result in significant speed-up in code creating a lot of objects,
+    like ``pickle.load()``.
+    """
+    if not gc.isenabled():
+        yield
+        return
+
+    gc.disable()
+    try:
+        yield
+    finally:
+        gc.enable()
 
