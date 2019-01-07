@@ -30,6 +30,8 @@ import pathlib
 import shutil
 import sys
 import glob
+import subprocess
+import tempfile
 
 from exekall.customization import AdaptorBase
 import exekall.engine as engine
@@ -742,8 +744,30 @@ def do_run(args, parser, run_parser, argv):
             )) + '\n\n')
             f.write(testcase.pretty_structure())
 
+        graphviz = testcase.graphviz_structure(hidden_callable_set=hidden_callable_set)
+        with tempfile.NamedTemporaryFile('wt') as f:
+            f.write(graphviz)
+            f.flush()
+            try:
+                svg = subprocess.check_output(
+                    ['dot', f.name, '-Tsvg'],
+                    stderr=subprocess.DEVNULL,
+                )
+            # If "dot" is not installed
+            except FileNotFoundError:
+                svg = ''
+
+        if svg:
+            with (testcase_artifact_dir/'STRUCTURE.svg').open('wb') as f:
+                f.write(svg)
+        else:
+            with (testcase_artifact_dir/'STRUCTURE.dot').open('wt', encoding='utf-8') as f:
+                f.write(graphviz)
+
+
         with (testcase_artifact_dir/'TESTCASE_TEMPLATE.py').open(
-                'wt', encoding='utf-8') as f:
+            'wt', encoding='utf-8'
+        ) as f:
             f.write(
                 testcase.get_script(
                     prefix = 'testcase',

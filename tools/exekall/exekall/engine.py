@@ -526,8 +526,7 @@ class Expression:
 
         out = '{op_name} ({value_type_name})'.format(
             op_name = op_name,
-            value_type_name = utils.get_name(self.op.value_type, full_qual=full_qual)
-,
+            value_type_name = utils.get_name(self.op.value_type, full_qual=full_qual),
         )
         if self.param_map:
             out += ':\n'+ indent_str + ('\n'+indent_str).join(
@@ -538,6 +537,60 @@ class Expression:
                 for param, desc in self.param_map.items()
             )
         return out
+
+    def graphviz_structure(self, full_qual=True, hidden_callable_set=None):
+        return self._graphviz_structure(full_qual, hidden_callable_set,
+            level=0, visited=set()
+        )
+
+    def _graphviz_structure(self, full_qual, hidden_callable_set, level, visited):
+        if self in visited:
+            return ''
+        else:
+            visited.add(self)
+
+        if isinstance(self.op, PrebuiltOperator):
+            op_name = '<provided>'
+        else:
+            op_name = self.op.get_name(full_qual=True)
+
+        # Use the Python id as it is guaranteed to be unique during the lifetime of
+        # the object, so it is a good candidate to refer to a node
+        uid = id(self)
+
+        out = ['"{uid}" [label="{op_name}\ntype:{value_type_name}"]'.format(
+            uid=uid,
+            op_name=op_name,
+            value_type_name=utils.get_name(self.op.value_type, full_qual=full_qual),
+        )]
+        if self.param_map:
+            for param, param_expr in self.param_map.items():
+                out.append(
+                    '{param_uid} -> {uid} [label="{param}"]'.format(
+                        param_uid=id(param_expr),
+                        uid=uid,
+                        param=param,
+                    )
+                )
+
+                out.append(
+                    param_expr._graphviz_structure(
+                        full_qual=full_qual,
+                        hidden_callable_set=hidden_callable_set,
+                        level=level+1,
+                        visited=visited,
+                    )
+                )
+
+        if level == 0:
+            title = 'Structure of ' + take_first(self.get_id(
+                qual=False,
+                hidden_callable_set=hidden_callable_set,
+            ))
+            node_out = 'digraph structure {{\n{}\nlabel="' + title + '"\n}}'
+        else:
+            node_out = '{}'
+        return node_out.format(';\n'.join(out))
 
     def get_failed_expr_vals(self):
         for expr_val in self.get_all_vals():
