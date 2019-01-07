@@ -1744,7 +1744,7 @@ def any_value_is_NoValue(value_list):
         for expr_val in value_list
     )
 
-class SerializableExprValue:
+class SerializableExprValue(collections.abc.Mapping):
     def __init__(self, expr_val, serialized_map, hidden_callable_set=None):
         self.value = expr_val.value if utils.is_serializable(expr_val.value) else NoValue
         self.excep = expr_val.excep if utils.is_serializable(expr_val.excep) else NoValue
@@ -1795,6 +1795,26 @@ class SerializableExprValue:
 
         for parent in self.param_expr_val_map.values():
             parent._get_parent_by_predicate(predicate, parent_set)
+
+    def __eq__(self, other):
+        return self is other
+
+    def __hash__(self):
+        # consistent with definition of __eq__
+        return id(self)
+
+    def __getitem__(self, k):
+        if k == 'return':
+            return self.value
+        else:
+            return self.param_expr_val_map[k]
+
+    def __len__(self):
+        # account for 'return'
+        return len(self.param_expr_val_map) + 1
+
+    def __iter__(self):
+        return itertools.chain(self.param_expr_val_map.keys(), ['return'])
 
 class ExprValue:
     def __init__(self, expr, param_expr_val_map,
