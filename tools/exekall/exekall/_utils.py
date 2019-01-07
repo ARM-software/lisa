@@ -422,16 +422,16 @@ def flatten_nested_seq(seq, levels=1):
         seq = list(itertools.chain.from_iterable(seq))
         return flatten_nested_seq(seq, levels=levels - 1)
 
-def load_serial_from_db(db, uuid_seq=None, type_pattern_seq=None):
+def get_froz_val_seq_set(db, uuid_seq=None, type_pattern_seq=None):
 
-    def uuid_predicate(serial):
+    def uuid_predicate(froz_val):
         return (
-            serial.value_uuid in uuid_seq
-            or serial.excep_uuid in uuid_seq
+            froz_val.value_uuid in uuid_seq
+            or froz_val.excep_uuid in uuid_seq
         )
 
-    def type_pattern_predicate(serial):
-        return match_base_cls(type(serial.value), type_pattern_seq)
+    def type_pattern_predicate(froz_val):
+        return match_base_cls(type(froz_val.value), type_pattern_seq)
 
     if type_pattern_seq and not uuid_seq:
         predicate = type_pattern_predicate
@@ -440,11 +440,11 @@ def load_serial_from_db(db, uuid_seq=None, type_pattern_seq=None):
         predicate = uuid_predicate
 
     elif not uuid_seq and not type_pattern_seq:
-        predicate = lambda serial: True
+        predicate = lambda froz_val: True
 
     else:
-        def predicate(serial):
-            return uuid_predicate(serial) and type_pattern_predicate(serial)
+        def predicate(froz_val):
+            return uuid_predicate(froz_val) and type_pattern_predicate(froz_val)
 
     return db.get_by_predicate(predicate, flatten=False)
 

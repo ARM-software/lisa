@@ -384,74 +384,74 @@ def do_run(args, parser, run_parser, argv):
             )
         )
 
-        serial_res_set = set()
+        froz_val_seq_set = set()
         if load_all_uuid:
-            serial_res_set.update(
-                utils.load_serial_from_db(db, None, load_db_pattern_list)
+            froz_val_seq_set.update(
+                utils.get_froz_val_seq_set(db, None, load_db_pattern_list)
             )
         elif load_db_uuid_list:
-            serial_res_set.update(
-                utils.load_serial_from_db(db, load_db_uuid_list,
+            froz_val_seq_set.update(
+                utils.get_froz_val_seq_set(db, load_db_uuid_list,
                 load_db_pattern_list
             ))
         elif load_db_uuid_args:
-            # Get the serial value we are interested in
-            serial_list = utils.flatten_nested_seq(
-                utils.load_serial_from_db(db, [load_db_uuid_args],
+            # Get the froz_val value we are interested in
+            froz_val_list = utils.flatten_nested_seq(
+                utils.get_froz_val_seq_set(db, [load_db_uuid_args],
                 load_db_pattern_list
             ))
-            for serial in serial_list:
+            for froz_val in froz_val_list:
                 # Get all the UUIDs of its parameters
                 param_uuid_list = [
-                    param_serial.value_uuid
-                    for param_serial in serial.param_expr_val_map.values()
+                    param_froz_val.value_uuid
+                    for param_froz_val in froz_val.param_expr_val_map.values()
                 ]
 
-                serial_res_set.update(
-                        utils.load_serial_from_db(db, param_uuid_list,
+                froz_val_seq_set.update(
+                        utils.get_froz_val_seq_set(db, param_uuid_list,
                         load_db_pattern_list
                 ))
 
-        # Otherwise, reload all the root serial values
+        # Otherwise, reload all the root froz_val values
         else:
-            serial_res_set.update(
+            froz_val_seq_set.update(
                 frozenset(l)
-                for l in db.serial_seq_list
+                for l in db.froz_val_seq_list
             )
 
         # Remove duplicates accross sets
-        loaded_serial = set()
-        serial_res_set_ = set()
-        for serial_res in serial_res_set:
-            serial_res = frozenset(serial_res - loaded_serial)
-            loaded_serial.update(serial_res)
-            if serial_res:
-                serial_res_set_.add(serial_res)
-        serial_res_set = serial_res_set_
+        loaded_froz_val = set()
+        froz_val_seq_set_ = set()
+        for froz_val_seq in froz_val_seq_set:
+            froz_val_seq = frozenset(froz_val_seq - loaded_froz_val)
+            loaded_froz_val.update(froz_val_seq)
+            if froz_val_seq:
+                froz_val_seq_set_.add(froz_val_seq)
+        froz_val_seq_set = froz_val_seq_set_
 
         # Build the list of PrebuiltOperator that will inject the loaded values
         # into the tests
         prebuilt_op_pool_list = list()
-        for serial_res in serial_res_set:
-            serial_list = [
-                serial for serial in serial_res
-                if serial.value is not NoValue
+        for froz_val_seq in froz_val_seq_set:
+            froz_val_list = [
+                froz_val for froz_val in froz_val_seq
+                if froz_val.value is not NoValue
             ]
-            if not serial_list:
+            if not froz_val_list:
                 continue
 
-            def key(serial):
+            def key(froz_val):
                 # Since no two sub-expression is allowed to compute values of a
                 # given type, it is safe to assume that grouping by the
                 # non-tagged ID will group together all values of compatible
                 # types into one PrebuiltOperator per root Expression.
-                return serial.get_id(full_qual=True, with_tags=False)
+                return froz_val.get_id(full_qual=True, with_tags=False)
 
-            for full_id, group in itertools.groupby(serial_list, key=key):
-                serial_list = list(group)
+            for full_id, group in itertools.groupby(froz_val_list, key=key):
+                froz_val_list = list(group)
 
-                type_ = type(serial_list[0].value)
-                id_ = serial_list[0].get_id(
+                type_ = type(froz_val_list[0].value)
+                id_ = froz_val_list[0].get_id(
                     full_qual=False,
                     qual=False,
                     # Do not include the tags to avoid having them displayed
@@ -461,7 +461,7 @@ def do_run(args, parser, run_parser, argv):
                 )
                 prebuilt_op_pool_list.append(
                     engine.PrebuiltOperator(
-                        type_, serial_list, id_=id_,
+                        type_, froz_val_list, id_=id_,
                         non_reusable_type_set=non_reusable_type_set,
                         tags_getter=adaptor.get_tags,
                     ))
@@ -889,8 +889,8 @@ def do_run(args, parser, run_parser, argv):
             write_uuid(computed_expr_val_set, f)
 
     db = engine.ValueDB(
-        engine.Expression.get_all_serializable_vals(
-            testcase_list, hidden_callable_set,
+        engine.FrozenExprValSeq.from_expr_list(
+            testcase_list, hidden_callable_set=hidden_callable_set
         )
     )
 
