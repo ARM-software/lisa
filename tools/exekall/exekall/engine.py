@@ -50,6 +50,12 @@ class _NoValueType:
             cls._instance = obj
             return obj
 
+    def __eq__(self, other):
+        return isinstance(other, _NoValueType)
+
+    def __hash__(self):
+        return 0
+
     def __bool__(self):
         return False
 
@@ -89,6 +95,49 @@ class ValueDB:
             db.serial_seq_list
             for db in db_seq
         )))
+
+        # We now want to avoid storing values that share the same value or
+        # excep UUID, since they are duplicates of each-other.
+
+        # First pass: find all serial values corresponding to a given UUID
+        uuid_map = {}
+        def update_uuid_map(serial_val):
+            for uuid_ in (serial_val.value_uuid, serial_val.excep_uuid):
+                uuid_map.setdefault(uuid_, set()).add(serial_val)
+            return serial_val
+        cls._serial_val_dfs(serial_seq_list, update_uuid_map)
+
+        # Make sure no deduplication will occur on None, as it is used as a
+        # marker when no exception was raised or when no value was available.
+        uuid_map[None] = set()
+
+        # Second pass: only keep one serial value for each UUID
+        def rewrite_graph(serial_val):
+            candidates = set()
+            for uuid_ in (serial_val.value_uuid, serial_val.excep_uuid):
+                candidates.update(uuid_map[uuid_])
+
+            # Only one candidate, nothing to do
+            candidates = [
+                serial_val
+                for serial_val in candidates
+                # We discard candidates that have no parameters, as they
+                # contain less information than the ones that do. This is
+                # typically the case for PrebuiltOperator values
+                if serial_val.param_expr_val_map
+            ]
+
+            # At this point, there should be no more than one "original" value,
+            # the other candidates were just values of PrebuiltOperator
+            assert len(candidates) <= 1
+
+            if candidates:
+                return candidates[0]
+            # If there was no better candidate, just return the initial one
+            else:
+                return serial_val
+
+        serial_seq_list = cls._serial_val_dfs(serial_seq_list, rewrite_graph)
 
         return cls(serial_seq_list)
 
@@ -146,19 +195,32 @@ class ValueDB:
                 uuid_value_map[uuid_] = val
                 id_uuid_map[id(val)] = uuid_
 
-        self._serial_val_dfs(update_map)
+            return serial_val
+
+        self._serial_val_dfs(self.serial_seq_list, update_map)
 
         return (uuid_value_map, id_uuid_map)
 
-    def _serial_val_dfs(self, callback):
-        for serial_seq in self.serial_seq_list:
+    @classmethod
+    def _serial_val_dfs(cls, serial_seq_list, callback):
+        updated_serial_seq_list = []
+        for serial_seq in serial_seq_list:
+            updated_serial_seq = []
             for serial_val in serial_seq:
-                self._do_serial_val_dfs(serial_val, callback)
+                updated_serial_seq.append(
+                    cls._do_serial_val_dfs(serial_val, callback)
+                )
+            updated_serial_seq_list.append(updated_serial_seq)
+        return updated_serial_seq_list
 
+    @classmethod
     def _do_serial_val_dfs(cls, serial_val, callback):
-        callback(serial_val)
-        for serial_val in serial_val.param_expr_val_map.values():
-            cls._do_serial_val_dfs(serial_val, callback)
+        updated_serial_val = callback(serial_val)
+        updated_serial_val.param_expr_val_map = {
+            param: cls._do_serial_val_dfs(param_serial_val, callback)
+            for param, param_serial_val in updated_serial_val.param_expr_val_map.items()
+        }
+        return updated_serial_val
 
     def get_by_uuid(self, uuid):
         uuid_value_map, _ = self._get_indexes()
