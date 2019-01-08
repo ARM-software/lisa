@@ -37,7 +37,7 @@ from exekall.customization import AdaptorBase
 import exekall.engine as engine
 from exekall.engine import NoValue
 import exekall.utils as utils
-from exekall.utils import take_first, error, warn, debug, info, out
+from exekall.utils import error, warn, debug, info, out
 
 DB_FILENAME = 'VALUE_DB.pickle.xz'
 
@@ -635,18 +635,18 @@ def do_run(args, parser, run_parser, argv):
 
     # Build the list of Expression that can be constructed from the set of
     # callables
-    testcase_list = list(engine.ExpressionWrapper.build_expr_list(
+    testcase_list = list(engine.Expression.build_expr_list(
         root_op_list, op_map, cls_map,
         non_produced_handler = handle_non_produced,
         cycle_handler = handle_cycle,
     ))
     # First, sort with the fully qualified ID so we have the strongest stability
     # possible from one run to another
-    testcase_list.sort(key=lambda expr: take_first(expr.get_id(full_qual=True, with_tags=True)))
+    testcase_list.sort(key=lambda expr: expr.get_id(full_qual=True, with_tags=True))
     # Then sort again according to what will be displayed. Since it is a stable
     # sort, it will keep a stable order for IDs that look the same but actually
     # differ in their hidden part
-    testcase_list.sort(key=lambda expr: take_first(expr.get_id(qual=False, with_tags=True)))
+    testcase_list.sort(key=lambda expr: expr.get_id(qual=False, with_tags=True))
 
     # Only keep the Expression where the outermost (root) operator is defined
     # in one of the files that were explicitely specified on the command line.
@@ -659,12 +659,12 @@ def do_run(args, parser, run_parser, argv):
     if user_filter:
         testcase_list = [
             testcase for testcase in testcase_list
-            if utils.match_name(take_first(testcase.get_id(
+            if utils.match_name(testcase.get_id(
                 # These options need to match what --dry-run gives (unless
                 # verbose is used)
                 full_qual=False,
                 qual=False,
-                hidden_callable_set=hidden_callable_set)), [user_filter])
+                hidden_callable_set=hidden_callable_set), [user_filter])
         ]
 
     if not testcase_list:
@@ -673,11 +673,11 @@ def do_run(args, parser, run_parser, argv):
 
     out('The following expressions will be executed:\n')
     for testcase in testcase_list:
-        out(take_first(testcase.get_id(
+        out(testcase.get_id(
             full_qual=bool(verbose),
             qual=bool(verbose),
             hidden_callable_set=hidden_callable_set
-        )))
+        ))
         if verbose >= 2:
             out(testcase.get_structure() + '\n')
 
@@ -694,15 +694,15 @@ def do_run(args, parser, run_parser, argv):
 
     # Apply the common subexpression elimination before trying to create the
     # template scripts
-    executor_map = engine.Expression.get_executor_map(testcase_list)
+    testcase_list = engine.ComputableExpression.from_expr_list(testcase_list)
 
-    for testcase in executor_map.keys():
-        testcase_short_id = take_first(testcase.get_id(
+    for testcase in testcase_list:
+        testcase_short_id = testcase.get_id(
             hidden_callable_set=hidden_callable_set,
             with_tags=False,
             full_qual=False,
             qual=False,
-        ))
+        )
 
         data = testcase.data
         data['id'] = testcase_short_id
@@ -727,12 +727,12 @@ def do_run(args, parser, run_parser, argv):
             f.write(testcase_short_id+'\n')
 
         with (testcase_artifact_dir/'STRUCTURE').open('wt') as f:
-            f.write(take_first(testcase.get_id(
+            f.write(testcase.get_id(
                 hidden_callable_set=hidden_callable_set,
                 with_tags=False,
                 full_qual=True,
-            )) + '\n\n')
-            f.write(testcase.get_structure())
+            ) + '\n\n')
+            f.write(testcase.get_structure() + '\n')
 
         graphviz = testcase.get_structure(graphviz=True)
         with tempfile.NamedTemporaryFile('wt') as f:
@@ -771,18 +771,18 @@ def do_run(args, parser, run_parser, argv):
         return 0
 
     result_map = collections.defaultdict(list)
-    for testcase, executor in executor_map.items():
+    for testcase in testcase_list:
         exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}\nUUID: {uuid_}'.format(
-                short_id=take_first(testcase.get_id(
+                short_id=testcase.get_id(
                     hidden_callable_set=hidden_callable_set,
                     full_qual=False,
                     qual=False,
-                )),
+                ),
 
-                full_id=take_first(testcase.get_id(
+                full_id=testcase.get_id(
                     hidden_callable_set=hidden_callable_set if not verbose else None,
                     full_qual=True,
-                )),
+                ),
                 folder=testcase.data['testcase_artifact_dir'],
                 uuid_=testcase.uuid
         ).replace('\n', '\n# ')
@@ -836,7 +836,8 @@ def do_run(args, parser, run_parser, argv):
                 uuid = get_uuid_str(expr_val),
             ))
 
-        executor = executor(log_expr_val)
+        # This returns an iterator
+        executor = testcase.execute(log_expr_val)
 
         out('')
         for result in utils.iterate_cb(executor, pre_line, flush_std_streams):

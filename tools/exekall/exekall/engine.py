@@ -308,218 +308,46 @@ class ScriptValueDB:
 class CycleError(Exception):
     pass
 
-class ExpressionWrapper:
-    def __init__(self, expr):
-        self.expr = expr
-
-    def __getattr__(self, attr):
-        return getattr(self.expr, attr)
-
-    @classmethod
-    def build_expr_list(cls, result_op_seq, op_map, cls_map,
-            non_produced_handler='raise', cycle_handler='raise'):
-        op_map = copy.copy(op_map)
-        cls_map = {
-            cls: compat_cls_set
-            for cls, compat_cls_set in cls_map.items()
-            # If there is at least one compatible subclass that is produced, we
-            # keep it, otherwise it will mislead _build_expr into thinking the
-            # class can be built where in fact it cannot
-            if compat_cls_set & op_map.keys()
-        }
-        internal_cls_set = {Consumer, ExprData}
-        for internal_cls in internal_cls_set:
-            op_map[internal_cls] = {
-                Operator(internal_cls, non_reusable_type_set=internal_cls_set)
-            }
-            cls_map[internal_cls] = [internal_cls]
-
-        expr_list = list()
-        for result_op in result_op_seq:
-            expr_gen = cls._build_expr(result_op, op_map, cls_map,
-                op_stack = [],
-                non_produced_handler=non_produced_handler,
-                cycle_handler=cycle_handler,
-            )
-            for expr in expr_gen:
-                if expr.validate_expr(op_map):
-                    expr_list.append(expr)
-
-        return expr_list
-
-    @classmethod
-    def _build_expr(cls, op, op_map, cls_map, op_stack, non_produced_handler, cycle_handler):
-        new_op_stack = [op] + op_stack
-        # We detected a cyclic dependency
-        if op in op_stack:
-            if cycle_handler == 'ignore':
-                return
-            elif callable(cycle_handler):
-                cycle_handler(tuple(op.callable_ for op in new_op_stack))
-                return
-            elif cycle_handler == 'raise':
-                raise CycleError('Cyclic dependency found: {path}'.format(
-                    path = ' -> '.join(
-                        op.name for op in new_op_stack
-                    )
-                ))
-            else:
-                raise ValueError('Invalid cycle_handler')
-
-        op_stack = new_op_stack
-
-        param_map, produced = op.get_prototype()
-        if param_map:
-            param_list, cls_list = zip(*param_map.items())
-        # When no parameter is needed
-        else:
-            yield ExpressionWrapper(Expression(op, OrderedDict()))
-            return
-
-        # Build all the possible combinations of types suitable as parameters
-        cls_combis = [cls_map.get(cls, list()) for cls in cls_list]
-
-        # Only keep the classes for "self" on which the method can be applied
-        if op.is_method:
-            cls_combis[0] = [
-                cls for cls in cls_combis[0]
-                # If the method with the same name would resolve to "op", then
-                # we keep this class as a candidate for "self", otherwise we
-                # discard it
-                if getattr(cls, op.callable_.__name__, None) is op.callable_
-            ]
-
-        # Check that some produced classes are available for every parameter
-        ignored_indices = set()
-        for param, wanted_cls, available_cls in zip(param_list, cls_list, cls_combis):
-            if not available_cls:
-                # If that was an optional parameter, just ignore it without
-                # throwing an exception since it has a default value
-                if param in op.optional_param:
-                    ignored_indices.add(param_list.index(param))
-                else:
-                    if non_produced_handler == 'ignore':
-                        return
-                    elif callable(non_produced_handler):
-                        non_produced_handler(wanted_cls.__qualname__, op.name, param,
-                            tuple(op.resolved_callable for op in op_stack)
-                        )
-                        return
-                    elif non_produced_handler == 'raise':
-                        raise NoOperatorError('No operator can produce instances of {cls} needed for {op} (parameter "{param}" along path {path})'.format(
-                            cls = wanted_cls.__qualname__,
-                            op = op.name,
-                            param = param,
-                            path = ' -> '.join(
-                                op.name for op in op_stack
-                            )
-                        ))
-                    else:
-                        raise ValueError('Invalid non_produced_handler')
-
-        param_list = utils.remove_indices(param_list, ignored_indices)
-        cls_combis = utils.remove_indices(cls_combis, ignored_indices)
-
-        param_list_len = len(param_list)
-
-        # For all possible combinations of types
-        for cls_combi in itertools.product(*cls_combis):
-            cls_combi = list(cls_combi)
-
-            # Some classes may not be produced, but another combination
-            # with containing a subclass of it may actually be produced so we can
-            # just ignore that one.
-            op_combis = [
-                op_map[cls] for cls in cls_combi
-                if cls in op_map
-            ]
-
-            # Build all the possible combinations of operators returning these
-            # types
-            for op_combi in itertools.product(*op_combis):
-                op_combi = list(op_combi)
-
-                # Get all the possible ways of calling these operators
-                param_combis = itertools.product(*(cls._build_expr(
-                        param_op, op_map, cls_map,
-                        op_stack, non_produced_handler, cycle_handler,
-                    ) for param_op in op_combi
-                ))
-
-                for param_combi in param_combis:
-                    param_map = OrderedDict(zip(param_list, param_combi))
-
-                    # If all parameters can be built, carry on
-                    if len(param_map) == param_list_len:
-                        yield ExpressionWrapper(
-                            Expression(op, param_map)
-                        )
-
-class Expression:
-    def __init__(self, op, param_map, data=None):
+class ExpressionBase:
+    def __init__(self, op, param_map):
         self.op = op
         # Map of parameters to other Expression
         self.param_map = param_map
-        self.data = data if data is not None else dict()
-        self.data_uuid = utils.create_uuid()
-        self.uuid = utils.create_uuid()
 
-        self.discard_result()
+    @classmethod
+    def cse(cls, expr_list):
+        """
+        Apply a flavor of common subexpressions elimination to the
+        Expression.
+        """
 
-    def discard_result(self):
-        self.expr_val_seq_list = list()
-
-    def validate_expr(self, op_map):
-        type_map, valid = self._get_type_map()
-        if not valid:
-            return False
-
-        # Check that the Expression does not involve 2 classes that are compatible
-        cls_bags = [set(cls_list) for cls_list in op_map.values()]
-        cls_used = set(type_map.keys())
-        for cls1, cls2 in itertools.product(cls_used, repeat=2):
-            for cls_bag in cls_bags:
-                if cls1 in cls_bag and cls2 in cls_bag:
-                    return False
-
-        return True
-
-    def _get_type_map(self):
-        type_map = dict()
-        return (type_map, self._populate_type_map(type_map))
-
-    def _populate_type_map(self, type_map):
-        value_type = self.op.value_type
-        # If there was already an Expression producing that type, the Expression
-        # is not valid
-        found_callable = type_map.get(value_type)
-        if found_callable is not None and found_callable is not self.op.callable_:
-            return False
-        type_map[value_type] = self.op.callable_
-
-        for param_expr in self.param_map.values():
-            if not param_expr._populate_type_map(type_map):
-                return False
-        return True
-
-    def find_expr_val_seq_list(self, param_map):
-        def value_map(expr_val_map):
-            return OrderedDict(
-                # Extract the actual value from ExprVal
-                (param, expr_val.value)
-                for param, expr_val in expr_val_map.items()
-            )
-        param_map = value_map(param_map)
-
-        # Find the results that are matching the param_map
+        expr_map = {}
         return [
-            expr_val_seq
-            for expr_val_seq in self.expr_val_seq_list
-            # Check if param_map is a subset of the param_map
-            # of the ExprVal. That allows checking for reusable parameters
-            # only.
-            if param_map.items() <= value_map(expr_val_seq.param_map).items()
+            expr._cse(expr_map)
+            for expr in expr_list
         ]
+
+    def _cse(self, expr_map):
+        # Deep first
+        self.param_map = {
+            param: param_expr._cse(expr_map=expr_map)
+            for param, param_expr in self.param_map.items()
+        }
+
+        key = (
+            self.op.callable_,
+            # get a nested tuple sorted by param name with the shape:
+            # ((param, val), ...)
+            tuple(sorted(self.param_map.items(), key=lambda k_v: k_v[0]))
+        )
+
+        try:
+            return expr_map[key]
+        except KeyError:
+            # Otherwise register this ComputableExpression so no other duplicate
+            # will be used
+            expr_map[key] = self
+            return self
 
     def __repr__(self):
         return '<Expression of {name} at {id}>'.format(
@@ -570,9 +398,10 @@ class Expression:
         # the object, so it is a good candidate to refer to a node
         uid = id(self)
 
-        out = ['"{uid}" [label="{op_name}\ntype:{value_type_name}"]'.format(
+        out = ['{uid} [label="{op_name}{reusable}\ntype:{value_type_name}"]'.format(
             uid=uid,
             op_name=op_name,
+            reusable=' (reusable)' if self.op.reusable else '',
             value_type_name=utils.get_name(self.op.value_type, full_qual=full_qual),
         )]
         if self.param_map:
@@ -594,25 +423,21 @@ class Expression:
                 )
 
         if level == 0:
-            title = 'Structure of ' + take_first(self.get_id(qual=False))
+            title = 'Structure of ' + self.get_id(qual=False)
             node_out = 'digraph structure {{\n{}\nlabel="' + title + '"\n}}'
         else:
             node_out = '{}'
         return node_out.format(';\n'.join(out))
 
-    #TODO: align name
-    def get_all_vals(self):
-        for expr_val_seq in self.expr_val_seq_list:
-            yield from expr_val_seq.expr_val_list
 
-    #TODO: align name with Expressin.get_all_vals
-    def get_failed(self):
-        return set(flatten_seq(
-            expr_val.get_failed()
-            for expr_val in self.get_all_vals()
-        ))
+    def get_id(self, *args, marked_expr_val_set=None, **kwargs):
+        id_, marker = self._get_id(*args, **kwargs)
+        if marked_expr_val_set:
+            return '\n'.join((id_, marker))
+        else:
+            return id_
 
-    def get_id(self, *args, marked_expr_val_set=None, mark_excep=False, hidden_callable_set=None, **kwargs):
+    def _get_id(self, with_tags=True, full_qual=True, qual=True, expr_val=None, marked_expr_val_set=None, hidden_callable_set=None):
         if hidden_callable_set is None:
             hidden_callable_set = set()
 
@@ -620,59 +445,24 @@ class Expression:
         # to the ID. It is mostly an implementation detail.
         hidden_callable_set.update((Consumer, ExprData))
 
-        # Mark all the values that failed to be computed because of an
-        # exception
-        if mark_excep:
-            marked_expr_val_set = self.get_failed()
-
-        for id_, marker in self._get_id(
-                marked_expr_val_set=marked_expr_val_set, hidden_callable_set=hidden_callable_set,
-                *args, **kwargs
-            ):
-            if marked_expr_val_set:
-                yield '\n'.join((id_, marker))
-            else:
-                yield id_
-
-    def _get_id(self, with_tags=True, full_qual=True, qual=True, expr_val=None, marked_expr_val_set=None, hidden_callable_set=None):
-        # When asked about NoValue, it means the caller did not have any value
-        # computed for that parameter, but still wants an ID. Obviously, it
-        # cannot have any tag since there is no ExprVal available to begin
-        # with.
-        if expr_val is NoValue:
-            with_tags = False
-
-        # No specific value was asked for, so we will cover the IDs of all
-        # values
-        if expr_val is None or expr_val is NoValue:
-            def grouped_expr_val_list():
-                # Make sure we yield at least once even if no computed value
-                # is available, so _get_id() is called at least once
-                if (not self.expr_val_seq_list) or (not with_tags):
-                    yield (OrderedDict(), [])
-                else:
-                    for expr_val_seq in self.expr_val_seq_list:
-                        yield (expr_val_seq.param_map, expr_val_seq.expr_val_list)
-
+        if expr_val is None:
+            param_map = dict()
         # If we were asked about the ID of a specific value, make sure we
         # don't explore other paths that lead to different values
         else:
-            def grouped_expr_val_list():
-                # Only yield the ExprVal we are interested in
-                yield (expr_val.param_map, [expr_val])
+            param_map = expr_val.param_map
 
-        for param_map, expr_val_list in grouped_expr_val_list():
-            yield from self._get_id_internal(
-                param_map=param_map,
-                expr_val_list=expr_val_list,
-                with_tags=with_tags,
-                marked_expr_val_set=marked_expr_val_set,
-                hidden_callable_set=hidden_callable_set,
-                full_qual=full_qual,
-                qual=qual
-            )
+        return self._get_id_internal(
+            param_map=param_map,
+            expr_val=expr_val,
+            with_tags=with_tags,
+            marked_expr_val_set=marked_expr_val_set,
+            hidden_callable_set=hidden_callable_set,
+            full_qual=full_qual,
+            qual=qual
+        )
 
-    def _get_id_internal(self, param_map, expr_val_list, with_tags, marked_expr_val_set, hidden_callable_set, full_qual, qual):
+    def _get_id_internal(self, param_map, expr_val, with_tags, marked_expr_val_set, hidden_callable_set, full_qual, qual):
         separator = ':'
         marker_char = '^'
 
@@ -682,16 +472,16 @@ class Expression:
         # We only get the ID's of the parameter ExprVal that lead to the
         # ExprVal we are interested in
         param_id_map = OrderedDict(
-            (param, take_first(param_expr._get_id(
+            (param, param_expr._get_id(
                 with_tags = with_tags,
                 full_qual = full_qual,
                 qual = qual,
-                # Pass a NoValue when there is no value available, since
-                # None means all possible IDs (we just want one here).
-                expr_val = param_map.get(param, NoValue),
+                # Pass None when there is no value available, so we will get
+                # a non-tagged ID when there is no value computed
+                expr_val = param_map.get(param),
                 marked_expr_val_set = marked_expr_val_set,
                 hidden_callable_set = hidden_callable_set,
-            )))
+            ))
             for param, param_expr in self.param_map.items()
             if (
                 param_expr.op.callable_ not in hidden_callable_set
@@ -700,87 +490,79 @@ class Expression:
             )
         )
 
-        def tags_iter(expr_val_list):
-            if expr_val_list:
-                for expr_val in expr_val_list:
-                    if with_tags:
-                        tag = expr_val.format_tags()
-                    else:
-                        tag = ''
-                    yield (expr_val, tag)
-            # Yield at least once without any tag even if there is no computed
-            # value available
+        def get_tags(expr_val):
+            if expr_val is not None:
+                if with_tags:
+                    tag = expr_val.format_tags()
+                else:
+                    tag = ''
+                return tag
             else:
-                yield None, ''
+                return ''
 
         def get_marker_char(expr_val):
             return marker_char if expr_val in marked_expr_val_set else ' '
 
+        tag_str = get_tags(expr_val)
+
         # No parameter to worry about
         if not param_id_map:
-            for expr_val, tag_str in tags_iter(expr_val_list):
-                id_ = self.op.get_id(full_qual=full_qual, qual=qual) + tag_str
-                marker_str = get_marker_char(expr_val) * len(id_)
-                yield (id_, marker_str)
+            id_ = self.op.get_id(full_qual=full_qual, qual=qual) + tag_str
+            marker_str = get_marker_char(expr_val) * len(id_)
+            return (id_, marker_str)
 
-        # For all ExprVal we were asked about, we will yield an ID
+        # Recursively build an ID
         else:
-            for expr_val, tag_str in tags_iter(expr_val_list):
-                # Make a copy to be able to pop items from it
-                param_id_map = copy.copy(param_id_map)
+            # Make a copy to be able to pop items from it
+            param_id_map = copy.copy(param_id_map)
 
-                # Extract the first parameter to always use the prefix
-                # notation, i.e. its value preceding the ID of the current
-                # Expression
-                if param_id_map:
-                    param, (param_id, param_marker) = param_id_map.popitem(last=False)
-                else:
-                    param_id = ''
-                    param_marker = ''
+            # Extract the first parameter to always use the prefix
+            # notation, i.e. its value preceding the ID of the current
+            # Expression
+            param, (param_id, param_marker) = param_id_map.popitem(last=False)
 
-                if param_id:
-                    separator_spacing = ' ' * len(separator)
-                    param_str = param_id + separator
-                else:
-                    separator_spacing = ''
-                    param_str = ''
+            if param_id:
+                separator_spacing = ' ' * len(separator)
+                param_str = param_id + separator
+            else:
+                separator_spacing = ''
+                param_str = ''
 
-                op_str = '{op}{tags}'.format(
-                    op = self.op.get_id(full_qual=full_qual, qual=qual),
-                    tags = tag_str,
-                )
-                id_ = '{param_str}{op_str}'.format(
-                    param_str = param_str,
-                    op_str = op_str,
-                )
-                marker_str = '{param_marker}{separator}{op_marker}'.format(
-                    param_marker = param_marker,
-                    separator = separator_spacing,
-                    op_marker = len(op_str) * get_marker_char(expr_val)
-                )
+            op_str = '{op}{tags}'.format(
+                op = self.op.get_id(full_qual=full_qual, qual=qual),
+                tags = tag_str,
+            )
+            id_ = '{param_str}{op_str}'.format(
+                param_str = param_str,
+                op_str = op_str,
+            )
+            marker_str = '{param_marker}{separator}{op_marker}'.format(
+                param_marker = param_marker,
+                separator = separator_spacing,
+                op_marker = len(op_str) * get_marker_char(expr_val)
+            )
 
-                # If there are some remaining parameters, show them in
-                # parenthesis at the end of the ID
-                if param_id_map:
-                    param_str = '(' + ','.join(
-                        param + '=' + param_id
-                        for param, (param_id, param_marker)
-                        # Sort by parameter name to have a stable ID
-                        in param_id_map.items()
-                        if param_id
-                    ) + ')'
-                    id_ += param_str
-                    param_marker = ' '.join(
-                        ' ' * (len(param) + 1) + param_marker
-                        for param, (param_id, param_marker)
-                        # Sort by parameter name to have a stable ID
-                        in param_id_map.items()
-                        if param_id
-                    ) + ' '
+            # If there are some remaining parameters, show them in
+            # parenthesis at the end of the ID
+            if param_id_map:
+                param_str = '(' + ','.join(
+                    param + '=' + param_id
+                    for param, (param_id, param_marker)
+                    # Sort by parameter name to have a stable ID
+                    in param_id_map.items()
+                    if param_id
+                ) + ')'
+                id_ += param_str
+                param_marker = ' '.join(
+                    ' ' * (len(param) + 1) + param_marker
+                    for param, (param_id, param_marker)
+                    # Sort by parameter name to have a stable ID
+                    in param_id_map.items()
+                    if param_id
+                ) + ' '
 
-                    marker_str += ' ' + param_marker
-
-                yield (id_, marker_str)
+                marker_str += ' ' + param_marker
+            return (id_, marker_str)
 
     def get_script(self, *args, **kwargs):
         return self.get_all_script([self], *args, **kwargs)
@@ -811,10 +593,8 @@ class Expression:
         for i, expr in enumerate(expr_list):
             script += (
                 '#'*80 + '\n# Computed expressions:' +
-                ''.join(
-                    make_comment(id_)
-                    for id_ in expr.get_id(mark_excep=True, full_qual=False)
-                ) + '\n' +
+                make_comment(expr.get_id(mark_excep=True, full_qual=False))
+                + '\n' +
                 make_comment(expr.get_structure()) + '\n\n'
             )
             idt = IndentationManager(' '*4)
@@ -924,7 +704,7 @@ class Expression:
             reusable_outvar_map[self] = outvar
         return (outvar, script)
 
-    def _get_script_internal(self, reusable_outvar_map, prefix, script_db, module_name_set, idt, expr_val_set, consumer_expr_stack):
+    def _get_script_internal(self, reusable_outvar_map, prefix, script_db, module_name_set, idt, expr_val_set, consumer_expr_stack, expr_val_seq_list):
         def make_method_self_name(expr):
             return expr.op.value_type.__name__.replace('.', '')
 
@@ -1003,7 +783,7 @@ class Expression:
 
         # The parameter we are trying to compute cannot be computed and we will
         # just output a skeleton with a placeholder for the user to fill it
-        is_user_defined = isinstance(self.op, PrebuiltOperator) and not self.expr_val_seq_list
+        is_user_defined = isinstance(self.op, PrebuiltOperator) and not expr_val_seq_list
 
         # Consumer operator is special since we don't compute anything to
         # get its value, it is just the name of a function
@@ -1084,6 +864,7 @@ class Expression:
                 reusable_outvar_map, param_prefix, script_db, module_name_set, idt,
                 param_expr_val_set,
                 consumer_expr_stack = consumer_expr_stack + [self],
+                expr_val_seq_list=expr_val_seq_list,
             )
 
             snippet_list.append(param_out)
@@ -1117,10 +898,10 @@ class Expression:
         if (
             isinstance(self.op, PrebuiltOperator) and
                 (
-                    not self.expr_val_seq_list or
+                    not expr_val_seq_list or
                     (
-                        len(self.expr_val_seq_list) == 1 and
-                        len(self.expr_val_seq_list[0].expr_val_list) == 1
+                        len(expr_val_seq_list) == 1 and
+                        len(expr_val_seq_list[0].expr_val_list) == 1
                     )
                 )
         ):
@@ -1153,7 +934,7 @@ class Expression:
 
         script += '\n'
         script += make_comment('{id}{src_loc}'.format(
-            id = list(self.get_id(with_tags=False, full_qual=False))[0],
+            id = self.get_id(with_tags=False, full_qual=False),
             src_loc = '\n' + src_loc if src_loc else ''
         ), idt_str)
 
@@ -1166,7 +947,7 @@ class Expression:
             )
 
         # Dump the serialized value
-        for expr_val_seq in self.expr_val_seq_list:
+        for expr_val_seq in expr_val_seq_list:
             # Make a copy to allow modifying the parameter names
             param_map = copy.copy(expr_val_seq.param_map)
             expr_val_list = expr_val_seq.expr_val_list
@@ -1257,56 +1038,75 @@ class Expression:
 
         return outname, script
 
+
+class ComputableExpression(ExpressionBase):
+    def __init__(self, op, param_map, data=None):
+        self.uuid = utils.create_uuid()
+        self.expr_val_seq_list = list()
+        self.data = data if data is not None else ExprData()
+        super().__init__(op=op, param_map=param_map)
+
     @classmethod
-    def get_executor_map(cls, expr_wrapper_list):
-        # Pool of deduplicated Expression
-        expr_set = set()
-
-        # Prepare all the wrapped Expression for execution, so they can be
-        # deduplicated before being run
-        for expr_wrapper in expr_wrapper_list:
-            # The wrapped Expression could be deduplicated so we update it
-            expr_wrapper.expr = expr_wrapper.expr._prepare_exec(expr_set)
-
-        return {
-            expr_wrapper: expr_wrapper.expr.execute
-            for expr_wrapper in expr_wrapper_list
+    def from_expr(cls, expr, **kwargs):
+        param_map = {
+            param: cls.from_expr(param_expr)
+            for param, param_expr in expr.param_map.items()
         }
+        return cls(
+            op=expr.op,
+            param_map=param_map,
+            **kwargs,
+        )
 
     @classmethod
-    def execute_all(cls, expr_wrapper_list, *args, **kwargs):
-        executor_map = cls.get_executor_map(expr_wrapper_list)
+    def from_expr_list(cls, expr_list):
+        # Apply Common Subexpression Elimination to ExpressionBase before they
+        # are run, and then get a bound reference of "execute" that can be
+        # readily iterated over to get the results.
+        return cls.cse(
+            cls.from_expr(expr)
+            for expr in expr_list
+        )
 
-        for expr_wrapper, executor in executor_map.items():
-            for expr_val in executor(*args, **kwargs):
-                yield (expr_wrapper, expr_val)
+    #TODO: cleanup signature
+    def _get_script(self, *args, expr_val_seq_list=[], **kwargs):
+        expr_val_seq_list = self.expr_val_seq_list
+        return super()._get_script(*args, **kwargs, expr_val_seq_list=self.expr_val_seq_list)
 
-    def _prepare_exec(self, expr_set):
-        """Apply a flavor of common subexpressions elimination to the Expression
-        graph and cleanup results of previous runs.
+    def get_id(self, mark_excep=False, marked_expr_val_set=set(), **kwargs):
+        # Mark all the values that failed to be computed because of an
+        # exception
+        marked_expr_val_set = self.get_failed() if mark_excep else marked_expr_val_set
 
-        :return: return an updated copy of the Expression it is called on
-        """
-        # Make a copy so we don't modify the original Expression
-        new_expr = copy.copy(self)
-        new_expr.discard_result()
+        return super().get_id(
+            marked_expr_val_set=marked_expr_val_set,
+            **kwargs
+        )
 
-        for param, param_expr in list(new_expr.param_map.items()):
-            # Update the param map in case param_expr was deduplicated
-            new_expr.param_map[param] = param_expr._prepare_exec(expr_set)
+    def find_expr_val_seq_list(self, param_map):
+        def value_map(expr_val_map):
+            return OrderedDict(
+                # Extract the actual value from ExprVal
+                (param, expr_val.value)
+                for param, expr_val in expr_val_map.items()
+            )
+        param_map = value_map(param_map)
 
-        # Look for an existing Expression that has the same parameters so we
-        # don't add duplicates.
-        for replacement_expr in expr_set - {new_expr}:
-            if (
-                new_expr.op.callable_ is replacement_expr.op.callable_ and
-                new_expr.param_map == replacement_expr.param_map
-            ):
-                return replacement_expr
+        # Find the results that are matching the param_map
+        return [
+            expr_val_seq
+            for expr_val_seq in self.expr_val_seq_list
+            # Check if param_map is a subset of the param_map
+            # of the ExprVal. That allows checking for reusable parameters
+            # only.
+            if param_map.items() <= value_map(expr_val_seq.param_map).items()
+        ]
 
-        # Otherwise register this Expression so no other duplicate will be used
-        expr_set.add(new_expr)
-        return new_expr
+    @classmethod
+    def execute_all(cls, expr_list, *args, **kwargs):
+        for comp_expr in cls.from_expr_list(expr_list):
+            for expr_val in comp_expr.execute(*args, **kwargs):
+                yield (comp_expr, expr_val)
 
     def execute(self, post_compute_cb=None):
         return self._execute([], post_compute_cb)
@@ -1414,7 +1214,8 @@ class Expression:
 
             elif self.op.callable_ is ExprData:
                 root_expr = consumer_expr_stack[0]
-                iterated = [ ((root_expr.data, root_expr.data_uuid), (NoValue, None)) ]
+                expr_data = root_expr.data
+                iterated = [ ((expr_data, expr_data.uuid), (NoValue, None)) ]
 
             # Otherwise, we just call the operators with its parameters
             else:
@@ -1427,6 +1228,192 @@ class Expression:
             )
             self.expr_val_seq_list.append(expr_val_seq)
             yield from expr_val_seq.iter_expr_val()
+
+    #TODO: align name
+    def get_all_vals(self):
+        for expr_val_seq in self.expr_val_seq_list:
+            yield from expr_val_seq.expr_val_list
+
+    #TODO: align name with Expressin.get_all_vals
+    def get_failed(self):
+        return set(utils.flatten_seq(
+            expr_val.get_failed()
+            for expr_val in self.get_all_vals()
+        ))
+
+class Expression(ExpressionBase):
+    def validate(self, op_map):
+        type_map, valid = self._get_type_map()
+        if not valid:
+            return False
+
+        # Check that the Expression does not involve 2 classes that are
+        # compatible
+        cls_bags = [set(cls_list) for cls_list in op_map.values()]
+        cls_used = set(type_map.keys())
+        for cls1, cls2 in itertools.product(cls_used, repeat=2):
+            for cls_bag in cls_bags:
+                if cls1 in cls_bag and cls2 in cls_bag:
+                    return False
+
+        return True
+
+    def _get_type_map(self):
+        type_map = dict()
+        return (type_map, self._populate_type_map(type_map))
+
+    def _populate_type_map(self, type_map):
+        value_type = self.op.value_type
+        # If there was already an Expression producing that type, the Expression
+        # is not valid
+        found_callable = type_map.get(value_type)
+        if found_callable is not None and found_callable is not self.op.callable_:
+            return False
+        type_map[value_type] = self.op.callable_
+
+        for param_expr in self.param_map.values():
+            if not param_expr._populate_type_map(type_map):
+                return False
+        return True
+
+    @classmethod
+    def build_expr_list(cls, result_op_seq, op_map, cls_map,
+            non_produced_handler='raise', cycle_handler='raise'):
+        op_map = copy.copy(op_map)
+        cls_map = {
+            cls: compat_cls_set
+            for cls, compat_cls_set in cls_map.items()
+            # If there is at least one compatible subclass that is produced, we
+            # keep it, otherwise it will mislead _build_expr into thinking the
+            # class can be built where in fact it cannot
+            if compat_cls_set & op_map.keys()
+        }
+        internal_cls_set = {Consumer, ExprData}
+        for internal_cls in internal_cls_set:
+            op_map[internal_cls] = {
+                Operator(internal_cls, non_reusable_type_set=internal_cls_set)
+            }
+            cls_map[internal_cls] = [internal_cls]
+
+        expr_list = list()
+        for result_op in result_op_seq:
+            expr_gen = cls._build_expr(result_op, op_map, cls_map,
+                op_stack = [],
+                non_produced_handler=non_produced_handler,
+                cycle_handler=cycle_handler,
+            )
+            for expr in expr_gen:
+                if expr.validate(op_map):
+                    expr_list.append(expr)
+
+        # Apply CSE to get a cleaner result
+        return cls.cse(expr_list)
+
+    @classmethod
+    def _build_expr(cls, op, op_map, cls_map, op_stack, non_produced_handler, cycle_handler):
+        new_op_stack = [op] + op_stack
+        # We detected a cyclic dependency
+        if op in op_stack:
+            if cycle_handler == 'ignore':
+                return
+            elif callable(cycle_handler):
+                cycle_handler(tuple(op.callable_ for op in new_op_stack))
+                return
+            elif cycle_handler == 'raise':
+                raise CycleError('Cyclic dependency found: {path}'.format(
+                    path = ' -> '.join(
+                        op.name for op in new_op_stack
+                    )
+                ))
+            else:
+                raise ValueError('Invalid cycle_handler')
+
+        op_stack = new_op_stack
+
+        param_map, produced = op.get_prototype()
+        if param_map:
+            param_list, cls_list = zip(*param_map.items())
+        # When no parameter is needed
+        else:
+            yield cls(op, OrderedDict())
+            return
+
+        # Build all the possible combinations of types suitable as parameters
+        cls_combis = [cls_map.get(cls, list()) for cls in cls_list]
+
+        # Only keep the classes for "self" on which the method can be applied
+        if op.is_method:
+            cls_combis[0] = [
+                cls for cls in cls_combis[0]
+                # If the method with the same name would resolve to "op", then
+                # we keep this class as a candidate for "self", otherwise we
+                # discard it
+                if getattr(cls, op.callable_.__name__, None) is op.callable_
+            ]
+
+        # Check that some produced classes are available for every parameter
+        ignored_indices = set()
+        for param, wanted_cls, available_cls in zip(param_list, cls_list, cls_combis):
+            if not available_cls:
+                # If that was an optional parameter, just ignore it without
+                # throwing an exception since it has a default value
+                if param in op.optional_param:
+                    ignored_indices.add(param_list.index(param))
+                else:
+                    if non_produced_handler == 'ignore':
+                        return
+                    elif callable(non_produced_handler):
+                        non_produced_handler(wanted_cls.__qualname__, op.name, param,
+                            tuple(op.resolved_callable for op in op_stack)
+                        )
+                        return
+                    elif non_produced_handler == 'raise':
+                        raise NoOperatorError('No operator can produce instances of {cls} needed for {op} (parameter "{param}" along path {path})'.format(
+                            cls = wanted_cls.__qualname__,
+                            op = op.name,
+                            param = param,
+                            path = ' -> '.join(
+                                op.name for op in op_stack
+                            )
+                        ))
+                    else:
+                        raise ValueError('Invalid non_produced_handler')
+
+        param_list = utils.remove_indices(param_list, ignored_indices)
+        cls_combis = utils.remove_indices(cls_combis, ignored_indices)
+
+        param_list_len = len(param_list)
+
+        # For all possible combinations of types
+        for cls_combi in itertools.product(*cls_combis):
+            cls_combi = list(cls_combi)
+
+            # Some classes may not be produced, but another combination
+            # with containing a subclass of it may actually be produced so we can
+            # just ignore that one.
+            op_combis = [
+                op_map[cls] for cls in cls_combi
+                if cls in op_map
+            ]
+
+            # Build all the possible combinations of operators returning these
+            # types
+            for op_combi in itertools.product(*op_combis):
+                op_combi = list(op_combi)
+
+                # Get all the possible ways of calling these operators
+                param_combis = itertools.product(*(cls._build_expr(
+                        param_op, op_map, cls_map,
+                        op_stack, non_produced_handler, cycle_handler,
+                    ) for param_op in op_combi
+                ))
+
+                for param_combi in param_combis:
+                    param_map = OrderedDict(zip(param_list, param_combi))
+
+                    # If all parameters can be built, carry on
+                    if len(param_map) == param_list_len:
+                        yield cls(op, param_map)
 
 def infinite_iter(generator, expr_val_list, from_gen):
     """Exhaust the `generator` when `from_gen=True`, yield from `expr_val_list`
@@ -2119,11 +2106,11 @@ class ExprVal(ExprValBase):
 
 
     def get_id(self, *args, with_tags=True, **kwargs):
-        # There exists only one ID for a given ExprVal so we just return it
-        # instead of an iterator.
-        return take_first(self.expr.get_id(with_tags=with_tags,
-            expr_val=self, *args, **kwargs))
-
+        return self.expr.get_id(
+            with_tags=with_tags,
+            expr_val=self,
+            *args, **kwargs
+        )
 
     def _get_expr_map(self):
         expr_map = {}
@@ -2140,5 +2127,6 @@ class Consumer:
 
 class ExprData(dict):
     def __init__(self):
-        pass
+        super().__init__()
+        self.uuid = utils.create_uuid()
 
