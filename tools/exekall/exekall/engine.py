@@ -264,7 +264,7 @@ class ValueDB:
                     # (because of a failed parent for example)
                     froz_val_seq, froz_val_seq.param_froz_val_map.values()
                 ):
-                froz_val_set.update(froz_val.get_parent_by_predicate(predicate))
+                froz_val_set.update(froz_val.get_by_predicate(predicate))
 
             froz_val_set_set.add(frozenset(froz_val_set))
 
@@ -1906,17 +1906,15 @@ class FrozenExprVal(collections.abc.Mapping):
         args = (full_qual, qual, with_tags)
         return self.recorded_id_map[args]
 
-    def get_parent_by_predicate(self, predicate):
-        parent_set = set()
-        self._get_parent_by_predicate(predicate, parent_set)
-        return parent_set
+    def get_by_predicate(self, predicate):
+        return list(self._get_by_predicate(predicate))
 
-    def _get_parent_by_predicate(self, predicate, parent_set):
+    def _get_by_predicate(self, predicate):
         if predicate(self):
-            parent_set.add(self)
+            yield self
 
         for parent in self.param_froz_val_map.values():
-            parent._get_parent_by_predicate(predicate, parent_set)
+            yield from parent._get_by_predicate(predicate)
 
     def __eq__(self, other):
         return self is other
@@ -2090,28 +2088,28 @@ class ExprVal:
     def get_by_predicate(self, predicate):
         return list(self._get_by_predicate(predicate))
 
-    def _get_by_predicate(self, predicate, param=None):
-        if predicate(self, param):
+    def _get_by_predicate(self, predicate):
+        if predicate(self):
             yield self
 
-        for param, expr_val in self.param_expr_val_map.items():
-            yield from expr_val._get_by_predicate(predicate, param)
+        for expr_val in self.param_expr_val_map.values():
+            yield from expr_val._get_by_predicate(predicate)
 
     def get_failed(self):
         """
         Get all the failed parents.
         """
-        def predicate(expr_val, param):
+        def predicate(expr_val):
             return expr_val.excep is not NoValue
 
         return self.get_by_predicate(predicate)
 
     def _get_expr_map(self):
         expr_map = {}
-        def callback(expr_val, param):
+        def predicate(expr_val):
             expr_map[expr_val.expr] = expr_val
 
-        self.get_by_predicate(callback):
+        self.get_by_predicate(predicate)
 
         return expr_map
 
