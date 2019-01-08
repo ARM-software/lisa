@@ -124,7 +124,7 @@ class ValueDB:
                 # We discard candidates that have no parameters, as they
                 # contain less information than the ones that do. This is
                 # typically the case for PrebuiltOperator values
-                if froz_val.param_froz_val_map
+                if froz_val.param_map
             ]
 
             # At this point, there should be no more than one "original" value,
@@ -216,9 +216,9 @@ class ValueDB:
     @classmethod
     def _do_froz_val_dfs(cls, froz_val, callback):
         updated_froz_val = callback(froz_val)
-        updated_froz_val.param_froz_val_map = {
+        updated_froz_val.param_map = {
             param: cls._do_froz_val_dfs(param_froz_val, callback)
-            for param, param_froz_val in updated_froz_val.param_froz_val_map.items()
+            for param, param_froz_val in updated_froz_val.param_map.items()
         }
         return updated_froz_val
 
@@ -262,7 +262,7 @@ class ValueDB:
                     # traverse all values, including the ones from the
                     # parameters, even when there was no value computed
                     # (because of a failed parent for example)
-                    froz_val_seq, froz_val_seq.param_froz_val_map.values()
+                    froz_val_seq, froz_val_seq.param_map.values()
                 ):
                 froz_val_set.update(froz_val.get_by_predicate(predicate))
 
@@ -493,36 +493,27 @@ class Expression:
         return True
 
 
-    def get_param_map(self, reusable):
-        reusable = bool(reusable)
-        return OrderedDict(
-            (param, param_expr)
-            for param, param_expr
-            in self.param_map.items()
-            if bool(param_expr.op.reusable) == reusable
-        )
-
     def get_all_vals(self):
         for expr_val_seq in self.expr_val_seq_list:
             yield from expr_val_seq.expr_val_list
 
-    def find_expr_val_seq_list(self, param_expr_val_map):
+    def find_expr_val_seq_list(self, param_map):
         def value_map(expr_val_map):
             return OrderedDict(
                 # Extract the actual value from ExprVal
                 (param, expr_val.value)
                 for param, expr_val in expr_val_map.items()
             )
-        param_expr_val_map = value_map(param_expr_val_map)
+        param_map = value_map(param_map)
 
-        # Find the results that are matching the param_expr_val_map
+        # Find the results that are matching the param_map
         return [
             expr_val_seq
             for expr_val_seq in self.expr_val_seq_list
-            # Check if param_expr_val_map is a subset of the param_expr_val_map
+            # Check if param_map is a subset of the param_map
             # of the ExprVal. That allows checking for reusable parameters
             # only.
-            if param_expr_val_map.items() <= value_map(expr_val_seq.param_expr_val_map).items()
+            if param_map.items() <= value_map(expr_val_seq.param_map).items()
         ]
 
     def __repr__(self):
@@ -650,18 +641,18 @@ class Expression:
                     yield (OrderedDict(), [])
                 else:
                     for expr_val_seq in self.expr_val_seq_list:
-                        yield (expr_val_seq.param_expr_val_map, expr_val_seq.expr_val_list)
+                        yield (expr_val_seq.param_map, expr_val_seq.expr_val_list)
 
         # If we were asked about the ID of a specific value, make sure we
         # don't explore other paths that lead to different values
         else:
             def grouped_expr_val_list():
                 # Only yield the ExprVal we are interested in
-                yield (expr_val.param_expr_val_map, [expr_val])
+                yield (expr_val.param_map, [expr_val])
 
-        for param_expr_val_map, expr_val_list in grouped_expr_val_list():
+        for param_map, expr_val_list in grouped_expr_val_list():
             yield from self._get_id_internal(
-                param_expr_val_map=param_expr_val_map,
+                param_map=param_map,
                 expr_val_list=expr_val_list,
                 with_tags=with_tags,
                 marked_expr_val_set=marked_expr_val_set,
@@ -670,7 +661,7 @@ class Expression:
                 qual=qual
             )
 
-    def _get_id_internal(self, param_expr_val_map, expr_val_list, with_tags, marked_expr_val_set, hidden_callable_set, full_qual, qual):
+    def _get_id_internal(self, param_map, expr_val_list, with_tags, marked_expr_val_set, hidden_callable_set, full_qual, qual):
         separator = ':'
         marker_char = '^'
 
@@ -686,7 +677,7 @@ class Expression:
                 qual = qual,
                 # Pass a NoValue when there is no value available, since
                 # None means all possible IDs (we just want one here).
-                expr_val = param_expr_val_map.get(param, NoValue),
+                expr_val = param_map.get(param, NoValue),
                 marked_expr_val_set = marked_expr_val_set,
                 hidden_callable_set = hidden_callable_set,
             )))
@@ -694,7 +685,7 @@ class Expression:
             if (
                 param_expr.op.callable_ not in hidden_callable_set
                 # If the value is marked, the ID will not be hidden
-                or param_expr_val_map.get(param) in marked_expr_val_set
+                or param_map.get(param) in marked_expr_val_set
             )
         )
 
@@ -968,9 +959,9 @@ class Expression:
             else:
                 return script_db.get_value_snippet(obj)
 
-        def format_build_param(param_expr_val_map):
+        def format_build_param(param_map):
             out = list()
-            for param, expr_val in param_expr_val_map.items():
+            for param, expr_val in param_map.items():
                 try:
                     value = format_expr_val(expr_val)
                 # Cannot be serialized, so we skip it
@@ -1041,9 +1032,17 @@ class Expression:
         # Reusable parameter values are output first, so that non-reusable
         # parameters will be inside the for loops if any to be recomputed
         # for every combination of reusable parameters.
+
+        def get_param_map(reusable):
+            return OrderedDict(
+                (param, param_expr)
+                for param, param_expr
+                in self.param_map.items()
+                if bool(param_expr.op.reusable) == reusable
+            )
         param_map_chain = itertools.chain(
-            self.get_param_map(reusable=True).items(),
-            self.get_param_map(reusable=False).items(),
+            get_param_map(reusable=True).items(),
+            get_param_map(reusable=False).items(),
         )
 
         first_param = take_first(self.param_map.keys())
@@ -1066,7 +1065,7 @@ class Expression:
                 # When there is no value for that parameter, that means it
                 # could not be computed and therefore we skip that result
                 with contextlib.suppress(KeyError):
-                    param_expr_val = expr_val.param_expr_val_map[param]
+                    param_expr_val = expr_val.param_map[param]
                     param_expr_val_set.add(param_expr_val)
 
             # Do a deep first search traversal of the expression.
@@ -1158,7 +1157,7 @@ class Expression:
         # Dump the serialized value
         for expr_val_seq in self.expr_val_seq_list:
             # Make a copy to allow modifying the parameter names
-            param_expr_val_map = copy.copy(expr_val_seq.param_expr_val_map)
+            param_map = copy.copy(expr_val_seq.param_map)
             expr_val_list = expr_val_seq.expr_val_list
 
             # Restrict the list of ExprVal we are considering to the ones
@@ -1183,10 +1182,10 @@ class Expression:
             # Rename "self" parameter to the name of the variable we are
             # going to apply the method on
             if self.op.is_method:
-                first_param = take_first(param_expr_val_map)
-                param_expr_val = param_expr_val_map.pop(first_param)
+                first_param = take_first(param_map)
+                param_expr_val = param_map.pop(first_param)
                 self_param = make_var(make_method_self_name(param_expr_val.expr))
-                param_expr_val_map[self_param] = param_expr_val
+                param_map[self_param] = param_expr_val
 
             # Multiple values to loop over
             try:
@@ -1221,9 +1220,9 @@ class Expression:
                     script += make_comment(serialized_instance, idt_str)
 
                 # Show the origin of the values we have shown
-                if param_expr_val_map:
+                if param_map:
                     origin = 'Built using:' + format_build_param(
-                        param_expr_val_map
+                        param_map
                     ) + '\n'
                     script += make_comment(origin, idt_str)
 
@@ -1322,13 +1321,13 @@ class Expression:
         reusable_param_map_len = len(reusable_param_exec_map)
 
         # Consume all the reusable parameters, since they are generators
-        for param_expr_val_map in consume_gen_map(
+        for param_map in consume_gen_map(
                 reusable_param_exec_map, product=ExprVal.expr_val_product
             ):
             # If some parameters could not be computed, we will not get all
             # values
             reusable_param_computed = (
-                len(param_expr_val_map) == reusable_param_map_len
+                len(param_map) == reusable_param_map_len
             )
 
             # Check if some ExprVal are already available for the current
@@ -1337,10 +1336,10 @@ class Expression:
             if reusable and reusable_param_computed:
                 # Check if we have already computed something for that
                 # Expression and that set of parameter values
-                expr_val_seq_list = self.find_expr_val_seq_list(param_expr_val_map)
+                expr_val_seq_list = self.find_expr_val_seq_list(param_map)
                 if expr_val_seq_list:
                     # Reusable objects should have only one ExprValSeq
-                    # that was computed with a given param_expr_val_map
+                    # that was computed with a given param_map
                     assert len(expr_val_seq_list) == 1
                     expr_val_seq = expr_val_seq_list[0]
                     yield from expr_val_seq.iter_expr_val()
@@ -1350,7 +1349,7 @@ class Expression:
             # are available, otherwise that is pointless
             if (
                 reusable_param_computed and
-                not any_value_is_NoValue(param_expr_val_map.values())
+                not any_value_is_NoValue(param_map.values())
             ):
                 # Non-reusable parameters must be computed every time, and we
                 # don't take their cartesian product since we have fresh values
@@ -1363,7 +1362,7 @@ class Expression:
                     for param, param_expr in self.param_map.items()
                     if not param_expr.op.reusable
                 )
-                param_expr_val_map.update(next(
+                param_map.update(next(
                     consume_gen_map(nonreusable_param_exec_map, product=no_product)
                 ))
 
@@ -1372,13 +1371,13 @@ class Expression:
             if (
                 # Some arguments are missing: there was no attempt to compute
                 # them because another argument failed to be computed
-                len(param_expr_val_map) != param_map_len or
+                len(param_map) != param_map_len or
                 # Or one of the arguments could not be computed
-                any_value_is_NoValue(param_expr_val_map.values())
+                any_value_is_NoValue(param_map.values())
             ):
-                expr_val = ExprVal(self, param_expr_val_map)
+                expr_val = ExprVal(self, param_map)
                 expr_val_seq = ExprValSeq.from_one_expr_val(
-                    self, expr_val, param_expr_val_map,
+                    self, expr_val, param_map,
                     post_compute_cb=post_compute_cb,
                 )
                 self.expr_val_seq_list.append(expr_val_seq)
@@ -1390,7 +1389,7 @@ class Expression:
             param_val_map = OrderedDict(
                 # Extract the actual computed values wrapped in ExprVal
                 (param, param_expr_val.value)
-                for param, param_expr_val in param_expr_val_map.items()
+                for param, param_expr_val in param_map.items()
             )
 
             # Consumer operator is special and we provide the value for it,
@@ -1412,7 +1411,7 @@ class Expression:
 
             iterator = iter(iterated)
             expr_val_seq = ExprValSeq(
-                self, iterator, param_expr_val_map,
+                self, iterator, param_map,
                 post_compute_cb
             )
             self.expr_val_seq_list.append(expr_val_seq)
@@ -1797,17 +1796,17 @@ class PrebuiltOperator(Operator):
         return genf
 
 class ExprValSeq:
-    def __init__(self, expr, iterator, param_expr_val_map, post_compute_cb=None):
+    def __init__(self, expr, iterator, param_map, post_compute_cb=None):
         self.expr = expr
         assert isinstance(iterator, collections.abc.Iterator)
         self.iterator = iterator
         self.expr_val_list = []
-        self.param_expr_val_map = param_expr_val_map
+        self.param_map = param_map
         self.post_compute_cb = post_compute_cb
 
 
     @classmethod
-    def from_one_expr_val(cls, expr, expr_val, param_expr_val_map, post_compute_cb=None):
+    def from_one_expr_val(cls, expr, expr_val, param_map, post_compute_cb=None):
         iterated = [(
             (expr_val.value, expr_val.value_uuid),
             (expr_val.excep, expr_val.excep_uuid),
@@ -1815,7 +1814,7 @@ class ExprValSeq:
         new = cls(
             expr=expr,
             iterator=iter(iterated),
-            param_expr_val_map=param_expr_val_map,
+            param_map=param_map,
             post_compute_cb=post_compute_cb
         )
         return new
@@ -1836,7 +1835,7 @@ class ExprValSeq:
         # Then compute the remaining ones
         if self.iterator:
             for (value, value_uuid), (excep, excep_uuid) in self.iterator:
-                expr_val = ExprVal(self.expr, self.param_expr_val_map,
+                expr_val = ExprVal(self.expr, self.param_map,
                     value, value_uuid,
                     excep, excep_uuid
                 )
@@ -1894,13 +1893,13 @@ class FrozenExprVal(collections.abc.Mapping):
             if type_ is not object
         ]
 
-        self.param_froz_val_map = OrderedDict()
-        for param, param_expr_val in expr_val.param_expr_val_map.items():
+        self.param_map = OrderedDict()
+        for param, param_expr_val in expr_val.param_map.items():
             froz_val = param_expr_val._get_froz_val(
                 froz_val_map,
                 hidden_callable_set=hidden_callable_set
             )
-            self.param_froz_val_map[param] = froz_val
+            self.param_map[param] = froz_val
 
     def get_id(self, full_qual=True, qual=True, with_tags=True):
         args = (full_qual, qual, with_tags)
@@ -1913,7 +1912,7 @@ class FrozenExprVal(collections.abc.Mapping):
         if predicate(self):
             yield self
 
-        for parent in self.param_froz_val_map.values():
+        for parent in self.param_map.values():
             yield from parent._get_by_predicate(predicate)
 
     def __eq__(self, other):
@@ -1927,19 +1926,19 @@ class FrozenExprVal(collections.abc.Mapping):
         if k == 'return':
             return self.value
         else:
-            return self.param_froz_val_map[k]
+            return self.param_map[k]
 
     def __len__(self):
         # account for 'return'
-        return len(self.param_froz_val_map) + 1
+        return len(self.param_map) + 1
 
     def __iter__(self):
-        return itertools.chain(self.param_froz_val_map.keys(), ['return'])
+        return itertools.chain(self.param_map.keys(), ['return'])
 
 class FrozenExprValSeq(collections.abc.Sequence):
-    def __init__(self, froz_val_list, param_froz_val_map):
+    def __init__(self, froz_val_list, param_map):
         self.froz_val_list = froz_val_list
-        self.param_froz_val_map = param_froz_val_map
+        self.param_map = param_map
 
     def __getitem__(self, k):
         return self.froz_val_list[k]
@@ -1957,9 +1956,9 @@ class FrozenExprValSeq(collections.abc.Sequence):
                 expr_val._get_froz_val(froz_val_map, **kwargs)
                 for expr_val in expr_val_seq.expr_val_list
             ],
-            param_froz_val_map={
+            param_map={
                 param: expr_val._get_froz_val(froz_val_map, **kwargs)
-                for param, expr_val in expr_val_seq.param_expr_val_map.items()
+                for param, expr_val in expr_val_seq.param_map.items()
             }
         )
 
@@ -1976,7 +1975,7 @@ class FrozenExprValSeq(collections.abc.Sequence):
         ]
 
 class ExprVal:
-    def __init__(self, expr, param_expr_val_map,
+    def __init__(self, expr, param_map,
             value=NoValue, value_uuid=None,
             excep=NoValue, excep_uuid=None,
     ):
@@ -1985,7 +1984,7 @@ class ExprVal:
         self.excep = excep
         self.excep_uuid = excep_uuid
         self.expr = expr
-        self.param_expr_val_map = param_expr_val_map
+        self.param_map = param_map
 
     def format_tags(self):
         tag_map = self.expr.op.tags_getter(self.value)
@@ -2092,7 +2091,7 @@ class ExprVal:
         if predicate(self):
             yield self
 
-        for expr_val in self.param_expr_val_map.values():
+        for expr_val in self.param_map.values():
             yield from expr_val._get_by_predicate(predicate)
 
     def get_failed(self):

@@ -211,7 +211,7 @@ class LISAAdaptor(AdaptorBase):
 
                 symlink.symlink_to(target, target_is_directory=True)
 
-        for param, param_expr_val in expr_val.param_expr_val_map.items():
+        for param, param_expr_val in expr_val.param_map.items():
             self._finalize_expr_val(param_expr_val, artifact_dir, testcase_artifact_dir)
 
     @classmethod
