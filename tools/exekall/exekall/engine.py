@@ -87,23 +87,22 @@ class ValueDB:
     PICKLE_PROTOCOL = 4
 
     def __init__(self, froz_val_seq_list):
-        self.froz_val_seq_list = froz_val_seq_list
+        # Avoid storing duplicate FrozenExprVal sharing the same value/excep
+        # UUID
+        self.froz_val_seq_list = self._dedup_froz_val_seq_list(froz_val_seq_list)
 
     @classmethod
-    def merge(cls, db_seq):
-        froz_val_seq_list = list(itertools.chain(*(
-            db.froz_val_seq_list
-            for db in db_seq
-        )))
-
-        # We now want to avoid storing values that share the same value or
-        # excep UUID, since they are duplicates of each-other.
+    def _dedup_froz_val_seq_list(cls, froz_val_seq_list):
+        """
+        Avoid keeping :class:`FrozenExprVal` that share the same value or
+        excep UUID, since they are duplicates of each-other.
+        """
 
         # First pass: find all frozen values corresponding to a given UUID
         uuid_map = {}
         def update_uuid_map(froz_val):
-            for uuid_ in (froz_val.value_uuid, froz_val.excep_uuid):
-                uuid_map.setdefault(uuid_, set()).add(froz_val)
+            uuid_pair = (froz_val.value_uuid, froz_val.excep_uuid)
+            uuid_map.setdefault(uuid_pair, set()).add(froz_val)
             return froz_val
         cls._froz_val_dfs(froz_val_seq_list, update_uuid_map)
 
@@ -111,16 +110,11 @@ class ValueDB:
         # marker when no exception was raised or when no value was available.
         uuid_map[None] = set()
 
-        # Second pass: only keep one frozen value for each UUID
-        def rewrite_graph(froz_val):
-            candidates = set()
-            for uuid_ in (froz_val.value_uuid, froz_val.excep_uuid):
-                candidates.update(uuid_map[uuid_])
-
-            # Only one candidate, nothing to do
+        # Select one FrozenExprVal for each UUID pair
+        def select_froz_val(froz_val_set):
             candidates = [
                 froz_val
-                for froz_val in candidates
+                for froz_val in froz_val_set
                 # We discard candidates that have no parameters, as they
                 # contain less information than the ones that do. This is
                 # typically the case for PrebuiltOperator values
@@ -128,17 +122,33 @@ class ValueDB:
             ]
 
             # At this point, there should be no more than one "original" value,
-            # the other candidates were just values of PrebuiltOperator
-            assert len(candidates) <= 1
+            # the other candidates were just values of PrebuiltOperator, or are
+            # completely equivalent to the original value
 
             if candidates:
                 return candidates[0]
-            # If there was no better candidate, just return the initial one
+            # If there was no better candidate, just return the first one
             else:
-                return froz_val
+                return take_first(froz_val_set)
 
-        froz_val_seq_list = cls._froz_val_dfs(froz_val_seq_list, rewrite_graph)
+        uuid_map = {
+            uuid_pair: select_froz_val(froz_val_set)
+            for uuid_pair, froz_val_set in uuid_map.items()
+        }
 
+        # Second pass: only keep one frozen value for each UUID
+        def rewrite_graph(froz_val):
+            uuid_pair = (froz_val.value_uuid, froz_val.excep_uuid)
+            return uuid_map[uuid_pair]
+
+        return cls._froz_val_dfs(froz_val_seq_list, rewrite_graph)
+
+    @classmethod
+    def merge(cls, db_seq):
+        froz_val_seq_list = list(itertools.chain(*(
+            db.froz_val_seq_list
+            for db in db_seq
+        )))
         return cls(froz_val_seq_list)
 
     @classmethod
@@ -1909,8 +1919,10 @@ class ExprValBase(collections.abc.Mapping):
         return itertools.chain(self.param_map.keys(), ['return'])
 
 class FrozenExprVal(ExprValBase):
-    def __init__(self, value, excep, value_uuid, excep_uuid, callable_qual_name,
-            callable_name, recorded_id_map, type_names, param_map):
+    def __init__(self,
+            value, value_uuid, excep, excep_uuid,
+            callable_qual_name, callable_name, recorded_id_map,
+            value_type, param_map):
         self.value = value
         self.excep = excep
         self.value_uuid = value_uuid
@@ -1918,17 +1930,19 @@ class FrozenExprVal(ExprValBase):
         self.callable_qual_name = callable_qual_name
         self.callable_name = callable_name
         self.recorded_id_map = recorded_id_map
-        self.type_names = type_names
+        self.value_type = value_type
         super().__init__(param_map=param_map)
 
-    @classmethod
-    #TODO: try to kill froz_val_map
-    def from_expr_val(cls, expr_val, froz_val_map, hidden_callable_set=None):
-        try:
-            return froz_val_map[expr_val]
-        except KeyError:
-            pass
+    @property
+    def type_names(self):
+        return [
+            utils.get_name(type_, full_qual=True)
+            for type_ in utils.get_mro(self.value_type)
+            if type_ is not object
+        ]
 
+    @classmethod
+    def from_expr_val(cls, expr_val, hidden_callable_set=None):
         value = expr_val.value if utils.is_serializable(expr_val.value) else NoValue
         excep = expr_val.excep if utils.is_serializable(expr_val.excep) else NoValue
 
@@ -1949,34 +1963,26 @@ class FrozenExprVal(ExprValBase):
                 hidden_callable_set=hidden_callable_set,
             )
 
-        type_names = [
-            utils.get_name(type_, full_qual=True)
-            for type_ in utils.get_mro(expr_val.expr.op.value_type)
-            if type_ is not object
-        ]
-
         param_map = OrderedDict()
         for param, param_expr_val in expr_val.param_map.items():
             froz_val = cls.from_expr_val(
                 param_expr_val,
-                froz_val_map=froz_val_map,
                 hidden_callable_set=hidden_callable_set,
             )
             param_map[param] = froz_val
 
         froz_val = cls(
             value=value,
-            excep=excep,
             value_uuid=value_uuid,
+            excep=excep,
             excep_uuid=excep_uuid,
             callable_qual_name=callable_qual_name,
             callable_name=callable_name,
             recorded_id_map=recorded_id_map,
-            type_names=type_names,
             param_map=param_map,
+            value_type=expr_val.expr.op.value_type,
         )
 
-        froz_val_map[expr_val] = froz_val
         return froz_val
 
     def get_id(self, full_qual=True, qual=True, with_tags=True):
@@ -1995,27 +2001,25 @@ class FrozenExprValSeq(collections.abc.Sequence):
         return len(self.froz_val_list)
 
     @classmethod
-    def from_expr_val_seq(cls, expr_val_seq, froz_val_map, **kwargs):
+    def from_expr_val_seq(cls, expr_val_seq, **kwargs):
         return cls(
             froz_val_list=[
-                FrozenExprVal.from_expr_val(expr_val, froz_val_map, **kwargs)
+                FrozenExprVal.from_expr_val(expr_val, **kwargs)
                 for expr_val in expr_val_seq.expr_val_list
             ],
             param_map={
-                param: FrozenExprVal.from_expr_val(expr_val, froz_val_map, **kwargs)
+                param: FrozenExprVal.from_expr_val(expr_val, **kwargs)
                 for param, expr_val in expr_val_seq.param_map.items()
             }
         )
 
     @classmethod
     def from_expr_list(cls, expr_list, **kwargs):
-        froz_val_map = dict()
-
         #TODO: is flatten_seq correct here or do we need to maintain more structure ?
         # this should be fine since we just don't group by expression
         expr_val_seq_list = utils.flatten_seq(expr.expr_val_seq_list for expr in expr_list)
         return [
-            cls.from_expr_val_seq(expr_val_seq, froz_val_map, **kwargs)
+            cls.from_expr_val_seq(expr_val_seq, **kwargs)
             for expr_val_seq in expr_val_seq_list
         ]
 
