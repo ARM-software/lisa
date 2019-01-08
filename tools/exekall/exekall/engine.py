@@ -606,7 +606,7 @@ class Expression:
         return node_out.format(';\n'.join(out))
 
     def get_failed(self):
-        return set(itertools.chain(
+        return set(flatten_seq(
             expr_val.get_failed()
             for expr_val in self.get_all_vals()
         ))

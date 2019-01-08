@@ -398,7 +398,7 @@ def do_run(args, parser, run_parser, argv):
             ))
         elif load_db_uuid_args:
             # Get the froz_val value we are interested in
-            froz_val_list = utils.flatten_nested_seq(
+            froz_val_list = utils.flatten_seq(
                 utils.get_froz_val_seq_set(db, [load_db_uuid_args],
                 load_db_pattern_list
             ))
@@ -889,7 +889,7 @@ def do_run(args, parser, run_parser, argv):
                 (expr_val.value_uuid, expr_val.excep_uuid)
                 for expr_val in expr_val_list
             )
-            for uuid_ in utils.flatten_nested_seq(uuid_list):
+            for uuid_ in utils.flatten_seq(uuid_list):
                 if uuid_:
                     f.write(uuid_ + '\n')
 

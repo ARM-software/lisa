@@ -150,10 +150,6 @@ def once(callable_):
 def remove_indices(iterable, ignored_indices):
     return [v for i, v in enumerate(iterable) if i not in ignored_indices]
 
-def flatten_seq(seq):
-    "Flatten a nested sequence into a list"
-    return list(itertools.chain(*seq))
-
 # Basic reimplementation of typing.get_type_hints for Python versions that
 # do not have a typing module available, and also avoids creating Optional[]
 # when the parameter has a None default value.
@@ -415,12 +411,12 @@ def import_file(python_src, module_name=None, is_package=False):
     importlib.invalidate_caches()
     return module
 
-def flatten_nested_seq(seq, levels=1):
+def flatten_seq(seq, levels=1):
     if levels == 0:
         return seq
     else:
         seq = list(itertools.chain.from_iterable(seq))
-        return flatten_nested_seq(seq, levels=levels - 1)
+        return flatten_seq(seq, levels=levels - 1)
 
 def get_froz_val_seq_set(db, uuid_seq=None, type_pattern_seq=None):
 
