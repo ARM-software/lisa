@@ -502,11 +502,6 @@ class Expression:
                 return False
         return True
 
-
-    def get_all_vals(self):
-        for expr_val_seq in self.expr_val_seq_list:
-            yield from expr_val_seq.expr_val_list
-
     def find_expr_val_seq_list(self, param_map):
         def value_map(expr_val_map):
             return OrderedDict(
@@ -605,6 +600,12 @@ class Expression:
             node_out = '{}'
         return node_out.format(';\n'.join(out))
 
+    #TODO: align name
+    def get_all_vals(self):
+        for expr_val_seq in self.expr_val_seq_list:
+            yield from expr_val_seq.expr_val_list
+
+    #TODO: align name with Expressin.get_all_vals
     def get_failed(self):
         return set(flatten_seq(
             expr_val.get_failed()
