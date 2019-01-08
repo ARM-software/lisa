@@ -226,20 +226,35 @@ class ValueDB:
         uuid_value_map, _ = self._get_indexes()
         return uuid_value_map[uuid]
 
-    def get_by_predicate(self, predicate, flatten=True):
+    def get_by_predicate(self, predicate, flatten=True, deduplicate=False):
         """
         Get objects matching the predicate.
 
         :param flatten: If False, return a set of frozenset of objects.
-            There is a frozenset set for each computed expression in the store.
-            If False, the top-level set is flattened into a set of objects
-            matching the predicate.
+            There is a frozenset set for each expression result that shared
+            their parameters.  If False, the top-level set is flattened into a
+            set of objects matching the predicate.
+        :type flatten: bool
+
+        :param deduplicate: If True, there won't be duplicates across nested
+            sets.
+        :type deduplicate: bool
         """
-        froz_val_seq_set = set()
+        froz_val_set_set = set()
 
         # When we reload instances of a class from the DB, we don't
         # want anything else to be able to produce it, since we want to
         # run on that existing data set
+
+        # Make sure we don't select the same froz_val twice
+        if deduplicate:
+            visited = set()
+            def predicate(froz_val):
+                if froz_val in visited:
+                    return False
+                else:
+                    visited.add(froz_val)
+                    return predicate(froz_val)
 
         for froz_val_seq in self.froz_val_seq_list:
             froz_val_set = set()
@@ -251,12 +266,12 @@ class ValueDB:
                 ):
                 froz_val_set.update(froz_val.get_parent_by_predicate(predicate))
 
-            froz_val_seq_set.add(frozenset(froz_val_set))
+            froz_val_set_set.add(frozenset(froz_val_set))
 
         if flatten:
-            return set(utils.flatten_seq(froz_val_seq_set))
+            return set(utils.flatten_seq(froz_val_set_set))
         else:
-            return froz_val_seq_set
+            return froz_val_set_set
 
     def get_all(self, **kwargs):
         return self.get_by_predicate(lambda froz_val: True, **kwargs)

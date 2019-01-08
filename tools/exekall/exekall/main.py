@@ -417,19 +417,9 @@ def do_run(args, parser, run_parser, argv):
         # Otherwise, reload all the root froz_val values
         else:
             froz_val_seq_set.update(
-                frozenset(l)
-                for l in db.froz_val_seq_list
+                frozenset(froz_val_seq)
+                for froz_val_seq in db.froz_val_seq_list
             )
-
-        # Remove duplicates accross sets
-        loaded_froz_val = set()
-        froz_val_seq_set_ = set()
-        for froz_val_seq in froz_val_seq_set:
-            froz_val_seq = frozenset(froz_val_seq - loaded_froz_val)
-            loaded_froz_val.update(froz_val_seq)
-            if froz_val_seq:
-                froz_val_seq_set_.add(froz_val_seq)
-        froz_val_seq_set = froz_val_seq_set_
 
         # Build the list of PrebuiltOperator that will inject the loaded values
         # into the tests

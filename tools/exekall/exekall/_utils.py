@@ -446,7 +446,7 @@ def get_froz_val_seq_set(db, uuid_seq=None, type_pattern_seq=None):
         def predicate(froz_val):
             return uuid_predicate(froz_val) and type_pattern_predicate(froz_val)
 
-    return db.get_by_predicate(predicate, flatten=False)
+    return db.get_by_predicate(predicate, flatten=False, deduplicate=True)
 
 def match_base_cls(cls, pattern_list):
     # Match on the name of the class of the object and all its base classes
