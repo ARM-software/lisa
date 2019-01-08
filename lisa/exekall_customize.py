@@ -274,11 +274,11 @@ class LISAAdaptor(AdaptorBase):
 
                     # Get the set of UUIDs of all TestBundle instances that were
                     # involved in the testcase.
-                    def bundle_predicate(expr_val, param):
+                    def bundle_predicate(expr_val):
                         return issubclass(expr_val.expr.op.value_type, TestBundle)
                     bundle_uuid_set = {
                         expr_val.value_uuid
-                        for expr_val in expr_val.get_parent_expr_vals(bundle_predicate)
+                        for expr_val in expr_val.get_by_predicate(bundle_predicate)
                     }
                     bundle_uuid_set.discard(None)
 
@@ -296,7 +296,7 @@ class LISAAdaptor(AdaptorBase):
                     ))
                     testsuite_counters['tests'] += 1
 
-                    for failed_expr_val in expr_val.get_failed_expr_vals():
+                    for failed_expr_val in expr_val.get_failed():
                         excep = failed_expr_val.excep
                         # When one critical object cannot be created, we assume
                         # the test was skipped.

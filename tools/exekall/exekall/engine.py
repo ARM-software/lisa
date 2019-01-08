@@ -604,9 +604,11 @@ class Expression:
             node_out = '{}'
         return node_out.format(';\n'.join(out))
 
-    def get_failed_expr_vals(self):
-        for expr_val in self.get_all_vals():
-            yield from expr_val.get_failed_expr_vals()
+    def get_failed(self):
+        return set(itertools.chain(
+            expr_val.get_failed()
+            for expr_val in self.get_all_vals()
+        ))
 
     def get_id(self, *args, marked_expr_val_set=None, mark_excep=False, hidden_callable_set=None, **kwargs):
         if hidden_callable_set is None:
@@ -619,7 +621,7 @@ class Expression:
         # Mark all the values that failed to be computed because of an
         # exception
         if mark_excep:
-            marked_expr_val_set = set(self.get_failed_expr_vals())
+            marked_expr_val_set = self.get_failed()
 
         for id_, marker in self._get_id(
                 marked_expr_val_set=marked_expr_val_set, hidden_callable_set=hidden_callable_set,
@@ -2085,34 +2087,31 @@ class ExprVal:
         return take_first(self.expr.get_id(with_tags=with_tags,
             expr_val=self, *args, **kwargs))
 
-    def get_parent_expr_vals(self, predicate):
-        yield from self._get_parent_expr_vals(predicate)
+    def get_by_predicate(self, predicate):
+        return list(self._get_by_predicate(predicate))
 
-    def get_all_parents(self):
-        predicate = lambda expr_val, param: True
-        return set(self.get_parent_expr_vals(predicate))
-
-    def _get_parent_expr_vals(self, predicate, param=None):
+    def _get_by_predicate(self, predicate, param=None):
         if predicate(self, param):
             yield self
 
         for param, expr_val in self.param_expr_val_map.items():
-            yield from expr_val._get_parent_expr_vals(predicate, param)
+            yield from expr_val._get_by_predicate(predicate, param)
 
-    def get_failed_expr_vals(self):
+    def get_failed(self):
+        """
+        Get all the failed parents.
+        """
         def predicate(expr_val, param):
             return expr_val.excep is not NoValue
 
-        yield from self.get_parent_expr_vals(predicate)
+        return self.get_by_predicate(predicate)
 
     def _get_expr_map(self):
         expr_map = {}
         def callback(expr_val, param):
             expr_map[expr_val.expr] = expr_val
 
-        # Consume the generator
-        for _ in self.get_parent_expr_vals(callback):
-            pass
+        self.get_by_predicate(callback):
 
         return expr_map
 

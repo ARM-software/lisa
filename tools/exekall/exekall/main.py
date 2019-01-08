@@ -840,7 +840,7 @@ def do_run(args, parser, run_parser, argv):
 
         out('')
         for result in utils.iterate_cb(executor, pre_line, flush_std_streams):
-            for failed_val in result.get_failed_expr_vals():
+            for failed_val in result.get_failed():
                 excep = failed_val.excep
                 tb = utils.format_exception(excep)
                 error('Error ({e_name}): {e}\nID: {id}\n{tb}'.format(
