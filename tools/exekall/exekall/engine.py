@@ -1865,7 +1865,50 @@ def any_value_is_NoValue(expr_val_list):
         for expr_val in expr_val_list
     )
 
-class FrozenExprVal(collections.abc.Mapping):
+class ExprValBase(collections.abc.Mapping):
+    def __init__(self, param_map):
+        self.param_map = param_map
+
+    def get_by_predicate(self, predicate):
+        return list(self._get_by_predicate(predicate))
+
+    def _get_by_predicate(self, predicate):
+        if predicate(self):
+            yield self
+
+        for val in self.param_map.values():
+            yield from val._get_by_predicate(predicate)
+
+    def get_failed(self):
+        """
+        Get all the failed parents.
+        """
+        def predicate(val):
+            return val.excep is not NoValue
+
+        return self.get_by_predicate(predicate)
+
+    def __eq__(self, other):
+        return self is other
+
+    def __hash__(self):
+        # consistent with definition of __eq__
+        return id(self)
+
+    def __getitem__(self, k):
+        if k == 'return':
+            return self.value
+        else:
+            return self.param_map[k]
+
+    def __len__(self):
+        # account for 'return'
+        return len(self.param_map) + 1
+
+    def __iter__(self):
+        return itertools.chain(self.param_map.keys(), ['return'])
+
+class FrozenExprVal(ExprValBase):
     def __init__(self, expr_val, froz_val_map, hidden_callable_set=None):
         self.value = expr_val.value if utils.is_serializable(expr_val.value) else NoValue
         self.excep = expr_val.excep if utils.is_serializable(expr_val.excep) else NoValue
@@ -1893,47 +1936,19 @@ class FrozenExprVal(collections.abc.Mapping):
             if type_ is not object
         ]
 
-        self.param_map = OrderedDict()
+        param_map = OrderedDict()
         for param, param_expr_val in expr_val.param_map.items():
             froz_val = param_expr_val._get_froz_val(
                 froz_val_map,
                 hidden_callable_set=hidden_callable_set
             )
-            self.param_map[param] = froz_val
+            param_map[param] = froz_val
+
+        super().__init__(param_map=param_map)
 
     def get_id(self, full_qual=True, qual=True, with_tags=True):
         args = (full_qual, qual, with_tags)
         return self.recorded_id_map[args]
-
-    def get_by_predicate(self, predicate):
-        return list(self._get_by_predicate(predicate))
-
-    def _get_by_predicate(self, predicate):
-        if predicate(self):
-            yield self
-
-        for parent in self.param_map.values():
-            yield from parent._get_by_predicate(predicate)
-
-    def __eq__(self, other):
-        return self is other
-
-    def __hash__(self):
-        # consistent with definition of __eq__
-        return id(self)
-
-    def __getitem__(self, k):
-        if k == 'return':
-            return self.value
-        else:
-            return self.param_map[k]
-
-    def __len__(self):
-        # account for 'return'
-        return len(self.param_map) + 1
-
-    def __iter__(self):
-        return itertools.chain(self.param_map.keys(), ['return'])
 
 class FrozenExprValSeq(collections.abc.Sequence):
     def __init__(self, froz_val_list, param_map):
@@ -1974,7 +1989,8 @@ class FrozenExprValSeq(collections.abc.Sequence):
             for expr_val_seq in expr_val_seq_list
         ]
 
-class ExprVal:
+
+class ExprVal(ExprValBase):
     def __init__(self, expr, param_map,
             value=NoValue, value_uuid=None,
             excep=NoValue, excep_uuid=None,
@@ -1984,7 +2000,7 @@ class ExprVal:
         self.excep = excep
         self.excep_uuid = excep_uuid
         self.expr = expr
-        self.param_map = param_map
+        super().__init__(param_map=param_map)
 
     def format_tags(self):
         tag_map = self.expr.op.tags_getter(self.value)
@@ -2084,24 +2100,6 @@ class ExprVal:
         return take_first(self.expr.get_id(with_tags=with_tags,
             expr_val=self, *args, **kwargs))
 
-    def get_by_predicate(self, predicate):
-        return list(self._get_by_predicate(predicate))
-
-    def _get_by_predicate(self, predicate):
-        if predicate(self):
-            yield self
-
-        for expr_val in self.param_map.values():
-            yield from expr_val._get_by_predicate(predicate)
-
-    def get_failed(self):
-        """
-        Get all the failed parents.
-        """
-        def predicate(expr_val):
-            return expr_val.excep is not NoValue
-
-        return self.get_by_predicate(predicate)
 
     def _get_expr_map(self):
         expr_map = {}
