@@ -679,7 +679,7 @@ def do_run(args, parser, run_parser, argv):
             hidden_callable_set=hidden_callable_set
         )))
         if verbose >= 2:
-            out(testcase.pretty_structure() + '\n')
+            out(testcase.get_structure() + '\n')
 
     if dry_run:
         return 0
@@ -732,9 +732,9 @@ def do_run(args, parser, run_parser, argv):
                 with_tags=False,
                 full_qual=True,
             )) + '\n\n')
-            f.write(testcase.pretty_structure())
+            f.write(testcase.get_structure())
 
-        graphviz = testcase.graphviz_structure(hidden_callable_set=hidden_callable_set)
+        graphviz = testcase.get_structure(graphviz=True)
         with tempfile.NamedTemporaryFile('wt') as f:
             f.write(graphviz)
             f.flush()

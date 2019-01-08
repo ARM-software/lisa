@@ -531,7 +531,13 @@ class Expression:
             id = hex(id(self))
         )
 
-    def pretty_structure(self, full_qual=True, indent=1):
+    def get_structure(self, full_qual=True, graphviz=False):
+        if graphviz:
+            return self._get_graphviz_structure(full_qual, level=0, visited=set())
+        else:
+            return self._get_structure(full_qual=full_qual)
+
+    def _get_structure(self, full_qual=True, indent=1):
         indent_str = 4 * ' ' * indent
 
         if isinstance(self.op, PrebuiltOperator):
@@ -545,7 +551,7 @@ class Expression:
         )
         if self.param_map:
             out += ':\n'+ indent_str + ('\n'+indent_str).join(
-                '{param}: {desc}'.format(param=param, desc=desc.pretty_structure(
+                '{param}: {desc}'.format(param=param, desc=desc._get_structure(
                     full_qual=full_qual,
                     indent=indent+1
                 ))
@@ -553,12 +559,7 @@ class Expression:
             )
         return out
 
-    def graphviz_structure(self, full_qual=True, hidden_callable_set=None):
-        return self._graphviz_structure(full_qual, hidden_callable_set,
-            level=0, visited=set()
-        )
-
-    def _graphviz_structure(self, full_qual, hidden_callable_set, level, visited):
+    def _get_graphviz_structure(self, full_qual, level, visited):
         if self in visited:
             return ''
         else:
@@ -589,19 +590,15 @@ class Expression:
                 )
 
                 out.append(
-                    param_expr._graphviz_structure(
+                    param_expr._get_graphviz_structure(
                         full_qual=full_qual,
-                        hidden_callable_set=hidden_callable_set,
                         level=level+1,
                         visited=visited,
                     )
                 )
 
         if level == 0:
-            title = 'Structure of ' + take_first(self.get_id(
-                qual=False,
-                hidden_callable_set=hidden_callable_set,
-            ))
+            title = 'Structure of ' + take_first(self.get_id(qual=False))
             node_out = 'digraph structure {{\n{}\nlabel="' + title + '"\n}}'
         else:
             node_out = '{}'
@@ -814,7 +811,7 @@ class Expression:
                     make_comment(id_)
                     for id_ in expr.get_id(mark_excep=True, full_qual=False)
                 ) + '\n' +
-                make_comment(expr.pretty_structure()) + '\n\n'
+                make_comment(expr.get_structure()) + '\n\n'
             )
             idt = IndentationManager(' '*4)
 
