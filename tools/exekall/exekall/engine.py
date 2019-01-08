@@ -1909,28 +1909,47 @@ class ExprValBase(collections.abc.Mapping):
         return itertools.chain(self.param_map.keys(), ['return'])
 
 class FrozenExprVal(ExprValBase):
-    def __init__(self, expr_val, froz_val_map, hidden_callable_set=None):
-        self.value = expr_val.value if utils.is_serializable(expr_val.value) else NoValue
-        self.excep = expr_val.excep if utils.is_serializable(expr_val.excep) else NoValue
+    def __init__(self, value, excep, value_uuid, excep_uuid, callable_qual_name,
+            callable_name, recorded_id_map, type_names, param_map):
+        self.value = value
+        self.excep = excep
+        self.value_uuid = value_uuid
+        self.excep_uuid = excep_uuid
+        self.callable_qual_name = callable_qual_name
+        self.callable_name = callable_name
+        self.recorded_id_map = recorded_id_map
+        self.type_names = type_names
+        super().__init__(param_map=param_map)
 
-        self.value_uuid = expr_val.value_uuid
-        self.excep_uuid = expr_val.excep_uuid
+    @classmethod
+    #TODO: try to kill froz_val_map
+    def from_expr_val(cls, expr_val, froz_val_map, hidden_callable_set=None):
+        try:
+            return froz_val_map[expr_val]
+        except KeyError:
+            pass
 
-        self.callable_qual_name = expr_val.expr.op.get_name(full_qual=True)
-        self.callable_name = expr_val.expr.op.get_name(full_qual=False, qual=False)
+        value = expr_val.value if utils.is_serializable(expr_val.value) else NoValue
+        excep = expr_val.excep if utils.is_serializable(expr_val.excep) else NoValue
+
+        value_uuid = expr_val.value_uuid
+        excep_uuid = expr_val.excep_uuid
+
+        callable_qual_name = expr_val.expr.op.get_name(full_qual=True)
+        callable_name = expr_val.expr.op.get_name(full_qual=False, qual=False)
 
         # Pre-compute all the IDs so they are readily available once the value
         # is deserialized
-        self.recorded_id_map = dict()
+        recorded_id_map = dict()
         for full_qual, qual, with_tags in itertools.product((True, False), repeat=3):
-            self.recorded_id_map[(full_qual, qual, with_tags)] = expr_val.get_id(
+            recorded_id_map[(full_qual, qual, with_tags)] = expr_val.get_id(
                 full_qual=full_qual,
                 qual=qual,
                 with_tags=with_tags,
                 hidden_callable_set=hidden_callable_set,
             )
 
-        self.type_names = [
+        type_names = [
             utils.get_name(type_, full_qual=True)
             for type_ in utils.get_mro(expr_val.expr.op.value_type)
             if type_ is not object
@@ -1938,13 +1957,27 @@ class FrozenExprVal(ExprValBase):
 
         param_map = OrderedDict()
         for param, param_expr_val in expr_val.param_map.items():
-            froz_val = param_expr_val._get_froz_val(
-                froz_val_map,
-                hidden_callable_set=hidden_callable_set
+            froz_val = cls.from_expr_val(
+                param_expr_val,
+                froz_val_map=froz_val_map,
+                hidden_callable_set=hidden_callable_set,
             )
             param_map[param] = froz_val
 
-        super().__init__(param_map=param_map)
+        froz_val = cls(
+            value=value,
+            excep=excep,
+            value_uuid=value_uuid,
+            excep_uuid=excep_uuid,
+            callable_qual_name=callable_qual_name,
+            callable_name=callable_name,
+            recorded_id_map=recorded_id_map,
+            type_names=type_names,
+            param_map=param_map,
+        )
+
+        froz_val_map[expr_val] = froz_val
+        return froz_val
 
     def get_id(self, full_qual=True, qual=True, with_tags=True):
         args = (full_qual, qual, with_tags)
@@ -1962,17 +1995,14 @@ class FrozenExprValSeq(collections.abc.Sequence):
         return len(self.froz_val_list)
 
     @classmethod
-    def from_expr_val_seq(cls, expr_val_seq, froz_val_map=None, **kwargs):
-        if froz_val_map is None:
-            froz_val_map = dict()
-
+    def from_expr_val_seq(cls, expr_val_seq, froz_val_map, **kwargs):
         return cls(
             froz_val_list=[
-                expr_val._get_froz_val(froz_val_map, **kwargs)
+                FrozenExprVal.from_expr_val(expr_val, froz_val_map, **kwargs)
                 for expr_val in expr_val_seq.expr_val_list
             ],
             param_map={
-                param: expr_val._get_froz_val(froz_val_map, **kwargs)
+                param: FrozenExprVal.from_expr_val(expr_val, froz_val_map, **kwargs)
                 for param, expr_val in expr_val_seq.param_map.items()
             }
         )
@@ -2011,17 +2041,6 @@ class ExprVal(ExprValBase):
             )
         else:
             return ''
-
-    def _get_froz_val(self, froz_val_map, *args, **kwargs):
-        if froz_val_map is None:
-            froz_val_map = dict()
-
-        try:
-            return froz_val_map[self]
-        except KeyError:
-            froz_val = FrozenExprVal(self, froz_val_map, *args, **kwargs)
-            froz_val_map[self] = froz_val
-            return froz_val
 
     @classmethod
     def validate_expr_val_list(cls, expr_val_list):
