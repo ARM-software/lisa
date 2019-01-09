@@ -398,11 +398,18 @@ class ExpressionBase:
         # the object, so it is a good candidate to refer to a node
         uid = id(self)
 
-        out = ['{uid} [label="{op_name}{reusable}\ntype:{value_type_name}"]'.format(
+        src_file, src_line = self.op.src_loc
+        if src_file and src_line:
+            src_loc = '({}:{})'.format(src_file, src_line)
+        else:
+            src_loc = ''
+
+        out = ['{uid} [label="{op_name} {reusable}\\ntype: {value_type_name}\\n{loc}"]'.format(
             uid=uid,
             op_name=op_name,
-            reusable=' (reusable)' if self.op.reusable else '',
+            reusable='(reusable)' if self.op.reusable else '(non-reusable)',
             value_type_name=utils.get_name(self.op.value_type, full_qual=full_qual),
+            loc=src_loc,
         )]
         if self.param_map:
             for param, param_expr in self.param_map.items():
@@ -427,8 +434,8 @@ class ExpressionBase:
             node_out = 'digraph structure {{\n{}\nlabel="' + title + '"\n}}'
         else:
             node_out = '{}'
-        return node_out.format(';\n'.join(out))
-
+        # dot seems to dislike empty line with just ";"
+        return node_out.format(';\n'.join(line for line in out if line.strip()))
 
     def get_id(self, *args, marked_expr_val_set=None, **kwargs):
         id_, marker = self._get_id(*args, **kwargs)
@@ -704,7 +711,7 @@ class ExpressionBase:
             reusable_outvar_map[self] = outvar
         return (outvar, script)
 
-    def _get_script_internal(self, reusable_outvar_map, prefix, script_db, module_name_set, idt, expr_val_set, consumer_expr_stack, expr_val_seq_list):
+    def _get_script_internal(self, reusable_outvar_map, prefix, script_db, module_name_set, idt, expr_val_set, consumer_expr_stack, expr_val_seq_list=[]):
         def make_method_self_name(expr):
             return expr.op.value_type.__name__.replace('.', '')
 
@@ -859,12 +866,11 @@ class ExpressionBase:
                     param_expr_val = expr_val.param_map[param]
                     param_expr_val_set.add(param_expr_val)
 
-            # Do a deep first search traversal of the expression.
+            # Do a deep first traversal of the expression.
             param_outvar, param_out = param_expr._get_script(
                 reusable_outvar_map, param_prefix, script_db, module_name_set, idt,
                 param_expr_val_set,
                 consumer_expr_stack = consumer_expr_stack + [self],
-                expr_val_seq_list=expr_val_seq_list,
             )
 
             snippet_list.append(param_out)
@@ -1068,10 +1074,10 @@ class ComputableExpression(ExpressionBase):
             for expr in expr_list
         )
 
-    #TODO: cleanup signature
-    def _get_script(self, *args, expr_val_seq_list=[], **kwargs):
-        expr_val_seq_list = self.expr_val_seq_list
-        return super()._get_script(*args, **kwargs, expr_val_seq_list=self.expr_val_seq_list)
+    def _get_script(self, *args, **kwargs):
+        return super()._get_script(*args, **kwargs,
+            expr_val_seq_list=self.expr_val_seq_list
+        )
 
     def get_id(self, mark_excep=False, marked_expr_val_set=set(), **kwargs):
         # Mark all the values that failed to be computed because of an
@@ -1502,28 +1508,26 @@ class Operator:
         return '<Operator of ' + str(self.callable_) + '>'
 
     def force_param(self, param_callable_map, tags_getter=None):
-        def define_type(param_type):
-            class ForcedType(param_type):
-                pass
-
-            # Make it transparent for better reporting
-            ForcedType.__qualname__ = param_type.__qualname__
-            ForcedType.__name__ = param_type.__name__
-            ForcedType.__module__ = param_type.__module__
-            return ForcedType
-
         prebuilt_op_set = set()
         for param, value_list in param_callable_map.items():
             # We just get the type of the first item in the list, which should
             # work in most cases
             param_type = type(take_first(value_list))
+            class UniqueType(param_type):
+                pass
+
+            # References to this type won't be serializable with pickle, but
+            # instances will be. This is because pickle checks that only one
+            # type exists with a given __module__ and __qualname__.
+            UniqueType.__name__ = param_type.__name__
+            UniqueType.__qualname__ = param_type.__qualname__
+            UniqueType.__module__ = param_type.__module__
 
             # Create an artificial new type that will only be produced by
             # the PrebuiltOperator
-            ForcedType = define_type(param_type)
-            self.annotations[param] = ForcedType
+            self.annotations[param] = UniqueType
             prebuilt_op_set.add(
-                PrebuiltOperator(ForcedType, value_list,
+                PrebuiltOperator(UniqueType, value_list,
                     tags_getter=tags_getter
             ))
 
@@ -1702,7 +1706,13 @@ class Operator:
                 cls_name = self.resolved_callable.__qualname__.split('.')[0]
                 self.annotations[first_param] = cls_name
 
-            produced = annotation_map['return']
+            # No return annotation is accepted and is equivalent to None return
+            # annotation
+            produced = annotation_map.get('return')
+            # "None" annotation is accepted, even though it is not a type
+            # strictly speaking
+            if produced is None:
+                produced = type(None)
 
         # Recompute after potentially modifying the annotations
         annotation_map = utils.resolve_annotations(self.annotations, self.callable_globals)
@@ -1910,7 +1920,7 @@ class FrozenExprVal(ExprValBase):
     def __init__(self,
             value, value_uuid, excep, excep_uuid,
             callable_qual_name, callable_name, recorded_id_map,
-            value_type, param_map):
+            param_map):
         self.value = value
         self.excep = excep
         self.value_uuid = value_uuid
@@ -1918,14 +1928,13 @@ class FrozenExprVal(ExprValBase):
         self.callable_qual_name = callable_qual_name
         self.callable_name = callable_name
         self.recorded_id_map = recorded_id_map
-        self.value_type = value_type
         super().__init__(param_map=param_map)
 
     @property
     def type_names(self):
         return [
             utils.get_name(type_, full_qual=True)
-            for type_ in utils.get_mro(self.value_type)
+            for type_ in utils.get_mro(type(value))
             if type_ is not object
         ]
 
@@ -1968,7 +1977,6 @@ class FrozenExprVal(ExprValBase):
             callable_name=callable_name,
             recorded_id_map=recorded_id_map,
             param_map=param_map,
-            value_type=expr_val.expr.op.value_type,
         )
 
         return froz_val

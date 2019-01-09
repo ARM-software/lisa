@@ -68,7 +68,7 @@ def _get_callable_set(module, verbose):
             # anyway.
             if inspect.isabstract(return_type):
                 log_f = info if verbose else debug
-                log_f('Class {} is ignored since it has non-implemented abstract methods'.format(
+                log_f('Instances of {} will not be created since it has non-implemented abstract methods'.format(
                     get_name(return_type, full_qual=True)
                 ))
             else:

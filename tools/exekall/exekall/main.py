@@ -746,6 +746,8 @@ def do_run(args, parser, run_parser, argv):
             # If "dot" is not installed
             except FileNotFoundError:
                 svg = ''
+            except subprocess.CalledProcessError as e:
+                debug('dot failed to execute: {}'.format(e))
 
         if svg:
             with (testcase_artifact_dir/'STRUCTURE.svg').open('wb') as f:
@@ -812,9 +814,6 @@ def do_run(args, parser, run_parser, argv):
         computed_expr_val_set = set()
         reused_expr_val_set = set()
         def log_expr_val(expr_val, reused):
-            if expr_val.expr.op.callable_ in hidden_callable_set:
-                return
-
             # Consider that PrebuiltOperator reuse values instead of actually
             # computing them.
             if isinstance(expr_val.expr.op, engine.PrebuiltOperator):
@@ -827,14 +826,15 @@ def do_run(args, parser, run_parser, argv):
                 msg = 'Computed {id}{uuid}'
                 computed_expr_val_set.add(expr_val)
 
-            info(msg.format(
-                id=expr_val.get_id(
-                    full_qual=False,
-                    with_tags=True,
-                    hidden_callable_set=hidden_callable_set,
-                ),
-                uuid = get_uuid_str(expr_val),
-            ))
+            if expr_val.expr.op.callable_ not in hidden_callable_set:
+                info(msg.format(
+                    id=expr_val.get_id(
+                        full_qual=False,
+                        with_tags=True,
+                        hidden_callable_set=hidden_callable_set,
+                    ),
+                    uuid = get_uuid_str(expr_val),
+                ))
 
         # This returns an iterator
         executor = testcase.execute(log_expr_val)
