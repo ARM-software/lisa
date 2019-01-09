@@ -418,7 +418,7 @@ def flatten_seq(seq, levels=1):
         seq = list(itertools.chain.from_iterable(seq))
         return flatten_seq(seq, levels=levels - 1)
 
-def get_froz_val_seq_set(db, uuid_seq=None, type_pattern_seq=None):
+def get_froz_val_set_set(db, uuid_seq=None, type_pattern_seq=None):
 
     def uuid_predicate(froz_val):
         return froz_val.uuid in uuid_seq
@@ -447,10 +447,7 @@ def match_base_cls(cls, pattern_list):
         base_cls_name = get_name(base_cls, full_qual=True)
         if not base_cls_name:
             continue
-        if any(
-                fnmatch.fnmatch(base_cls_name, pattern)
-                for pattern in pattern_list
-            ):
+        if match_name(base_cls_name, pattern_list):
             return True
 
     return False
@@ -462,6 +459,23 @@ def match_name(name, pattern_list):
         fnmatch.fnmatch(name, pattern)
         for pattern in pattern_list
     )
+
+def get_common_base(cls_list):
+    # MRO in which "object" will appear first
+    def rev_mro(cls):
+        return reversed(inspect.getmro(cls))
+
+    def common(cls1, cls2):
+        # Get the most derived class that is in common in the MRO of cls1 and
+        # cls2
+        for b1, b2 in itertools.takewhile(
+            lambda b1_b2: b1_b2[0] is b1_b2[1],
+            zip(rev_mro(cls1), rev_mro(cls2))
+        ):
+            pass
+        return b1
+
+    return functools.reduce(common, cls_list)
 
 def get_recursive_module_set(module_set, package_set):
     """Retrieve the set of all modules recurisvely imported from the modules in

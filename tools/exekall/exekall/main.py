@@ -386,20 +386,20 @@ def do_run(args, parser, run_parser, argv):
             )
         )
 
-        froz_val_seq_set = set()
+        froz_val_set_set = set()
         if load_all_uuid:
-            froz_val_seq_set.update(
-                utils.get_froz_val_seq_set(db, None, load_db_pattern_list)
+            froz_val_set_set.update(
+                utils.get_froz_val_set_set(db, None, load_db_pattern_list)
             )
         elif load_db_uuid_list:
-            froz_val_seq_set.update(
-                utils.get_froz_val_seq_set(db, load_db_uuid_list,
+            froz_val_set_set.update(
+                utils.get_froz_val_set_set(db, load_db_uuid_list,
                 load_db_pattern_list
             ))
         elif load_db_uuid_args:
             # Get the froz_val value we are interested in
             froz_val_list = utils.flatten_seq(
-                utils.get_froz_val_seq_set(db, [load_db_uuid_args],
+                utils.get_froz_val_set_set(db, [load_db_uuid_args],
                 load_db_pattern_list
             ))
             for froz_val in froz_val_list:
@@ -409,14 +409,14 @@ def do_run(args, parser, run_parser, argv):
                     for param_froz_val in froz_val.param_expr_val_map.values()
                 ]
 
-                froz_val_seq_set.update(
-                        utils.get_froz_val_seq_set(db, param_uuid_list,
+                froz_val_set_set.update(
+                        utils.get_froz_val_set_set(db, param_uuid_list,
                         load_db_pattern_list
                 ))
 
         # Otherwise, reload all the root froz_val values
         else:
-            froz_val_seq_set.update(
+            froz_val_set_set.update(
                 frozenset(froz_val_seq)
                 for froz_val_seq in db.froz_val_seq_list
             )
@@ -424,9 +424,9 @@ def do_run(args, parser, run_parser, argv):
         # Build the list of PrebuiltOperator that will inject the loaded values
         # into the tests
         prebuilt_op_pool_list = list()
-        for froz_val_seq in froz_val_seq_set:
+        for froz_val_set in froz_val_set_set:
             froz_val_list = [
-                froz_val for froz_val in froz_val_seq
+                froz_val for froz_val in froz_val_set
                 if froz_val.value is not NoValue
             ]
             if not froz_val_list:
@@ -442,7 +442,10 @@ def do_run(args, parser, run_parser, argv):
             for full_id, group in itertools.groupby(froz_val_list, key=key):
                 froz_val_list = list(group)
 
-                type_ = type(froz_val_list[0].value)
+                type_ = utils.get_common_base(
+                    type(froz_val.value)
+                    for froz_val in froz_val_list
+                )
                 id_ = froz_val_list[0].get_id(
                     full_qual=False,
                     qual=False,
