@@ -101,14 +101,13 @@ class ValueDB:
         # First pass: find all frozen values corresponding to a given UUID
         uuid_map = {}
         def update_uuid_map(froz_val):
-            uuid_pair = (froz_val.value_uuid, froz_val.excep_uuid)
-            uuid_map.setdefault(uuid_pair, set()).add(froz_val)
+            uuid_map.setdefault(froz_val.uuid, set()).add(froz_val)
             return froz_val
         cls._froz_val_dfs(froz_val_seq_list, update_uuid_map)
 
         # Make sure no deduplication will occur on None, as it is used as a
         # marker when no exception was raised or when no value was available.
-        uuid_map[None] = set()
+        uuid_map[(None, None)] = set()
 
         # Select one FrozenExprVal for each UUID pair
         def select_froz_val(froz_val_set):
@@ -138,8 +137,7 @@ class ValueDB:
 
         # Second pass: only keep one frozen value for each UUID
         def rewrite_graph(froz_val):
-            uuid_pair = (froz_val.value_uuid, froz_val.excep_uuid)
-            return uuid_map[uuid_pair]
+            return uuid_map[froz_val.uuid]
 
         return cls._froz_val_dfs(froz_val_seq_list, rewrite_graph)
 
@@ -190,38 +188,34 @@ class ValueDB:
         with lzma.open(str(path), 'wb') as f:
             dumper(f)
 
-    # Since the content of the cache is not serialized, the maps will be
-    # regenerated when the object is restored.
+    @property
     @utils.once
-    def _get_indexes(self):
-        uuid_value_map = dict()
-        id_uuid_map = dict()
+    def _uuid_map(self):
+        uuid_map = dict()
 
         def update_map(froz_val):
-            for uuid_, val in (
-                (froz_val.value_uuid, froz_val.value),
-                (froz_val.excep_uuid, froz_val.excep),
-            ):
-                uuid_value_map[uuid_] = val
-                id_uuid_map[id(val)] = uuid_
-
+            uuid_map[froz_val.uuid] = froz_val
             return froz_val
 
         self._froz_val_dfs(self.froz_val_seq_list, update_map)
 
-        return (uuid_value_map, id_uuid_map)
+        return uuid_map
 
     @classmethod
     def _froz_val_dfs(cls, froz_val_seq_list, callback):
-        updated_froz_val_seq_list = []
-        for froz_val_seq in froz_val_seq_list:
-            updated_froz_val_seq = []
-            for froz_val in froz_val_seq:
-                updated_froz_val_seq.append(
+        return [
+            FrozenExprValSeq(
+                froz_val_list=[
                     cls._do_froz_val_dfs(froz_val, callback)
-                )
-            updated_froz_val_seq_list.append(updated_froz_val_seq)
-        return updated_froz_val_seq_list
+                    for froz_val in froz_val_seq
+                ],
+                param_map={
+                    param: cls._do_froz_val_dfs(froz_val, callback)
+                    for param, froz_val in froz_val_seq.param_map.items()
+                }
+            )
+            for froz_val_seq in froz_val_seq_list
+        ]
 
     @classmethod
     def _do_froz_val_dfs(cls, froz_val, callback):
@@ -233,8 +227,7 @@ class ValueDB:
         return updated_froz_val
 
     def get_by_uuid(self, uuid):
-        uuid_value_map, _ = self._get_indexes()
-        return uuid_value_map[uuid]
+        return self._uuid_map[uuid]
 
     def get_by_predicate(self, predicate, flatten=True, deduplicate=False):
         """
@@ -293,16 +286,25 @@ class ValueDB:
             predicate = lambda froz_val: type(froz_val.value) is cls
         return self.get_by_predicate(predicate, **kwargs)
 
+    def get_by_id(self, id_, qual=False, full_qual=False, **kwargs):
+        def predicate(froz_val):
+            return utils.match_name(
+                froz_val.get_id(qual=qual, full_qual=full_qual),
+                [id_]
+            )
+
+        return self.get_by_predicate(predicate, **kwargs)
+
 class ScriptValueDB:
     def __init__(self, db, var_name='db'):
         self.db = db
         self.var_name = var_name
 
-    def get_value_snippet(self, value):
-        _, id_uuid_map = self.db._get_indexes()
-        return '{db}.get_by_uuid({key})'.format(
+    def get_snippet(self, expr_val, attr):
+        return '{db}.get_by_uuid({uuid}).{attr}'.format(
             db=self.var_name,
-            key=repr(id_uuid_map[id(value)])
+            uuid=repr(expr_val.uuid),
+            attr=attr,
         )
 
 class CycleError(Exception):
@@ -617,22 +619,9 @@ class ExpressionBase:
                 consumer_expr_stack = [],
             )
 
-            # If we can expect eval() to work on the representation, we
-            # use that
-            if pprint.isreadable(expr.data):
-                expr_data = pprint.pformat(expr.data)
-            else:
-                # Otherwise, we try to get it from the DB
-                try:
-                    expr_data = script_db.get_value_snippet(expr.data)
-                # If the expr_data was not used when computing subexpressions
-                # (that may happen if some subrexpressions were already
-                # computed for an other expression), we just bail out, hoping
-                # that nothing will need EXPR_DATA to be defined. That should
-                # not happen often as EXPR_DATA is supposed to stay
-                # pretty-printable
-                except KeyError:
-                    expr_data = '{} # cannot be pretty-printed'
+            # ExprData must be printable to a string representation that can be
+            # fed back to eval()
+            expr_data = pprint.pformat(expr.data)
 
             expr_data_snippet = cls.EXPR_DATA_VAR_NAME + ' = ' + expr_data + '\n'
 
@@ -755,7 +744,7 @@ class ExpressionBase:
             elif attr == 'value' and callable_ is ExprData:
                 return self.EXPR_DATA_VAR_NAME
             else:
-                return script_db.get_value_snippet(obj)
+                return script_db.get_snippet(expr_val, attr)
 
         def format_build_param(param_map):
             out = list()
@@ -1195,7 +1184,6 @@ class ComputableExpression(ExpressionBase):
                 expr_val = ExprVal(self, param_map)
                 expr_val_seq = ExprValSeq.from_one_expr_val(
                     self, expr_val, param_map,
-                    post_compute_cb=post_compute_cb,
                 )
                 self.expr_val_seq_list.append(expr_val_seq)
                 yield expr_val
@@ -1216,12 +1204,12 @@ class ComputableExpression(ExpressionBase):
                     consumer = consumer_expr_stack[-2].op.callable_
                 except IndexError:
                     consumer = None
-                iterated = [ ((consumer, None), (NoValue, None)) ]
+                iterated = [ (None, consumer, NoValue) ]
 
             elif self.op.callable_ is ExprData:
                 root_expr = consumer_expr_stack[0]
                 expr_data = root_expr.data
-                iterated = [ ((expr_data, expr_data.uuid), (NoValue, None)) ]
+                iterated = [ (expr_data.uuid, expr_data, NoValue) ]
 
             # Otherwise, we just call the operators with its parameters
             else:
@@ -1661,24 +1649,25 @@ class Operator:
                     has_yielded = False
                     for res in self.callable_(*args, **kwargs):
                         has_yielded = True
-                        yield (res, utils.create_uuid()), (NoValue, None)
+                        yield (utils.create_uuid(), res, NoValue)
 
                     # If no value at all were produced, we still need to yield
                     # something
                     if not has_yielded:
-                        yield (NoValue, None), (NoValue, None)
+                        yield (utils.create_uuid(), NoValue, NoValue)
 
                 except Exception as e:
-                    yield (NoValue, None), (e, utils.create_uuid())
+                    yield (utils.create_uuid(), NoValue, e)
         else:
             @functools.wraps(self.callable_)
             def genf(*args, **kwargs):
+                uuid_ = utils.create_uuid()
                 # yield one value and then return
                 try:
                     val = self.callable_(*args, **kwargs)
-                    yield (val, utils.create_uuid()), (NoValue, None)
+                    yield (uuid_, val, NoValue)
                 except Exception as e:
-                    yield (NoValue, None), (e, utils.create_uuid())
+                    yield (uuid_, NoValue, e)
 
         return genf
 
@@ -1760,7 +1749,7 @@ class PrebuiltOperator(Operator):
             # Transparently copy the UUID to avoid having multiple UUIDs
             # refering to the same actual value.
             if isinstance(obj, FrozenExprVal):
-                uuid_ = obj.value_uuid
+                uuid_ = obj.uuid
                 obj = obj.value
             else:
                 uuid_ = utils.create_uuid()
@@ -1800,7 +1789,7 @@ class PrebuiltOperator(Operator):
     def generator_wrapper(self):
         def genf():
             for obj, uuid_ in zip(self.obj_list, self.uuid_list):
-                yield (obj, uuid_), (NoValue, None)
+                yield (uuid_, obj, NoValue)
         return genf
 
 class ExprValSeq:
@@ -1812,19 +1801,22 @@ class ExprValSeq:
         self.param_map = param_map
         self.post_compute_cb = post_compute_cb
 
-
     @classmethod
-    def from_one_expr_val(cls, expr, expr_val, param_map, post_compute_cb=None):
-        iterated = [(
-            (expr_val.value, expr_val.value_uuid),
-            (expr_val.excep, expr_val.excep_uuid),
-        )]
+    def from_one_expr_val(cls, expr, expr_val, param_map):
+        iterated = [
+            (expr_val.uuid, expr_val.value, expr_val.excep)
+        ]
         new = cls(
             expr=expr,
             iterator=iter(iterated),
             param_map=param_map,
-            post_compute_cb=post_compute_cb
+            # no post_compute_cb, since we are not really going to compute
+            # anything
+            post_compute_cb=None,
         )
+        # consume the iterator to make sure new.expr_val_list is updated
+        for _ in new.iter_expr_val():
+            pass
         return new
 
     def iter_expr_val(self):
@@ -1842,10 +1834,9 @@ class ExprValSeq:
 
         # Then compute the remaining ones
         if self.iterator:
-            for (value, value_uuid), (excep, excep_uuid) in self.iterator:
+            for uuid_, value, excep in self.iterator:
                 expr_val = ExprVal(self.expr, self.param_map,
-                    value, value_uuid,
-                    excep, excep_uuid
+                    uuid_, value, excep
                 )
                 callback(expr_val, reused=False)
 
@@ -1918,13 +1909,12 @@ class ExprValBase(collections.abc.Mapping):
 
 class FrozenExprVal(ExprValBase):
     def __init__(self,
-            value, value_uuid, excep, excep_uuid,
+            uuid, value, excep,
             callable_qual_name, callable_name, recorded_id_map,
             param_map):
         self.value = value
         self.excep = excep
-        self.value_uuid = value_uuid
-        self.excep_uuid = excep_uuid
+        self.uuid = uuid
         self.callable_qual_name = callable_qual_name
         self.callable_name = callable_name
         self.recorded_id_map = recorded_id_map
@@ -1942,9 +1932,6 @@ class FrozenExprVal(ExprValBase):
     def from_expr_val(cls, expr_val, hidden_callable_set=None):
         value = expr_val.value if utils.is_serializable(expr_val.value) else NoValue
         excep = expr_val.excep if utils.is_serializable(expr_val.excep) else NoValue
-
-        value_uuid = expr_val.value_uuid
-        excep_uuid = expr_val.excep_uuid
 
         callable_qual_name = expr_val.expr.op.get_name(full_qual=True)
         callable_name = expr_val.expr.op.get_name(full_qual=False, qual=False)
@@ -1969,10 +1956,9 @@ class FrozenExprVal(ExprValBase):
             param_map[param] = froz_val
 
         froz_val = cls(
+            uuid=expr_val.uuid,
             value=value,
-            value_uuid=value_uuid,
             excep=excep,
-            excep_uuid=excep_uuid,
             callable_qual_name=callable_qual_name,
             callable_name=callable_name,
             recorded_id_map=recorded_id_map,
@@ -2011,7 +1997,7 @@ class FrozenExprValSeq(collections.abc.Sequence):
 
     @classmethod
     def from_expr_list(cls, expr_list, **kwargs):
-        #TODO: is flatten_seq correct here or do we need to maintain more structure ?
+        # TODO: is flatten_seq correct here or do we need to maintain more structure ?
         # this should be fine since we just don't group by expression
         expr_val_seq_list = utils.flatten_seq(expr.expr_val_seq_list for expr in expr_list)
         return [
@@ -2021,14 +2007,12 @@ class FrozenExprValSeq(collections.abc.Sequence):
 
 
 class ExprVal(ExprValBase):
-    def __init__(self, expr, param_map,
-            value=NoValue, value_uuid=None,
-            excep=NoValue, excep_uuid=None,
+    def __init__(self, expr, param_map, uuid=None,
+            value=NoValue, excep=NoValue,
     ):
         self.value = value
-        self.value_uuid = value_uuid
+        self.uuid = uuid if uuid is not None else utils.create_uuid()
         self.excep = excep
-        self.excep_uuid = excep_uuid
         self.expr = expr
         super().__init__(param_map=param_map)
 

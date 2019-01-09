@@ -421,10 +421,7 @@ def flatten_seq(seq, levels=1):
 def get_froz_val_seq_set(db, uuid_seq=None, type_pattern_seq=None):
 
     def uuid_predicate(froz_val):
-        return (
-            froz_val.value_uuid in uuid_seq
-            or froz_val.excep_uuid in uuid_seq
-        )
+        return froz_val.uuid in uuid_seq
 
     def type_pattern_predicate(froz_val):
         return match_base_cls(type(froz_val.value), type_pattern_seq)

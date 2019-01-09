@@ -85,10 +85,10 @@ class AdaptorBase:
             for failed_parent in failed_parents:
                 excep = failed_parent.excep
                 return 'EXCEPTION ({type}): {msg}'.format(
-                    type = get_name(type(excep)),
+                    type = get_name(type(excep), full_qual=False),
                     msg = excep
                 )
-            return 'No result computed'
+            return 'No value computed'
         else:
             return str(val)
 

@@ -277,7 +277,7 @@ class LISAAdaptor(AdaptorBase):
                     def bundle_predicate(expr_val):
                         return issubclass(expr_val.expr.op.value_type, TestBundle)
                     bundle_uuid_set = {
-                        expr_val.value_uuid
+                        expr_val.uuid
                         for expr_val in expr_val.get_by_predicate(bundle_predicate)
                     }
                     bundle_uuid_set.discard(None)

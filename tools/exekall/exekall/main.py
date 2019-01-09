@@ -405,7 +405,7 @@ def do_run(args, parser, run_parser, argv):
             for froz_val in froz_val_list:
                 # Get all the UUIDs of its parameters
                 param_uuid_list = [
-                    param_froz_val.value_uuid
+                    param_froz_val.uuid
                     for param_froz_val in froz_val.param_expr_val_map.values()
                 ]
 
@@ -805,11 +805,7 @@ def do_run(args, parser, run_parser, argv):
             sys.stderr.flush()
 
         def get_uuid_str(expr_val):
-            uuid_val = (expr_val.value_uuid or expr_val.excep_uuid)
-            if uuid_val:
-                return ' UUID={}'.format(uuid_val)
-            else:
-                return ''
+            return 'UUID={}'.format(expr_val.uuid)
 
         computed_expr_val_set = set()
         reused_expr_val_set = set()
@@ -820,10 +816,10 @@ def do_run(args, parser, run_parser, argv):
                 reused = True
 
             if reused:
-                msg = 'Reusing already computed {id}{uuid}'
+                msg = 'Reusing already computed {id} {uuid}'
                 reused_expr_val_set.add(expr_val)
             else:
-                msg = 'Computed {id}{uuid}'
+                msg = 'Computed {id} {uuid}'
                 computed_expr_val_set.add(expr_val)
 
             if expr_val.expr.op.callable_ not in hidden_callable_set:
@@ -833,7 +829,7 @@ def do_run(args, parser, run_parser, argv):
                         with_tags=True,
                         hidden_callable_set=hidden_callable_set,
                     ),
-                    uuid = get_uuid_str(expr_val),
+                    uuid=get_uuid_str(expr_val),
                 ))
 
         # This returns an iterator
@@ -885,23 +881,20 @@ def do_run(args, parser, run_parser, argv):
                 )[1]+'\n',
             )
 
-        def write_uuid(expr_val_list, f):
+        def format_uuid(expr_val_list):
             uuid_list = sorted(
-                (expr_val.value_uuid, expr_val.excep_uuid)
+                expr_val.uuid
                 for expr_val in expr_val_list
             )
-            for uuid_ in utils.flatten_seq(uuid_list):
-                if uuid_:
-                    f.write(uuid_ + '\n')
+            return '\n'.join(uuid_list)
 
-        with (testcase_artifact_dir/'VALUES_UUID').open('wt') as f:
-            write_uuid(result_list, f)
+        def write_uuid(path, *args):
+            with path.open('wt') as f:
+                f.write(format_uuid(*args) + '\n')
 
-        with (testcase_artifact_dir/'REUSED_VALUES_UUID').open('wt') as f:
-            write_uuid(reused_expr_val_set, f)
-
-        with (testcase_artifact_dir/'COMPUTED_VALUES_UUID').open('wt') as f:
-            write_uuid(computed_expr_val_set, f)
+        write_uuid(testcase_artifact_dir/'VALUES_UUID', result_list)
+        write_uuid(testcase_artifact_dir/'REUSED_VALUES_UUID', reused_expr_val_set)
+        write_uuid(testcase_artifact_dir/'COMPUTED_VALUES_UUID', computed_expr_val_set)
 
     db = engine.ValueDB(
         engine.FrozenExprValSeq.from_expr_list(
