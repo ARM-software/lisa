@@ -544,6 +544,7 @@ def do_run(args, parser, run_parser, argv):
         # Operator with all the compatible classes
         cls_map[op.obj_type]
         for op in prebuilt_op_pool_list
+        if op.obj_type is not type(None)
     ))
 
     only_prebuilt_cls.discard(type(NoValue))
