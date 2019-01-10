@@ -403,16 +403,13 @@ def do_run(args, parser, run_parser, argv):
                 load_db_pattern_list
             ))
             for froz_val in froz_val_list:
-                # Get all the UUIDs of its parameters
-                param_uuid_list = [
-                    param_froz_val.uuid
-                    for param_froz_val in froz_val.param_expr_val_map.values()
-                ]
-
-                froz_val_set_set.update(
-                        utils.get_froz_val_set_set(db, param_uuid_list,
-                        load_db_pattern_list
-                ))
+                # Reload the whole context, except froz_val itself since we
+                # only want its arguments. We load the "indirect" arguments as
+                # well to ensure references to their types will be fulfilled by
+                # them instead of computing new values.
+                froz_val_set_set.add(frozenset(froz_val.get_by_predicate(
+                    lambda v: v is not froz_val and v.value is not NoValue
+                )))
 
         # Otherwise, reload all the root froz_val values
         else:
