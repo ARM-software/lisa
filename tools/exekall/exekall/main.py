@@ -825,7 +825,11 @@ def do_run(args, parser, run_parser, argv):
                 msg = 'Computed {id} {uuid}'
                 computed_expr_val_set.add(expr_val)
 
-            if expr_val.expr.op.callable_ not in hidden_callable_set:
+            op = expr_val.expr.op
+            if (
+                op.callable_ not in hidden_callable_set
+                and not issubclass(op.value_type, engine.ForcedParamType)
+            ):
                 info(msg.format(
                     id=expr_val.get_id(
                         full_qual=False,

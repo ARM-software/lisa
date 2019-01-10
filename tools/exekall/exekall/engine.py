@@ -1443,6 +1443,9 @@ def consume_gen_map(param_map, product):
 class AnnotationError(Exception):
     pass
 
+class ForcedParamType:
+    pass
+
 class Operator:
     def __init__(self, callable_, non_reusable_type_set=None, tags_getter=None):
         if non_reusable_type_set is None:
@@ -1500,24 +1503,38 @@ class Operator:
     def force_param(self, param_callable_map, tags_getter=None):
         prebuilt_op_set = set()
         for param, value_list in param_callable_map.items():
-            # We just get the type of the first item in the list, which should
-            # work in most cases
-            param_type = type(take_first(value_list))
-            class UniqueType(param_type):
+            # Get the most derived class that is in common between all
+            # instances
+            value_type = utils.get_common_base(type(v) for v in value_list)
+
+            try:
+                param_annot = self.annotations[param]
+            except KeyError:
+                pass
+            else:
+                # If there was an annotation, make sure the type we computed is
+                # compatible with what the annotation specifies.
+                assert issubclass(value_type, param_annot)
+
+            # We do not inherit from value_type, since it may not always work,
+            # e.g. subclassing bool is forbidden. Therefore, it is purely used
+            # as a unique marker.
+            class ParamType(ForcedParamType):
                 pass
 
             # References to this type won't be serializable with pickle, but
             # instances will be. This is because pickle checks that only one
             # type exists with a given __module__ and __qualname__.
-            UniqueType.__name__ = param_type.__name__
-            UniqueType.__qualname__ = param_type.__qualname__
-            UniqueType.__module__ = param_type.__module__
+            ParamType.__name__ = value_type.__name__
+            ParamType.__qualname__ = value_type.__qualname__
+            ParamType.__module__ = value_type.__module__
 
             # Create an artificial new type that will only be produced by
             # the PrebuiltOperator
-            self.annotations[param] = UniqueType
+            self.annotations[param] = ParamType
+
             prebuilt_op_set.add(
-                PrebuiltOperator(UniqueType, value_list,
+                PrebuiltOperator(ParamType, value_list,
                     tags_getter=tags_getter
             ))
 
