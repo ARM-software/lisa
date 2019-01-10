@@ -252,12 +252,14 @@ class ValueDB:
         # Make sure we don't select the same froz_val twice
         if deduplicate:
             visited = set()
-            def predicate(froz_val):
+            def wrapped_predicate(froz_val):
                 if froz_val in visited:
                     return False
                 else:
                     visited.add(froz_val)
                     return predicate(froz_val)
+        else:
+            wrapped_predicate = predicate
 
         for froz_val_seq in self.froz_val_seq_list:
             froz_val_set = set()
@@ -267,7 +269,7 @@ class ValueDB:
                     # (because of a failed parent for example)
                     froz_val_seq, froz_val_seq.param_map.values()
                 ):
-                froz_val_set.update(froz_val.get_by_predicate(predicate))
+                froz_val_set.update(froz_val.get_by_predicate(wrapped_predicate))
 
             froz_val_set_set.add(frozenset(froz_val_set))
 
