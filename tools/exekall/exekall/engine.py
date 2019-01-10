@@ -1130,7 +1130,7 @@ class ComputableExpression(ExpressionBase):
 
         # Consume all the reusable parameters, since they are generators
         for param_map in consume_gen_map(
-                reusable_param_exec_map, product=ExprVal.expr_val_product
+                reusable_param_exec_map, product=ExprVal.product
             ):
             # If some parameters could not be computed, we will not get all
             # values
@@ -1884,8 +1884,9 @@ def any_value_is_NoValue(expr_val_list):
     )
 
 class ExprValBase(collections.abc.Mapping):
-    def __init__(self, param_map):
+    def __init__(self, param_map, value):
         self.param_map = param_map
+        self.value = value
 
     def get_by_predicate(self, predicate):
         return list(self._get_by_predicate(predicate))
@@ -1931,13 +1932,12 @@ class FrozenExprVal(ExprValBase):
             uuid, value, excep,
             callable_qual_name, callable_name, recorded_id_map,
             param_map):
-        self.value = value
         self.excep = excep
         self.uuid = uuid
         self.callable_qual_name = callable_qual_name
         self.callable_name = callable_name
         self.recorded_id_map = recorded_id_map
-        super().__init__(param_map=param_map)
+        super().__init__(param_map=param_map, value=value)
 
     @property
     def type_names(self):
@@ -2027,13 +2027,12 @@ class FrozenExprValSeq(collections.abc.Sequence):
 
 class ExprVal(ExprValBase):
     def __init__(self, expr, param_map, uuid=None,
-            value=NoValue, excep=NoValue,
+        value=NoValue, excep=NoValue,
     ):
-        self.value = value
         self.uuid = uuid if uuid is not None else utils.create_uuid()
         self.excep = excep
         self.expr = expr
-        super().__init__(param_map=param_map)
+        super().__init__(param_map=param_map, value=value)
 
     def format_tags(self):
         tag_map = self.expr.op.tags_getter(self.value)
@@ -2045,8 +2044,17 @@ class ExprVal(ExprValBase):
         else:
             return ''
 
+    def _get_expr_map(self):
+        expr_map = {}
+        def predicate(expr_val):
+            expr_map[expr_val.expr] = expr_val
+
+        self.get_by_predicate(predicate)
+
+        return expr_map
+
     @classmethod
-    def validate_expr_val_list(cls, expr_val_list):
+    def validate(cls, expr_val_list):
         if not expr_val_list:
             return True
 
@@ -2057,7 +2065,8 @@ class ExprVal(ExprValBase):
             expr_map = expr_val._get_expr_map()
             # For all Expression's that directly or indirectly lead to both the
             # reference ExprVal and the ExprVal, check that it had the same
-            # value. That ensures that we are not making incompatible combinations.
+            # value. That ensures that we are not making incompatible
+            # combinations.
 
             if not all(
                 expr_map_ref[expr] is expr_map[expr]
@@ -2069,23 +2078,23 @@ class ExprVal(ExprValBase):
             ):
                 return False
 
-            if not cls.validate_expr_val_list(expr_val_list[2:]):
+            if not cls.validate(expr_val_list[2:]):
                 return False
 
         return True
 
     @classmethod
-    def expr_val_product(cls, *gen_list):
+    def product(cls, *gen_list):
         """Similar to the cartesian product provided by itertools.product, with
         special handling of NoValue and some checks on the yielded sequences.
 
         It will only yield the combinations of values that are validated by
-        :meth:`validate_expr_val_list`.
+        :meth:`validate`.
         """
 
         generator = gen_list[0]
         sub_generator_list = gen_list[1:]
-        sub_generator_list_iterator = cls.expr_val_product(*sub_generator_list)
+        sub_generator_list_iterator = cls.product(*sub_generator_list)
         if sub_generator_list:
             from_gen = True
             saved_expr_val_list = list()
@@ -2103,7 +2112,7 @@ class ExprVal(ExprValBase):
                         sub_generator_list_iterator, saved_expr_val_list, from_gen
                     ):
                     expr_val_list = [expr_val] + sub_expr_val_list
-                    if cls.validate_expr_val_list(expr_val_list):
+                    if cls.validate(expr_val_list):
                         yield expr_val_list
 
                 # After the first traversal of sub_generator_list_iterator, we
@@ -2112,7 +2121,7 @@ class ExprVal(ExprValBase):
         else:
             for expr_val in generator:
                 expr_val_list = [expr_val]
-                if cls.validate_expr_val_list(expr_val_list):
+                if cls.validate(expr_val_list):
                     yield expr_val_list
 
 
@@ -2122,15 +2131,6 @@ class ExprVal(ExprValBase):
             expr_val=self,
             *args, **kwargs
         )
-
-    def _get_expr_map(self):
-        expr_map = {}
-        def predicate(expr_val):
-            expr_map[expr_val.expr] = expr_val
-
-        self.get_by_predicate(predicate)
-
-        return expr_map
 
 class Consumer:
     def __init__(self):
