@@ -296,7 +296,7 @@ class LISAAdaptor(AdaptorBase):
                     ))
                     testsuite_counters['tests'] += 1
 
-                    for failed_expr_val in expr_val.get_failed():
+                    for failed_expr_val in expr_val.get_excep():
                         excep = failed_expr_val.excep
                         # When one critical object cannot be created, we assume
                         # the test was skipped.

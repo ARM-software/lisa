@@ -636,11 +636,11 @@ def do_run(args, parser, run_parser, argv):
 
     # Build the list of Expression that can be constructed from the set of
     # callables
-    testcase_list = list(engine.Expression.build_expr_list(
+    testcase_list = engine.Expression.build_expr_list(
         root_op_list, op_map, cls_map,
         non_produced_handler = handle_non_produced,
         cycle_handler = handle_cycle,
-    ))
+    )
     # First, sort with the fully qualified ID so we have the strongest stability
     # possible from one run to another
     testcase_list.sort(key=lambda expr: expr.get_id(full_qual=True, with_tags=True))
@@ -842,11 +842,11 @@ def do_run(args, parser, run_parser, argv):
 
         out('')
         for result in utils.iterate_cb(executor, pre_line, flush_std_streams):
-            for failed_val in result.get_failed():
-                excep = failed_val.excep
+            for excep_val in result.get_excep():
+                excep = excep_val.excep
                 tb = utils.format_exception(excep)
                 error('Error ({e_name}): {e}\nID: {id}\n{tb}'.format(
-                        id=failed_val.get_id(),
+                        id=excep_val.get_id(),
                         e_name = utils.get_name(type(excep)),
                         e=excep,
                         tb=tb,

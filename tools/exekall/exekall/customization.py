@@ -81,7 +81,7 @@ class AdaptorBase:
     def result_str(self, result):
         val = result.value
         if val is NoValue or val is None:
-            failed_parents = result.get_failed()
+            failed_parents = result.get_excep()
             for failed_parent in failed_parents:
                 excep = failed_parent.excep
                 return 'EXCEPTION ({type}): {msg}'.format(

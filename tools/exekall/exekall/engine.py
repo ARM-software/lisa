@@ -345,13 +345,7 @@ class ExpressionBase:
             tuple(sorted(self.param_map.items(), key=lambda k_v: k_v[0]))
         )
 
-        try:
-            return expr_map[key]
-        except KeyError:
-            # Otherwise register this ComputableExpression so no other duplicate
-            # will be used
-            expr_map[key] = self
-            return self
+        return expr_map.setdefault(key, self)
 
     def __repr__(self):
         return '<Expression of {name} at {id}>'.format(
@@ -1073,7 +1067,7 @@ class ComputableExpression(ExpressionBase):
     def get_id(self, mark_excep=False, marked_expr_val_set=set(), **kwargs):
         # Mark all the values that failed to be computed because of an
         # exception
-        marked_expr_val_set = self.get_failed() if mark_excep else marked_expr_val_set
+        marked_expr_val_set = self.get_excep() if mark_excep else marked_expr_val_set
 
         return super().get_id(
             marked_expr_val_set=marked_expr_val_set,
@@ -1081,11 +1075,11 @@ class ComputableExpression(ExpressionBase):
         )
 
     def find_expr_val_seq_list(self, param_map):
-        def value_map(expr_val_map):
+        def value_map(param_map):
             return OrderedDict(
                 # Extract the actual value from ExprVal
                 (param, expr_val.value)
-                for param, expr_val in expr_val_map.items()
+                for param, expr_val in param_map.items()
             )
         param_map = value_map(param_map)
 
@@ -1225,15 +1219,15 @@ class ComputableExpression(ExpressionBase):
             self.expr_val_seq_list.append(expr_val_seq)
             yield from expr_val_seq.iter_expr_val()
 
-    #TODO: align name
     def get_all_vals(self):
-        for expr_val_seq in self.expr_val_seq_list:
-            yield from expr_val_seq.expr_val_list
+        return utils.flatten_seq(
+            expr_val_seq.expr_val_list
+            for expr_val_seq in self.expr_val_seq_list
+        )
 
-    #TODO: align name with Expressin.get_all_vals
-    def get_failed(self):
+    def get_excep(self):
         return set(utils.flatten_seq(
-            expr_val.get_failed()
+            expr_val.get_excep()
             for expr_val in self.get_all_vals()
         ))
 
@@ -1898,7 +1892,7 @@ class ExprValBase(collections.abc.Mapping):
         for val in self.param_map.values():
             yield from val._get_by_predicate(predicate)
 
-    def get_failed(self):
+    def get_excep(self):
         """
         Get all the failed parents.
         """
