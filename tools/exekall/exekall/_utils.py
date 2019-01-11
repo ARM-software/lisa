@@ -309,10 +309,11 @@ def find_customization_module_set(module_set):
                 i += 1
                 yield '.'.join(l[:i])
 
-    try:
+    # Exception raised changed in 3.7:
+    # https://docs.python.org/3/library/importlib.html#importlib.util.find_spec
+    if sys.version_info >= (3, 7):
         import_excep = ModuleNotFoundError
-    # Python < 3.6
-    except NameError:
+    else:
         import_excep = AttributeError
 
     package_names_list = [
