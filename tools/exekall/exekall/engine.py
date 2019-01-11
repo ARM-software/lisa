@@ -1405,17 +1405,6 @@ class Expression(ExpressionBase):
                     if len(param_map) == param_list_len:
                         yield cls(op, param_map)
 
-def infinite_iter(generator, expr_val_list, from_gen):
-    """Exhaust the `generator` when `from_gen=True`, yield from `expr_val_list`
-    otherwise.
-    """
-    if from_gen:
-        for value in generator:
-            expr_val_list.append(value)
-            yield value
-    else:
-        yield from expr_val_list
-
 def no_product(*gen_list):
     # Take only one value from each generator, since non-reusable
     # operators are not supposed to produce more than one value.
@@ -1429,7 +1418,8 @@ def consume_gen_map(param_map, product):
     if not param_map:
         yield OrderedDict()
     else:
-        # sort to make sure we always compute the parameters in the same order
+        # Since param_map is an OrderedDict, we will always consume parameters
+        # in the same order
         param_list, gen_list = zip(*param_map.items())
         for values in product(*gen_list):
             yield OrderedDict(zip(param_list, values))
@@ -1801,8 +1791,7 @@ class PrebuiltOperator(Operator):
     @property
     def generator_wrapper(self):
         def genf():
-            for obj, uuid_ in zip(self.obj_list, self.uuid_list):
-                yield (uuid_, obj, NoValue)
+            yield from zip(self.uuid_list, self.obj_list, itertools.repeat(NoValue))
         return genf
 
 class ExprValSeq:
@@ -2038,86 +2027,76 @@ class ExprVal(ExprValBase):
         else:
             return ''
 
-    def _get_expr_map(self):
-        expr_map = {}
-        def predicate(expr_val):
-            expr_map[expr_val.expr] = expr_val
-
-        self.get_by_predicate(predicate)
-
-        return expr_map
-
     @classmethod
     def validate(cls, expr_val_list):
-        if not expr_val_list:
+        expr_map = {}
+        def update_map(expr_val1):
+            expr_val2 = expr_map.setdefault(expr_val1.expr, expr_val1)
+            # Check that there is only one ExprVal per Expression, for all
+            # expressions that were (indirectly) involved into computation of
+            # expr_val_list
+            if expr_val2 is not expr_val1:
+                raise ValueError
+
+        try:
+            for expr_val in expr_val_list:
+                # DFS traversal
+                expr_val.get_by_predicate(update_map)
+        except ValueError:
+            return False
+        else:
             return True
-
-        expr_val_ref = expr_val_list[0]
-        expr_map_ref = expr_val_ref._get_expr_map()
-
-        for expr_val in expr_val_list[1:]:
-            expr_map = expr_val._get_expr_map()
-            # For all Expression's that directly or indirectly lead to both the
-            # reference ExprVal and the ExprVal, check that it had the same
-            # value. That ensures that we are not making incompatible
-            # combinations.
-
-            if not all(
-                expr_map_ref[expr] is expr_map[expr]
-                for expr
-                in expr_map.keys() & expr_map_ref.keys()
-                # We don't consider the non-reusable parameters since it is
-                # expected that they will differ
-                if expr.op.reusable
-            ):
-                return False
-
-            if not cls.validate(expr_val_list[2:]):
-                return False
-
-        return True
 
     @classmethod
     def product(cls, *gen_list):
-        """Similar to the cartesian product provided by itertools.product, with
+        """
+        Similar to the cartesian product provided by itertools.product, with
         special handling of NoValue and some checks on the yielded sequences.
 
         It will only yield the combinations of values that are validated by
         :meth:`validate`.
         """
-
-        generator = gen_list[0]
-        sub_generator_list = gen_list[1:]
-        sub_generator_list_iterator = cls.product(*sub_generator_list)
-        if sub_generator_list:
-            from_gen = True
-            saved_expr_val_list = list()
-            for expr_val in generator:
-                # The value is not useful, we can return early without calling the
-                # other generators. That avoids spending time computing parameters
-                # if they won't be used anyway.
-                if expr_val.value is NoValue:
-                    # Returning an incomplete list will make the calling code aware
-                    # that some values were not computed at all
-                    yield [expr_val]
-                    continue
-
-                for sub_expr_val_list in infinite_iter(
-                        sub_generator_list_iterator, saved_expr_val_list, from_gen
-                    ):
-                    expr_val_list = [expr_val] + sub_expr_val_list
-                    if cls.validate(expr_val_list):
-                        yield expr_val_list
-
-                # After the first traversal of sub_generator_list_iterator, we
-                # want to yield from the saved saved_expr_val_list
-                from_gen = False
-        else:
-            for expr_val in generator:
-                expr_val_list = [expr_val]
+        def validated(generator):
+            """
+            Ensure we only yield valid lists of :class:`ExprVal`
+            """
+            for expr_val_list in generator:
                 if cls.validate(expr_val_list):
                     yield expr_val_list
+                else:
+                    yield []
 
+        def acc_product(product_generator, generator):
+            """
+            Combine a "cartesian-product-style" generator with a plain
+            generator, giving a new "cartesian-product-style" generator.
+            """
+            # We will need to use it more than once in the inner loop, so it
+            # has to be "restartable" (like a list, and unlike a plain
+            # iterator)
+            product_iter = utils.RestartableIter(product_generator)
+            for expr_val in generator:
+                # The value is not useful, we can return early without calling
+                # the other generators. That avoids spending time computing
+                # parameters if they won't be used anyway.
+                if expr_val.value is NoValue:
+                    # Returning an incomplete list will make the calling code
+                    # aware that some values were not computed at all
+                    yield [expr_val]
+                else:
+                    for expr_val_list in product_iter:
+                        yield [expr_val] + expr_val_list
+
+        def reducer(product_generator, generator):
+            yield from validated(acc_product(product_generator, generator))
+
+        def initializer():
+            yield []
+
+        # reverse the gen_list so we get the rightmost generator varying the
+        # fastest. Typically, margins-like parameter on which we do sweeps are
+        # on the right side of the parameter list (to have a default value)
+        return functools.reduce(reducer, reversed(gen_list), initializer())
 
     def get_id(self, *args, with_tags=True, **kwargs):
         return self.expr.get_id(

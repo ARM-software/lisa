@@ -418,6 +418,34 @@ def flatten_seq(seq, levels=1):
         seq = list(itertools.chain.from_iterable(seq))
         return flatten_seq(seq, levels=levels - 1)
 
+class RestartableIter:
+    """
+    Wrap an iterator to give a new iterator that is restartable.
+    """
+    def __init__(self, it):
+        self.values = []
+
+        # Wrap the iterator to update the memoized values
+        def wrapped(it):
+            for x in it:
+                self.values.append(x)
+                yield x
+
+        self.it = wrapped(it)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            return next(self.it)
+        except StopIteration:
+            # Use the stored values the next time we try to get an
+            # itertor again
+            self.it = iter(self.values)
+            raise
+
+
 def get_froz_val_set_set(db, uuid_seq=None, type_pattern_seq=None):
 
     def uuid_predicate(froz_val):
