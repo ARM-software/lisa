@@ -1076,7 +1076,7 @@ class ComputableExpression(ExpressionBase):
 
     def find_expr_val_seq_list(self, param_map):
         def value_map(param_map):
-            return OrderedDict(
+            return ExprValParamMap(
                 # Extract the actual value from ExprVal
                 (param, expr_val.value)
                 for param, expr_val in param_map.items()
@@ -1110,32 +1110,25 @@ class ComputableExpression(ExpressionBase):
         # been produced
         reusable = self.op.reusable
 
-        # Get all the generators for reusable parameters
-        reusable_param_exec_map = OrderedDict(
-            (param, param_expr._execute(
-                consumer_expr_stack=consumer_expr_stack + [self],
-                post_compute_cb=post_compute_cb,
-            ))
-            for param, param_expr in self.param_map.items()
-            if param_expr.op.reusable
-        )
-        param_map_len = len(self.param_map)
-        reusable_param_map_len = len(reusable_param_exec_map)
-
-        # Consume all the reusable parameters, since they are generators
-        for param_map in consume_gen_map(
-                reusable_param_exec_map, product=ExprVal.product
-            ):
-            # If some parameters could not be computed, we will not get all
-            # values
-            reusable_param_computed = (
-                len(param_map) == reusable_param_map_len
+        def filter_param_exec_map(param_map, reusable):
+            return OrderedDict(
+                (param, param_expr._execute(
+                    consumer_expr_stack=consumer_expr_stack + [self],
+                    post_compute_cb=post_compute_cb,
+                ))
+                for param, param_expr in param_map.items()
+                if param_expr.op.reusable == reusable
             )
 
+        # Get all the generators for reusable parameters
+        reusable_param_exec_map = filter_param_exec_map(self.param_map, True)
+
+        # Consume all the reusable parameters, since they are generators
+        for param_map in ExprValParamMap.from_gen_map_product(self, reusable_param_exec_map):
             # Check if some ExprVal are already available for the current
             # set of reusable parameters. Non-reusable parameters are not
             # considered since they would be different every time in any case.
-            if reusable and reusable_param_computed:
+            if reusable and not param_map.is_partial(ignore_error=True):
                 # Check if we have already computed something for that
                 # Expression and that set of parameter values
                 expr_val_seq_list = self.find_expr_val_seq_list(param_map)
@@ -1149,34 +1142,17 @@ class ComputableExpression(ExpressionBase):
 
             # Only compute the non-reusable parameters if all the reusable one
             # are available, otherwise that is pointless
-            if (
-                reusable_param_computed and
-                not any_value_is_NoValue(param_map.values())
-            ):
+            if not param_map.is_partial():
                 # Non-reusable parameters must be computed every time, and we
                 # don't take their cartesian product since we have fresh values
                 # for all operator calls.
-                nonreusable_param_exec_map = OrderedDict(
-                    (param, param_expr._execute(
-                        consumer_expr_stack=consumer_expr_stack + [self],
-                        post_compute_cb=post_compute_cb,
-                    ))
-                    for param, param_expr in self.param_map.items()
-                    if not param_expr.op.reusable
-                )
-                param_map.update(next(
-                    consume_gen_map(nonreusable_param_exec_map, product=no_product)
-                ))
+
+                nonreusable_param_exec_map = filter_param_exec_map(self.param_map, False)
+                param_map.update(ExprValParamMap.from_gen_map(self, nonreusable_param_exec_map))
 
             # Propagate exceptions if some parameters did not execute
             # successfully.
-            if (
-                # Some arguments are missing: there was no attempt to compute
-                # them because another argument failed to be computed
-                len(param_map) != param_map_len or
-                # Or one of the arguments could not be computed
-                any_value_is_NoValue(param_map.values())
-            ):
+            if param_map.is_partial():
                 expr_val = ExprVal(self, param_map)
                 expr_val_seq = ExprValSeq.from_one_expr_val(
                     self, expr_val, param_map,
@@ -1404,25 +1380,6 @@ class Expression(ExpressionBase):
                     # If all parameters can be built, carry on
                     if len(param_map) == param_list_len:
                         yield cls(op, param_map)
-
-def no_product(*gen_list):
-    # Take only one value from each generator, since non-reusable
-    # operators are not supposed to produce more than one value.
-    yield [next(generator) for generator in gen_list]
-
-def consume_gen_map(param_map, product):
-    """
-    :param product: Function implementing a the same interface as
-        :func:`itertools.product`
-    """
-    if not param_map:
-        yield OrderedDict()
-    else:
-        # Since param_map is an OrderedDict, we will always consume parameters
-        # in the same order
-        param_list, gen_list = zip(*param_map.items())
-        for values in product(*gen_list):
-            yield OrderedDict(zip(param_list, values))
 
 class AnnotationError(Exception):
     pass
@@ -1837,8 +1794,12 @@ class ExprValSeq:
         # Then compute the remaining ones
         if self.iterator:
             for uuid_, value, excep in self.iterator:
-                expr_val = ExprVal(self.expr, self.param_map,
-                    uuid_, value, excep
+                expr_val = ExprVal(
+                    expr=self.expr,
+                    param_map=self.param_map,
+                    value=value,
+                    excep=excep,
+                    uuid=uuid_,
                 )
                 callback(expr_val, reused=False)
 
@@ -1860,16 +1821,133 @@ class ExprValSeq:
             self.iterator = None
 
 
-def any_value_is_NoValue(expr_val_list):
-    return any(
-        expr_val.value is NoValue
-        for expr_val in expr_val_list
-    )
+class ExprValParamMap(OrderedDict):
+    def is_partial(self, ignore_error=False):
+        def is_partial(expr_val):
+            # Some arguments are missing: there was no attempt to compute
+            # them because another argument failed to be computed
+            if isinstance(expr_val, UnEvaluatedExprVal):
+                return True
+
+            # Or computation did take place but failed
+            if expr_val.value is NoValue and not ignore_error:
+                return True
+
+            return False
+
+        return any(
+            is_partial(expr_val)
+            for expr_val in self.values()
+        )
+
+    @classmethod
+    def from_gen_map(cls, expr, param_gen_map):
+        # Pre-fill UnEvaluatedExprVal with in case we exit the loop early
+        param_map = cls(
+            (param, UnEvaluatedExprVal(expr))
+            for param in param_gen_map.keys()
+        )
+
+        for param, generator in param_gen_map.items():
+            val = next(generator)
+            # There is no point in computing values of the other generators if
+            # one failed to produce a useful value
+            if val.value is NoValue:
+                break
+            else:
+                param_map[param] = val
+
+        return param_map
+
+    @classmethod
+    def from_gen_map_product(cls, expr, param_gen_map):
+        """
+        Yield :class:`collections.OrderedDict` for each combination of parameter
+        values.
+
+        :param param_gen_map: Mapping of parameter names to an iterator that is ready
+            to generate the possible values for the generator.
+        :type param_gen_map: collections.OrderedDict
+
+        """
+        if not param_gen_map:
+            yield cls()
+        else:
+            # Since param_gen_map is an OrderedDict, we will always consume
+            # parameters in the same order
+            param_list, gen_list = zip(*param_gen_map.items())
+            for values in cls._product(expr, gen_list):
+                yield cls(zip(param_list, values))
+
+    @classmethod
+    def _product(cls, expr, gen_list):
+        """
+        Similar to the cartesian product provided by itertools.product, with
+        special handling of NoValue and some checks on the yielded sequences.
+
+        It will only yield the combinations of values that are validated by
+        :meth:`validate`.
+        """
+        def validated(generator):
+            """
+            Ensure we only yield valid lists of :class:`ExprVal`
+            """
+            for expr_val_list in generator:
+                if ExprVal.validate(expr_val_list):
+                    yield expr_val_list
+                else:
+                    continue
+
+        def acc_product(product_generator, generator):
+            """
+            Combine a "cartesian-product-style" generator with a plain
+            generator, giving a new "cartesian-product-style" generator.
+            """
+            # We will need to use it more than once in the inner loop, so it
+            # has to be "restartable" (like a list, and unlike a plain
+            # iterator)
+            product_iter = utils.RestartableIter(product_generator)
+            for expr_val in generator:
+                # The value is not useful, we can return early without calling
+                # the other generators. That avoids spending time computing
+                # parameters if they won't be used anyway.
+                if expr_val.value is NoValue:
+                    # Returning an incomplete list will make the calling code
+                    # aware that some values were not computed at all
+                    yield [expr_val]
+                else:
+                    for expr_val_list in product_iter:
+                        yield [expr_val] + expr_val_list
+
+        def reducer(product_generator, generator):
+            yield from validated(acc_product(product_generator, generator))
+
+        def initializer():
+            yield []
+
+        # We need to pad since we may truncate the list of values we yield if
+        # we detect an error in one of them.
+        def pad(generator, length):
+            for xs in generator:
+                xs.extend(
+                    UnEvaluatedExprVal(expr)
+                    for i in range(length - len(xs))
+                )
+                yield xs
+
+        # reverse the gen_list so we get the rightmost generator varying the
+        # fastest. Typically, margins-like parameter on which we do sweeps are
+        # on the right side of the parameter list (to have a default value)
+        return pad(
+            functools.reduce(reducer, reversed(gen_list), initializer()),
+            len(gen_list)
+        )
 
 class ExprValBase(collections.abc.Mapping):
-    def __init__(self, param_map, value):
+    def __init__(self, param_map, value, excep):
         self.param_map = param_map
         self.value = value
+        self.excep = excep
 
     def get_by_predicate(self, predicate):
         return list(self._get_by_predicate(predicate))
@@ -1912,15 +1990,14 @@ class ExprValBase(collections.abc.Mapping):
 
 class FrozenExprVal(ExprValBase):
     def __init__(self,
-            uuid, value, excep,
+            param_map, value, excep, uuid,
             callable_qual_name, callable_name, recorded_id_map,
-            param_map):
-        self.excep = excep
+        ):
         self.uuid = uuid
         self.callable_qual_name = callable_qual_name
         self.callable_name = callable_name
         self.recorded_id_map = recorded_id_map
-        super().__init__(param_map=param_map, value=value)
+        super().__init__(param_map=param_map, value=value, excep=excep)
 
     @property
     def type_names(self):
@@ -1949,13 +2026,13 @@ class FrozenExprVal(ExprValBase):
                 hidden_callable_set=hidden_callable_set,
             )
 
-        param_map = OrderedDict()
-        for param, param_expr_val in expr_val.param_map.items():
-            froz_val = cls.from_expr_val(
+        param_map = ExprValParamMap(
+            (param, cls.from_expr_val(
                 param_expr_val,
                 hidden_callable_set=hidden_callable_set,
-            )
-            param_map[param] = froz_val
+            ))
+            for param, param_expr_val in expr_val.param_map.items()
+        )
 
         froz_val = cls(
             uuid=expr_val.uuid,
@@ -2009,13 +2086,12 @@ class FrozenExprValSeq(collections.abc.Sequence):
 
 
 class ExprVal(ExprValBase):
-    def __init__(self, expr, param_map, uuid=None,
-        value=NoValue, excep=NoValue,
+    def __init__(self, expr, param_map,
+        value=NoValue, excep=NoValue, uuid=None,
     ):
         self.uuid = uuid if uuid is not None else utils.create_uuid()
-        self.excep = excep
         self.expr = expr
-        super().__init__(param_map=param_map, value=value)
+        super().__init__(param_map=param_map, value=value, excep=excep)
 
     def format_tags(self):
         tag_map = self.expr.op.tags_getter(self.value)
@@ -2031,6 +2107,12 @@ class ExprVal(ExprValBase):
     def validate(cls, expr_val_list):
         expr_map = {}
         def update_map(expr_val1):
+            # The check does not apply for non-reusable operators, since it is
+            # expected that the same expression may reference multiple values
+            # of the same Expression.
+            if not expr_val1.expr.op.reusable:
+                return
+
             expr_val2 = expr_map.setdefault(expr_val1.expr, expr_val1)
             # Check that there is only one ExprVal per Expression, for all
             # expressions that were (indirectly) involved into computation of
@@ -2047,62 +2129,21 @@ class ExprVal(ExprValBase):
         else:
             return True
 
-    @classmethod
-    def product(cls, *gen_list):
-        """
-        Similar to the cartesian product provided by itertools.product, with
-        special handling of NoValue and some checks on the yielded sequences.
-
-        It will only yield the combinations of values that are validated by
-        :meth:`validate`.
-        """
-        def validated(generator):
-            """
-            Ensure we only yield valid lists of :class:`ExprVal`
-            """
-            for expr_val_list in generator:
-                if cls.validate(expr_val_list):
-                    yield expr_val_list
-                else:
-                    yield []
-
-        def acc_product(product_generator, generator):
-            """
-            Combine a "cartesian-product-style" generator with a plain
-            generator, giving a new "cartesian-product-style" generator.
-            """
-            # We will need to use it more than once in the inner loop, so it
-            # has to be "restartable" (like a list, and unlike a plain
-            # iterator)
-            product_iter = utils.RestartableIter(product_generator)
-            for expr_val in generator:
-                # The value is not useful, we can return early without calling
-                # the other generators. That avoids spending time computing
-                # parameters if they won't be used anyway.
-                if expr_val.value is NoValue:
-                    # Returning an incomplete list will make the calling code
-                    # aware that some values were not computed at all
-                    yield [expr_val]
-                else:
-                    for expr_val_list in product_iter:
-                        yield [expr_val] + expr_val_list
-
-        def reducer(product_generator, generator):
-            yield from validated(acc_product(product_generator, generator))
-
-        def initializer():
-            yield []
-
-        # reverse the gen_list so we get the rightmost generator varying the
-        # fastest. Typically, margins-like parameter on which we do sweeps are
-        # on the right side of the parameter list (to have a default value)
-        return functools.reduce(reducer, reversed(gen_list), initializer())
-
     def get_id(self, *args, with_tags=True, **kwargs):
         return self.expr.get_id(
             with_tags=with_tags,
             expr_val=self,
             *args, **kwargs
+        )
+
+class UnEvaluatedExprVal(ExprVal):
+    def __init__(self, expr):
+        super().__init__(
+            expr=expr,
+            param_map=ExprValParamMap(),
+            uuid=None,
+            value=NoValue,
+            excep=NoValue,
         )
 
 class Consumer:
