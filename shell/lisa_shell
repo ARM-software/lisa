@@ -154,6 +154,22 @@ function _lisa-upgrade-pip {
     fi
 }
 
+function _lisa-install-nbextensions {
+    which jupyter &>/dev/null || return
+    if which node &>/dev/null; then
+        echo
+        echo "Enabling ipywidget extensions..."
+        jupyter labextension install @jupyter-widgets/jupyterlab-manager
+        return
+    fi
+
+    # If NodeJS is still not available, we just warn the user
+    echo
+    echo "NOTE: Missing NodeJS support!"
+    echo "Install it on your system and run lisa-install "
+    echo "again if you want to enable ipywidgets support."
+}
+
 function lisa-install {
     # Check that some prerequisites are available on the system, since they
     # cannot be installed using pip in a venv
@@ -196,6 +212,9 @@ function lisa-install {
     # Make sure the shell has taken into account the new content of directories
     # listed in $PATH.
     _lisa-reload-PATH
+
+    # Install additiona Jupyter Notebook extensions
+    _lisa-install-nbextensions
 }
 
 ################################################################################
@@ -403,6 +422,9 @@ EOF
 # LISA Shell MAIN
 ################################################################################
 
+# Activate the venv unless it was explicitely disabled
+lisa-venv-activate
+
 # Dump out a nice LISA Shell logo
 clear
 echo -e "$LISASHELL_BANNER"
@@ -418,7 +440,12 @@ Welcome to the Linux Integrated System Analysis SHELL!
 LISA version   : $(git rev-parse --short=11 HEAD)
 python version : $PYTHON_VERSION
 LISA_HOME      : $LISA_HOME
+
 EOF
+
+if which jupyter >/dev/null; then
+    jupyter labextension list
+fi
 
 cat <<EOF
 
@@ -429,8 +456,5 @@ EOF
 
 # Setup default SHELL text color
 echo -e "$LISASHELL_DEFAULT"
-
-# Activate the venv unless it was explicitely disabled
-lisa-venv-activate
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

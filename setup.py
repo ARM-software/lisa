@@ -104,7 +104,8 @@ setup(
     extras_require={
         "notebook": [
             "ipython",
-            "jupyterlab"
+            "jupyterlab",
+            "ipywidgets",
         ],
 
         "doc": [

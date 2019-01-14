@@ -42,6 +42,16 @@ install_sdk() {
     fi
 }
 
+install_nodejs() {
+    # NodeJS v8+ is required, Ubuntu 16.04 LTS supports only an older version.
+    # As a special case we can install it as a snap package
+    if grep 16.04 /etc/lsb-release >/dev/null; then
+        sudo snap install node --classic --channel=8
+        return
+    fi
+    sudo apt-get install -y nodejs npm
+}
+
 set -eu
 
 install_android_sdk=n
@@ -64,6 +74,9 @@ apt-get -y install build-essential git wget expect kernelshark \
 	python3 python3-pip python3-venv python3-tk gobject-introspection \
 	libcairo2-dev libgirepository1.0-dev gir1.2-gtk-3.0
 
+install_nodejs
+
 if [ "$install_android_sdk" == y ]; then
     install_sdk
 fi
+
