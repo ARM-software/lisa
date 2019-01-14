@@ -457,4 +457,4 @@ EOF
 # Setup default SHELL text color
 echo -e "$LISASHELL_DEFAULT"
 
-# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
+# vim: set tabstop=4 shiftwidth=4 textwidth=80 expandtab:

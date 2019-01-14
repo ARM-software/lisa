@@ -80,3 +80,4 @@ if [ "$install_android_sdk" == y ]; then
     install_sdk
 fi
 
+# vim: set tabstop=4 shiftwidth=4 textwidth=80 expandtab:
