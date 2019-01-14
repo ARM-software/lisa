@@ -59,6 +59,21 @@ execution of `rt-app <https://github.com/scheduler-tools/rt-app>`_ workloads.
 It is very useful for scheduler-related tests, as it makes it easy to create
 tasks with a pre-determined utilization.
 
+Running tests
+=============
+
+The tests are programmed as straight up Python classes, so you can create
+pure Python scripts that call them with the right parameters, or call them
+from within a notebook.
+
+.. TODO:: Link exekall doc here
+
+Exekall facilitates executing several tests at time.
+You can for instance run all possible tests on a given platform like so:
+
+>>> exekall run lisa/tests/kernel/*/*.py --conf target_conf.yml
+
+
 Base API
 ========
 
