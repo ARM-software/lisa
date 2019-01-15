@@ -77,8 +77,9 @@ def main():
         relevant_commits = call_git('rev-list', rev_range, '--', args.filename_pattern)
 
         if relevant_commits:
-            print('{} files have been modified, re-run lisa-install to update dependencies.'.format(
-                args.filename_pattern
+            print('{} files have been modified in the following commits, re-run lisa-install to update dependencies:\n{}'.format(
+                args.filename_pattern,
+                relevant_commits,
             ))
             print('THIS WILL RESET YOUR VENV !')
             return 1
