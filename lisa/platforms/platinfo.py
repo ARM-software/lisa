@@ -15,12 +15,9 @@
 # limitations under the License.
 #
 
-from collections.abc import Mapping
-from collections import OrderedDict
-
-from lisa.utils import HideExekallID, memoized, group_by_value
+from lisa.utils import HideExekallID, group_by_value
 from lisa.conf import (
-    DeferredValue, IntIntDict, IntListList, IntIntListDict, StrIntListDict,
+    DeferredValue, IntIntDict, IntListList, IntIntListDict,
     MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, DerivedKeyDesc
 )
 from lisa.energy_model import EnergyModel
