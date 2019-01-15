@@ -23,6 +23,10 @@
 # Set environment variables
 ################################################################################
 
+# Python binary to use. This allows users to install multiple versions in
+# parallel, and ease testing
+LISA_PYTHON=${LISA_PYTHON:-python3}
+
 # By default use internal libraries
 export LISA_DEVMODE=${LISA_DEVMODE:-1}
 
@@ -37,6 +41,12 @@ export PATH=$PATH:$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI:$LISA_HOME/t
 ################################################################################
 # Helpers
 ################################################################################
+
+# Avoid having quotes all over the place in that script, so we define a
+# function for it
+function _lisa-python {
+    "$LISA_PYTHON" "$@"
+}
 
 # Only clear the screen if stdout is a terminal, to avoid ASCII escape
 # characters to be sent to a log file for example.
@@ -79,8 +89,10 @@ EOF
 # LISA Install functions
 ################################################################################
 
+# major.minor version number
+PYTHON_VERSION=$(_lisa-python -c 'import sys; print("{}.{}".format(*sys.version_info))')
 export LISA_USE_VENV=${LISA_USE_VENV:-1}
-export LISA_VENV_PATH=${LISA_VENV_PATH:-"$LISA_HOME/.lisa-venv3"}
+export LISA_VENV_PATH=${LISA_VENV_PATH:-"$LISA_HOME/.lisa-venv-$PYTHON_VERSION"}
 
 function _lisa-venv-create {
     if [[ "$LISA_USE_VENV" == 1 ]]; then
@@ -90,7 +102,7 @@ function _lisa-venv-create {
 
         echo "Creating LISA venv from scratch ($LISA_VENV_PATH) ..."
         # With --clear, the folder is emptied to create a fresh environment
-        python3 -m venv --clear "$LISA_VENV_PATH"
+        _lisa-python -m venv --clear "$LISA_VENV_PATH"
     fi
 }
 
@@ -105,7 +117,7 @@ function lisa-venv-activate {
             echo "WARNING: Your PYTHONPATH is not empty, it may interfere with LISA's venv: $PYTHONPATH" >&2
         fi
 
-        echo "Activating LISA Python venv ($LISA_VENV_PATH) ..."
+        echo "Activating LISA Python $PYTHON_VERSION venv ($LISA_VENV_PATH) ..."
         VIRTUAL_ENV_DISABLE_PROMPT=1 source "$LISA_VENV_PATH/bin/activate"
     fi
 
@@ -127,14 +139,14 @@ function _lisa-upgrade-pip {
     if [[ "$LISA_USE_VENV" == 1 ]]; then
         lisa-venv-activate || return 1
         echo "Upgrading pip ..."
-        python3 -m pip install --upgrade pip
+        _lisa-python -m pip install --upgrade pip
     fi
 }
 
 function lisa-install {
     # Check that some prerequisites are available on the system, since they
     # cannot be installed using pip in a venv
-    python3 "$LISA_HOME/setup.py" systemcheck
+    _lisa-python "$LISA_HOME/setup.py" systemcheck
 
     # Record the point in time when we ran that install command
     check-setuppy --update-recorded-commit HEAD
@@ -160,7 +172,7 @@ function lisa-install {
     # system's site-packages location. This ensures we use up to date packages,
     # and that the installation process will give the same result on all
     # machines at a given point in time.
-    python3 -m pip install -r "$LISA_HOME/$requirements" "$@"
+    _lisa-python -m pip install -r "$LISA_HOME/$requirements" "$@"
 }
 
 ################################################################################
@@ -434,8 +446,9 @@ cat <<EOF
 
 Welcome to the Linux Integrated System Analysis SHELL!
 
-version $(git rev-parse --short=11 HEAD)
-LISA_HOME: $LISA_HOME
+LISA version   : $(git rev-parse --short=11 HEAD)
+python version : $PYTHON_VERSION
+LISA_HOME      : $LISA_HOME
 EOF
 
 cat <<EOF
