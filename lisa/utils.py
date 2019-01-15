@@ -482,6 +482,37 @@ def groupby(iterable, key=None):
     iterable = sorted(iterable, key=key)
     return itertools.groupby(iterable, key=key)
 
+def group_by_value(mapping, key_sort=lambda x: x):
+    """
+    Group a mapping by its values
+
+    :param mapping: Mapping to reverse
+    :type mapping: collections.abc.Mapping
+
+    :param key_sort: The ``key`` parameter to a :func:`sorted` call on the
+      mapping keys
+    :type key_sort: collections.abc.Callable
+
+    :rtype: collections.OrderedDict
+
+    The idea behind this method is to "reverse" a mapping, IOW to create a new
+    mapping that has the passed mapping's values as keys. Since different keys
+    can point to the same value, the new values will be lists of old keys.
+
+    **Example:**
+
+    >>> group_by_value({0: 42, 1: 43, 2: 42})
+    OrderedDict([(42, [0, 2]), (43, [1])])
+    """
+    if not key_sort:
+        # Just conserve the order
+        key_sort = lambda x: 0
+
+    return OrderedDict(
+        (val, sorted((k for k, v in key_group), key=key_sort))
+        for val, key_group in groupby(mapping.items(), key=operator.itemgetter(1))
+    )
+
 def deduplicate(seq, keep_last=True, key=lambda x: x):
     """
     Deduplicate items in the given sequence and return a list.
