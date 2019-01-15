@@ -1393,14 +1393,12 @@ class Operator:
             non_reusable_type_set = set()
 
         if not tags_getter:
-            tags_getter = lambda v: []
+            tags_getter = lambda v: {}
         self.tags_getter = tags_getter
 
         assert callable(callable_)
         self.callable_ = callable_
 
-        self.signature = inspect.signature(self.resolved_callable)
-        self.callable_globals = self.resolved_callable.__globals__
         self.annotations = copy.copy(self.resolved_callable.__annotations__)
 
         self.ignored_param = {
@@ -1437,6 +1435,14 @@ class Operator:
             # subclass That allows implementing factory classmethods
             # easily.
             self.annotations['return'] = self.resolved_callable.__self__
+
+    @property
+    def callable_globals(self):
+        return self.resolved_callable.__globals__
+
+    @property
+    def signature(self):
+        return inspect.signature(self.resolved_callable)
 
     def __repr__(self):
         return '<Operator of ' + str(self.callable_) + '>'
