@@ -403,8 +403,11 @@ class ExpressionBase:
         # dot seems to dislike empty line with just ";"
         return node_out.format(';\n'.join(line for line in out if line.strip()))
 
-    def get_id(self, *args, marked_expr_val_set=None, **kwargs):
-        id_, marker = self._get_id(*args, **kwargs)
+    def get_id(self, *args, marked_expr_val_set=set(), **kwargs):
+        id_, marker = self._get_id(*args,
+            marked_expr_val_set=marked_expr_val_set,
+            **kwargs
+        )
         if marked_expr_val_set:
             return '\n'.join((id_, marker))
         else:
@@ -2146,8 +2149,6 @@ class FrozenExprValSeq(collections.abc.Sequence):
 
     @classmethod
     def from_expr_list(cls, expr_list, **kwargs):
-        # TODO: is flatten_seq correct here or do we need to maintain more structure ?
-        # this should be fine since we just don't group by expression
         expr_val_seq_list = utils.flatten_seq(expr.expr_val_seq_list for expr in expr_list)
         return [
             cls.from_expr_val_seq(expr_val_seq, **kwargs)

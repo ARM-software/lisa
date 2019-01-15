@@ -770,9 +770,9 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
             for excep_val in result.get_excep():
                 excep = excep_val.excep
                 tb = utils.format_exception(excep)
-                error('Error ({e_name}): {e}\nID: {id}\n{tb}'.format(
+                error('{e_name}: {e}\nID: {id}\n{tb}'.format(
                         id=excep_val.get_id(),
-                        e_name = utils.get_name(type(excep)),
+                        e_name=utils.get_name(type(excep)),
                         e=excep,
                         tb=tb,
                     ),
