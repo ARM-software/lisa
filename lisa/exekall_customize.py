@@ -178,9 +178,18 @@ class LISAAdaptor(AdaptorBase):
     def _finalize_expr_val(self, expr_val, artifact_dir, expr_artifact_dir):
         val = expr_val.value
 
+        def needs_rewriting(val):
+            # Only rewrite ArtifactPath path values
+            if not isinstance(val, ArtifactPath):
+                return False
+            # And only if they are a subfolder of artifact_dir. Otherwise, they
+            # are something pointing outside of the artifact area, which we
+            # cannot handle.
+            return artifact_dir.resolve() in Path(val).resolve().parents
+
         # Add symlinks to artifact folders for ExprValue that were used in the
         # ExprValue graph, but were initially computed for another Expression
-        if isinstance(val, ArtifactPath):
+        if needs_rewriting(val):
             val = Path(val)
             is_subfolder = (expr_artifact_dir.resolve() in val.resolve().parents)
             # The folder is reachable from our ExprValue, but is not a
