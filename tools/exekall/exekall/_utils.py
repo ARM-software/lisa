@@ -419,6 +419,40 @@ def flatten_seq(seq, levels=1):
         seq = list(itertools.chain.from_iterable(seq))
         return flatten_seq(seq, levels=levels - 1)
 
+def take_first(iterable):
+    for i in iterable:
+        return i
+    return NoValue
+
+class _NoValueType:
+    # Use a singleton pattern to make sure that even deserialized instances
+    # will be the same object
+    def __new__(cls):
+        try:
+            return cls._instance
+        except AttributeError:
+            obj = super().__new__(cls)
+            cls._instance = obj
+            return obj
+
+    def __eq__(self, other):
+        return isinstance(other, _NoValueType)
+
+    def __hash__(self):
+        return 0
+
+    def __bool__(self):
+        return False
+
+    def __repr__(self):
+        return 'NoValue'
+
+    def __eq__(self, other):
+        return type(self) is type(other)
+
+NoValue = _NoValueType()
+
+
 class RestartableIter:
     """
     Wrap an iterator to give a new iterator that is restartable.

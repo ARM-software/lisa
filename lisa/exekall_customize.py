@@ -34,8 +34,8 @@ from lisa.conf import MultiSrcConf
 from lisa.tests.kernel.test_bundle import TestBundle, Result, ResultBundle, CannotCreateError
 from lisa.tests.kernel.scheduler.load_tracking import FreqInvarianceItem
 
-from exekall.utils import info, get_name, get_mro
-from exekall.engine import ExprData, Consumer, PrebuiltOperator, NoValue, ValueDB
+from exekall.utils import info, get_name, get_mro, NoValue
+from exekall.engine import ExprData, Consumer, PrebuiltOperator, ValueDB
 from exekall.customization import AdaptorBase
 
 class ExekallArtifactPath(ArtifactPath):

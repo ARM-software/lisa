@@ -30,42 +30,10 @@ import pprint
 import pickletools
 
 import exekall._utils as utils
-
-def take_first(iterable):
-    for i in iterable:
-        return i
-    return NoValue
+from exekall._utils import NoValue
 
 class NoOperatorError(Exception):
     pass
-
-class _NoValueType:
-    # Use a singleton pattern to make sure that even deserialized instances
-    # will be the same object
-    def __new__(cls):
-        try:
-            return cls._instance
-        except AttributeError:
-            obj = super().__new__(cls)
-            cls._instance = obj
-            return obj
-
-    def __eq__(self, other):
-        return isinstance(other, _NoValueType)
-
-    def __hash__(self):
-        return 0
-
-    def __bool__(self):
-        return False
-
-    def __repr__(self):
-        return 'NoValue'
-
-    def __eq__(self, other):
-        return type(self) is type(other)
-
-NoValue = _NoValueType()
 
 class IndentationManager:
     def __init__(self, style):
@@ -128,7 +96,7 @@ class ValueDB:
                 return candidates[0]
             # If there was no better candidate, just return the first one
             else:
-                return take_first(froz_val_set)
+                return utils.take_first(froz_val_set)
 
         uuid_map = {
             uuid_pair: select_froz_val(froz_val_set)
@@ -793,7 +761,7 @@ class ExpressionBase:
                 expr_val_list = [expr_val.value for expr_val in expr_val_set]
                 assert expr_val_list[1:] == expr_val_list[:-1]
 
-                expr_data = take_first(expr_val_set)
+                expr_data = utils.take_first(expr_val_set)
                 return (format_expr_val(expr_data, lambda x:''), '')
             # Prior to execution, we don't have an ExprVal yet
             else:
@@ -828,7 +796,7 @@ class ExpressionBase:
             get_param_map(reusable=False).items(),
         )
 
-        first_param = take_first(self.param_map.keys())
+        first_param = utils.take_first(self.param_map.keys())
 
         for param, param_expr in param_map_chain:
             # Rename "self" parameter for more natural-looking output
@@ -965,7 +933,7 @@ class ExpressionBase:
             # Rename "self" parameter to the name of the variable we are
             # going to apply the method on
             if self.op.is_method:
-                first_param = take_first(param_map)
+                first_param = utils.take_first(param_map)
                 param_expr_val = param_map.pop(first_param)
                 self_param = make_var(make_method_self_name(param_expr_val.expr))
                 param_map[self_param] = param_expr_val
@@ -1639,7 +1607,7 @@ class Operator:
 
     def get_prototype(self):
         sig = self.signature
-        first_param = take_first(sig.parameters)
+        first_param = utils.take_first(sig.parameters)
         annotation_map = utils.resolve_annotations(self.annotations, self.callable_globals)
 
         extra_ignored_param = set()

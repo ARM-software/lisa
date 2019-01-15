@@ -18,8 +18,8 @@
 
 import numbers
 
-from exekall.engine import NoValue, ValueDB
-from exekall.utils import out, get_name
+from exekall.engine import ValueDB
+from exekall.utils import out, get_name, NoValue
 
 class AdaptorBase:
     name = 'default'

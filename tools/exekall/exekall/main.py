@@ -35,9 +35,8 @@ import tempfile
 
 from exekall.customization import AdaptorBase
 import exekall.engine as engine
-from exekall.engine import NoValue
 import exekall.utils as utils
-from exekall.utils import error, warn, debug, info, out
+from exekall.utils import NoValue, error, warn, debug, info, out
 
 DB_FILENAME = 'VALUE_DB.pickle.xz'
 

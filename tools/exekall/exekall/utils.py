@@ -25,7 +25,6 @@ import exekall.engine as engine
 
 # Re-export all _utils here
 from exekall._utils import *
-from exekall.engine import take_first
 
 def get_callable_set(module_set, verbose=False):
     # We keep the search local to the packages these modules are defined in, to
