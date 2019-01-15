@@ -100,6 +100,11 @@ function lisa-venv-activate {
         if [[ ! -e "$LISA_VENV_PATH" ]]; then
             lisa-install || return 1
         fi
+
+        if [[ -n "$PYTHONPATH" ]]; then
+            echo "WARNING: Your PYTHONPATH is not empty, it may interfere with LISA's venv: $PYTHONPATH" >&2
+        fi
+
         echo "Activating LISA Python venv ($LISA_VENV_PATH) ..."
         VIRTUAL_ENV_DISABLE_PROMPT=1 source "$LISA_VENV_PATH/bin/activate"
     fi
@@ -310,8 +315,6 @@ function _lisa-jupyter-start {
     echo '  URL        : ' $URL
     echo '  Folder     : ' $PYDIR
     echo '  Logfile    : ' $LOGFILE
-    echo '  PYTHONPATH : '
-    echo -e "\t${PYTHONPATH//:/\\n\\t}"
     cd $PYDIR
     echo
     echo -n 'Notebook server task: '
@@ -432,10 +435,8 @@ cat <<EOF
 Welcome to the Linux Integrated System Analysis SHELL!
 
 version $(git rev-parse --short=11 HEAD)
-LISA_HOME  : $LISA_HOME
-PYTHONPATH :
+LISA_HOME: $LISA_HOME
 EOF
-echo -e "\t${PYTHONPATH//:/\\n\\t}"
 
 cat <<EOF
 
