@@ -21,7 +21,6 @@ import collections
 import contextlib
 import datetime
 import hashlib
-import importlib
 import inspect
 import io
 import itertools
@@ -29,16 +28,153 @@ import os
 import pathlib
 import shutil
 import sys
-import glob
-import subprocess
-import tempfile
 
 from exekall.customization import AdaptorBase
-import exekall.engine as engine
 import exekall.utils as utils
 from exekall.utils import NoValue, error, warn, debug, info, out
+import exekall.engine as engine
 
 DB_FILENAME = 'VALUE_DB.pickle.xz'
+
+# Create an operator for all callables that have been detected in a given
+# set of modules
+def build_op_set(callable_pool, non_reusable_type_set, allowed_pattern_set, adaptor):
+    op_set = {
+        engine.Operator(
+            callable_,
+            non_reusable_type_set=non_reusable_type_set,
+            tags_getter=adaptor.get_tags
+        )
+        for callable_ in callable_pool
+    }
+
+    filtered_op_set = adaptor.filter_op_set(op_set)
+    # Make sure we have all the explicitely allowed operators
+    filtered_op_set.update(
+        op for op in op_set
+        if utils.match_name(op.get_name(full_qual=True), allowed_pattern_set)
+    )
+    return filtered_op_set
+
+def build_patch_map(sweep_spec_list, op_set):
+    patch_map = dict()
+    for sweep_spec in sweep_spec_list:
+        number_type = float
+        callable_pattern, param, start, stop, step = sweep_spec
+        for op in op_set:
+            callable_ = op.callable_
+            callable_name = utils.get_name(callable_, full_qual=True)
+            if not utils.match_name(callable_name, [callable_pattern]):
+                continue
+            patch_map.setdefault(op, dict())[param] = [
+                i for i in utils.sweep_number(
+                    callable_, param,
+                    number_type(start), number_type(stop), number_type(step)
+                )
+            ]
+    return patch_map
+
+def apply_patch_map(patch_map, adaptor):
+    prebuilt_op_set = set()
+    for op, param_patch_map in patch_map.items():
+        try:
+            new_op_set = op.force_param(
+                param_patch_map,
+                tags_getter=adaptor.get_tags
+            )
+            prebuilt_op_set.update(new_op_set)
+        except KeyError as e:
+            error('Callable "{callable_}" has no parameter "{param}"'.format(
+                callable_=op.name,
+                param=e.args[0]
+            ))
+            continue
+
+    return prebuilt_op_set
+
+def load_from_db(db, adaptor, non_reusable_type_set, pattern_list, uuid_list, uuid_args):
+    # We do not filter on UUID if we only got a type pattern list
+    load_all_uuid = (
+        pattern_list and not (
+            uuid_list
+            or uuid_args
+        )
+    )
+
+    froz_val_set_set = set()
+    if load_all_uuid:
+        froz_val_set_set.update(
+            utils.get_froz_val_set_set(db, None, pattern_list)
+        )
+    elif uuid_list:
+        froz_val_set_set.update(
+            utils.get_froz_val_set_set(db, uuid_list,
+            pattern_list
+        ))
+    elif uuid_args:
+        # Get the froz_val value we are interested in
+        froz_val_list = utils.flatten_seq(
+            utils.get_froz_val_set_set(db, [uuid_args],
+            pattern_list
+        ))
+        for froz_val in froz_val_list:
+            # Reload the whole context, except froz_val itself since we
+            # only want its arguments. We load the "indirect" arguments as
+            # well to ensure references to their types will be fulfilled by
+            # them instead of computing new values.
+            froz_val_set_set.add(frozenset(froz_val.get_by_predicate(
+                lambda v: v is not froz_val and v.value is not NoValue
+            )))
+
+    # Otherwise, reload all the root froz_val values
+    else:
+        froz_val_set_set.update(
+            frozenset(froz_val_seq)
+            for froz_val_seq in db.froz_val_seq_list
+        )
+
+    prebuilt_op_set = set()
+
+    # Build the set of PrebuiltOperator that will inject the loaded values
+    # into the tests
+    for froz_val_set in froz_val_set_set:
+        froz_val_list = [
+            froz_val for froz_val in froz_val_set
+            if froz_val.value is not NoValue
+        ]
+        if not froz_val_list:
+            continue
+
+        def key(froz_val):
+            # Since no two sub-expression is allowed to compute values of a
+            # given type, it is safe to assume that grouping by the
+            # non-tagged ID will group together all values of compatible
+            # types into one PrebuiltOperator per root Expression.
+            return froz_val.get_id(full_qual=True, with_tags=False)
+
+        for full_id, group in itertools.groupby(froz_val_list, key=key):
+            froz_val_list = list(group)
+
+            type_ = utils.get_common_base(
+                type(froz_val.value)
+                for froz_val in froz_val_list
+            )
+            id_ = froz_val_list[0].get_id(
+                full_qual=False,
+                qual=False,
+                # Do not include the tags to avoid having them displayed
+                # twice, and to avoid wrongfully using the tag of the first
+                # item in the list for all items.
+                with_tags=False,
+            )
+            prebuilt_op_set.add(
+                engine.PrebuiltOperator(
+                    type_, froz_val_list, id_=id_,
+                    non_reusable_type_set=non_reusable_type_set,
+                    tags_getter=adaptor.get_tags,
+                ))
+
+    return prebuilt_op_set
 
 def _main(argv):
     parser = argparse.ArgumentParser(description="""
@@ -287,16 +423,7 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True):
 
 def do_run(args, parser, run_parser, argv):
     # Import all modules, before selecting the adaptor
-    module_set = set()
-    for path in args.python_files:
-        path = pathlib.Path(path)
-        # Recursively import all modules when passed folders
-        if path.is_dir():
-            for python_src in glob.iglob(str(path/'**'/'*.py'), recursive=True):
-                module_set.add(utils.import_file(python_src))
-        # If passed a file, just import it directly
-        else:
-            module_set.add(utils.import_file(path))
+    module_set = utils.import_paths(args.python_files)
 
     # Look for a customization submodule in one of the parent packages of the
     # modules we specified on the command line.
@@ -367,248 +494,37 @@ def do_run(args, parser, run_parser, argv):
 
     utils.setup_logging(args.log_level, debug_log, info_log, verbose=verbose)
 
-    non_reusable_type_set = adaptor.get_non_reusable_type_set()
+    # Get the set of all callables in the given set of modules
+    callable_pool = utils.get_callable_set(module_set, verbose=verbose)
 
-    # Get the prebuilt operators from the adaptor
-    if not load_db_path:
-        prebuilt_op_pool_list = adaptor.get_prebuilt_list()
+    # Build the pool of operators from the callables
+    non_reusable_type_set = adaptor.get_non_reusable_type_set()
+    op_set = build_op_set(
+        callable_pool, non_reusable_type_set, allowed_pattern_set, adaptor,
+    )
 
     # Load objects from an existing database
-    else:
+    if load_db_path:
         db = adaptor.load_db(load_db_path)
-
-        # We do not filter on UUID if we only got a type pattern list
-        load_all_uuid = (
-            load_db_pattern_list and not (
-                load_db_uuid_list
-                or load_db_uuid_args
+        op_set.update(
+            load_from_db(db, adaptor, non_reusable_type_set,
+                load_db_pattern_list, load_db_uuid_list, load_db_uuid_args
             )
         )
-
-        froz_val_set_set = set()
-        if load_all_uuid:
-            froz_val_set_set.update(
-                utils.get_froz_val_set_set(db, None, load_db_pattern_list)
-            )
-        elif load_db_uuid_list:
-            froz_val_set_set.update(
-                utils.get_froz_val_set_set(db, load_db_uuid_list,
-                load_db_pattern_list
-            ))
-        elif load_db_uuid_args:
-            # Get the froz_val value we are interested in
-            froz_val_list = utils.flatten_seq(
-                utils.get_froz_val_set_set(db, [load_db_uuid_args],
-                load_db_pattern_list
-            ))
-            for froz_val in froz_val_list:
-                # Reload the whole context, except froz_val itself since we
-                # only want its arguments. We load the "indirect" arguments as
-                # well to ensure references to their types will be fulfilled by
-                # them instead of computing new values.
-                froz_val_set_set.add(frozenset(froz_val.get_by_predicate(
-                    lambda v: v is not froz_val and v.value is not NoValue
-                )))
-
-        # Otherwise, reload all the root froz_val values
-        else:
-            froz_val_set_set.update(
-                frozenset(froz_val_seq)
-                for froz_val_seq in db.froz_val_seq_list
-            )
-
-        # Build the list of PrebuiltOperator that will inject the loaded values
-        # into the tests
-        prebuilt_op_pool_list = list()
-        for froz_val_set in froz_val_set_set:
-            froz_val_list = [
-                froz_val for froz_val in froz_val_set
-                if froz_val.value is not NoValue
-            ]
-            if not froz_val_list:
-                continue
-
-            def key(froz_val):
-                # Since no two sub-expression is allowed to compute values of a
-                # given type, it is safe to assume that grouping by the
-                # non-tagged ID will group together all values of compatible
-                # types into one PrebuiltOperator per root Expression.
-                return froz_val.get_id(full_qual=True, with_tags=False)
-
-            for full_id, group in itertools.groupby(froz_val_list, key=key):
-                froz_val_list = list(group)
-
-                type_ = utils.get_common_base(
-                    type(froz_val.value)
-                    for froz_val in froz_val_list
-                )
-                id_ = froz_val_list[0].get_id(
-                    full_qual=False,
-                    qual=False,
-                    # Do not include the tags to avoid having them displayed
-                    # twice, and to avoid wrongfully using the tag of the first
-                    # item in the list for all items.
-                    with_tags=False,
-                )
-                prebuilt_op_pool_list.append(
-                    engine.PrebuiltOperator(
-                        type_, froz_val_list, id_=id_,
-                        non_reusable_type_set=non_reusable_type_set,
-                        tags_getter=adaptor.get_tags,
-                    ))
-
-    # Pool of all callable considered
-    callable_pool = utils.get_callable_set(module_set, verbose=verbose)
-    op_pool = {
-        engine.Operator(
-            callable_,
-            non_reusable_type_set=non_reusable_type_set,
-            tags_getter=adaptor.get_tags
-        )
-        for callable_ in callable_pool
-    }
-    filtered_op_pool = adaptor.filter_op_pool(op_pool)
-    # Make sure we have all the explicitely allowed operators
-    filtered_op_pool.update(
-        op for op in op_pool
-        if utils.match_name(op.get_name(full_qual=True), allowed_pattern_set)
-    )
-    op_pool = filtered_op_pool
+    # Get the prebuilt operators from the adaptor
+    else:
+        op_set.update(adaptor.get_prebuilt_set())
 
     # Force some parameter values to be provided with a specific callable
-    patch_map = dict()
-    for sweep_spec in args.sweep:
-        number_type = float
-        callable_pattern, param, start, stop, step = sweep_spec
-        for callable_ in callable_pool:
-            callable_name = utils.get_name(callable_, full_qual=True)
-            if not utils.match_name(callable_name, [callable_pattern]):
-                continue
-            patch_map.setdefault(callable_name, dict())[param] = [
-                i for i in utils.sweep_number(
-                    callable_, param,
-                    number_type(start), number_type(stop), number_type(step)
-                )
-            ]
-
-    for op_name, param_patch_map in patch_map.items():
-        for op in op_pool:
-            if op.name == op_name:
-                try:
-                    new_op_pool = op.force_param(
-                        param_patch_map,
-                        tags_getter=adaptor.get_tags
-                    )
-                    prebuilt_op_pool_list.extend(new_op_pool)
-                except KeyError as e:
-                    error('Callable "{callable_}" has no parameter "{param}"'.format(
-                        callable_=op_name,
-                        param=e.args[0]
-                    ))
-                    continue
-
-    # Register stub PrebuiltOperator for the provided prebuilt instances
-    op_pool.update(prebuilt_op_pool_list)
-
-    # Sort to have stable output
-    op_pool = sorted(op_pool, key=lambda x: str(x.name))
-
-    # Pool of classes that can be produced by the ops
-    produced_pool = set(op.value_type for op in op_pool)
-
-    # Set of all types that can be depended upon. All base class of types that
-    # are actually produced are also part of this set, since they can be
-    # dependended upon as well.
-    cls_set = set()
-    for produced in produced_pool:
-        cls_set.update(utils.get_mro(produced))
-    cls_set.discard(object)
-    cls_set.discard(type(None))
-
-    # Map all types to the subclasses that can be used when the type is
-    # requested.
-    cls_map = {
-        # Make sure the list is deduplicated by building a set first
-        cls: sorted({
-            subcls for subcls in produced_pool
-            if issubclass(subcls, cls)
-        }, key=lambda cls: cls.__qualname__)
-        for cls in cls_set
-    }
-
-    # Make sure that the provided PrebuiltOperator will be the only ones used
-    # to provide their types
-    only_prebuilt_cls = set(itertools.chain.from_iterable(
-        # Augment the list of classes that can only be provided by a prebuilt
-        # Operator with all the compatible classes
-        cls_map[op.obj_type]
-        for op in prebuilt_op_pool_list
-        if op.obj_type is not type(None)
-    ))
-
-    only_prebuilt_cls.discard(type(NoValue))
-
-    # Map of all produced types to a set of what operator can create them
-    def build_op_map(op_pool, only_prebuilt_cls, forbidden_pattern_set):
-        op_map = dict()
-        for op in op_pool:
-            param_map, produced = op.get_prototype()
-            is_prebuilt_op = isinstance(op, engine.PrebuiltOperator)
-            if (
-                (is_prebuilt_op or produced not in only_prebuilt_cls)
-                and not utils.match_base_cls(produced, forbidden_pattern_set)
-            ):
-                op_map.setdefault(produced, set()).add(op)
-        return op_map
-
-    op_map = build_op_map(op_pool, only_prebuilt_cls, forbidden_pattern_set)
-
-    # Restrict the production of some types to a set of operators.
-    restricted_op_set = {
-        # Make sure that we only use what is available
-        op for op in itertools.chain.from_iterable(op_map.values())
-        if utils.match_name(op.get_name(full_qual=True), restricted_pattern_set)
-    }
-    def apply_restrict(produced, op_set, restricted_op_set, cls_map):
-        restricted_op_set = {
-            op for op in restricted_op_set
-            if op.value_type is produced
-        }
-        if restricted_op_set:
-            # Make sure there is no other compatible type, so the only operators
-            # that will be used to satisfy that dependency will be one of the
-            # restricted_op_set item.
-            cls_map[produced] = [produced]
-            return restricted_op_set
-        else:
-            return op_set
-    op_map = {
-        produced: apply_restrict(produced, op_set, restricted_op_set, cls_map)
-        for produced, op_set in op_map.items()
-    }
-
-    # Get the callable goals
-    root_op_set = set()
-    if callable_goal_pattern_set:
-        root_op_set.update(
-            op for op in op_pool
-            if utils.match_name(op.get_name(full_qual=True), callable_goal_pattern_set)
-        )
-
-    # Get the list of root operators by produced type
-    if type_goal_pattern:
-        for produced, op_set in op_map.items():
-            # All producers of the goal types can be a root operator in the
-            # expressions we are going to build, i.e. the outermost function call
-            if utils.match_base_cls(produced, type_goal_pattern):
-                root_op_set.update(op_set)
-
-    # Sort for stable output
-    root_op_list = sorted(root_op_set, key=lambda op: str(op.name))
+    patch_map = build_patch_map(args.sweep, op_set)
+    op_set.update(apply_patch_map(patch_map, adaptor))
 
     # Some operators are hidden in IDs since they don't add useful information
     # (internal classes)
-    hidden_callable_set = adaptor.get_hidden_callable_set(op_map)
+    hidden_callable_set = {
+        op.callable_
+        for op in adaptor.get_hidden_op_set(op_set)
+    }
 
     # Only print once per parameters' tuple
     if verbose:
@@ -633,33 +549,47 @@ def do_run(args, parser, run_parser, argv):
         handle_non_produced = 'ignore'
         handle_cycle = 'ignore'
 
+    # Get the callable goals, either by the callable name or the value type
+    root_op_set = set(
+        op for op in op_set
+        if (
+            utils.match_name(op.get_name(full_qual=True), callable_goal_pattern_set)
+            or
+            # All producers of the goal types can be a root operator in the
+            # expressions we are going to build, i.e. the outermost function call
+            utils.match_base_cls(op.value_type, type_goal_pattern)
+        # Only keep the Expression where the outermost (root) operator is
+        # defined in one of the files that were explicitely specified on the
+        # command line.
+        ) and inspect.getmodule(op.callable_) in module_set
+    )
+
+    # Build the class context from the set of Operator's that we collected
+    class_ctx = engine.ClassContext.from_op_set(
+        op_set=op_set,
+        forbidden_pattern_set=forbidden_pattern_set,
+        restricted_pattern_set=restricted_pattern_set
+    )
+
     # Build the list of Expression that can be constructed from the set of
     # callables
-    testcase_list = engine.Expression.build_expr_list(
-        root_op_list, op_map, cls_map,
-        non_produced_handler = handle_non_produced,
-        cycle_handler = handle_cycle,
+    expr_list = class_ctx.build_expr_list(
+        root_op_set,
+        non_produced_handler=handle_non_produced,
+        cycle_handler=handle_cycle,
     )
     # First, sort with the fully qualified ID so we have the strongest stability
     # possible from one run to another
-    testcase_list.sort(key=lambda expr: expr.get_id(full_qual=True, with_tags=True))
+    expr_list.sort(key=lambda expr: expr.get_id(full_qual=True, with_tags=True))
     # Then sort again according to what will be displayed. Since it is a stable
     # sort, it will keep a stable order for IDs that look the same but actually
     # differ in their hidden part
-    testcase_list.sort(key=lambda expr: expr.get_id(qual=False, with_tags=True))
-
-    # Only keep the Expression where the outermost (root) operator is defined
-    # in one of the files that were explicitely specified on the command line.
-    testcase_list = [
-        testcase
-        for testcase in testcase_list
-        if inspect.getmodule(testcase.op.callable_) in module_set
-    ]
+    expr_list.sort(key=lambda expr: expr.get_id(qual=False, with_tags=True))
 
     if user_filter:
-        testcase_list = [
-            testcase for testcase in testcase_list
-            if utils.match_name(testcase.get_id(
+        expr_list = [
+            expr for expr in expr_list
+            if utils.match_name(expr.get_id(
                 # These options need to match what --dry-run gives (unless
                 # verbose is used)
                 full_qual=False,
@@ -667,22 +597,35 @@ def do_run(args, parser, run_parser, argv):
                 hidden_callable_set=hidden_callable_set), [user_filter])
         ]
 
-    if not testcase_list:
-        info('Nothing to do, exiting ...')
-        return 0
+    if not expr_list:
+        info('Nothing to do, check --help while passing some python sources to get the full help.')
+        return 1
 
     out('The following expressions will be executed:\n')
-    for testcase in testcase_list:
-        out(testcase.get_id(
+    for expr in expr_list:
+        out(expr.get_id(
             full_qual=bool(verbose),
             qual=bool(verbose),
             hidden_callable_set=hidden_callable_set
         ))
         if verbose >= 2:
-            out(testcase.get_structure() + '\n')
+            out(expr.get_structure() + '\n')
 
     if dry_run:
         return 0
+
+    return exec_expr_list(
+        expr_list=expr_list,
+        adaptor=adaptor,
+        artifact_dir=artifact_dir,
+        testsession_uuid=testsession_uuid,
+        hidden_callable_set=hidden_callable_set,
+        only_template_scripts=only_template_scripts,
+        verbose=verbose,
+    )
+
+def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
+        hidden_callable_set, only_template_scripts, verbose):
 
     if not only_template_scripts:
         with (artifact_dir/'UUID').open('wt') as f:
@@ -692,76 +635,59 @@ def do_run(args, parser, run_parser, argv):
 
     out('\nArtifacts dir: {}\n'.format(artifact_dir))
 
-    # Apply the common subexpression elimination before trying to create the
-    # template scripts
-    testcase_list = engine.ComputableExpression.from_expr_list(testcase_list)
+    # Get a list of ComputableExpression in order to execute them
+    expr_list = engine.ComputableExpression.from_expr_list(expr_list)
 
-    for testcase in testcase_list:
-        testcase_short_id = testcase.get_id(
+    for expr in expr_list:
+        expr_short_id = expr.get_id(
             hidden_callable_set=hidden_callable_set,
             with_tags=False,
             full_qual=False,
             qual=False,
         )
 
-        data = testcase.data
-        data['id'] = testcase_short_id
-        data['uuid'] = testcase.uuid
+        data = expr.data
+        data['id'] = expr_short_id
+        data['uuid'] = expr.uuid
 
-        testcase_artifact_dir = pathlib.Path(
+        expr_artifact_dir = pathlib.Path(
             artifact_dir,
-            testcase_short_id,
-            testcase.uuid
+            expr_short_id,
+            expr.uuid
         )
-        testcase_artifact_dir.mkdir(parents=True)
-        testcase_artifact_dir = testcase_artifact_dir.resolve()
+        expr_artifact_dir.mkdir(parents=True)
+        expr_artifact_dir = expr_artifact_dir.resolve()
         data['artifact_dir'] = artifact_dir
-        data['testcase_artifact_dir'] = testcase_artifact_dir
+        data['expr_artifact_dir'] = expr_artifact_dir
 
         adaptor.update_expr_data(data)
 
-        with (testcase_artifact_dir/'UUID').open('wt') as f:
-            f.write(testcase.uuid + '\n')
+        with (expr_artifact_dir/'UUID').open('wt') as f:
+            f.write(expr.uuid + '\n')
 
-        with (testcase_artifact_dir/'ID').open('wt') as f:
-            f.write(testcase_short_id+'\n')
+        with (expr_artifact_dir/'ID').open('wt') as f:
+            f.write(expr_short_id+'\n')
 
-        with (testcase_artifact_dir/'STRUCTURE').open('wt') as f:
-            f.write(testcase.get_id(
+        with (expr_artifact_dir/'STRUCTURE').open('wt') as f:
+            f.write(expr.get_id(
                 hidden_callable_set=hidden_callable_set,
                 with_tags=False,
                 full_qual=True,
             ) + '\n\n')
-            f.write(testcase.get_structure() + '\n')
+            f.write(expr.get_structure() + '\n')
 
-        graphviz = testcase.get_structure(graphviz=True)
-        with tempfile.NamedTemporaryFile('wt') as f:
-            f.write(graphviz)
-            f.flush()
-            try:
-                svg = subprocess.check_output(
-                    ['dot', f.name, '-Tsvg'],
-                    stderr=subprocess.DEVNULL,
-                )
-            # If "dot" is not installed
-            except FileNotFoundError:
-                svg = ''
-            except subprocess.CalledProcessError as e:
-                debug('dot failed to execute: {}'.format(e))
+        is_svg, dot_output = utils.render_graphviz(expr)
+        graphviz_path = expr_artifact_dir/'STRUCTURE.{}'.format(
+            'svg' if is_svg else 'dot'
+        )
+        with graphviz_path.open('wt', encoding='utf-8') as f:
+            f.write(dot_output)
 
-        if svg:
-            with (testcase_artifact_dir/'STRUCTURE.svg').open('wb') as f:
-                f.write(svg)
-        else:
-            with (testcase_artifact_dir/'STRUCTURE.dot').open('wt', encoding='utf-8') as f:
-                f.write(graphviz)
-
-
-        with (testcase_artifact_dir/'TESTCASE_TEMPLATE.py').open(
+        with (expr_artifact_dir/'TESTCASE_TEMPLATE.py').open(
             'wt', encoding='utf-8'
         ) as f:
             f.write(
-                testcase.get_script(
+                expr.get_script(
                     prefix = 'testcase',
                     db_path = os.path.join('..', DB_FILENAME),
                     db_relative_to = '__file__',
@@ -773,27 +699,27 @@ def do_run(args, parser, run_parser, argv):
         return 0
 
     result_map = collections.defaultdict(list)
-    for testcase in testcase_list:
+    for expr in expr_list:
         exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}\nUUID: {uuid_}'.format(
-                short_id=testcase.get_id(
+                short_id=expr.get_id(
                     hidden_callable_set=hidden_callable_set,
                     full_qual=False,
                     qual=False,
                 ),
 
-                full_id=testcase.get_id(
+                full_id=expr.get_id(
                     hidden_callable_set=hidden_callable_set if not verbose else None,
                     full_qual=True,
                 ),
-                folder=testcase.data['testcase_artifact_dir'],
-                uuid_=testcase.uuid
+                folder=expr.data['expr_artifact_dir'],
+                uuid_=expr.uuid
         ).replace('\n', '\n# ')
 
         delim = '#' * (len(exec_start_msg.splitlines()[0]) + 2)
         out(delim + '\n# ' + exec_start_msg + '\n' + delim)
 
         result_list = list()
-        result_map[testcase] = result_list
+        result_map[expr] = result_list
 
         def pre_line():
             out('-' * 40)
@@ -837,7 +763,7 @@ def do_run(args, parser, run_parser, argv):
                 ))
 
         # This returns an iterator
-        executor = testcase.execute(log_expr_val)
+        executor = expr.execute(log_expr_val)
 
         out('')
         for result in utils.iterate_cb(executor, pre_line, flush_std_streams):
@@ -869,15 +795,15 @@ def do_run(args, parser, run_parser, argv):
 
 
         out('')
-        testcase_artifact_dir = testcase.data['testcase_artifact_dir']
+        expr_artifact_dir = expr.data['expr_artifact_dir']
 
         # Finalize the computation
-        adaptor.finalize_expr(testcase)
+        adaptor.finalize_expr(expr)
 
         # Dump the reproducer script
-        with (testcase_artifact_dir/'TESTCASE.py').open('wt', encoding='utf-8') as f:
+        with (expr_artifact_dir/'TESTCASE.py').open('wt', encoding='utf-8') as f:
             f.write(
-                testcase.get_script(
+                expr.get_script(
                     prefix = 'testcase',
                     db_path = os.path.join('..', '..', DB_FILENAME),
                     db_relative_to = '__file__',
@@ -896,13 +822,13 @@ def do_run(args, parser, run_parser, argv):
             with path.open('wt') as f:
                 f.write(format_uuid(*args) + '\n')
 
-        write_uuid(testcase_artifact_dir/'VALUES_UUID', result_list)
-        write_uuid(testcase_artifact_dir/'REUSED_VALUES_UUID', reused_expr_val_set)
-        write_uuid(testcase_artifact_dir/'COMPUTED_VALUES_UUID', computed_expr_val_set)
+        write_uuid(expr_artifact_dir/'VALUES_UUID', result_list)
+        write_uuid(expr_artifact_dir/'REUSED_VALUES_UUID', reused_expr_val_set)
+        write_uuid(expr_artifact_dir/'COMPUTED_VALUES_UUID', computed_expr_val_set)
 
     db = engine.ValueDB(
         engine.FrozenExprValSeq.from_expr_list(
-            testcase_list, hidden_callable_set=hidden_callable_set
+            expr_list, hidden_callable_set=hidden_callable_set
         )
     )
 
@@ -922,7 +848,7 @@ def do_run(args, parser, run_parser, argv):
     # Output the merged script with all subscripts
     script_path = artifact_dir/'ALL_SCRIPTS.py'
     result_name_map, all_scripts = engine.Expression.get_all_script(
-        testcase_list, prefix='testcase',
+        expr_list, prefix='testcase',
         db_path=db_path.relative_to(artifact_dir),
         db_relative_to='__file__',
         db=db,
@@ -931,6 +857,8 @@ def do_run(args, parser, run_parser, argv):
 
     with script_path.open('wt', encoding='utf-8') as f:
         f.write(all_scripts + '\n')
+
+    return 0
 
 SILENT_EXCEPTIONS = (KeyboardInterrupt, BrokenPipeError)
 GENERIC_ERROR_CODE = 1

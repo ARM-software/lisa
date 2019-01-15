@@ -16,22 +16,25 @@
 # limitations under the License.
 #
 
-import types
-import uuid
-import inspect
-import functools
-import fnmatch
-import gc
 import collections
 import contextlib
+import fnmatch
+import functools
+import gc
 import importlib
+import inspect
 import io
 import itertools
 import logging
 import pathlib
 import pickle
+import subprocess
 import sys
+import tempfile
 import traceback
+import types
+import uuid
+import glob
 
 class NotSerializableError(Exception):
     pass
@@ -341,6 +344,21 @@ def find_customization_module_set(module_set):
 
     return customization_module_set
 
+def import_paths(paths):
+    def import_it(path):
+        # Recursively import all modules when passed folders
+        if path.is_dir():
+            for python_src in glob.iglob(str(path/'**'/'*.py'), recursive=True):
+                yield import_file(python_src)
+        # If passed a file, just import it directly
+        else:
+            yield import_file(path)
+
+    return set(itertools.chain.from_iterable(
+        import_it(pathlib.Path(path))
+        for path in paths
+    ))
+
 def import_file(python_src, module_name=None, is_package=False):
     python_src = pathlib.Path(python_src).resolve()
 
@@ -589,3 +607,22 @@ def disable_gc():
     finally:
         gc.enable()
 
+def render_graphviz(expr):
+    graphviz = expr.get_structure(graphviz=True)
+    with tempfile.NamedTemporaryFile('wt') as f:
+        f.write(graphviz)
+        f.flush()
+        try:
+            svg = subprocess.check_output(
+                ['dot', f.name, '-Tsvg'],
+                stderr=subprocess.DEVNULL,
+            ).decode('utf-8')
+        # If "dot" is not installed
+        except FileNotFoundError:
+            pass
+        except subprocess.CalledProcessError as e:
+            debug('dot failed to execute: {}'.format(e))
+        else:
+            return (True, svg)
+
+        return (False, graphviz)

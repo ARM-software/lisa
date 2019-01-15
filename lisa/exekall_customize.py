@@ -44,7 +44,7 @@ class ExekallArtifactPath(ArtifactPath):
         """
         Factory used when running under `exekall`
         """
-        artifact_dir = Path(data['testcase_artifact_dir']).resolve()
+        artifact_dir = Path(data['expr_artifact_dir']).resolve()
         consumer_name = get_name(consumer)
 
         # Find a non-used directory
@@ -73,9 +73,9 @@ class LISAAdaptor(AdaptorBase):
             ExekallArtifactPath,
         }
 
-    def get_prebuilt_list(self):
+    def get_prebuilt_set(self):
         non_reusable_type_set = self.get_non_reusable_type_set()
-        op_list = []
+        op_set = set()
 
         # Try to build as many configurations instances from all the files we
         # are given
@@ -107,29 +107,27 @@ class LISAAdaptor(AdaptorBase):
             for conf_src, conf_path in conf_and_path_list[1:]:
                 conf.add_src(conf_path, conf_src, fallback=True)
 
-            op_list.append(
-                PrebuiltOperator(conf_cls, [conf],
+            op_set.add(PrebuiltOperator(
+                conf_cls, [conf],
                 non_reusable_type_set=non_reusable_type_set
             ))
 
         # Inject serialized objects as root operators
         for path in self.args.inject:
             obj = Serializable.from_path(path)
-            op_list.append(
-                PrebuiltOperator(type(obj), [obj],
+            op_set.add(PrebuiltOperator(type(obj), [obj],
                 non_reusable_type_set=non_reusable_type_set
             ))
 
-        return op_list
+        return op_set
 
-    def get_hidden_callable_set(self, op_map):
-        hidden_callable_set = set()
-        for produced, op_set in op_map.items():
-            if issubclass(produced, HideExekallID):
-                hidden_callable_set.update(op.callable_ for op in op_set)
-
-        self.hidden_callable_set = hidden_callable_set
-        return hidden_callable_set
+    def get_hidden_op_set(self, op_set):
+        hidden_op_set = {
+            op for op in op_set
+            if issubclass(op.value_type, HideExekallID)
+        }
+        self.hidden_op_set = hidden_op_set
+        return hidden_op_set
 
     @staticmethod
     def register_cli_param(parser):
@@ -172,26 +170,26 @@ class LISAAdaptor(AdaptorBase):
         return db
 
     def finalize_expr(self, expr):
-        testcase_artifact_dir = expr.data['testcase_artifact_dir']
+        expr_artifact_dir = expr.data['expr_artifact_dir']
         artifact_dir = expr.data['artifact_dir']
         for expr_val in expr.get_all_vals():
-            self._finalize_expr_val(expr_val, artifact_dir, testcase_artifact_dir)
+            self._finalize_expr_val(expr_val, artifact_dir, expr_artifact_dir)
 
-    def _finalize_expr_val(self, expr_val, artifact_dir, testcase_artifact_dir):
+    def _finalize_expr_val(self, expr_val, artifact_dir, expr_artifact_dir):
         val = expr_val.value
 
         # Add symlinks to artifact folders for ExprValue that were used in the
         # ExprValue graph, but were initially computed for another Expression
         if isinstance(val, ArtifactPath):
             val = Path(val)
-            is_subfolder = (testcase_artifact_dir.resolve() in val.resolve().parents)
+            is_subfolder = (expr_artifact_dir.resolve() in val.resolve().parents)
             # The folder is reachable from our ExprValue, but is not a
-            # subfolder of the testcase_artifact_dir, so we want to get a
+            # subfolder of the expr_artifact_dir, so we want to get a
             # symlink to it
             if not is_subfolder:
                 # We get the name of the callable
                 callable_folder = val.parts[-2]
-                folder = testcase_artifact_dir/callable_folder
+                folder = expr_artifact_dir/callable_folder
 
                 # We build a relative path back in the hierarchy to the root of
                 # all artifacts
@@ -212,7 +210,7 @@ class LISAAdaptor(AdaptorBase):
                 symlink.symlink_to(target, target_is_directory=True)
 
         for param, param_expr_val in expr_val.param_map.items():
-            self._finalize_expr_val(param_expr_val, artifact_dir, testcase_artifact_dir)
+            self._finalize_expr_val(param_expr_val, artifact_dir, expr_artifact_dir)
 
     @classmethod
     def get_tags(cls, value):
@@ -241,7 +239,11 @@ class LISAAdaptor(AdaptorBase):
         # This way, Jenkins should be able to read it, and other tools as well
 
         xunit_path = self.args.artifact_dir.joinpath('xunit.xml')
-        et_root = self.create_xunit(result_map, self.hidden_callable_set)
+        hidden_callable_set = {
+            op.callable_
+            for op in self.hidden_op_set
+        }
+        et_root = self.create_xunit(result_map, hidden_callable_set)
         et_tree = ET.ElementTree(et_root)
         info('Writing xUnit file at: ' + str(xunit_path))
         et_tree.write(str(xunit_path))

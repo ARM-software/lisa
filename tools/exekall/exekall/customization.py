@@ -45,21 +45,21 @@ class AdaptorBase:
     def update_expr_data(self, expr_data):
         return
 
-    def filter_op_pool(self, op_pool):
+    def filter_op_set(self, op_set):
         return {
-            op for op in op_pool
+            op for op in op_set
             # Only select operators with non-empty parameter list. This
             # rules out all classes __init__ that do not take parameter, as
             # they are typically not interesting to us.
             if op.get_prototype()[0]
         }
 
-    def get_prebuilt_list(self):
-        return []
+    def get_prebuilt_set(self):
+        return set()
 
-    def get_hidden_callable_set(self, op_map):
-        self.hidden_callable_set = set()
-        return self.hidden_callable_set
+    def get_hidden_op_set(self, op_set):
+        self.hidden_op_set = set()
+        return self.hidden_op_set
 
     @staticmethod
     def register_cli_param(parser):
@@ -92,7 +92,10 @@ class AdaptorBase:
             return str(val)
 
     def get_summary(self, result_map):
-        hidden_callable_set = self.hidden_callable_set
+        hidden_callable_set = {
+            op.callable_
+            for op in self.hidden_op_set
+        }
 
         # Get all IDs and compute the maximum length to align the output
         result_id_map = {

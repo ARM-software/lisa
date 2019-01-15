@@ -1175,48 +1175,109 @@ class ComputableExpression(ExpressionBase):
             for expr_val in self.get_all_vals()
         ))
 
-class Expression(ExpressionBase):
-    def validate(self, op_map):
-        type_map, valid = self._get_type_map()
-        if not valid:
-            return False
+class ClassContext:
+    def __init__(self, op_map, cls_map):
+        self.op_map = op_map
+        self.cls_map = cls_map
 
-        # Check that the Expression does not involve 2 classes that are
-        # compatible
-        cls_bags = [set(cls_list) for cls_list in op_map.values()]
-        cls_used = set(type_map.keys())
-        for cls1, cls2 in itertools.product(cls_used, repeat=2):
-            for cls_bag in cls_bags:
-                if cls1 in cls_bag and cls2 in cls_bag:
-                    return False
+    @staticmethod
+    def _build_cls_map(op_set, compat_cls):
+        # Pool of classes that can be produced by the ops
+        produced_pool = set(op.value_type for op in op_set)
 
-        return True
+        # Set of all types that can be depended upon. All base class of types that
+        # are actually produced are also part of this set, since they can be
+        # dependended upon as well.
+        cls_set = set()
+        for produced in produced_pool:
+            cls_set.update(utils.get_mro(produced))
+        cls_set.discard(object)
+        cls_set.discard(type(None))
 
-    def _get_type_map(self):
-        type_map = dict()
-        return (type_map, self._populate_type_map(type_map))
+        # Map all types to the subclasses that can be used when the type is
+        # requested.
+        return {
+            # Make sure the list is deduplicated by building a set first
+            cls: sorted({
+                subcls for subcls in produced_pool
+                if compat_cls(subcls, cls)
+            }, key=lambda cls: cls.__qualname__)
+            for cls in cls_set
+        }
 
-    def _populate_type_map(self, type_map):
-        value_type = self.op.value_type
-        # If there was already an Expression producing that type, the Expression
-        # is not valid
-        found_callable = type_map.get(value_type)
-        if found_callable is not None and found_callable is not self.op.callable_:
-            return False
-        type_map[value_type] = self.op.callable_
+    # Map of all produced types to a set of what operator can create them
+    @staticmethod
+    def _build_op_map(op_set, cls_map, forbidden_pattern_set):
+        # Make sure that the provided PrebuiltOperator will be the only ones used
+        # to provide their types
+        only_prebuilt_cls = set(itertools.chain.from_iterable(
+            # Augment the list of classes that can only be provided by a prebuilt
+            # Operator with all the compatible classes
+            cls_map[op.obj_type]
+            for op in op_set
+            if isinstance(op, PrebuiltOperator)
+        ))
 
-        for param_expr in self.param_map.values():
-            if not param_expr._populate_type_map(type_map):
-                return False
-        return True
+        op_map = dict()
+        for op in op_set:
+            param_map, produced = op.get_prototype()
+            is_prebuilt_op = isinstance(op, PrebuiltOperator)
+            if (
+                (is_prebuilt_op or produced not in only_prebuilt_cls)
+                and not utils.match_base_cls(produced, forbidden_pattern_set)
+            ):
+                op_map.setdefault(produced, set()).add(op)
+        return op_map
+
+    @staticmethod
+    def _restrict_op_map(op_map, cls_map, restricted_pattern_set):
+        cls_map = copy.copy(cls_map)
+
+        # Restrict the production of some types to a set of operators.
+        restricted_op_set = {
+            # Make sure that we only use what is available
+            op for op in itertools.chain.from_iterable(op_map.values())
+            if utils.match_name(op.get_name(full_qual=True), restricted_pattern_set)
+        }
+        def apply_restrict(produced, op_set, restricted_op_set, cls_map):
+            restricted_op_set = {
+                op for op in restricted_op_set
+                if op.value_type is produced
+            }
+            if restricted_op_set:
+                # Make sure there is no other compatible type, so the only
+                # operators that will be used to satisfy that dependency will
+                # be one of the restricted_op_set item.
+                cls_map[produced] = [produced]
+                return restricted_op_set
+            else:
+                return op_set
+        op_map = {
+            produced: apply_restrict(produced, op_set, restricted_op_set, cls_map)
+            for produced, op_set in op_map.items()
+        }
+
+        return (op_map, cls_map)
 
     @classmethod
-    def build_expr_list(cls, result_op_seq, op_map, cls_map,
+    def from_op_set(cls, op_set, forbidden_pattern_set=set(), restricted_pattern_set=set(), compat_cls=issubclass):
+        # Build the mapping of compatible classes
+        cls_map = cls._build_cls_map(op_set, compat_cls)
+        # Build the mapping of classes to producing operators
+        op_map = cls._build_op_map(op_set, cls_map, forbidden_pattern_set)
+        op_map, cls_map = cls._restrict_op_map(op_map, cls_map, restricted_pattern_set)
+
+        return cls(
+            op_map=op_map,
+            cls_map=cls_map
+        )
+
+    def build_expr_list(self, result_op_seq,
             non_produced_handler='raise', cycle_handler='raise'):
-        op_map = copy.copy(op_map)
+        op_map = copy.copy(self.op_map)
         cls_map = {
             cls: compat_cls_set
-            for cls, compat_cls_set in cls_map.items()
+            for cls, compat_cls_set in self.cls_map.items()
             # If there is at least one compatible subclass that is produced, we
             # keep it, otherwise it will mislead _build_expr into thinking the
             # class can be built where in fact it cannot
@@ -1231,7 +1292,7 @@ class Expression(ExpressionBase):
 
         expr_list = list()
         for result_op in result_op_seq:
-            expr_gen = cls._build_expr(result_op, op_map, cls_map,
+            expr_gen = self._build_expr(result_op, op_map, cls_map,
                 op_stack = [],
                 non_produced_handler=non_produced_handler,
                 cycle_handler=cycle_handler,
@@ -1241,7 +1302,7 @@ class Expression(ExpressionBase):
                     expr_list.append(expr)
 
         # Apply CSE to get a cleaner result
-        return cls.cse(expr_list)
+        return Expression.cse(expr_list)
 
     @classmethod
     def _build_expr(cls, op, op_map, cls_map, op_stack, non_produced_handler, cycle_handler):
@@ -1269,7 +1330,7 @@ class Expression(ExpressionBase):
             param_list, cls_list = zip(*param_map.items())
         # When no parameter is needed
         else:
-            yield cls(op, OrderedDict())
+            yield Expression(op, OrderedDict())
             return
 
         # Build all the possible combinations of types suitable as parameters
@@ -1347,7 +1408,42 @@ class Expression(ExpressionBase):
 
                     # If all parameters can be built, carry on
                     if len(param_map) == param_list_len:
-                        yield cls(op, param_map)
+                        yield Expression(op, param_map)
+
+class Expression(ExpressionBase):
+    def validate(self, op_map):
+        type_map, valid = self._get_type_map()
+        if not valid:
+            return False
+
+        # Check that the Expression does not involve 2 classes that are
+        # compatible
+        cls_bags = [set(cls_list) for cls_list in op_map.values()]
+        cls_used = set(type_map.keys())
+        for cls1, cls2 in itertools.product(cls_used, repeat=2):
+            for cls_bag in cls_bags:
+                if cls1 in cls_bag and cls2 in cls_bag:
+                    return False
+
+        return True
+
+    def _get_type_map(self):
+        type_map = dict()
+        return (type_map, self._populate_type_map(type_map))
+
+    def _populate_type_map(self, type_map):
+        value_type = self.op.value_type
+        # If there was already an Expression producing that type, the Expression
+        # is not valid
+        found_callable = type_map.get(value_type)
+        if found_callable is not None and found_callable is not self.op.callable_:
+            return False
+        type_map[value_type] = self.op.callable_
+
+        for param_expr in self.param_map.values():
+            if not param_expr._populate_type_map(type_map):
+                return False
+        return True
 
 class AnnotationError(Exception):
     pass
