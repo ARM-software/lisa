@@ -2064,10 +2064,10 @@ class ExprValBase(collections.abc.Mapping):
 class FrozenExprVal(ExprValBase):
     def __init__(self,
             param_map, value, excep, uuid,
-            callable_qual_name, callable_name, recorded_id_map,
+            callable_qualname, callable_name, recorded_id_map,
         ):
         self.uuid = uuid
-        self.callable_qual_name = callable_qual_name
+        self.callable_qualname = callable_qualname
         self.callable_name = callable_name
         self.recorded_id_map = recorded_id_map
         super().__init__(param_map=param_map, value=value, excep=excep)
@@ -2093,7 +2093,7 @@ class FrozenExprVal(ExprValBase):
             value = NoValue
             excep = NoValue
 
-        callable_qual_name = op.get_name(full_qual=True)
+        callable_qualname = op.get_name(full_qual=True)
         callable_name = op.get_name(full_qual=False, qual=False)
 
         # Pre-compute all the IDs so they are readily available once the value
@@ -2119,7 +2119,7 @@ class FrozenExprVal(ExprValBase):
             uuid=expr_val.uuid,
             value=value,
             excep=excep,
-            callable_qual_name=callable_qual_name,
+            callable_qualname=callable_qualname,
             callable_name=callable_name,
             recorded_id_map=recorded_id_map,
             param_map=param_map,
