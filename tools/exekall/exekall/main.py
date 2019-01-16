@@ -210,6 +210,15 @@ PATTERNS
         default=[],
         help="""Only run the expressions with an ID matching any of the supplied filters.""")
 
+    # Same as --select, but allows multiple patterns without needing to
+    # repeat the option. This is mostly available to support wrapper
+    # scripts, and is not recommended for direct use since it can lead to
+    # some parsing ambiguities.
+    run_parser.add_argument('--select-multiple', nargs='*',
+        default=[],
+        help=argparse.SUPPRESS,
+    )
+
     run_parser.add_argument('--dry-run', action='store_true',
         help="""Only show the expressions that will be run without running them.""")
 
@@ -472,6 +481,8 @@ def do_run(args, parser, run_parser, argv):
     load_db_uuid_args = args.load_uuid_args
 
     user_filter_set = set(args.select)
+    user_filter_set.update(args.select_multiple)
+
     restricted_pattern_set = set(args.restrict)
     forbidden_pattern_set = set(args.forbid)
     allowed_pattern_set = set(args.allow)

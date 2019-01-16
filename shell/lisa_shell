@@ -389,11 +389,29 @@ echo
 # LISA Tests utility functions
 ################################################################################
 
+export LISA_CONF="$LISA_HOME/target_conf.yml"
 export LISA_RESULT_ROOT=$LISA_HOME/results
 export EXEKALL_ARTIFACT_ROOT=${EXEKALL_ARTIFACT_ROOT:-$LISA_RESULT_ROOT}
 
 function lisa-test {
-    exekall "$@"
+    # Add --conf target_conf.yml if the file exists
+    if [[ -e "$LISA_CONF" ]]; then
+        local conf_opt=('--conf' "$LISA_CONF")
+    else
+        local conf_opt=()
+    fi
+
+    local cmd=(
+        exekall run "$LISA_HOME/lisa/tests/kernel/"             \
+        "${conf_opt[@]}"                                        \
+        --select-multiple "$@"
+    )
+
+    # Show the command before running, so --help makes more sense
+    echo "${cmd[@]}"
+    echo
+
+    "${cmd[@]}"
 }
 
 ################################################################################
