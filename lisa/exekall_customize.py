@@ -133,9 +133,10 @@ class LISAAdaptor(AdaptorBase):
     def register_cli_param(parser):
         parser.add_argument('--conf', action='append',
             default=[],
-            help="Configuration file")
+            help="LISA configuration file. If multiple configurations of a given type are found, they are merged (last one can override keys in previous ones)")
 
         parser.add_argument('--inject', action='append',
+            metavar='SERIALIZED_OBJECT_PATH',
             default=[],
             help="Serialized object to inject when building expressions")
 

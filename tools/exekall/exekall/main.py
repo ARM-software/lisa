@@ -178,7 +178,10 @@ def load_from_db(db, adaptor, non_reusable_type_set, pattern_list, uuid_list, uu
 
 def _main(argv):
     parser = argparse.ArgumentParser(description="""
-    LISA test runner
+Test runner
+
+PATTERNS
+    All patterns are fnmatch pattern, following basic shell globbing syntax.
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
@@ -193,103 +196,112 @@ def _main(argv):
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
-    # It is not possible to give a default value to that option, otherwise
-    # adaptor-specific options' values will be picked up as Python sources, and
-    # import the modules will therefore fail with unknown files.
+    # It is not possible to give a default value to positional options,
+    # otherwise adaptor-specific options' values will be picked up as Python
+    # sources, and importing the modules will therefore fail with unknown files
+    # error.
     run_parser.add_argument('python_files', nargs='+',
         metavar='PYTHON_SRC',
-        help="""Python modules files. If passed a folder, all contained files
-are selected, recursively. By default, the current directory is selected.""")
+        help="""Python modules files. If passed a folder, all contained files recursively are selected. By default, the current directory is selected.""")
 
-    run_parser.add_argument('--adaptor',
-        help="""Adaptor to use from the customization module, if there is more
-than one to choose from.""")
 
-    run_parser.add_argument('--filter',
-        help="""Only run the testcases with an ID matching the filter.""")
-
-    run_parser.add_argument('--restrict', action='append',
+    run_parser.add_argument('-s', '--select', action='append',
+        metavar='SELECT_PATTERN',
         default=[],
-        help="""Callable names patterns. Types produced by these callables will
-only be produced by these (other callables will be excluded).""")
-
-    run_parser.add_argument('--forbid', action='append',
-        default=[],
-        help="""Type names patterns. Callable returning these types or any subclass will not be called.""")
-
-    run_parser.add_argument('--allow', action='append',
-        default=[],
-        help="""Allow using callable with a fully qualified name matching these patterns, even if they have been not selected for various reasons.""")
-
-    run_parser.add_argument('--modules-root', action='append', default=[],
-        help="Equivalent to setting PYTHONPATH")
-
-    artifact_dir_group = run_parser.add_mutually_exclusive_group()
-    artifact_dir_group.add_argument('--artifact-root',
-        default=os.getenv('EXEKALL_ARTIFACT_ROOT', 'artifacts'),
-        help="Root folder under which the artifact folders will be created")
-
-    artifact_dir_group.add_argument('--artifact-dir',
-        default=os.getenv('EXEKALL_ARTIFACT_DIR'),
-        help="""Folder in which the artifacts will be stored.""")
-
-    run_parser.add_argument('--load-db',
-        help="""Reload a database and use its results as prebuilt objects.""")
-
-    run_parser.add_argument('--load-type', action='append', default=[],
-        help="""Load the (indirect) instances of the given class from the
-database instead of the root objects.""")
-
-    uuid_group = run_parser.add_mutually_exclusive_group()
-
-    uuid_group.add_argument('--load-uuid', action='append', default=[],
-        help="""Load the given UUID from the database. What is reloaded can be
-refined with --load-type.""")
-
-    uuid_group.add_argument('--load-uuid-args',
-        help="""Load the parameters of the values that were used to compute the
-given UUID from the database.""")
-
-    goal_group = run_parser.add_mutually_exclusive_group()
-    goal_group.add_argument('--goal', action='append',
-        help="""Compute expressions leading to an instance of the specified
-class or a subclass of it.""")
-
-    goal_group.add_argument('--callable-goal', action='append',
-        default=[],
-        help="""Compute expressions ending with a callable which name is
-matching this pattern.""")
-
-    run_parser.add_argument('--sweep', nargs=5, action='append', default=[],
-        metavar=('CALLABLE', 'PARAM', 'START', 'STOP', 'STEP'),
-        help="""Parametric sweep on a function parameter.
-It needs five fields: the qualified name of the callable (pattern can be used),
-the name of the parameter, the start value, stop value and step size.""")
-
-    run_parser.add_argument('--verbose', '-v', action='count', default=0,
-        help="""More verbose output.""")
+        help="""Only run the expressions with an ID matching any of the supplied filters.""")
 
     run_parser.add_argument('--dry-run', action='store_true',
-        help="""Only show the tests that will be run without running them.""")
-
-    run_parser.add_argument('--template-scripts', metavar='SCRIPT_FOLDER',
-        help="""Only create the template scripts of the tests without running them.""")
+        help="""Only show the expressions that will be run without running them.""")
 
     run_parser.add_argument('--log-level', default='info',
         choices=('debug', 'info', 'warn', 'error', 'critical'),
         help="""Change the default log level of the standard logging module.""")
 
+    run_parser.add_argument('--verbose', '-v', action='count', default=0,
+        help="""More verbose output. Can be repeated for even more verbosity. This only impacts exekall output, --log-level for more global settings.""")
+
+    artifact_dir_group = run_parser.add_mutually_exclusive_group()
+    artifact_dir_group.add_argument('--artifact-root',
+        default=os.getenv('EXEKALL_ARTIFACT_ROOT', 'artifacts'),
+        help="Root folder under which the artifact folders will be created. Defaults to EXEKALL_ARTIFACT_ROOT env var.")
+
+    artifact_dir_group.add_argument('--artifact-dir',
+        default=os.getenv('EXEKALL_ARTIFACT_DIR'),
+        help="""Folder in which the artifacts will be stored. Defaults to EXEKALL_ARTIFACT_DIR env var.""")
+
+    run_parser.add_argument('--load-db',
+        help="""Reload a database to use some of its objects.""")
+
+    run_parser.add_argument('--load-type', action='append',
+        metavar='LOAD_TYPE_PATTERN',
+        default=[],
+        help="""Load the (indirect) instances of the given class from the database instead of the root objects.""")
+
+    uuid_group = run_parser.add_mutually_exclusive_group()
+
+    uuid_group.add_argument('--load-uuid', action='append',
+        default=[],
+        help="""Load the given UUID from the database.""")
+
+    uuid_group.add_argument('--load-uuid-args',
+        help="""Load the parameters that were used to compute the value with the given UUID from the database.""")
+
+    run_parser.add_argument('--restrict', action='append',
+        metavar='RESTRICT_PATTERN',
+        default=[],
+        help="""Callable names patterns. Types produced by these callables will only be produced by these (other callables will be excluded).""")
+
+    run_parser.add_argument('--forbid', action='append',
+        metavar='FORBID_PATTERN',
+        default=[],
+        help="""Fully qualified type names patterns. Callable returning these types or any subclass will not be called.""")
+
+    run_parser.add_argument('--allow', action='append',
+        metavar='ALLOW_PATTERN',
+        default=[],
+        help="""Allow using callable with a fully qualified name matching these patterns, even if they have been not selected for various reasons.""")
+
+    goal_group = run_parser.add_mutually_exclusive_group()
+    goal_group.add_argument('--goal', action='append',
+        metavar='GOAL_PATTERN',
+        default=[],
+        help="""Compute expressions leading to an instance of a class with name matching this pattern (or a subclass of it).""")
+
+    goal_group.add_argument('--callable-goal', action='append',
+        metavar='CALLABLE_GOAL_PATTERN',
+        default=[],
+        help="""Compute expressions ending with a callable which name is matching this pattern.""")
+
+    run_parser.add_argument('--sweep', nargs=5, action='append', default=[],
+        metavar=('CALLABLE_PATTERN', 'PARAM', 'START', 'STOP', 'STEP'),
+        help="""Parametric sweep on a function parameter. It needs five fields:
+    * pattern matching qualified name of the callable
+    * name of the parameter
+    * start value
+    * stop value
+    * step size.""")
+
+    run_parser.add_argument('--template-scripts', metavar='SCRIPT_FOLDER',
+        help="""Only create the template scripts of the expressions without running them.""")
+
+    run_parser.add_argument('--adaptor',
+        help="""Adaptor to use from the customization module, if there is more than one to choose from.""")
+
 
     merge_parser = subparsers.add_parser('merge',
     description="""
-    Merge artifact directories of "exekall run" executions
+Merge artifact directories of "exekall run" executions.
+
+By default, it will use hardlinks instead of copies to improve speed and avoid
+eating up large amount of space, but that means that artifact directories
+should be treated as read-only.
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
     merge_parser.add_argument('artifact_dirs', nargs='+',
         help="""Artifact directories created using "exekall run", or value databases to merge.""")
 
-    merge_parser.add_argument('--output', '-o', required=True,
+    merge_parser.add_argument('-o', '--output', required=True,
         help="""Output merged artifacts directory or value database.""")
 
     merge_parser.add_argument('--copy', action='store_true',
@@ -448,25 +460,23 @@ def do_run(args, parser, run_parser, argv):
     dry_run = args.dry_run
     only_template_scripts = args.template_scripts
 
-    type_goal_pattern = args.goal
+    type_goal_pattern_set = set(args.goal)
     callable_goal_pattern_set = set(args.callable_goal)
 
-    if not (type_goal_pattern or callable_goal_pattern_set):
-        type_goal_pattern = set(adaptor_cls.get_default_type_goal_pattern_set())
+    if not (type_goal_pattern_set or callable_goal_pattern_set):
+        type_goal_pattern_set = set(adaptor_cls.get_default_type_goal_pattern_set())
 
     load_db_path = args.load_db
     load_db_pattern_list = args.load_type
     load_db_uuid_list = args.load_uuid
     load_db_uuid_args = args.load_uuid_args
 
-    user_filter = args.filter
+    user_filter_set = set(args.select)
     restricted_pattern_set = set(args.restrict)
     forbidden_pattern_set = set(args.forbid)
     allowed_pattern_set = set(args.allow)
     allowed_pattern_set.update(restricted_pattern_set)
     allowed_pattern_set.update(callable_goal_pattern_set)
-
-    sys.path.extend(args.modules_root)
 
     # Setup the artifact_dir so we can create a verbose log in there
     date = datetime.datetime.now().strftime('%Y%m%d_%H:%M:%S')
@@ -557,7 +567,7 @@ def do_run(args, parser, run_parser, argv):
             or
             # All producers of the goal types can be a root operator in the
             # expressions we are going to build, i.e. the outermost function call
-            utils.match_base_cls(op.value_type, type_goal_pattern)
+            utils.match_base_cls(op.value_type, type_goal_pattern_set)
         # Only keep the Expression where the outermost (root) operator is
         # defined in one of the files that were explicitely specified on the
         # command line.
@@ -586,7 +596,7 @@ def do_run(args, parser, run_parser, argv):
     # differ in their hidden part
     expr_list.sort(key=lambda expr: expr.get_id(qual=False, with_tags=True))
 
-    if user_filter:
+    if user_filter_set:
         expr_list = [
             expr for expr in expr_list
             if utils.match_name(expr.get_id(
@@ -594,7 +604,7 @@ def do_run(args, parser, run_parser, argv):
                 # verbose is used)
                 full_qual=False,
                 qual=False,
-                hidden_callable_set=hidden_callable_set), [user_filter])
+                hidden_callable_set=hidden_callable_set), user_filter_set)
         ]
 
     if not expr_list:
