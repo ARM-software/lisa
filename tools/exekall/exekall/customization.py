@@ -40,8 +40,6 @@ class AdaptorBase:
             tags = {}
         return tags
 
-    load_db = None
-
     def update_expr_data(self, expr_data):
         return
 
@@ -72,7 +70,8 @@ class AdaptorBase:
     def resolve_cls_name(self, goal):
         return utils.get_class_from_name(goal, sys.modules)
 
-    def load_db(self, db_path):
+    @staticmethod
+    def load_db(db_path):
         return ValueDB.from_path(db_path)
 
     def finalize_expr(self, expr):
@@ -125,14 +124,17 @@ class AdaptorBase:
     @classmethod
     def get_adaptor_cls(cls, name=None):
         subcls_list = list(cls.__subclasses__())
-        if len(subcls_list) > 1 and not name:
-            raise ValueError('An adaptor name must be specified if there is more than one adaptor to choose from')
+        if not name:
+            if len(subcls_list) > 1:
+                raise ValueError('An adaptor name must be specified if there is more than one adaptor to choose from')
+            else:
+                if len(subcls_list) > 0:
+                    return subcls_list[0]
+                else:
+                    return cls
 
         for subcls in subcls_list:
-            if name:
-                if subcls.name == name:
-                    return subcls
-            else:
+            if subcls.name == name:
                 return subcls
         return None
 
