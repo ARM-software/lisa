@@ -19,7 +19,7 @@
 import numbers
 
 from exekall.engine import ValueDB
-from exekall.utils import out, get_name, NoValue
+from exekall.utils import out, get_name, NoValue, get_subclasses
 
 class AdaptorBase:
     name = 'default'
@@ -123,7 +123,7 @@ class AdaptorBase:
 
     @classmethod
     def get_adaptor_cls(cls, name=None):
-        subcls_list = list(cls.__subclasses__())
+        subcls_list = list(get_subclasses(cls) - {cls})
         if not name:
             if len(subcls_list) > 1:
                 raise ValueError('An adaptor name must be specified if there is more than one adaptor to choose from')

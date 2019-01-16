@@ -584,6 +584,12 @@ def get_common_base(cls_list):
 
     return functools.reduce(common, cls_list)
 
+def get_subclasses(cls):
+    subcls_set = {cls}
+    for subcls in cls.__subclasses__():
+        subcls_set.update(get_subclasses(subcls))
+    return subcls_set
+
 def get_recursive_module_set(module_set, package_set):
     """Retrieve the set of all modules recurisvely imported from the modules in
     `module_set`, if they are (indirectly) part of one of the packages named in

@@ -38,7 +38,10 @@ from exekall.utils import info, get_name, get_mro, NoValue
 from exekall.engine import ExprData, Consumer, PrebuiltOperator, ValueDB
 from exekall.customization import AdaptorBase
 
-class ExekallArtifactPath(ArtifactPath):
+class NonReusable:
+    pass
+
+class ExekallArtifactPath(ArtifactPath, NonReusable):
     @classmethod
     def from_expr_data(cls, data:ExprData, consumer:Consumer) -> 'ExekallArtifactPath':
         """
@@ -69,9 +72,7 @@ class LISAAdaptor(AdaptorBase):
     name = 'LISA'
 
     def get_non_reusable_type_set(self):
-        return {
-            ExekallArtifactPath,
-        }
+        return {NonReusable}
 
     def get_prebuilt_set(self):
         non_reusable_type_set = self.get_non_reusable_type_set()

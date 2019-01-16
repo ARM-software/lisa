@@ -529,7 +529,11 @@ def do_run(args, parser, run_parser, argv):
     callable_pool = utils.get_callable_set(module_set, verbose=verbose)
 
     # Build the pool of operators from the callables
-    non_reusable_type_set = adaptor.get_non_reusable_type_set()
+    non_reusable_type_set = set(utils.flatten_seq(
+        utils.get_subclasses(cls)
+        for cls in adaptor.get_non_reusable_type_set()
+    ))
+
     op_set = build_op_set(
         callable_pool, non_reusable_type_set, allowed_pattern_set, adaptor,
     )
