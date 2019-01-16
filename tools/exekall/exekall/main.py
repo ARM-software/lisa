@@ -182,6 +182,7 @@ Test runner
 
 PATTERNS
     All patterns are fnmatch pattern, following basic shell globbing syntax.
+    A pattern starting with "!" is used as a negative pattern.
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 

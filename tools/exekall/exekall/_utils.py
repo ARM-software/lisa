@@ -536,10 +536,36 @@ def match_base_cls(cls, pattern_list):
 def match_name(name, pattern_list):
     if name is None:
         return False
-    return any(
-        fnmatch.fnmatch(name, pattern)
+
+    if not pattern_list:
+        return False
+
+    neg_patterns = {
+        pattern[1:]
         for pattern in pattern_list
-    )
+        if pattern.startswith('!')
+    }
+
+    pos_patterns = {
+        pattern
+        for pattern in pattern_list
+        if not pattern.startswith('!')
+    }
+
+    invert = lambda x: not x
+    identity = lambda x: x
+
+    def check(pattern_set, f):
+        if pattern_set:
+            ok = any(
+                fnmatch.fnmatch(name, pattern)
+                for pattern in pattern_set
+            )
+            return f(ok)
+        else:
+            return True
+
+    return (check(pos_patterns, identity) and check(neg_patterns, invert))
 
 def get_common_base(cls_list):
     # MRO in which "object" will appear first
