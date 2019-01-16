@@ -140,7 +140,7 @@ def load_from_db(db, adaptor, non_reusable_type_set, pattern_list, uuid_list, uu
     for froz_val_set in froz_val_set_set:
         froz_val_list = [
             froz_val for froz_val in froz_val_set
-            if froz_val.value is not NoValue
+            if froz_val.value not in (NoValue, None)
         ]
         if not froz_val_list:
             continue
@@ -159,6 +159,14 @@ def load_from_db(db, adaptor, non_reusable_type_set, pattern_list, uuid_list, uu
                 type(froz_val.value)
                 for froz_val in froz_val_list
             )
+
+            # Do not reload non-reusable objects, since that would lead to an
+            # unexpected mix-up when multiple of them were used in the same
+            # expresion.
+            # Also, it would break the guarantee that they won't be used twice.
+            if type_ in non_reusable_type_set:
+                continue
+
             id_ = froz_val_list[0].get_id(
                 full_qual=False,
                 qual=False,
@@ -167,6 +175,7 @@ def load_from_db(db, adaptor, non_reusable_type_set, pattern_list, uuid_list, uu
                 # item in the list for all items.
                 with_tags=False,
             )
+
             prebuilt_op_set.add(
                 engine.PrebuiltOperator(
                     type_, froz_val_list, id_=id_,

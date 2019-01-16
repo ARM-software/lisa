@@ -2085,8 +2085,16 @@ class FrozenExprVal(ExprValBase):
         value = expr_val.value if utils.is_serializable(expr_val.value) else NoValue
         excep = expr_val.excep if utils.is_serializable(expr_val.excep) else NoValue
 
-        callable_qual_name = expr_val.expr.op.get_name(full_qual=True)
-        callable_name = expr_val.expr.op.get_name(full_qual=False, qual=False)
+        op = expr_val.expr.op
+
+        # Reloading these values will lead to issues, and they are regenerated
+        # for any new Expression that would be created anyway.
+        if op.callable_ in (ExprData, Consumer):
+            value = NoValue
+            excep = NoValue
+
+        callable_qual_name = op.get_name(full_qual=True)
+        callable_name = op.get_name(full_qual=False, qual=False)
 
         # Pre-compute all the IDs so they are readily available once the value
         # is deserialized
