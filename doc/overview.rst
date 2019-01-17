@@ -24,6 +24,14 @@ In case the venv becomes unusable for some reason, the ``lisa-install``
 shell command available after sourcing ``init_env`` will allow to create a new
 clean venv from scratch.
 
+Additional Python packages
+--------------------------
+
+``lisa-install`` will also install the content of
+``$LISA_HOME/custom_requirements.txt`` if the file exists. That allows
+re-installing a custom set of packages automatically when the venv needs to
+regenerated.
+
 Git hooks
 ---------
 

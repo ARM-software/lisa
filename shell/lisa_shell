@@ -173,6 +173,14 @@ function lisa-install {
     # and that the installation process will give the same result on all
     # machines at a given point in time.
     _lisa-python -m pip install -r "$LISA_HOME/$requirements" "$@"
+
+    local custom_requirements="$LISA_HOME/custom_requirements.txt"
+    if [[ -e "$custom_requirements" ]]; then
+        echo
+        echo "Installing requirements from $custom_requirements ..."
+        echo
+        _lisa-python -m pip install -r "$custom_requirements" "$@"
+    fi
 }
 
 ################################################################################
