@@ -12,12 +12,14 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
+import itertools
 import logging
 import os
 import re
 import subprocess
 import sys
 import inspect
+import tempfile
 
 from docutils import nodes
 from sphinx.util.docfields import TypedField
@@ -398,4 +400,39 @@ def setup(app):
     app.connect('autodoc-process-docstring', autodoc_process_test_method)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
 
-# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
+
+def get_test_id_list():
+    import lisa.tests.kernel as test_package
+    with tempfile.NamedTemporaryFile('wt') as conf:
+        # Create a dummy target configuration, so that exekall can build all
+        # expressions starting from that
+        conf.write('target-conf:\n')
+        conf.flush()
+
+        rst_list = []
+        for path in test_package.__path__:
+            rst_list.extend(subprocess.check_output((
+                'exekall', 'run', path,
+                '--conf', conf.name,
+                '--rst-list'
+                ), stderr=subprocess.STDOUT).decode('utf-8').splitlines()
+            )
+    return rst_list
+
+def create_test_list_file(path):
+    try:
+        content = '\n'.join(
+            '* {}'.format(test_id)
+            for test_id in get_test_id_list()
+        )
+    except FileNotFoundError:
+        content = 'Please install exekall in order to generate the list of tests.'
+        print('WARNING: could not generate the list of test without exekall', file=sys.stderr)
+
+    with open(path, 'wt') as f:
+        f.write(content + '\n')
+
+create_test_list_file('test_list.rst')
+
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab:

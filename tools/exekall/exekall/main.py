@@ -233,6 +233,11 @@ PATTERNS
     run_parser.add_argument('--dry-run', action='store_true',
         help="""Only show the expressions that will be run without running them.""")
 
+    # Show the list of expressions in reStructuredText format, suitable for
+    # inclusion in Sphinx documentation
+    run_parser.add_argument('--rst-list', action='store_true',
+        help=argparse.SUPPRESS)
+
     run_parser.add_argument('--log-level', default='info',
         choices=('debug', 'info', 'warn', 'error', 'critical'),
         help="""Change the default log level of the standard logging module.""")
@@ -486,6 +491,10 @@ def do_run(args, parser, run_parser, argv):
     dry_run = args.dry_run
     only_template_scripts = args.template_scripts
 
+    rst_expr_list = args.rst_list
+    if rst_expr_list:
+        dry_run = True
+
     type_goal_pattern_set = set(args.goal)
     callable_goal_pattern_set = set(args.callable_goal)
 
@@ -664,17 +673,22 @@ def do_run(args, parser, run_parser, argv):
         info('Nothing to do, check --help while passing some python sources to get the full help.')
         return 1
 
-    out('The following expressions will be executed:\n')
-    for expr in expr_list:
-        id_kwargs = {
-            **filterable_id_kwargs,
-            'full_qual': verbose,
-            'style': 'rst',
-        }
-        out(expr.get_id(**id_kwargs))
+    id_kwargs = {
+        **filterable_id_kwargs,
+        'full_qual': bool(verbose),
+    }
 
-        if verbose >= 2:
-            out(expr.get_structure() + '\n')
+    if rst_expr_list:
+        id_kwargs['style'] = 'rst'
+        for expr in expr_list:
+            out(expr.get_id(**id_kwargs))
+    else:
+        out('The following expressions will be executed:\n')
+        for expr in expr_list:
+            out(expr.get_id(**id_kwargs))
+
+            if verbose >= 2:
+                out(expr.get_structure() + '\n')
 
     if dry_run:
         return 0

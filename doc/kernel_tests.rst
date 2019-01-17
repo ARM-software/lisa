@@ -21,6 +21,16 @@ In our case, the data usually consists of
 `Ftrace <https://www.kernel.org/doc/Documentation/trace/ftrace.txt>`_ traces
 that we then postprocess using :mod:`trappy`.
 
+Available tests
+===============
+
+The following tests are available. They can be used as:
+  * direct execution using ``lisa-test`` command (``LISA shell``) and ``exekall``
+  * the individual classes/methods they are composed of can be used in custom
+    scripts/jupyter notebooks (see ipynb/tests/synthetics_example.ipynb)
+
+.. include:: test_list.rst
+
 Writing tests
 =============
 
@@ -59,17 +69,17 @@ execution of `rt-app <https://github.com/scheduler-tools/rt-app>`_ workloads.
 It is very useful for scheduler-related tests, as it makes it easy to create
 tasks with a pre-determined utilization.
 
+API
+===
+
 Base API
-========
+++++++++
 
 .. automodule:: lisa.tests.kernel.test_bundle
    :members:
    :private-members: _from_testenv
 
 .. TODO:: Make those imports more generic
-
-Implemented tests
-=================
 
 Scheduler tests
 +++++++++++++++
@@ -107,3 +117,4 @@ Cpufreq tests
 
 .. automodule:: lisa.tests.kernel.cpufreq.sanity
    :members:
+
