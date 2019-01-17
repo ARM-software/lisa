@@ -68,7 +68,7 @@ class AdaptorBase:
         return {'*Result'}
 
     def resolve_cls_name(self, goal):
-        return utils.get_class_from_name(goal, sys.modules)
+        return utils.get_class_from_name(goal)
 
     @staticmethod
     def load_db(db_path):

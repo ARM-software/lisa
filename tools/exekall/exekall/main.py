@@ -668,7 +668,8 @@ def do_run(args, parser, run_parser, argv):
     for expr in expr_list:
         id_kwargs = {
             **filterable_id_kwargs,
-            'full_qual': verbose
+            'full_qual': verbose,
+            'style': 'rst',
         }
         out(expr.get_id(**id_kwargs))
 

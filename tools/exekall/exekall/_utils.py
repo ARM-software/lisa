@@ -39,7 +39,7 @@ import glob
 class NotSerializableError(Exception):
     pass
 
-def get_class_from_name(cls_name, module_map):
+def get_class_from_name(cls_name, module_map=sys.modules):
     possible_mod_set = {
         mod_name
         for mod_name in module_map.keys()
@@ -82,7 +82,7 @@ def get_mro(cls):
         assert isinstance(cls, type)
         return inspect.getmro(cls)
 
-def get_name(obj, full_qual=True, qual=True):
+def get_name(obj, full_qual=True, qual=True, desugar_cls_meth=False):
     # full_qual enabled implies qual enabled
     _qual = qual or full_qual
     # qual disabled implies full_qual disabled

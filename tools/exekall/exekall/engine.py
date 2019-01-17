@@ -413,7 +413,7 @@ class ExpressionBase:
         else:
             return id_
 
-    def _get_id(self, with_tags=True, full_qual=True, qual=True, expr_val=None, marked_expr_val_set=None, hidden_callable_set=None):
+    def _get_id(self, with_tags=True, full_qual=True, qual=True, style=None, expr_val=None, marked_expr_val_set=None, hidden_callable_set=None):
         if hidden_callable_set is None:
             hidden_callable_set = set()
 
@@ -435,12 +435,18 @@ class ExpressionBase:
             marked_expr_val_set=marked_expr_val_set,
             hidden_callable_set=hidden_callable_set,
             full_qual=full_qual,
-            qual=qual
+            qual=qual,
+            style=style,
         )
 
-    def _get_id_internal(self, param_map, expr_val, with_tags, marked_expr_val_set, hidden_callable_set, full_qual, qual):
+    def _get_id_internal(self, param_map, expr_val, with_tags, marked_expr_val_set, hidden_callable_set, full_qual, qual, style):
         separator = ':'
         marker_char = '^'
+        get_id_kwargs = dict(
+            full_qual=full_qual,
+            qual=qual,
+            style=style
+        )
 
         if marked_expr_val_set is None:
             marked_expr_val_set = set()
@@ -449,9 +455,8 @@ class ExpressionBase:
         # ExprVal we are interested in
         param_id_map = OrderedDict(
             (param, param_expr._get_id(
+                **get_id_kwargs,
                 with_tags = with_tags,
-                full_qual = full_qual,
-                qual = qual,
                 # Pass None when there is no value available, so we will get
                 # a non-tagged ID when there is no value computed
                 expr_val = param_map.get(param),
@@ -483,7 +488,7 @@ class ExpressionBase:
 
         # No parameter to worry about
         if not param_id_map:
-            id_ = self.op.get_id(full_qual=full_qual, qual=qual) + tag_str
+            id_ = self.op.get_id(**get_id_kwargs) + tag_str
             marker_str = get_marker_char(expr_val) * len(id_)
             return (id_, marker_str)
 
@@ -505,7 +510,7 @@ class ExpressionBase:
                 param_str = ''
 
             op_str = '{op}{tags}'.format(
-                op = self.op.get_id(full_qual=full_qual, qual=qual),
+                op = self.op.get_id(**get_id_kwargs),
                 tags = tag_str,
             )
             id_ = '{param_str}{op_str}'.format(
@@ -1576,13 +1581,30 @@ class Operator:
         except AttributeError:
             return None
 
-    def get_id(self, full_qual=True, qual=True):
-        # Factory classmethods are replaced by the class name when not
-        # asking for a qualified ID
-        if not qual and self.is_factory_cls_method:
-            return utils.get_name(self.value_type, full_qual=full_qual, qual=qual)
+    def get_id(self, full_qual=True, qual=True, style=None):
+        if style == 'rst':
+            if self.is_factory_cls_method:
+                qualname = utils.get_name(self.value_type, full_qual=True)
+            else:
+                qualname = self.get_name(full_qual=True)
+            name = self.get_id(full_qual=full_qual, qual=qual, style=None)
+
+            if self.is_class:
+                role = 'class'
+            elif self.is_method or self.is_static_method or self.is_cls_method:
+                role = 'meth'
+            else:
+                role = 'func'
+
+            return ':{role}:`{name}<{qualname}>`'.format(role=role, name=name, qualname=qualname)
+
         else:
-            return self.get_name(full_qual=full_qual, qual=qual)
+            # Factory classmethods are replaced by the class name when not
+            # asking for a qualified ID
+            if not (qual or full_qual) and self.is_factory_cls_method:
+                return utils.get_name(self.value_type, full_qual=full_qual, qual=qual)
+            else:
+                return self.get_name(full_qual=full_qual, qual=qual)
 
     @property
     def name(self):
@@ -1803,7 +1825,7 @@ class PrebuiltOperator(Operator):
     def get_name(self, *args, **kwargs):
         return None
 
-    def get_id(self, *args, **kwargs):
+    def get_id(self, *args, style=None, **kwargs):
         return self._id or utils.get_name(self.obj_type, *args, **kwargs)
 
     @property
