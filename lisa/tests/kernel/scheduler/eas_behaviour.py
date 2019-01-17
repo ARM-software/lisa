@@ -33,6 +33,7 @@ from lisa.env import TestEnv
 from lisa.utils import ArtifactPath
 from lisa.energy_model import EnergyModel
 from lisa.trace import requires_events
+from lisa.perf_analysis import PerfAnalysis
 
 class EASBehaviour(RTATestBundle, abc.ABC):
     """
@@ -372,6 +373,41 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         res.add_metric("energy threshold", threshold, 'bogo-joules')
         return res
 
+    def test_slack(self, negative_slack_allowed_pct=15) -> ResultBundle:
+        """
+        Assert that the RTApp workload was given enough performance
+
+        :param negative_slack_allowed_pct: Allowed percentage of RT-app task
+            activations with negative slack.
+        :type negative_slack_allowed_pct: int
+
+        Use :class:`lisa.perf_analysis.PerfAnalysis` to find instances where the RT-App workload
+        wasn't able to complete its activations (i.e. its reported "slack"
+        was negative). Assert that this happened less than
+        ``negative_slack_allowed_pct`` percent of the time.
+        """
+        pa = PerfAnalysis(self.res_dir)
+
+        slacks = {}
+
+        # Data is only collected for rt-app tasks, so it's safe to iterate over
+        # all of them
+        passed = True
+        for task in pa.tasks():
+            slack = pa.df(task)["Slack"]
+
+            bad_activations_pct = len(slack[slack < 0]) * 100 / len(slack)
+            if bad_activations_pct > negative_slack_allowed_pct:
+                passed = False
+
+            slacks[task] = bad_activations_pct
+
+        res = ResultBundle.from_bool(passed)
+
+        for task, slack in slacks.items():
+            res.add_metric("{} slack".format(task), slack, '%')
+
+        return res
 
     @classmethod
     def unscaled_utilization(cls, capacity, utilization_pct):

@@ -27,7 +27,6 @@ from devlib.target import KernelVersion
 
 from lisa.trace import Trace
 from lisa.wlgen.rta import RTA
-from lisa.perf_analysis import PerfAnalysis
 
 from lisa.utils import Serializable, memoized, ArtifactPath
 from lisa.env import TestEnv
@@ -411,41 +410,5 @@ class RTATestBundle(TestBundle, abc.ABC):
         cls._run_rtapp(te, res_dir, rtapp_profile)
 
         return cls(res_dir, te.plat_info, rtapp_profile)
-
-    def test_slack(self, negative_slack_allowed_pct=15) -> ResultBundle:
-        """
-        Assert that the RTApp workload was given enough performance
-
-        :param negative_slack_allowed_pct: Allowed percentage of RT-app task
-            activations with negative slack.
-        :type negative_slack_allowed_pct: int
-
-        Use :class:`lisa.perf_analysis.PerfAnalysis` to find instances where the RT-App workload
-        wasn't able to complete its activations (i.e. its reported "slack"
-        was negative). Assert that this happened less than
-        ``negative_slack_allowed_pct`` percent of the time.
-        """
-        pa = PerfAnalysis(self.res_dir)
-
-        slacks = {}
-
-        # Data is only collected for rt-app tasks, so it's safe to iterate over
-        # all of them
-        passed = True
-        for task in pa.tasks():
-            slack = pa.df(task)["Slack"]
-
-            bad_activations_pct = len(slack[slack < 0]) * 100 / len(slack)
-            if bad_activations_pct > negative_slack_allowed_pct:
-                passed = False
-
-            slacks[task] = bad_activations_pct
-
-        res = ResultBundle.from_bool(passed)
-
-        for task, slack in slacks.items():
-            res.add_metric("{} slack".format(task), slack, '%')
-
-        return res
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
