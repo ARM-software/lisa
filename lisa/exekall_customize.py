@@ -254,13 +254,13 @@ class LISAAdaptor(AdaptorBase):
             op.callable_
             for op in self.hidden_op_set
         }
-        et_root = self.create_xunit(result_map, hidden_callable_set)
+        et_root = self._create_xunit(result_map, hidden_callable_set)
         et_tree = ET.ElementTree(et_root)
         info('Writing xUnit file at: ' + str(xunit_path))
         et_tree.write(str(xunit_path))
         return summary
 
-    def create_xunit(self, result_map, hidden_callable_set):
+    def _create_xunit(self, result_map, hidden_callable_set):
         et_testsuites = ET.Element('testsuites')
 
         testcase_list = list(result_map.keys())
@@ -324,7 +324,7 @@ class LISAAdaptor(AdaptorBase):
                         msg = ''.join(traceback.format_exception(type(excep), excep, excep.__traceback__))
                         type_ = type(excep)
 
-                        append_result_tag(et_testcase, result, type_, short_msg, msg)
+                        _append_result_tag(et_testcase, result, type_, short_msg, msg)
 
                     value = expr_val.value
                     if isinstance(value, ResultBundle):
@@ -333,7 +333,7 @@ class LISAAdaptor(AdaptorBase):
                         msg = str(value)
                         type_ = type(value)
 
-                        append_result_tag(et_testcase, result, type_, short_msg, msg)
+                        _append_result_tag(et_testcase, result, type_, short_msg, msg)
                         if value.result is Result.FAILED:
                             testsuite_counters['failures'] += 1
 
@@ -346,7 +346,7 @@ class LISAAdaptor(AdaptorBase):
 # Expose it as a module-level name
 load_db = LISAAdaptor.load_db
 
-def append_result_tag(et_testcase, result, type_, short_msg, msg):
+def _append_result_tag(et_testcase, result, type_, short_msg, msg):
     et_result = ET.SubElement(et_testcase, result, dict(
         type=get_name(type_, full_qual=True),
         type_bases=','.join(
