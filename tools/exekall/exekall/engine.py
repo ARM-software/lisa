@@ -2100,10 +2100,13 @@ class FrozenExprVal(ExprValBase):
         # is deserialized
         recorded_id_map = dict()
         for full_qual, qual, with_tags in itertools.product((True, False), repeat=3):
-            recorded_id_map[(full_qual, qual, with_tags)] = expr_val.get_id(
+            key = cls._make_id_key(
                 full_qual=full_qual,
                 qual=qual,
-                with_tags=with_tags,
+                with_tags=with_tags
+            )
+            recorded_id_map[key] = expr_val.get_id(
+                **dict(key),
                 hidden_callable_set=hidden_callable_set,
             )
 
@@ -2127,9 +2130,17 @@ class FrozenExprVal(ExprValBase):
 
         return froz_val
 
+    @staticmethod
+    def _make_id_key(**kwargs):
+        return tuple(sorted(kwargs.items()))
+
     def get_id(self, full_qual=True, qual=True, with_tags=True):
-        args = (full_qual, qual, with_tags)
-        return self.recorded_id_map[args]
+        key = self._make_id_key(
+            full_qual=full_qual,
+            qual=qual,
+            with_tags=with_tags
+        )
+        return self.recorded_id_map[key]
 
 class FrozenExprValSeq(collections.abc.Sequence):
     def __init__(self, froz_val_list, param_map):
