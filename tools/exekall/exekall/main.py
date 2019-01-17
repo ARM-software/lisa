@@ -19,6 +19,7 @@
 import argparse
 import collections
 import contextlib
+import copy
 import datetime
 import hashlib
 import inspect
@@ -262,8 +263,14 @@ PATTERNS
         default=[],
         help="""Load the given UUID from the database.""")
 
+    uuid_group.add_argument('--replay',
+        help="""Replay the execution of the given UUID, loading as much prerequisite from the DB as possible.""")
+
+    # Load the parameters that were used to compute the value with the given
+    # UUID from the database. This can be used as a more flexible form of
+    # --replay that does not imply restricting the selection
     uuid_group.add_argument('--load-uuid-args',
-        help="""Load the parameters that were used to compute the value with the given UUID from the database.""")
+        help=argparse.SUPPRESS)
 
     run_parser.add_argument('--restrict', action='append',
         metavar='RESTRICT_PATTERN',
@@ -488,10 +495,17 @@ def do_run(args, parser, run_parser, argv):
     load_db_path = args.load_db
     load_db_pattern_list = args.load_type
     load_db_uuid_list = args.load_uuid
-    load_db_uuid_args = args.load_uuid_args
+    load_db_replay_uuid = args.replay
+    load_db_uuid_args = load_db_replay_uuid or args.load_uuid_args
 
     user_filter_set = set(args.select)
     user_filter_set.update(args.select_multiple)
+
+    if load_db_replay_uuid and user_filter_set:
+        run_parser.error('--replay and --select cannot be used at the same time')
+
+    if load_db_replay_uuid and not load_db_path:
+        run_parser.error('--load-db must be specified to use --replay')
 
     restricted_pattern_set = set(args.restrict)
     forbidden_pattern_set = set(args.forbid)
@@ -548,6 +562,7 @@ def do_run(args, parser, run_parser, argv):
         )
     # Get the prebuilt operators from the adaptor
     else:
+        db = None
         op_set.update(adaptor.get_prebuilt_set())
 
     # Force some parameter values to be provided with a specific callable
@@ -560,6 +575,24 @@ def do_run(args, parser, run_parser, argv):
         op.callable_
         for op in adaptor.get_hidden_op_set(op_set)
     }
+
+    # These get_id() options are used for all user-exposed listing that is supposed to be
+    # filterable with user_filter_set (like dry_run)
+    filterable_id_kwargs = dict(
+        full_qual=False,
+        qual=False,
+        with_tags=False,
+        hidden_callable_set=hidden_callable_set
+    )
+
+    # Restrict the Expressions that will be executed to just the one we
+    # care about
+    if db and load_db_replay_uuid:
+        id_kwargs = copy.copy(filterable_id_kwargs)
+        del id_kwargs['hidden_callable_set']
+        user_filter_set = {
+            db.get_by_uuid(load_db_replay_uuid).get_id(**id_kwargs)
+        }
 
     # Only print once per parameters' tuple
     if verbose:
@@ -624,12 +657,7 @@ def do_run(args, parser, run_parser, argv):
     if user_filter_set:
         expr_list = [
             expr for expr in expr_list
-            if utils.match_name(expr.get_id(
-                # These options need to match what --dry-run gives (unless
-                # verbose is used)
-                full_qual=False,
-                qual=False,
-                hidden_callable_set=hidden_callable_set), user_filter_set)
+            if utils.match_name(expr.get_id(**filterable_id_kwargs), user_filter_set)
         ]
 
     if not expr_list:
@@ -638,11 +666,12 @@ def do_run(args, parser, run_parser, argv):
 
     out('The following expressions will be executed:\n')
     for expr in expr_list:
-        out(expr.get_id(
-            full_qual=bool(verbose),
-            qual=bool(verbose),
-            hidden_callable_set=hidden_callable_set
-        ))
+        id_kwargs = {
+            **filterable_id_kwargs,
+            'full_qual': verbose
+        }
+        out(expr.get_id(**id_kwargs))
+
         if verbose >= 2:
             out(expr.get_structure() + '\n')
 
