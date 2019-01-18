@@ -254,7 +254,8 @@ PATTERNS
         default=os.getenv('EXEKALL_ARTIFACT_DIR'),
         help="""Folder in which the artifacts will be stored. Defaults to EXEKALL_ARTIFACT_DIR env var.""")
 
-    run_parser.add_argument('--load-db',
+    run_parser.add_argument('--load-db', action='append',
+        default=[],
         help="""Reload a database to use some of its objects. The DB and its artifact directory will be merged in the produced DB at the end of the execution, to form a self-contained artifact directory.""")
 
     run_parser.add_argument('--load-type', action='append',
@@ -501,7 +502,7 @@ def do_run(args, parser, run_parser, argv):
     if not (type_goal_pattern_set or callable_goal_pattern_set):
         type_goal_pattern_set = set(adaptor_cls.get_default_type_goal_pattern_set())
 
-    load_db_path = args.load_db
+    load_db_path_list = args.load_db
     load_db_pattern_list = args.load_type
     load_db_uuid_list = args.load_uuid
     load_db_replay_uuid = args.replay
@@ -513,7 +514,7 @@ def do_run(args, parser, run_parser, argv):
     if load_db_replay_uuid and user_filter_set:
         run_parser.error('--replay and --select cannot be used at the same time')
 
-    if load_db_replay_uuid and not load_db_path:
+    if load_db_replay_uuid and not load_db_path_list:
         run_parser.error('--load-db must be specified to use --replay')
 
     restricted_pattern_set = set(args.restrict)
@@ -562,16 +563,19 @@ def do_run(args, parser, run_parser, argv):
     )
 
     # Load objects from an existing database
-    if load_db_path:
-        db = adaptor.load_db(load_db_path)
-        op_set.update(
-            load_from_db(db, adaptor, non_reusable_type_set,
-                load_db_pattern_list, load_db_uuid_list, load_db_uuid_args
+    if load_db_path_list:
+        db_list = []
+        for db_path in load_db_path_list:
+            db = adaptor.load_db(db_path)
+            op_set.update(
+                load_from_db(db, adaptor, non_reusable_type_set,
+                    load_db_pattern_list, load_db_uuid_list, load_db_uuid_args
+                )
             )
-        )
+            db_list.append(db)
     # Get the prebuilt operators from the adaptor
     else:
-        db = None
+        db_list = []
         op_set.update(adaptor.get_prebuilt_set())
 
     # Force some parameter values to be provided with a specific callable
@@ -596,9 +600,11 @@ def do_run(args, parser, run_parser, argv):
 
     # Restrict the Expressions that will be executed to just the one we
     # care about
-    if db and load_db_replay_uuid:
+    if db_list and load_db_replay_uuid:
         id_kwargs = copy.copy(filterable_id_kwargs)
         del id_kwargs['hidden_callable_set']
+        # Let the merge logic handle duplicated UUIDs
+        db = engine.ValueDB.merge(db_list)
         user_filter_set = {
             db.get_by_uuid(load_db_replay_uuid).get_id(**id_kwargs)
         }
@@ -705,10 +711,12 @@ def do_run(args, parser, run_parser, argv):
 
     # If we reloaded a DB, merge it with the current DB so the outcome is a
     # self-contained artifact dir
-    if load_db_path:
-        path = pathlib.Path(load_db_path)
-        orig = path if path.is_dir() else path.parent
-        do_merge([orig], artifact_dir, output_exist=True)
+    if load_db_path_list:
+        orig_list = [
+            path if path.is_dir() else path.parent
+            for path in map(pathlib.Path, load_db_path_list)
+        ]
+        do_merge(orig_list, artifact_dir, output_exist=True)
 
     return exec_ret_code
 
