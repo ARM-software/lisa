@@ -805,7 +805,9 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
     if only_template_scripts:
         return 0
 
-    result_map = collections.defaultdict(list)
+    # Preserve the execution order, so the summary is displayed in the same
+    # order
+    result_map = collections.OrderedDict()
     for expr in expr_list:
         exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}\nUUID: {uuid_}'.format(
                 short_id=expr.get_id(
