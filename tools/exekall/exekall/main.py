@@ -432,7 +432,16 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
                     dst_path = output_dir/rel_path
                     create_link = True
 
+                # Create the folder and make sure that all its parents get the
+                # same stats as the original one, in order to preserve creation
+                # date.
                 os.makedirs(str(dst_path.parent), exist_ok=True)
+                # We do not do copystat on the topmost parent, as it is shared
+                # by all original artifact_dir
+                for parent in list(rel_path.parents)[:-2]:
+                    stat_src = artifact_dir/parent
+                    stat_dst = output_dir/parent
+                    shutil.copystat(str(stat_src), str(stat_dst))
 
                 # Create a mirror of the original hierarchy
                 if create_link:
@@ -440,9 +449,11 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
                     link_path.symlink_to(src_link_path)
 
                 if use_hardlink:
-                    os.link(path, dst_path)
+                    os.link(str(path), str(dst_path))
+                    # Preserve the original creation date
+                    shutil.copystat(str(path), str(dst_path), follow_symlinks=False)
                 else:
-                    shutil.copy2(path, dst_path)
+                    shutil.copy2(str(path), str(dst_path))
 
                 if dirpath == artifact_dir and name == DB_FILENAME:
                     db_path_list.append(path)
