@@ -255,7 +255,7 @@ PATTERNS
         help="""Folder in which the artifacts will be stored. Defaults to EXEKALL_ARTIFACT_DIR env var.""")
 
     run_parser.add_argument('--load-db',
-        help="""Reload a database to use some of its objects.""")
+        help="""Reload a database to use some of its objects. The DB and its artifact directory will be merged in the produced DB at the end of the execution, to form a self-contained artifact directory.""")
 
     run_parser.add_argument('--load-type', action='append',
         metavar='LOAD_TYPE_PATTERN',
@@ -382,7 +382,7 @@ should be treated as read-only.
             use_hardlink=(not args.copy),
         )
 
-def do_merge(artifact_dirs, output_dir, use_hardlink=True):
+def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
     output_dir = pathlib.Path(output_dir)
 
     artifact_dirs = [pathlib.Path(path) for path in artifact_dirs]
@@ -395,7 +395,7 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True):
         merged_db_path = output_dir
     else:
         # This will fail loudly if the folder already exists
-        os.makedirs(str(output_dir))
+        os.makedirs(str(output_dir), exist_ok=output_exist)
         merged_db_path = output_dir/DB_FILENAME
 
     testsession_uuid_list = []
@@ -693,7 +693,7 @@ def do_run(args, parser, run_parser, argv):
     if dry_run:
         return 0
 
-    return exec_expr_list(
+    exec_ret_code = exec_expr_list(
         expr_list=expr_list,
         adaptor=adaptor,
         artifact_dir=artifact_dir,
@@ -702,6 +702,15 @@ def do_run(args, parser, run_parser, argv):
         only_template_scripts=only_template_scripts,
         verbose=verbose,
     )
+
+    # If we reloaded a DB, merge it with the current DB so the outcome is a
+    # self-contained artifact dir
+    if load_db_path:
+        path = pathlib.Path(load_db_path)
+        orig = path if path.is_dir() else path.parent
+        do_merge([orig], artifact_dir, output_exist=True)
+
+    return exec_ret_code
 
 def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
         hidden_callable_set, only_template_scripts, verbose):
