@@ -145,12 +145,13 @@ class LISAAdaptor(AdaptorBase):
     def get_default_type_goal_pattern_set():
         return {'*.ResultBundle'}
 
-    @staticmethod
-    def load_db(db_path, *args, **kwargs):
+    @classmethod
+    def load_db(cls, db_path, *args, **kwargs):
+        db = super().load_db(db_path, *args, **kwargs)
+
         # This will relocate ArtifactPath instances to the new absolute path of
         # the results folder, in case it has been moved to another place
         artifact_dir = Path(db_path).parent.resolve()
-        db = ValueDB.from_path(db_path, *args, **kwargs)
 
         # Relocate ArtifactPath embeded in objects so they will always
         # contain an absolute path that adapts to the local filesystem

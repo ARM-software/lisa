@@ -71,8 +71,8 @@ class AdaptorBase:
         return utils.get_class_from_name(goal)
 
     @staticmethod
-    def load_db(db_path):
-        return ValueDB.from_path(db_path)
+    def load_db(*args, **kwargs):
+        return ValueDB.from_path(*args, **kwargs)
 
     def finalize_expr(self, expr):
         pass
