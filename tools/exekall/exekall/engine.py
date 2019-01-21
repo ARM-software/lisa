@@ -246,6 +246,49 @@ class ValueDB:
         else:
             return froz_val_set_set
 
+    def prune_by_predicate(self, predicate):
+        def prune(froz_val):
+            if isinstance(froz_val, PrunedFrozVal):
+                return froz_val
+            elif predicate(froz_val):
+                return PrunedFrozVal(froz_val)
+            else:
+                # Edit the param_map in-place, so we keep it potentially shared
+                # if possible.
+                for param, param_froz_val in list(froz_val.param_map.items()):
+                    froz_val.param_map[param] = prune(param_froz_val)
+
+                return froz_val
+
+        def make_froz_val_seq(froz_val_seq):
+            froz_val_list = [
+                prune(froz_val)
+                for froz_val in froz_val_seq
+                # Just remove the root PrunedFrozVal, since they are useless at
+                # this level (i.e. nothing depends on them)
+                if not predicate(froz_val)
+            ]
+
+            # All param_map will be the same in the list by construction
+            try:
+                param_map = froz_val_list[0].param_map
+            except IndexError:
+                param_map = {}
+
+            return FrozenExprValSeq(
+                froz_val_list=froz_val_list,
+                param_map=param_map,
+            )
+
+        return self.__class__(
+            froz_val_seq_list=[
+                make_froz_val_seq(froz_val_seq)
+                # That will keep proper inter-object references as in the
+                # original graph of objects
+                for froz_val_seq in copy.deepcopy(self.froz_val_seq_list)
+            ]
+        )
+
     def get_all(self, **kwargs):
         return self.get_by_predicate(lambda froz_val: True, **kwargs)
 
@@ -264,6 +307,7 @@ class ValueDB:
             )
 
         return self.get_by_predicate(predicate, **kwargs)
+
 
 class ScriptValueDB:
     def __init__(self, db, var_name='db'):
@@ -2180,6 +2224,18 @@ class FrozenExprVal(ExprValBase):
             with_tags=with_tags
         )
         return self.recorded_id_map[key]
+
+class PrunedFrozVal(FrozenExprVal):
+    def __init__(self, froz_val):
+        super().__init__(
+            param_map={},
+            value=NoValue,
+            excep=NoValue,
+            uuid=froz_val.uuid,
+            callable_qualname=froz_val.callable_qualname,
+            callable_name=froz_val.callable_name,
+            recorded_id_map=copy.copy(froz_val.recorded_id_map),
+        )
 
 class FrozenExprValSeq(collections.abc.Sequence):
     def __init__(self, froz_val_list, param_map):
