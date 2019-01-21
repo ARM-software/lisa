@@ -16,26 +16,30 @@
 # limitations under the License.
 #
 
-import types
-import uuid
-import inspect
-import functools
-import fnmatch
 import collections
 import contextlib
+import fnmatch
+import functools
+import gc
 import importlib
+import inspect
 import io
 import itertools
 import logging
 import pathlib
 import pickle
+import subprocess
 import sys
+import tempfile
 import traceback
+import types
+import uuid
+import glob
 
 class NotSerializableError(Exception):
     pass
 
-def get_class_from_name(cls_name, module_map):
+def get_class_from_name(cls_name, module_map=sys.modules):
     possible_mod_set = {
         mod_name
         for mod_name in module_map.keys()
@@ -78,7 +82,7 @@ def get_mro(cls):
         assert isinstance(cls, type)
         return inspect.getmro(cls)
 
-def get_name(obj, full_qual=True, qual=True):
+def get_name(obj, full_qual=True, qual=True, desugar_cls_meth=False):
     # full_qual enabled implies qual enabled
     _qual = qual or full_qual
     # qual disabled implies full_qual disabled
@@ -292,10 +296,9 @@ def infer_mod_name(python_src):
                 is_package = True,
             )
 
-        module_name = '.'.join((
-            ('.'.join(module_parents[0].parts)),
-            module_basename
-        ))
+        module_dotted_path = list(module_parents[0].parts) + [module_basename]
+        module_name = '.'.join(module_dotted_path)
+
     else:
         module_name = get_module_basename(python_src)
 
@@ -309,10 +312,11 @@ def find_customization_module_set(module_set):
                 i += 1
                 yield '.'.join(l[:i])
 
-    try:
+    # Exception raised changed in 3.7:
+    # https://docs.python.org/3/library/importlib.html#importlib.util.find_spec
+    if sys.version_info >= (3, 7):
         import_excep = ModuleNotFoundError
-    # Python < 3.6
-    except NameError:
+    else:
         import_excep = AttributeError
 
     package_names_list = [
@@ -340,8 +344,23 @@ def find_customization_module_set(module_set):
 
     return customization_module_set
 
+def import_paths(paths):
+    def import_it(path):
+        # Recursively import all modules when passed folders
+        if path.is_dir():
+            for python_src in glob.iglob(str(path/'**'/'*.py'), recursive=True):
+                yield import_file(python_src)
+        # If passed a file, just import it directly
+        else:
+            yield import_file(path)
+
+    return set(itertools.chain.from_iterable(
+        import_it(pathlib.Path(path))
+        for path in paths
+    ))
+
 def import_file(python_src, module_name=None, is_package=False):
-    python_src = pathlib.Path(python_src)
+    python_src = pathlib.Path(python_src).resolve()
 
     # Directly importing __init__.py does not really make much sense and may
     # even break, so just import its package instead.
@@ -411,19 +430,82 @@ def import_file(python_src, module_name=None, is_package=False):
     importlib.invalidate_caches()
     return module
 
-def flatten_nested_seq(seq):
-    return list(itertools.chain.from_iterable(seq))
+def flatten_seq(seq, levels=1):
+    if levels == 0:
+        return seq
+    else:
+        seq = list(itertools.chain.from_iterable(seq))
+        return flatten_seq(seq, levels=levels - 1)
 
-def load_serial_from_db(db, uuid_seq=None, type_pattern_seq=None):
+def take_first(iterable):
+    for i in iterable:
+        return i
+    return NoValue
 
-    def uuid_predicate(serial):
-        return (
-            serial.value_uuid in uuid_seq
-            or serial.excep_uuid in uuid_seq
-        )
+class _NoValueType:
+    # Use a singleton pattern to make sure that even deserialized instances
+    # will be the same object
+    def __new__(cls):
+        try:
+            return cls._instance
+        except AttributeError:
+            obj = super().__new__(cls)
+            cls._instance = obj
+            return obj
 
-    def type_pattern_predicate(serial):
-        return match_base_cls(type(serial.value), type_pattern_seq)
+    def __eq__(self, other):
+        return isinstance(other, _NoValueType)
+
+    def __hash__(self):
+        return 0
+
+    def __bool__(self):
+        return False
+
+    def __repr__(self):
+        return 'NoValue'
+
+    def __eq__(self, other):
+        return type(self) is type(other)
+
+NoValue = _NoValueType()
+
+
+class RestartableIter:
+    """
+    Wrap an iterator to give a new iterator that is restartable.
+    """
+    def __init__(self, it):
+        self.values = []
+
+        # Wrap the iterator to update the memoized values
+        def wrapped(it):
+            for x in it:
+                self.values.append(x)
+                yield x
+
+        self.it = wrapped(it)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            return next(self.it)
+        except StopIteration:
+            # Use the stored values the next time we try to get an
+            # itertor again
+            self.it = iter(self.values)
+            raise
+
+
+def get_froz_val_set_set(db, uuid_seq=None, type_pattern_seq=None):
+
+    def uuid_predicate(froz_val):
+        return froz_val.uuid in uuid_seq
+
+    def type_pattern_predicate(froz_val):
+        return match_base_cls(type(froz_val.value), type_pattern_seq)
 
     if type_pattern_seq and not uuid_seq:
         predicate = type_pattern_predicate
@@ -432,13 +514,13 @@ def load_serial_from_db(db, uuid_seq=None, type_pattern_seq=None):
         predicate = uuid_predicate
 
     elif not uuid_seq and not type_pattern_seq:
-        predicate = lambda serial: True
+        predicate = lambda froz_val: True
 
     else:
-        def predicate(serial):
-            return uuid_predicate(serial) and type_pattern_predicate(serial)
+        def predicate(froz_val):
+            return uuid_predicate(froz_val) and type_pattern_predicate(froz_val)
 
-    return db.obj_store.get_by_predicate(predicate)
+    return db.get_by_predicate(predicate, flatten=False, deduplicate=True)
 
 def match_base_cls(cls, pattern_list):
     # Match on the name of the class of the object and all its base classes
@@ -446,10 +528,7 @@ def match_base_cls(cls, pattern_list):
         base_cls_name = get_name(base_cls, full_qual=True)
         if not base_cls_name:
             continue
-        if any(
-                fnmatch.fnmatch(base_cls_name, pattern)
-                for pattern in pattern_list
-            ):
+        if match_name(base_cls_name, pattern_list):
             return True
 
     return False
@@ -457,10 +536,59 @@ def match_base_cls(cls, pattern_list):
 def match_name(name, pattern_list):
     if name is None:
         return False
-    return any(
-        fnmatch.fnmatch(name, pattern)
+
+    if not pattern_list:
+        return False
+
+    neg_patterns = {
+        pattern[1:]
         for pattern in pattern_list
-    )
+        if pattern.startswith('!')
+    }
+
+    pos_patterns = {
+        pattern
+        for pattern in pattern_list
+        if not pattern.startswith('!')
+    }
+
+    invert = lambda x: not x
+    identity = lambda x: x
+
+    def check(pattern_set, f):
+        if pattern_set:
+            ok = any(
+                fnmatch.fnmatch(name, pattern)
+                for pattern in pattern_set
+            )
+            return f(ok)
+        else:
+            return True
+
+    return (check(pos_patterns, identity) and check(neg_patterns, invert))
+
+def get_common_base(cls_list):
+    # MRO in which "object" will appear first
+    def rev_mro(cls):
+        return reversed(inspect.getmro(cls))
+
+    def common(cls1, cls2):
+        # Get the most derived class that is in common in the MRO of cls1 and
+        # cls2
+        for b1, b2 in itertools.takewhile(
+            lambda b1_b2: b1_b2[0] is b1_b2[1],
+            zip(rev_mro(cls1), rev_mro(cls2))
+        ):
+            pass
+        return b1
+
+    return functools.reduce(common, cls_list)
+
+def get_subclasses(cls):
+    subcls_set = {cls}
+    for subcls in cls.__subclasses__():
+        subcls_set.update(get_subclasses(subcls))
+    return subcls_set
 
 def get_recursive_module_set(module_set, package_set):
     """Retrieve the set of all modules recurisvely imported from the modules in
@@ -493,3 +621,40 @@ def _get_recursive_module_set(module, module_set, package_set):
             _get_recursive_module_set(imported_module, module_set, package_set)
 
 
+@contextlib.contextmanager
+def disable_gc():
+    """
+    Context manager to disable garbage collection.
+
+    This can result in significant speed-up in code creating a lot of objects,
+    like ``pickle.load()``.
+    """
+    if not gc.isenabled():
+        yield
+        return
+
+    gc.disable()
+    try:
+        yield
+    finally:
+        gc.enable()
+
+def render_graphviz(expr):
+    graphviz = expr.get_structure(graphviz=True)
+    with tempfile.NamedTemporaryFile('wt') as f:
+        f.write(graphviz)
+        f.flush()
+        try:
+            svg = subprocess.check_output(
+                ['dot', f.name, '-Tsvg'],
+                stderr=subprocess.DEVNULL,
+            ).decode('utf-8')
+        # If "dot" is not installed
+        except FileNotFoundError:
+            pass
+        except subprocess.CalledProcessError as e:
+            debug('dot failed to execute: {}'.format(e))
+        else:
+            return (True, svg)
+
+        return (False, graphviz)

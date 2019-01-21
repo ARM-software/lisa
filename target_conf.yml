@@ -12,7 +12,7 @@ target-conf:
     # - linux   : accessed via SSH connection
     # - android : accessed via ADB connection
     # - host    : run on the local host
-    kind : android
+    # kind : android
 
     # Board
     # Optional board name used for better prettier logs
@@ -25,7 +25,7 @@ target-conf:
     # device: 00b1346f0878ccb1
 
     # Login username (has to be sudo enabled)
-    username: root
+    # username: root
 
     # Login credentials
     # You can specify either a password or keyfile
@@ -70,7 +70,7 @@ target-conf:
 platform-info:
     # Include a preset platform-info file, instead of defining the keys directly here.
     # Note that you cannot use !include and define keys at the same time.
-    !include $LISA_HOME/lisa/platforms/juno_r0.yml
+    # !include $LISA_HOME/lisa/platforms/juno_r0.yml
     # conf:
         # rtapp:
             # # Calibration mapping of CPU numbers to calibration value for rtapp

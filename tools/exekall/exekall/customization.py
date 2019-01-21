@@ -18,8 +18,8 @@
 
 import numbers
 
-from exekall.engine import NoValue, StorageDB
-from exekall.utils import out, get_name
+from exekall.engine import ValueDB
+from exekall.utils import out, get_name, NoValue, get_subclasses
 
 class AdaptorBase:
     name = 'default'
@@ -40,26 +40,24 @@ class AdaptorBase:
             tags = {}
         return tags
 
-    load_db = None
-
     def update_expr_data(self, expr_data):
         return
 
-    def filter_op_pool(self, op_pool):
+    def filter_op_set(self, op_set):
         return {
-            op for op in op_pool
+            op for op in op_set
             # Only select operators with non-empty parameter list. This
             # rules out all classes __init__ that do not take parameter, as
             # they are typically not interesting to us.
             if op.get_prototype()[0]
         }
 
-    def get_prebuilt_list(self):
-        return []
+    def get_prebuilt_set(self):
+        return set()
 
-    def get_hidden_callable_set(self, op_map):
-        self.hidden_callable_set = set()
-        return self.hidden_callable_set
+    def get_hidden_op_set(self, op_set):
+        self.hidden_op_set = set()
+        return self.hidden_op_set
 
     @staticmethod
     def register_cli_param(parser):
@@ -70,10 +68,11 @@ class AdaptorBase:
         return {'*Result'}
 
     def resolve_cls_name(self, goal):
-        return utils.get_class_from_name(goal, sys.modules)
+        return utils.get_class_from_name(goal)
 
-    def load_db(self, db_path):
-        return StorageDB.from_path(db_path)
+    @staticmethod
+    def load_db(*args, **kwargs):
+        return ValueDB.from_path(*args, **kwargs)
 
     def finalize_expr(self, expr):
         pass
@@ -81,19 +80,21 @@ class AdaptorBase:
     def result_str(self, result):
         val = result.value
         if val is NoValue or val is None:
-            failed_parents = result.get_failed_expr_vals()
-            for failed_parent in failed_parents:
+            for failed_parent in result.get_excep():
                 excep = failed_parent.excep
                 return 'EXCEPTION ({type}): {msg}'.format(
-                    type = get_name(type(excep)),
+                    type = get_name(type(excep), full_qual=False),
                     msg = excep
                 )
-            return 'No result computed'
+            return 'No value computed'
         else:
             return str(val)
 
-    def process_results(self, result_map):
-        hidden_callable_set = self.hidden_callable_set
+    def get_summary(self, result_map):
+        hidden_callable_set = {
+            op.callable_
+            for op in self.hidden_op_set
+        }
 
         # Get all IDs and compute the maximum length to align the output
         result_id_map = {
@@ -108,27 +109,32 @@ class AdaptorBase:
 
         max_id_len = len(max(result_id_map.values(), key=len))
 
+        summary = []
         for expr, result_list in result_map.items():
             for result in result_list:
                 msg = self.result_str(result)
                 msg = msg + '\n' if '\n' in msg else msg
-                out('{id:<{max_id_len}} {result}'.format(
+                summary.append('{id:<{max_id_len}} {result}'.format(
                     id=result_id_map[result],
                     result=msg,
                     max_id_len=max_id_len,
                 ))
+        return '\n'.join(summary)
 
     @classmethod
     def get_adaptor_cls(cls, name=None):
-        subcls_list = list(cls.__subclasses__())
-        if len(subcls_list) > 1 and not name:
-            raise ValueError('An adaptor name must be specified if there is more than one adaptor to choose from')
+        subcls_list = list(get_subclasses(cls) - {cls})
+        if not name:
+            if len(subcls_list) > 1:
+                raise ValueError('An adaptor name must be specified if there is more than one adaptor to choose from')
+            else:
+                if len(subcls_list) > 0:
+                    return subcls_list[0]
+                else:
+                    return cls
 
         for subcls in subcls_list:
-            if name:
-                if subcls.name == name:
-                    return subcls
-            else:
+            if subcls.name == name:
                 return subcls
         return None
 

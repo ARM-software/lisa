@@ -470,16 +470,6 @@ class FreqInvariance(TestBundle, LoadTrackingHelpers):
             return test_item.test_task_load_avg(allowed_error_pct=allowed_error_pct)
         return self._test_all_freq(item_test)
 
-    def test_slack(self, negative_slack_allowed_pct=15):
-        """
-        Aggregated version of
-        :meth:`lisa.tests.kernel.test_bundle.RTATestBundle.test_slack`
-        """
-        def item_test(test_item):
-            return test_item.test_slack(
-                negative_slack_allowed_pct=negative_slack_allowed_pct)
-        return self._test_all_freq(item_test)
-
     def _test_all_freq(self, item_test):
         """
         Apply the `test_item` function on all instances of

@@ -105,6 +105,16 @@ def mask_signals(unblock=False):
         signal.SIGHUP,
     })
 
+def filter_keys(mapping, remove=None, keep=None):
+    return {
+        k: v
+        for k, v in mapping.items()
+        if (
+                (remove is None or k not in remove)
+            and (keep is None or k in keep)
+        )
+    }
+
 sig_exception_lock = threading.Lock()
 def raise_sig_exception(sig, frame):
     """Turn some signals into exceptions that can be caught by user code."""
@@ -1768,7 +1778,8 @@ class ExekallLISATestStep(ShellStep):
         __init__ = dict(
             compress_artifact = BoolParam('compress the exekall artifact directory in an archive'),
             upload_artifact = BoolParam('upload the exekall artifact directory to Artifactorial as the execution goes, and delete the local archive.'),
-            **StepBase.options['__init__'],
+            # Some options are not supported
+            **filter_keys(StepBase.options['__init__'], remove={'trials'}),
         ),
         report_results = dict(
             verbose = StepBase.options['report_results']['verbose'],
@@ -1797,6 +1808,7 @@ class ExekallLISATestStep(ShellStep):
             upload_artifact = Default,
             **kwargs
         ):
+        kwargs['trials'] = 1
         super().__init__(**kwargs)
 
         self.upload_artifact = upload_artifact
@@ -1808,11 +1820,11 @@ class ExekallLISATestStep(ShellStep):
         self.compress_artifact = compress_artifact
 
     def run(self, i_stack, service_hub):
-        # Add a level of UUID under the root, so we can handle multiple trials
-        artifact_path = os.path.join(
-            os.getenv('EXEKALL_ARTIFACT_ROOT', './exekall_artifact'),
-            uuid.uuid4().hex,
-        )
+        artifact_path = os.getenv(
+            'EXEKALL_ARTIFACT_ROOT',
+            # default value
+            './exekall_artifact'
+        ),
 
         # This also strips the trailing /, which is needed later on when
         # archiving the artifact.
@@ -1823,9 +1835,6 @@ class ExekallLISATestStep(ShellStep):
             # cannot be reused for another invocation
             'EXEKALL_ARTIFACT_ROOT': str(artifact_path),
         }
-
-        if self.trials > 1:
-          warn("More than one trials requested for exekall LISA test, only the last trial's xUnit XML file will be used.")
 
         res_list = self._run_cmd(i_stack, env=env)
         ret = res_list[-1][0]

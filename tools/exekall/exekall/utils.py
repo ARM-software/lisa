@@ -25,7 +25,6 @@ import exekall.engine as engine
 
 # Re-export all _utils here
 from exekall._utils import *
-from exekall.engine import take_first
 
 def get_callable_set(module_set, verbose=False):
     # We keep the search local to the packages these modules are defined in, to
@@ -68,7 +67,7 @@ def _get_callable_set(module, verbose):
             # anyway.
             if inspect.isabstract(return_type):
                 log_f = info if verbose else debug
-                log_f('Class {} is ignored since it has non-implemented abstract methods'.format(
+                log_f('Instances of {} will not be created since it has non-implemented abstract methods'.format(
                     get_name(return_type, full_qual=True)
                 ))
             else:
@@ -78,6 +77,8 @@ def _get_callable_set(module, verbose):
 def sweep_number(
     callable_, param,
     start, stop=None, step=1):
+
+    step = step if step > 0 else 1
 
     annot = engine.Operator(callable_).get_prototype()[0]
     try:

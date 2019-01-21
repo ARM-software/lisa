@@ -33,5 +33,10 @@ lisa-report  - Pretty format results of last test
 .:: Test commands
 --------------------------------------
 
-lisa-test    - Run tests and assert behaviours
+lisa-test    - Run tests and assert behaviours.
+               This is just a wrapper around exekall that selects all tests
+               modules and use positional arguments as --select patterns.  Also
+               the default configuration file ($LISA_HOME/target_conf.yml) will
+               be used if available (but this can be extended with
+               user-supplied --conf).
 

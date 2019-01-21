@@ -34,17 +34,20 @@ from lisa.conf import MultiSrcConf
 from lisa.tests.kernel.test_bundle import TestBundle, Result, ResultBundle, CannotCreateError
 from lisa.tests.kernel.scheduler.load_tracking import FreqInvarianceItem
 
-from exekall.utils import info, get_name, get_mro
-from exekall.engine import ExprData, Consumer, PrebuiltOperator, NoValue, StorageDB
+from exekall.utils import info, get_name, get_mro, NoValue
+from exekall.engine import ExprData, Consumer, PrebuiltOperator, ValueDB
 from exekall.customization import AdaptorBase
 
-class ExekallArtifactPath(ArtifactPath):
+class NonReusable:
+    pass
+
+class ExekallArtifactPath(ArtifactPath, NonReusable):
     @classmethod
     def from_expr_data(cls, data:ExprData, consumer:Consumer) -> 'ExekallArtifactPath':
         """
         Factory used when running under `exekall`
         """
-        artifact_dir = Path(data['testcase_artifact_dir']).resolve()
+        artifact_dir = Path(data['expr_artifact_dir']).resolve()
         consumer_name = get_name(consumer)
 
         # Find a non-used directory
@@ -69,13 +72,11 @@ class LISAAdaptor(AdaptorBase):
     name = 'LISA'
 
     def get_non_reusable_type_set(self):
-        return {
-            ExekallArtifactPath,
-        }
+        return {NonReusable}
 
-    def get_prebuilt_list(self):
+    def get_prebuilt_set(self):
         non_reusable_type_set = self.get_non_reusable_type_set()
-        op_list = []
+        op_set = set()
 
         # Try to build as many configurations instances from all the files we
         # are given
@@ -107,37 +108,36 @@ class LISAAdaptor(AdaptorBase):
             for conf_src, conf_path in conf_and_path_list[1:]:
                 conf.add_src(conf_path, conf_src, fallback=True)
 
-            op_list.append(
-                PrebuiltOperator(conf_cls, [conf],
+            op_set.add(PrebuiltOperator(
+                conf_cls, [conf],
                 non_reusable_type_set=non_reusable_type_set
             ))
 
         # Inject serialized objects as root operators
         for path in self.args.inject:
             obj = Serializable.from_path(path)
-            op_list.append(
-                PrebuiltOperator(type(obj), [obj],
+            op_set.add(PrebuiltOperator(type(obj), [obj],
                 non_reusable_type_set=non_reusable_type_set
             ))
 
-        return op_list
+        return op_set
 
-    def get_hidden_callable_set(self, op_map):
-        hidden_callable_set = set()
-        for produced, op_set in op_map.items():
-            if issubclass(produced, HideExekallID):
-                hidden_callable_set.update(op.callable_ for op in op_set)
-
-        self.hidden_callable_set = hidden_callable_set
-        return hidden_callable_set
+    def get_hidden_op_set(self, op_set):
+        hidden_op_set = {
+            op for op in op_set
+            if issubclass(op.value_type, HideExekallID)
+        }
+        self.hidden_op_set = hidden_op_set
+        return hidden_op_set
 
     @staticmethod
     def register_cli_param(parser):
         parser.add_argument('--conf', action='append',
             default=[],
-            help="Configuration file")
+            help="LISA configuration file. If multiple configurations of a given type are found, they are merged (last one can override keys in previous ones)")
 
         parser.add_argument('--inject', action='append',
+            metavar='SERIALIZED_OBJECT_PATH',
             default=[],
             help="Serialized object to inject when building expressions")
 
@@ -147,14 +147,15 @@ class LISAAdaptor(AdaptorBase):
 
     @classmethod
     def load_db(cls, db_path, *args, **kwargs):
+        db = super().load_db(db_path, *args, **kwargs)
+
         # This will relocate ArtifactPath instances to the new absolute path of
         # the results folder, in case it has been moved to another place
         artifact_dir = Path(db_path).parent.resolve()
-        db = StorageDB.from_path(db_path, *args, **kwargs)
 
         # Relocate ArtifactPath embeded in objects so they will always
         # contain an absolute path that adapts to the local filesystem
-        for serial in db.obj_store.get_all():
+        for serial in db.get_all():
             val = serial.value
             try:
                 dct = val.__dict__
@@ -162,33 +163,45 @@ class LISAAdaptor(AdaptorBase):
                 continue
             for attr, attr_val in dct.items():
                 if isinstance(attr_val, ArtifactPath):
-                    setattr(val, attr,
-                        attr_val.with_root(artifact_dir)
-                    )
+                    new_path = attr_val.with_root(artifact_dir)
+                    # Only update paths to existing files, otherwise assume it
+                    # was pointing outside the artifact_dir and therefore
+                    # should not be fixed up
+                    if os.path.exists(new_path):
+                        setattr(val, attr, new_path)
 
         return db
 
     def finalize_expr(self, expr):
-        testcase_artifact_dir = expr.data['testcase_artifact_dir']
+        expr_artifact_dir = expr.data['expr_artifact_dir']
         artifact_dir = expr.data['artifact_dir']
         for expr_val in expr.get_all_vals():
-            self._finalize_expr_val(expr_val, artifact_dir, testcase_artifact_dir)
+            self._finalize_expr_val(expr_val, artifact_dir, expr_artifact_dir)
 
-    def _finalize_expr_val(self, expr_val, artifact_dir, testcase_artifact_dir):
+    def _finalize_expr_val(self, expr_val, artifact_dir, expr_artifact_dir):
         val = expr_val.value
+
+        def needs_rewriting(val):
+            # Only rewrite ArtifactPath path values
+            if not isinstance(val, ArtifactPath):
+                return False
+            # And only if they are a subfolder of artifact_dir. Otherwise, they
+            # are something pointing outside of the artifact area, which we
+            # cannot handle.
+            return artifact_dir.resolve() in Path(val).resolve().parents
 
         # Add symlinks to artifact folders for ExprValue that were used in the
         # ExprValue graph, but were initially computed for another Expression
-        if isinstance(val, ArtifactPath):
+        if needs_rewriting(val):
             val = Path(val)
-            is_subfolder = (testcase_artifact_dir.resolve() in val.resolve().parents)
+            is_subfolder = (expr_artifact_dir.resolve() in val.resolve().parents)
             # The folder is reachable from our ExprValue, but is not a
-            # subfolder of the testcase_artifact_dir, so we want to get a
+            # subfolder of the expr_artifact_dir, so we want to get a
             # symlink to it
             if not is_subfolder:
                 # We get the name of the callable
                 callable_folder = val.parts[-2]
-                folder = testcase_artifact_dir/callable_folder
+                folder = expr_artifact_dir/callable_folder
 
                 # We build a relative path back in the hierarchy to the root of
                 # all artifacts
@@ -208,8 +221,8 @@ class LISAAdaptor(AdaptorBase):
 
                 symlink.symlink_to(target, target_is_directory=True)
 
-        for param, param_expr_val in expr_val.param_expr_val_map.items():
-            self._finalize_expr_val(param_expr_val, artifact_dir, testcase_artifact_dir)
+        for param, param_expr_val in expr_val.param_map.items():
+            self._finalize_expr_val(param_expr_val, artifact_dir, expr_artifact_dir)
 
     @classmethod
     def get_tags(cls, value):
@@ -230,20 +243,25 @@ class LISAAdaptor(AdaptorBase):
 
         return tags
 
-    def process_results(self, result_map):
-        super().process_results(result_map)
+    def get_summary(self, result_map):
+        summary = super().get_summary(result_map)
 
         # The goal is to implement something that is roughly compatible with:
         #  https://github.com/jenkinsci/xunit-plugin/blob/master/src/main/resources/org/jenkinsci/plugins/xunit/types/model/xsd/junit-10.xsd
         # This way, Jenkins should be able to read it, and other tools as well
 
         xunit_path = self.args.artifact_dir.joinpath('xunit.xml')
-        et_root = self.create_xunit(result_map, self.hidden_callable_set)
+        hidden_callable_set = {
+            op.callable_
+            for op in self.hidden_op_set
+        }
+        et_root = self._create_xunit(result_map, hidden_callable_set)
         et_tree = ET.ElementTree(et_root)
         info('Writing xUnit file at: ' + str(xunit_path))
         et_tree.write(str(xunit_path))
+        return summary
 
-    def create_xunit(self, result_map, hidden_callable_set):
+    def _create_xunit(self, result_map, hidden_callable_set):
         et_testsuites = ET.Element('testsuites')
 
         testcase_list = list(result_map.keys())
@@ -270,11 +288,11 @@ class LISAAdaptor(AdaptorBase):
 
                     # Get the set of UUIDs of all TestBundle instances that were
                     # involved in the testcase.
-                    def bundle_predicate(expr_val, param):
+                    def bundle_predicate(expr_val):
                         return issubclass(expr_val.expr.op.value_type, TestBundle)
                     bundle_uuid_set = {
-                        expr_val.value_uuid
-                        for expr_val in expr_val.get_parent_expr_vals(bundle_predicate)
+                        expr_val.uuid
+                        for expr_val in expr_val.get_by_predicate(bundle_predicate)
                     }
                     bundle_uuid_set.discard(None)
 
@@ -292,7 +310,7 @@ class LISAAdaptor(AdaptorBase):
                     ))
                     testsuite_counters['tests'] += 1
 
-                    for failed_expr_val in expr_val.get_failed_expr_vals():
+                    for failed_expr_val in expr_val.get_excep():
                         excep = failed_expr_val.excep
                         # When one critical object cannot be created, we assume
                         # the test was skipped.
@@ -307,7 +325,7 @@ class LISAAdaptor(AdaptorBase):
                         msg = ''.join(traceback.format_exception(type(excep), excep, excep.__traceback__))
                         type_ = type(excep)
 
-                        append_result_tag(et_testcase, result, type_, short_msg, msg)
+                        _append_result_tag(et_testcase, result, type_, short_msg, msg)
 
                     value = expr_val.value
                     if isinstance(value, ResultBundle):
@@ -316,7 +334,7 @@ class LISAAdaptor(AdaptorBase):
                         msg = str(value)
                         type_ = type(value)
 
-                        append_result_tag(et_testcase, result, type_, short_msg, msg)
+                        _append_result_tag(et_testcase, result, type_, short_msg, msg)
                         if value.result is Result.FAILED:
                             testsuite_counters['failures'] += 1
 
@@ -326,8 +344,10 @@ class LISAAdaptor(AdaptorBase):
 
         return et_testsuites
 
+# Expose it as a module-level name
+load_db = LISAAdaptor.load_db
 
-def append_result_tag(et_testcase, result, type_, short_msg, msg):
+def _append_result_tag(et_testcase, result, type_, short_msg, msg):
     et_result = ET.SubElement(et_testcase, result, dict(
         type=get_name(type_, full_qual=True),
         type_bases=','.join(
