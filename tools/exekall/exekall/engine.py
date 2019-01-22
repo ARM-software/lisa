@@ -2168,6 +2168,7 @@ class FrozenExprVal(ExprValBase):
         return tuple(sorted(kwargs.items()))
 
     def get_id(self, full_qual=True, qual=True, with_tags=True):
+        full_qual = full_qual and qual
         key = self._make_id_key(
             full_qual=full_qual,
             qual=qual,
