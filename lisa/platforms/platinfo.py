@@ -15,15 +15,26 @@
 # limitations under the License.
 #
 
-from collections.abc import Mapping
-
-from lisa.utils import HideExekallID, memoized
-from lisa.conf import DeferredValue, IntIntDict, IntListList, IntIntListDict, StrIntListDict, MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc
+from lisa.utils import HideExekallID, group_by_value
+from lisa.conf import (
+    DeferredValue, IntIntDict, IntListList, IntIntListDict,
+    MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, DerivedKeyDesc
+)
 from lisa.energy_model import EnergyModel
 from lisa.wlgen.rta import RTA
 
 from devlib.target import KernelVersion
 from devlib.exception import TargetStableError
+
+def compute_capa_classes(conf):
+    """
+    Derive the platform's capacity classes from the given conf
+
+    This is intended for the creation of the ``capacity-classes`` key of
+    :class:`PlatformInfo`.
+    """
+    return list(group_by_value(conf['cpu-capacities']).values())
+
 
 class PlatformInfo(MultiSrcConf, HideExekallID):
     """
@@ -40,7 +51,6 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     {generated_help}
 
     """
-
     # we could use mypy.subtypes.is_subtype and use the infrastructure provided
     # by typing module, but adding an external dependency is overkill for what
     # we need.
@@ -55,8 +65,17 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         KeyDesc('os', 'OS being used, e.g. "linux"', [str]),
         KeyDesc('name', 'Free-form name of the board', [str]),
         KeyDesc('cpus-count', 'Number of CPUs', [int]),
-        KeyDesc('freq-domains', 'Frequency domains modeled by a list of CPU id for each domain', [IntListList]),
+
+        KeyDesc('freq-domains',
+                'Frequency domains modeled by a list of CPU IDs for each domain',
+                [IntListList]),
         KeyDesc('freqs', 'Dictionnary of CPU ID to list of frequencies', [IntIntListDict]),
+
+        DerivedKeyDesc('capacity-classes',
+                       'Capacity classes modeled by a list of CPU IDs for each ' \
+                       'capacity, sorted by capacity',
+                       [IntListList],
+                       [['cpu-capacities']], compute_capa_classes),
     ))
     """Some keys have a reserved meaning with an associated type."""
 
