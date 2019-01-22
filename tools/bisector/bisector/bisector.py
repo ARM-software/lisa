@@ -4050,7 +4050,7 @@ class Report(Serializable):
                 excep = import_steps_from_yaml(steps_path)
             # Then try to import the files as recorded in the report
             else:
-                excep = import_files(preamble.src_files)
+                excep = import_files(src_files)
             return excep
 
 
