@@ -15,11 +15,11 @@
 # limitations under the License.
 #
 
-import abc
 import os
+from collections import OrderedDict
+
 import matplotlib.pyplot as plt
 import pylab as pl
-from collections import OrderedDict
 
 from bart.common.Utils import select_window, area_under_curve
 from bart.sched import pelt
@@ -33,7 +33,6 @@ from lisa.tests.kernel.test_bundle import (
 from lisa.env import TestEnv
 from lisa.utils import ArtifactPath
 from lisa.wlgen.rta import Periodic
-from lisa.trace import Trace
 
 UTIL_SCALE = 1024
 """
