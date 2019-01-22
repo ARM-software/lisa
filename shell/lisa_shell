@@ -202,15 +202,6 @@ function lisa-install {
 # LISA Update utility functions
 ################################################################################
 
-function _lisa-update-usage {
-    echo "Usage: lisa-update (CMD)"
-    echo "  CMD: what to update (default: all)"
-    echo "       all - update lisa and all the external dependencies"
-    echo "       subtrees - update external dependencies provided by subtrees"
-    echo
-    echo "Update subtrees (if LISA_DEVMODE enabled)"
-}
-
 function _lisa-update-subtrees {
     echo -ne "${LISASHELL_BLUE}"
     if [[ "$LISA_DEVMODE" == 1 ]]; then
@@ -221,63 +212,6 @@ function _lisa-update-subtrees {
         echo 'DONE'
     fi
     echo -ne "$LISASHELL_DEFAULT"
-}
-
-function _lisa-update-all {
-    echo -ne "${LISASHELL_BLUE}"
-    echo -e "*** Update LISA installation"
-
-
-    if git update-index -q --refresh; then
-        echo "LISA internal error: git update-index failed"
-        echo "Please report it: https://github.com/ARM-software/lisa/issues"
-        return $ret
-    fi
-
-    if git diff-index --quiet HEAD; then
-        echo "There are outstanding uncommitted changes."
-        echo "Please, commit your changes or stash them before you can update lisa"
-        return $ret
-    fi
-
-    curr_commit=$(git rev-parse HEAD)
-    remote_name=$(git remote -v | grep -i ARM-software/lisa | grep -m 1 fetch | awk '{print $1}')
-    if [[ -z "$remote_name" ]]; then
-        echo "Couldn't find ARM-Software upstream remote, can't automatically update"
-        return 1
-    fi
-
-    if git merge-base --is-ancestor $curr_commit $remote_name/master; then
-        echo "You have committed changes that are not part of $remote_name/master"
-        echo "Please move to the master branch before running lisa-update"
-        return $ret
-    fi
-
-
-    if git pull --ff-only $remote_name master; then
-        # git pull should have printed some error.  Abort and propagate the error code.
-        return $ret
-    fi
-
-    echo -ne "$LISASHELL_DEFAULT"
-}
-
-function lisa-update {
-    CMD=${1:-all}
-    echo
-    case "$CMD" in
-    subtrees)
-        _lisa-update-subtrees
-        ;;
-    all)
-        _lisa-update-all
-        ;;
-    help|*)
-        _lisa-update-usage
-        ;;
-    esac
-    echo
-    echo
 }
 
 ################################################################################
