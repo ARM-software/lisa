@@ -16,26 +16,23 @@
 # limitations under the License.
 #
 
+import argparse
 import contextlib
 import itertools
-import inspect
-import functools
-import logging
-import sys
+import re
 import os.path
 from pathlib import Path
-import xml.etree.ElementTree as ET
-import traceback
+from collections import OrderedDict, namedtuple
 
 from lisa.env import TestEnv, TargetConf
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable
 from lisa.conf import MultiSrcConf
-from lisa.tests.base import TestBundle, Result, ResultBundle, CannotCreateError
+from lisa.tests.base import TestBundle
 from lisa.tests.scheduler.load_tracking import FreqInvarianceItem
 
-from exekall.utils import info, get_name, get_mro, NoValue
-from exekall.engine import ExprData, Consumer, PrebuiltOperator, ValueDB
+from exekall.utils import get_name
+from exekall.engine import ExprData, Consumer, PrebuiltOperator
 from exekall.customization import AdaptorBase
 
 class NonReusable:
@@ -243,129 +240,5 @@ class LISAAdaptor(AdaptorBase):
 
         return tags
 
-    def get_summary(self, result_map):
-        summary = super().get_summary(result_map)
-
-        # The goal is to implement something that is roughly compatible with:
-        #  https://github.com/jenkinsci/xunit-plugin/blob/master/src/main/resources/org/jenkinsci/plugins/xunit/types/model/xsd/junit-10.xsd
-        # This way, Jenkins should be able to read it, and other tools as well
-
-        xunit_path = self.args.artifact_dir.joinpath('xunit.xml')
-        hidden_callable_set = {
-            op.callable_
-            for op in self.hidden_op_set
-        }
-        et_root = self._create_xunit(result_map, hidden_callable_set)
-        et_tree = ET.ElementTree(et_root)
-        info('Writing xUnit file at: ' + str(xunit_path))
-        et_tree.write(str(xunit_path))
-        return summary
-
-    def _create_xunit(self, result_map, hidden_callable_set):
-        et_testsuites = ET.Element('testsuites')
-
-        testcase_list = list(result_map.keys())
-        # We group by module in which the root operators are defined. There will
-        # be one testsuite for each such module.
-        def key(expr):
-            return expr.op.mod_name
-
-        # One testsuite per module where a root operator is defined
-        for mod_name, group in groupby(testcase_list, key=key):
-            testcase_list = list(group)
-            et_testsuite = ET.SubElement(et_testsuites, 'testsuite', attrib=dict(
-                name = mod_name
-            ))
-            testsuite_counters = dict(failures=0, errors=0, tests=0, skipped=0)
-
-            for testcase in testcase_list:
-                artifact_path = testcase.data.get('artifact_dir', None)
-
-                # If there is more than one value for a given expression, we
-                # assume that they testcase will have unique names using tags
-                expr_val_list = result_map[testcase]
-                for expr_val in expr_val_list:
-
-                    # Get the set of UUIDs of all TestBundle instances that were
-                    # involved in the testcase.
-                    def bundle_predicate(expr_val):
-                        return issubclass(expr_val.expr.op.value_type, TestBundle)
-                    bundle_uuid_set = {
-                        expr_val.uuid
-                        for expr_val in expr_val.get_by_predicate(bundle_predicate)
-                    }
-                    bundle_uuid_set.discard(None)
-
-                    et_testcase = ET.SubElement(et_testsuite, 'testcase', dict(
-                        name = expr_val.get_id(
-                            full_qual=False,
-                            qual=False,
-                            with_tags=True,
-                            hidden_callable_set=hidden_callable_set,
-                        ),
-                        # This may help locating the artifacts, even though it
-                        # will only be valid on the machine it was produced on
-                        artifact_path=str(artifact_path),
-                        bundle_uuids=','.join(sorted(bundle_uuid_set)),
-                    ))
-                    testsuite_counters['tests'] += 1
-
-                    for failed_expr_val in expr_val.get_excep():
-                        excep = failed_expr_val.excep
-                        # When one critical object cannot be created, we assume
-                        # the test was skipped.
-                        if isinstance(excep, CannotCreateError):
-                            result = 'skipped'
-                            testsuite_counters['skipped'] += 1
-                        else:
-                            result = 'error'
-                            testsuite_counters['errors'] += 1
-
-                        short_msg = str(excep)
-                        msg = ''.join(traceback.format_exception(type(excep), excep, excep.__traceback__))
-                        type_ = type(excep)
-
-                        _append_result_tag(et_testcase, result, type_, short_msg, msg)
-
-                    value = expr_val.value
-                    if isinstance(value, ResultBundle):
-                        result = RESULT_TAG_MAP[value.result]
-                        short_msg = value.result.lower_name
-                        msg = str(value)
-                        type_ = type(value)
-
-                        _append_result_tag(et_testcase, result, type_, short_msg, msg)
-                        if value.result is Result.FAILED:
-                            testsuite_counters['failures'] += 1
-
-            et_testsuite.attrib.update(
-                (k, str(v)) for k, v in testsuite_counters.items()
-            )
-
-        return et_testsuites
-
 # Expose it as a module-level name
 load_db = LISAAdaptor.load_db
-
-def _append_result_tag(et_testcase, result, type_, short_msg, msg):
-    et_result = ET.SubElement(et_testcase, result, dict(
-        type=get_name(type_, full_qual=True),
-        type_bases=','.join(
-            get_name(type_, full_qual=True)
-            for type_ in get_mro(type_)
-        ),
-        message=str(short_msg),
-    ))
-    et_result.text = str(msg)
-    return et_result
-
-RESULT_TAG_MAP = {
-    # "passed" is an extension to xUnit format that we add for parsing
-    # convenience
-    Result.PASSED: 'passed',
-    Result.FAILED: 'failure',
-    # This tag is not part of xUnit format but necessary for our reporting
-    Result.UNDECIDED: 'undecided'
-}
-# Make sure we cover all cases
-assert set(RESULT_TAG_MAP.keys()) == set(Result)
