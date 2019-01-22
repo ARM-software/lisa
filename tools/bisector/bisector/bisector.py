@@ -1823,8 +1823,11 @@ class ExekallLISATestStep(ShellStep):
         artifact_path = os.getenv(
             'EXEKALL_ARTIFACT_ROOT',
             # default value
-            './exekall_artifact'
-        ),
+            './exekall_artifacts'
+        )
+
+        # Create a unique artifact dir
+        artifact_path = os.path.join(artifact_path, uuid.uuid4().hex)
 
         # This also strips the trailing /, which is needed later on when
         # archiving the artifact.
@@ -1833,7 +1836,7 @@ class ExekallLISATestStep(ShellStep):
         env = {
             # exekall will use that folder directly, so it has to be empty and
             # cannot be reused for another invocation
-            'EXEKALL_ARTIFACT_ROOT': str(artifact_path),
+            'EXEKALL_ARTIFACT_DIR': str(artifact_path),
         }
 
         res_list = self._run_cmd(i_stack, env=env)
