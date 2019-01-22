@@ -94,6 +94,13 @@ PYTHON_VERSION=$(_lisa-python -c 'import sys; print("{}.{}".format(*sys.version_
 export LISA_USE_VENV=${LISA_USE_VENV:-1}
 export LISA_VENV_PATH=${LISA_VENV_PATH:-"$LISA_HOME/.lisa-venv-$PYTHON_VERSION"}
 
+
+# Force the shell to rescan the folders listed in $PATH
+function _lisa-reload-PATH {
+    # that should work for most shells (at least bash and zsh)
+    hash -r
+}
+
 function _lisa-venv-create {
     if [[ "$LISA_USE_VENV" == 1 ]]; then
         # Make sure we don't nest venv, by calling deactivate if it exists,
@@ -120,6 +127,10 @@ function lisa-venv-activate {
         echo "Activating LISA Python $PYTHON_VERSION venv ($LISA_VENV_PATH) ..."
         VIRTUAL_ENV_DISABLE_PROMPT=1 source "$LISA_VENV_PATH/bin/activate"
     fi
+
+    # Make sure the shell takes into account the new content of folders listed
+    # in $PATH, even if we did not actually activate a venv
+    _lisa-reload-PATH
 
     # Check if lisa-install needs to be run again, but ignore the return value
     # so it won't make activation fail just because of that
@@ -181,6 +192,10 @@ function lisa-install {
         echo
         _lisa-python -m pip install -r "$custom_requirements" "$@"
     fi
+
+    # Make sure the shell has taken into account the new content of directories
+    # listed in $PATH.
+    _lisa-reload-PATH
 }
 
 ################################################################################
