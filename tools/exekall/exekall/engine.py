@@ -246,6 +246,16 @@ class ValueDB:
         else:
             return froz_val_set_set
 
+    def get_roots(self, flatten=True):
+        froz_val_set_set = {
+            frozenset(froz_val_seq)
+            for froz_val_seq in self.froz_val_seq_list
+        }
+        if flatten:
+            return set(utils.flatten_seq(froz_val_set_set))
+        else:
+            return froz_val_set_set
+
     def prune_by_predicate(self, predicate):
         def prune(froz_val):
             if isinstance(froz_val, PrunedFrozVal):
