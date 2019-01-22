@@ -2105,6 +2105,11 @@ class FrozenExprVal(ExprValBase):
         self.recorded_id_map = recorded_id_map
         super().__init__(param_map=param_map, value=value, excep=excep)
 
+        if self.excep is not NoValue:
+            self.excep_tb = utils.format_exception(self.excep)
+        else:
+            self.excep_tb = None
+
     @property
     def type_names(self):
         return [
