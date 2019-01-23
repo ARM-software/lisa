@@ -1456,6 +1456,9 @@ class Expression(ExpressionBase):
 class AnnotationError(Exception):
     pass
 
+class PartialAnnotationError(AnnotationError):
+    pass
+
 class ForcedParamType:
     pass
 
@@ -1730,6 +1733,7 @@ class Operator:
         sig = self.signature
         first_param = utils.take_first(sig.parameters)
         annotation_map = utils.resolve_annotations(self.annotations, self.callable_globals)
+        pristine_annotation_map = copy.copy(annotation_map)
 
         extra_ignored_param = set()
         # If it is a class
@@ -1771,9 +1775,16 @@ class Operator:
                 param not in extra_ignored_param and
                 param not in self.ignored_param
             ):
-                raise AnnotationError('Missing annotation for "{param}" parameters of operator "{op}"'.format(
+                # If some parameters are annotated but not all, we raise a
+                # slightly different exception to allow better reporting
+                if pristine_annotation_map:
+                    excep_cls = PartialAnnotationError
+                else:
+                    excep_cls = AnnotationError
+
+                raise excep_cls('Missing annotation for "{param}" parameters of operator "{op}"'.format(
                     param = param,
-                    op = self.callable_,
+                    op = self.name,
                 ))
 
         # Iterate over keys and values of "mapping" in the same order as "keys"
