@@ -118,3 +118,11 @@ Cpufreq tests
 .. automodule:: lisa.tests.kernel.cpufreq.sanity
    :members:
 
+Staged tests
++++++++++++++
+
+Those are tests that have been merged into LISA but whose behaviour are being
+actively evaluated.
+
+.. automodule:: lisa.tests.kernel.staging.load_tracking
+   :members:
