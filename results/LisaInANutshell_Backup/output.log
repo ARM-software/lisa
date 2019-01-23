@@ -1,6 +1,0 @@
-[rt-app] <notice> pLoad = 355ns
-[rt-app] <notice> [0] Using SCHED_OTHER policy with priority 0
-[rt-app] <notice> [0] starting thread ...
-
-[rt-app] <notice> [0] Exiting.
-
