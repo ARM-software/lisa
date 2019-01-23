@@ -26,5 +26,8 @@ IS_BRANCH_CHECKOUT=$3
 
 if which check-setuppy >/dev/null 2>&1; then
     check-setuppy --current-rev "$NEW_HEAD"
+    # Make sure we always exit with 0 return code, otherwise it might break
+    # rebasing
+    exit 0
 fi
 
