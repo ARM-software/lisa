@@ -339,6 +339,16 @@ should be treated as read-only.
     merge_parser.add_argument('--copy', action='store_true',
         help="""Force copying files, instead of using hardlinks.""")
 
+
+    compare_parser = subparsers.add_parser('compare',
+    description="""
+Compare two DBs produced by exekall run.
+    """,
+    formatter_class=argparse.RawTextHelpFormatter)
+
+    compare_parser.add_argument('db', nargs=2,
+        help="""DBs created using exekall run to compare.""")
+
     # Avoid showing help message on the incomplete parser. Instead, we carry on
     # and the help will be displayed after the parser customization of run
     # subcommand has a chance to take place.
@@ -369,7 +379,7 @@ should be treated as read-only.
 
     # Some subcommands need not parser customization, in which case we more
     # strictly parse the command line
-    if args.subcommand not in ['run']:
+    if args.subcommand not in ('run', 'compare'):
         parser.parse_args(argv)
 
     if args.subcommand == 'run':
@@ -382,6 +392,43 @@ should be treated as read-only.
             output_dir=args.output,
             use_hardlink=(not args.copy),
         )
+
+    elif args.subcommand == 'compare':
+        return do_compare(
+            parser=parser,
+            compare_parser=compare_parser,
+            argv=argv,
+            db_path_list=args.db,
+        )
+
+def do_compare(parser, compare_parser, argv, db_path_list):
+    assert len(db_path_list) == 2
+    db_list = [
+        engine.ValueDB.from_path(path)
+        for path in db_path_list
+    ]
+
+    adaptor_cls_set = {
+        db.adaptor_cls
+        for db in db_list
+    }
+    if len(adaptor_cls_set) != 1:
+        raise ValueError('Cannot compare DBs that were built using a different adaptor: {}'.format(adaptor_cls_set))
+    adaptor_cls = utils.take_first(adaptor_cls_set)
+
+    # Add all the CLI arguments of the adaptor before reparsing the
+    # command line.
+    adaptor_cls.register_compare_param(compare_parser)
+
+    # Reparse the command line after the adaptor had a chance to add its own
+    # arguments.
+    args = parser.parse_args(argv)
+
+    # Create the adaptor with the args, so it can use it to implement
+    # comparison
+    adaptor = adaptor_cls(args)
+
+    return adaptor.compare_db_list(db_list)
 
 def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
     output_dir = pathlib.Path(output_dir)
@@ -490,7 +537,7 @@ def do_run(args, parser, run_parser, argv):
         raise RuntimeError('Adaptor "{}" cannot be found'.format(adaptor_name))
     # Add all the CLI arguments of the adaptor before reparsing the
     # command line.
-    adaptor_cls.register_cli_param(run_parser)
+    adaptor_cls.register_run_param(run_parser)
 
     # Reparse the command line after the adaptor had a chance to add its own
     # arguments.
@@ -717,6 +764,7 @@ def do_run(args, parser, run_parser, argv):
         testsession_uuid=testsession_uuid,
         hidden_callable_set=hidden_callable_set,
         only_template_scripts=only_template_scripts,
+        adaptor_cls=adaptor_cls,
         verbose=verbose,
     )
 
@@ -732,7 +780,7 @@ def do_run(args, parser, run_parser, argv):
     return exec_ret_code
 
 def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
-        hidden_callable_set, only_template_scripts, verbose):
+        hidden_callable_set, only_template_scripts, adaptor_cls, verbose):
 
     if not only_template_scripts:
         with (artifact_dir/'UUID').open('wt') as f:
@@ -938,7 +986,8 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
     db = engine.ValueDB(
         engine.FrozenExprValSeq.from_expr_list(
             expr_list, hidden_callable_set=hidden_callable_set
-        )
+        ),
+        adaptor_cls=adaptor_cls,
     )
 
     db_path = artifact_dir/DB_FILENAME

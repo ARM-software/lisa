@@ -60,7 +60,14 @@ class AdaptorBase:
         return self.hidden_op_set
 
     @staticmethod
-    def register_cli_param(parser):
+    def register_run_param(parser):
+        pass
+
+    @staticmethod
+    def register_compare_param(parser):
+        pass
+
+    def compare_db_list(self, db_list):
         pass
 
     @staticmethod

@@ -54,10 +54,11 @@ class ValueDB:
     # dumping speed.
     PICKLE_PROTOCOL = 4
 
-    def __init__(self, froz_val_seq_list):
+    def __init__(self, froz_val_seq_list, adaptor_cls=None):
         # Avoid storing duplicate FrozenExprVal sharing the same value/excep
         # UUID
         self.froz_val_seq_list = self._dedup_froz_val_seq_list(froz_val_seq_list)
+        self.adaptor_cls = adaptor_cls
 
     @classmethod
     def _dedup_froz_val_seq_list(cls, froz_val_seq_list):
@@ -110,12 +111,20 @@ class ValueDB:
         return cls._froz_val_dfs(froz_val_seq_list, rewrite_graph)
 
     @classmethod
-    def merge(cls, db_seq):
+    def merge(cls, db_list):
+        adaptor_cls_set = {
+            db.adaptor_cls
+            for db in db_list
+        }
+        if len(adaptor_cls_set) != 1:
+            raise ValueError('Cannot merge ValueDB with different adaptor classes: {}'.format(adaptor_cls_set))
+        adaptor_cls = utils.take_first(adaptor_cls_set)
+
         froz_val_seq_list = list(itertools.chain(*(
             db.froz_val_seq_list
-            for db in db_seq
+            for db in db_list
         )))
-        return cls(froz_val_seq_list)
+        return cls(froz_val_seq_list, adaptor_cls=adaptor_cls)
 
     @classmethod
     def from_path(cls, path, relative_to=None):

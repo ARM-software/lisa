@@ -28,8 +28,9 @@ from lisa.env import TestEnv, TargetConf
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable
 from lisa.conf import MultiSrcConf
-from lisa.tests.base import TestBundle
+from lisa.tests.base import TestBundle, ResultBundle
 from lisa.tests.scheduler.load_tracking import FreqInvarianceItem
+from lisa.regression import compute_regressions
 
 from exekall.utils import get_name
 from exekall.engine import ExprData, Consumer, PrebuiltOperator
@@ -128,7 +129,7 @@ class LISAAdaptor(AdaptorBase):
         return hidden_op_set
 
     @staticmethod
-    def register_cli_param(parser):
+    def register_run_param(parser):
         parser.add_argument('--conf', action='append',
             default=[],
             help="LISA configuration file. If multiple configurations of a given type are found, they are merged (last one can override keys in previous ones)")
@@ -137,6 +138,58 @@ class LISAAdaptor(AdaptorBase):
             metavar='SERIALIZED_OBJECT_PATH',
             default=[],
             help="Serialized object to inject when building expressions")
+
+    @staticmethod
+    def register_compare_param(parser):
+        parser.add_argument('--alpha', type=float,
+            default=5,
+            help="""Alpha risk for Fisher exact test in percents.""")
+
+        parser.add_argument('--non-significant', action='store_true',
+            help="""Also show non-significant changes of failure rate.""")
+
+        parser.add_argument('--remove-tag', action='append',
+            default=[],
+            help="""Remove the given tags in the testcase IDs before comparison.""")
+
+    def compare_db_list(self, db_list):
+        alpha = self.args.alpha / 100
+        show_non_significant = self.args.non_significant
+
+        result_list_old, result_list_new = [
+            db.get_roots()
+            for db in db_list
+        ]
+
+        regr_list = compute_regressions(
+            result_list_old,
+            result_list_new,
+            remove_tags=self.args.remove_tag,
+            alpha=alpha,
+        )
+
+        print('testcase failure rate changes with alpha={}\n'.format(alpha))
+
+        id_len = max(len(regr.testcase_id) for regr in regr_list)
+
+        header = '{id:<{id_len}}   old%   new% delta%      pvalue{regr_column}'.format(
+            id='testcase'.format(alpha),
+            id_len=id_len,
+            regr_column=' changed' if show_non_significant else ''
+        )
+        print(header + '\n' + '-' * len(header))
+        for regr in regr_list:
+            if regr.significant or show_non_significant:
+                old_pc, new_pc = regr.failure_pc
+                print('{id:<{id_len}} {old_pc:>5.1f}% {new_pc:>5.1f}% {delta_pc:>5.1f}%    {pval:.2e} {has_regr}'.format(
+                    id=regr.testcase_id,
+                    old_pc=old_pc,
+                    new_pc=new_pc,
+                    delta_pc=regr.failure_delta_pc,
+                    pval=regr.p_val,
+                    id_len=id_len,
+                    has_regr='*' if regr.significant and show_non_significant else '',
+                ))
 
     @staticmethod
     def get_default_type_goal_pattern_set():
