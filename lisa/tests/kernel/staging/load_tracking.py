@@ -79,7 +79,7 @@ class CPUMigrationBase(LoadTrackingBase):
         """
         Factory method to create a bundle using a live target
         """
-        super().from_testenv(te=te, res_dir=res_dir)
+        return super().from_testenv(te=te, res_dir=res_dir)
 
     @classmethod
     def check_from_testenv(cls, te):
