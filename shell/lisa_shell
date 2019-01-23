@@ -418,7 +418,7 @@ function lisa-test {
 # LISA Workloads utility functions
 ################################################################################
 
-function lisa-wltest-init {
+function lisa-wltest-series {
     export WLTEST_HOME="$LISA_HOME/tools/wltests"
     export WA_USER_DIRECTORY="$LISA_HOME/tools/wa_user_directory"
 
@@ -445,15 +445,9 @@ You can install it on Ubuntu systems with:
 EOF
         return -1
     fi
-}
-
-function lisa-wltest-series {
-    # Ensure the wltest environment has been configured, and get the relative
-    # patch loaded in the environment
-    lisa-wltest-init || return -1
 
     # Run the build's provided test_series
-    $WLTEST_HOME/test_series "$@"
+    "$WLTEST_HOME/test_series" "$@"
 }
 
 ################################################################################
