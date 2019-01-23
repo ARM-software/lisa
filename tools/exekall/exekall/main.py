@@ -230,8 +230,8 @@ PATTERNS
         help=argparse.SUPPRESS,
     )
 
-    run_parser.add_argument('--dry-run', action='store_true',
-        help="""Only show the expressions that will be run without running them.""")
+    run_parser.add_argument('--list', action='store_true',
+        help="""List the expressions that will be run without running them.""")
 
     # Show the list of expressions in reStructuredText format, suitable for
     # inclusion in Sphinx documentation
@@ -500,12 +500,12 @@ def do_run(args, parser, run_parser, argv):
 
     adaptor = adaptor_cls(args)
 
-    dry_run = args.dry_run
+    only_list = args.list
     only_template_scripts = args.template_scripts
 
     rst_expr_list = args.rst_list
     if rst_expr_list:
-        dry_run = True
+        only_list = True
 
     type_goal_pattern_set = set(args.goal)
     callable_goal_pattern_set = set(args.callable_goal)
@@ -546,7 +546,7 @@ def do_run(args, parser, run_parser, argv):
     else:
         artifact_dir = pathlib.Path(args.artifact_root, date + '_' + testsession_uuid)
 
-    if dry_run:
+    if only_list:
         debug_log = None
         info_log = None
     else:
@@ -601,7 +601,7 @@ def do_run(args, parser, run_parser, argv):
     }
 
     # These get_id() options are used for all user-exposed listing that is supposed to be
-    # filterable with user_filter_set (like dry_run)
+    # filterable with user_filter_set (like only_list)
     filterable_id_kwargs = dict(
         full_qual=False,
         qual=False,
@@ -707,7 +707,7 @@ def do_run(args, parser, run_parser, argv):
             if verbose >= 2:
                 out(expr.get_structure() + '\n')
 
-    if dry_run:
+    if only_list:
         return 0
 
     exec_ret_code = exec_expr_list(
