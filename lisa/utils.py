@@ -418,7 +418,7 @@ def setup_logging(filepath='logging.conf', level=logging.INFO):
                      :attr:`lisa.utils.LISA_HOME` as base folder.
     :type filepath: str
 
-    :param level: the default log level to enable, logging.INFO by default
+    :param level: the default log level to enable
     :type level: int
     """
 
@@ -427,10 +427,12 @@ def setup_logging(filepath='logging.conf', level=logging.INFO):
         filepath = os.path.join(LISA_HOME, filepath)
 
     if not os.path.exists(filepath):
-        raise ValueError('Logging configuration file not found in: {}'\
+        raise FileNotFoundError('Logging configuration file not found in: {}'\
                          .format(filepath))
-    logging.config.fileConfig(filepath)
+
+    # Set the level first, so the config file can override with more details
     logging.getLogger().setLevel(level)
+    logging.config.fileConfig(filepath)
 
     logging.info('Using LISA logging configuration:')
     logging.info('  %s', filepath)
