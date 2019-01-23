@@ -24,6 +24,7 @@ from lisa.tests.kernel.scheduler.load_tracking import (
     UTIL_SCALE,
     LoadTrackingBase
 )
+from lisa.env import TestEnv, ArtifactPath
 
 class CPUMigrationBase(LoadTrackingBase):
     """
@@ -73,6 +74,12 @@ class CPUMigrationBase(LoadTrackingBase):
 
         self.phases_durations = [phase.duration_s
                                  for phase in self.reference_task.phases]
+    @classmethod
+    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'CPUMigrationBase':
+        """
+        Factory method to create a bundle using a live target
+        """
+        super().from_testenv(te=te, res_dir=res_dir)
 
     @classmethod
     def check_from_testenv(cls, te):
