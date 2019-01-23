@@ -287,7 +287,7 @@ class TestBundle(Serializable, abc.ABC):
             return False
 
     @classmethod
-    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None, **kwargs) -> 'TestBundle':
+    def from_testenv(cls, te, res_dir=None, **kwargs):
         """
         Factory method to create a bundle using a live target
 
