@@ -108,7 +108,7 @@ setup(
         ],
 
         "doc": [
-            "sphinx",
+            "sphinx >= 1.8",
             "sphinx_rtd_theme"
         ],
 
