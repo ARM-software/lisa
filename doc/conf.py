@@ -345,9 +345,12 @@ autoclass_content = 'both'
 autodoc_member_order = 'bysource'
 
 autodoc_default_options = {
-    'show-inheritance' : '', # Show parent class
-    'undoc-members' : '',    # Show members even if they don't have docstrings
+    'show-inheritance' : None, # Show parent class
+    'undoc-members' : None,    # Show members even if they don't have docstrings
 }
+# For compat with Sphinx < 1.8
+autodoc_default_flags = list(autodoc_default_options.keys())
+
 autodoc_inherit_docstrings = True
 
 def is_test(method):
