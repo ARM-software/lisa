@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-from collections import namedtuple, OrderedDict
+from collections import namedtuple, OrderedDict, defaultdict
 from itertools import product
 import logging
 import operator
@@ -841,6 +841,71 @@ class EnergyModel(Serializable, Loggable):
         return PowerDomain(children=cpu_pds, idle_states=[])
 
     @classmethod
+    def from_debugfsEM_target(cls, target,
+            directory='/sys/kernel/debug/energy_model'):
+        """
+        Create an EnergyModel by reading a target filesystem on a device with
+        the new Simplified Energy Model present in debugfs.
+
+        This uses the energy_model debugfs used usptream to expose the
+        performance domains, their frequencies and power costs. This feature is
+        upstream as of Linux 5.1. It is also available on Android 4.19 and
+        later.
+
+        Wrt. idle states - the EnergyModel constructed won't be aware of
+        any power data or topological dependencies for entering "cluster"
+        idle states since the simplified model has no such concept.
+
+        Initialises only class:`ActiveStates` for CPUs and clears all other
+        levels.
+
+        :param target: :class:`devlib.target.Target` object to read filesystem
+                       from. Must have cpufreq and cpuidle modules enabled.
+        :returns: Constructed EnergyModel object based on the parameters
+                  reported by the target.
+        """
+
+        if 'cpuidle' not in target.modules:
+            raise TargetStableError('Requires cpuidle devlib module. Please ensure "cpuidle" is listed in your target/test modules')
+
+        sysfs = '/sys/devices/system/cpu/cpu{}/cpu_capacity'
+        pd_attr = defaultdict(dict)
+        cpu_to_pd = {}
+
+        debugfs_em = target.read_tree_values(directory, depth=3)
+        if not debugfs_em:
+            raise TargetStableError('Energy Model not exposed at {} in sysfs.'.format(directory))
+
+        for pd in debugfs_em:
+            # Read the CPUMask
+            pd_attr[pd]['cpus'] = ranges_to_list(debugfs_em[pd]['cpus'])
+            for cpu in pd_attr[pd]['cpus']:
+                cpu_to_pd[cpu] = pd
+
+            # Read the frequency and power costs
+            pd_attr[pd]['frequency'] = []
+            pd_attr[pd]['power'] = []
+            cstates = [k for k in debugfs_em[pd].keys() if 'cs:' in k]
+            cstates = sorted(cstates, key=lambda cs: int(cs.replace('cs:','')))
+            for cs in cstates:
+                pd_attr[pd]['frequency'].append(int(debugfs_em[pd][cs]['frequency']))
+                pd_attr[pd]['power'].append(int(debugfs_em[pd][cs]['power']))
+
+            # Compute the intermediate capacities
+            cap = target.read_value(sysfs.format(pd_attr[pd]['cpus'][0]), int)
+            max_freq = max(pd_attr[pd]['frequency'])
+            caps = [f * cap / max_freq for f in pd_attr[pd]['frequency']]
+            pd_attr[pd]['capacity'] = caps
+
+        root_em = cls._simple_em_root(target, pd_attr, cpu_to_pd)
+        root_pd = cls._simple_pd_root(target)
+        perf_domains = [pd_attr[pd]['cpus'] for pd in pd_attr]
+
+        return cls(root_node=root_em,
+                   root_power_domain=root_pd,
+                   freq_domains=perf_domains)
+
+    @classmethod
     def from_simplifiedEM_target(cls, target,
             directory='/sys/devices/system/cpu/energy_model'):
         """
@@ -1085,7 +1150,16 @@ class EnergyModel(Serializable, Loggable):
 
             load = cls.from_simplifiedEM_target
 
-        for loader_cls in (SDEMLoader, SysfsEMLoader):
+        class DebugfsEMLoader:
+            @staticmethod
+            def check(target):
+                directory = '/sys/kernel/debug/energy_model'
+
+                return target.file_exists(directory)
+
+            load = cls.from_debugfsEM_target
+
+        for loader_cls in (SDEMLoader, SysfsEMLoader, DebugfsEMLoader):
             try:
                 em_present = loader_cls.check(target)
             except Exception:
