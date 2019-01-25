@@ -26,6 +26,7 @@ import enum
 import fcntl
 import fnmatch
 import functools
+import gc
 import glob
 import gzip
 import hashlib
@@ -3953,8 +3954,13 @@ def init_yaml(yaml, relative_root):
     yaml.Representer.add_representer(collections.OrderedDict, map_representer)
     yaml.Constructor.add_constructor(yaml.resolver.DEFAULT_MAPPING_TAG, map_constructor)
 
-    # Use block style for multiline strings
+    # Since strings are immutable, we can memoized the output to deduplicate
+    # strings. This will make the dumped strings live forever, but that should
+    # not be a big issue since everything that ends up in a YAML document is
+    # also living in memory anyway in our use case.
+    @functools.lru_cache(maxsize=None, typed=True)
     def str_presenter(dumper, data):
+        # Use block style for multiline strings
         style = '|' if '\n' in data else None
         return dumper.represent_scalar('tag:yaml.org,2002:str', data, style=style)
 
@@ -4008,6 +4014,25 @@ def check_report_path(path, probe_file):
 
     is_yaml = not (path.endswith('.pickle') or path.endswith('.pickle.gz'))
     return (open_f, is_yaml)
+
+def disable_gc(f):
+    """
+    Decorator to disable garbage collection during the execution of the
+    decorated function.
+
+    This can speed-up code that creates a lot of objects in a short amount of
+    time.
+    """
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        gc.disable()
+        try:
+            return f(*args, **kwargs)
+        # re-enable the garbage collector in all cases
+        finally:
+            gc.enable()
+
+    return wrapper
 
 class Report(Serializable):
     """
@@ -4090,6 +4115,7 @@ class Report(Serializable):
         return (path, url)
 
     @classmethod
+    @disable_gc
     def _do_load(cls, path, steps_path):
         open_f, is_yaml = check_report_path(path, probe_file=True)
 
