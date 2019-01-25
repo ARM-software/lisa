@@ -26,12 +26,17 @@ Vagrant.configure(2) do |config|
 
     chown -R vagrant.vagrant /home/vagrant/lisa
 
+    # Let' use a venv local to vagrant so that we don't pollute the host one.
+    # This allows to use LISA both from the host and the VM.
+    export LISA_VENV_PATH=/home/vagrant/venv
+
     # .bashrc setup
     echo "cd /home/vagrant/lisa" >> /home/vagrant/.bashrc
     for LC in $(locale | cut -d= -f1);
     do
         echo unset $LC  >> /home/vagrant/.bashrc
     done
+    echo 'export LISA_VENV_PATH=$LISA_VENV_PATH' >> /home/vagrant/.bashrc
     echo 'source init_env' >> /home/vagrant/.bashrc
 
     # Trigger the creation of a venv
