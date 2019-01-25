@@ -1,3 +1,5 @@
+.. _kernel-testing-page:
+
 **************
 Kernel testing
 **************
