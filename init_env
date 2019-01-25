@@ -31,12 +31,9 @@ setup_paths() {
 if [[ -n $BASH_VERSION ]]; then
 	# Get base installation path of LISA
 	export LISA_HOME=$(readlink -f "$(dirname "$BASH_SOURCE")")
-
 	source "$(dirname "$BASH_SOURCE")/shell/lisa_shell"; _lisa_shell_ret=$?
 
 	PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_RESET}\]"
-	# Make sure that bash picks up new location for all binaries
-	hash -r
 
 # Running under ZSH
 elif [[ -n $ZSH_VERSION ]]; then
@@ -47,8 +44,6 @@ elif [[ -n $ZSH_VERSION ]]; then
 	# functions declared there to be executed in emulated mode, so they will
 	# work as well
 	emulate sh -c "source "$LISA_HOME/shell/lisa_shell""; _lisa_shell_ret=$?
-	# Make sure that zsh picks up new location for all binaries
-	hash -r
 
 else
 	echo "WARNING: Current shell is not a BASH"
