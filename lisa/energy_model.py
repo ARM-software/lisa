@@ -19,6 +19,7 @@ from collections import namedtuple, OrderedDict, defaultdict
 from itertools import product
 import logging
 import operator
+import warnings
 import re
 
 from lisa.utils import Loggable, Serializable, memoized, groupby
@@ -906,29 +907,23 @@ class EnergyModel(Serializable, Loggable):
                    freq_domains=perf_domains)
 
     @classmethod
-    def from_simplifiedEM_target(cls, target,
+    def from_sysfsEM_target(cls, target,
             directory='/sys/devices/system/cpu/energy_model'):
         """
         Create an EnergyModel by reading a target filesystem on a device with
-        the new Simplified Energy Model present.
+        the new Simplified Energy Model present in sysfs.
 
-        This uses the energy_model sysctl added by EAS patches to exposes
-        the frequency domains, together with a tuple of capacity, frequency
-        and active power for each CPU. This feature is not upstream in mainline
-        Linux (as of v4.17), and only exists in Android kernels later than
-        android-4.14.
-
-        Wrt. idle states - the EnergyModel constructed won't be aware of
-        any power data or topological dependencies for entering "cluster"
-        idle states since the simplified model has no such concept.
-
-        Initialises only Active States for CPUs and clears all other levels.
+        The patches exposing the Energy Model in sysfs have been abandonned
+        and this way of loading it is now deprecated.
 
         :param target: Devlib target object to read filesystem from. Must have
                        cpufreq and cpuidle modules enabled.
         :returns: Constructed EnergyModel object based on the parameters
                   reported by the target.
         """
+        warnings.warn('The Energy Model in sysfs is DEPRECATED. Please use debugfs instead.',
+                      DeprecationWarning)
+
         if 'cpuidle' not in target.modules:
             raise TargetStableError('Requires cpuidle devlib module. Please ensure '
                                '"cpuidle" is listed in your target/test modules')
@@ -1148,7 +1143,7 @@ class EnergyModel(Serializable, Loggable):
                 directory = '/sys/devices/system/cpu/energy_model'
                 return target.directory_exists(directory)
 
-            load = cls.from_simplifiedEM_target
+            load = cls.from_sysfsEM_target
 
         class DebugfsEMLoader:
             @staticmethod
