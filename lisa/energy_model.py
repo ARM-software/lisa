@@ -793,6 +793,53 @@ class EnergyModel(Serializable, Loggable):
         # Again, not strictly necessary, just more pleasant.
         return sorted(ret, key=lambda x: x[0])
 
+    def _simple_em_root(target, pd_attr, cpu_to_pd):
+        # pd_attr is a dict tree like this
+        # {
+        #   "pd0": {
+        #       "capacity": [236, 301, 367, 406, 446 ],
+        #       "frequency": [ 450000, 575000, 700000, 775000, 850000 ],
+        #       "power": [ 42, 58, 79, 97, 119 ]
+        #   },
+        #   "pd1": {
+        #       "capacity": [ 418, 581, 744, 884, 1024 ],
+        #       "frequency": [ 450000, 625000, 800000, 950000, 1100000 ],
+        #       "power": [ 160, 239, 343, 454, 583 ]
+        #   }
+        # }
+        def simple_read_idle_states(cpu, target):
+            # idle states are not supported in the simple model
+            # record 0 power for them all, but name them according to target
+            names = [s.name for s in target.cpuidle.get_states(cpu)]
+            return OrderedDict((name, 0) for name in names)
+
+        def simple_read_active_states(pd):
+            cstates = list(zip(pd['capacity'], pd['power']))
+            active_states = [ActiveState(c, p) for c, p in cstates]
+            return OrderedDict(zip(pd['frequency'], active_states))
+
+        cpu_nodes = []
+        for cpu in range(target.number_of_cpus):
+            pd = pd_attr[cpu_to_pd[cpu]]
+            node = EnergyModelNode(
+                cpu=cpu,
+                active_states=simple_read_active_states(pd),
+                idle_states=simple_read_idle_states(cpu, target))
+            cpu_nodes.append(node)
+
+        return EnergyModelRoot(children=cpu_nodes)
+
+    def _simple_pd_root(target):
+        # We don't have a way to read the idle power domains from sysfs (the
+        # kernel isn't even aware of them) so we'll just have to assume each CPU
+        # is its own power domain and all idle states are independent of each
+        # other.
+        cpu_pds = []
+        for cpu in range(target.number_of_cpus):
+            names = [s.name for s in target.cpuidle.get_states(cpu)]
+            cpu_pds.append(PowerDomain(cpu=cpu, idle_states=names))
+        return PowerDomain(children=cpu_pds, idle_states=[])
+
     @classmethod
     def from_simplifiedEM_target(cls, target,
             directory='/sys/devices/system/cpu/energy_model'):
@@ -859,41 +906,11 @@ class EnergyModel(Serializable, Loggable):
             caps = [f * cap / max_freq for f in sysfs_em[fd]['frequency']]
             sysfs_em[fd]['capacity'] = caps
 
-        def read_active_states(cpu):
-            fd = sysfs_em[cpu_to_fdom[cpu]]
-            cstates = list(zip(fd['capacity'], fd['power']))
-            active_states = [ActiveState(c, p) for c, p in cstates]
-            return OrderedDict(list(zip(fd['frequency'], active_states)))
-
-        def read_idle_states(cpu):
-            # idle states are not supported in the new model
-            # record 0 power for them all, but name them according to target
-            names = [s.name for s in target.cpuidle.get_states(cpu)]
-            return OrderedDict((name, 0) for name in names)
-
-        # Read the CPU-level data
-        cpus = list(range(target.number_of_cpus))
-        cpu_nodes = []
-        for cpu in cpus:
-            node = EnergyModelNode(
-                cpu=cpu,
-                active_states=read_active_states(cpu),
-                idle_states=read_idle_states(cpu))
-            cpu_nodes.append(node)
-
-        root = EnergyModelRoot(children=cpu_nodes)
+        root_em = cls._simple_em_root(target, sysfs_em, cpu_to_fdom)
+        root_pd = cls._simple_pd_root(target)
         freq_domains = [sysfs_em[fdom]['cpus'] for fdom in sysfs_em]
 
-        # We don't have a way to read the idle power domains from sysfs (the kernel
-        # isn't even aware of them) so we'll just have to assume each CPU is its
-        # own power domain and all idle states are independent of each other.
-        cpu_pds = []
-        for cpu in cpus:
-            names = [s.name for s in target.cpuidle.get_states(cpu)]
-            cpu_pds.append(PowerDomain(cpu=cpu, idle_states=names))
-
-        root_pd = PowerDomain(children=cpu_pds, idle_states=[])
-        return cls(root_node=root,
+        return cls(root_node=root_em,
                    root_power_domain=root_pd,
                    freq_domains=freq_domains)
 
