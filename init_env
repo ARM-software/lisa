@@ -20,6 +20,14 @@
 
 _lisa_shell_ret=1
 
+# Ensure we aleays start from a clean new shell
+if [[ -n $LISA_HOME ]]; then
+	echo
+	echo "ERROR: Please source init_env from a fresh new shell."
+	echo
+	return
+fi
+
 setup_paths() {
 	# Bail out if local tools are not installed
 	[[ -d $LISA_HOME/tools/android-sdk-linux ]] || return
