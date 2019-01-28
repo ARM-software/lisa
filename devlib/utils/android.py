@@ -28,6 +28,9 @@ import tempfile
 import subprocess
 from collections import defaultdict
 import pexpect
+import xml.etree.ElementTree
+import zipfile
+
 from pipes import quote
 
 from devlib.exception import TargetTransientError, TargetStableError, HostError
@@ -132,6 +135,7 @@ class ApkInfo(object):
     version_regex = re.compile(r"name='(?P<name>[^']+)' versionCode='(?P<vcode>[^']+)' versionName='(?P<vname>[^']+)'")
     name_regex = re.compile(r"name='(?P<name>[^']+)'")
     permission_regex = re.compile(r"name='(?P<permission>[^']+)'")
+    activity_regex = re.compile(r'\s*A:\s*android:name\(0x\d+\)=".(?P<name>\w+)"')
 
     def __init__(self, path=None):
         self.path = path
@@ -147,15 +151,7 @@ class ApkInfo(object):
     # pylint: disable=too-many-branches
     def parse(self, apk_path):
         _check_env()
-        command = [aapt, 'dump', 'badging', apk_path]
-        logger.debug(' '.join(command))
-        try:
-            output = subprocess.check_output(command, stderr=subprocess.STDOUT)
-            if sys.version_info[0] == 3:
-                output = output.decode(sys.stdout.encoding or 'utf-8', 'replace')
-        except subprocess.CalledProcessError as e:
-            raise HostError('Error parsing APK file {}. `aapt` says:\n{}'
-                            .format(apk_path, e.output))
+        output = self._run([aapt, 'dump', 'badging', apk_path])
         for line in output.split('\n'):
             if line.startswith('application-label:'):
                 self.label = line.split(':')[1].strip().replace('\'', '')
@@ -187,6 +183,50 @@ class ApkInfo(object):
                     self.permissions.append(match.group('permission'))
             else:
                 pass  # not interested
+
+        self._apk_path = apk_path
+        self._activities = None
+        self._methods = None
+
+    @property
+    def activities(self):
+        if self._activities is None:
+            cmd = [aapt, 'dump', 'xmltree', self._apk_path,
+                   'AndroidManifest.xml']
+            matched_activities = self.activity_regex.finditer(self._run(cmd))
+            self._activities = [m.group('name') for m in matched_activities]
+        return self._activities
+
+    @property
+    def methods(self):
+        if self._methods is None:
+            with zipfile.ZipFile(self._apk_path, 'r') as z:
+                extracted = z.extract('classes.dex', tempfile.gettempdir())
+
+            dexdump = os.path.join(os.path.dirname(aapt), 'dexdump')
+            command = [dexdump, '-l', 'xml', extracted]
+            dump = self._run(command)
+
+            xml_tree = xml.etree.ElementTree.fromstring(dump)
+
+            package = next(i for i in xml_tree.iter('package')
+                           if i.attrib['name'] == self.package)
+
+            self._methods = [(meth.attrib['name'], klass.attrib['name'])
+                             for klass in package.iter('class')
+                             for meth in klass.iter('method')]
+        return self._methods
+
+    def _run(self, command):
+        logger.debug(' '.join(command))
+        try:
+            output = subprocess.check_output(command, stderr=subprocess.STDOUT)
+            if sys.version_info[0] == 3:
+                output = output.decode(sys.stdout.encoding or 'utf-8', 'replace')
+        except subprocess.CalledProcessError as e:
+            raise HostError('Error while running "{}":\n{}'
+                            .format(command, e.output))
+        return output
 
 
 class AdbConnection(object):

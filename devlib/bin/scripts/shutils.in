@@ -238,30 +238,49 @@ hotplug_online_all() {
     done
 }
 
+
+################################################################################
+# Scheduler
+################################################################################
+
+sched_get_kernel_attributes() {
+	MATCH=${1:-'.*'}
+	[ -d /proc/sys/kernel/ ] || exit 1
+	$GREP '' /proc/sys/kernel/sched_* | \
+		$SED -e 's|/proc/sys/kernel/sched_||' | \
+		$GREP -e "$MATCH"
+}
+
 ################################################################################
 # Misc
 ################################################################################
 
-read_tree_values() {
+read_tree_tgz_b64() {
     BASEPATH=$1
     MAXDEPTH=$2
+    TMPBASE=$3
 
     if [ ! -e $BASEPATH ]; then
         echo "ERROR: $BASEPATH does not exist"
         exit 1
     fi
 
-    PATHS=$($BUSYBOX find $BASEPATH -follow -maxdepth $MAXDEPTH)
-    i=0
-    for path in $PATHS; do
-        i=$(expr $i + 1)
-        if [ $i -gt 1 ]; then
-            break;
-        fi
+    cd $TMPBASE
+    TMP_FOLDER=$($BUSYBOX realpath $($BUSYBOX mktemp -d XXXXXX))
+
+    # 'tar' doesn't work as expected on debugfs, so copy the tree first to
+    # workaround the issue
+    cd $BASEPATH
+    for CUR_FILE in $($BUSYBOX find . -follow -type f -maxdepth $MAXDEPTH); do
+        $BUSYBOX cp --parents $CUR_FILE $TMP_FOLDER/ 2> /dev/null
     done
-    if [ $i -gt 1 ]; then
-        $BUSYBOX grep -s '' $PATHS
-    fi
+
+    cd $TMP_FOLDER
+    $BUSYBOX tar cz * | $BUSYBOX base64
+
+    # Clean-up the tmp folder since we won't need it any more
+    cd $TMPBASE
+    rm -rf $TMP_FOLDER
 }
 
 get_linux_system_id() {
@@ -334,8 +353,8 @@ ftrace_get_function_stats)
 hotplug_online_all)
 	hotplug_online_all
     ;;
-read_tree_values)
-	read_tree_values $*
+read_tree_tgz_b64)
+	read_tree_tgz_b64 $*
     ;;
 get_linux_system_id)
 	get_linux_system_id $*
@@ -343,6 +362,9 @@ get_linux_system_id)
 get_android_system_id)
 	get_android_system_id $*
     ;;
+sched_get_kernel_attributes)
+	sched_get_kernel_attributes $*
+	;;
 *)
     echo "Command [$CMD] not supported"
     exit -1

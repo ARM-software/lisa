@@ -105,6 +105,16 @@ class WorkerThreadError(DevlibError):
         super(WorkerThreadError, self).__init__(message)
 
 
+class KernelConfigKeyError(KeyError, IndexError, DevlibError):
+    """
+    Exception raised when a kernel config option cannot be found.
+
+    It inherits from :exc:`IndexError` for backward compatibility, and
+    :exc:`KeyError` to behave like a regular mapping.
+    """
+    pass
+
+
 def get_traceback(exc=None):
     """
     Returns the string with the traceback for the specifiec exc

@@ -106,17 +106,17 @@ class DerivedGfxInfoStats(DerivedFpsStats):
             frame_count += 1
 
             if start_vsync is None:
-                start_vsync = frame_data.Vsync_time_us
-            end_vsync = frame_data.Vsync_time_us
+                start_vsync = frame_data.Vsync_time_ns
+            end_vsync = frame_data.Vsync_time_ns
 
-            frame_time = frame_data.FrameCompleted_time_us - frame_data.IntendedVsync_time_us
+            frame_time = frame_data.FrameCompleted_time_ns - frame_data.IntendedVsync_time_ns
             pff = 1e9 / frame_time
             if pff > self.drop_threshold:
                 per_frame_fps.append([pff])
 
         if frame_count:
             duration = end_vsync - start_vsync
-            fps = (1e6 * frame_count) / float(duration)
+            fps = (1e9 * frame_count) / float(duration)
         else:
             duration = 0
             fps = 0
@@ -133,15 +133,15 @@ class DerivedGfxInfoStats(DerivedFpsStats):
     def _process_with_pandas(self, measurements_csv):
         data = pd.read_csv(measurements_csv.path)
         data = data[data.Flags_flags == 0]
-        frame_time = data.FrameCompleted_time_us - data.IntendedVsync_time_us
-        per_frame_fps = (1e6 / frame_time)
+        frame_time = data.FrameCompleted_time_ns - data.IntendedVsync_time_ns
+        per_frame_fps = (1e9 / frame_time)
         keep_filter = per_frame_fps > self.drop_threshold
         per_frame_fps = per_frame_fps[keep_filter]
         per_frame_fps.name = 'fps'
 
         frame_count = data.index.size
         if frame_count > 1:
-            duration = data.Vsync_time_us.iloc[-1] - data.Vsync_time_us.iloc[0]
+            duration = data.Vsync_time_ns.iloc[-1] - data.Vsync_time_ns.iloc[0]
             fps = (1e9 * frame_count) / float(duration)
         else:
             duration = 0
