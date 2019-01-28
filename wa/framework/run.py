@@ -22,27 +22,34 @@ from copy import copy
 from datetime import datetime, timedelta
 
 from wa.framework.configuration.core import Status
+from wa.utils.serializer import Podable
 
 
-class RunInfo(object):
+class RunInfo(Podable):
     """
     Information about the current run, such as its unique ID, run
     time, etc.
 
     """
+    _pod_serialization_version = 1
+
     @staticmethod
     def from_pod(pod):
+        pod = RunInfo._upgrade_pod(pod)
         uid = pod.pop('uuid')
+        _pod_version = pod.pop('_pod_version')
         duration = pod.pop('duration')
         if uid is not None:
             uid = uuid.UUID(uid)
         instance = RunInfo(**pod)
+        instance._pod_version = _pod_version  # pylint: disable=protected-access
         instance.uuid = uid
         instance.duration = duration if duration is None else timedelta(seconds=duration)
         return instance
 
     def __init__(self, run_name=None, project=None, project_stage=None,
                  start_time=None, end_time=None, duration=None):
+        super(RunInfo, self).__init__()
         self.uuid = uuid.uuid4()
         self.run_name = run_name
         self.project = project
@@ -52,7 +59,8 @@ class RunInfo(object):
         self.duration = duration
 
     def to_pod(self):
-        d = copy(self.__dict__)
+        d = super(RunInfo, self).to_pod()
+        d.update(copy(self.__dict__))
         d['uuid'] = str(self.uuid)
         if self.duration is None:
             d['duration'] = self.duration
@@ -60,16 +68,23 @@ class RunInfo(object):
             d['duration'] = self.duration.total_seconds()
         return d
 
+    @staticmethod
+    def _pod_upgrade_v1(pod):
+        pod['_pod_version'] = pod.get('_pod_version', 1)
+        return pod
 
-class RunState(object):
+
+class RunState(Podable):
     """
     Represents the state of a WA run.
 
     """
+    _pod_serialization_version = 1
+
     @staticmethod
     def from_pod(pod):
-        instance = RunState()
-        instance.status = Status(pod['status'])
+        instance = super(RunState, RunState).from_pod(pod)
+        instance.status = Status.from_pod(pod['status'])
         instance.timestamp = pod['timestamp']
         jss = [JobState.from_pod(j) for j in pod['jobs']]
         instance.jobs = OrderedDict(((js.id, js.iteration), js) for js in jss)
@@ -81,6 +96,7 @@ class RunState(object):
                    if js.status > Status.RUNNING)
 
     def __init__(self):
+        super(RunState, self).__init__()
         self.jobs = OrderedDict()
         self.status = Status.NEW
         self.timestamp = datetime.utcnow()
@@ -101,18 +117,28 @@ class RunState(object):
         return counter
 
     def to_pod(self):
-        return OrderedDict(
-            status=str(self.status),
-            timestamp=self.timestamp,
-            jobs=[j.to_pod() for j in self.jobs.values()],
-        )
+        pod = super(RunState, self).to_pod()
+        pod['status'] = self.status.to_pod()
+        pod['timestamp'] = self.timestamp
+        pod['jobs'] = [j.to_pod() for j in self.jobs.values()]
+        return pod
+
+    @staticmethod
+    def _pod_upgrade_v1(pod):
+        pod['_pod_version'] = pod.get('_pod_version', 1)
+        pod['status'] = Status(pod['status']).to_pod()
+        return pod
 
 
-class JobState(object):
+class JobState(Podable):
+
+    _pod_serialization_version = 1
 
     @staticmethod
     def from_pod(pod):
-        instance = JobState(pod['id'], pod['label'], pod['iteration'], Status(pod['status']))
+        pod = JobState._upgrade_pod(pod)
+        instance = JobState(pod['id'], pod['label'], pod['iteration'],
+                            Status.from_pod(pod['status']))
         instance.retries = pod['retries']
         instance.timestamp = pod['timestamp']
         return instance
@@ -123,6 +149,7 @@ class JobState(object):
 
     def __init__(self, id, label, iteration, status):
         # pylint: disable=redefined-builtin
+        super(JobState, self).__init__()
         self.id = id
         self.label = label
         self.iteration = iteration
@@ -131,11 +158,17 @@ class JobState(object):
         self.timestamp = datetime.utcnow()
 
     def to_pod(self):
-        return OrderedDict(
-            id=self.id,
-            label=self.label,
-            iteration=self.iteration,
-            status=str(self.status),
-            retries=0,
-            timestamp=self.timestamp,
-        )
+        pod = super(JobState, self).to_pod()
+        pod['id'] = self.id
+        pod['label'] = self.label
+        pod['iteration'] = self.iteration
+        pod['status'] = self.status.to_pod()
+        pod['retries'] = 0
+        pod['timestamp'] = self.timestamp
+        return pod
+
+    @staticmethod
+    def _pod_upgrade_v1(pod):
+        pod['_pod_version'] = pod.get('_pod_version', 1)
+        pod['status'] = Status(pod['status']).to_pod()
+        return pod

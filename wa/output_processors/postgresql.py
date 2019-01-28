@@ -16,7 +16,6 @@
 import os
 import uuid
 import collections
-import inspect
 
 try:
     import psycopg2
@@ -27,11 +26,14 @@ except ImportError as e:
     import_error_msg = e.args[0] if e.args else str(e)
 from devlib.target import KernelVersion, KernelConfig
 
-import wa
-from wa.utils import postgres_convert
 from wa import OutputProcessor, Parameter, OutputProcessorError
-from wa.utils.types import level
 from wa.framework.target.info import CpuInfo
+from wa.utils.postgres import (POSTGRES_SCHEMA_DIR, cast_level, cast_vanilla,
+                               adapt_vanilla, return_as_is, adapt_level,
+                               ListOfLevel, adapt_ListOfX, create_iterable_adapter,
+                               get_schema_versions)
+from wa.utils.serializer import json
+from wa.utils.types import level
 
 
 class PostgresqlResultProcessor(OutputProcessor):
@@ -43,10 +45,8 @@ class PostgresqlResultProcessor(OutputProcessor):
     The structure of this database can easily be understood by examining
     the postgres_schema.sql file (the schema used to generate it):
     {}
-    """.format(os.path.join(
-        os.path.dirname(inspect.getfile(wa)),
-        'commands',
-        'postgres_schema.sql'))
+    """.format(os.path.join(POSTGRES_SCHEMA_DIR, 'postgres_schema.sql'))
+
     parameters = [
         Parameter('username', default='postgres',
                   description="""
@@ -84,19 +84,23 @@ class PostgresqlResultProcessor(OutputProcessor):
 
     # Commands
     sql_command = {
-        "create_run": "INSERT INTO Runs (oid, event_summary, basepath, status, timestamp, run_name, project, retry_on_status, max_retries, bail_on_init_failure, allow_phone_home, run_uuid, start_time, metadata) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-        "update_run": "UPDATE Runs SET event_summary=%s, status=%s, timestamp=%s, end_time=%s WHERE oid=%s;",
-        "create_job": "INSERT INTO Jobs (oid, run_oid, status, retries, label, job_id, iterations, workload_name, metadata) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);",
-        "create_target": "INSERT INTO Targets (oid, run_oid, target, cpus, os, os_version, hostid, hostname, abi, is_rooted, kernel_version, kernel_release, kernel_sha1, kernel_config, sched_features) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-        "create_event": "INSERT INTO Events (oid, run_oid, job_oid, timestamp, message) VALUES (%s, %s, %s, %s, %s)",
-        "create_artifact": "INSERT INTO Artifacts (oid, run_oid, job_oid, name, large_object_uuid, description, kind) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-        "create_metric": "INSERT INTO Metrics (oid, run_oid, job_oid, name, value, units, lower_is_better) VALUES (%s, %s, %s, %s , %s, %s, %s)",
+        "create_run": "INSERT INTO Runs (oid, event_summary, basepath, status, timestamp, run_name, project, project_stage, retry_on_status, max_retries, bail_on_init_failure, allow_phone_home, run_uuid, start_time, metadata, state, _pod_version, _pod_serialization_version) "
+                      "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        "update_run": "UPDATE Runs SET event_summary=%s, status=%s, timestamp=%s, end_time=%s, duration=%s, state=%s WHERE oid=%s;",
+        "create_job": "INSERT INTO Jobs (oid, run_oid, status, retry, label, job_id, iterations, workload_name, metadata, _pod_version, _pod_serialization_version) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);",
+        "create_target": "INSERT INTO Targets (oid, run_oid, target, cpus, os, os_version, hostid, hostname, abi, is_rooted, kernel_version, kernel_release, kernel_sha1, kernel_config, sched_features, page_size_kb, screen_resolution, prop, android_id, _pod_version, _pod_serialization_version) "
+                         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        "create_event": "INSERT INTO Events (oid, run_oid, job_oid, timestamp, message, _pod_version, _pod_serialization_version) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s",
+        "create_artifact": "INSERT INTO Artifacts (oid, run_oid, job_oid, name, large_object_uuid, description, kind, _pod_version, _pod_serialization_version) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        "create_metric": "INSERT INTO Metrics (oid, run_oid, job_oid, name, value, units, lower_is_better, _pod_version, _pod_serialization_version) VALUES (%s, %s, %s, %s, %s, %s , %s, %s, %s)",
         "create_augmentation": "INSERT INTO Augmentations (oid, run_oid, name) VALUES (%s, %s, %s)",
-        "create_classifier": "INSERT INTO Classifiers (oid, artifact_oid, metric_oid, key, value) VALUES (%s, %s, %s, %s, %s)",
-        "create_parameter": "INSERT INTO Parameters (oid, run_oid, job_oid, augmentation_oid, resource_getter_oid, name, value, value_type, type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-        "create_resource_getter": "INSERT INTO ResourceGetters (oid, run_oid, name) VALUES (%s, %s, %s)",
+        "create_classifier": "INSERT INTO Classifiers (oid, artifact_oid, metric_oid, job_oid, run_oid, key, value) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+        "create_parameter": "INSERT INTO Parameters (oid, run_oid, job_oid, augmentation_oid, resource_getter_oid, name, value, value_type, type) "
+                            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        "create_resource_getter": "INSERT INTO Resource_Getters (oid, run_oid, name) VALUES (%s, %s, %s)",
         "create_job_aug": "INSERT INTO Jobs_Augs (oid, job_oid, augmentation_oid) VALUES (%s, %s, %s)",
-        "create_large_object": "INSERT INTO LargeObjects (oid, lo_oid) VALUES (%s, %s)"}
+        "create_large_object": "INSERT INTO LargeObjects (oid, lo_oid) VALUES (%s, %s)"
+    }
 
     # Lists to track which run-related items have already been added
     metrics_already_added = []
@@ -123,34 +127,37 @@ class PostgresqlResultProcessor(OutputProcessor):
         # N.B. Typecasters are for postgres->python and adapters the opposite
         self.connect_to_database()
         self.cursor = self.conn.cursor()
+        self.verify_schema_versions()
+
         # Register the adapters and typecasters for enum types
         self.cursor.execute("SELECT NULL::status_enum")
         status_oid = self.cursor.description[0][1]
         self.cursor.execute("SELECT NULL::param_enum")
         param_oid = self.cursor.description[0][1]
         LEVEL = psycopg2.extensions.new_type(
-            (status_oid,), "LEVEL", postgres_convert.cast_level)
+            (status_oid,), "LEVEL", cast_level)
         psycopg2.extensions.register_type(LEVEL)
         PARAM = psycopg2.extensions.new_type(
-            (param_oid,), "PARAM", postgres_convert.cast_vanilla)
+            (param_oid,), "PARAM", cast_vanilla)
         psycopg2.extensions.register_type(PARAM)
-        psycopg2.extensions.register_adapter(level, postgres_convert.return_as_is(postgres_convert.adapt_level))
+        psycopg2.extensions.register_adapter(level, return_as_is(adapt_level))
         psycopg2.extensions.register_adapter(
-            postgres_convert.ListOfLevel, postgres_convert.adapt_ListOfX(postgres_convert.adapt_level))
-        psycopg2.extensions.register_adapter(KernelVersion, postgres_convert.adapt_vanilla)
+            ListOfLevel, adapt_ListOfX(adapt_level))
+        psycopg2.extensions.register_adapter(KernelVersion, adapt_vanilla)
         psycopg2.extensions.register_adapter(
-            CpuInfo, postgres_convert.adapt_vanilla)
+            CpuInfo, adapt_vanilla)
         psycopg2.extensions.register_adapter(
             collections.OrderedDict, extras.Json)
         psycopg2.extensions.register_adapter(dict, extras.Json)
         psycopg2.extensions.register_adapter(
-            KernelConfig, postgres_convert.create_iterable_adapter(2, explicit_iterate=True))
+            KernelConfig, create_iterable_adapter(2, explicit_iterate=True))
         # Register ready-made UUID type adapter
         extras.register_uuid()
+
         # Insert a run_uuid which will be globally accessible during the run
         self.run_uuid = uuid.UUID(str(uuid.uuid4()))
         run_output = context.run_output
-        retry_on_status = postgres_convert.ListOfLevel(run_output.run_config.retry_on_status)
+        retry_on_status = ListOfLevel(run_output.run_config.retry_on_status)
         self.cursor.execute(
             self.sql_command['create_run'],
             (
@@ -161,35 +168,52 @@ class PostgresqlResultProcessor(OutputProcessor):
                 run_output.state.timestamp,
                 run_output.info.run_name,
                 run_output.info.project,
+                run_output.info.project_stage,
                 retry_on_status,
                 run_output.run_config.max_retries,
                 run_output.run_config.bail_on_init_failure,
                 run_output.run_config.allow_phone_home,
                 run_output.info.uuid,
                 run_output.info.start_time,
-                run_output.metadata))
+                run_output.metadata,
+                json.dumps(run_output.state.to_pod()),
+                run_output.result._pod_version,  # pylint: disable=protected-access
+                run_output.result._pod_serialization_version,  # pylint: disable=protected-access
+            )
+        )
         self.target_uuid = uuid.uuid4()
         target_info = context.target_info
+        target_pod = target_info.to_pod()
         self.cursor.execute(
             self.sql_command['create_target'],
             (
                 self.target_uuid,
                 self.run_uuid,
-                target_info.target,
-                target_info.cpus,
-                target_info.os,
-                target_info.os_version,
-                target_info.hostid,
-                target_info.hostname,
-                target_info.abi,
-                target_info.is_rooted,
+                target_pod['target'],
+                target_pod['cpus'],
+                target_pod['os'],
+                target_pod['os_version'],
+                target_pod['hostid'],
+                target_pod['hostname'],
+                target_pod['abi'],
+                target_pod['is_rooted'],
                 # Important caveat: kernel_version is the name of the column in the Targets table
                 # However, this refers to kernel_version.version, not to kernel_version as a whole
-                target_info.kernel_version.version,
-                target_info.kernel_version.release,
+                target_pod['kernel_version'],
+                target_pod['kernel_release'],
                 target_info.kernel_version.sha1,
                 target_info.kernel_config,
-                target_info.sched_features))
+                target_pod['sched_features'],
+                target_pod['page_size_kb'],
+                # Android Specific
+                target_pod.get('screen_resolution'),
+                target_pod.get('prop'),
+                target_pod.get('android_id'),
+                target_pod.get('pod_version'),
+                target_pod.get('pod_serialization_version'),
+            )
+        )
+
         # Commit cursor commands
         self.conn.commit()
 
@@ -210,7 +234,26 @@ class PostgresqlResultProcessor(OutputProcessor):
                 job_output.id,
                 job_output.iteration,
                 job_output.spec.workload_name,
-                job_output.metadata))
+                job_output.metadata,
+                job_output.spec._pod_version,  # pylint: disable=protected-access
+                job_output.spec._pod_serialization_version,  # pylint: disable=protected-access
+            )
+        )
+
+        for classifier in job_output.classifiers:
+            classifier_uuid = uuid.uuid4()
+            self.cursor.execute(
+                self.sql_command['create_classifier'],
+                (
+                    classifier_uuid,
+                    None,
+                    None,
+                    job_uuid,
+                    None,
+                    classifier,
+                    job_output.classifiers[classifier]
+                )
+            )
         # Update the run table and run-level parameters
         self.cursor.execute(
             self.sql_command['update_run'],
@@ -219,7 +262,24 @@ class PostgresqlResultProcessor(OutputProcessor):
                 run_output.status,
                 run_output.state.timestamp,
                 run_output.info.end_time,
+                None,
+                json.dumps(run_output.state.to_pod()),
                 self.run_uuid))
+        for classifier in run_output.classifiers:
+            classifier_uuid = uuid.uuid4()
+            self.cursor.execute(
+                self.sql_command['create_classifier'],
+                (
+                    classifier_uuid,
+                    None,
+                    None,
+                    None,
+                    None,
+                    self.run_uuid,
+                    classifier,
+                    run_output.classifiers[classifier]
+                )
+            )
         self.sql_upload_artifacts(run_output, record_in_added=True)
         self.sql_upload_metrics(run_output, record_in_added=True)
         self.sql_upload_augmentations(run_output)
@@ -253,19 +313,27 @@ class PostgresqlResultProcessor(OutputProcessor):
                 (
                     job_status,
                     job_id,
-                    self.run_uuid))
+                    self.run_uuid
+                )
+            )
 
         run_uuid = self.run_uuid
         # Update the run entry after jobs have completed
+        run_info_pod = run_output.info.to_pod()
+        run_state_pod = run_output.state.to_pod()
         sql_command_update_run = self.sql_command['update_run']
         self.cursor.execute(
             sql_command_update_run,
             (
                 run_output.event_summary,
                 run_output.status,
-                run_output.state.timestamp,
-                run_output.info.end_time,
-                run_uuid))
+                run_info_pod['start_time'],
+                run_info_pod['end_time'],
+                run_info_pod['duration'],
+                json.dumps(run_state_pod),
+                run_uuid,
+            )
+        )
         self.sql_upload_events(run_output)
         self.sql_upload_artifacts(run_output, check_uniqueness=True)
         self.sql_upload_metrics(run_output, check_uniqueness=True)
@@ -282,11 +350,14 @@ class PostgresqlResultProcessor(OutputProcessor):
                 (
                     resource_getter_uuid,
                     self.run_uuid,
-                    resource_getter))
+                    resource_getter,
+                )
+            )
             self.sql_upload_parameters(
                 'resource_getter',
                 output_object.run_config.resource_getters[resource_getter],
-                owner_id=resource_getter_uuid)
+                owner_id=resource_getter_uuid,
+            )
 
     def sql_upload_events(self, output_object, job_uuid=None):
         for event in output_object.events:
@@ -298,7 +369,11 @@ class PostgresqlResultProcessor(OutputProcessor):
                     self.run_uuid,
                     job_uuid,
                     event.timestamp,
-                    event.message))
+                    event.message,
+                    event._pod_version,  # pylint: disable=protected-access
+                    event._pod_serialization_version,  # pylint: disable=protected-access
+                )
+            )
 
     def sql_upload_job_augmentations(self, output_object, job_uuid=None):
         ''' This is a table which links the uuids of augmentations to jobs.
@@ -318,7 +393,9 @@ class PostgresqlResultProcessor(OutputProcessor):
                 (
                     job_aug_uuid,
                     job_uuid,
-                    augmentation_uuid))
+                    augmentation_uuid,
+                )
+            )
 
     def sql_upload_augmentations(self, output_object):
         for augmentation in output_object.augmentations:
@@ -330,11 +407,14 @@ class PostgresqlResultProcessor(OutputProcessor):
                 (
                     augmentation_uuid,
                     self.run_uuid,
-                    augmentation))
+                    augmentation,
+                )
+            )
             self.sql_upload_parameters(
                 'augmentation',
                 output_object.run_config.augmentations[augmentation],
-                owner_id=augmentation_uuid)
+                owner_id=augmentation_uuid,
+            )
             self.augmentations_already_added[augmentation] = augmentation_uuid
 
     def sql_upload_metrics(self, output_object, record_in_added=False, check_uniqueness=False, job_uuid=None):
@@ -351,7 +431,11 @@ class PostgresqlResultProcessor(OutputProcessor):
                     metric.name,
                     metric.value,
                     metric.units,
-                    metric.lower_is_better))
+                    metric.lower_is_better,
+                    metric._pod_version,  # pylint: disable=protected-access
+                    metric._pod_serialization_version,  # pylint: disable=protected-access
+                )
+            )
             for classifier in metric.classifiers:
                 classifier_uuid = uuid.uuid4()
                 self.cursor.execute(
@@ -360,8 +444,12 @@ class PostgresqlResultProcessor(OutputProcessor):
                         classifier_uuid,
                         None,
                         metric_uuid,
+                        None,
+                        None,
                         classifier,
-                        metric.classifiers[classifier]))
+                        metric.classifiers[classifier],
+                    )
+                )
             if record_in_added:
                 self.metrics_already_added.append(metric)
 
@@ -372,7 +460,7 @@ class PostgresqlResultProcessor(OutputProcessor):
         '''
         for artifact in output_object.artifacts:
             if artifact in self.artifacts_already_added and check_uniqueness:
-                self.logger.debug('Skipping uploading {} as already added' .format(artifact))
+                self.logger.debug('Skipping uploading {} as already added'.format(artifact))
                 continue
 
             if artifact in self.artifacts_already_added:
@@ -407,9 +495,11 @@ class PostgresqlResultProcessor(OutputProcessor):
                     augmentation_id,
                     resource_getter_id,
                     parameter,
-                    str(parameter_dict[parameter]),
+                    json.dumps(parameter_dict[parameter]),
                     str(type(parameter_dict[parameter])),
-                    parameter_type))
+                    parameter_type,
+                )
+            )
 
     def connect_to_database(self):
         dsn = "dbname={} user={} password={} host={} port={}".format(
@@ -429,6 +519,18 @@ class PostgresqlResultProcessor(OutputProcessor):
         cursor.close()
         self.conn.commit()
         self.conn.reset()
+
+    def verify_schema_versions(self):
+        local_schema_version, db_schema_version = get_schema_versions(self.conn)
+        if local_schema_version != db_schema_version:
+            self.cursor.close()
+            self.cursor = None
+            self.conn.commit()
+            self.conn.reset()
+            msg = 'The current database schema is v{} however the local ' \
+                  'schema version is v{}. Please update your database ' \
+                  'with the create command'
+            raise OutputProcessorError(msg.format(db_schema_version, local_schema_version))
 
     def _sql_write_lobject(self, source, lobject):
         with open(source) as lobj_file:
@@ -456,7 +558,9 @@ class PostgresqlResultProcessor(OutputProcessor):
             self.sql_command['create_large_object'],
             (
                 large_object_uuid,
-                loid))
+                loid,
+            )
+        )
         self.cursor.execute(
             self.sql_command['create_artifact'],
             (
@@ -466,7 +570,11 @@ class PostgresqlResultProcessor(OutputProcessor):
                 artifact.name,
                 large_object_uuid,
                 artifact.description,
-                artifact.kind))
+                str(artifact.kind),
+                artifact._pod_version,  # pylint: disable=protected-access
+                artifact._pod_serialization_version,  # pylint: disable=protected-access
+            )
+        )
         for classifier in artifact.classifiers:
             classifier_uuid = uuid.uuid4()
             self.cursor.execute(
@@ -475,7 +583,11 @@ class PostgresqlResultProcessor(OutputProcessor):
                     classifier_uuid,
                     artifact_uuid,
                     None,
+                    None,
+                    None,
                     classifier,
-                    artifact.classifiers[classifier]))
+                    artifact.classifiers[classifier],
+                )
+            )
         if record_in_added:
             self.artifacts_already_added[artifact] = loid

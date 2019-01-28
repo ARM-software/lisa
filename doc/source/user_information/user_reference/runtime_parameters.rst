@@ -98,7 +98,7 @@ CPUFreq
 
 :governor: A ``string`` that can be used to specify the governor for all cores if there are common governors available.
 
-:governor_tunable: A ``dict`` that can be used to specify governor
+:gov_tunables: A ``dict`` that can be used to specify governor
                    tunables for all cores, unlike the other common parameters these are not
                    validated at the beginning of the run therefore incorrect values will cause
                    an error during runtime.
@@ -113,7 +113,7 @@ CPUFreq
 
 :<core_name>_governor: A ``string`` that can be used to specify the governor for cores of a particular type e.g. 'A72'.
 
-:<core_name>_governor_tunable: A ``dict`` that can be used to specify governor
+:<core_name>_gov_tunables: A ``dict`` that can be used to specify governor
                          tunables for cores of a particular type e.g. 'A72', these are not
                          validated at the beginning of the run therefore incorrect values will cause
                          an error during runtime.
@@ -129,7 +129,7 @@ CPUFreq
 
 :cpu<no>_governor: A ``string`` that can be used to specify the governor for a particular core e.g. 'cpu0'.
 
-:cpu<no>_governor_tunable: A ``dict`` that can be used to specify governor
+:cpu<no>_gov_tunables: A ``dict`` that can be used to specify governor
                          tunables for a particular core e.g. 'cpu0', these are not
                          validated at the beginning of the run therefore incorrect values will cause
                          an error during runtime.
@@ -147,7 +147,7 @@ If big.LITTLE is detected for the device an additional set of parameters are ava
 
 :big_governor: A ``string`` that can be used to specify the governor for the big cores.
 
-:big_governor_tunable: A ``dict`` that can be used to specify governor
+:big_gov_tunables: A ``dict`` that can be used to specify governor
                          tunables for the big cores, these are not
                          validated at the beginning of the run therefore incorrect values will cause
                          an error during runtime.
@@ -162,7 +162,7 @@ If big.LITTLE is detected for the device an additional set of parameters are ava
 
 :little_governor: A ``string`` that can be used to specify the governor for the little cores.
 
-:little_governor_tunable: A ``dict`` that can be used to specify governor
+:little_gov_tunables: A ``dict`` that can be used to specify governor
                          tunables for the little cores, these are not
                          validated at the beginning of the run therefore incorrect values will cause
                          an error during runtime.

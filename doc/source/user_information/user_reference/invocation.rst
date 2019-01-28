@@ -238,6 +238,33 @@ Which will produce something like::
 This will be populated with default values which can then be customised for the
 particular use case.
 
+Additionally the create command can be used to initialize (and update) a
+Postgres database which can be used by the ``postgres`` output processor.
+
+The most of database connection parameters have a default value however they can
+be overridden via command line arguments. When initializing the database WA will
+also save the supplied parameters into the default user config file so that they
+do not need to be specified time the output processor is used.
+
+As an example if we had a database server running on at 10.0.0.2 using the
+standard port we could use the following command to initialize a database for
+use with WA::
+
+        wa create database -a 10.0.0.2 -u my_username -p Pa55w0rd
+
+This will log into the database server with the supplied credentials and create
+a database (defaulting to 'wa') and will save the configuration to the
+``~/.workload_automation/config.yaml`` file.
+
+With updates to WA there may be changes to the database schema used. In this
+case the create command can also be used with the ``-U`` flag to update the
+database to use the new schema as follows::
+
+        wa create database -a 10.0.0.2 -u my_username -p Pa55w0rd -U
+
+This will upgrade the database sequentially until the database schema is using
+the latest version.
+
 .. _process-command:
 
 Process

@@ -15,7 +15,6 @@
 # pylint: disable=protected-access
 
 import os
-from copy import copy
 
 from devlib import AndroidTarget, TargetError
 from devlib.target import KernelConfig, KernelVersion, Cpuinfo
@@ -23,7 +22,7 @@ from devlib.utils.android import AndroidProperties
 
 from wa.framework.configuration.core import settings
 from wa.framework.exception import ConfigError
-from wa.utils.serializer import read_pod, write_pod
+from wa.utils.serializer import read_pod, write_pod, Podable
 
 
 def cpuinfo_from_pod(pod):
@@ -65,20 +64,32 @@ def kernel_config_from_pod(pod):
     return config
 
 
-class CpufreqInfo(object):
+class CpufreqInfo(Podable):
+
+    _pod_serialization_version = 1
 
     @staticmethod
     def from_pod(pod):
+        pod = CpufreqInfo._upgrade_pod(pod)
         return CpufreqInfo(**pod)
 
     def __init__(self, **kwargs):
+        super(CpufreqInfo, self).__init__()
         self.available_frequencies = kwargs.pop('available_frequencies', [])
         self.available_governors = kwargs.pop('available_governors', [])
         self.related_cpus = kwargs.pop('related_cpus', [])
         self.driver = kwargs.pop('driver', None)
+        self._pod_version = kwargs.pop('_pod_version', self._pod_serialization_version)
 
     def to_pod(self):
-        return copy(self.__dict__)
+        pod = super(CpufreqInfo, self).to_pod()
+        pod.update(self.__dict__)
+        return pod
+
+    @staticmethod
+    def _pod_upgrade_v1(pod):
+        pod['_pod_version'] = pod.get('_pod_version', 1)
+        return pod
 
     def __repr__(self):
         return 'Cpufreq({} {})'.format(self.driver, self.related_cpus)
@@ -86,20 +97,32 @@ class CpufreqInfo(object):
     __str__ = __repr__
 
 
-class IdleStateInfo(object):
+class IdleStateInfo(Podable):
+
+    _pod_serialization_version = 1
 
     @staticmethod
     def from_pod(pod):
+        pod = IdleStateInfo._upgrade_pod(pod)
         return IdleStateInfo(**pod)
 
     def __init__(self, **kwargs):
+        super(IdleStateInfo, self).__init__()
         self.name = kwargs.pop('name', None)
         self.desc = kwargs.pop('desc', None)
         self.power = kwargs.pop('power', None)
         self.latency = kwargs.pop('latency', None)
+        self._pod_version = kwargs.pop('_pod_version', self._pod_serialization_version)
 
     def to_pod(self):
-        return copy(self.__dict__)
+        pod = super(IdleStateInfo, self).to_pod()
+        pod.update(self.__dict__)
+        return pod
+
+    @staticmethod
+    def _pod_upgrade_v1(pod):
+        pod['_pod_version'] = pod.get('_pod_version', 1)
+        return pod
 
     def __repr__(self):
         return 'IdleState({}/{})'.format(self.name, self.desc)
@@ -107,11 +130,15 @@ class IdleStateInfo(object):
     __str__ = __repr__
 
 
-class CpuidleInfo(object):
+class CpuidleInfo(Podable):
+
+    _pod_serialization_version = 1
 
     @staticmethod
     def from_pod(pod):
+        pod = CpuidleInfo._upgrade_pod(pod)
         instance = CpuidleInfo()
+        instance._pod_version = pod['_pod_version']
         instance.governor = pod['governor']
         instance.driver = pod['driver']
         instance.states = [IdleStateInfo.from_pod(s) for s in pod['states']]
@@ -122,15 +149,21 @@ class CpuidleInfo(object):
         return len(self.states)
 
     def __init__(self):
+        super(CpuidleInfo, self).__init__()
         self.governor = None
         self.driver = None
         self.states = []
 
     def to_pod(self):
-        pod = {}
+        pod = super(CpuidleInfo, self).to_pod()
         pod['governor'] = self.governor
         pod['driver'] = self.driver
         pod['states'] = [s.to_pod() for s in self.states]
+        return pod
+
+    @staticmethod
+    def _pod_upgrade_v1(pod):
+        pod['_pod_version'] = pod.get('_pod_version', 1)
         return pod
 
     def __repr__(self):
@@ -140,11 +173,13 @@ class CpuidleInfo(object):
     __str__ = __repr__
 
 
-class CpuInfo(object):
+class CpuInfo(Podable):
+
+    _pod_serialization_version = 1
 
     @staticmethod
     def from_pod(pod):
-        instance = CpuInfo()
+        instance = super(CpuInfo, CpuInfo).from_pod(pod)
         instance.id = pod['id']
         instance.name = pod['name']
         instance.architecture = pod['architecture']
@@ -154,6 +189,7 @@ class CpuInfo(object):
         return instance
 
     def __init__(self):
+        super(CpuInfo, self).__init__()
         self.id = None
         self.name = None
         self.architecture = None
@@ -162,13 +198,18 @@ class CpuInfo(object):
         self.cpuidle = CpuidleInfo()
 
     def to_pod(self):
-        pod = {}
+        pod = super(CpuInfo, self).to_pod()
         pod['id'] = self.id
         pod['name'] = self.name
         pod['architecture'] = self.architecture
         pod['features'] = self.features
         pod['cpufreq'] = self.cpufreq.to_pod()
         pod['cpuidle'] = self.cpuidle.to_pod()
+        return pod
+
+    @staticmethod
+    def _pod_upgrade_v1(pod):
+        pod['_pod_version'] = pod.get('_pod_version', 1)
         return pod
 
     def __repr__(self):
@@ -254,10 +295,10 @@ def get_target_info_from_cache(system_id):
     if not pod:
         return None
 
-    pod_version = pod.get('format_version', 0)
-    if pod_version != TargetInfo.format_version:
+    _pod_version = pod.get('_pod_version', 0)
+    if _pod_version != TargetInfo._pod_serialization_version:
         msg = 'Target info version mismatch. Expected {}, but found {}.\nTry deleting {}'
-        raise ConfigError(msg.format(TargetInfo.format_version, pod_version,
+        raise ConfigError(msg.format(TargetInfo._pod_serialization_version, _pod_version,
                                      settings.target_info_cache_file))
     return TargetInfo.from_pod(pod)
 
@@ -270,13 +311,13 @@ def cache_target_info(target_info, overwrite=False):
     write_target_info_cache(cache)
 
 
-class TargetInfo(object):
+class TargetInfo(Podable):
 
-    format_version = 2
+    _pod_serialization_version = 2
 
     @staticmethod
     def from_pod(pod):
-        instance = TargetInfo()
+        instance = super(TargetInfo, TargetInfo).from_pod(pod)
         instance.target = pod['target']
         instance.abi = pod['abi']
         instance.cpus = [CpuInfo.from_pod(c) for c in pod['cpus']]
@@ -300,6 +341,7 @@ class TargetInfo(object):
         return instance
 
     def __init__(self):
+        super(TargetInfo, self).__init__()
         self.target = None
         self.cpus = []
         self.os = None
@@ -318,8 +360,7 @@ class TargetInfo(object):
         self.page_size_kb = None
 
     def to_pod(self):
-        pod = {}
-        pod['format_version'] = self.format_version
+        pod = super(TargetInfo, self).to_pod()
         pod['target'] = self.target
         pod['abi'] = self.abi
         pod['cpus'] = [c.to_pod() for c in self.cpus]
@@ -340,4 +381,23 @@ class TargetInfo(object):
             pod['prop'] = self.prop._properties
             pod['android_id'] = self.android_id
 
+        return pod
+
+    @staticmethod
+    def _pod_upgrade_v1(pod):
+        pod['_pod_version'] = pod.get('_pod_version', 1)
+        pod['cpus'] = pod.get('cpus', [])
+        pod['system_id'] = pod.get('system_id')
+        pod['hostid'] = pod.get('hostid')
+        pod['hostname'] = pod.get('hostname')
+        pod['sched_features'] = pod.get('sched_features')
+        pod['screen_resolution'] = pod.get('screen_resolution', (0, 0))
+        pod['prop'] = pod.get('prop')
+        pod['android_id'] = pod.get('android_id')
+        return pod
+
+    @staticmethod
+    def _pod_upgrade_v2(pod):
+        pod['page_size_kb'] = pod.get('page_size_kb')
+        pod['_pod_version'] = pod.get('format_version', 0)
         return pod

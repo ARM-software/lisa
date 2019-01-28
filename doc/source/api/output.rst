@@ -23,6 +23,23 @@ iterating over all WA output directories found.
     :param path: must be the path to the top-level output directory (the one
                  containing ``__meta`` subdirectory and ``run.log``).
 
+WA output stored in a Postgres database by the ``Postgres`` output processor
+can be accessed via a :class:`RunDatabaseOutput` which can be initialized as follows:
+
+.. class:: RunDatabaseOutput(password, host='localhost', user='postgres', port='5432', dbname='wa', run_uuid=None, list_runs=False)
+
+    The main interface into Postgres database containing WA results.
+
+    :param password: The password used to authenticate with
+    :param host: The database host address. Defaults to ``'localhost'``
+    :param user: The user name used to authenticate with. Defaults to ``'postgres'``
+    :param port: The database connection port number. Defaults to ``'5432'``
+    :param dbname: The database name. Defaults to ``'wa'``
+    :param run_uuid: The ``run_uuid`` to identify the selected run
+    :param list_runs: Will connect to the database and will print out the available runs
+            with their corresponding run_uuids. Defaults to ``False``
+
+
 Example
 -------
 
@@ -39,6 +56,32 @@ called ``wa_output`` in the current working directory we can initialize a
        ...: output_directory = 'wa_output'
        ...: run_output = RunOutput(output_directory)
 
+Alternatively if the results have been stored in a Postgres database we can
+initialize a ``RunDatabaseOutput`` as follows:
+
+.. code-block:: python
+
+    In [1]: from wa import RunDatabaseOutput
+       ...:
+       ...: db_settings = {
+       ...:                host: 'localhost',
+       ...:                port: '5432',
+       ...:                dbname: 'wa'
+       ...:                user: 'postgres',
+       ...:                password: 'wa'
+       ...:                }
+       ...:
+       ...: RunDatabaseOutput(list_runs=True, **db_settings)
+    Available runs are:
+    ========= ============ ============= =================== =================== ====================================
+     Run Name      Project Project Stage          Start Time            End Time                             run_uuid
+    ========= ============ ============= =================== =================== ====================================
+    Test Run    my_project          None 2018-11-29 14:53:08 2018-11-29 14:53:24 aa3077eb-241a-41d3-9610-245fd4e552a9
+    run_1       my_project          None 2018-11-29 14:53:34 2018-11-29 14:53:37 4c2885c9-2f4a-49a1-bbc5-b010f8d6b12a
+    ========= ============ ============= =================== =================== ====================================
+
+    In [2]: run_uuid = '4c2885c9-2f4a-49a1-bbc5-b010f8d6b12a'
+       ...: run_output = RunDatabaseOutput(run_uuid=run_uuid, **db_settings)
 
 
 From here we can retrieve various information about the run. For example if we
@@ -65,7 +108,7 @@ parameters and the metrics recorded from the first job was we can do the followi
     Out[5]: u'dhrystone'
 
     # Print out all the runtime parameters and their values for this job
-    In [6]: for k, v in job_1.spec.runtime_parameters.iteritems():
+    In [6]: for k, v in job_1.spec.runtime_parameters.items():
        ...:     print (k, v)
     (u'airplane_mode': False)
     (u'brightness': 100)
@@ -92,6 +135,15 @@ parameters and the metrics recorded from the first job was we can do the followi
      <total DMIPS: 52793 (+)>,
      <total score: 92758402 (+)>]
 
+    # Load the run results csv file into pandas
+    In [7]: pd.read_csv(run_output.get_artifact_path('run_result_csv'))
+    Out[7]:
+                id   workload  iteration          metric          value    units
+    0   450000-wk1  dhrystone          1  thread 0 score   1.442310e+07      NaN
+    1   450000-wk1  dhrystone          1  thread 0 DMIPS   8.209700e+04      NaN
+    2   450000-wk1  dhrystone          1  thread 1 score   1.442310e+07      NaN
+    3   450000-wk1  dhrystone          1  thread 1 DMIPS   8.720900e+04      NaN
+    ...
 
 
 We can also retrieve information about the target that the run was performed on
@@ -214,7 +266,7 @@ methods
    Return the :class:`Metric` associated with the run (not the individual jobs)
    with the specified `name`.
 
-   :return: The :class`Metric` object for the metric with the specified name.
+   :return: The :class:`Metric` object for the metric with the specified name.
 
 
 .. method:: RunOutput.get_job_spec(spec_id)
@@ -230,6 +282,46 @@ methods
     in the order in which they first ran.
 
     :return: A list of `str` labels of workloads that were part of this run.
+
+
+:class:`RunDatabaseOutput`
+---------------------------
+
+:class:`RunDatabaseOutput` provides access to the output of a WA :term:`run`,
+including metrics,artifacts, metadata, and configuration stored in a postgres database.
+The majority of attributes and methods are the same :class:`RunOutput` however the
+noticeable differences are:
+
+``jobs``
+    A list of :class:`JobDatabaseOutput` objects for each job that was executed
+    during the run.
+
+``basepath``
+  A representation of the current database and host information backing this object.
+
+methods
+~~~~~~~
+
+.. method:: RunDatabaseOutput.get_artifact(name)
+
+    Return the :class:`Artifact` specified by ``name``. This will only look
+    at the run artifacts; this will not search the artifacts of the individual
+    jobs. The `path` attribute of the :class:`Artifact` will be set to the Database OID of the object.
+
+    :param name:  The name of the artifact who's path to retrieve.
+    :return: The :class:`Artifact` with that name
+    :raises HostError: If the artifact with the specified name does not exist.
+
+
+.. method:: RunDatabaseOutput.get_artifact_path(name)
+
+    Returns a `StringIO` object containing the contents of the artifact
+    specified by ``name``. This will only look at the run artifacts; this will
+    not search the artifacts of the individual jobs.
+
+    :param name:  The name of the artifact who's path to retrieve.
+    :return: A `StringIO` object with the contents of the artifact
+    :raises HostError: If the artifact with the specified name does not exist.
 
 
 :class:`JobOutput`
@@ -311,10 +403,9 @@ methods
 
     Return the :class:`Artifact` specified by ``name`` associated with this job.
 
-    :param name:  The name of the artifact who's path to retrieve.
+    :param name:  The name of the artifact to retrieve.
     :return: The :class:`Artifact` with that name
     :raises HostError: If the artifact with the specified name does not exist.
-
 
 .. method:: RunOutput.get_artifact_path(name)
 
@@ -325,13 +416,48 @@ methods
     :return: The path to the artifact
     :raises HostError: If the artifact with the specified name does not exist.
 
-
 .. method:: RunOutput.get_metric(name)
 
    Return the :class:`Metric` associated with this job with the specified
    `name`.
 
-   :return: The :class`Metric` object for the metric with the specified name.
+   :return: The :class:`Metric` object for the metric with the specified name.
+
+
+:class:`JobDatabaseOutput`
+---------------------------
+
+:class:`JobOutput` provides access to the output of a single :term:`job`
+executed during a WA :term:`run`, including metrics, artifacts, metadata, and
+configuration stored in a postgres database.
+The majority of attributes and methods are the same :class:`JobOutput` however the
+noticeable differences are:
+
+``basepath``
+  A representation of the current database and host information backing this object.
+
+
+methods
+~~~~~~~
+
+.. method:: JobDatabaseOutput.get_artifact(name)
+
+    Return the :class:`Artifact` specified by ``name`` associated with this job.
+    The `path` attribute of the :class:`Artifact` will be set to the Database
+    OID of the object.
+
+    :param name:  The name of the artifact to retrieve.
+    :return: The :class:`Artifact` with that name
+    :raises HostError: If the artifact with the specified name does not exist.
+
+.. method:: JobDatabaseOutput.get_artifact_path(name)
+
+    Returns a ``StringIO`` object containing the contents of the artifact
+    specified by ``name`` associated with this job.
+
+    :param name:  The name of the artifact who's path to retrieve.
+    :return: A `StringIO` object with the contents of the artifact
+    :raises HostError: If the artifact with the specified name does not exist.
 
 
 :class:`Metric`
@@ -420,7 +546,7 @@ An :class:`Artifact` has  the following attributes:
             it is the opposite of ``export``, but in general may also be
             discarded.
 
-            .. note:: whether a file is marked as ``log``/``data`` or ``raw``
+            .. note:: Whether a file is marked as ``log``/``data`` or ``raw``
                     depends on how important it is to preserve this file,
                     e.g. when archiving, vs how much space it takes up.
                     Unlike ``export`` artifacts which are (almost) always

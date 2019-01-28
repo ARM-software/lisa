@@ -2,9 +2,109 @@
 What's New in Workload Automation
 =================================
 
--------------
+*************
+Version 3.1.1
+*************
+
+Fixes/Improvements
+==================
+
+Other
+-----
+    - Improve formatting when displaying metrics
+    - Update revent binaries to include latest fixes
+    - Update DockerImage to use new released version of WA and Devlib
+    - Fix broken package on PyPi
+
+*************
+Version 3.1.0
+*************
+
+New Features:
+==============
+
+Commands
+---------
+    - ``create database``: Added :ref:`create subcommand <create-command>`
+      command in order to initialize a PostgresSQL database to allow for storing
+      WA output with the Postgres Output Processor.
+
+Output Processors:
+------------------
+    - ``Postgres``: Added output processor which can be used to populate a
+      Postgres database with the output generated from a WA run.
+    - ``logcat-regex``: Add new output processor to extract arbitrary "key"
+      "value" pairs from logcat.
+
+Configuration:
+--------------
+    - :ref:`Configuration Includes <config-include>`: Add support for including
+      other YAML files inside agendas and config files using ``"include#:"``
+      entries.
+    - :ref:`Section groups <section-groups>`: This allows for a ``group`` entry
+      to be specified for each section and will automatically cross product the
+      relevant sections with sections from other groups adding the relevant
+      classifiers.
+
+Framework:
+----------
+    - Added support for using the :ref:`OutputAPI <output_processing_api>` with a
+      Postgres Database backend. Used to retrieve and
+      :ref:`process <processing_output>` run data uploaded by the ``Postgres``
+      output processor.
+
+Workloads:
+----------
+    - ``gfxbench-corporate``: Execute a set of on and offscreen graphical benchmarks from
+      GFXBench including Car Chase and Manhattan.
+    - ``glbench``: Measures the graphics performance of Android devices by
+      testing the underlying OpenGL (ES) implementation.
+
+
+Fixes/Improvements
+==================
+
+Framework:
+----------
+  - Remove quotes from ``sudo_cmd`` parameter default value due to changes in
+    devlib.
+  - Various Python 3 related fixes.
+  - Ensure plugin names are converted to identifiers internally to act more
+    consistently when dealing with names containing ``-``'s etc.
+  - Now correctly updates RunInfo with project and run name information.
+  - Add versioning support for POD structures with the ability to
+    automatically update data structures / formats to new versions.
+
+Commands:
+---------
+  - Fix revent target initialization.
+  - Fix revent argument validation.
+
+Workloads:
+----------
+  - ``Speedometer``: Close open tabs upon workload completion.
+  - ``jankbench``: Ensure that the logcat monitor thread is terminated
+    correctly to prevent left over adb processes.
+  - UiAutomator workloads are now able to dismiss android warning that a
+    workload has not been designed for the latest version of android.
+
+Other:
+------
+- Report additional metadata about target, including: system_id,
+  page_size_kb.
+- Uses cache directory to reduce target calls, e.g. will now use cached
+  version of TargetInfo if local copy is found.
+- Update recommended :ref:`installation <github>` commands when installing from
+  github due to pip not following dependency links correctly.
+- Fix incorrect parameter names in runtime parameter documentation.
+
+
+--------------------------------------------------
+
+
+*************
 Version 3.0.0
--------------
+*************
 
 WA3 is a more or less from-scratch re-write of WA2. We have attempted to
 maintain configuration-level compatibility wherever possible (so WA2 agendas
@@ -29,7 +129,7 @@ believe to be no longer useful.
           do the port yourselves :-) ).
 
 New Features
-~~~~~~~~~~~~
+============
 
 - Python 3 support. WA now runs on both Python 2 and Python 3.
 
@@ -75,7 +175,7 @@ New Features
 .. _devlib: https://github.com/ARM-software/devlib
 
 Changes
-~~~~~~~
+=======
 
 - Configuration files ``config.py`` are now specified in YAML format in
   ``config.yaml``. WA3 has support for automatic conversion of the default

@@ -626,3 +626,13 @@ def resolve_unique_domain_cpus(name, target):
         if domain_cpus[0] not in unique_cpus:
             unique_cpus.append(domain_cpus[0])
     return unique_cpus
+
+
+def format_ordered_dict(od):
+    """
+    Provide a string representation of ordered dict that is similar to the
+    regular dict representation, as that is more concise and easier to read
+    than the default __str__ for OrderedDict.
+    """
+    return '{{{}}}'.format(', '.join('{}={}'.format(k, v)
+                                     for k, v in od.items()))

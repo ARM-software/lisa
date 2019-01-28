@@ -69,7 +69,40 @@ WA3 config file.
 
 **Q:** My Juno board keeps resetting upon starting WA even if it hasn't crashed.
 --------------------------------------------------------------------------------
-Please ensure that you do not have any other terminals (e.g. ``screen``
+**A** Please ensure that you do not have any other terminals (e.g. ``screen``
 sessions) connected to the board's UART. When WA attempts to open the connection
 for its own use this can cause the board to reset if a connection is already
 present.
+
+
+**Q:** I'm using the FPS instrument but I do not get any/correct results for my workload
+-----------------------------------------------------------------------------------------
+
+**A:** If your device is running with Android 6.0 + then the default utility for
+collecting fps metrics will be ``gfxinfo`` however this does not seem to be able
+to extract any meaningful information for some workloads. In this case please
+try setting the ``force_surfaceflinger`` parameter for the ``fps`` augmentation
+to ``True``. This will attempt to guess the "View" for the workload
+automatically however this is device specific and therefore may need
+customizing. If this is required please open the application and execute
+``dumpsys SurfaceFlinger --list`` on the device via adb. This will provide a
+list of all views available for measuring.
+
+As an example, when trying to find the view for the AngryBirds Rio workload you
+may get something like:
+
+.. code-block:: none
+
+        ...
+        AppWindowToken{41dfe54 token=Token{77819a7 ActivityRecord{a151266 u0 com.rovio.angrybirdsrio/com.rovio.fusion.App t506}}}#0
+        a3d001c com.rovio.angrybirdsrio/com.rovio.fusion.App#0
+        Background for -SurfaceView - com.rovio.angrybirdsrio/com.rovio.fusion.App#0
+        SurfaceView - com.rovio.angrybirdsrio/com.rovio.fusion.App#0
+        com.rovio.angrybirdsrio/com.rovio.fusion.App#0
+        boostedAnimationLayer#0
+        mAboveAppWindowsContainers#0
+        ...
+
+From these ``"SurfaceView - com.rovio.angrybirdsrio/com.rovio.fusion.App#0"`` is
+the mostly likely the View that needs to be set as the ``view`` workload
+parameter and will be picked up be the ``fps`` augmentation.

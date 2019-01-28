@@ -97,6 +97,6 @@ class RuntimeParameterManager(object):
     def get_cfg_point(self, name):
         name = caseless_string(name)
         for k, v in self.runtime_params.items():
-            if name == k:
+            if name == k or name in v.cfg_point.aliases:
                 return v.cfg_point
         raise ConfigError('Unknown runtime parameter: {}'.format(name))
