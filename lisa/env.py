@@ -268,11 +268,21 @@ class TestEnv(Loggable, HideExekallID):
 
     @classmethod
     def from_default_conf(cls):
+        """
+        Create a :class:`TestEnv` from the YAML configuration file pointed by
+        ``LISA_CONF`` environment variable.
+        """
         path = os.environ['LISA_CONF']
         return cls.from_one_conf(path)
 
     @classmethod
     def from_one_conf(cls, path):
+        """
+        Create a :class:`TestEnv` from a single YAML configuration file.
+
+        This file will be used to provide a :class:`TargetConf` and
+        :class:`lisa.platforms.platinfo.PlatformInfo` instances.
+        """
         target_conf = TargetConf.from_yaml_map(path)
         try:
             plat_info = PlatformInfo.from_yaml_map(path)
