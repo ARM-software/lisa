@@ -26,7 +26,7 @@ from devlib.target import KernelVersion
 
 from lisa.trace import Trace
 from lisa.platforms.platinfo import PlatformInfo
-from lisa.tests.lisa.utils import StorageTestCase
+from .utils import StorageTestCase
 
 class TestTrace(StorageTestCase):
     """Smoke tests for LISA's Trace class"""

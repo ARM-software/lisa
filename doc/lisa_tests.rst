@@ -12,9 +12,9 @@ From the root of LISA, you can run those tests like so:
 
 >>> python3 -m nose
 >>> # You can also target specific test modules
->>> python3 -m nose --tests=lisa/tests/lisa/test_test_bundle.py
+>>> python3 -m nose tests/test_test_bundle.py
 >>> # Or even specific test classes
->>> python3 -m nose --tests=lisa/tests/lisa/test_test_bundle.py:BundleCheck
+>>> python3 -m nose tests/test_test_bundle.py:BundleCheck
 
 Writing self-tests
 ==================
@@ -24,7 +24,7 @@ self-tests. It's a nice way to showcase that your code works, and also how it
 works. On top of that, it makes sure that later changes won't break it.
 
 It's possible to write tests that require a live target - see
-:meth:`~lisa.tests.lisa.utils.create_local_testenv`. However, as these tests
+:meth:`~tests.utils.create_local_testenv`. However, as these tests
 are meant to be run by Travis as part of our pull-request validation, they have
 to be designed to work on a target with limited privilege.
 
@@ -33,7 +33,7 @@ to be designed to work on a target with limited privilege.
 Utilities
 =========
 
-.. automodule:: lisa.tests.lisa.utils
+.. automodule:: tests.utils
    :members:
 
 Implemented tests
@@ -44,23 +44,23 @@ Implemented tests
 TestBundle
 ++++++++++
 
-.. automodule:: lisa.tests.lisa.test_test_bundle
+.. automodule:: tests.test_test_bundle
    :members:
 
 EnergyModel
 +++++++++++
 
-.. automodule:: lisa.tests.lisa.test_energy_model
+.. automodule:: tests.test_energy_model
    :members:
 
 Trace
 +++++
 
-.. automodule:: lisa.tests.lisa.test_trace
+.. automodule:: tests.test_trace
    :members:
 
 wlgen rt-app
 ++++++++++++
 
-.. automodule:: lisa.tests.lisa.test_wlgen_rtapp
+.. automodule:: tests.test_wlgen_rtapp
    :members:

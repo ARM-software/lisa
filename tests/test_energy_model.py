@@ -27,7 +27,7 @@ from lisa.energy_model import (EnergyModel, ActiveState, EnergyModelCapacityErro
                                EnergyModelNode, EnergyModelRoot, PowerDomain)
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.trace import Trace
-from lisa.tests.lisa.utils import StorageTestCase
+from .utils import StorageTestCase
 
 """ A very basic test suite for the EnergyModel class."""
 

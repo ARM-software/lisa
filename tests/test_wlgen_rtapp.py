@@ -22,7 +22,7 @@ import os
 from lisa.perf_analysis import PerfAnalysis
 from lisa.wlgen.rta import RTA, Periodic, Ramp, Step, RunAndSync
 
-from lisa.tests.lisa.utils import StorageTestCase, create_local_testenv
+from .utils import StorageTestCase, create_local_testenv
 
 class RTABase(StorageTestCase):
     """

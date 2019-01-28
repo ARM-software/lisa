@@ -18,7 +18,7 @@
 from lisa.platforms.platinfo import PlatformInfo
 
 from lisa.tests.kernel.test_bundle import TestBundle, ResultBundle
-from lisa.tests.lisa.utils import create_local_testenv, StorageTestCase
+from .utils import create_local_testenv, StorageTestCase
 
 class DummyTestBundle(TestBundle):
     """
