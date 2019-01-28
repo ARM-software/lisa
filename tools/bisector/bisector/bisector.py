@@ -3925,8 +3925,8 @@ def init_yaml(yaml, relative_root):
     # Without that, escape sequences are used to represent unicode characters in
     # plain ascii.
     yaml.allow_unicode = True
-    yaml.default_flow_style = False
-    yaml.indent = 4
+    yaml.default_flow_style = True
+    yaml.indent(mapping=1, sequence=1, offset=0)
 
     # Allow !include tag to include other files. Relative paths are relative
     # to the folder of the root yaml file. Absolute paths are used as-is.
