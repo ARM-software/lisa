@@ -190,26 +190,21 @@ class Base(object):
         self.line_array.append(line)
         self.data_array.append(data)
 
-    def string_cast(self, string, type):
-        """ Attempt to convert string to another type
-
-        Here we attempt to cast string to a type. Currently only
-        integer conversion is supported with future expansion
-        left open to other types.
+    def string_cast_int(self, string):
+        """
+        Attempt to convert string to an int
 
         :param string: The value to convert.
         :type string: str
-
-        :param type: The type to convert to.
-        :type type: type
         """
-        # Currently this function only supports int conversion
-        if type != int:
-            return
-        # Handle false-positives for negative numbers
-        if not string.lstrip("-").isdigit():
-            return string
-        return int(string)
+
+        try:
+            return int(string)
+        except ValueError:
+            try:
+                return int(string, base=16)
+            except ValueError:
+                return string
 
     def generate_data_dict(self, data_str):
         data_dict = {}
@@ -234,7 +229,7 @@ class Base(object):
                 data_dict[prev_key] += ' ' + field
                 continue
             (key, value) = field.split('=', 1)
-            value = self.string_cast(value, int)
+            value = self.string_cast_int(value)
             data_dict[key] = value
             prev_key = key
         return data_dict
