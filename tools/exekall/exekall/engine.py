@@ -2232,6 +2232,10 @@ class FrozenExprVal(ExprValBase):
         return froz_val
 
     @staticmethod
+    # Since tuples are immutable, reuse the same tuple by memoizing the
+    # function. That allows more compact serialized representation in both YAML
+    # and Pickle.
+    @utils.once
     def _make_id_key(**kwargs):
         return tuple(sorted(kwargs.items()))
 
