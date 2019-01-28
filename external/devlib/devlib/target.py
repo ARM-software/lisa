@@ -13,6 +13,9 @@
 # limitations under the License.
 #
 
+import io
+import base64
+import gzip
 import os
 import re
 import time
@@ -27,13 +30,21 @@ import xml.dom.minidom
 import copy
 from collections import namedtuple, defaultdict
 from pipes import quote
+from past.types import basestring
+from numbers import Number
+try:
+    from collections.abc import Mapping
+except ImportError:
+    from collections import Mapping
+
+from enum import Enum
 
 from devlib.host import LocalConnection, PACKAGE_BIN_DIRECTORY
 from devlib.module import get_module
 from devlib.platform import Platform
 from devlib.exception import (DevlibTransientError, TargetStableError,
                               TargetNotRespondingError, TimeoutError,
-                              TargetTransientError) # pylint: disable=redefined-builtin
+                              TargetTransientError, KernelConfigKeyError) # pylint: disable=redefined-builtin
 from devlib.utils.ssh import SshConnection
 from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect, INTENT_FLAGS
 from devlib.utils.misc import memoized, isiterable, convert_new_lines
@@ -684,23 +695,61 @@ class Target(object):
         timeout = duration + 10
         self.execute('sleep {}'.format(duration), timeout=timeout)
 
-    def read_tree_values_flat(self, path, depth=1, check_exit_code=True):
-        command = 'read_tree_values {} {}'.format(quote(path), depth)
+    def read_tree_values_flat(self, path, depth=1, check_exit_code=True,
+                              decode_unicode=True, strip_null_chars=True):
+        command = 'read_tree_tgz_b64 {} {} {}'.format(quote(path), depth,
+                                                  quote(self.working_directory))
         output = self._execute_util(command, as_root=self.is_rooted,
                                     check_exit_code=check_exit_code)
 
-        accumulator = defaultdict(list)
-        for entry in output.strip().split('\n'):
-            if ':' not in entry:
-                continue
-            path, value = entry.strip().split(':', 1)
-            accumulator[path].append(value)
+        result = {}
 
-        result = {k: '\n'.join(v).strip() for k, v in accumulator.items()}
+        # Unpack the archive in memory
+        tar_gz = base64.b64decode(output)
+        tar_gz_bytes = io.BytesIO(tar_gz)
+        tar_buf = gzip.GzipFile(fileobj=tar_gz_bytes).read()
+        tar_bytes = io.BytesIO(tar_buf)
+        with tarfile.open(fileobj=tar_bytes) as tar:
+            for member in tar.getmembers():
+                try:
+                    content_f = tar.extractfile(member)
+                # ignore exotic members like sockets
+                except Exception:
+                    continue
+                # if it is a file and not a folder
+                if content_f:
+                    content = content_f.read()
+                    if decode_unicode:
+                        try:
+                            content = content.decode('utf-8').strip()
+                            if strip_null_chars:
+                                content = content.replace('\x00', '').strip()
+                        except UnicodeDecodeError:
+                            content = ''
+
+                    name = self.path.join(path, member.name)
+                    result[name] = content
+
         return result
 
-    def read_tree_values(self, path, depth=1, dictcls=dict, check_exit_code=True):
-        value_map = self.read_tree_values_flat(path, depth, check_exit_code)
+    def read_tree_values(self, path, depth=1, dictcls=dict,
+                         check_exit_code=True, decode_unicode=True,
+                         strip_null_chars=True):
+        """
+        Reads the content of all files under a given tree
+
+        :path: path to the tree
+        :depth: maximum tree depth to read
+        :dictcls: type of the dict used to store the results
+        :check_exit_code: raise an exception if the shutil command fails
+        :decode_unicode: decode the content of files as utf-8
+        :strip_null_chars: remove '\x00' chars from the content of utf-8
+                           decoded files
+
+        :returns: a tree-like dict with the content of files as leafs
+        """
+        value_map = self.read_tree_values_flat(path, depth, check_exit_code,
+                                               decode_unicode, strip_null_chars)
         return _build_path_tree(value_map, path, self.path.sep, dictcls)
 
     # internal methods
@@ -1722,8 +1771,56 @@ class KernelVersion(object):
     __repr__ = __str__
 
 
-class KernelConfig(object):
+class HexInt(int):
+    """
+    Subclass of :class:`int` that uses hexadecimal formatting by default.
+    """
 
+    def __new__(cls, val=0, base=16):
+        super_new = super(HexInt, cls).__new__
+        if isinstance(val, Number):
+            return super_new(cls, val)
+        else:
+            return super_new(cls, val, base=base)
+
+    def __str__(self):
+        return hex(self)
+
+
+class KernelConfigTristate(Enum):
+    YES = 'y'
+    NO = 'n'
+    MODULE = 'm'
+
+    def __bool__(self):
+        """
+        Allow using this enum to represent bool Kconfig type, although it is
+        technically different from tristate.
+        """
+        return self in (self.YES, self.MODULE)
+
+    def __nonzero__(self):
+        """
+        For Python 2.x compatibility.
+        """
+        return self.__bool__()
+
+    @classmethod
+    def from_str(cls, str_):
+        for state in cls:
+            if state.value == str_:
+                return state
+        raise ValueError('No kernel config tristate value matches "{}"'.format(str_))
+
+
+class TypedKernelConfig(Mapping):
+    """
+    Mapping-like typed version of :class:`KernelConfig`.
+
+    Values are either :class:`str`, :class:`int`,
+    :class:`KernelConfigTristate`, or :class:`HexInt`. ``hex`` Kconfig type is
+    mapped to :class:`HexInt` and ``bool`` to :class:`KernelConfigTristate`.
+    """
     not_set_regex = re.compile(r'# (\S+) is not set')
 
     @staticmethod
@@ -1733,50 +1830,200 @@ class KernelConfig(object):
             name = 'CONFIG_' + name
         return name
 
-    def iteritems(self):
-        return iter(self._config.items())
+    def __init__(self, mapping=None):
+        mapping = mapping if mapping is not None else {}
+        self._config = {
+            # Ensure we use the canonical name of the config keys for internal
+            # representation
+            self.get_config_name(k): v
+            for k, v in dict(mapping).items()
+        }
 
-    def __init__(self, text):
-        self.text = text
-        self._config = {}
-        for line in text.split('\n'):
+    @classmethod
+    def from_str(cls, text):
+        """
+        Build a :class:`TypedKernelConfig` out of the string content of a
+        Kconfig file.
+        """
+        return cls(cls._parse_text(text))
+
+    @staticmethod
+    def _val_to_str(val):
+        "Convert back values to Kconfig-style string value"
+        # Special case the gracefully handle the output of get()
+        if val is None:
+            return None
+        elif isinstance(val, KernelConfigTristate):
+            return val.value
+        elif isinstance(val, basestring):
+            return '"{}"'.format(val)
+        else:
+            return str(val)
+
+    def __str__(self):
+        return '\n'.join(
+            '{}={}'.format(k, self._val_to_str(v))
+            for k, v in self.items()
+        )
+
+    @staticmethod
+    def _parse_val(k, v):
+        """
+        Parse a value of types handled by Kconfig:
+            * string
+            * bool
+            * tristate
+            * hex
+            * int
+
+        Since bool cannot be distinguished from tristate, tristate is
+        always used. :meth:`KernelConfigTristate.__bool__` will allow using
+        it as a bool though, so it should not impact user code.
+        """
+        if not v:
+            return None
+
+        # Handle "string" type
+        if v.startswith('"'):
+            # Strip enclosing "
+            return v[1:-1]
+
+        else:
+            try:
+                # Handles "bool" and "tristate" types
+                return KernelConfigTristate.from_str(v)
+            except ValueError:
+                pass
+
+            try:
+                # Handles "int" type
+                return int(v)
+            except ValueError:
+                pass
+
+            try:
+                # Handles "hex" type
+                return HexInt(v)
+            except ValueError:
+                pass
+
+            # If no type could be parsed
+            raise ValueError('Could not parse Kconfig key: {}={}'.format(
+                    k, v
+                ), k, v
+            )
+
+    @classmethod
+    def _parse_text(cls, text):
+        config = {}
+        for line in text.splitlines():
             line = line.strip()
+
+            # skip empty lines
+            if not line:
+                continue
+
             if line.startswith('#'):
-                match = self.not_set_regex.search(line)
+                match = cls.not_set_regex.search(line)
                 if match:
-                    self._config[match.group(1)] = 'n'
-            elif '=' in line:
+                    value = 'n'
+                    name = match.group(1)
+                else:
+                    continue
+            else:
                 name, value = line.split('=', 1)
-                self._config[name.strip()] = value.strip()
 
-    def get(self, name, strict=False):
+            name = cls.get_config_name(name.strip())
+            value = cls._parse_val(name, value.strip())
+            config[name] = value
+        return config
+
+    def __getitem__(self, name):
         name = self.get_config_name(name)
-        res = self._config.get(name)
+        try:
+            return self._config[name]
+        except KeyError:
+            raise KernelConfigKeyError(
+                "{} is not exposed in kernel config".format(name),
+                name
+            )
 
-        if not res and strict:
-            raise IndexError("{} is not exposed in target's config")
+    def __iter__(self):
+        return iter(self._config)
 
-        return self._config.get(name)
+    def __len__(self):
+        return len(self._config)
+
+    def __contains__(self, name):
+        name = self.get_config_name(name)
+        return name in self._config
 
     def like(self, name):
         regex = re.compile(name, re.I)
-        result = {}
-        for k, v in self._config.items():
-            if regex.search(k):
-                result[k] = v
-        return result
+        return {
+            k: v for k, v in self.items()
+            if regex.search(k)
+        }
 
     def is_enabled(self, name):
-        return self.get(name) == 'y'
+        return self.get(name) is KernelConfigTristate.YES
 
     def is_module(self, name):
-        return self.get(name) == 'm'
+        return self.get(name) is KernelConfigTristate.MODULE
 
     def is_not_set(self, name):
-        return self.get(name) == 'n'
+        return self.get(name) is KernelConfigTristate.NO
 
     def has(self, name):
-        return self.get(name) in ['m', 'y']
+        return self.is_enabled(name) or self.is_module(name)
+
+
+class KernelConfig(object):
+    """
+    Backward compatibility shim on top of :class:`TypedKernelConfig`.
+
+    This class does not provide a Mapping API and only return string values.
+    """
+
+    def __init__(self, text):
+        # Expose typed_config as a non-private attribute, so that user code
+        # needing it can get it from any existing producer of KernelConfig.
+        self.typed_config = TypedKernelConfig.from_str(text)
+        # Expose the original text for backward compatibility
+        self.text = text
+
+    get_config_name = TypedKernelConfig.get_config_name
+    not_set_regex = TypedKernelConfig.not_set_regex
+
+    def iteritems(self):
+        for k, v in self.typed_config.items():
+            yield (k, self.typed_config._val_to_str(v))
+
+    def get(self, name, strict=False):
+        if strict:
+            val = self.typed_config[name]
+        else:
+            val = self.typed_config.get(name)
+
+        return self.typed_config._val_to_str(val)
+
+    def like(self, name):
+        return {
+            k: self.typed_config._val_to_str(v)
+            for k, v in self.typed_config.like(name).items()
+        }
+
+    def is_enabled(self, name):
+        return self.typed_config.is_enabled(name)
+
+    def is_module(self, name):
+        return self.typed_config.is_module(name)
+
+    def is_not_set(self, name):
+        return self.typed_config.is_not_set(name)
+
+    def has(self, name):
+        return self.typed_config.has(name)
 
 
 class LocalLinuxTarget(LinuxTarget):

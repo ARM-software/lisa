@@ -21,6 +21,7 @@ from past.builtins import basestring
 
 from devlib.module import Module
 from devlib.utils.misc import memoized
+from devlib.utils.types import boolean
 
 
 class SchedProcFSNode(object):
@@ -252,6 +253,109 @@ class SchedModule(Module):
         SchedDomainFlag.check_version(target, logger)
 
         return SchedProcFSData.available(target)
+
+    def get_kernel_attributes(self, matching=None, check_exit_code=True):
+        """
+        Get the value of scheduler attributes.
+
+        :param matching: an (optional) substring to filter the scheduler
+        attributes to be returned.
+
+        The scheduler exposes a list of tunable attributes under:
+            /proc/sys/kernel
+        all starting with the "sched_" prefix.
+
+        This method returns a dictionary of all the "sched_" attributes exposed
+        by the target kernel, within the prefix removed.
+        It's possible to restrict the list of attributes by specifying a
+        substring to be matched.
+
+        returns: a dictionary of scheduler tunables
+        """
+        command = 'sched_get_kernel_attributes {}'.format(
+            matching if matching else ''
+        )
+        output = self.target._execute_util(command, as_root=self.target.is_rooted,
+                                           check_exit_code=check_exit_code)
+        result = {}
+        for entry in output.strip().split('\n'):
+            if ':' not in entry:
+                continue
+            path, value = entry.strip().split(':', 1)
+            if value in ['0', '1']:
+                value = bool(int(value))
+            elif value.isdigit():
+                value = int(value)
+            result[path] = value
+        return result
+
+    def set_kernel_attribute(self, attr, value, verify=True):
+        """
+        Set the value of a scheduler attribute.
+
+        :param attr: the attribute to set, without the "sched_" prefix
+        :param value: the value to set
+        :param verify: true to check that the requested value has been set
+
+        :raise TargetError: if the attribute cannot be set
+        """
+        if isinstance(value, bool):
+            value = '1' if value else '0'
+        elif isinstance(value, int):
+            value = str(value)
+        path = '/proc/sys/kernel/sched_' + attr
+        self.target.write_value(path, value, verify)
+
+    @property
+    @memoized
+    def has_debug(self):
+        if self.target.config.get('SCHED_DEBUG') != 'y':
+            return False;
+        return self.target.file_exists('/sys/kernel/debug/sched_features')
+
+    def get_features(self):
+        """
+        Get the status of each sched feature
+
+        :returns: a dictionary of features and their "is enabled" status
+        """
+        if not self.has_debug:
+            raise RuntimeError("sched_features not available")
+        feats = self.target.read_value('/sys/kernel/debug/sched_features')
+        features = {}
+        for feat in feats.split():
+            value = True
+            if feat.startswith('NO'):
+                feat = feat.replace('NO_', '', 1)
+                value = False
+            features[feat] = value
+        return features
+
+    def set_feature(self, feature, enable, verify=True):
+        """
+        Set the status of a specified scheduler feature
+
+        :param feature: the feature name to set
+        :param enable: true to enable the feature, false otherwise
+
+        :raise ValueError: if the specified enable value is not bool
+        :raise RuntimeError: if the specified feature cannot be set
+        """
+        if not self.has_debug:
+            raise RuntimeError("sched_features not available")
+        feature = feature.upper()
+        feat_value = feature
+        if not boolean(enable):
+            feat_value = 'NO_' + feat_value
+        self.target.write_value('/sys/kernel/debug/sched_features',
+                                feat_value, verify=False)
+        if not verify:
+            return
+        msg = 'Failed to set {}, feature not supported?'.format(feat_value)
+        features = self.get_features()
+        feat_value = features.get(feature, not enable)
+        if feat_value != enable:
+            raise RuntimeError(msg)
 
     def get_cpu_sd_info(self, cpu):
         """
