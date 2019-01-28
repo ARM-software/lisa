@@ -514,16 +514,16 @@ online, we can create an agenda as follows:
          - id: max_freq
           runtime_parameters:
               freq: max
-         group: frequency
+          group: frequency
 
          - id: min_cpus
            runtime_parameters:
               cpus: 1
-         group: cpus
+          group: cpus
          - id: max_cpus
            runtime_parameters:
               cpus: 8
-         group: cpus
+          group: cpus
 
         workloads:
         -  dhrystone

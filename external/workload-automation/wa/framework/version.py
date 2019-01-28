@@ -19,14 +19,16 @@ from collections import namedtuple
 from subprocess import Popen, PIPE
 
 
-VersionTuple = namedtuple('Version', ['major', 'minor', 'revision'])
+VersionTuple = namedtuple('Version', ['major', 'minor', 'revision', 'dev'])
 
-version = VersionTuple(3, 0, 'dev1')
+version = VersionTuple(3, 1, 1, 'dev1')
 
 
 def get_wa_version():
     version_string = '{}.{}.{}'.format(
         version.major, version.minor, version.revision)
+    if version.dev:
+        version_string += '.{}'.format(version.dev)
     return version_string
 
 

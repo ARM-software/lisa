@@ -126,6 +126,9 @@ public class UiAutomation extends BaseUiAutomation {
 
     public void getDirectionsFromLocation() throws Exception {
         UiObject directions = mDevice.findObject(new UiSelector().resourceId(packageID + "placepage_directions_button"));
+        if (!directions.exists()){
+            directions = mDevice.findObject(new UiSelector().textContains("DIRECTIONS"));
+        }
         directions.clickAndWaitForNewWindow(uiAutoTimeout);
     }
 
@@ -140,7 +143,9 @@ public class UiAutomation extends BaseUiAutomation {
     public void viewRouteSteps() throws Exception {
         UiObject steps = mDevice.findObject(new UiSelector().textContains("STEPS & MORE")
                                                             .className("android.widget.TextView"));
-        steps.clickAndWaitForNewWindow(uiAutoTimeout);
+        if (steps.exists()){
+            steps.clickAndWaitForNewWindow(uiAutoTimeout);
+        }
     }
 
     public void previewRoute() throws Exception {

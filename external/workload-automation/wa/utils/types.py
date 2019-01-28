@@ -635,7 +635,10 @@ def enum(args, start=0, step=1):
                 if name == attr:
                     return attr
 
-            raise ValueError('Invalid enum value: {}'.format(repr(name)))
+            try:
+                return Enum.from_pod(name)
+            except ValueError:
+                raise ValueError('Invalid enum value: {}'.format(repr(name)))
 
     reserved = ['values', 'levels', 'names']
 

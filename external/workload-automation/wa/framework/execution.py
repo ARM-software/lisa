@@ -376,12 +376,12 @@ class Executor(object):
         try:
             self.do_execute(context)
         except KeyboardInterrupt as e:
-            context.run_output.status = 'ABORTED'
+            context.run_output.status = Status.ABORTED
             log.log_error(e, self.logger)
             context.write_output()
             raise
         except Exception as e:
-            context.run_output.status = 'FAILED'
+            context.run_output.status = Status.FAILED
             log.log_error(e, self.logger)
             context.write_output()
             raise

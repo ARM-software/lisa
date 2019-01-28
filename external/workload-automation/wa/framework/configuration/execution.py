@@ -27,24 +27,35 @@ from wa.framework.configuration.plugin_cache import PluginCache
 from wa.framework.exception import NotFoundError
 from wa.framework.job import Job
 from wa.utils import log
+from wa.utils.serializer import Podable
 
 
-class CombinedConfig(object):
+class CombinedConfig(Podable):
+
+    _pod_serialization_version = 1
 
     @staticmethod
     def from_pod(pod):
-        instance = CombinedConfig()
+        instance = super(CombinedConfig, CombinedConfig).from_pod(pod)
         instance.settings = MetaConfiguration.from_pod(pod.get('settings', {}))
         instance.run_config = RunConfiguration.from_pod(pod.get('run_config', {}))
         return instance
 
     def __init__(self, settings=None, run_config=None):  # pylint: disable=redefined-outer-name
+        super(CombinedConfig, self).__init__()
         self.settings = settings
         self.run_config = run_config
 
     def to_pod(self):
-        return {'settings': self.settings.to_pod(),
-                'run_config': self.run_config.to_pod()}
+        pod = super(CombinedConfig, self).to_pod()
+        pod['settings'] = self.settings.to_pod()
+        pod['run_config'] = self.run_config.to_pod()
+        return pod
+
+    @staticmethod
+    def _pod_upgrade_v1(pod):
+        pod['_pod_version'] = pod.get('_pod_version', 1)
+        return pod
 
 
 class ConfigManager(object):

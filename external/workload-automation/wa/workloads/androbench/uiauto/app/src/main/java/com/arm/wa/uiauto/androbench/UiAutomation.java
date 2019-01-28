@@ -98,17 +98,23 @@ public class UiAutomation extends BaseUiAutomation {
 
         UiScrollable scrollView = new UiScrollable(new UiSelector().scrollable(true));
         Log.d(TAG, "Sequential Read Score " + seqRead.getText());
-        scrollView.scrollIntoView(seqWrite);
+
+        if (scrollView.exists()){scrollView.scrollIntoView(seqWrite);        }
         Log.d(TAG, "Sequential Write Score " + seqWrite.getText());
-        scrollView.scrollIntoView(ranRead);
+
+        if (scrollView.exists()){scrollView.scrollIntoView(ranRead);}
         Log.d(TAG, "Random Read Score " + ranRead.getText());
-        scrollView.scrollIntoView(ranWrite);
+
+        if (scrollView.exists()){scrollView.scrollIntoView(ranWrite);}
         Log.d(TAG, "Random Write Score " + ranWrite.getText());
-        scrollView.scrollIntoView(sqlInsert);
+
+        if (scrollView.exists()){scrollView.scrollIntoView(sqlInsert);}
         Log.d(TAG, "SQL Insert Score " + sqlInsert.getText());
-        scrollView.scrollIntoView(sqlUpdate);
+
+        if (scrollView.exists()){scrollView.scrollIntoView(sqlUpdate);}
         Log.d(TAG, "SQL Update Score " + sqlUpdate.getText());
-        scrollView.scrollIntoView(sqlDelete);
+
+        if (scrollView.exists()){scrollView.scrollIntoView(sqlDelete);}
         Log.d(TAG, "SQL Delete Score " + sqlDelete.getText());
     }
 }
