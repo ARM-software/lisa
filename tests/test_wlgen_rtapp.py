@@ -316,7 +316,7 @@ class TestRTACalibrationConf(RTABase):
         conf = self._get_calib_conf(666)
         self.assertEqual(conf, 666, 'Calibration value modified')
 
-    def test_calibration_conf_pload_int(self):
+    def test_calibration_conf_pload_str(self):
         """Test that the calibration value is returned as expected"""
         conf = self._get_calib_conf('CPU0')
         self.assertEqual(conf, 'CPU0', 'Calibration value modified')
