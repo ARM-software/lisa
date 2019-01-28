@@ -31,6 +31,18 @@ def get_git_sha1(ref):
     return call_git('rev-parse', ref).strip()
 
 def main():
+    # Store the commit file in the venv when possible, so we can have venv
+    # installed at various point in time that are not interfering with
+    # eachother
+    default_commit_file = os.path.join(
+        (
+                 os.getenv('LISA_VENV_PATH')
+            if   os.getenv('LISA_USE_VENV')
+            else os.getenv('LISA_HOME')
+        ),
+        '.lisa-install-commit'
+    )
+
     parser = argparse.ArgumentParser(description='''
         Check if filenames matching a given pattern have been modified since
         the last time the commit sha1 file was updated.
@@ -38,7 +50,7 @@ def main():
     )
 
     parser.add_argument('--commit-file',
-        default=os.path.join(LISA_HOME, '.lisa-install-commit'),
+        default=default_commit_file,
         help='File containing a git revision. <rev from file>..<curr rev> will be scanned, looking for the filename pattern'
     )
 
