@@ -35,6 +35,7 @@ import inspect
 import itertools
 import json
 import logging
+import lzma
 import math
 import multiprocessing
 import mimetypes
@@ -42,6 +43,7 @@ import numbers
 import os
 import os.path
 import pickle
+import pathlib
 import queue
 import re
 import select
@@ -3993,26 +3995,35 @@ class ReportPreamble(Serializable):
         self.preamble_version = 0
 
 def check_report_path(path, probe_file):
-    if probe_file:
-        # Try to open as gzip
+    def probe_open_f(open_f, path):
         try:
-            with gzip.open(path) as trial_f:
-                trial_f.read(1)
-        except OSError as e:
-            # If we get a gzip-specific error, we assume a plain file
-            if 'gzip' in str(e):
-                open_f = open
-            else:
-                raise
+            with open_f(path) as f:
+                f.read(1)
+        except Exception:
+            return False
         else:
-            open_f = gzip.open
-    else:
-        if mimetypes.guess_type(path)[1] == 'gzip':
-            open_f = gzip.open
-        else:
-            open_f = open
+            return True
 
-    is_yaml = not (path.endswith('.pickle') or path.endswith('.pickle.gz'))
+    # Default to uncompressed file
+    open_f = open
+    mime_map = {
+        'gzip': gzip.open,
+        'xz': lzma.open,
+    }
+
+    if probe_file:
+        for f in mime_map.values():
+            if probe_open_f(f, path):
+                open_f = f
+                break
+    else:
+        guessed_mime = mimetypes.guess_type(path)[1]
+        open_f = mime_map.get(guessed_mime, open_f)
+
+    path = pathlib.Path(path)
+    compo = path.name.split('.')
+    # By default, assume YAML unless pickle is explicitly present
+    is_yaml = 'pickle' not in path.name.split('.')
     return (open_f, is_yaml)
 
 def disable_gc(f):
