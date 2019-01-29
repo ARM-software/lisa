@@ -46,9 +46,6 @@ LISA_HOME = os.getenv('LISA_HOME')
 The detected location of your LISA installation
 """
 
-if not LISA_HOME:
-    logging.getLogger(__name__).warning('LISA_HOME env var is not set, LISA may misbehave.')
-
 class Loggable:
     """
     A simple class for uniformly named loggers
