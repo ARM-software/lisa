@@ -22,7 +22,7 @@ from wa.utils import log
 from wa.utils.misc import (get_article, merge_config_values)
 from wa.utils.types import (identifier, integer, boolean, list_of_strings,
                             list_of, toggle_set, obj_dict, enum)
-from wa.utils.serializer import is_pod
+from wa.utils.serializer import is_pod, Podable
 
 
 # Mapping for kind conversion; see docs for convert_types below
@@ -110,7 +110,9 @@ class status_list(list):
         list.append(self, str(item).upper())
 
 
-class LoggingConfig(dict):
+class LoggingConfig(Podable, dict):
+
+    _pod_serialization_version = 1
 
     defaults = {
         'file_format': '%(asctime)s %(levelname)-8s %(name)s: %(message)s',
@@ -121,9 +123,14 @@ class LoggingConfig(dict):
 
     @staticmethod
     def from_pod(pod):
-        return LoggingConfig(pod)
+        pod = LoggingConfig._upgrade_pod(pod)
+        pod_version = pod.pop('_pod_version')
+        instance = LoggingConfig(pod)
+        instance._pod_version = pod_version  # pylint: disable=protected-access
+        return instance
 
     def __init__(self, config=None):
+        super(LoggingConfig, self).__init__()
         dict.__init__(self)
         if isinstance(config, dict):
             config = {identifier(k.lower()): v for k, v in config.items()}
@@ -142,7 +149,14 @@ class LoggingConfig(dict):
             raise ValueError(config)
 
     def to_pod(self):
-        return self
+        pod = super(LoggingConfig, self).to_pod()
+        pod.update(self)
+        return pod
+
+    @staticmethod
+    def _pod_upgrade_v1(pod):
+        pod['_pod_version'] = pod.get('_pod_version', 1)
+        return pod
 
 
 def expanded_path(path):
@@ -347,8 +361,9 @@ def _to_pod(cfg_point, value):
     raise ValueError(msg.format(cfg_point.name, value))
 
 
-class Configuration(object):
+class Configuration(Podable):
 
+    _pod_serialization_version = 1
     config_points = []
     name = ''
 
@@ -357,7 +372,7 @@ class Configuration(object):
 
     @classmethod
     def from_pod(cls, pod):
-        instance = cls()
+        instance = super(Configuration, cls).from_pod(pod)
         for cfg_point in cls.config_points:
             if cfg_point.name in pod:
                 value = pod.pop(cfg_point.name)
@@ -370,6 +385,7 @@ class Configuration(object):
         return instance
 
     def __init__(self):
+        super(Configuration, self).__init__()
         for confpoint in self.config_points:
             confpoint.set_value(self, check_mandatory=False)
 
@@ -393,10 +409,15 @@ class Configuration(object):
             cfg_point.validate(self)
 
     def to_pod(self):
-        pod = {}
+        pod = super(Configuration, self).to_pod()
         for cfg_point in self.config_points:
             value = getattr(self, cfg_point.name, None)
             pod[cfg_point.name] = _to_pod(cfg_point, value)
+        return pod
+
+    @staticmethod
+    def _pod_upgrade_v1(pod):
+        pod['_pod_version'] = pod.get('_pod_version', 1)
         return pod
 
 

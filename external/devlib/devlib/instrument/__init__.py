@@ -97,20 +97,30 @@ _measurement_types = [
     # covert without being familar with individual instruments.
     MeasurementType('time', 'seconds', 'time',
         conversions={
-            'time_us': lambda x: x * 1000000,
-            'time_ms': lambda x: x * 1000,
+            'time_us': lambda x: x * 1e6,
+            'time_ms': lambda x: x * 1e3,
+            'time_ns': lambda x: x * 1e9,
         }
     ),
     MeasurementType('time_us', 'microseconds', 'time',
         conversions={
-            'time': lambda x: x / 1000000,
-            'time_ms': lambda x: x / 1000,
+            'time': lambda x: x / 1e6,
+            'time_ms': lambda x: x / 1e3,
+            'time_ns': lambda x: x * 1e3,
         }
     ),
     MeasurementType('time_ms', 'milliseconds', 'time',
         conversions={
-            'time': lambda x: x / 1000,
-            'time_us': lambda x: x * 1000,
+            'time': lambda x: x / 1e3,
+            'time_us': lambda x: x * 1e3,
+            'time_ns': lambda x: x * 1e6,
+        }
+    ),
+    MeasurementType('time_ns', 'nanoseconds', 'time',
+    conversions={
+        'time': lambda x: x / 1e9,
+        'time_ms': lambda x: x / 1e6,
+        'time_us': lambda x: x / 1e3,
         }
     ),
 

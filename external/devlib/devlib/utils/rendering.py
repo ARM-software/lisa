@@ -49,12 +49,12 @@ class FrameCollector(threading.Thread):
         self.refresh_period = None
         self.drop_threshold = None
         self.unresponsive_count = 0
-        self.last_ready_time = None
+        self.last_ready_time = 0
         self.exc = None
         self.header = None
 
     def run(self):
-        logger.debug('Surface flinger frame data collection started.')
+        logger.debug('Frame data collection started.')
         try:
             self.stop_signal.clear()
             fd, self.temp_file = tempfile.mkstemp()
@@ -71,7 +71,7 @@ class FrameCollector(threading.Thread):
         except Exception as e:  # pylint: disable=W0703
             logger.warning('Exception on collector thread: {}({})'.format(e.__class__.__name__, e))
             self.exc = WorkerThreadError(self.name, sys.exc_info())
-        logger.debug('Surface flinger frame data collection stopped.')
+        logger.debug('Frame data collection stopped.')
 
     def stop(self):
         self.stop_signal.set()
@@ -133,7 +133,7 @@ class SurfaceFlingerFrameCollector(FrameCollector):
     def collect_frames(self, wfh):
         for activity in self.list():
             if activity == self.view:
-                wfh.write(self.get_latencies(activity))
+                wfh.write(self.get_latencies(activity).encode('utf-8'))
 
     def clear(self):
         self.target.execute('dumpsys SurfaceFlinger --latency-clear ')

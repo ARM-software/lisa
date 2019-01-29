@@ -26,7 +26,8 @@ CPU frequency fixed to max, and once with CPU frequency fixed to min.
 Classifiers are used to indicate the configuration in the output.
 
 First, create the :class:`RunOutput` object, which is the main interface for
-interacting with WA outputs.
+interacting with WA outputs. Or alternatively a :class:`RunDatabaseOutput`
+if storing your results in a postgres database.
 
 .. code-block:: python
 
@@ -151,10 +152,6 @@ For the purposes of this report, they will be used to augment the metric's name.
 
                 scores[workload][name][freq] = metric
 
-        rows = []
-        for workload in sorted(scores.keys()):
-            wldata = scores[workload]
-
 Once the metrics have been sorted, generate the report showing the delta
 between the two configurations (indicated by the "frequency" classifier) and
 highlight any unexpected deltas (based on the ``lower_is_better`` attribute of
@@ -164,23 +161,27 @@ statically significant deltas.)
 
 .. code-block:: python
 
-        for name in sorted(wldata.keys()):
-            min_score = wldata[name]['min'].value
-            max_score = wldata[name]['max'].value
-            delta =  max_score - min_score
-            units = wldata[name]['min'].units or ''
-            lib = wldata[name]['min'].lower_is_better
+        rows = []
+        for workload in sorted(scores.keys()):
+            wldata = scores[workload]
 
-            warn = ''
-            if (lib and delta > 0) or (not lib and delta < 0):
-                warn = '!!!'
+            for name in sorted(wldata.keys()):
+                min_score = wldata[name]['min'].value
+                max_score = wldata[name]['max'].value
+                delta =  max_score - min_score
+                units = wldata[name]['min'].units or ''
+                lib = wldata[name]['min'].lower_is_better
 
-            rows.append([workload, name,
-            '{:.3f}'.format(min_score), '{:.3f}'.format(max_score),
-            '{:.3f}'.format(delta), units, warn])
+                warn = ''
+                if (lib and delta > 0) or (not lib and delta < 0):
+                    warn = '!!!'
 
-        # separate workloads with a blank row
-        rows.append(['', '', '', '', '', '', ''])
+                rows.append([workload, name,
+                '{:.3f}'.format(min_score), '{:.3f}'.format(max_score),
+                '{:.3f}'.format(delta), units, warn])
+
+            # separate workloads with a blank row
+            rows.append(['', '', '', '', '', '', ''])
 
 
         write_table(rows, sys.stdout, align='<<>>><<',
@@ -275,23 +276,23 @@ Below is the complete example code, and a report it generated for a sample run.
         for workload in sorted(scores.keys()):
             wldata = scores[workload]
 
-        for name in sorted(wldata.keys()):
-            min_score = wldata[name]['min'].value
-            max_score = wldata[name]['max'].value
-            delta =  max_score - min_score
-            units = wldata[name]['min'].units or ''
-            lib = wldata[name]['min'].lower_is_better
+            for name in sorted(wldata.keys()):
+                min_score = wldata[name]['min'].value
+                max_score = wldata[name]['max'].value
+                delta =  max_score - min_score
+                units = wldata[name]['min'].units or ''
+                lib = wldata[name]['min'].lower_is_better
 
-            warn = ''
-            if (lib and delta > 0) or (not lib and delta < 0):
-                warn = '!!!'
+                warn = ''
+                if (lib and delta > 0) or (not lib and delta < 0):
+                    warn = '!!!'
 
-            rows.append([workload, name,
-            '{:.3f}'.format(min_score), '{:.3f}'.format(max_score),
-            '{:.3f}'.format(delta), units, warn])
+                rows.append([workload, name,
+                '{:.3f}'.format(min_score), '{:.3f}'.format(max_score),
+                '{:.3f}'.format(delta), units, warn])
 
-        # separate workloads with a blank row
-        rows.append(['', '', '', '', '', '', ''])
+            # separate workloads with a blank row
+            rows.append(['', '', '', '', '', '', ''])
 
 
         write_table(rows, sys.stdout, align='<<>>><<',

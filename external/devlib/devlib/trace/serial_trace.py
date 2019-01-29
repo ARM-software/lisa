@@ -52,7 +52,8 @@ class SerialTraceCollector(TraceCollector):
 
 
         self._tmpfile = NamedTemporaryFile()
-        self._tmpfile.write("-------- Starting serial logging --------\n")
+        start_marker = "-------- Starting serial logging --------\n"
+        self._tmpfile.write(start_marker.encode('utf-8'))
 
         self._serial_target, self._conn = get_connection(port=self.serial_port,
                                                          baudrate=self.baudrate,
@@ -76,7 +77,8 @@ class SerialTraceCollector(TraceCollector):
         self._serial_target.close()
         del self._conn
 
-        self._tmpfile.write("-------- Stopping serial logging --------\n")
+        stop_marker = "-------- Stopping serial logging --------\n"
+        self._tmpfile.write(stop_marker.encode('utf-8'))
 
         self._collecting = False
 

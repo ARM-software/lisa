@@ -370,13 +370,14 @@ class CpufreqRuntimeConfig(RuntimeConfig):
                     The governor to be set for all cores
                     """)
 
-        param_name = 'governor_tunables'
+        param_name = 'gov_tunables'
         self._runtime_params[param_name] = \
             RuntimeParameter(
                 param_name, kind=dict,
                 merge=True,
                 setter=self.set_governor_tunables,
                 setter_params={'core': None},
+                aliases=['governor_tunables'],
                 description="""
                 The governor tunables to be set for all cores
                 """)

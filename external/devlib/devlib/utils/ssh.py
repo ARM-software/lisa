@@ -41,7 +41,8 @@ from pexpect import EOF, TIMEOUT, spawn
 # pylint: disable=redefined-builtin,wrong-import-position
 from devlib.exception import (HostError, TargetStableError, TargetNotRespondingError,
                               TimeoutError, TargetTransientError)
-from devlib.utils.misc import which, strip_bash_colors, check_output, sanitize_cmd_template
+from devlib.utils.misc import (which, strip_bash_colors, check_output,
+                               sanitize_cmd_template, memoized)
 from devlib.utils.types import boolean
 
 
@@ -253,7 +254,7 @@ class SshConnection(object):
         # simulate impatiently hitting ^C until command prompt appears
         logger.debug('Sending ^C')
         for _ in range(self.max_cancel_attempts):
-            self.conn.sendline(chr(3))
+            self._sendline(chr(3))
             if self.conn.prompt(0.1):
                 return True
         return False
@@ -267,15 +268,15 @@ class SshConnection(object):
             command = self.sudo_cmd.format(quote(command))
             if log:
                 logger.debug(command)
-            self.conn.sendline(command)
+            self._sendline(command)
             if self.password:
                 index = self.conn.expect_exact([self.password_prompt, TIMEOUT], timeout=0.5)
                 if index == 0:
-                    self.conn.sendline(self.password)
+                    self._sendline(self.password)
         else:  # not as_root
             if log:
                 logger.debug(command)
-            self.conn.sendline(command)
+            self._sendline(command)
         timed_out = self._wait_for_prompt(timeout)
         # the regex removes line breaks potential introduced when writing
         # command to shell.
@@ -321,6 +322,21 @@ class SshConnection(object):
         except TimeoutError as e:
             raise TimeoutError(command_redacted, e.output)
 
+    def _sendline(self, command):
+        # Workaround for https://github.com/pexpect/pexpect/issues/552
+        if len(command) == self._get_window_size()[1] - self._get_prompt_length():
+            command += ' '
+        self.conn.sendline(command)
+
+    @memoized
+    def _get_prompt_length(self):
+        self.conn.sendline()
+        self.conn.prompt()
+        return len(self.conn.after)
+
+    @memoized
+    def _get_window_size(self):
+        return self.conn.getwinsize()
 
 class TelnetConnection(SshConnection):
 

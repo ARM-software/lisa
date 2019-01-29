@@ -164,7 +164,7 @@ class FpsInstrument(Instrument):
                     os.remove(entry)
 
         if not frame_count.value:
-            context.add_event('Could not frind frames data in gfxinfo output')
+            context.add_event('Could not find frames data in gfxinfo output')
             context.set_status('PARTIAL')
 
         self.check_for_crash(context, fps.value, frame_count.value,

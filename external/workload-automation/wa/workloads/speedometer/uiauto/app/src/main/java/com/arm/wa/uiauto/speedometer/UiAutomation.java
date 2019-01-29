@@ -62,12 +62,12 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     public void clearFirstRun() throws Exception {
-        UiObject accept = 
+        UiObject accept =
             mDevice.findObject(new UiSelector().resourceId("com.android.chrome:id/terms_accept")
                 .className("android.widget.Button"));
         if (accept.exists()){
             accept.click();
-            UiObject negative = 
+            UiObject negative =
                 mDevice.findObject(new UiSelector().resourceId("com.android.chrome:id/negative_button")
                     .className("android.widget.Button"));
             negative.waitForExists(100000);
@@ -76,18 +76,18 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     public void runBenchmark() throws Exception {
-        UiObject start = 
+        UiObject start =
             mDevice.findObject(new UiSelector().description("Start Test")
                 .className("android.widget.Button"));
-            if (start.exists()){
+            if (start.waitForExists(2000)){
                 start.click();
             } else {
-            UiObject starttext = 
+            UiObject starttext =
                 mDevice.findObject(new UiSelector().text("Start Test")
                     .className("android.widget.Button"));
                 starttext.click();
             }
-        UiObject scores = 
+        UiObject scores =
             mDevice.findObject(new UiSelector().resourceId("result-number")
                 .className("android.view.View"));
         scores.waitForExists(2100000);
@@ -97,17 +97,19 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     public void clearTabs() throws Exception {
-        UiObject tabselector = 
+        UiObject tabselector =
             mDevice.findObject(new UiSelector().resourceId("com.android.chrome:id/tab_switcher_button")
                 .className("android.widget.ImageButton"));
+        if (!tabselector.exists()){
+            return;
+        }
         tabselector.click();
-        UiObject menu = 
+        UiObject menu =
             mDevice.findObject(new UiSelector().resourceId("com.android.chrome:id/menu_button")
                 .className("android.widget.ImageButton"));
         menu.click();
-        UiObject closetabs = 
+        UiObject closetabs =
             mDevice.findObject(new UiSelector().textContains("Close all tabs"));
         closetabs.click();
     }
 }
-

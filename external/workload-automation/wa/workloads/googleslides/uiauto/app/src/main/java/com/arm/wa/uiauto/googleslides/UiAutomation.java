@@ -81,11 +81,11 @@ public class UiAutomation extends BaseUiAutomation {
         sleep(1);
         enablePowerpointCompat();
         sleep(1);
-        testEditNewSlidesDocument(newDocumentName, workingDirectoryName, doTextEntry);
     }
 
     @Test
     public void runWorkload() throws Exception {
+        testEditNewSlidesDocument(newDocumentName, workingDirectoryName, doTextEntry);
         openDocument(pushedDocumentName, workingDirectoryName);
         waitForProgress(WAIT_TIMEOUT_1SEC*30);
         testSlideshowFromStorage(slideCount);
@@ -130,8 +130,22 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     public void insertSlide(String slideLayout) throws Exception {
-        clickUiObject(BY_DESC, "Add slide", true);
-        clickUiObject(BY_TEXT, slideLayout, true);
+        UiObject add_slide =
+                mDevice.findObject(new UiSelector().descriptionContains("Add slide"));
+        add_slide.click();
+
+        UiObject slide_layout = mDevice.findObject(new UiSelector().textContains(slideLayout));
+
+        if (!slide_layout.exists()){
+            tapOpenArea();
+            UiObject done_button = mDevice.findObject(new UiSelector().resourceId("android:id/action_mode_close_button"));
+            if (done_button.exists()){
+                done_button.click();
+            }
+            add_slide.click();
+        }
+        slide_layout.click();
+
     }
 
     public void insertImage(String workingDirectoryName) throws Exception {
@@ -165,7 +179,7 @@ public class UiAutomation extends BaseUiAutomation {
             mDevice.pressBack();
             showRoots();
         }
-        if (localDevice.exists()){
+        else if (localDevice.exists()){
             localDevice.click();
         }
 
@@ -184,6 +198,10 @@ public class UiAutomation extends BaseUiAutomation {
             pictureAlternate.click();
         } else {
             picture.click();
+        }
+        UiObject done_button = mDevice.findObject(new UiSelector().resourceId("android:id/action_mode_close_button"));
+        if (done_button.exists()){
+            done_button.click();
         }
     }
 
@@ -238,20 +256,29 @@ public class UiAutomation extends BaseUiAutomation {
         clickUiObject(BY_TEXT, "Device storage", true);
 
         UiObject workingDirectory = mDevice.findObject(new UiSelector().text(workingDirectoryName));
-        if (!workingDirectory.exists()) {
+        UiObject nav_button = mDevice.findObject(new UiSelector().resourceId(packageID + "file_picker_nav_up_btn"));
+        UiObject folderEntry = mDevice.findObject(new UiSelector().textContains(workingDirectoryName));
+        if (workingDirectory.exists()) {
+            folderEntry.clickAndWaitForNewWindow();
+        }
+        else if (nav_button.exists()) {
+            while (nav_button.exists()) {
+                nav_button.click();
+            }
+            clickUiObject(BY_TEXT, "Internal Storage", true);
+        }
+        else {
             showRoots();
             UiObject localDevice = mDevice.findObject(new UiSelector().textMatches(".*[GM]B free"));
             localDevice.click();
-            UiObject folderEntry = mDevice.findObject(new UiSelector().textContains(workingDirectoryName));
             UiScrollable list = new UiScrollable(new UiSelector().scrollable(true));
             if (!folderEntry.exists() && list.waitForExists(WAIT_TIMEOUT_1SEC)) {
                 list.scrollIntoView(folderEntry);
             } else {
                 folderEntry.waitForExists(WAIT_TIMEOUT_1SEC*10);
             }
-        folderEntry.clickAndWaitForNewWindow();
         }
-        
+
         UiScrollable list =
                 new UiScrollable(new UiSelector().className("android.widget.ListView"));
         if (list.exists()){
@@ -266,7 +293,7 @@ public class UiAutomation extends BaseUiAutomation {
 
         logger.start();
         clickUiObject(BY_TEXT, docName);
-        UiObject open = 
+        UiObject open =
             mDevice.findObject(new UiSelector().text("Open"));
         if (open.exists()) {
             open.click();
@@ -369,7 +396,7 @@ public class UiAutomation extends BaseUiAutomation {
 
     protected void skipWelcomeScreen() throws Exception {
         UiObject skip =
-            mDevice.findObject(new UiSelector().textMatches("Skip"));
+            mDevice.findObject(new UiSelector().textMatches("Skip|SKIP"));
         if (skip.exists()) {
             skip.click();
         }
@@ -421,7 +448,7 @@ public class UiAutomation extends BaseUiAutomation {
         insertShape(shapeName);
         modifyShape(shapeName);
         mDevice.pressBack();
-        UiObject today = 
+        UiObject today =
             mDevice.findObject(new UiSelector().text("Today"));
         if (!today.exists()){
             mDevice.pressBack();
@@ -542,7 +569,7 @@ public class UiAutomation extends BaseUiAutomation {
             window.click();
         }
     }
-    
+
     private void showRoots() throws Exception {
         UiObject rootMenu =
             mDevice.findObject(new UiSelector().descriptionContains("Show root"));

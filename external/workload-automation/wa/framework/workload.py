@@ -235,6 +235,12 @@ class ApkWorkload(Workload):
                   will fall back to the version on the target if available. If
                   ``False`` then the version on the target is preferred instead.
                   """),
+        Parameter('view', kind=str, default=None, merge=True,
+                  description="""
+                  Manually override the 'View' of the workload for use with
+                  instruments such as the ``fps`` instrument. If not specified,
+                  a workload dependant 'View' will be automatically generated.
+                  """),
     ]
 
     @property

@@ -20,7 +20,8 @@
 
 import sys
 from subprocess import call, Popen, PIPE
-from pipes import quote
+
+from devlib.utils.misc import escape_double_quotes
 
 from wa import Command
 from wa.framework import pluginloader
@@ -86,7 +87,7 @@ class ShowCommand(Command):
             title = '.TH {}{} 7'.format(kind, plugin_name)
             output = '\n'.join([title, body])
 
-            call('echo {} | man -l -'.format(quote(output)), shell=True)
+            call('echo "{}" | man -l -'.format(escape_double_quotes(output)), shell=True)
         else:
             print(rst_output)  # pylint: disable=superfluous-parens
 
