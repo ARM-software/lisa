@@ -2164,17 +2164,13 @@ class ExprValBase(collections.abc.Mapping):
         return id(self)
 
     def __getitem__(self, k):
-        if k == 'return':
-            return self.value
-        else:
-            return self.param_map[k]
+        return self.param_map[k]
 
     def __len__(self):
-        # account for 'return'
-        return len(self.param_map) + 1
+        return len(self.param_map)
 
     def __iter__(self):
-        return itertools.chain(self.param_map.keys(), ['return'])
+        return self.param_map.keys()
 
 class FrozenExprVal(ExprValBase):
     def __init__(self,
