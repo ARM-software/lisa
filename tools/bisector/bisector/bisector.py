@@ -3922,31 +3922,16 @@ def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
 def init_yaml(yaml, relative_root):
     """
     Initialize pyyaml to allow transparent loading and dumping of
-    OrderedDict, as well as an !include tag to include another file.
+    OrderedDict.
     """
-    # Without that, escape sequences are used to represent unicode characters in
-    # plain ascii.
+    # Without allow_unicode, escape sequences are used to represent unicode
+    # characters in plain ASCII
     yaml.allow_unicode = True
     yaml.default_flow_style = True
     yaml.indent(mapping=1, sequence=1, offset=0)
 
-    # Allow !include tag to include other files. Relative paths are relative
-    # to the folder of the root yaml file. Absolute paths are used as-is.
-    # Environments variables are expanded in the path.
-    def include_constructor(loader, node):
-        filename = loader.construct_scalar(node)
-        filename = os.path.expandvars(filename)
-        if os.path.isabs(filename):
-            path = filename
-        else:
-            path = os.path.join(relative_root, filename)
-
-        with open(path, 'r') as f:
-            return yaml.load(f)
-
-    yaml.Constructor.add_constructor('!include', include_constructor)
-
-    # Use OrderedDict as default mapping objects
+    # Dump OrderedDict as regular dictionaries, since we will reload map as
+    # OrderedDict as well
     def map_representer(dumper, data):
         return dumper.represent_dict(data.items())
 
