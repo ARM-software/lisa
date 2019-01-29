@@ -17,6 +17,7 @@
 
 import os
 from collections import OrderedDict
+from statistics import mean
 
 import matplotlib.pyplot as plt
 import pylab as pl
@@ -53,13 +54,64 @@ class LoadTrackingHelpers:
     """
     Common bunch of helpers for load tracking tests.
     """
-    @staticmethod
-    def get_max_capa_cpu(te):
+
+    MAX_RTAPP_CALIB_DEVIATION = 3/100
+    """
+    Blacklist CPUs that have a RTapp calibration value that deviates too much
+    from the average calib value in their capacity class.
+    """
+
+    @classmethod
+    def _get_blacklisted_cpus(cls, plat_info):
         """
-        :returns: A CPU with the highest capacity value
+        Consider some CPUs as blacklisted when the load would not be
+        proportionnal to utilization on them.
+
+        That happens for CPUs that are busy executing other code than the test
+        workload, like handling interrupts. It is detect that by looking at the
+        RTapp calibration value and we blacklist outliers.
         """
-        cpu_capacities = te.plat_info['cpu-capacities']
-        return max(cpu_capacities.keys(), key=lambda cpu: cpu_capacities[cpu])
+        rtapp_calib = plat_info['rtapp']['calib']
+        blacklisted = set()
+        # For each class of CPUs, get the average rtapp calibration value
+        # and blacklist the ones that are deviating too much from that
+        for cpu_class in plat_info['capacity-classes']:
+            calib_mean = mean(rtapp_calib[cpu] for cpu in cpu_class)
+            calib_max = (1 + cls.MAX_RTAPP_CALIB_DEVIATION) * calib_mean
+            blacklisted.update(
+                cpu
+                for cpu in cpu_class
+                # exclude outliers that are too slow (i.e. calib value too small)
+                if rtapp_calib[cpu] > calib_max
+            )
+        return sorted(blacklisted)
+
+    @classmethod
+    def filter_capacity_classes(cls, plat_info):
+        """
+        Filter out capacity-classes key of ``plat_info`` to remove blacklisted CPUs.
+        .. seealso:: :meth:`_get_blacklisted_cpus`
+        """
+        blacklisted_cpus = set(cls._get_blacklisted_cpus(plat_info))
+        return [
+            sorted(set(cpu_class) - blacklisted_cpus)
+            for cpu_class in plat_info['capacity-classes']
+        ]
+
+    @classmethod
+    def get_max_capa_cpu(cls, te):
+        """
+        :returns: A CPU with the highest capacity value that is not blacklisted.
+        """
+        # capacity-classes is sorted by capacity, last class therefore contains
+        # the biggest CPUs
+        candidates = cls.filter_capacity_classes(te.plat_info)[-1]
+
+        if not candidates:
+            raise RuntimeError('All CPUs of that class have been blacklisted: {}'.format(
+                te.plat_info['capacity-class'][-1]
+            ))
+        return candidates[0]
 
     @classmethod
     def get_task_duty_cycle_pct(cls, trace, task_name, cpu):
@@ -191,43 +243,49 @@ class InvarianceBase(LoadTrackingBase):
         """
         # Find duty cycle of the workload task
         duty_cycle_pct = self.get_task_duty_cycle_pct(trace, task_name, cpu)
-        cpu_capacities = self.plat_info['cpu-capacities']
-        capacity = capacity or cpu_capacities[cpu]
 
-        # Scale the relative CPU/freq capacity into the range 0..1
-        scaling_factor = capacity / max(cpu_capacities.values())
-        return UTIL_SCALE * (duty_cycle_pct / 100) * scaling_factor
+        # Scale the relative CPU/freq capacity
+        return (duty_cycle_pct / 100) * capacity
 
     def _test_task_signal(self, signal_name, allowed_error_pct,
                           trace, cpu, task_name, capacity=None):
-        exp_util = self.get_expected_util_avg(trace, cpu, task_name, capacity)
+        # Use utilization signal for both load and util, since they should be
+        # proportionnal in the test environment we setup
+        exp_signal = self.get_expected_util_avg(trace, cpu, task_name, capacity)
         signal_df = self.get_task_sched_signals(trace, cpu, task_name, [signal_name])
         signal = signal_df[UTIL_AVG_CONVERGENCE_TIME_S:][signal_name]
 
         signal_mean = area_under_curve(signal) / (signal.index[-1] - signal.index[0])
 
-        ok = self.is_almost_equal(exp_util, signal_mean, allowed_error_pct)
+        if signal_name == 'load':
+            # Load isn't CPU invariant
+            exp_signal /= (self.plat_info['cpu-capacities'][cpu] / UTIL_SCALE)
 
-        return ok, exp_util, signal_mean
+        ok = self.is_almost_equal(exp_signal, signal_mean, allowed_error_pct)
+
+        return ok, exp_signal, signal_mean
 
     def _test_signal(self, signal_name, allowed_error_pct, freq=None, capacity_scale=1):
         passed = True
         expected_data = {}
         trace_data = {}
 
-        freq_str = '@{}'.format(freq) if freq is not None else ''
+        freq_str = '@{}'.format(self.freq) if self.freq is not None else ''
+
+        capacity = self.plat_info['cpu-capacities'][self.cpu]
+
+        # Scale the capacity linearly according to the frequency
+        max_freq = max(self.plat_info['freqs'][self.cpu])
+        capacity *= (self.freq / max_freq)
 
         for name, task in self.rtapp_profile.items():
-            cpu = task.phases[0].cpus[0]
-            capacity = self.plat_info['cpu-capacities'][cpu] * capacity_scale
-
             ok, exp_util, signal_mean = self._test_task_signal(
-                signal_name, allowed_error_pct, self.trace, cpu, name, capacity)
+                signal_name, allowed_error_pct, self.trace, self.cpu, name, capacity)
 
             if not ok:
                 passed = False
 
-            metric_name = 'cpu{}{}'.format(cpu, freq_str)
+            metric_name = 'cpu{}{}'.format(self.cpu, freq_str)
             expected_data[metric_name] = TestMetric(exp_util)
             trace_data[metric_name] = TestMetric(signal_mean)
 
@@ -304,7 +362,7 @@ class FreqInvarianceItem(InvarianceBase):
 
     task_prefix = 'fie'
 
-    def __init__(self, res_dir, plat_info, rtapp_profile, freq, freq_list, cpu=None):
+    def __init__(self, res_dir, plat_info, rtapp_profile, cpu, freq, freq_list):
         super().__init__(res_dir, plat_info, rtapp_profile)
 
         self.freq = freq
@@ -312,19 +370,17 @@ class FreqInvarianceItem(InvarianceBase):
         self.cpu = cpu
 
     @classmethod
-    def get_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, te, cpu):
         """
         Get a specification for a rt-app workload with the specificied duty
         cycle, pinned to the given CPU.
         """
-        cpu = cls.get_max_capa_cpu(te)
-
         rtapp_profile = {}
         rtapp_profile["{}_cpu{}".format(cls.task_prefix, cpu)] = Periodic(
             duty_cycle_pct=10,
             duration_s=2,
             period_ms=cls.TASK_PERIOD_MS,
-            cpus=[cpu]
+            cpus=[cpu],
         )
 
         return rtapp_profile
@@ -332,17 +388,17 @@ class FreqInvarianceItem(InvarianceBase):
     @classmethod
     # Not annotated, to prevent exekall from picking it up. See
     # FreqInvariance.from_testenv
-    def from_testenv(cls, te, freq, freq_list, res_dir=None):
+    def from_testenv(cls, te, cpu, freq, freq_list, res_dir=None):
         """
         .. warning:: `res_dir` is the last parameter, unlike most other
             `from_testenv` where it is the second one.
         """
-        return super().from_testenv(te, res_dir, freq=freq, freq_list=freq_list)
+        return super().from_testenv(te, res_dir,
+            cpu=cpu, freq=freq, freq_list=freq_list)
 
     @classmethod
-    def _from_testenv(cls, te, res_dir, freq, freq_list):
-        rtapp_profile = cls.get_rtapp_profile(te)
-        cpu = cls.get_max_capa_cpu(te)
+    def _from_testenv(cls, te, res_dir, cpu, freq, freq_list):
+        rtapp_profile = cls.get_rtapp_profile(te, cpu)
         logger = cls.get_logger()
 
         with te.target.cpufreq.use_governor(**cls.cpufreq_conf):
@@ -350,11 +406,16 @@ class FreqInvarianceItem(InvarianceBase):
             logger.debug('CPU{} frequency: {}'.format(cpu, te.target.cpufreq.get_frequency(cpu)))
             cls._run_rtapp(te, res_dir, rtapp_profile)
 
-        return cls(res_dir, te.plat_info, rtapp_profile, freq, freq_list, cpu)
+        return cls(res_dir, te.plat_info, rtapp_profile, cpu, freq, freq_list)
 
     def _test_signal(self, signal_name, allowed_error_pct):
-        # Scale the capacity linearly according to the frequency
-        capacity_scale = self.freq / max(self.freq_list)
+        capacity_scale = (
+            # Scale the capacity linearly according to the frequency
+            (self.freq / max(self.freq_list))
+            *
+            # scale for that CPU
+            (self.plat_info['cpu-capacities'][self.cpu] / UTIL_SCALE)
+        )
 
         return super()._test_signal(
             signal_name, allowed_error_pct,
@@ -408,30 +469,49 @@ class FreqInvariance(TestBundle, LoadTrackingHelpers):
     def iter_freq_items(cls, te:TestEnv, res_dir:ArtifactPath) -> FreqInvarianceItem:
         """
         Yield a :class:`FreqInvarianceItem` for a subset of target's
-        frequencies.
+        frequencies, for one CPU of each capacity class.
 
         This is a generator function.
 
         :rtype: Iterator[:class:`FreqInvarianceItem`]
         """
-        cpu = cls.get_max_capa_cpu(te)
-        all_freqs = te.target.cpufreq.list_frequencies(cpu)
-        # If we have loads of frequencies just test a cross-section so it
-        # doesn't take all day
-        freq_list = all_freqs[::len(all_freqs) // 8 + (1 if len(all_freqs) % 2 else 0)]
+        plat_info = te.plat_info
 
-        # Make sure we have increasing frequency order, to make the logs easier
-        # to navigate
-        freq_list.sort()
+        def pick_cpu(filtered_class, cpu_class):
+            try:
+                return filtered_class[0]
+            except IndexError:
+                raise RuntimeError('All CPUs of one capacity class have been blacklisted: {}'.format(cpu_class))
 
-        for freq in freq_list:
-            item_dir = os.path.join(res_dir, "{}_{}".format(
-                FreqInvarianceItem.task_prefix, freq))
-            os.makedirs(item_dir)
-
-            yield FreqInvarianceItem.from_testenv(
-                te, freq, all_freqs, res_dir=item_dir,
+        # pick one CPU per class of capacity
+        cpus = [
+            pick_cpu(filtered_class, cpu_class)
+            for cpu_class, filtered_class
+            in zip(
+                plat_info['capacity-classes'],
+                cls.filter_capacity_classes(plat_info)
             )
+        ]
+
+        cls.get_logger().info('Selected one CPU of each capacity class: {}'.format(cpus))
+        for cpu in cpus:
+            all_freqs = te.target.cpufreq.list_frequencies(cpu)
+            # If we have loads of frequencies just test a cross-section so it
+            # doesn't take all day
+            freq_list = all_freqs[::len(all_freqs) // 8 + (1 if len(all_freqs) % 2 else 0)]
+
+            # Make sure we have increasing frequency order, to make the logs easier
+            # to navigate
+            freq_list.sort()
+
+            for freq in freq_list:
+                item_dir = os.path.join(res_dir, "{}_{}".format(
+                    FreqInvarianceItem.task_prefix, freq))
+                os.makedirs(item_dir)
+
+                yield FreqInvarianceItem.from_testenv(
+                    te, cpu, freq, all_freqs, res_dir=item_dir,
+                )
 
     @classmethod
     def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'FreqInvariance':
