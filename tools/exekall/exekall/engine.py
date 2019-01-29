@@ -142,6 +142,31 @@ class ValueDB:
                 db = pickle.load(f)
         assert isinstance(db, cls)
 
+        # Apply some post-processing on the DB with a known path
+        cls._call_adaptor_reload(db, path=path)
+
+        return db
+
+    @classmethod
+    def _reload_serialized(cls, dct):
+        db = cls.__new__(cls)
+        db.__dict__ = dct
+
+        # Apply some post-processing on the DB that was just reloaded, with no
+        # path since we don't even know if that method was invoked on something
+        # serialized in a file.
+        cls._call_adaptor_reload(db, path=None)
+
+        return db
+
+    def __reduce_ex__(self, protocol):
+        return (self._reload_serialized, (self.__dict__,))
+
+    @staticmethod
+    def _call_adaptor_reload(db, path):
+        adaptor_cls = db.adaptor_cls
+        if adaptor_cls:
+            db = adaptor_cls.reload_db(db, path=path)
         return db
 
     def to_path(self, path, optimize=True):
@@ -612,12 +637,15 @@ class ExpressionBase:
         return self.get_all_script([self], *args, **kwargs)
 
     @classmethod
-    def get_all_script(cls, expr_list, prefix='value', db_path='VALUE_DB.pickle.xz', db_relative_to=None, db_loader=None, db=None):
+    def get_all_script(cls, expr_list, prefix='value', db_path='VALUE_DB.pickle.xz', db_relative_to=None, db=None, adaptor_cls=None):
         assert expr_list
 
         if db is None:
             froz_val_seq_list = FrozenExprValSeq.from_expr_list(expr_list)
-            script_db = ScriptValueDB(ValueDB(froz_val_seq_list))
+            script_db = ScriptValueDB(ValueDB(
+                froz_val_seq_list,
+                adaptor_cls=adaptor_cls,
+            ))
         else:
             script_db = ScriptValueDB(db)
 
@@ -670,15 +698,6 @@ class ExpressionBase:
             result_name_map[expr] = result_name
 
 
-        # Get the name of the customized db_loader
-        if db_loader is None:
-            db_loader_name = '{cls_name}.from_path'.format(
-                cls_name=utils.get_name(ValueDB, full_qual=True),
-            )
-        else:
-            module_name_set.add(inspect.getmodule(db_loader).__name__)
-            db_loader_name = utils.get_name(db_loader, full_qual=True)
-
         # Add all the imports
         header = (
             '#! /usr/bin/env python3\n\n' +
@@ -712,9 +731,9 @@ class ExpressionBase:
             else:
                 db_relative_to = ''
 
-            header += '{db} = {db_loader_name}({path}{db_relative_to})\n'.format(
+            header += '{db} = {db_loader}({path}{db_relative_to})\n'.format(
                 db = script_db.var_name,
-                db_loader_name = db_loader_name,
+                db_loader = utils.get_name(ValueDB.from_path, full_qual=True),
                 path = repr(str(db_path)),
                 db_relative_to = db_relative_to
             )

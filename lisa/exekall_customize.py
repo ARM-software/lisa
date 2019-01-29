@@ -196,12 +196,14 @@ class LISAAdaptor(AdaptorBase):
         return {'*.ResultBundle'}
 
     @classmethod
-    def load_db(cls, db_path, *args, **kwargs):
-        db = super().load_db(db_path, *args, **kwargs)
+    def reload_db(cls, db, path=None):
+        # If path is not known, we cannot do anything here
+        if not path:
+            return db
 
         # This will relocate ArtifactPath instances to the new absolute path of
         # the results folder, in case it has been moved to another place
-        artifact_dir = Path(db_path).parent.resolve()
+        artifact_dir = Path(path).parent.resolve()
 
         # Relocate ArtifactPath embeded in objects so they will always
         # contain an absolute path that adapts to the local filesystem
@@ -292,6 +294,3 @@ class LISAAdaptor(AdaptorBase):
         tags = {k: v for k, v in tags.items() if v is not None}
 
         return tags
-
-# Expose it as a module-level name
-load_db = LISAAdaptor.load_db

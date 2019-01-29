@@ -624,7 +624,7 @@ def do_run(args, parser, run_parser, argv):
     if load_db_path_list:
         db_list = []
         for db_path in load_db_path_list:
-            db = adaptor.load_db(db_path)
+            db = engine.ValueDB.from_path(db_path)
             op_set.update(
                 load_from_db(db, adaptor, non_reusable_type_set,
                     load_db_pattern_list, load_db_uuid_list, load_db_uuid_args
@@ -786,8 +786,6 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
         with (artifact_dir/'UUID').open('wt') as f:
             f.write(testsession_uuid+'\n')
 
-    db_loader = adaptor.load_db
-
     out('\nArtifacts dir: {}\n'.format(artifact_dir))
 
     # Get a list of ComputableExpression in order to execute them
@@ -846,7 +844,6 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
                     prefix = 'testcase',
                     db_path = os.path.join('..', DB_FILENAME),
                     db_relative_to = '__file__',
-                    db_loader=db_loader
                 )[1]+'\n',
             )
 
@@ -964,7 +961,6 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
                     prefix = 'testcase',
                     db_path = os.path.join('..', '..', DB_FILENAME),
                     db_relative_to = '__file__',
-                    db_loader=db_loader
                 )[1]+'\n',
             )
 
@@ -1010,7 +1006,7 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
         db_path=db_path.relative_to(artifact_dir),
         db_relative_to='__file__',
         db=db,
-        db_loader=db_loader,
+        adaptor_cls=adaptor_cls,
     )
 
     with script_path.open('wt', encoding='utf-8') as f:

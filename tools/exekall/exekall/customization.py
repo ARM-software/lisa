@@ -77,9 +77,9 @@ class AdaptorBase:
     def resolve_cls_name(self, goal):
         return utils.get_class_from_name(goal)
 
-    @staticmethod
-    def load_db(*args, **kwargs):
-        return ValueDB.from_path(*args, **kwargs)
+    @classmethod
+    def reload_db(cls, db, path=None):
+        return db
 
     def finalize_expr(self, expr):
         pass
