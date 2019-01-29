@@ -1027,14 +1027,14 @@ class StepMeta(abc.ABCMeta, type(Serializable)):
     """
     Metaclass of all steps.
 
-    Wraps :meth:`__init__` and :meth:`report_results` to preprocess the values
+    Wraps :meth:`__init__` and :meth:`report` to preprocess the values
     of the parameters annotated with a command line option parser.
     """
     def __new__(meta_cls, name, bases, dct):
         # Wrap some methods to preprocess some parameters that have a parser
         # defined using the "options" class attribute.
         for method_name in (
-            name for name in ('__init__', 'report_results')
+            name for name in ('__init__', 'report')
             if name in dct
         ):
             wrapper = meta_cls.wrap_method(dct, method_name)
@@ -1121,7 +1121,7 @@ class StepABC(Serializable, metaclass=StepMeta):
 
     options = dict(
         __init__ = {},
-        report_results = dict(
+        report = dict(
             verbose = BoolParam('Increase verbosity'),
         ),
     )
@@ -1144,7 +1144,7 @@ class StepABC(Serializable, metaclass=StepMeta):
         pass
 
     @abc.abstractmethod
-    def report_results(self, step_res_seq,
+    def report(self, step_res_seq,
         verbose=True
     ):
         """
@@ -1191,7 +1191,7 @@ class StepBase(StepABC):
             use_systemd_run = BoolParam('use systemd-run to run the command. This allows cleanup of daemons spawned by the command (using cgroups)'),
             env = EnvListParam('environment variables with a list of values that will be used for each iterations, wrapping around. The string format is: VAR1=val1%val2%...%%VAR2=val1%val2%.... In YAML, it is a map of var names to list of values. A single string can be supplied instead of a list of values.'),
         ),
-        report_results = dict(
+        report = dict(
             verbose = BoolParam('increase verbosity'),
             show_basic = BoolParam('show command exit status for all iterations'),
             ignore_non_issue = BoolParam('consider only iteration with non-zero command exit status'),
@@ -1258,7 +1258,8 @@ class StepBase(StepABC):
             out(indent + textwrap.dedent(cls.__doc__).strip().replace('\n', '\n'+indent) + '\n')
 
         for pretty, method_name in (
-                ('run', '__init__'), ('report', 'report_results')
+                ('run', '__init__'),
+                ('report', 'report'),
         ):
             parser_map = get_steps_kwarg_parsers(cls, method_name)
             if not parser_map:
@@ -1455,7 +1456,7 @@ class StepBase(StepABC):
         ensure_dir(os.path.join(dirname, 'foo'))
         return dirname
 
-    def report_results(self, step_res_seq, service_hub,
+    def report(self, step_res_seq, service_hub,
             verbose = False,
             show_basic = True,
             ignore_non_issue = False,
@@ -1788,10 +1789,10 @@ class ExekallLISATestStep(ShellStep):
             # Some options are not supported
             **filter_keys(StepBase.options['__init__'], remove={'trials'}),
         ),
-        report_results = dict(
-            verbose = StepBase.options['report_results']['verbose'],
-            show_basic = StepBase.options['report_results']['show_basic'],
-            iterations = StepBase.options['report_results']['iterations'],
+        report = dict(
+            verbose = StepBase.options['report']['verbose'],
+            show_basic = StepBase.options['report']['show_basic'],
+            iterations = StepBase.options['report']['iterations'],
             show_rates = BoolParam('show percentages of failure, error, skipped, undecided and passed tests'),
             show_dist = BoolParam('show graphical distribution of issues among iterations with a one letter code: passed=".", failed="F", error="#", skipped="s", undecided="u"'),
             show_pass_rate = BoolParam('always show the pass rate of tests, even when there are failures or crashes as well'),
@@ -1944,7 +1945,7 @@ class ExekallLISATestStep(ShellStep):
             db = db,
         )
 
-    def report_results(self, step_res_seq, service_hub,
+    def report(self, step_res_seq, service_hub,
             verbose = False,
             show_basic = False,
             show_rates = True,
@@ -2184,7 +2185,7 @@ class ExekallLISATestStep(ShellStep):
 
         # Always execute that for the potential side effects like exporting the
         # logs.
-        basic_report = super().report_results(
+        basic_report = super().report(
             step_res_seq, service_hub, export_logs=export_logs,
             show_basic=show_basic, verbose=verbose,
             ignore_non_issue=ignore_non_issue, iterations=iterations,
@@ -2361,10 +2362,10 @@ class LISATestStep(ShellStep):
             upload_results = BoolParam('upload the LISA results directory to Artifactorial as the execution goes, and delete the local archive.'),
             **StepBase.options['__init__'],
         ),
-        report_results = dict(
-            verbose = StepBase.options['report_results']['verbose'],
-            show_basic = StepBase.options['report_results']['show_basic'],
-            iterations = StepBase.options['report_results']['iterations'],
+        report = dict(
+            verbose = StepBase.options['report']['verbose'],
+            show_basic = StepBase.options['report']['show_basic'],
+            iterations = StepBase.options['report']['iterations'],
             show_rates = BoolParam('show percentages of failure, error, skipped and passed tests'),
             show_dist = BoolParam('show graphical distribution of issues among iterations with a one letter code: passed=".", failed="F", error="#", skipped="s"'),
             show_pass_rate = BoolParam('always show the pass rate of tests, even when there are failures or crashes as well'),
@@ -2487,7 +2488,7 @@ class LISATestStep(ShellStep):
         )
 
 
-    def report_results(self, step_res_seq, service_hub,
+    def report(self, step_res_seq, service_hub,
             verbose = False,
             show_basic = False,
             show_rates = True,
@@ -2683,7 +2684,7 @@ class LISATestStep(ShellStep):
 
         # Always execute that for the potential side effects like exporting the
         # logs.
-        basic_report = super().report_results(
+        basic_report = super().report(
             step_res_seq, service_hub, export_logs=export_logs,
             show_basic=show_basic, verbose=verbose,
             ignore_non_issue=ignore_non_issue, iterations=iterations,
@@ -3322,7 +3323,7 @@ class MacroStep(StepBase):
             bail_out_early = BoolParam('start a new iteration when a step returned bisect status bad or untestable and skip all remaining steps'),
             relative_root = BoolOrStrParam('root of relative paths in class names', allow_empty=True),
         ),
-        report_results = dict()
+        report = dict()
     )
 
     """Groups a set of steps in a logical sequence."""
@@ -3592,7 +3593,7 @@ class MacroStep(StepBase):
 
         return report
 
-    def report_results(self, macrostep_res_seq, service_hub, steps_filter=None,
+    def report(self, macrostep_res_seq, service_hub, steps_filter=None,
             step_options=dict()):
         """Report the results of nested steps."""
 
@@ -3628,7 +3629,7 @@ class MacroStep(StepBase):
                 continue
 
             # Select the kwargs applicable for this step
-            kwargs = get_step_kwargs(step.cat, step.name, step, 'report_results', step_options)
+            kwargs = get_step_kwargs(step.cat, step.name, step, 'report', step_options)
 
             # Pass down some MacroStep-specific parameters
             if isinstance(step, MacroStep):
@@ -3637,7 +3638,7 @@ class MacroStep(StepBase):
                     'steps_filter': steps_filter,
                 })
 
-            report_str = step.report_results(
+            report_str = step.report(
                 step_res_list,
                 service_hub,
                 **kwargs
@@ -3646,7 +3647,7 @@ class MacroStep(StepBase):
             # Build a temporary iteration result to aggregate the results of
             # any given step, as if all these results were coming from a list
             # of steps. This allows quickly spotting if any of the iterations
-            # went wrong. This must be done after calling step.report_results,
+            # went wrong. This must be done after calling step.report,
             # so that it has a chance to modify the results.
             bisect_ret = StepSeqResult(
                 step,
@@ -4278,7 +4279,7 @@ class Report(Serializable):
         out = MLString()
         out('Description: {self.description}'.format(self=self))
         out('Creation time: {self.creation_time}\n'.format(self=self))
-        out(self.result.step.report_results(
+        out(self.result.step.report(
             [(IterationCounterStack(), self.result)],
             service_hub = service_hub,
             steps_filter = steps_filter,
