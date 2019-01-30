@@ -29,7 +29,7 @@ from lisa.platforms.platinfo import PlatformInfo
 from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable
 from lisa.conf import MultiSrcConf
 from lisa.tests.base import TestBundle, ResultBundle
-from lisa.tests.scheduler.load_tracking import FreqInvarianceItem
+from lisa.tests.scheduler.load_tracking import InvarianceItem
 from lisa.regression import compute_regressions
 
 from exekall.utils import get_name
@@ -283,11 +283,11 @@ class LISAAdaptor(AdaptorBase):
             tags['board'] = value.target_conf.get('name')
         elif isinstance(value, PlatformInfo):
             tags['board'] = value.get('name')
+        elif isinstance(value, InvarianceItem):
+            if value.cpu is not None:
+                tags['cpu'] = '{}@{}'.format(value.cpu, value.freq)
         elif isinstance(value, TestBundle):
             tags['board'] = value.plat_info.get('name')
-            if isinstance(value, FreqInvarianceItem):
-                if value.cpu is not None:
-                    tags['cpu'] = '{}@{}'.format(value.cpu, value.freq)
         else:
             tags = super().get_tags(value)
 
