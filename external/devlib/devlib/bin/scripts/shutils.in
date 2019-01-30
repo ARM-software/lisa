@@ -276,7 +276,7 @@ read_tree_tgz_b64() {
     done
 
     cd $TMP_FOLDER
-    $BUSYBOX tar cz * | $BUSYBOX base64
+    $BUSYBOX tar cz * 2>/dev/null | $BUSYBOX base64
 
     # Clean-up the tmp folder since we won't need it any more
     cd $TMPBASE
