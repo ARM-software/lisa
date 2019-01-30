@@ -35,7 +35,6 @@ setup(
     entry_points={
         'console_scripts': [
             'bisector=bisector.bisector:main',
-            'xunit2json-analyze=bisector.xunit2json:main'
         ],
     },
     python_requires='>= 3.5',
