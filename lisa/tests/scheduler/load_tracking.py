@@ -17,6 +17,7 @@
 
 import os
 from collections import OrderedDict
+import itertools
 from statistics import mean
 
 import matplotlib.pyplot as plt
@@ -32,7 +33,7 @@ from lisa.tests.base import (
     TestMetric, Result, ResultBundle, TestBundle, RTATestBundle
 )
 from lisa.env import TestEnv
-from lisa.utils import ArtifactPath
+from lisa.utils import ArtifactPath, groupby
 from lisa.wlgen.rta import Periodic
 
 UTIL_SCALE = 1024
@@ -522,6 +523,78 @@ class Invariance(TestBundle, LoadTrackingHelpers):
         ])
 
         return overall_bundle
+
+    def test_cpu_invariance(self) -> ResultBundle:
+        """
+        Check that items using the max freq on each CPU is passing util avg test.
+
+        There could be false positives, but they are expected to be relatively
+        rare.
+
+        .. seealso:: :class:`InvarianceItem.test_task_util_avg`
+        """
+        metrics = {}
+        passed = True
+        for cpu, item_group in groupby(self.invariance_items, key=lambda x: x.cpu):
+            item_group = list(item_group)
+            # combine all frequencies of that CPU class, although they should
+            # all be the same
+            max_freq = max(itertools.chain.from_iterable(
+                x.freq_list for x in item_group
+            ))
+            max_freq_items = [
+                item
+                for item in item_group
+                if item.freq == max_freq
+            ]
+            for item in max_freq_items:
+                # Only test util, as it should be more robust
+                res = item.test_task_util_avg()
+                passed &= bool(res)
+                metrics.setdefault(cpu, []).append(res.metrics)
+
+        res = ResultBundle.from_bool(passed)
+        for cpu, submetrics in metrics.items():
+            for submetric in submetrics:
+                res.add_metric(cpu, submetric)
+
+        return res
+
+    def test_freq_invariance(self) -> ResultBundle:
+        """
+        Check that at least one CPU has items passing for all tested frequencies.
+
+        .. seealso:: :class:`InvarianceItem.test_task_util_avg`
+        """
+        logger = self.get_logger()
+        metrics = {}
+        passed = False
+        for cpu, item_group in groupby(self.invariance_items, key=lambda x: x.cpu):
+            group_passed = True
+            freq_list = []
+            for item in item_group:
+                freq_list.append(item.freq)
+                # Only test util, as it should be more robust
+                res = item.test_task_util_avg()
+                passed &= bool(res)
+                name = '{}@{}'.format(cpu, item.freq)
+                metrics[name] = res.metrics
+
+            logger.info('Util avg invariance {res} for CPU {cpu} at frequencies: {freq_list}'.format(
+                res='passed' if group_passed else 'failed',
+                cpu=cpu,
+                freq_list=freq_list,
+            ))
+
+            # At least one group must pass
+            passed |= group_passed
+
+        res = ResultBundle.from_bool(passed)
+        for cpu, submetric in metrics.items():
+            res.add_metric(cpu, submetric)
+
+        return res
+
 
 class PELTTask(LoadTrackingBase):
     """
