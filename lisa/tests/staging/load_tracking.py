@@ -18,8 +18,8 @@
 from bart.common.Utils import area_under_curve
 
 from lisa.wlgen.rta import RTATask, Periodic
-from lisa.tests.kernel.test_bundle import TestMetric, ResultBundle, CannotCreateError
-from lisa.tests.kernel.scheduler.load_tracking import (
+from lisa.tests.test_bundle import TestMetric, ResultBundle, CannotCreateError
+from lisa.tests.scheduler.load_tracking import (
     UTIL_AVG_CONVERGENCE_TIME_S,
     UTIL_SCALE,
     LoadTrackingBase
