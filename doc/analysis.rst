@@ -1,3 +1,5 @@
+.. _analysis-page:
+
 *********************
 Kernel trace analysis
 *********************

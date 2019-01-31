@@ -31,6 +31,8 @@ Contents:
    :maxdepth: 2
 
    overview
+   users_guide
+   contributors_guide
    kernel_tests
    wlgen
    internals

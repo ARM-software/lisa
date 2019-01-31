@@ -335,6 +335,7 @@ intersphinx_mapping = {
     'devlib' : ('https://pythonhosted.org/devlib/', None),
     'trappy' : ('https://pythonhosted.org/TRAPpy', None),
     'bart' :   ('https://pythonhosted.org/bart-py/', None),
+    'wa' : ('https://pythonhosted.org/wlauto/', None),
 }
 
 #

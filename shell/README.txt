@@ -18,6 +18,7 @@ lisa-buildroot-create-rootfs   - Create a buildroot based rootfs to be used as u
 lisa-install         - Remove the previous venv and do a fresh ven install
 lisa-activate-venv   - Activate the LISA venv, and create it if it does not exist
 lisa-deactivate-venv - Deactivate the LISA venv, and create it if it does not exist
+lisa-update-subtrees - Update the subtrees by pulling their latest changes
 
 .:: Notebooks commands
 ----------------------

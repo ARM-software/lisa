@@ -221,7 +221,7 @@ function lisa-install {
 # LISA Update utility functions
 ################################################################################
 
-function _lisa-update-subtrees {
+function lisa-update-subtrees {
     echo -ne "${LISASHELL_BLUE}"
     if [[ "$LISA_DEVMODE" == 1 ]]; then
         # Force update existing modules
