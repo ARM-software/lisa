@@ -15,6 +15,10 @@
 # limitations under the License.
 #
 
+git:
+  # make sure we have all relevant commits for subtree modif detection
+  depth: 1000
+
 sudo: required
 language: python
 python:

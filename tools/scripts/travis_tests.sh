@@ -20,10 +20,18 @@
 # Script run by Travis. It is mostly a workaround for Travis inability to
 # correctly handle environment variable set in sourced scripts.
 
-source init_env
-
 # Failing commands will make the script return with an error code
 set -e
+
+illegal_location="external/"
+illegal_commits=$(find "$illegal_location" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 git log --no-merges --oneline)
+
+if [[ -n "$illegal_commits" ]]; then
+    echo -e "The following commits are touching $illegal_location, which is not allowed apart from updates:\n$illegal_commits"
+    exit 1
+fi;
+
+source init_env
 
 echo "Starting nosetests ..."
 python3 -m nose
