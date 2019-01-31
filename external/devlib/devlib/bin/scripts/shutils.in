@@ -271,9 +271,7 @@ read_tree_tgz_b64() {
     # 'tar' doesn't work as expected on debugfs, so copy the tree first to
     # workaround the issue
     cd $BASEPATH
-    for CUR_FILE in $($BUSYBOX find . -follow -type f -maxdepth $MAXDEPTH); do
-        $BUSYBOX cp --parents $CUR_FILE $TMP_FOLDER/ 2> /dev/null
-    done
+	$BUSYBOX find . -follow -type f -maxdepth $MAXDEPTH -print0 | $BUSYBOX xargs -0 -I '{}' -n 999999 $BUSYBOX cp --parents '{}' $TMP_FOLDER/ 2> /dev/null
 
     cd $TMP_FOLDER
     $BUSYBOX tar cz * 2>/dev/null | $BUSYBOX base64
