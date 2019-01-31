@@ -179,11 +179,11 @@ function lisa-install {
     # cannot be installed using pip in a venv
     _lisa-python "$LISA_HOME/setup.py" systemcheck
 
-    # Record the point in time when we ran that install command
-    (cd "$LISA_HOME" && check-setuppy --update-recorded-commit HEAD)
-
     _lisa-venv-create &&
     _lisa-upgrade-pip || return 1
+
+    # Record the point in time when we ran that install command
+    (cd "$LISA_HOME" && check-setuppy --update-recorded-commit HEAD)
 
     if [[ "$LISA_DEVMODE" == 1 ]]; then
         # This set of requirements will install all the shipped dependencies
