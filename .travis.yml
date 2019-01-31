@@ -20,17 +20,17 @@ git:
   depth: 1000
 
 sudo: required
-language: python
-python:
-  - "3.5"
+# Use "generic" language to avoid having a virtualenv created for Python by default
+language: generic
+
 # Ubuntu Xenial 16.04 (latest version we can have on Travis)
 # https://docs.travis-ci.com/user/reference/overview/
 dist: xenial
 
 install:
-  - echo "$(python3 --version)"
   - cd "$TRAVIS_BUILD_DIR"
   - sudo ./install_base_ubuntu.sh
+  - echo "$(python3 --version)"
 
 script:
   - cd "$TRAVIS_BUILD_DIR"
