@@ -1795,7 +1795,7 @@ class ExekallLISATestStep(ShellStep):
             iterations = StepBase.options['report']['iterations'],
             show_rates = BoolParam('show percentages of failure, error, skipped, undecided and passed tests'),
             show_dist = BoolParam('show graphical distribution of issues among iterations with a one letter code: passed=".", failed="F", error="#", skipped="s", undecided="u"'),
-            show_pass_rate = BoolParam('always show the pass rate of tests, even when there are failures or crashes as well'),
+            show_pass_rate = BoolParam('always show the pass rate of tests, even when there are failures or errors as well'),
             show_details = ChoiceOrBoolParam(['msg'], 'show details of results. Use "msg" for only a brief message'),
             show_artifact_dirs = BoolParam('show exekall artifact directory for all iterations'),
             testcase = CommaListParam('show only the test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name'),
@@ -2194,7 +2194,7 @@ class ExekallLISATestStep(ShellStep):
         if show_basic:
             out(basic_report)
 
-        # Contains the percentage of skipped, failed, crashed and passed
+        # Contains the percentage of skipped, failed, error and passed
         # iterations for every testcase.
         testcase_stats = dict()
         table_out = MLString()
@@ -2215,7 +2215,7 @@ class ExekallLISATestStep(ShellStep):
                     ('skipped', 'skipped'),
                     ('undecided', 'undecided'),
                     ('failure', 'FAILED'),
-                    ('error', 'CRASHED'),
+                    ('error', 'ERROR'),
                 ):
                 filtered_entry_list = [entry for entry in entry_list if entry['result'] == issue]
 
@@ -2312,7 +2312,7 @@ class ExekallLISATestStep(ShellStep):
         counts['passed'] = nr_tests - (sum(counts.values()) - nr_tests)
 
         out(
-            'Crashed: {counts[error]}/{total}, '
+            'Error: {counts[error]}/{total}, '
             'Failed: {counts[failure]}/{total}, '
             'Undecided: {counts[undecided]}/{total}, '
             'Skipped: {counts[skipped]}/{total}, '
