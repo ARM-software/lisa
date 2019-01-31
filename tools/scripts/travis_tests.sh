@@ -20,9 +20,6 @@
 # Script run by Travis. It is mostly a workaround for Travis inability to
 # correctly handle environment variable set in sourced scripts.
 
-# Failing commands will make the script return with an error code
-set -e
-
 illegal_location="external/"
 illegal_commits=$(find "$illegal_location" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 git log --no-merges --oneline)
 
@@ -31,7 +28,12 @@ if [[ -n "$illegal_commits" ]]; then
     exit 1
 fi;
 
-source init_env
+# Some commands are allowed to fail in init_env, e.g. to probe for installed
+# tools. However, the overall script has to succeed.
+source init_env || exit 1
+
+# Failing commands will make the script return with an error code
+set -e
 
 echo "Starting nosetests ..."
 python3 -m nose
