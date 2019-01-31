@@ -139,6 +139,25 @@ def sanitize_asymmetry(series, window=None):
                 if window:
                     series.index.values[-1] = window[1]
 
+            # Remove repeated entries - which could happen if a task switch in
+            # then immediately switches out; ie: time stamp is exactly the same
+            n = 0
+            next = n + 1
+            while next < len(series):
+                if not series.values[n]:
+                    n = next
+                    next = next + 1
+                    continue
+
+                while not series.values[next]:
+                    next = next + 1
+
+                if series.values[n] == series.values[next]:
+                    series = series.drop(series.index[next])
+                else:
+                    n = next
+                    next = next + 1
+
         # No point if the series just has one value and
         # one event. We do not have sufficient data points
         # for any calculation. We should Ideally never reach
