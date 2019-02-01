@@ -15,21 +15,23 @@
 # limitations under the License.
 #
 
+git:
+  # make sure we have all relevant commits for subtree modif detection
+  depth: 1000
+
 sudo: required
-language: python
-python:
-  - "3.5"
+# Use "generic" language to avoid having a virtualenv created for Python by default
+language: generic
+
 # Ubuntu Xenial 16.04 (latest version we can have on Travis)
 # https://docs.travis-ci.com/user/reference/overview/
 dist: xenial
 
 install:
-  - echo "$(python3 --version)"
   - cd "$TRAVIS_BUILD_DIR"
   - sudo ./install_base_ubuntu.sh
-  # This will trigger the creation of a venv and install everything that is needed
-  - source init_env
+  - echo "$(python3 --version)"
 
 script:
   - cd "$TRAVIS_BUILD_DIR"
-  - env -i bash ./tools/scripts/travis_tests.sh
+  - bash ./tools/scripts/travis_tests.sh

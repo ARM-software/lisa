@@ -74,7 +74,7 @@ function lisa-help {
 }
 
 function lisa-version {
-cat << EOF
+cat <<EOF
 LISA version:
     $LISA_HOME
     branch: $(git -C "$LISA_HOME" describe --all)
@@ -179,11 +179,11 @@ function lisa-install {
     # cannot be installed using pip in a venv
     _lisa-python "$LISA_HOME/setup.py" systemcheck
 
-    # Record the point in time when we ran that install command
-    (cd "$LISA_HOME" && check-setuppy --update-recorded-commit HEAD)
-
     _lisa-venv-create &&
     _lisa-upgrade-pip || return 1
+
+    # Record the point in time when we ran that install command
+    (cd "$LISA_HOME" && check-setuppy --update-recorded-commit HEAD)
 
     if [[ "$LISA_DEVMODE" == 1 ]]; then
         # This set of requirements will install all the shipped dependencies
@@ -203,7 +203,7 @@ function lisa-install {
     # system's site-packages location. This ensures we use up to date packages,
     # and that the installation process will give the same result on all
     # machines at a given point in time.
-    (cd "$LISA_HOME" && _lisa-python -m pip install -r "$LISA_HOME/$requirements" "$@")
+    (cd "$LISA_HOME" && _lisa-python -m pip install --no-cache-dir -r "$LISA_HOME/$requirements" "$@")
 
     local custom_requirements="$LISA_HOME/custom_requirements.txt"
     if [[ -e "$custom_requirements" ]]; then
