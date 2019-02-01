@@ -73,7 +73,7 @@ class Workload(TargetedPlugin):
 
         supported_platforms = getattr(self, 'supported_platforms', [])
         if supported_platforms and self.target.os not in supported_platforms:
-            msg = 'Supported platforms for "{}" are "{}", attemping to run on "{}"'
+            msg = 'Supported platforms for "{}" are "{}", attempting to run on "{}"'
             raise WorkloadError(msg.format(self.name, ' '.join(self.supported_platforms),
                                            self.target.os))
 

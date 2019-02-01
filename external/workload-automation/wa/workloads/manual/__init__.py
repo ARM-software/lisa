@@ -85,7 +85,7 @@ class ManualWorkload(Workload):
     def run(self, context):
         self.logger.info('START NOW!')
         if self.duration:
-            self.device.sleep(self.duration)
+            self.target.sleep(self.duration)
         elif self.user_triggered:
             self.logger.info('')
             self.logger.info('hit any key to end your workload execution...')
