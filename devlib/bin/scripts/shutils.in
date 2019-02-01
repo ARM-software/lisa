@@ -255,6 +255,28 @@ sched_get_kernel_attributes() {
 # Misc
 ################################################################################
 
+read_tree_values() {
+    BASEPATH=$1
+    MAXDEPTH=$2
+
+    if [ ! -e $BASEPATH ]; then
+        echo "ERROR: $BASEPATH does not exist"
+        exit 1
+    fi
+
+    PATHS=$($BUSYBOX find $BASEPATH -follow -maxdepth $MAXDEPTH)
+    i=0
+    for path in $PATHS; do
+        i=$(expr $i + 1)
+        if [ $i -gt 1 ]; then
+            break;
+        fi
+    done
+    if [ $i -gt 1 ]; then
+        $BUSYBOX grep -s '' $PATHS
+    fi
+}
+
 read_tree_tgz_b64() {
     BASEPATH=$1
     MAXDEPTH=$2
@@ -352,6 +374,9 @@ ftrace_get_function_stats)
     ;;
 hotplug_online_all)
 	hotplug_online_all
+    ;;
+read_tree_values)
+	read_tree_values $*
     ;;
 read_tree_tgz_b64)
 	read_tree_tgz_b64 $*

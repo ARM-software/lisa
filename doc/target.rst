@@ -346,7 +346,7 @@ Target
        some sysfs entries silently failing to set the written value without
        returning an error code.
 
-.. method:: Target.read_tree_values(path, depth=1, dictcls=dict):
+.. method:: Target.read_tree_values(path, depth=1, dictcls=dict, [, tar [, decode_unicode [, strip_null_char ]]]):
 
    Read values of all sysfs (or similar) file nodes under ``path``, traversing
    up to the maximum depth ``depth``.
@@ -358,9 +358,18 @@ Target
    value is a dict-line object  with a key for every entry under ``path``
    mapping onto its value or further dict-like objects as appropriate.
 
+   Although the default behaviour should suit most users, it is possible to
+   encounter issues when reading binary files, or files with colons in their
+   name for example. In such cases, the ``tar`` parameter can be set to force a
+   full archive of the tree using tar, hence providing a more robust behaviour.
+   This can, however, slow down the read process significantly.
+
    :param path: sysfs path to scan
    :param depth: maximum depth to descend
    :param dictcls: a dict-like type to be used for each level of the hierarchy.
+   :param tar: the files will be read using tar rather than grep
+   :param decode_unicode: decode the content of tar-ed files as utf-8
+   :param strip_null_char: remove null chars from utf-8 decoded files
 
 .. method:: Target.read_tree_values_flat(path, depth=1):
 
