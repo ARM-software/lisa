@@ -695,7 +695,7 @@ class Target(object):
         timeout = duration + 10
         self.execute('sleep {}'.format(duration), timeout=timeout)
 
-    def read_tree_values_flat(self, path, depth=1, check_exit_code=True,
+    def read_tree_tar_flat(self, path, depth=1, check_exit_code=True,
                               decode_unicode=True, strip_null_chars=True):
         command = 'read_tree_tgz_b64 {} {} {}'.format(quote(path), depth,
                                                   quote(self.working_directory))
@@ -732,8 +732,23 @@ class Target(object):
 
         return result
 
+    def read_tree_values_flat(self, path, depth=1, check_exit_code=True):
+        command = 'read_tree_values {} {}'.format(quote(path), depth)
+        output = self._execute_util(command, as_root=self.is_rooted,
+                                    check_exit_code=check_exit_code)
+
+        accumulator = defaultdict(list)
+        for entry in output.strip().split('\n'):
+            if ':' not in entry:
+                continue
+            path, value = entry.strip().split(':', 1)
+            accumulator[path].append(value)
+
+        result = {k: '\n'.join(v).strip() for k, v in accumulator.items()}
+        return result
+
     def read_tree_values(self, path, depth=1, dictcls=dict,
-                         check_exit_code=True, decode_unicode=True,
+                         check_exit_code=True, tar=False, decode_unicode=True,
                          strip_null_chars=True):
         """
         Reads the content of all files under a given tree
@@ -742,14 +757,20 @@ class Target(object):
         :depth: maximum tree depth to read
         :dictcls: type of the dict used to store the results
         :check_exit_code: raise an exception if the shutil command fails
-        :decode_unicode: decode the content of files as utf-8
+        :tar: fetch the entire tree using tar rather than just the value (more
+              robust but slower in some use-cases)
+        :decode_unicode: decode the content of tar-ed files as utf-8
         :strip_null_chars: remove '\x00' chars from the content of utf-8
                            decoded files
 
         :returns: a tree-like dict with the content of files as leafs
         """
-        value_map = self.read_tree_values_flat(path, depth, check_exit_code,
-                                               decode_unicode, strip_null_chars)
+        if not tar:
+            value_map = self.read_tree_values_flat(path, depth, check_exit_code)
+        else:
+            value_map = self.read_tree_tar_flat(path, depth, check_exit_code,
+                                                decode_unicode,
+                                                strip_null_chars)
         return _build_path_tree(value_map, path, self.path.sep, dictcls)
 
     # internal methods
@@ -1856,7 +1877,7 @@ class TypedKernelConfig(Mapping):
         elif isinstance(val, KernelConfigTristate):
             return val.value
         elif isinstance(val, basestring):
-            return '"{}"'.format(val)
+            return '"{}"'.format(val.strip('"'))
         else:
             return str(val)
 
@@ -1998,6 +2019,8 @@ class KernelConfig(object):
     def iteritems(self):
         for k, v in self.typed_config.items():
             yield (k, self.typed_config._val_to_str(v))
+
+    items = iteritems
 
     def get(self, name, strict=False):
         if strict:

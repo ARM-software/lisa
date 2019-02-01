@@ -873,7 +873,7 @@ class EnergyModel(Serializable, Loggable):
         pd_attr = defaultdict(dict)
         cpu_to_pd = {}
 
-        debugfs_em = target.read_tree_values(directory, depth=3)
+        debugfs_em = target.read_tree_values(directory, depth=3, tar=True)
         if not debugfs_em:
             raise TargetStableError('Energy Model not exposed at {} in sysfs.'.format(directory))
 

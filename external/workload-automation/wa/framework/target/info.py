@@ -53,9 +53,9 @@ def kernel_version_from_pod(pod):
 
 def kernel_config_from_pod(pod):
     config = KernelConfig('')
-    config._config = pod['kernel_config']
+    config.typed_config._config = pod['kernel_config']
     lines = []
-    for key, value in config._config.items():
+    for key, value in config.items():
         if value == 'n':
             lines.append('# {} is not set'.format(key))
         else:
@@ -313,7 +313,7 @@ def cache_target_info(target_info, overwrite=False):
 
 class TargetInfo(Podable):
 
-    _pod_serialization_version = 2
+    _pod_serialization_version = 3
 
     @staticmethod
     def from_pod(pod):
@@ -400,4 +400,12 @@ class TargetInfo(Podable):
     def _pod_upgrade_v2(pod):
         pod['page_size_kb'] = pod.get('page_size_kb')
         pod['_pod_version'] = pod.get('format_version', 0)
+        return pod
+
+    @staticmethod
+    def _pod_upgrade_v3(pod):
+        config = {}
+        for key, value in pod['kernel_config'].items():
+            config[key.upper()] = value
+        pod['kernel_config'] = config
         return pod
