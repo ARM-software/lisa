@@ -137,7 +137,7 @@ class HwmonModule(Module):
         self.scan()
 
     def scan(self):
-        values_tree = self.target.read_tree_values(self.root, depth=3)
+        values_tree = self.target.read_tree_values(self.root, depth=3, tar=True)
         for entry_id, fields in values_tree.items():
             path = self.target.path.join(self.root, entry_id)
             name = fields.pop('name', None)
