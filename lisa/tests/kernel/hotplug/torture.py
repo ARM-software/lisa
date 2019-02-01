@@ -15,9 +15,11 @@
 # limitations under the License.
 #
 
+import abc
 import sys
 import random
 import os.path
+import collections
 
 from devlib.module.hotplug import HotplugModule
 from devlib.exception import TimeoutError
@@ -27,8 +29,10 @@ from lisa.target_script import TargetScript
 from lisa.env import TestEnv
 from lisa.utils import ArtifactPath
 
-class HotplugTorture(TestBundle):
+class CPUHPSequenceError(Exception):
+    pass
 
+class HotplugBase(TestBundle, abc.ABC):
     def __init__(self, plat_info, target_alive, hotpluggable_cpus, live_cpus):
         res_dir = None
         super().__init__(res_dir, plat_info)
@@ -37,50 +41,74 @@ class HotplugTorture(TestBundle):
         self.live_cpus = live_cpus
 
     @classmethod
-    def _random_cpuhp_seq(cls, nr_operations,
-                          hotpluggable_cpus, max_cpus_off):
+    def _check_cpuhp_seq_consistency(cls, nr_operations, hotpluggable_cpus,
+                                     max_cpus_off, sequence):
+        """
+        Check that a hotplug sequence given by :meth:`cpuhp_seq`
+        is consistent. Parameters are the same as for :meth:`cpuhp_seq`,
+        with the addition of:
+
+        :param sequence: A hotplug sequence, consisting of a sequence of
+            2-tuples (CPU and hot plug way)
+        :type sequence: Sequence
+
+        """
+        if len(sequence) != nr_operations:
+            raise CPUHPSequenceError('{} operations requested, but got {}'.fromat(
+                nr_operations, len(sequence)
+            ))
+
+        # Assume als CPUs are plugged in at the beginning
+        state = collections.defaultdict(lambda: 1)
+
+        for step, (cpu, plug_way) in enumerate(sequence):
+            if cpu not in hotpluggable_cpus:
+                raise CPUHPSequenceError('CPU {cpu} is plugged {way} but is not part of hotpluggable CPUs: {cpu_list}'.format(
+                    cpu=cpu,
+                    way='in' if plug_way else 'out',
+                    cpu_list=str(hotpluggable_cpus),
+                ))
+
+            # Forbid plugging OFF offlined CPUs and plugging IN online CPUs
+            if plug_way == state[cpu]:
+                raise CPUHPSequenceError('Cannot plug {way} a CPU that is already plugged {way}'.format(
+                    way='in' if plug_way else 'out'
+                ))
+
+            state[cpu] = plug_way
+            cpus_off = [cpu for cpu, state in state.items() if state == 0]
+            if len(cpus_off) > max_cpus_off:
+                raise CPUHPSequenceError('A maximum of {} CPUs is allowed to be plugged out, but {} CPUs were plugged out at step {}'.format(
+                    max_cpus_off, len(cpus_off), step,
+                ))
+
+        for cpu, state in state.items():
+            if state != 1:
+                raise CPUHPSequenceError('CPU {} is plugged out but not plugged in at the end of the sequence'.format(
+                    cpu
+                ))
+
+    @classmethod
+    @abc.abstractmethod
+    def cpuhp_seq(cls, nr_operations, hotpluggable_cpus, max_cpus_off, random_gen):
         """
         Yield a consistent random sequence of CPU hotplug operations
 
         :param nr_operations: Number of operations in the sequence
         :param max_cpus_off: Max number of CPUs plugged-off
 
+        :param random_gen: A random generator instance
+        :type random_gen: ``random.Random``
+
         "Consistent" means that a CPU will be plugged-in only if it was
         plugged-off before (and vice versa). Moreover the state of the CPUs
         once the sequence has completed should the same as it was before.
-
-        The actual length of the sequence might differ from the requested one
-        by 1 because it's easier to implement and it shouldn't be an issue for
-        most test cases.
         """
-        cur_on_cpus = hotpluggable_cpus[:]
-        cur_off_cpus = []
-        i = 0
-        while i < nr_operations - len(cur_off_cpus):
-            if not (1 < len(cur_on_cpus) < max_cpus_off):
-                # Force plug IN when only 1 CPU is on or too many are off
-                plug_way = 1
-            elif not cur_off_cpus:
-                # Force plug OFF if all CPUs are on
-                plug_way = 0 # Plug OFF
-            else:
-                plug_way = random.randint(0,1)
-
-            src = cur_off_cpus if plug_way else cur_on_cpus
-            dst = cur_on_cpus if plug_way else cur_off_cpus
-            cpu = random.choice(src)
-            src.remove(cpu)
-            dst.append(cpu)
-            i += 1
-            yield cpu, plug_way
-
-        # Re-plug offline cpus to come back to original state
-        for cpu in cur_off_cpus:
-            yield cpu, 1
+        pass
 
     @classmethod
-    def _random_cpuhp_script(cls, te, res_dir, sequence, sleep_min_ms,
-                             sleep_max_ms, timeout_s):
+    def _cpuhp_script(cls, te, res_dir, sequence, sleep_min_ms,
+                             sleep_max_ms, timeout_s, random_gen):
         """
         Generate a script consisting of a random sequence of hotplugs operations
 
@@ -106,7 +134,7 @@ class HotplugTorture(TestBundle):
             script.append(shift + cmd)
             # Sleep if necessary
             if sleep_max_ms > 0:
-                sleep_dur_sec = random.randint(sleep_min_ms, sleep_max_ms)/1000.0
+                sleep_dur_sec = random_gen.randint(sleep_min_ms, sleep_max_ms)/1000.0
                 script.append(shift + 'sleep {}'.format(sleep_dur_sec))
         script.append('done &')
 
@@ -120,20 +148,24 @@ class HotplugTorture(TestBundle):
     @classmethod
     def _from_testenv(cls, te, res_dir, seed, nr_operations, sleep_min_ms,
                       sleep_max_ms, duration_s, max_cpus_off):
-        if not seed:
-            random.seed()
-            seed = random.randint(0, sys.maxsize)
-        else:
-            random.seed(seed)
+
+        # Instantiate a generator so we can change the seed without any global
+        # effect
+        random_gen = random.Random()
+        random_gen.seed(seed)
 
         te.target.hotplug.online_all()
         hotpluggable_cpus = te.target.hotplug.list_hotpluggable_cpus()
 
-        sequence = cls._random_cpuhp_seq(
-            nr_operations, hotpluggable_cpus, max_cpus_off)
+        sequence = list(cls.cpuhp_seq(
+            nr_operations, hotpluggable_cpus, max_cpus_off, random_gen))
 
-        script = cls._random_cpuhp_script(
-            te, res_dir, sequence, sleep_min_ms, sleep_max_ms, duration_s)
+        cls._check_cpuhp_seq_consistency(nr_operations, hotpluggable_cpus,
+            max_cpus_off, sequence)
+
+        script = cls._cpuhp_script(
+            te, res_dir, sequence, sleep_min_ms, sleep_max_ms, duration_s,
+            random_gen)
 
         script.push()
 
@@ -155,7 +187,7 @@ class HotplugTorture(TestBundle):
     @classmethod
     def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None, seed=None,
                      nr_operations=100, sleep_min_ms=10, sleep_max_ms=100,
-                     duration_s=10, max_cpus_off=sys.maxsize) -> 'HotplugTorture':
+                     duration_s=10, max_cpus_off=sys.maxsize) -> 'HotplugBase':
         """
         :param seed: Seed of the RNG used to create the hotplug sequences
         :type seed: int
@@ -197,5 +229,41 @@ class HotplugTorture(TestBundle):
         res.add_metric("hotpluggable CPUs", self.hotpluggable_cpus)
         res.add_metric("Online CPUs", self.live_cpus)
         return res
+
+class HotplugTorture(HotplugBase):
+
+    @classmethod
+    def cpuhp_seq(cls, nr_operations, hotpluggable_cpus, max_cpus_off, random_gen):
+        """
+        FIXME: is that actually still true ?
+        The actual length of the sequence might differ from the requested one
+        by 1 because it's easier to implement and it shouldn't be an issue for
+        most test cases.
+        """
+
+        cur_on_cpus = hotpluggable_cpus[:]
+        cur_off_cpus = []
+        i = 0
+        while i < nr_operations - len(cur_off_cpus):
+            if not (1 < len(cur_on_cpus) < max_cpus_off):
+                # Force plug IN when only 1 CPU is on or too many are off
+                plug_way = 1
+            elif not cur_off_cpus:
+                # Force plug OFF if all CPUs are on
+                plug_way = 0 # Plug OFF
+            else:
+                plug_way = random_gen.randint(0,1)
+
+            src = cur_off_cpus if plug_way else cur_on_cpus
+            dst = cur_on_cpus if plug_way else cur_off_cpus
+            cpu = random_gen.choice(src)
+            src.remove(cpu)
+            dst.append(cpu)
+            i += 1
+            yield cpu, plug_way
+
+        # Re-plug offline cpus to come back to original state
+        for cpu in cur_off_cpus:
+            yield cpu, 1
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
