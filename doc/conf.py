@@ -406,7 +406,7 @@ def setup(app):
 
 
 def get_test_id_list():
-    import lisa.tests.kernel as test_package
+    import lisa.tests as test_package
     with tempfile.NamedTemporaryFile('wt') as conf:
         # Create a dummy target configuration, so that exekall can build all
         # expressions starting from that

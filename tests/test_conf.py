@@ -21,7 +21,7 @@ import copy
 from unittest import TestCase
 
 from lisa.conf import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, IntList, DerivedKeyDesc
-from lisa.tests.lisa.utils import StorageTestCase, HOST_PLAT_INFO, HOST_TARGET_CONF
+from .utils import StorageTestCase, HOST_PLAT_INFO, HOST_TARGET_CONF
 
 """ A test suite for the MultiSrcConf subclasses."""
 

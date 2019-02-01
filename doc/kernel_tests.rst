@@ -54,12 +54,12 @@ b. withstand events we can't control (use error margins, averages...)
 Where to start
 ++++++++++++++
 
-The main class of the kernel tests is :class:`~lisa.tests.kernel.test_bundle.TestBundle`.
+The main class of the kernel tests is :class:`~lisa.tests.base.TestBundle`.
 Have a look at its documentation for implementation and usage examples. It can
 also be worth to look at a simple test, such as
-:class:`~lisa.tests.kernel.scheduler.sanity.CapacitySanity`.
+:class:`~lisa.tests.scheduler.sanity.CapacitySanity`.
 
-Implementations of :class:`~lisa.tests.kernel.test_bundle.TestBundle` can
+Implementations of :class:`~lisa.tests.base.TestBundle` can
 execute any sort of arbitry Python code. This means that you are free to
 manipulate sysfs entries, or to execute arbitray binaries on the target. The
 :class:`~lisa.wlgen.workload.Workload` class has been created to
@@ -77,7 +77,7 @@ API
 Base API
 ++++++++
 
-.. automodule:: lisa.tests.kernel.test_bundle
+.. automodule:: lisa.tests.base
    :members:
    :private-members: _from_testenv
 
@@ -88,36 +88,36 @@ Scheduler tests
 
 EAS tests
 ---------
-.. automodule:: lisa.tests.kernel.scheduler.eas_behaviour
+.. automodule:: lisa.tests.scheduler.eas_behaviour
    :members:
 
 Load tracking tests
 -------------------
-.. automodule:: lisa.tests.kernel.scheduler.load_tracking
+.. automodule:: lisa.tests.scheduler.load_tracking
    :members:
    :private-members: _from_testenv
 
 Misfit tests
 ------------
 
-.. automodule:: lisa.tests.kernel.scheduler.misfit
+.. automodule:: lisa.tests.scheduler.misfit
    :members:
 
 Sanity tests
 ------------
 
-.. automodule:: lisa.tests.kernel.scheduler.sanity
+.. automodule:: lisa.tests.scheduler.sanity
    :members:
 
 Hotplug tests
 +++++++++++++
-.. automodule:: lisa.tests.kernel.hotplug.torture
+.. automodule:: lisa.tests.hotplug.torture
    :members:
 
 Cpufreq tests
 +++++++++++++
 
-.. automodule:: lisa.tests.kernel.cpufreq.sanity
+.. automodule:: lisa.tests.cpufreq.sanity
    :members:
 
 Staged tests
@@ -126,5 +126,5 @@ Staged tests
 Those are tests that have been merged into LISA but whose behaviour are being
 actively evaluated.
 
-.. automodule:: lisa.tests.kernel.staging.load_tracking
+.. automodule:: lisa.tests.staging.load_tracking
    :members:

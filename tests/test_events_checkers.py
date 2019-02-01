@@ -16,7 +16,7 @@
 #
 
 from unittest import TestCase
-from lisa.tests.lisa.utils import nullcontext
+from .utils import nullcontext
 
 from lisa.trace import TraceEventChecker, AndTraceEventChecker, OrTraceEventChecker, MissingTraceEventError
 
