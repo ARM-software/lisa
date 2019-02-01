@@ -27,7 +27,7 @@ from bart.sched.SchedAssert import SchedAssert
 
 from trappy.stats.Topology import Topology
 
-from lisa.tests.test_bundle import (
+from lisa.tests.base import (
     TestMetric, Result, ResultBundle, TestBundle, RTATestBundle
 )
 from lisa.env import TestEnv
@@ -393,7 +393,7 @@ class FreqInvariance(TestBundle, LoadTrackingHelpers):
     providing aggregated versions of the tests. Calling the tests methods on
     the items directly is recommended to avoid the unavoidable loss of
     information when aggregating the
-    :class:`~lisa.tests.test_bundle.Result` of each item.
+    :class:`~lisa.tests.base.Result` of each item.
 
     `freq_items` instance attribute is a mapping of frequency values in
     Hz to an instance of :class:`FreqInvarianceItem`.
@@ -475,9 +475,9 @@ class FreqInvariance(TestBundle, LoadTrackingHelpers):
         """
         Apply the `test_item` function on all instances of
         :class:`FreqInvarianceItem` and aggregate the returned
-        :class:`~lisa.tests.test_bundle.ResultBundle` into one.
+        :class:`~lisa.tests.base.ResultBundle` into one.
 
-        :attr:`~lisa.tests.test_bundle.Result.UNDECIDED` is ignored.
+        :attr:`~lisa.tests.base.Result.UNDECIDED` is ignored.
         """
         item_res_bundles = {
             freq: item_test(test_item)

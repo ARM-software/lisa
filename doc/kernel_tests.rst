@@ -54,12 +54,12 @@ b. withstand events we can't control (use error margins, averages...)
 Where to start
 ++++++++++++++
 
-The main class of the kernel tests is :class:`~lisa.tests.test_bundle.TestBundle`.
+The main class of the kernel tests is :class:`~lisa.tests.base.TestBundle`.
 Have a look at its documentation for implementation and usage examples. It can
 also be worth to look at a simple test, such as
 :class:`~lisa.tests.scheduler.sanity.CapacitySanity`.
 
-Implementations of :class:`~lisa.tests.test_bundle.TestBundle` can
+Implementations of :class:`~lisa.tests.base.TestBundle` can
 execute any sort of arbitry Python code. This means that you are free to
 manipulate sysfs entries, or to execute arbitray binaries on the target. The
 :class:`~lisa.wlgen.workload.Workload` class has been created to
@@ -77,7 +77,7 @@ API
 Base API
 ++++++++
 
-.. automodule:: lisa.tests.test_bundle
+.. automodule:: lisa.tests.base
    :members:
    :private-members: _from_testenv
 

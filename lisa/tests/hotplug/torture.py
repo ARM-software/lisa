@@ -24,7 +24,7 @@ import collections
 from devlib.module.hotplug import HotplugModule
 from devlib.exception import TimeoutError
 
-from lisa.tests.test_bundle import TestMetric, ResultBundle, TestBundle
+from lisa.tests.base import TestMetric, ResultBundle, TestBundle
 from lisa.target_script import TargetScript
 from lisa.env import TestEnv
 from lisa.utils import ArtifactPath

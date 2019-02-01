@@ -17,7 +17,7 @@
 
 from lisa.platforms.platinfo import PlatformInfo
 
-from lisa.tests.test_bundle import TestBundle, ResultBundle
+from lisa.tests.base import TestBundle, ResultBundle
 from .utils import create_local_testenv, StorageTestCase
 
 class DummyTestBundle(TestBundle):
@@ -45,7 +45,7 @@ class DummyTestBundle(TestBundle):
 
 class BundleCheck(StorageTestCase):
     """
-    A test class that verifies some :class:`lisa.tests.test_bundle.TestBundle`
+    A test class that verifies some :class:`lisa.tests.base.TestBundle`
     base behaviours.
     """
     def setUp(self):
@@ -64,7 +64,7 @@ class BundleCheck(StorageTestCase):
         """
         bundle = DummyTestBundle.from_testenv(self.te)
 
-    def test_bundle_serialization(self):
+    def test_serialization(self):
         """
         Test that bundle serialization works correctly
         """

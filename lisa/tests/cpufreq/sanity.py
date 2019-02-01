@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-from lisa.tests.test_bundle import Result, ResultBundle, TestBundle
+from lisa.tests.base import Result, ResultBundle, TestBundle
 from lisa.wlgen.sysbench import Sysbench
 from lisa.env import TestEnv
 from lisa.utils import ArtifactPath

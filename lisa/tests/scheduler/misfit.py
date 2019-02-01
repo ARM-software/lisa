@@ -22,7 +22,7 @@ from devlib.module.sched import SchedDomain, SchedDomainFlag
 from lisa.utils import memoized, ArtifactPath
 from lisa.trace import Trace, requires_events
 from lisa.wlgen.rta import Periodic
-from lisa.tests.test_bundle import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
+from lisa.tests.base import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
 from lisa.env import TestEnv
 from lisa.analysis.tasks import TasksAnalysis, TaskState
 
@@ -79,7 +79,7 @@ class MisfitMigrationBase(RTATestBundle):
         Factory method to create a bundle using a live target
 
         This will execute the rt-app workload described in
-        :meth:`~lisa.tests.test_bundle.RTATestBundle.get_rtapp_profile`
+        :meth:`~lisa.tests.base.RTATestBundle.get_rtapp_profile`
         """
         return super().from_testenv(te, res_dir)
 

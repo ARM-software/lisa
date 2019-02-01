@@ -31,7 +31,7 @@ from lisa.env import TestEnv, TargetConf
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable
 from lisa.conf import MultiSrcConf
-from lisa.tests.test_bundle import TestBundle, Result, ResultBundle, CannotCreateError
+from lisa.tests.base import TestBundle, Result, ResultBundle, CannotCreateError
 from lisa.tests.scheduler.load_tracking import FreqInvarianceItem
 
 from exekall.utils import info, get_name, get_mro, NoValue
