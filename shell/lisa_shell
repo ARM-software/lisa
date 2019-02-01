@@ -138,7 +138,7 @@ function lisa-venv-activate {
 
     # Check if lisa-install needs to be run again, but ignore the return value
     # so it won't make activation fail just because of that
-    (check-setuppy; exit 0)
+    (cd "$LISA_HOME" && check-setuppy; exit 0)
 }
 
 function lisa-venv-deactivate {
@@ -180,7 +180,7 @@ function lisa-install {
     _lisa-python "$LISA_HOME/setup.py" systemcheck
 
     # Record the point in time when we ran that install command
-    check-setuppy --update-recorded-commit HEAD
+    (cd "$LISA_HOME" && check-setuppy --update-recorded-commit HEAD)
 
     _lisa-venv-create &&
     _lisa-upgrade-pip || return 1
@@ -203,7 +203,7 @@ function lisa-install {
     # system's site-packages location. This ensures we use up to date packages,
     # and that the installation process will give the same result on all
     # machines at a given point in time.
-    _lisa-python -m pip install -r "$LISA_HOME/$requirements" "$@"
+    (cd "$LISA_HOME" && _lisa-python -m pip install -r "$LISA_HOME/$requirements" "$@")
 
     local custom_requirements="$LISA_HOME/custom_requirements.txt"
     if [[ -e "$custom_requirements" ]]; then
