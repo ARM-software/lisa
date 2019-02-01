@@ -74,15 +74,19 @@ function lisa-help {
 }
 
 function lisa-version {
-    echo -ne "$LISASHELL_GREEN"
-cat <<EOF
+cat << EOF
+LISA version:
+    $LISA_HOME
+    branch: $(git -C "$LISA_HOME" describe --all)
+    commit: $(git -C "$LISA_HOME" rev-parse --short=11 HEAD)
 
-.:: LISA ($(git describe --all))
-
-LISA commit: $(git rev-parse --short=11 HEAD)
+Python version: $PYTHON_VERSION
 
 EOF
-    echo -ne "$LISASHELL_DEFAULT"
+
+    if which jupyter >/dev/null; then
+        jupyter labextension list 2>&1
+    fi
 }
 
 ################################################################################
@@ -134,7 +138,7 @@ function lisa-venv-activate {
 
     # Check if lisa-install needs to be run again, but ignore the return value
     # so it won't make activation fail just because of that
-    (check-setuppy; exit 0)
+    (cd "$LISA_HOME" && check-setuppy; exit 0)
 }
 
 function lisa-venv-deactivate {
@@ -176,7 +180,7 @@ function lisa-install {
     _lisa-python "$LISA_HOME/setup.py" systemcheck
 
     # Record the point in time when we ran that install command
-    check-setuppy --update-recorded-commit HEAD
+    (cd "$LISA_HOME" && check-setuppy --update-recorded-commit HEAD)
 
     _lisa-venv-create &&
     _lisa-upgrade-pip || return 1
@@ -199,7 +203,7 @@ function lisa-install {
     # system's site-packages location. This ensures we use up to date packages,
     # and that the installation process will give the same result on all
     # machines at a given point in time.
-    _lisa-python -m pip install -r "$LISA_HOME/$requirements" "$@"
+    (cd "$LISA_HOME" && _lisa-python -m pip install -r "$LISA_HOME/$requirements" "$@")
 
     local custom_requirements="$LISA_HOME/custom_requirements.txt"
     if [[ -e "$custom_requirements" ]]; then
@@ -422,9 +426,6 @@ EOF
 # LISA Shell MAIN
 ################################################################################
 
-# Activate the venv unless it was explicitely disabled
-lisa-venv-activate
-
 # Dump out a nice LISA Shell logo
 clear
 echo -e "$LISASHELL_BANNER"
@@ -432,26 +433,20 @@ echo -e "$LISASHELL_BANNER"
 echo "                                                                               "
 echo "                        .:: LISA Shell ::.                                     "
 echo "                                                                               "
+echo -ne "$LISASHELL_RESET"
+echo
+
+# Activate the venv unless it was explicitely disabled
+lisa-venv-activate
+
 echo -ne "$LISASHELL_RESET$LISASHELL_BLUE"
 cat <<EOF
 
 Welcome to the Linux Integrated System Analysis SHELL!
 
-LISA version   : $(git rev-parse --short=11 HEAD)
-python version : $PYTHON_VERSION
-LISA_HOME      : $LISA_HOME
-
-EOF
-
-if which jupyter >/dev/null; then
-    jupyter labextension list
-fi
-
-cat <<EOF
-
+$(lisa-version)
 
 Type "lisa-help" for on-line help on available commands
-
 EOF
 
 # Setup default SHELL text color
