@@ -530,6 +530,9 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
         with (output_dir/'UUID').open('wt') as f:
             f.write(combined_uuid+'\n')
 
+    if output_exist:
+        db_path_list.append(merged_db_path)
+
     merged_db = engine.ValueDB.merge(
         engine.ValueDB.from_path(path)
         for path in db_path_list

@@ -112,6 +112,7 @@ class ValueDB:
 
     @classmethod
     def merge(cls, db_list):
+        db_list = list(db_list)
         adaptor_cls_set = {
             db.adaptor_cls
             for db in db_list
@@ -120,10 +121,10 @@ class ValueDB:
             raise ValueError('Cannot merge ValueDB with different adaptor classes: {}'.format(adaptor_cls_set))
         adaptor_cls = utils.take_first(adaptor_cls_set)
 
-        froz_val_seq_list = list(itertools.chain(*(
+        froz_val_seq_list = list(itertools.chain.from_iterable(
             db.froz_val_seq_list
             for db in db_list
-        )))
+        ))
         return cls(froz_val_seq_list, adaptor_cls=adaptor_cls)
 
     @classmethod
