@@ -446,13 +446,26 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
         os.makedirs(str(output_dir), exist_ok=output_exist)
         merged_db_path = output_dir/DB_FILENAME
 
+    (output_dir/'BY_UUID').mkdir(exist_ok=True)
     testsession_uuid_list = []
     for artifact_dir in artifact_dirs:
         with (artifact_dir/'UUID').open(encoding='utf-8') as f:
             testsession_uuid = f.read().strip()
             testsession_uuid_list.append(testsession_uuid)
 
+        src_by_uuid = artifact_dir/'BY_UUID'
+        for uuid_symlink in src_by_uuid.iterdir():
+            target = uuid_symlink.resolve()
+            target = pathlib.Path('..', target.relative_to(artifact_dir.resolve()))
+            (output_dir/'BY_UUID'/uuid_symlink.name).symlink_to(target)
+
+
         link_base_path = pathlib.Path('ORIGIN', testsession_uuid)
+        shutil.copytree(
+            str(src_by_uuid),
+            str(output_dir/link_base_path/'BY_UUID'),
+            symlinks=True,
+        )
 
         # Copy all the files recursively
         for dirpath, dirnames, filenames in os.walk(str(artifact_dir)):
@@ -786,6 +799,8 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
         with (artifact_dir/'UUID').open('wt') as f:
             f.write(testsession_uuid+'\n')
 
+        (artifact_dir/'BY_UUID').mkdir()
+
     out('\nArtifacts dir: {}\n'.format(artifact_dir))
 
     # Get a list of ComputableExpression in order to execute them
@@ -965,10 +980,10 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
             )
 
         def format_uuid(expr_val_list):
-            uuid_list = sorted(
+            uuid_list = sorted({
                 expr_val.uuid
                 for expr_val in expr_val_list
-            )
+            })
             return '\n'.join(uuid_list)
 
         def write_uuid(path, *args):
@@ -978,6 +993,16 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
         write_uuid(expr_artifact_dir/'VALUES_UUID', result_list)
         write_uuid(expr_artifact_dir/'REUSED_VALUES_UUID', reused_expr_val_set)
         write_uuid(expr_artifact_dir/'COMPUTED_VALUES_UUID', computed_expr_val_set)
+
+        # From there, use a relative path for symlinks
+        expr_artifact_dir = pathlib.Path('..', expr_artifact_dir.relative_to(artifact_dir))
+        computed_uuid_set = {
+            expr_val.uuid
+            for expr_val in computed_expr_val_set
+        }
+        computed_uuid_set.add(expr.uuid)
+        for uuid_ in computed_uuid_set:
+            (artifact_dir/'BY_UUID'/uuid_).symlink_to(expr_artifact_dir)
 
     db = engine.ValueDB(
         engine.FrozenExprValSeq.from_expr_list(
