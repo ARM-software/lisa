@@ -329,11 +329,12 @@ class StaggeredFinishes(MisfitMigrationBase):
             ])
 
             # The first time the task runs on a big
-            first_big = df[df.cpu.isin(self.dst_cpus)].index[0]
+            first_big_df = df[df.cpu.isin(self.dst_cpus)]
+            if first_big_df.empty:
+                continue
 
             df = df[df.cpu.isin(self.src_cpus)]
-
-            task_state_dfs[task] = df[:first_big]
+            task_state_dfs[task] = df[:first_big_df.index[0]]
 
         return self._test_cpus_busy(task_state_dfs, self.dst_cpus, allowed_idle_time_s)
 
