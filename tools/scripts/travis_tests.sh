@@ -38,5 +38,8 @@ set -e
 echo "Starting nosetests ..."
 python3 -m nose
 
+echo "Available LISA tests:"
+lisa-test --list
+
 echo "Starting documentation pedantic build ..."
 cd doc/ && ./pedantic_build.sh
