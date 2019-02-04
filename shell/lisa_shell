@@ -374,8 +374,8 @@ function lisa-test {
     fi
 
     local cmd=(
-        exekall run "$LISA_HOME/lisa/tests/kernel/"             \
-        "${conf_opt[@]}"                                        \
+        exekall run "$LISA_HOME/lisa/tests/"             \
+        "${conf_opt[@]}"                                 \
         --select-multiple "$@"
     )
 
