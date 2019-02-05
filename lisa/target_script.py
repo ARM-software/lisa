@@ -15,10 +15,8 @@
 # limitations under the License.
 #
 
-import os
 import os.path
-
-SCRIPT_NAME = 'remote_script.sh'
+from time import sleep
 
 class TargetScript:
     """
@@ -42,20 +40,25 @@ class TargetScript:
 
     _target_attrs = ['screen_resolution', 'android_id', 'abi', 'os_version', 'model']
 
-    def __init__(self, env, script_name=SCRIPT_NAME, local_dir='./'):
-        self._env = env
-        self._target = env.target
-        self._script_name = script_name
-        self.local_dir = local_dir
+    def __init__(self, te, script_name='remote_script.sh', local_dir='./'):
+        self.target = te.target
+
+        self.script_name = script_name
+        self.local_path = os.path.join(local_dir, script_name)
+        self.remote_path = ""
+
         self.commands = []
 
-    # This is made to look like the devlib Target execute()
+        self._proc = None
+
     def execute(self, cmd):
         """
         Accumulate command for later execution.
 
         :param cmd: Command that would be run on the target
         :type cmd: str
+
+        This is made to look like the devlib Target execute()
         """
         self.append(cmd)
 
@@ -78,7 +81,7 @@ class TargetScript:
         # dunder name lookup would have succeeded by now, like __setstate__
         if not (name.startswith('__') and name.endswith('__')) \
             and name in self._target_attrs:
-            return getattr(self._target, name)
+            return getattr(self.target, name)
 
         return super().__getattribute__(name)
 
@@ -89,43 +92,72 @@ class TargetScript:
         The script is created and stored on the host, and is then sent
         to the target.
         """
-
         actions = ['set -e'] + self.commands + ['set +e']
-        actions = ['#!{} sh'.format(self._target.busybox)] + actions
+        actions = ['#!{} sh'.format(self.target.busybox)] + actions
         actions = str.join('\n', actions)
 
         # Create script locally
-        self._local_path = os.path.join(self.local_dir, self._script_name)
-        with open(self._local_path, 'w') as script:
+        with open(self.local_path, 'w') as script:
             script.write(actions)
 
         # Push it on target
-        self._remote_path = self._target.install(self._local_path)
+        self.remote_path = self.target.install(self.local_path)
 
-    def run(self, as_root=False, background=False, timeout=None):
+    def _prerun_check(self):
+        if not self.target.file_exists(self.remote_path):
+            raise FileNotFoundError('Remote script was not found on target device')
+
+    def run(self, as_root=False, timeout=None):
         """
         Run the previously pushed script
-        """
-        if self._target.file_exists(self._remote_path):
-            self._run_as_root = as_root
-            self._bg_shell = None
-            if background:
-                self._bg_shell = self._target.background(self._remote_path,
-                                                    as_root=self._run_as_root)
-            else:
-                self._target.execute(self._remote_path,
-                                     as_root=self._run_as_root,
-                                     timeout=timeout)
-        else:
-            raise IOError('Remote script was not found on target device')
 
-    def kill(self):
+        :param as_root: Execute that script as root
+        :type as_root: bool
+
+        :param timeout: Timeout (in seconds) for the execution of the script
+        :type timeout: int
         """
-        Kill a running script
+        self._prerun_check()
+        self.target.execute(self.remote_path, as_root=as_root, timeout=timeout)
+
+    def background(self, as_root=False):
         """
-        cmd_pid = '$(pgrep {})'.format(self._script_name)
-        self._target.kill(cmd_pid, as_root=self._run_as_root)
-        if self._bg_shell:
-            self._bg_shell.kill()
+        Non-blocking variant of :meth:`run`
+
+        :param as_root: Execute that script as root
+        :type as_root: bool
+        """
+        self._prerun_check()
+        self._proc = self.target.background(self.remote_path, as_root=as_root)
+
+    def wait(self, poll_sleep_s=1):
+        """
+        Wait for a script started via :meth:`background` to complete
+
+        :param poll_sleep_s: Sleep duration between poll() calls
+        :type poll_sleep_s: int
+
+        :raises: :class:`devlib.exception.TargetNotRespondingError`
+        """
+        if not self._proc:
+            raise RuntimeError('No background process currently executing')
+
+        while self._proc.poll() is None:
+            self.target.check_responsive(explode=True)
+            sleep(poll_sleep_s)
+
+    def kill(self, as_root=False):
+        """
+        Kill a script started via :meth:`background`
+
+        :param as_root: Kill the script as root
+        :type as_root: bool
+        """
+        if not self._proc:
+            raise RuntimeError('No background process currently executing')
+
+        cmd_pid = '$(pgrep {})'.format(self.script_name)
+        self.target.kill(cmd_pid, as_root=as_root)
+        self._proc.kill()
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
