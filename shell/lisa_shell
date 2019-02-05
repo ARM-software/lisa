@@ -153,8 +153,8 @@ function _lisa-upgrade-pip {
     # install
     if [[ "$LISA_USE_VENV" == 1 ]]; then
         lisa-venv-activate || return 1
-        echo "Upgrading pip ..."
-        _lisa-python -m pip install --upgrade pip
+        echo "Upgrading pip and setuptools ..."
+        _lisa-python -m pip install --upgrade pip setuptools
     fi
 }
 
