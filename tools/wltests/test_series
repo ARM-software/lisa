@@ -29,7 +29,7 @@ source "${BASE_DIR}/helpers"
 ################################################################################
 
 PLATFORM=${PLATFORM:-'hikey960_android-4.4'}
-KERNEL_SRC=${KERNEL_SRC:-$BASE_DIR/kernel}
+KERNEL_SRC=${KERNEL_SRC:-''}
 SERIES=${SERIES:-''}
 WA_AGENDA=${WA_AGENDA:-''}
 TEST_CMD=${TEST_CMD:-'echo "Test DONE!"'}
@@ -68,8 +68,7 @@ SCRIPT for each of them.
 
 Kernel to test:
 
-    -k, --kernel_src PATH	The kernel source tree to use.
-				Default: KERNEL_SRC=../kernel
+    -k, --kernel_src PATH	The kernel source tree or repo to use.
 
     -s, --series PATH		The series of commits to test.
 				This is the patch of the file containing a list
@@ -84,6 +83,12 @@ Kernel to test:
 				If an "ID:" column is present, the commits will
 				be considered in progressive "ID:" order while
 				discarding those with ID=00:
+
+				For targets using the Google build system (e.g.
+				Pixel 3) the series file refers to commits of
+				the manifest file whose git tree is located
+				under "\$KERNEL_SRC/.repo/manifests."
+
 				Default: SERIES=''
 
 Target device to use for kernel testing:
@@ -91,7 +96,7 @@ Target device to use for kernel testing:
     -p, --platform		The platform to target.
 				Available platforms are the subfolders of the
 				top level "platforms" folder.
-				Default: PLATFORM=juno_android-4.4
+				Default: PLATFORM=hikey960_android-4.4
 
 	--supported_platforms	Print a list of supported platforms which can
 				are valid values for the -p parameter.
@@ -118,7 +123,7 @@ Additional arguments:
 	--adb			The ADB binary to use.
 				Default: ADB=[ANDROID_HOME/platform-tools/adb|\$(which adb)]
 	--fastboot		The FASTBOOT binary to use.
-				Default: FASTBOOT=[ANDROID_HOME/platform-tools/fatboot|\$(which fatboot)]
+				Default: FASTBOOT=[ANDROID_HOME/platform-tools/fastboot|\$(which fastboot)]
 
 	--emeter		The Energy Meter used to power-cycle the device.
 				Default: EMETER=ACME
@@ -318,14 +323,44 @@ fi
 done
 export PLATFORM_OVERLAY_PATH=$PLATFORM_PATH
 
-# Prepare KERNEL_SRC
+source $PLATFORM_PATH/definitions
+
+# On targets that don't use 'repo', KERNEL_SRC == GIT_TREE == KERNEL_TREE
+# On targets that do use 'repo':
+#   - KERNEL_SRC points to the top level of the repo
+#   - GIT_TREE points to the _manifest_ git tree in the repo
+#   - KERNEL_TREE points to the _kernel_ git tree in the repo
+GIT_TREE=""
+KERNEL_TREE=""
+
 export KERNEL_SRC=$(realpath -s $KERNEL_SRC)
-grep -E "mainmenu .* Kernel Configuration" $KERNEL_SRC/Kconfig &>/dev/null
-if [ $? -ne 0 ]; then
-	echo
-	c_error "The \$KERNEL_SRC|--kernel_src seems not to a valid kernel source tree path"
-	echo
-	exit $EINVAL
+if [ "x$WLTEST_REPO_TARGET" == "xy" ]; then
+	if [ ! -x "$(command -v repo)" ]; then
+		echo
+		c_error "Wltest on this target requires 'repo'. Please follow:"
+		c_error "https://source.android.com/setup/build/downloading#installing-repo"
+		echo
+		exit $ENODEV
+	fi
+	if [ ! -d "$KERNEL_SRC/.repo/manifests" ]; then
+		echo
+		c_error "The \$KERNEL_SRC|--kernel_src is not a valid repo path"
+		echo
+		exit $EINVAL
+	fi
+	GIT_TREE="$KERNEL_SRC/.repo/manifests"
+	KERNEL_TREE="$KERNEL_SRC/$REPO_KERNEL_PATH"
+else
+	# Prepare KERNEL_SRC
+	grep -E "mainmenu .* Kernel Configuration" $KERNEL_SRC/Kconfig &>/dev/null
+	if [ $? -ne 0 ]; then
+		echo
+		c_error "The \$KERNEL_SRC|--kernel_src is not a valid kernel source tree path"
+		echo
+		exit $EINVAL
+	fi
+	GIT_TREE="$KERNEL_SRC"
+	KERNEL_TREE="$KERNEL_SRC"
 fi
 
 # Prepare SERIES
@@ -445,7 +480,7 @@ esac
 box_out \
 	"Mandatory conf" \
 	"   PLATFORM      : $PLATFORM" \
-	"   KERNEL_SRC    : $KERNEL_SRC" \
+	"   KERNEL_TREE   : $KERNEL_TREE" \
 	"   SERIES        : $SERIES" \
 	"   WA_AGENDA     : $WA_AGENDA" \
 	"   RESULTS       : $TEST_CMD_RESULTS" \
@@ -773,7 +808,7 @@ name_sha1() {
 
 	# Find a name for each possible REF
 	mkfifo tmp_pipe &>/dev/null
-	git -C $KERNEL_SRC for-each-ref \
+	git -C $GIT_TREE for-each-ref \
 			--sort=-committerdate \
 			--format='%(objectname:short) %(refname:short)' \
 			refs/heads/ refs/remotes/ refs/tags |
@@ -805,8 +840,8 @@ match_sha1() {
 	# It may happen that a tag pointing to a given commit has
 	# a different SHA1 (signed tag), so check if this this is
         # the case.
-	TAG_NAME=$(git -C $KERNEL_SRC describe --exact-match $COMMIT_SHA1 2>/dev/null) || return $EAGAIN
-	TAG_SHA1=$(git -C $KERNEL_SRC show-ref --hash $TAG_NAME)
+	TAG_NAME=$(git -C $KERNEL_TREE describe --exact-match $COMMIT_SHA1 2>/dev/null) || return $EAGAIN
+	TAG_SHA1=$(git -C $KERNEL_TREE show-ref --hash $TAG_NAME)
 	c_info "   CommitID of local repo corresponds to tag: $TAG_NAME"
 	[[ $TAG_SHA1 =~ $CURRENT* ]] && return $OK
 
@@ -815,12 +850,11 @@ match_sha1() {
 
 build_sha1() {
 	COMMIT_SHA1=$1
-	COMMIT_DESC=$2
 
-	### Prepare KERNEL_SRC for build
-	pushd $KERNEL_SRC &>/dev/null
+	### Prepare GIT_TREE for build
+	pushd $GIT_TREE &>/dev/null
 	echo
-	c_info "Checkout kernel: $KERNEL_SRC @ $COMMIT_SHA1..."
+	c_info "Checkout: $GIT_TREE @ $COMMIT_SHA1..."
 	git checkout $COMMIT_SHA1; ERROR=$?
 	if [ $ERROR -ne 0 ]; then
 		c_error "Failed to checkout [$COMMIT_SHA1]"
@@ -828,6 +862,17 @@ build_sha1() {
 		return $ERROR
 	fi
 	popd &>/dev/null
+
+	### Sync the repo if needed
+	if [ "x$WLTEST_REPO_TARGET" == "xy" ]; then
+		pushd $KERNEL_SRC &> /dev/null
+		repo sync -l; ERROR=$?
+		popd &> /dev/null
+		if [ $ERROR -ne 0 ]; then
+			c_error "Failed to sync [$COMMIT_SHA1]"
+			return $ERROR
+		fi
+	fi
 
 	### Build all IMAGES
 	pushd $BASE_DIR &>/dev/null
@@ -844,7 +889,7 @@ flash_sha1() {
 	COMMIT_SHA1=$1
 	COMMIT_DESC=$2
 
-	build_sha1 "$COMMIT_SHA1" "$COMMIT_DESC"; RESULT=$?
+	build_sha1 "$COMMIT_SHA1"; RESULT=$?
 	[ $RESULT -eq $OK ] || return $RESULT
 
 	### Flash generated IMAGES
@@ -873,8 +918,10 @@ flash_sha1() {
 	sleep 10 # Add an additional safe margin
 
 	### Check that we are running the expected kernel
+	COMMIT_SHA1=$(git -C $KERNEL_TREE log --format="%h" | head -n 1)
 	match_sha1 $COMMIT_SHA1; ERROR=$?
 	[ $ERROR -eq 0 ] || c_error "Failed to flash kernel [$COMMIT_DESC]!"
+
 	return $?
 }
 
@@ -889,10 +936,10 @@ test_sha1() {
 	c_info "Testing kernel:"
 	c_info "   SeriesID   : $COMMIT_DESC"
 	c_info "   CommitID   : $COMMIT_SHA1 $COMMIT_NAME"
-
 	echo
-	c_info "Check current kernel..."
-	if device_in_adb; then
+
+	if [[ "x$WLTEST_REPO_TARGET" != "xy" && device_in_adb ]]; then
+		c_info "Check current kernel..."
 		match_sha1 $COMMIT_SHA1
 		if [ $? -ne $OK ]; then
 			c_info "Kernel update required!"
@@ -904,8 +951,8 @@ test_sha1() {
 			fi
 		fi
 	else
-		c_warning "Device not connected via ADB, cannot check current kernel"
-		c_warning "Forcing: build, flashing and reboot selected kernel"
+		c_info "Cannot check current kernel"
+		c_info "Forcing: build, flashing and reboot selected kernel"
 		flash_sha1 $COMMIT_SHA1 "$COMMIT_DESC"; RESULT=$?
 		[[ $RESULT -ne $EIO ]] || exit $EIO
 		if [[ $RESULT -ne 0 ]]; then
@@ -992,14 +1039,14 @@ while read -u10 COMMITS; do
 	COMMIT=${COMMITS%% *}
 
 	# Translate possible branch name to SHA1
-	COMMITS=$(git -C $KERNEL_SRC show-ref -s $COMMIT)
+	COMMITS=$(git -C $GIT_TREE show-ref -s $COMMIT)
 	if [ $? -ne 0 ]; then
 		COMMIT_SHA1=$COMMIT
 	elif [ $(echo $COMMITS | wc -w) -eq 1 ]; then
 		COMMIT_SHA1=$COMMITS
 	else
 		c_error "The branch name must be univocal, \"$COMMIT\" may refer to:"
-		for b in $(git -C $KERNEL_SRC show-ref $COMMIT | cut -f 2 -d " "); do
+		for b in $(git -C $GIT_TREE show-ref $COMMIT | cut -f 2 -d " "); do
 			c_error "    $b"
 		done
 		exit $EINVAL
