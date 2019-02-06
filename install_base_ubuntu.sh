@@ -46,10 +46,10 @@ install_nodejs() {
     # NodeJS v8+ is required, Ubuntu 16.04 LTS supports only an older version.
     # As a special case we can install it as a snap package
     if grep 16.04 /etc/lsb-release >/dev/null; then
-        sudo snap install node --classic --channel=8
+        snap install node --classic --channel=8
         return
     fi
-    sudo apt-get install -y nodejs npm
+    apt-get install -y nodejs npm
 }
 
 set -eu
