@@ -26,6 +26,7 @@ import enum
 import fcntl
 import fnmatch
 import functools
+import gc
 import glob
 import gzip
 import hashlib
@@ -34,6 +35,7 @@ import inspect
 import itertools
 import json
 import logging
+import lzma
 import math
 import multiprocessing
 import mimetypes
@@ -41,6 +43,7 @@ import numbers
 import os
 import os.path
 import pickle
+import pathlib
 import queue
 import re
 import select
@@ -1024,14 +1027,14 @@ class StepMeta(abc.ABCMeta, type(Serializable)):
     """
     Metaclass of all steps.
 
-    Wraps :meth:`__init__` and :meth:`report_results` to preprocess the values
+    Wraps :meth:`__init__` and :meth:`report` to preprocess the values
     of the parameters annotated with a command line option parser.
     """
     def __new__(meta_cls, name, bases, dct):
         # Wrap some methods to preprocess some parameters that have a parser
         # defined using the "options" class attribute.
         for method_name in (
-            name for name in ('__init__', 'report_results')
+            name for name in ('__init__', 'report')
             if name in dct
         ):
             wrapper = meta_cls.wrap_method(dct, method_name)
@@ -1118,7 +1121,7 @@ class StepABC(Serializable, metaclass=StepMeta):
 
     options = dict(
         __init__ = {},
-        report_results = dict(
+        report = dict(
             verbose = BoolParam('Increase verbosity'),
         ),
     )
@@ -1141,7 +1144,7 @@ class StepABC(Serializable, metaclass=StepMeta):
         pass
 
     @abc.abstractmethod
-    def report_results(self, step_res_seq,
+    def report(self, step_res_seq,
         verbose=True
     ):
         """
@@ -1188,7 +1191,7 @@ class StepBase(StepABC):
             use_systemd_run = BoolParam('use systemd-run to run the command. This allows cleanup of daemons spawned by the command (using cgroups)'),
             env = EnvListParam('environment variables with a list of values that will be used for each iterations, wrapping around. The string format is: VAR1=val1%val2%...%%VAR2=val1%val2%.... In YAML, it is a map of var names to list of values. A single string can be supplied instead of a list of values.'),
         ),
-        report_results = dict(
+        report = dict(
             verbose = BoolParam('increase verbosity'),
             show_basic = BoolParam('show command exit status for all iterations'),
             ignore_non_issue = BoolParam('consider only iteration with non-zero command exit status'),
@@ -1255,7 +1258,8 @@ class StepBase(StepABC):
             out(indent + textwrap.dedent(cls.__doc__).strip().replace('\n', '\n'+indent) + '\n')
 
         for pretty, method_name in (
-                ('run', '__init__'), ('report', 'report_results')
+                ('run', '__init__'),
+                ('report', 'report'),
         ):
             parser_map = get_steps_kwarg_parsers(cls, method_name)
             if not parser_map:
@@ -1452,7 +1456,7 @@ class StepBase(StepABC):
         ensure_dir(os.path.join(dirname, 'foo'))
         return dirname
 
-    def report_results(self, step_res_seq, service_hub,
+    def report(self, step_res_seq, service_hub,
             verbose = False,
             show_basic = True,
             ignore_non_issue = False,
@@ -1713,10 +1717,12 @@ class LISATestStepResult(StepResult):
         name = 'LISA-test',
     )
 
-    def __init__(self, xunit, results_path, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    # TODO: get rid of xunit and only use db
+    def __init__(self, results_path, db=None, xunit=None, **kwargs):
+        super().__init__(**kwargs)
         self.xunit = xunit
         self.results_path = results_path
+        self.db = db
 
 def is_excep_ignored(excep, ignored_except_set):
     # If the type is missing, assume a generic Exception
@@ -1759,7 +1765,7 @@ def deprecated_parse_testcase_res(testcase, kind, ignored_except_set):
 
 class ExekallLISATestStep(ShellStep):
     """
-    Execute an exekall LISA test command and collect xUnit results. Also
+    Execute an exekall LISA test command and collect exekall's ValueDB. Also
     compress the result directory and record its path. It will also define some
     environment variables that are expected to be used by the command to be
     able to locate resources to collect.
@@ -1772,31 +1778,33 @@ class ExekallLISATestStep(ShellStep):
         use_systemd_run = False,
         compress_artifact = True,
         upload_artifact = False,
+        prune_db = True,
     )
 
     options = dict(
         __init__ = dict(
             compress_artifact = BoolParam('compress the exekall artifact directory in an archive'),
             upload_artifact = BoolParam('upload the exekall artifact directory to Artifactorial as the execution goes, and delete the local archive.'),
+            prune_db = BoolParam("Prune exekall's ValueDB so that only roots values are preserved. That allows smaller reports that are faster to load"),
             # Some options are not supported
             **filter_keys(StepBase.options['__init__'], remove={'trials'}),
         ),
-        report_results = dict(
-            verbose = StepBase.options['report_results']['verbose'],
-            show_basic = StepBase.options['report_results']['show_basic'],
-            iterations = StepBase.options['report_results']['iterations'],
+        report = dict(
+            verbose = StepBase.options['report']['verbose'],
+            show_basic = StepBase.options['report']['show_basic'],
+            iterations = StepBase.options['report']['iterations'],
             show_rates = BoolParam('show percentages of failure, error, skipped, undecided and passed tests'),
             show_dist = BoolParam('show graphical distribution of issues among iterations with a one letter code: passed=".", failed="F", error="#", skipped="s", undecided="u"'),
-            show_pass_rate = BoolParam('always show the pass rate of tests, even when there are failures or crashes as well'),
+            show_pass_rate = BoolParam('always show the pass rate of tests, even when there are failures or errors as well'),
             show_details = ChoiceOrBoolParam(['msg'], 'show details of results. Use "msg" for only a brief message'),
             show_artifact_dirs = BoolParam('show exekall artifact directory for all iterations'),
-            testcase = CommaListParam('show only the test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
+            testcase = CommaListParam('show only the test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name'),
             ignore_testcase = CommaListParam('completely ignore test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
             ignore_non_issue = BoolParam('consider only tests that failed'),
             ignore_excep = CommaListParam('ignore the given comma-separated list of exceptions that caused tests failure or error. * can be used to match any part of the name'),
             dump_artifact_dirs = BoolOrStrParam('write the list of exekall artifact directories to a file. Useful to implement garbage collection of unreferenced artifact archives'),
-            xunit2json = BoolOrStrParam('append consolidated xUnit information to a JSON file'),
-            export_logs = BoolOrStrParam('export the logs, xUnit file and artifact directory symlink to the given directory'),
+            export_db = BoolOrStrParam('export a merged exekall ValueDB, merging it with existing ValueDB if the file exists', allow_empty=False),
+            export_logs = BoolOrStrParam('export the logs and artifact directory symlink to the given directory'),
             download = BoolParam('Download the exekall artifact archives if necessary'),
             upload_artifact = BoolParam('upload the artifact directory to Artifactorial and update the in-memory report. Following env var are needed: ARTIFACTORIAL_FOLDER set to the folder URL and ARTIFACTORIAL_TOKEN. Note: --export should be used to save the report with updated paths'),
         )
@@ -1806,6 +1814,7 @@ class ExekallLISATestStep(ShellStep):
     def __init__(self,
             compress_artifact = Default,
             upload_artifact = Default,
+            prune_db = Default,
             **kwargs
         ):
         kwargs['trials'] = 1
@@ -1818,8 +1827,12 @@ class ExekallLISATestStep(ShellStep):
             compress_artifact = True
 
         self.compress_artifact = compress_artifact
+        self.prune_db = prune_db
 
     def run(self, i_stack, service_hub):
+        from exekall.utils import NoValue
+        from exekall.engine import ValueDB
+
         artifact_path = os.getenv(
             'EXEKALL_ARTIFACT_ROOT',
             # default value
@@ -1827,7 +1840,9 @@ class ExekallLISATestStep(ShellStep):
         )
 
         # Create a unique artifact dir
-        artifact_path = os.path.join(artifact_path, uuid.uuid4().hex)
+        date = datetime.datetime.now().strftime('%Y%m%d_%H:%M:%S')
+        name = '{}_{}'.format(date, uuid.uuid4().hex)
+        artifact_path = os.path.join(artifact_path, name)
 
         # This also strips the trailing /, which is needed later on when
         # archiving the artifact.
@@ -1847,29 +1862,31 @@ class ExekallLISATestStep(ShellStep):
         else:
             bisect_ret = BisectRet.GOOD
 
-        # First item is the oldest created file
-        xunit_path_list = sorted(
-            glob.glob(os.path.join(artifact_path, '**/xunit.xml'), recursive=True),
-            key=lambda x: os.path.getmtime(x)
-        )
-        xunit_report = ''
-        if xunit_path_list:
-            # Take the most recent file
-            xunit_path = xunit_path_list[-1]
-            if len(xunit_path_list) > 1:
-                warn('Found more than one xUnit file, only taking the most recent one ({}): {}'.format(
-                    xunit_path,
-                    ', '.join(xunit_path_list)
-                ))
-
-            try:
-                with open(xunit_path, 'r') as xunit_file:
-                    xunit_report = xunit_file.read()
-            except OSError as e:
-                warn('Could not open xUnit XML {}: {}'.format(xunit_path, e))
-
+        db_path = os.path.join(artifact_path, 'VALUE_DB.pickle.xz')
+        try:
+            db = ValueDB.from_path(db_path)
+        except Exception as e:
+            warn('Could not read DB at {}: {}'.format(db_path, e))
+            db = None
         else:
-            warn('No xUnit file found under: {}'.format(artifact_path))
+            if self.prune_db:
+                # Prune the DB so we only keep the root values in it, or the
+                # exceptions
+                root_froz_val_uuids = {
+                    froz_val.uuid
+                    for froz_val in db.get_roots()
+                }
+                def prune_predicate(froz_val):
+                    return not (
+                        # Keep the root values, usually ResultBundle's. We
+                        # cannot compare the object themselves since they have
+                        # been copied to the pruned DB.
+                        froz_val.uuid in root_froz_val_uuids
+                        or
+                        # keep errors and values leading to them
+                        froz_val.value is NoValue
+                    )
+                db = db.prune_by_predicate(prune_predicate)
 
         # Compress artifact directory
         if self.compress_artifact:
@@ -1918,17 +1935,17 @@ class ExekallLISATestStep(ShellStep):
                             path = artifact_local_path,
                         ))
             else:
-                error('No upload service available, could not upload exkeall artifact.')
+                error('No upload service available, could not upload exekall artifact.')
 
         return LISATestStepResult(
             step = self,
             res_list = res_list,
             bisect_ret = bisect_ret,
-            xunit = xunit_report,
             results_path = artifact_path,
+            db = db,
         )
 
-    def report_results(self, step_res_seq, service_hub,
+    def report(self, step_res_seq, service_hub,
             verbose = False,
             show_basic = False,
             show_rates = True,
@@ -1942,7 +1959,7 @@ class ExekallLISATestStep(ShellStep):
             ignore_non_issue = False,
             ignore_excep = [],
             dump_artifact_dirs = False,
-            xunit2json = False,
+            export_db = False,
             export_logs = False,
             download = True,
             upload_artifact = False
@@ -1950,6 +1967,11 @@ class ExekallLISATestStep(ShellStep):
         """Print out a report for a list of executions artifact created using
         the run() method.
         """
+
+        from exekall.utils import get_name, NoValue
+        from exekall.engine import ValueDB
+
+        from lisa.tests.base import CannotCreateError, Result
 
         if verbose:
             show_basic = True
@@ -1969,37 +1991,35 @@ class ExekallLISATestStep(ShellStep):
         ignored_testcase_set = set(ignore_testcase)
         considered_iteration_set = set(iterations)
 
-        # Parse the xUnit XML report from LISA to know the failing tests
+        # Read the ValueDB from exekall to know the failing tests
         testcase_map = collections.defaultdict(list)
         filtered_step_res_seq = list()
+        db_list = []
         for step_res_item in step_res_seq:
             i_stack, step_res = step_res_item
+            bisect_ret = None
 
             # Ignore the iterations we are not interested in
             if considered_iteration_set and i_stack[0] not in considered_iteration_set:
                 continue
 
-            # The xunit attribute of LISATestStepResult results contains the
-            # xUnit file content generated by LISA
-            xunit = step_res.xunit.strip()
-            if not xunit:
-                warn("Empty LISA's xUnit for {step_name} step, iteration {i}".format(
+            db = step_res.db
+            if not db:
+                warn("No exekall ValueDB for {step_name} step, iteration {i}".format(
                     step_name = step_res.step.name,
                     i = i_stack
                 ))
                 continue
+            else:
+                db_list.append(db)
+                def key(froz_val):
+                    return froz_val.get_id(full_qual=True, with_tags=True)
 
-            try:
-                et_testsuites = ET.fromstring(step_res.xunit.strip())
-            except ET.ParseError as e:
-                warn("Could not open LISA's xUnit report: {e}".format(e=e))
-                continue
+                # Gather all result bundles
+                froz_val_list = sorted(db.get_roots(), key=key)
 
-            bisect_ret = None
-            for et_testsuite in et_testsuites.findall('testsuite'):
-                testsuite_name = et_testsuite.get('name')
-                for et_testcase in et_testsuite.findall('testcase'):
-                    testcase_id = et_testcase.get('name')
+                for froz_val in froz_val_list:
+                    testcase_id = froz_val.get_id(qual=False, with_tags=True)
 
                     # Ignore tests we are not interested in
                     if (
@@ -2016,31 +2036,65 @@ class ExekallLISATestStep(ShellStep):
                         continue
 
                     entry = {
-                        'testsuite': testsuite_name,
                         'testcase_id': testcase_id,
                         'i_stack': i_stack,
                         'results_path': step_res.results_path,
                     }
 
-                    is_ignored = True
-                    # It is assumed that there will only be one result subtag
-                    for et_subtag in et_testcase:
-                        tag = et_subtag.tag
-                        if tag in (
-                            'passed', 'failure', 'skipped', 'undecided', 'error'
-                        ):
-                            entry['result'] = tag
+                    is_ignored = False
 
-                            type_name = et_subtag.get('type')
-                            if tag == 'error':
-                                is_ignored = is_excep_ignored(type_name, ignored_except_set)
-                            else:
-                                is_ignored = False
+                    try:
+                        # We only show the 1st exception, others are hidden
+                        excep_froz_val = list(froz_val.get_excep())[0]
+                    except IndexError:
+                        excep_froz_val = None
 
-                            short_msg = et_subtag.get('message')
-                            msg = et_subtag.text
-                            entry['details'] = (type_name, short_msg, msg)
-                            break
+                    if excep_froz_val:
+                        excep = excep_froz_val.excep
+                        if isinstance(excep, CannotCreateError):
+                            result = 'skipped'
+                        else:
+                            result = 'error'
+                        entry['result'] = result
+
+                        type_name = get_name(type(excep))
+                        is_ignored |= is_excep_ignored(
+                            type_name,
+                            ignored_except_set,
+                        )
+                        short_msg = str(excep)
+                        msg = excep_froz_val.excep_tb
+
+                        entry['details'] = (type_name, short_msg, msg)
+                    else:
+                        val =  froz_val.value
+                        result_map = {
+                            Result.PASSED: 'passed',
+                            Result.FAILED: 'failure',
+                            Result.UNDECIDED: 'undecided',
+                        }
+                        # If that is a ResultBundle, use its result to get
+                        # most accurate info, otherwise just assume it is a
+                        # bool-ish value
+                        try:
+                            result = val.result
+                            msg = '\n'.join(
+                                '{}: {}'.format(metric, value)
+                                for metric, value in val.metrics.items()
+                            )
+                        except AttributeError:
+                            result = Result.PASSED if val else Result.FAILED
+                            msg = str(val)
+
+                        # If the result is not something known, assume undecided
+                        result = result_map.get(result, 'undecided')
+
+                        entry['result'] = result
+                        type_name = get_name(type(val))
+                        short_msg = result
+                        entry['details'] = (type_name, short_msg, msg)
+
+                    entry['froz_val'] = froz_val
 
                     # Ignored testcases will not contribute to the number of
                     # iterations
@@ -2058,7 +2112,7 @@ class ExekallLISATestStep(ShellStep):
             if not any_entries:
                 bisect_ret = BisectRet.NA
 
-            # Update the LISATestStepResult bisect result based on the xUnit
+            # Update the LISATestStepResult bisect result based on the DB
             # content.
             step_res.bisect_ret = bisect_ret
 
@@ -2127,17 +2181,11 @@ class ExekallLISATestStep(ShellStep):
                         os.unlink(archive_dst)
                     os.symlink(archive_path, archive_dst)
 
-                # Save the xUnit file as well
-                if step_res.xunit:
-                    xunit_log_path = os.path.join(log_dir, 'xunit.xml')
-                    with open(xunit_log_path, 'w') as f:
-                        f.write(step_res.xunit)
-
         out('')
 
         # Always execute that for the potential side effects like exporting the
         # logs.
-        basic_report = super().report_results(
+        basic_report = super().report(
             step_res_seq, service_hub, export_logs=export_logs,
             show_basic=show_basic, verbose=verbose,
             ignore_non_issue=ignore_non_issue, iterations=iterations,
@@ -2146,7 +2194,7 @@ class ExekallLISATestStep(ShellStep):
         if show_basic:
             out(basic_report)
 
-        # Contains the percentage of skipped, failed, crashed and passed
+        # Contains the percentage of skipped, failed, error and passed
         # iterations for every testcase.
         testcase_stats = dict()
         table_out = MLString()
@@ -2167,7 +2215,7 @@ class ExekallLISATestStep(ShellStep):
                     ('skipped', 'skipped'),
                     ('undecided', 'undecided'),
                     ('failure', 'FAILED'),
-                    ('error', 'CRASHED'),
+                    ('error', 'ERROR'),
                 ):
                 filtered_entry_list = [entry for entry in entry_list if entry['result'] == issue]
 
@@ -2204,6 +2252,7 @@ class ExekallLISATestStep(ShellStep):
                         i_stack = entry['i_stack']
                         results_path = '\n' + entry['results_path'] if show_artifact_dirs else ''
                         exception_name, short_msg, msg = entry['details']
+                        uuid_ = entry['froz_val'].uuid
 
                         if show_details == 'msg':
                             msg = ''
@@ -2216,7 +2265,9 @@ class ExekallLISATestStep(ShellStep):
                             msg += ' '
 
                         table_out(
-                            '   #{i_stack: <2}) {short_msg} ({exception_name}){results_path}{msg}'.format(**locals()).replace('\n', '\n\t')
+                                '   #{i_stack: <2}) UUID={uuid_} ({exception_name}) {short_msg}{results_path}{msg}'.format(
+                                **locals()
+                            ).replace('\n', '\n\t')
                         )
 
             iterations_summary = stats['iterations_summary']
@@ -2245,7 +2296,6 @@ class ExekallLISATestStep(ShellStep):
         out()
         out(dist_out)
 
-
         counts = {
             issue: sum(
                 # If there is a non-zero count for that issue for that test, we
@@ -2253,32 +2303,36 @@ class ExekallLISATestStep(ShellStep):
                 bool(stats['counters'][issue])
                 for stats in testcase_stats.values()
             )
-            for issue in ('error', 'failure', 'undecided', 'skipped')
+            for issue in ('error', 'failure', 'undecided', 'skipped', 'total')
         }
+        nr_tests = len(testcase_map)
+        assert counts['total'] == nr_tests
+
         # Only account for tests that only passed and had no other issues
-        counts['passed'] = sum(
-            all(
-                not count
-                for issue, count in stats['counters'].items()
-                if issue != 'passed'
-            )
-            for stats in testcase_stats.values()
-        )
+        counts['passed'] = nr_tests - (sum(counts.values()) - nr_tests)
 
         out(
-            'Crashed: {counts[error]}/{total}, '
+            'Error: {counts[error]}/{total}, '
             'Failed: {counts[failure]}/{total}, '
             'Undecided: {counts[undecided]}/{total}, '
             'Skipped: {counts[skipped]}/{total}, '
             'Passed: {counts[passed]}/{total}'.format(
                 counts=counts,
-                total=len(testcase_map),
+                total=nr_tests,
             )
         )
 
-        # Write out the digest in JSON format so another tool can exploit it
-        if xunit2json:
-            update_json(xunit2json, testcase_stats)
+        # Write-out a merged DB
+        if export_db:
+            try:
+                existing_db = ValueDB.from_path(export_db)
+            except FileNotFoundError:
+                pass
+            else:
+                db_list.append(existing_db)
+
+            merged_db = ValueDB.merge(db_list)
+            merged_db.to_path(export_db)
 
         return out
 
@@ -2308,10 +2362,10 @@ class LISATestStep(ShellStep):
             upload_results = BoolParam('upload the LISA results directory to Artifactorial as the execution goes, and delete the local archive.'),
             **StepBase.options['__init__'],
         ),
-        report_results = dict(
-            verbose = StepBase.options['report_results']['verbose'],
-            show_basic = StepBase.options['report_results']['show_basic'],
-            iterations = StepBase.options['report_results']['iterations'],
+        report = dict(
+            verbose = StepBase.options['report']['verbose'],
+            show_basic = StepBase.options['report']['show_basic'],
+            iterations = StepBase.options['report']['iterations'],
             show_rates = BoolParam('show percentages of failure, error, skipped and passed tests'),
             show_dist = BoolParam('show graphical distribution of issues among iterations with a one letter code: passed=".", failed="F", error="#", skipped="s"'),
             show_pass_rate = BoolParam('always show the pass rate of tests, even when there are failures or crashes as well'),
@@ -2356,7 +2410,6 @@ class LISATestStep(ShellStep):
 
         env = {
             'LISA_RESULTS_BASE': results_path,
-            # TODO: remove that once LISA has switched to the new behavior
             'LISA_RESULTS_DIR': results_path
         }
         info('Setting LISA_RESULTS_BASE = {results_path} ...'.format(**locals()))
@@ -2430,12 +2483,12 @@ class LISATestStep(ShellStep):
             step = self,
             res_list = res_list,
             bisect_ret = bisect_ret,
-            xunit = xunit_report,
             results_path = results_path,
+            xunit = xunit_report,
         )
 
 
-    def report_results(self, step_res_seq, service_hub,
+    def report(self, step_res_seq, service_hub,
             verbose = False,
             show_basic = False,
             show_rates = True,
@@ -2631,7 +2684,7 @@ class LISATestStep(ShellStep):
 
         # Always execute that for the potential side effects like exporting the
         # logs.
-        basic_report = super().report_results(
+        basic_report = super().report(
             step_res_seq, service_hub, export_logs=export_logs,
             show_basic=show_basic, verbose=verbose,
             ignore_non_issue=ignore_non_issue, iterations=iterations,
@@ -3270,7 +3323,7 @@ class MacroStep(StepBase):
             bail_out_early = BoolParam('start a new iteration when a step returned bisect status bad or untestable and skip all remaining steps'),
             relative_root = BoolOrStrParam('root of relative paths in class names', allow_empty=True),
         ),
-        report_results = dict()
+        report = dict()
     )
 
     """Groups a set of steps in a logical sequence."""
@@ -3540,7 +3593,7 @@ class MacroStep(StepBase):
 
         return report
 
-    def report_results(self, macrostep_res_seq, service_hub, steps_filter=None,
+    def report(self, macrostep_res_seq, service_hub, steps_filter=None,
             step_options=dict()):
         """Report the results of nested steps."""
 
@@ -3576,7 +3629,7 @@ class MacroStep(StepBase):
                 continue
 
             # Select the kwargs applicable for this step
-            kwargs = get_step_kwargs(step.cat, step.name, step, 'report_results', step_options)
+            kwargs = get_step_kwargs(step.cat, step.name, step, 'report', step_options)
 
             # Pass down some MacroStep-specific parameters
             if isinstance(step, MacroStep):
@@ -3585,7 +3638,7 @@ class MacroStep(StepBase):
                     'steps_filter': steps_filter,
                 })
 
-            report_str = step.report_results(
+            report_str = step.report(
                 step_res_list,
                 service_hub,
                 **kwargs
@@ -3594,7 +3647,7 @@ class MacroStep(StepBase):
             # Build a temporary iteration result to aggregate the results of
             # any given step, as if all these results were coming from a list
             # of steps. This allows quickly spotting if any of the iterations
-            # went wrong. This must be done after calling step.report_results,
+            # went wrong. This must be done after calling step.report,
             # so that it has a chance to modify the results.
             bisect_ret = StepSeqResult(
                 step,
@@ -3870,31 +3923,16 @@ def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
 def init_yaml(yaml, relative_root):
     """
     Initialize pyyaml to allow transparent loading and dumping of
-    OrderedDict, as well as an !include tag to include another file.
+    OrderedDict.
     """
-    # Without that, escape sequences are used to represent unicode characters in
-    # plain ascii.
+    # Without allow_unicode, escape sequences are used to represent unicode
+    # characters in plain ASCII
     yaml.allow_unicode = True
-    yaml.default_flow_style = False
-    yaml.indent = 4
+    yaml.default_flow_style = True
+    yaml.indent(mapping=1, sequence=1, offset=0)
 
-    # Allow !include tag to include other files. Relative paths are relative
-    # to the folder of the root yaml file. Absolute paths are used as-is.
-    # Environments variables are expanded in the path.
-    def include_constructor(loader, node):
-        filename = loader.construct_scalar(node)
-        filename = os.path.expandvars(filename)
-        if os.path.isabs(filename):
-            path = filename
-        else:
-            path = os.path.join(relative_root, filename)
-
-        with open(path, 'r') as f:
-            return yaml.load(f)
-
-    yaml.Constructor.add_constructor('!include', include_constructor)
-
-    # Use OrderedDict as default mapping objects
+    # Dump OrderedDict as regular dictionaries, since we will reload map as
+    # OrderedDict as well
     def map_representer(dumper, data):
         return dumper.represent_dict(data.items())
 
@@ -3904,8 +3942,13 @@ def init_yaml(yaml, relative_root):
     yaml.Representer.add_representer(collections.OrderedDict, map_representer)
     yaml.Constructor.add_constructor(yaml.resolver.DEFAULT_MAPPING_TAG, map_constructor)
 
-    # Use block style for multiline strings
+    # Since strings are immutable, we can memoized the output to deduplicate
+    # strings. This will make the dumped strings live forever, but that should
+    # not be a big issue since everything that ends up in a YAML document is
+    # also living in memory anyway in our use case.
+    @functools.lru_cache(maxsize=None, typed=True)
     def str_presenter(dumper, data):
+        # Use block style for multiline strings
         style = '|' if '\n' in data else None
         return dumper.represent_scalar('tag:yaml.org,2002:str', data, style=style)
 
@@ -3938,27 +3981,55 @@ class ReportPreamble(Serializable):
         self.preamble_version = 0
 
 def check_report_path(path, probe_file):
-    if probe_file:
-        # Try to open as gzip
+    def probe_open_f(open_f, path):
         try:
-            with gzip.open(path) as trial_f:
-                trial_f.read(1)
-        except OSError as e:
-            # If we get a gzip-specific error, we assume a plain file
-            if 'gzip' in str(e):
-                open_f = open
-            else:
-                raise
+            with open_f(path) as f:
+                f.read(1)
+        except Exception:
+            return False
         else:
-            open_f = gzip.open
-    else:
-        if mimetypes.guess_type(path)[1] == 'gzip':
-            open_f = gzip.open
-        else:
-            open_f = open
+            return True
 
-    is_yaml = not (path.endswith('.pickle') or path.endswith('.pickle.gz'))
+    # Default to uncompressed file
+    open_f = open
+    mime_map = {
+        'gzip': gzip.open,
+        'xz': lzma.open,
+    }
+
+    if probe_file:
+        for f in mime_map.values():
+            if probe_open_f(f, path):
+                open_f = f
+                break
+    else:
+        guessed_mime = mimetypes.guess_type(path)[1]
+        open_f = mime_map.get(guessed_mime, open_f)
+
+    path = pathlib.Path(path)
+    compo = path.name.split('.')
+    # By default, assume YAML unless pickle is explicitly present
+    is_yaml = 'pickle' not in path.name.split('.')
     return (open_f, is_yaml)
+
+def disable_gc(f):
+    """
+    Decorator to disable garbage collection during the execution of the
+    decorated function.
+
+    This can speed-up code that creates a lot of objects in a short amount of
+    time.
+    """
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        gc.disable()
+        try:
+            return f(*args, **kwargs)
+        # re-enable the garbage collector in all cases
+        finally:
+            gc.enable()
+
+    return wrapper
 
 class Report(Serializable):
     """
@@ -4020,7 +4091,7 @@ class Report(Serializable):
                 report=self
             )
             with open_f(temp_path, 'wb') as f:
-                pickle.dump(pickle_data, f)
+                pickle.dump(pickle_data, f, protocol=4)
 
         # Rename the file once we know for sure that writing to the temporary
         # report completed with success
@@ -4041,6 +4112,7 @@ class Report(Serializable):
         return (path, url)
 
     @classmethod
+    @disable_gc
     def _do_load(cls, path, steps_path):
         open_f, is_yaml = check_report_path(path, probe_file=True)
 
@@ -4050,7 +4122,7 @@ class Report(Serializable):
                 excep = import_steps_from_yaml(steps_path)
             # Then try to import the files as recorded in the report
             else:
-                excep = import_files(preamble.src_files)
+                excep = import_files(src_files)
             return excep
 
 
@@ -4207,7 +4279,7 @@ class Report(Serializable):
         out = MLString()
         out('Description: {self.description}'.format(self=self))
         out('Creation time: {self.creation_time}\n'.format(self=self))
-        out(self.result.step.report_results(
+        out(self.result.step.report(
             [(IterationCounterStack(), self.result)],
             service_hub = service_hub,
             steps_filter = steps_filter,

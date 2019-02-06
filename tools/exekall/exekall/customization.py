@@ -60,7 +60,14 @@ class AdaptorBase:
         return self.hidden_op_set
 
     @staticmethod
-    def register_cli_param(parser):
+    def register_run_param(parser):
+        pass
+
+    @staticmethod
+    def register_compare_param(parser):
+        pass
+
+    def compare_db_list(self, db_list):
         pass
 
     @staticmethod
@@ -70,9 +77,9 @@ class AdaptorBase:
     def resolve_cls_name(self, goal):
         return utils.get_class_from_name(goal)
 
-    @staticmethod
-    def load_db(*args, **kwargs):
-        return ValueDB.from_path(*args, **kwargs)
+    @classmethod
+    def reload_db(cls, db, path=None):
+        return db
 
     def finalize_expr(self, expr):
         pass

@@ -339,6 +339,16 @@ should be treated as read-only.
     merge_parser.add_argument('--copy', action='store_true',
         help="""Force copying files, instead of using hardlinks.""")
 
+
+    compare_parser = subparsers.add_parser('compare',
+    description="""
+Compare two DBs produced by exekall run.
+    """,
+    formatter_class=argparse.RawTextHelpFormatter)
+
+    compare_parser.add_argument('db', nargs=2,
+        help="""DBs created using exekall run to compare.""")
+
     # Avoid showing help message on the incomplete parser. Instead, we carry on
     # and the help will be displayed after the parser customization of run
     # subcommand has a chance to take place.
@@ -369,7 +379,7 @@ should be treated as read-only.
 
     # Some subcommands need not parser customization, in which case we more
     # strictly parse the command line
-    if args.subcommand not in ['run']:
+    if args.subcommand not in ('run', 'compare'):
         parser.parse_args(argv)
 
     if args.subcommand == 'run':
@@ -382,6 +392,43 @@ should be treated as read-only.
             output_dir=args.output,
             use_hardlink=(not args.copy),
         )
+
+    elif args.subcommand == 'compare':
+        return do_compare(
+            parser=parser,
+            compare_parser=compare_parser,
+            argv=argv,
+            db_path_list=args.db,
+        )
+
+def do_compare(parser, compare_parser, argv, db_path_list):
+    assert len(db_path_list) == 2
+    db_list = [
+        engine.ValueDB.from_path(path)
+        for path in db_path_list
+    ]
+
+    adaptor_cls_set = {
+        db.adaptor_cls
+        for db in db_list
+    }
+    if len(adaptor_cls_set) != 1:
+        raise ValueError('Cannot compare DBs that were built using a different adaptor: {}'.format(adaptor_cls_set))
+    adaptor_cls = utils.take_first(adaptor_cls_set)
+
+    # Add all the CLI arguments of the adaptor before reparsing the
+    # command line.
+    adaptor_cls.register_compare_param(compare_parser)
+
+    # Reparse the command line after the adaptor had a chance to add its own
+    # arguments.
+    args = parser.parse_args(argv)
+
+    # Create the adaptor with the args, so it can use it to implement
+    # comparison
+    adaptor = adaptor_cls(args)
+
+    return adaptor.compare_db_list(db_list)
 
 def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
     output_dir = pathlib.Path(output_dir)
@@ -399,13 +446,26 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
         os.makedirs(str(output_dir), exist_ok=output_exist)
         merged_db_path = output_dir/DB_FILENAME
 
+    (output_dir/'BY_UUID').mkdir(exist_ok=True)
     testsession_uuid_list = []
     for artifact_dir in artifact_dirs:
         with (artifact_dir/'UUID').open(encoding='utf-8') as f:
             testsession_uuid = f.read().strip()
             testsession_uuid_list.append(testsession_uuid)
 
+        src_by_uuid = artifact_dir/'BY_UUID'
+        for uuid_symlink in src_by_uuid.iterdir():
+            target = uuid_symlink.resolve()
+            target = pathlib.Path('..', target.relative_to(artifact_dir.resolve()))
+            (output_dir/'BY_UUID'/uuid_symlink.name).symlink_to(target)
+
+
         link_base_path = pathlib.Path('ORIGIN', testsession_uuid)
+        shutil.copytree(
+            str(src_by_uuid),
+            str(output_dir/link_base_path/'BY_UUID'),
+            symlinks=True,
+        )
 
         # Copy all the files recursively
         for dirpath, dirnames, filenames in os.walk(str(artifact_dir)):
@@ -470,6 +530,9 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
         with (output_dir/'UUID').open('wt') as f:
             f.write(combined_uuid+'\n')
 
+    if output_exist:
+        db_path_list.append(merged_db_path)
+
     merged_db = engine.ValueDB.merge(
         engine.ValueDB.from_path(path)
         for path in db_path_list
@@ -490,7 +553,7 @@ def do_run(args, parser, run_parser, argv):
         raise RuntimeError('Adaptor "{}" cannot be found'.format(adaptor_name))
     # Add all the CLI arguments of the adaptor before reparsing the
     # command line.
-    adaptor_cls.register_cli_param(run_parser)
+    adaptor_cls.register_run_param(run_parser)
 
     # Reparse the command line after the adaptor had a chance to add its own
     # arguments.
@@ -577,7 +640,7 @@ def do_run(args, parser, run_parser, argv):
     if load_db_path_list:
         db_list = []
         for db_path in load_db_path_list:
-            db = adaptor.load_db(db_path)
+            db = engine.ValueDB.from_path(db_path)
             op_set.update(
                 load_from_db(db, adaptor, non_reusable_type_set,
                     load_db_pattern_list, load_db_uuid_list, load_db_uuid_args
@@ -717,6 +780,7 @@ def do_run(args, parser, run_parser, argv):
         testsession_uuid=testsession_uuid,
         hidden_callable_set=hidden_callable_set,
         only_template_scripts=only_template_scripts,
+        adaptor_cls=adaptor_cls,
         verbose=verbose,
     )
 
@@ -732,13 +796,13 @@ def do_run(args, parser, run_parser, argv):
     return exec_ret_code
 
 def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
-        hidden_callable_set, only_template_scripts, verbose):
+        hidden_callable_set, only_template_scripts, adaptor_cls, verbose):
 
     if not only_template_scripts:
         with (artifact_dir/'UUID').open('wt') as f:
             f.write(testsession_uuid+'\n')
 
-    db_loader = adaptor.load_db
+        (artifact_dir/'BY_UUID').mkdir()
 
     out('\nArtifacts dir: {}\n'.format(artifact_dir))
 
@@ -798,7 +862,6 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
                     prefix = 'testcase',
                     db_path = os.path.join('..', DB_FILENAME),
                     db_relative_to = '__file__',
-                    db_loader=db_loader
                 )[1]+'\n',
             )
 
@@ -916,15 +979,14 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
                     prefix = 'testcase',
                     db_path = os.path.join('..', '..', DB_FILENAME),
                     db_relative_to = '__file__',
-                    db_loader=db_loader
                 )[1]+'\n',
             )
 
         def format_uuid(expr_val_list):
-            uuid_list = sorted(
+            uuid_list = sorted({
                 expr_val.uuid
                 for expr_val in expr_val_list
-            )
+            })
             return '\n'.join(uuid_list)
 
         def write_uuid(path, *args):
@@ -935,10 +997,21 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
         write_uuid(expr_artifact_dir/'REUSED_VALUES_UUID', reused_expr_val_set)
         write_uuid(expr_artifact_dir/'COMPUTED_VALUES_UUID', computed_expr_val_set)
 
+        # From there, use a relative path for symlinks
+        expr_artifact_dir = pathlib.Path('..', expr_artifact_dir.relative_to(artifact_dir))
+        computed_uuid_set = {
+            expr_val.uuid
+            for expr_val in computed_expr_val_set
+        }
+        computed_uuid_set.add(expr.uuid)
+        for uuid_ in computed_uuid_set:
+            (artifact_dir/'BY_UUID'/uuid_).symlink_to(expr_artifact_dir)
+
     db = engine.ValueDB(
         engine.FrozenExprValSeq.from_expr_list(
             expr_list, hidden_callable_set=hidden_callable_set
-        )
+        ),
+        adaptor_cls=adaptor_cls,
     )
 
     db_path = artifact_dir/DB_FILENAME
@@ -961,7 +1034,7 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
         db_path=db_path.relative_to(artifact_dir),
         db_relative_to='__file__',
         db=db,
-        db_loader=db_loader,
+        adaptor_cls=adaptor_cls,
     )
 
     with script_path.open('wt', encoding='utf-8') as f:

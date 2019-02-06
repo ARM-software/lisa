@@ -82,7 +82,7 @@ def get_mro(cls):
         assert isinstance(cls, type)
         return inspect.getmro(cls)
 
-def get_name(obj, full_qual=True, qual=True, desugar_cls_meth=False):
+def get_name(obj, full_qual=True, qual=True):
     # full_qual enabled implies qual enabled
     _qual = qual or full_qual
     # qual disabled implies full_qual disabled

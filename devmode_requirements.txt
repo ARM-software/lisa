@@ -1,6 +1,7 @@
 # Must be ordered to satisfy the dependencies without pulling from PyPI.
 # Once they are found by pip in editable mode as specified here, they will be
 # used and not looked up on PyPI.
+-e ./tools/exekall
 
 # devlib before WA and LISA
 -e ./external/devlib/
@@ -14,5 +15,4 @@
 -e ./external/workload-automation/
 -e ./[notebook,doc,test]
 
--e ./tools/exekall
 -e ./tools/bisector[dbus]

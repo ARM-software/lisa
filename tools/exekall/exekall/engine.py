@@ -54,10 +54,11 @@ class ValueDB:
     # dumping speed.
     PICKLE_PROTOCOL = 4
 
-    def __init__(self, froz_val_seq_list):
+    def __init__(self, froz_val_seq_list, adaptor_cls=None):
         # Avoid storing duplicate FrozenExprVal sharing the same value/excep
         # UUID
         self.froz_val_seq_list = self._dedup_froz_val_seq_list(froz_val_seq_list)
+        self.adaptor_cls = adaptor_cls
 
     @classmethod
     def _dedup_froz_val_seq_list(cls, froz_val_seq_list):
@@ -110,12 +111,21 @@ class ValueDB:
         return cls._froz_val_dfs(froz_val_seq_list, rewrite_graph)
 
     @classmethod
-    def merge(cls, db_seq):
-        froz_val_seq_list = list(itertools.chain(*(
+    def merge(cls, db_list):
+        db_list = list(db_list)
+        adaptor_cls_set = {
+            db.adaptor_cls
+            for db in db_list
+        }
+        if len(adaptor_cls_set) != 1:
+            raise ValueError('Cannot merge ValueDB with different adaptor classes: {}'.format(adaptor_cls_set))
+        adaptor_cls = utils.take_first(adaptor_cls_set)
+
+        froz_val_seq_list = list(itertools.chain.from_iterable(
             db.froz_val_seq_list
-            for db in db_seq
-        )))
-        return cls(froz_val_seq_list)
+            for db in db_list
+        ))
+        return cls(froz_val_seq_list, adaptor_cls=adaptor_cls)
 
     @classmethod
     def from_path(cls, path, relative_to=None):
@@ -133,6 +143,31 @@ class ValueDB:
                 db = pickle.load(f)
         assert isinstance(db, cls)
 
+        # Apply some post-processing on the DB with a known path
+        cls._call_adaptor_reload(db, path=path)
+
+        return db
+
+    @classmethod
+    def _reload_serialized(cls, dct):
+        db = cls.__new__(cls)
+        db.__dict__ = dct
+
+        # Apply some post-processing on the DB that was just reloaded, with no
+        # path since we don't even know if that method was invoked on something
+        # serialized in a file.
+        cls._call_adaptor_reload(db, path=None)
+
+        return db
+
+    def __reduce_ex__(self, protocol):
+        return (self._reload_serialized, (self.__dict__,))
+
+    @staticmethod
+    def _call_adaptor_reload(db, path):
+        adaptor_cls = db.adaptor_cls
+        if adaptor_cls:
+            db = adaptor_cls.reload_db(db, path=path)
         return db
 
     def to_path(self, path, optimize=True):
@@ -246,6 +281,59 @@ class ValueDB:
         else:
             return froz_val_set_set
 
+    def get_roots(self, flatten=True):
+        froz_val_set_set = {
+            frozenset(froz_val_seq)
+            for froz_val_seq in self.froz_val_seq_list
+        }
+        if flatten:
+            return set(utils.flatten_seq(froz_val_set_set))
+        else:
+            return froz_val_set_set
+
+    def prune_by_predicate(self, predicate):
+        def prune(froz_val):
+            if isinstance(froz_val, PrunedFrozVal):
+                return froz_val
+            elif predicate(froz_val):
+                return PrunedFrozVal(froz_val)
+            else:
+                # Edit the param_map in-place, so we keep it potentially shared
+                # if possible.
+                for param, param_froz_val in list(froz_val.param_map.items()):
+                    froz_val.param_map[param] = prune(param_froz_val)
+
+                return froz_val
+
+        def make_froz_val_seq(froz_val_seq):
+            froz_val_list = [
+                prune(froz_val)
+                for froz_val in froz_val_seq
+                # Just remove the root PrunedFrozVal, since they are useless at
+                # this level (i.e. nothing depends on them)
+                if not predicate(froz_val)
+            ]
+
+            # All param_map will be the same in the list by construction
+            try:
+                param_map = froz_val_list[0].param_map
+            except IndexError:
+                param_map = {}
+
+            return FrozenExprValSeq(
+                froz_val_list=froz_val_list,
+                param_map=param_map,
+            )
+
+        return self.__class__(
+            froz_val_seq_list=[
+                make_froz_val_seq(froz_val_seq)
+                # That will keep proper inter-object references as in the
+                # original graph of objects
+                for froz_val_seq in copy.deepcopy(self.froz_val_seq_list)
+            ]
+        )
+
     def get_all(self, **kwargs):
         return self.get_by_predicate(lambda froz_val: True, **kwargs)
 
@@ -264,6 +352,7 @@ class ValueDB:
             )
 
         return self.get_by_predicate(predicate, **kwargs)
+
 
 class ScriptValueDB:
     def __init__(self, db, var_name='db'):
@@ -549,12 +638,15 @@ class ExpressionBase:
         return self.get_all_script([self], *args, **kwargs)
 
     @classmethod
-    def get_all_script(cls, expr_list, prefix='value', db_path='VALUE_DB.pickle.xz', db_relative_to=None, db_loader=None, db=None):
+    def get_all_script(cls, expr_list, prefix='value', db_path='VALUE_DB.pickle.xz', db_relative_to=None, db=None, adaptor_cls=None):
         assert expr_list
 
         if db is None:
             froz_val_seq_list = FrozenExprValSeq.from_expr_list(expr_list)
-            script_db = ScriptValueDB(ValueDB(froz_val_seq_list))
+            script_db = ScriptValueDB(ValueDB(
+                froz_val_seq_list,
+                adaptor_cls=adaptor_cls,
+            ))
         else:
             script_db = ScriptValueDB(db)
 
@@ -607,15 +699,6 @@ class ExpressionBase:
             result_name_map[expr] = result_name
 
 
-        # Get the name of the customized db_loader
-        if db_loader is None:
-            db_loader_name = '{cls_name}.from_path'.format(
-                cls_name=utils.get_name(ValueDB, full_qual=True),
-            )
-        else:
-            module_name_set.add(inspect.getmodule(db_loader).__name__)
-            db_loader_name = utils.get_name(db_loader, full_qual=True)
-
         # Add all the imports
         header = (
             '#! /usr/bin/env python3\n\n' +
@@ -649,9 +732,9 @@ class ExpressionBase:
             else:
                 db_relative_to = ''
 
-            header += '{db} = {db_loader_name}({path}{db_relative_to})\n'.format(
+            header += '{db} = {db_loader}({path}{db_relative_to})\n'.format(
                 db = script_db.var_name,
-                db_loader_name = db_loader_name,
+                db_loader = utils.get_name(ValueDB.from_path, full_qual=True),
                 path = repr(str(db_path)),
                 db_relative_to = db_relative_to
             )
@@ -1456,6 +1539,9 @@ class Expression(ExpressionBase):
 class AnnotationError(Exception):
     pass
 
+class PartialAnnotationError(AnnotationError):
+    pass
+
 class ForcedParamType:
     pass
 
@@ -1730,6 +1816,7 @@ class Operator:
         sig = self.signature
         first_param = utils.take_first(sig.parameters)
         annotation_map = utils.resolve_annotations(self.annotations, self.callable_globals)
+        pristine_annotation_map = copy.copy(annotation_map)
 
         extra_ignored_param = set()
         # If it is a class
@@ -1771,9 +1858,16 @@ class Operator:
                 param not in extra_ignored_param and
                 param not in self.ignored_param
             ):
-                raise AnnotationError('Missing annotation for "{param}" parameters of operator "{op}"'.format(
+                # If some parameters are annotated but not all, we raise a
+                # slightly different exception to allow better reporting
+                if pristine_annotation_map:
+                    excep_cls = PartialAnnotationError
+                else:
+                    excep_cls = AnnotationError
+
+                raise excep_cls('Missing annotation for "{param}" parameters of operator "{op}"'.format(
                     param = param,
-                    op = self.callable_,
+                    op = self.name,
                 ))
 
         # Iterate over keys and values of "mapping" in the same order as "keys"
@@ -2071,17 +2165,13 @@ class ExprValBase(collections.abc.Mapping):
         return id(self)
 
     def __getitem__(self, k):
-        if k == 'return':
-            return self.value
-        else:
-            return self.param_map[k]
+        return self.param_map[k]
 
     def __len__(self):
-        # account for 'return'
-        return len(self.param_map) + 1
+        return len(self.param_map)
 
     def __iter__(self):
-        return itertools.chain(self.param_map.keys(), ['return'])
+        return self.param_map.keys()
 
 class FrozenExprVal(ExprValBase):
     def __init__(self,
@@ -2093,6 +2183,11 @@ class FrozenExprVal(ExprValBase):
         self.callable_name = callable_name
         self.recorded_id_map = recorded_id_map
         super().__init__(param_map=param_map, value=value, excep=excep)
+
+        if self.excep is not NoValue:
+            self.excep_tb = utils.format_exception(self.excep)
+        else:
+            self.excep_tb = None
 
     @property
     def type_names(self):
@@ -2153,16 +2248,33 @@ class FrozenExprVal(ExprValBase):
         return froz_val
 
     @staticmethod
+    # Since tuples are immutable, reuse the same tuple by memoizing the
+    # function. That allows more compact serialized representation in both YAML
+    # and Pickle.
+    @utils.once
     def _make_id_key(**kwargs):
         return tuple(sorted(kwargs.items()))
 
     def get_id(self, full_qual=True, qual=True, with_tags=True):
+        full_qual = full_qual and qual
         key = self._make_id_key(
             full_qual=full_qual,
             qual=qual,
             with_tags=with_tags
         )
         return self.recorded_id_map[key]
+
+class PrunedFrozVal(FrozenExprVal):
+    def __init__(self, froz_val):
+        super().__init__(
+            param_map={},
+            value=NoValue,
+            excep=NoValue,
+            uuid=froz_val.uuid,
+            callable_qualname=froz_val.callable_qualname,
+            callable_name=froz_val.callable_name,
+            recorded_id_map=copy.copy(froz_val.recorded_id_map),
+        )
 
 class FrozenExprValSeq(collections.abc.Sequence):
     def __init__(self, froz_val_list, param_map):

@@ -1,4 +1,5 @@
 # A streamlined version of devmode_requirements.txt for doc building
+-e ./tools/exekall
 
 # devlib before WA and LISA
 -e ./external/devlib/
@@ -12,5 +13,4 @@
 -e ./external/workload-automation/
 -e ./[doc]
 
--e ./tools/exekall
 -e ./tools/bisector

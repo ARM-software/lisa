@@ -33,17 +33,29 @@ def get_callable_set(module_set, verbose=False):
         module.__package__.split('.', 1)[0] for module in module_set
     }
     callable_set = set()
+    visited_obj_set = set()
     for module in get_recursive_module_set(module_set, package_set):
-        callable_set.update(_get_callable_set(module, verbose=verbose))
+        callable_set.update(_get_callable_set(
+            module,
+            visited_obj_set,
+            verbose=verbose,
+        ))
 
     return callable_set
 
-def _get_callable_set(module, verbose):
+def _get_callable_set(module, visited_obj_set, verbose):
+    log_f = info if verbose else debug
     callable_pool = set()
+
     for name, obj in vars(module).items():
         # skip internal classes that may end up being exposed as a global
         if inspect.getmodule(obj) is engine:
             continue
+
+        if id(obj) in visited_obj_set:
+            continue
+        else:
+            visited_obj_set.add(id(obj))
 
         # If it is a class, get the list of methods
         if isinstance(obj, type):
@@ -57,6 +69,14 @@ def _get_callable_set(module, verbose):
         for callable_ in callable_list:
             try:
                 param_list, return_type = engine.Operator(callable_).get_prototype()
+            # If the callable is partially annotated, warn about it since it is
+            # likely to be a mistake.
+            except engine.PartialAnnotationError as e:
+                log_f('Partially-annotated callable will not be used: {e}'.format(
+                    callable=get_name(callable_),
+                    e=e,
+                ))
+                continue
             # If something goes wrong, that means it is not properly annotated
             # so we just ignore it
             except (AttributeError, ValueError, KeyError, engine.AnnotationError):
@@ -66,7 +86,6 @@ def _get_callable_set(module, verbose):
             # return a abstract base class instance, since that would not work
             # anyway.
             if inspect.isabstract(return_type):
-                log_f = info if verbose else debug
                 log_f('Instances of {} will not be created since it has non-implemented abstract methods'.format(
                     get_name(return_type, full_qual=True)
                 ))
