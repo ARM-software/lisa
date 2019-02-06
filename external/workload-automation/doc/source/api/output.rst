@@ -497,6 +497,11 @@ A :class:`Metric` has the following attributes:
     or they may have been added by the workload to help distinguish between
     otherwise identical metrics.
 
+``label``
+    This is a string constructed from the name and classifiers, to provide a
+    more unique identifier, e.g. for grouping values across iterations. The
+    format is in the form ``name/cassifier1=value1/classifier2=value2/...``.
+
 
 :class:`Artifact`
 -----------------

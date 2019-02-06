@@ -602,6 +602,12 @@ class Metric(Podable):
         instance._pod_version = pod_version  # pylint: disable =protected-access
         return instance
 
+    @property
+    def label(self):
+        parts = ['{}={}'.format(n, v) for n, v in self.classifiers.items()]
+        parts.insert(0, self.name)
+        return '/'.join(parts)
+
     def __init__(self, name, value, units=None, lower_is_better=False,
                  classifiers=None):
         super(Metric, self).__init__()
