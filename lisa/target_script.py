@@ -27,9 +27,9 @@ class TargetScript:
     be swapped with an instance of this TargetScript class, and the commands
     will be accumulated for later use instead of being executed straight away.
 
-    :param env: Reference TestEnv instance. Will be used for some commands
-        that must really be executed instead of accumulated.
-    :type env: TestEnv
+    :param target: Reference :class:`devlib.target.Target` instance. Will be
+      used for some commands that must really be executed instead of accumulated.
+    :type env: devlib.target.Target
 
     :param script_name: Name of the script that will be pushed on the target
     :type script_name: str
@@ -40,8 +40,8 @@ class TargetScript:
 
     _target_attrs = ['screen_resolution', 'android_id', 'abi', 'os_version', 'model']
 
-    def __init__(self, te, script_name='remote_script.sh', local_dir='./'):
-        self.target = te.target
+    def __init__(self, target, script_name='remote_script.sh', local_dir='./'):
+        self.target = target
 
         self.script_name = script_name
         self.local_path = os.path.join(local_dir, script_name)

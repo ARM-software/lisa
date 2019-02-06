@@ -117,7 +117,7 @@ class HotplugBase(TestBundle, abc.ABC):
         parameter.
         """
         shift = '    '
-        script = TargetScript(te, 'random_cpuhp.sh', res_dir)
+        script = TargetScript(te.target, 'random_cpuhp.sh', res_dir)
 
         # Record configuration
         # script.append('# File generated automatically')
