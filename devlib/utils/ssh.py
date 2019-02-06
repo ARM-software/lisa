@@ -63,7 +63,7 @@ def ssh_get_shell(host, username, password=None, keyfile=None, port=None, timeou
                 raise ValueError('keyfile may not be used with a telnet connection.')
             conn = TelnetPxssh(original_prompt=original_prompt)
         else:  # ssh
-            conn = pxssh.pxssh()
+            conn = pxssh.pxssh(echo=False)
 
         try:
             if keyfile:
@@ -278,15 +278,11 @@ class SshConnection(object):
                 logger.debug(command)
             self._sendline(command)
         timed_out = self._wait_for_prompt(timeout)
-        # the regex removes line breaks potential introduced when writing
-        # command to shell.
         if sys.version_info[0] == 3:
             output = process_backspaces(self.conn.before.decode(sys.stdout.encoding or 'utf-8', 'replace'))
         else:
             output = process_backspaces(self.conn.before)
-        output = re.sub(r'\r([^\n])', r'\1', output)
-        if '\r\n' in output: # strip the echoed command
-            output = output.split('\r\n', 1)[1]
+
         if timed_out:
             self.cancel_running_command()
             raise TimeoutError(command, output)
