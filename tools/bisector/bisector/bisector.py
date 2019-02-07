@@ -1788,7 +1788,7 @@ class ExekallLISATestStep(ShellStep):
             show_artifact_dirs = BoolParam('show exekall artifact directory for all iterations'),
             testcase = CommaListParam('show only the test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name'),
             ignore_testcase = CommaListParam('completely ignore test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
-            ignore_non_issue = BoolParam('consider only tests that failed'),
+            ignore_non_issue = BoolParam('consider only tests that failed or had an error'),
             ignore_excep = CommaListParam('ignore the given comma-separated list of exceptions class name patterns that caused tests error. This will also match on base classes of the exception.'),
             dump_artifact_dirs = BoolOrStrParam('write the list of exekall artifact directories to a file. Useful to implement garbage collection of unreferenced artifact archives'),
             export_db = BoolOrStrParam('export a merged exekall ValueDB, merging it with existing ValueDB if the file exists', allow_empty=False),
