@@ -1724,18 +1724,6 @@ class LISATestStepResult(StepResult):
         self.results_path = results_path
         self.db = db
 
-def is_excep_ignored(excep, ignored_except_set):
-    # If the type is missing, assume a generic Exception
-    excep = excep if excep is not None else 'Exception'
-    excep_components = reversed(excep.split('.'))
-    # If any exception name is matching, we ignore the testcase result
-    return any(
-        # Check if all components are matching. Iterate backward so we
-        # match on trailing components of exception names.
-        all(a == b for a, b in zip(excep_components, reversed(ignored_excep)))
-        for ignored_excep in ignored_except_set
-    )
-
 def deprecated_parse_testcase_res(testcase, kind, ignored_except_set):
     """Parse a <testcase> XML tag of an xUnit file, looking for a specific
     subtag.
@@ -1800,8 +1788,9 @@ class ExekallLISATestStep(ShellStep):
             show_artifact_dirs = BoolParam('show exekall artifact directory for all iterations'),
             testcase = CommaListParam('show only the test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name'),
             ignore_testcase = CommaListParam('completely ignore test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
-            ignore_non_issue = BoolParam('consider only tests that failed'),
-            ignore_excep = CommaListParam('ignore the given comma-separated list of exceptions that caused tests failure or error. * can be used to match any part of the name'),
+            ignore_non_issue = BoolParam('consider only tests that failed or had an error'),
+            ignore_non_error = BoolParam('consider only tests that had an error'),
+            ignore_excep = CommaListParam('ignore the given comma-separated list of exceptions class name patterns that caused tests error. This will also match on base classes of the exception.'),
             dump_artifact_dirs = BoolOrStrParam('write the list of exekall artifact directories to a file. Useful to implement garbage collection of unreferenced artifact archives'),
             export_db = BoolOrStrParam('export a merged exekall ValueDB, merging it with existing ValueDB if the file exists', allow_empty=False),
             export_logs = BoolOrStrParam('export the logs and artifact directory symlink to the given directory'),
@@ -1957,6 +1946,7 @@ class ExekallLISATestStep(ShellStep):
             ignore_testcase = [],
             iterations = [],
             ignore_non_issue = False,
+            ignore_non_error = False,
             ignore_excep = [],
             dump_artifact_dirs = False,
             export_db = False,
@@ -1982,10 +1972,6 @@ class ExekallLISATestStep(ShellStep):
             ignore_non_issue = False
 
         out = MLString()
-
-        ignored_except_set = {
-            tuple(e.strip().rsplit('.')) for e in ignore_excep
-        }
 
         considered_testcase_set = set(testcase)
         ignored_testcase_set = set(ignore_testcase)
@@ -2058,10 +2044,14 @@ class ExekallLISATestStep(ShellStep):
                         entry['result'] = result
 
                         type_name = get_name(type(excep))
-                        is_ignored |= is_excep_ignored(
-                            type_name,
-                            ignored_except_set,
+                        is_ignored |= any(
+                            any(
+                                fnmatch.fnmatch(get_name(cls), pattern)
+                                for pattern in ignore_excep
+                            )
+                            for cls in inspect.getmro(type(excep))
                         )
+
                         short_msg = str(excep)
                         msg = excep_froz_val.excep_tb
 
@@ -2093,6 +2083,9 @@ class ExekallLISATestStep(ShellStep):
                         type_name = get_name(type(val))
                         short_msg = result
                         entry['details'] = (type_name, short_msg, msg)
+
+                    if ignore_non_error and entry['result'] != 'error':
+                        is_ignored = True
 
                     entry['froz_val'] = froz_val
 
