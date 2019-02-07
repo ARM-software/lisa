@@ -2332,7 +2332,7 @@ class ExekallLISATestStep(ShellStep):
                 db_list.append(existing_db)
 
             merged_db = ValueDB.merge(db_list)
-            merged_db.to_path(export_db)
+            merged_db.to_path(export_db, optimize=False)
 
         return out
 
