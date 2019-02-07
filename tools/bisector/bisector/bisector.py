@@ -1789,6 +1789,7 @@ class ExekallLISATestStep(ShellStep):
             testcase = CommaListParam('show only the test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name'),
             ignore_testcase = CommaListParam('completely ignore test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
             ignore_non_issue = BoolParam('consider only tests that failed or had an error'),
+            ignore_non_error = BoolParam('consider only tests that had an error'),
             ignore_excep = CommaListParam('ignore the given comma-separated list of exceptions class name patterns that caused tests error. This will also match on base classes of the exception.'),
             dump_artifact_dirs = BoolOrStrParam('write the list of exekall artifact directories to a file. Useful to implement garbage collection of unreferenced artifact archives'),
             export_db = BoolOrStrParam('export a merged exekall ValueDB, merging it with existing ValueDB if the file exists', allow_empty=False),
@@ -1945,6 +1946,7 @@ class ExekallLISATestStep(ShellStep):
             ignore_testcase = [],
             iterations = [],
             ignore_non_issue = False,
+            ignore_non_error = False,
             ignore_excep = [],
             dump_artifact_dirs = False,
             export_db = False,
@@ -2081,6 +2083,9 @@ class ExekallLISATestStep(ShellStep):
                         type_name = get_name(type(val))
                         short_msg = result
                         entry['details'] = (type_name, short_msg, msg)
+
+                    if ignore_non_error and entry['result'] != 'error':
+                        is_ignored = True
 
                     entry['froz_val'] = froz_val
 
