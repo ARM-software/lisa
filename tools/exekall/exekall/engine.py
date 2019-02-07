@@ -331,7 +331,8 @@ class ValueDB:
                 # That will keep proper inter-object references as in the
                 # original graph of objects
                 for froz_val_seq in copy.deepcopy(self.froz_val_seq_list)
-            ]
+            ],
+            adaptor_cls=self.adaptor_cls,
         )
 
     def get_all(self, **kwargs):
