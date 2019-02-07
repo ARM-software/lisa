@@ -308,7 +308,7 @@ class AdbConnection(object):
                 raise
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
-        return adb_background_shell(self.device, command, stdout, stderr, as_root)
+        return adb_background_shell(self.device, command, stdout, stderr, as_root, adb_server=self.adb_server)
 
     def close(self):
         AdbConnection.active_connections[self.device] -= 1
@@ -479,12 +479,15 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
 def adb_background_shell(device, command,
                          stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE,
-                         as_root=False):
+                         as_root=False,
+                         adb_server=None):
     """Runs the sepcified command in a subprocess, returning the the Popen object."""
     _check_env()
     if as_root:
         command = 'echo {} | su'.format(quote(command))
-    device_string = ' -s {}'.format(device) if device else ''
+
+    device_string = ' -H {}'.format(adb_server) if adb_server else ''
+    device_string += ' -s {}'.format(device) if device else ''
     full_command = 'adb{} shell {}'.format(device_string, quote(command))
     logger.debug(full_command)
     return subprocess.Popen(full_command, stdout=stdout, stderr=stderr, shell=True)

@@ -87,7 +87,8 @@ class AcmeCapeInstrument(Instrument):
         params = dict(
             iio_capture=self.iio_capture,
             host=self.host,
-            buffer_size=self.buffer_size,
+            # This must be a string for quote()
+            buffer_size=str(self.buffer_size),
             iio_device=self.iio_device,
             outfile=self.raw_data_file
         )

@@ -237,15 +237,15 @@ class TestFTrace(BaseTestThermal):
     def test_get_all_freqs_data(self):
         """Test get_all_freqs_data()"""
 
-        allfreqs = trappy.FTrace().get_all_freqs_data(self.map_label)
+        allfreqs = dict(trappy.FTrace().get_all_freqs_data(self.map_label))
 
-        self.assertEqual(allfreqs[1][1]["A53_freq_out"].iloc[3], 850)
-        self.assertEqual(allfreqs[1][1]["A53_freq_in"].iloc[1], 850)
-        self.assertEqual(allfreqs[0][1]["A57_freq_out"].iloc[2], 1100)
-        self.assertTrue("gpu_freq_in" in allfreqs[2][1].columns)
+        self.assertEqual(allfreqs["A53"]["A53_freq_out"].iloc[3], 850)
+        self.assertEqual(allfreqs["A53"]["A53_freq_in"].iloc[1], 850)
+        self.assertEqual(allfreqs["A57"]["A57_freq_out"].iloc[2], 1100)
+        self.assertTrue("gpu_freq_in" in allfreqs["GPU"].columns)
 
         # Make sure there are no NaNs in the middle of the array
-        self.assertTrue(allfreqs[0][1]["A57_freq_in"].notnull().all())
+        self.assertTrue(allfreqs["A57"]["A57_freq_in"].notnull().all())
 
     def test_apply_callbacks(self):
         """Test apply_callbacks()"""
