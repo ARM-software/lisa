@@ -1097,6 +1097,43 @@ class ComputableExpression(ExpressionBase):
         self.data = data if data is not None else ExprData()
         super().__init__(op=op, param_map=param_map)
 
+    def _find_shared_op_set(self, predicate, shared):
+        shared_op_set = set()
+
+        # propagate shared-ness to all parents if we are shared
+        # otherwise, we call the clone predicate
+        if not shared:
+            shared = not predicate(self)
+
+        if shared:
+            shared_op_set.add(self.op)
+
+        shared_op_set.update(utils.flatten_seq(
+            param_expr._find_shared_op_set(predicate, shared=shared)
+            for param_expr in self.param_map.values()
+        ))
+        return shared_op_set
+
+    def clone_by_predicate(self, predicate):
+        shared_op_set = self._find_shared_op_set(predicate, False)
+        return self._clone(shared_op_set)
+
+    def _clone(self, shared_op_set):
+        op = self.op
+        if op in shared_op_set:
+            return self
+
+        param_map = {
+            param: param_expr._clone(shared_op_set)
+            for param, param_expr in self.param_map.items()
+        }
+
+        # create a new clone, with different UUID and ExprData
+        return self.__class__(
+            op=op,
+            param_map=param_map,
+        )
+
     @classmethod
     def from_expr(cls, expr, **kwargs):
         param_map = {
@@ -1112,8 +1149,7 @@ class ComputableExpression(ExpressionBase):
     @classmethod
     def from_expr_list(cls, expr_list):
         # Apply Common Subexpression Elimination to ExpressionBase before they
-        # are run, and then get a bound reference of "execute" that can be
-        # readily iterated over to get the results.
+        # are run
         return cls.cse(
             cls.from_expr(expr)
             for expr in expr_list

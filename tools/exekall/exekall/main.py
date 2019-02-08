@@ -319,6 +319,14 @@ PATTERNS
     run_parser.add_argument('--adaptor',
         help="""Adaptor to use from the customization module, if there is more than one to choose from.""")
 
+    run_parser.add_argument('-n', type=int,
+        default=1,
+        help="""Run the tests for a number of iterations.""")
+
+    run_parser.add_argument('--share', action='append',
+        default=[],
+        help="""Class name pattern to share between multiple iterations.""")
+
 
     merge_parser = subparsers.add_parser('merge',
     description="""
@@ -561,6 +569,9 @@ def do_run(args, parser, run_parser, argv):
 
     verbose = args.verbose
 
+    iteration_nr = args.n
+    shared_pattern_set = set(args.share)
+
     adaptor = adaptor_cls(args)
 
     only_list = args.list
@@ -773,6 +784,30 @@ def do_run(args, parser, run_parser, argv):
     if only_list:
         return 0
 
+    # Get a list of ComputableExpression in order to execute them
+    expr_list = engine.ComputableExpression.from_expr_list(expr_list)
+
+    if iteration_nr > 1:
+        shared_op_set = {
+            # We don't allow matching on root operators, since that would be
+            # pointless. Sharing root operators basically means doing the work
+            # once, and then reusing everything at every iteration.
+            op for op in (op_set - root_op_set)
+            if utils.match_base_cls(op.value_type, shared_pattern_set)
+        }
+        predicate = lambda expr: expr.op not in shared_op_set
+
+        expr_list = utils.flatten_seq(
+            # Apply CSE within each iteration
+            engine.ComputableExpression.cse(
+                expr.clone_by_predicate(predicate)
+                for expr in expr_list
+            )
+            for i in range(iteration_nr)
+        )
+
+
+
     exec_ret_code = exec_expr_list(
         expr_list=expr_list,
         adaptor=adaptor,
@@ -805,9 +840,6 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
         (artifact_dir/'BY_UUID').mkdir()
 
     out('\nArtifacts dir: {}\n'.format(artifact_dir))
-
-    # Get a list of ComputableExpression in order to execute them
-    expr_list = engine.ComputableExpression.from_expr_list(expr_list)
 
     for expr in expr_list:
         expr_short_id = expr.get_id(
