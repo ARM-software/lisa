@@ -223,7 +223,7 @@ class StaggeredFinishes(MisfitMigrationBase):
                 state_df[
                     (state_df.index.isin(preempt_sdf.index)) &
                     # Ensure this is a preemption and not just the task ending
-                    (state_df.curr_state == TaskState.TASK_INTERRUPTIBLE.char)
+                    (state_df.curr_state == TaskState.TASK_INTERRUPTIBLE)
                 ]
             )
 
@@ -323,7 +323,7 @@ class StaggeredFinishes(MisfitMigrationBase):
             df = self.trace.analysis.tasks.df_task_states(task)
             task_state_dfs[task] = self._trim_state_df(df[
                 # Task is active
-                (df.curr_state == TaskState.TASK_ACTIVE.char) &
+                (df.curr_state == TaskState.TASK_ACTIVE) &
                 # Task needs to be upmigrated
                 (df.cpu.isin(self.src_cpus))
             ])
