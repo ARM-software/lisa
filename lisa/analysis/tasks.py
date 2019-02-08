@@ -200,12 +200,15 @@ class TasksAnalysis(AnalysisBase):
         return rt_tasks
 
     @requires_events('sched_switch', 'sched_wakeup')
-    def df_task_states(self, task):
+    def df_task_states(self, task, stringify=False):
         """
         DataFrame of task's state updates events
 
         :param task: The task's name or PID
         :type task: int or str
+
+        :param stringify: Use `TaskState`'s string representation (instead of int)
+        :type stringify: bool
 
         :returns: a :class:`pandas.DataFrame` with:
 
@@ -226,23 +229,16 @@ class TasksAnalysis(AnalysisBase):
             wk_df = pd.concat([wk_df, wkn_df]).sort_index()
 
         task_wakeup = wk_df[wk_df.pid == pid][['target_cpu', '__cpu']]
-        task_wakeup['curr_state'] = TaskState.TASK_WAKING.char
+        task_wakeup['curr_state'] = TaskState.TASK_WAKING
 
         task_switches_df = sw_df[
             (sw_df.prev_pid == pid) |
             (sw_df.next_pid == pid)
         ][['__cpu', 'prev_pid', 'prev_state']]
 
-        def stringify_row_state(row):
-            if row.prev_pid != pid:
-                # This is a switch-in event
-                # (we don't care about the status of a task we are replacing)
-                return TaskState.TASK_ACTIVE.char
-
-            return TaskState.sched_switch_str(row.prev_state)
-
-        task_switches_df.prev_state = task_switches_df.apply(
-            stringify_row_state, axis=1)
+        # This is a switch-in event
+        # (we don't care about the status of a task we are replacing)
+        task_switches_df.prev_state[task_switches_df.prev_pid != pid] = TaskState.TASK_ACTIVE
 
         task_switches_df = task_switches_df.drop(columns=["prev_pid"])
 
@@ -256,10 +252,34 @@ class TasksAnalysis(AnalysisBase):
 
         task_state_df.rename(columns={'__cpu' : 'cpu'}, inplace=True)
         task_state_df = task_state_df[['target_cpu', 'cpu', 'curr_state']]
-        task_state_df['next_state'] = task_state_df.curr_state.shift(-1)
+        # Make the last "next_state" the same as the last "curr_state"
+        task_state_df['next_state'] = task_state_df.curr_state.shift(
+            -1, fill_value=task_state_df['curr_state'].values[-1])
         self.trace.add_events_deltas(task_state_df, inplace=True)
 
+        if stringify:
+            self.stringify_df_task_states(task_state_df, inplace=True)
+
         return task_state_df
+
+    @classmethod
+    def stringify_df_task_states(cls, df_task_states, inplace=False):
+        """
+        Convert a Dataframe obtained from :meth:`df_task_states` with
+        ``stringify=False`` into its ``stringify=True`` variant.
+        """
+        df = df_task_states if inplace else df_task_states.copy()
+
+        def stringify_state(state):
+            try:
+                return TaskState(state).char
+            except ValueError:
+                return TaskState.sched_switch_str(state)
+
+        for col in ['curr_state', 'next_state']:
+            df[col] = df[col].apply(stringify_state)
+
+        return df
 
     @df_task_states.used_events
     def df_task_total_residency(self, task):
@@ -277,7 +297,7 @@ class TasksAnalysis(AnalysisBase):
         cpus = set(range(self.trace.plat_info['cpus-count']))
 
         df = self.df_task_states(task)
-        df = df[df.curr_state == TaskState.TASK_ACTIVE.char]
+        df = df[df.curr_state == TaskState.TASK_ACTIVE]
 
         residency_df = pd.DataFrame(df.groupby("cpu")["delta"].sum())
         residency_df.rename(columns={"delta" : "runtime"}, inplace=True)

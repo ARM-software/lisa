@@ -57,8 +57,8 @@ class LatencyAnalysis(AnalysisBase):
 
         df = self.trace.analysis.tasks.df_task_states(task)
 
-        df = df[(df.curr_state == TaskState.TASK_WAKING.char) &
-                (df.next_state == TaskState.TASK_ACTIVE.char)][["delta"]]
+        df = df[(df.curr_state == TaskState.TASK_WAKING) &
+                (df.next_state == TaskState.TASK_ACTIVE)][["delta"]]
 
         df.rename(columns={'delta' : 'wakeup_latency'}, inplace=True)
         return df
@@ -77,8 +77,8 @@ class LatencyAnalysis(AnalysisBase):
         """
         df = self.trace.analysis.tasks.df_task_states(task)
 
-        df = df[(df.curr_state.str.contains(TaskState.TASK_RUNNING.char)) &
-                (df.next_state == TaskState.TASK_ACTIVE.char)][["delta"]]
+        df = df[(df.curr_state.str.contains(TaskState.TASK_RUNNING)) &
+                (df.next_state == TaskState.TASK_ACTIVE)][["delta"]]
 
         df.rename(columns={'delta' : 'preempt_latency'}, inplace=True)
         return df
@@ -96,7 +96,7 @@ class LatencyAnalysis(AnalysisBase):
           * An ``activation_interval`` column (the time since the last activation).
         """
         wkp_df = self.trace.analysis.tasks.df_task_states(task)
-        wkp_df = wkp_df[wkp_df.curr_state == TaskState.TASK_WAKING.char]
+        wkp_df = wkp_df[wkp_df.curr_state == TaskState.TASK_WAKING]
 
         index = wkp_df.index.to_frame()
         wkp_df['activation_interval'] = (index.shift(-1) - index).shift(1)
@@ -129,7 +129,7 @@ class LatencyAnalysis(AnalysisBase):
         for index, row in df.iterrows():
             runtime = runtimes[-1] if len(runtimes) else 0
 
-            if row.curr_state == TaskState.TASK_WAKING.char:
+            if row.curr_state == TaskState.TASK_WAKING:
                 # This is required to capture strange trace sequences where
                 # a switch_in event is followed by a wakeup_event.
                 # This sequence is not expected, but we found it in some traces.
@@ -146,9 +146,9 @@ class LatencyAnalysis(AnalysisBase):
                     # This is a new activation, reset the runtime counter
                     runtime = 0
 
-            elif row.curr_state == TaskState.TASK_ACTIVE.char:
+            elif row.curr_state == TaskState.TASK_ACTIVE:
                 # This is the spurious wakeup thing mentionned above
-                if row.next_state == TaskState.TASK_WAKING.char:
+                if row.next_state == TaskState.TASK_WAKING:
                     spurious_wkp = True
 
                 runtime += row.delta
@@ -165,8 +165,8 @@ class LatencyAnalysis(AnalysisBase):
         df.running_time = df.running_time.fillna(0)
 
         return df[~df.curr_state.isin([
-            TaskState.TASK_ACTIVE.char,
-            TaskState.TASK_WAKING.char
+            TaskState.TASK_ACTIVE,
+            TaskState.TASK_WAKING
         ])][["curr_state", "running_time"]]
 
 ###############################################################################
