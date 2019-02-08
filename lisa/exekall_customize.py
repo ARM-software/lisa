@@ -168,6 +168,10 @@ class LISAAdaptor(AdaptorBase):
             alpha=alpha,
         )
 
+        if not regr_list:
+            print('No matching test IDs have been found, use "--remove-tag board" to match across "board" tags')
+            return
+
         print('testcase failure rate changes with alpha={}\n'.format(alpha))
 
         id_len = max(len(regr.testcase_id) for regr in regr_list)
