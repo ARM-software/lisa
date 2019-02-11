@@ -1766,6 +1766,7 @@ class ExekallLISATestStep(ShellStep):
         use_systemd_run = False,
         compress_artifact = True,
         upload_artifact = False,
+        delete_artifact = False,
         prune_db = True,
     )
 
@@ -1773,6 +1774,7 @@ class ExekallLISATestStep(ShellStep):
         __init__ = dict(
             compress_artifact = BoolParam('compress the exekall artifact directory in an archive'),
             upload_artifact = BoolParam('upload the exekall artifact directory to Artifactorial as the execution goes, and delete the local archive.'),
+            delete_artifact = BoolParam('delete the exekall artifact directory to Artifactorial as the execution goes.'),
             prune_db = BoolParam("Prune exekall's ValueDB so that only roots values are preserved. That allows smaller reports that are faster to load"),
             # Some options are not supported
             **filter_keys(StepBase.options['__init__'], remove={'trials'}),
@@ -1803,6 +1805,7 @@ class ExekallLISATestStep(ShellStep):
     def __init__(self,
             compress_artifact = Default,
             upload_artifact = Default,
+            delete_artifact = Default,
             prune_db = Default,
             **kwargs
         ):
@@ -1811,11 +1814,15 @@ class ExekallLISATestStep(ShellStep):
 
         self.upload_artifact = upload_artifact
         # upload_artifact implies compress_artifact, in order to have an
-        # archive instead of a folder
+        # archive instead of a folder.
+        # It also implies deleting the local artifact folder, since it has been
+        # uploaded.
         if self.upload_artifact:
             compress_artifact = True
+            delete_artifact = True
 
         self.compress_artifact = compress_artifact
+        self.delete_artifact = delete_artifact
         self.prune_db = prune_db
 
     def run(self, i_stack, service_hub):
@@ -1906,25 +1913,34 @@ class ExekallLISATestStep(ShellStep):
             except Exception as e:
                 warn('Failed to compress exekall artifact: {e}'.format(e=e))
 
+        artifact_local_path = artifact_path
+        delete_artifact = self.delete_artifact
+
         # If an upload service is available, upload the traces as we go
         if self.upload_artifact:
             upload_service = service_hub.upload
             if upload_service:
-                artifact_local_path = artifact_path
                 try:
                     artifact_path = upload_service.upload(artifact_path)
                 except Exception as e:
-                    error('Could not upload exekall artifact: ' + str(e))
-                else:
-                    try:
-                        os.remove(artifact_local_path)
-                    except Exception as e:
-                        error('Could not delete local artifact {path}: {e}'.format(
-                            e = e,
-                            path = artifact_local_path,
-                        ))
+                    error('Could not upload exekall artifact, will not delete the folder: ' + str(e))
+                    # Avoid deleting the artifact if something went wrong, so
+                    # we still have the local copy to salvage using
+                    # bisector report
+                    delete_artifact = False
             else:
-                error('No upload service available, could not upload exekall artifact.')
+                error('No upload service available, could not upload exekall artifact. The artifacts will not be deleted.')
+                delete_artifact = False
+
+        if delete_artifact:
+            info('Deleting exekall artifact: {}'.format(artifact_local_path))
+            try:
+                os.remove(artifact_local_path)
+            except Exception as e:
+                error('Could not delete local artifact {path}: {e}'.format(
+                    e = e,
+                    path = artifact_local_path,
+                ))
 
         return LISATestStepResult(
             step = self,
