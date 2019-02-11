@@ -797,19 +797,22 @@ def do_run(args, parser, run_parser, argv):
         }
         predicate = lambda expr: expr.op not in shared_op_set
 
-        expr_list = utils.flatten_seq(
+        iteration_expr_list = [
             # Apply CSE within each iteration
             engine.ComputableExpression.cse(
                 expr.clone_by_predicate(predicate)
                 for expr in expr_list
             )
             for i in range(iteration_nr)
-        )
+        ]
+    else:
+        iteration_expr_list = [expr_list]
+
 
 
 
     exec_ret_code = exec_expr_list(
-        expr_list=expr_list,
+        iteration_expr_list=iteration_expr_list,
         adaptor=adaptor,
         artifact_dir=artifact_dir,
         testsession_uuid=testsession_uuid,
@@ -830,7 +833,7 @@ def do_run(args, parser, run_parser, argv):
 
     return exec_ret_code
 
-def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
+def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
         hidden_callable_set, only_template_scripts, adaptor_cls, verbose):
 
     if not only_template_scripts:
@@ -841,7 +844,7 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
 
     out('\nArtifacts dir: {}\n'.format(artifact_dir))
 
-    for expr in expr_list:
+    for expr in utils.flatten_seq(iteration_expr_list):
         expr_short_id = expr.get_id(
             hidden_callable_set=hidden_callable_set,
             with_tags=False,
@@ -891,7 +894,7 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
         ) as f:
             f.write(
                 expr.get_script(
-                    prefix = 'testcase',
+                    prefix = 'expr',
                     db_path = os.path.join('..', DB_FILENAME),
                     db_relative_to = '__file__',
                 )[1]+'\n',
@@ -903,145 +906,150 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
     # Preserve the execution order, so the summary is displayed in the same
     # order
     result_map = collections.OrderedDict()
-    for expr in expr_list:
-        exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}\nUUID: {uuid_}'.format(
-                short_id=expr.get_id(
-                    hidden_callable_set=hidden_callable_set,
-                    full_qual=False,
-                    qual=False,
-                ),
+    for i, expr_list in enumerate(iteration_expr_list):
+        i += 1
+        info('Iteration #{}\n'.format(i))
 
-                full_id=expr.get_id(
-                    hidden_callable_set=hidden_callable_set if not verbose else None,
-                    full_qual=True,
-                ),
-                folder=expr.data['expr_artifact_dir'],
-                uuid_=expr.uuid
-        ).replace('\n', '\n# ')
-
-        delim = '#' * (len(exec_start_msg.splitlines()[0]) + 2)
-        out(delim + '\n# ' + exec_start_msg + '\n' + delim)
-
-        result_list = list()
-        result_map[expr] = result_list
-
-        def pre_line():
-            out('-' * 40)
-        # Make sure that all the output of the expression is flushed to ensure
-        # there won't be any buffered stderr output being displayed after the
-        # "official" end of the Expression's execution.
-        def flush_std_streams():
-            sys.stdout.flush()
-            sys.stderr.flush()
-
-        def get_uuid_str(expr_val):
-            return 'UUID={}'.format(expr_val.uuid)
-
-        computed_expr_val_set = set()
-        reused_expr_val_set = set()
-        def log_expr_val(expr_val, reused):
-            # Consider that PrebuiltOperator reuse values instead of actually
-            # computing them.
-            if isinstance(expr_val.expr.op, engine.PrebuiltOperator):
-                reused = True
-
-            if reused:
-                msg = 'Reusing already computed {id} {uuid}'
-                reused_expr_val_set.add(expr_val)
-            else:
-                msg = 'Computed {id} {uuid}'
-                computed_expr_val_set.add(expr_val)
-
-            op = expr_val.expr.op
-            if (
-                op.callable_ not in hidden_callable_set
-                and not issubclass(op.value_type, engine.ForcedParamType)
-            ):
-                info(msg.format(
-                    id=expr_val.get_id(
+        for expr in expr_list:
+            exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}\nUUID: {uuid_}'.format(
+                    short_id=expr.get_id(
+                        hidden_callable_set=hidden_callable_set,
                         full_qual=False,
+                        qual=False,
+                    ),
+
+                    full_id=expr.get_id(
+                        hidden_callable_set=hidden_callable_set if not verbose else None,
+                        full_qual=True,
+                    ),
+                    folder=expr.data['expr_artifact_dir'],
+                    uuid_=expr.uuid
+            ).replace('\n', '\n# ')
+
+            delim = '#' * (len(exec_start_msg.splitlines()[0]) + 2)
+            out(delim + '\n# ' + exec_start_msg + '\n' + delim)
+
+            result_list = list()
+            result_map[expr] = result_list
+
+            def pre_line():
+                out('-' * 40)
+            # Make sure that all the output of the expression is flushed to ensure
+            # there won't be any buffered stderr output being displayed after the
+            # "official" end of the Expression's execution.
+            def flush_std_streams():
+                sys.stdout.flush()
+                sys.stderr.flush()
+
+            def get_uuid_str(expr_val):
+                return 'UUID={}'.format(expr_val.uuid)
+
+            computed_expr_val_set = set()
+            reused_expr_val_set = set()
+            def log_expr_val(expr_val, reused):
+                # Consider that PrebuiltOperator reuse values instead of actually
+                # computing them.
+                if isinstance(expr_val.expr.op, engine.PrebuiltOperator):
+                    reused = True
+
+                if reused:
+                    msg = 'Reusing already computed {id} {uuid}'
+                    reused_expr_val_set.add(expr_val)
+                else:
+                    msg = 'Computed {id} {uuid}'
+                    computed_expr_val_set.add(expr_val)
+
+                op = expr_val.expr.op
+                if (
+                    op.callable_ not in hidden_callable_set
+                    and not issubclass(op.value_type, engine.ForcedParamType)
+                ):
+                    info(msg.format(
+                        id=expr_val.get_id(
+                            full_qual=False,
+                            with_tags=True,
+                            hidden_callable_set=hidden_callable_set,
+                        ),
+                        uuid=get_uuid_str(expr_val),
+                    ))
+
+            # This returns an iterator
+            executor = expr.execute(log_expr_val)
+
+            out('')
+            for result in utils.iterate_cb(executor, pre_line, flush_std_streams):
+                for excep_val in result.get_excep():
+                    excep = excep_val.excep
+                    tb = utils.format_exception(excep)
+                    error('{e_name}: {e}\nID: {id}\n{tb}'.format(
+                            id=excep_val.get_id(),
+                            e_name=utils.get_name(type(excep)),
+                            e=excep,
+                            tb=tb,
+                        ),
+                    )
+
+                prefix = 'Finished {uuid} '.format(uuid=get_uuid_str(result))
+                out('{prefix}{id}'.format(
+                    id=result.get_id(
+                        full_qual=False,
+                        qual=False,
+                        mark_excep=True,
                         with_tags=True,
                         hidden_callable_set=hidden_callable_set,
-                    ),
-                    uuid=get_uuid_str(expr_val),
+                    ).strip().replace('\n', '\n'+len(prefix)*' '),
+                    prefix=prefix,
                 ))
 
-        # This returns an iterator
-        executor = expr.execute(log_expr_val)
+                out(adaptor.result_str(result))
+                result_list.append(result)
 
-        out('')
-        for result in utils.iterate_cb(executor, pre_line, flush_std_streams):
-            for excep_val in result.get_excep():
-                excep = excep_val.excep
-                tb = utils.format_exception(excep)
-                error('{e_name}: {e}\nID: {id}\n{tb}'.format(
-                        id=excep_val.get_id(),
-                        e_name=utils.get_name(type(excep)),
-                        e=excep,
-                        tb=tb,
-                    ),
+
+            out('')
+            expr_artifact_dir = expr.data['expr_artifact_dir']
+
+            # Finalize the computation
+            adaptor.finalize_expr(expr)
+
+            # Dump the reproducer script
+            with (expr_artifact_dir/'TESTCASE.py').open('wt', encoding='utf-8') as f:
+                f.write(
+                    expr.get_script(
+                        prefix = 'testcase',
+                        db_path = os.path.join('..', '..', DB_FILENAME),
+                        db_relative_to = '__file__',
+                    )[1]+'\n',
                 )
 
-            prefix = 'Finished {uuid} '.format(uuid=get_uuid_str(result))
-            out('{prefix}{id}'.format(
-                id=result.get_id(
-                    full_qual=False,
-                    qual=False,
-                    mark_excep=True,
-                    with_tags=True,
-                    hidden_callable_set=hidden_callable_set,
-                ).strip().replace('\n', '\n'+len(prefix)*' '),
-                prefix=prefix,
-            ))
+            def format_uuid(expr_val_list):
+                uuid_list = sorted({
+                    expr_val.uuid
+                    for expr_val in expr_val_list
+                })
+                return '\n'.join(uuid_list)
 
-            out(adaptor.result_str(result))
-            result_list.append(result)
+            def write_uuid(path, *args):
+                with path.open('wt') as f:
+                    f.write(format_uuid(*args) + '\n')
 
+            write_uuid(expr_artifact_dir/'VALUES_UUID', result_list)
+            write_uuid(expr_artifact_dir/'REUSED_VALUES_UUID', reused_expr_val_set)
+            write_uuid(expr_artifact_dir/'COMPUTED_VALUES_UUID', computed_expr_val_set)
 
-        out('')
-        expr_artifact_dir = expr.data['expr_artifact_dir']
-
-        # Finalize the computation
-        adaptor.finalize_expr(expr)
-
-        # Dump the reproducer script
-        with (expr_artifact_dir/'TESTCASE.py').open('wt', encoding='utf-8') as f:
-            f.write(
-                expr.get_script(
-                    prefix = 'testcase',
-                    db_path = os.path.join('..', '..', DB_FILENAME),
-                    db_relative_to = '__file__',
-                )[1]+'\n',
-            )
-
-        def format_uuid(expr_val_list):
-            uuid_list = sorted({
+            # From there, use a relative path for symlinks
+            expr_artifact_dir = pathlib.Path('..', expr_artifact_dir.relative_to(artifact_dir))
+            computed_uuid_set = {
                 expr_val.uuid
-                for expr_val in expr_val_list
-            })
-            return '\n'.join(uuid_list)
-
-        def write_uuid(path, *args):
-            with path.open('wt') as f:
-                f.write(format_uuid(*args) + '\n')
-
-        write_uuid(expr_artifact_dir/'VALUES_UUID', result_list)
-        write_uuid(expr_artifact_dir/'REUSED_VALUES_UUID', reused_expr_val_set)
-        write_uuid(expr_artifact_dir/'COMPUTED_VALUES_UUID', computed_expr_val_set)
-
-        # From there, use a relative path for symlinks
-        expr_artifact_dir = pathlib.Path('..', expr_artifact_dir.relative_to(artifact_dir))
-        computed_uuid_set = {
-            expr_val.uuid
-            for expr_val in computed_expr_val_set
-        }
-        computed_uuid_set.add(expr.uuid)
-        for uuid_ in computed_uuid_set:
-            (artifact_dir/'BY_UUID'/uuid_).symlink_to(expr_artifact_dir)
+                for expr_val in computed_expr_val_set
+            }
+            computed_uuid_set.add(expr.uuid)
+            for uuid_ in computed_uuid_set:
+                (artifact_dir/'BY_UUID'/uuid_).symlink_to(expr_artifact_dir)
 
     db = engine.ValueDB(
         engine.FrozenExprValSeq.from_expr_list(
-            expr_list, hidden_callable_set=hidden_callable_set
+            utils.flatten_seq(iteration_expr_list),
+            hidden_callable_set=hidden_callable_set,
         ),
         adaptor_cls=adaptor_cls,
     )
@@ -1062,7 +1070,8 @@ def exec_expr_list(expr_list, adaptor, artifact_dir, testsession_uuid,
     # Output the merged script with all subscripts
     script_path = artifact_dir/'ALL_SCRIPTS.py'
     result_name_map, all_scripts = engine.Expression.get_all_script(
-        expr_list, prefix='testcase',
+        utils.flatten_seq(iteration_expr_list),
+        prefix='expr',
         db_path=db_path.relative_to(artifact_dir),
         db_relative_to='__file__',
         db=db,
