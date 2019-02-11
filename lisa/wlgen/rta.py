@@ -559,20 +559,19 @@ class Ramp(RTATask):
                  priority=None, cpus=None):
         super(Ramp, self).__init__(delay_s, loops, sched_policy, priority)
 
-        if start_pct not in list(range(0, 101)) or end_pct not in list(range(0, 101)):
+        if not (0 <= start_pct <= 100 and 0 <= end_pct <= 100):
             raise ValueError('start_pct and end_pct must be in [0..100] range')
 
-        if start_pct >= end_pct:
-            if delta_pct > 0:
-                delta_pct = -delta_pct
-            delta_adj = -1
-        if start_pct <= end_pct:
-            if delta_pct < 0:
-                delta_pct = -delta_pct
-            delta_adj = +1
+        # Make sure the delta goes in the right direction
+        sign = +1 if start_pct <= end_pct else -1
+        delta_pct = sign * abs(delta_pct)
+
+        steps = list(range(start_pct, end_pct+delta_pct, delta_pct))
+
+        # clip the last step
+        steps[-1] = end_pct
 
         phases = []
-        steps = list(range(start_pct, end_pct+delta_adj, delta_pct))
         for load in steps:
             if load == 0:
                 phase = Phase(time_s, 0, 0, cpus)
