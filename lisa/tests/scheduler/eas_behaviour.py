@@ -366,7 +366,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         """
         pa = PerfAnalysis(self.res_dir)
 
-        slacks = {}
+        bad_activations = {}
 
         # Data is only collected for rt-app tasks, so it's safe to iterate over
         # all of them
@@ -378,13 +378,15 @@ class EASBehaviour(RTATestBundle, abc.ABC):
             if bad_activations_pct > negative_slack_allowed_pct:
                 passed = False
 
-            slacks[task] = bad_activations_pct
+            bad_activations[task] = bad_activations_pct
 
         res = ResultBundle.from_bool(passed)
 
-        for task, slack in slacks.items():
-            res.add_metric("{} slack".format(task), slack, '%')
-
+        for task, bad_activations_pct in bad_activations.items():
+            res.add_metric(
+                "{} delayed activations".format(task),
+                bad_activations_pct, '%'
+            )
         return res
 
 class OneSmallTask(EASBehaviour):
