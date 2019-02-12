@@ -27,6 +27,7 @@ import io
 import itertools
 import os
 import pathlib
+import random
 import shutil
 import sys
 
@@ -327,6 +328,9 @@ PATTERNS
         default=[],
         help="""Class name pattern to share between multiple iterations.""")
 
+    run_parser.add_argument('--random-order', action='store_true',
+        help="""Run the expressions in a random order, instead of sorting by name.""")
+
 
     merge_parser = subparsers.add_parser('merge',
     description="""
@@ -571,6 +575,7 @@ def do_run(args, parser, run_parser, argv):
 
     iteration_nr = args.n
     shared_pattern_set = set(args.share)
+    random_order = args.random_order
 
     adaptor = adaptor_cls(args)
 
@@ -753,6 +758,9 @@ def do_run(args, parser, run_parser, argv):
     # sort, it will keep a stable order for IDs that look the same but actually
     # differ in their hidden part
     expr_list.sort(key=lambda expr: expr.get_id(qual=False, with_tags=True))
+
+    if random_order:
+        random.shuffle(expr_list)
 
     if user_filter_set:
         expr_list = [
