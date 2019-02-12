@@ -63,6 +63,26 @@ class Loggable:
             name += '.' + suffix
         return logging.getLogger(name)
 
+    @classmethod
+    def log_locals(cls, var_names=None, level='debug'):
+        """
+        Debugging aid: log the local variables of the calling function
+
+        :param var_names: List of variable names to display, or all of them if
+            left to default.
+        :type var_names: list(str)
+
+        :param level: log level to use.
+        :type level: str
+        """
+        level = getattr(logging, level.upper())
+        call_frame = sys._getframe(1)
+
+        for name, val in call_frame.f_locals.items():
+            if var_names and name not in var_names:
+                continue
+            cls.get_logger().log(level, 'Local variable: {}: {}'.format(name, val))
+
 def get_subclasses(cls, cls_set=None):
     """Get all indirect subclasses of the class."""
     if cls_set is None:
