@@ -2214,7 +2214,8 @@ class ExekallLISATestStep(ShellStep):
             stats = dict()
             testcase_stats[testcase_id] = stats
 
-            stats['iterations_summary'] = [entry['result'] for entry in entry_list]
+            iterations_summary = [entry['result'] for entry in entry_list]
+            stats['iterations_summary'] = iterations_summary
             stats['counters'] = {
                 'total': iteration_n
             }
@@ -2226,7 +2227,11 @@ class ExekallLISATestStep(ShellStep):
                     ('failure', 'FAILED'),
                     ('error', 'ERROR'),
                 ):
-                filtered_entry_list = [entry for entry in entry_list if entry['result'] == issue]
+                filtered_entry_list = [
+                    entry
+                    for entry in entry_list
+                    if entry['result'] == issue
+                ]
 
                 issue_n = len(filtered_entry_list)
                 issue_pc = (100 * issue_n) / iteration_n
@@ -2235,17 +2240,30 @@ class ExekallLISATestStep(ShellStep):
                 # be True if the issue appeared, False otherwise.
                 stats['events'][issue] = [
                     summ_issue == issue
-                    for summ_issue in stats['iterations_summary']
+                    for summ_issue in iterations_summary
                 ]
 
-                if show_rates and (
-                    (issue == 'passed' and show_pass_rate)
-                    or
-                    issue_n and not (
-                        issue in ('passed', 'skipped')
-                        and ignore_non_issue
+                if issue == 'passed':
+                    show_this_rate = (
+                        (
+                            # Show pass rate if we were explicitly asked for
+                            show_pass_rate
+                            # Show passed if we got 100% pass rate
+                            or (
+                                issue_n > 0
+                                and set(iterations_summary) == {'passed'}
+                            )
+                        # in any case, hide it we explicitly asked for
+                        ) and not ignore_non_issue
                     )
-                ):
+                elif issue in ('skipped', 'undecided'):
+                    show_this_rate = issue_n > 0 and not ignore_non_issue
+                else:
+                    show_this_rate = issue_n > 0
+
+                show_this_rate &= show_rates
+
+                if show_this_rate:
                     table_out(
                         '{testcase_id}: {pretty_issue} {issue_n}/{iteration_n} ({issue_pc:.1f}%)'.format(
                             testcase_id=testcase_id,
@@ -2256,7 +2274,10 @@ class ExekallLISATestStep(ShellStep):
                         )
                     )
 
-                if show_details and not (ignore_non_issue and issue == 'passed'):
+                if show_details and not (
+                    ignore_non_issue
+                    and issue in ('passed', 'skipped', 'undecided')
+                ):
                     for entry in filtered_entry_list:
                         i_stack = entry['i_stack']
                         results_path = '\n' + entry['results_path'] if show_artifact_dirs else ''
@@ -2279,7 +2300,6 @@ class ExekallLISATestStep(ShellStep):
                             ).replace('\n', '\n\t')
                         )
 
-            iterations_summary = stats['iterations_summary']
             if show_dist and iterations_summary:
                 issue_letter = {
                     'passed': '.',
