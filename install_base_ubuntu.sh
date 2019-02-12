@@ -80,4 +80,10 @@ if [ "$install_android_sdk" == y ]; then
     install_sdk
 fi
 
+# Make sure we exit with no errors, so we can start making use of that
+# if we introduce some meaningful error handling. Since some packages are not
+# needed for some tasks and since we don't have mechanisms in place to group
+# related use cases, let's swallow errors and move on to lisa-install.
+exit 0
+
 # vim: set tabstop=4 shiftwidth=4 textwidth=80 expandtab:
