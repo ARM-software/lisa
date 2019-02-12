@@ -15,9 +15,9 @@
 # limitations under the License.
 #
 
-import functools
 import os
 import inspect
+import mimetypes
 
 import matplotlib.pyplot as plt
 from cycler import cycler
@@ -32,24 +32,15 @@ COLOR_CYCLES = [
 
 plt.rcParams['axes.prop_cycle'] = cycler(color=COLOR_CYCLES)
 
-class AnalysisBase(Loggable):
+class AnalysisHelpers(Loggable):
     """
-    Base class for Analysis modules.
-
-    :param trace: input Trace object
-    :type trace: :class:`trace.Trace`
+    Helper methods class for Analysis modules.
 
     :Design notes:
-
-    Method depending on certain trace events *must* be decorated with
-    :meth:`lisa.trace.requires_events`
 
     Plotting methods *must* return the :class:`matplotlib.axes.Axes` instance
     used by the plotting method. This lets users further modify them.
     """
-
-    def __init__(self, trace):
-        self.trace = trace
 
     @classmethod
     def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, **kwargs):
@@ -127,7 +118,22 @@ class AnalysisBase(Loggable):
         # plot all data from a dataframe in the same color.
         return next(axis._get_lines.prop_cycler)['color']
 
-    def save_plot(self, figure, filepath=None, img_format="png"):
+    def _save_plot(self, figure, default_dir, filepath=None, img_format=None, wrapper_level=2):
+        if filepath is None:
+            img_format = img_format or 'png'
+            module = self.__module__
+            caller = inspect.stack()[1 + wrapper_level][3]
+            filepath = os.path.join(
+                default_dir,
+                "{}.{}.{}".format(module, caller, img_format))
+        else:
+            mime_type = mimetypes.guess_type(filepath, strict=False)[0]
+            guessed_format = mime_type.split('/')[1].split('.', 1)[-1].split('+')[0]
+            img_format = img_format or guessed_format
+
+        figure.savefig(filepath, format=img_format)
+
+    def save_plot(self, figure, filepath=None, img_format=None):
         """
         Save the plot stored in the ``figure``
 
@@ -136,20 +142,52 @@ class AnalysisBase(Loggable):
 
         :param filepath: The path of the file into which the plot will be saved.
           If ``None``, a path based on the trace directory and the calling method
-          will be used.
+          will be used. The filepath is also used to deduct the image format.
         :type filepath: str
 
-        :param img_format: The image format to generate
+        :param img_format: The image format to generate. Defaults to using
+            filepath to guess the type, or "png" if no filepath is given.
         :type img_format: str
         """
-        if filepath is None:
-            module = self.__module__
-            caller = inspect.stack()[1][3]
-            filepath = os.path.join(
-                self.trace.plots_dir,
-                "{}.{}.{}".format(module, caller, img_format))
+        default_dir = '.'
+        return self._save_plot(figure, default_dir, filepath, img_format)
 
-        figure.savefig(filepath, format=img_format)
+    def _do_plot(self, plotter, filepath, axis):
+        """
+        Simple helper for consistent behavior across methods.
+        """
 
+        local_fig = not axis
+        if local_fig:
+            fig, axis = self.setup_plot()
+
+        plotter(axis)
+
+        if local_fig:
+            self.save_plot(fig, filepath)
+        return axis
+
+class AnalysisBase(AnalysisHelpers):
+    """
+    Base class for Analysis modules.
+
+    :param trace: input Trace object
+    :type trace: :class:`trace.Trace`
+
+    :Design notes:
+
+    Method depending on certain trace events *must* be decorated with
+    :meth:`lisa.trace.requires_events`
+    """
+
+    def __init__(self, trace):
+        self.trace = trace
+
+    def save_plot(self, figure, filepath=None, img_format=None):
+        """
+        See :meth:`AnalysisHelpers.save_plot`
+        """
+        default_dir = self.trace.plots_dir
+        return self._save_plot(figure, default_dir, filepath, img_format)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

@@ -28,12 +28,12 @@ from bart.common.Utils import area_under_curve
 from devlib.target import KernelVersion
 
 from lisa.wlgen.rta import Periodic, Ramp, Step
+from lisa.analysis.rta import PerfAnalysis
 from lisa.tests.base import ResultBundle, CannotCreateError, RTATestBundle
 from lisa.env import TestEnv
 from lisa.utils import ArtifactPath
 from lisa.energy_model import EnergyModel
 from lisa.trace import requires_events
-from lisa.perf_analysis import PerfAnalysis
 
 class EASBehaviour(RTATestBundle, abc.ABC):
     """
@@ -365,15 +365,12 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         was negative). Assert that this happened less than
         ``negative_slack_allowed_pct`` percent of the time.
         """
-        pa = PerfAnalysis(self.res_dir)
+        analysis = PerfAnalysis.from_dir(self.res_dir)
 
-        bad_activations = {}
-
-        # Data is only collected for rt-app tasks, so it's safe to iterate over
-        # all of them
         passed = True
-        for task in pa.tasks():
-            slack = pa.df(task)["Slack"]
+        bad_activations = {}
+        for task in analysis.tasks:
+            slack = analysis.get_df(task)["Slack"]
 
             bad_activations_pct = len(slack[slack < 0]) * 100 / len(slack)
             if bad_activations_pct > negative_slack_allowed_pct:
