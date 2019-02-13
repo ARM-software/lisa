@@ -298,47 +298,6 @@ class StaggeredFinishes(MisfitMigrationBase):
         return res
 
     @TasksAnalysis.df_task_states.used_events
-    def test_migration_delay(self, allowed_idle_time_s=None) -> ResultBundle:
-        """
-        Test that big CPUs pull tasks ASAP
-
-        :param allowed_idle_time_s: How much time should be allowed between a
-          big CPU going idle and a misfit task ending on that CPU. In theory
-          a newidle balance should lead to a null delay, but in practice
-          there's a tiny one, so don't set that to 0 and expect the test to
-          pass.
-
-          Furthermore, we're not always guaranteed to get a newidle pull, so
-          allow time for a regular load balance to happen.
-
-          When ``None``, this defaults to (1ms x number_of_cpus) to mimic the
-          default balance_interval (balance_interval = sd_weight), see
-          kernel/sched/topology.c:sd_init().
-        :type allowed_idle_time_s: int
-
-        This test is about the very first migration from LITTLE to big.
-        It's a subset of :meth:`test_throughput`, it only checks the very
-        first migration.
-        """
-
-        task_state_dfs = {}
-        for task in self.rtapp_profile.keys():
-            df = self.trace.analysis.tasks.df_task_states(task)
-            df = self._trim_state_df(df[
-                df.curr_state == TaskState.TASK_ACTIVE.char
-            ])
-
-            # The first time the task runs on a big
-            first_big_df = df[df.cpu.isin(self.dst_cpus)]
-            if first_big_df.empty:
-                continue
-
-            df = df[df.cpu.isin(self.src_cpus)]
-            task_state_dfs[task] = df[:first_big_df.index[0]]
-
-        return self._test_cpus_busy(task_state_dfs, self.dst_cpus, allowed_idle_time_s)
-
-    @TasksAnalysis.df_task_states.used_events
     def test_throughput(self, allowed_idle_time_s=None) -> ResultBundle:
         """
         Test that big CPUs are not idle when there are misfit tasks to upmigrate
