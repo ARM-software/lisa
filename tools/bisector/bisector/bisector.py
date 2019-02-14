@@ -2308,7 +2308,7 @@ class ExekallLISATestStep(ShellStep):
                     'undecided': 'u',
                     'error': '#',
                 }
-                dist = str(
+                dist = ''.join(
                     issue_letter[issue]
                     for issue in iterations_summary
                 )
