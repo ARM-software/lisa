@@ -32,15 +32,6 @@ Additional Python packages
 re-installing a custom set of packages automatically when the venv needs to
 regenerated.
 
-Git hooks
----------
-
-A git `post-checkout` hook is provided in tools/post-checkout. It will check
-that no `setup.py` file have been updated since last time ``lisa-install`` was
-executed. If a modification is detected, it will ask the user to run
-``lisa-install`` again, since a dependency might have been added, or a version
-requirement might have been updated.
-
 Without automatic ``venv``
 --------------------------
 
@@ -91,7 +82,24 @@ access to many LISA related functions (done automatically by Vagrant)::
 
   source init_env
 
-Run ``lisa-help`` to see an overview of the provided LISA commands.
+.. tip:: Run ``lisa-help`` to see an overview of the provided LISA commands.
+
+Updating
+========
+
+Over time, we might change/add some dependencies to LISA. As such, if you
+update your LISA repository, you should make sure your locally-installed
+packages still match those dependencies. Sourcing ``init_env`` from a
+new shell should suffice, which will hint the user if running ``lisa-install``
+again is needed.
+
+.. tip::
+
+  A git **post-checkout** hook is provided in ``tools/post-checkout``. It will
+  check that no ``setup.py`` file have been updated since last time
+  ``lisa-install`` was executed. If a modification is detected, it will ask the
+  user to run ``lisa-install`` again, since a dependency might have been added,
+  or a version requirement might have been updated.
 
 Notebooks
 =========
@@ -143,6 +151,12 @@ Project structure
 * :mod:`devlib`, :mod:`trappy`, :mod:`bart` and :mod:`wa` are
   now under ``$repo/external/``. Git subtrees are now used instead of submodules.
 * All non self-tests have been moved from ``$repo/tests`` to ``$repo/lisa/tests``
+
+Updating your tree
+------------------
+
+Since we no longer use submodules, a ``git pull`` is all you need
+(``lisa-update`` no longer exists). Also, see `Updating`_.
 
 Python 3
 --------
