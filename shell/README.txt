@@ -23,7 +23,7 @@ lisa-update-subtrees - Update the subtrees by pulling their latest changes
 .:: Notebooks commands
 ----------------------
 
-lisa-ipython - Start/Stop the IPython Notebook server
+lisa-jupyter - Start/Stop the Jupyter Notebook server
 
 .:: Results analysis and Documentation
 --------------------------------------
