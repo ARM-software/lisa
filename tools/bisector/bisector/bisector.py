@@ -3146,7 +3146,7 @@ class StepSeqResult(StepResultBase):
     def bisect_ret(self):
         return self._filtered_bisect_ret()
 
-    def _filtered_bisect_ret(self, steps_set=None, steps_filter=None):
+    def _filtered_bisect_ret(self, steps_set=None, steps_filter=None, ignore_yield=False):
         """
         The set of steps to consider is precomputed by the caller so the
         overall complexity depends on the steps hierarchy structure and not the
@@ -3157,6 +3157,7 @@ class StepSeqResult(StepResultBase):
         :param steps_filter: :class:`StepFilter` instance that will be passed
                              along to allow nested :class:`MacroStep` to filter
                              their own steps.
+        :param ignore_yield: ignore :class:`YieldStep` steps.
         """
         if steps_set is not None:
             steps_res = (
@@ -3177,6 +3178,10 @@ class StepSeqResult(StepResultBase):
         # If one step ask for bisection abort, return abort.
         elif bisect_ret_stats[BisectRet.ABORT]:
             bisect_ret = BisectRet.ABORT
+
+        # If one step ask for bisection yield, return yield.
+        elif not ignore_yield and bisect_ret_stats[BisectRet.YIELD]:
+            bisect_ret = BisectRet.YIELD
 
         # If one step labels the commit as untestable, return untestable.
         elif bisect_ret_stats[BisectRet.UNTESTABLE]:
@@ -3239,7 +3244,7 @@ class MacroStepResult(StepResultBase):
     def bisect_ret(self):
         return self.filtered_bisect_ret()
 
-    def filtered_bisect_ret(self, steps_filter=None):
+    def filtered_bisect_ret(self, steps_filter=None, ignore_yield=False):
         bisect_ret = BisectRet.UNTESTABLE
 
         if not self.res_list:
@@ -3250,11 +3255,17 @@ class MacroStepResult(StepResultBase):
 
             # Maps the items in the list to their number of occurences
             bisect_ret_stats = collections.Counter(
-                res._filtered_bisect_ret(steps_set, steps_filter) for res in self.res_list
+                res._filtered_bisect_ret(
+                    steps_set, steps_filter,
+                    ignore_yield=ignore_yield
+                )
+                for res in self.res_list
             )
 
             if bisect_ret_stats[BisectRet.ABORT]:
                 bisect_ret = BisectRet.ABORT
+            elif bisect_ret_stats[BisectRet.YIELD]:
+                bisect_ret = BisectRet.YIELD
             # If one iteration labels the commit as untestable, return untestable.
             elif bisect_ret_stats[BisectRet.UNTESTABLE]:
                 bisect_ret = BisectRet.UNTESTABLE
@@ -3293,7 +3304,7 @@ class StepFilter:
     Filter the steps of a :class:`MacroStep` . This allows restricting the display
     to a subset of steps.
     """
-    def __init__(self, skip, only):
+    def __init__(self, skip=set(), only=set()):
         self.skip = set(skip)
         self.only = set(only)
 
@@ -3465,7 +3476,6 @@ class MacroStep(StepBase):
             if res.bisect_ret == BisectRet.YIELD:
                 info('{step.cat} step ({step.name}) requested yielding ...'.format(step=step))
                 break
-
 
             # If the commit is not testable or bad, bail out early
             if self.bail_out_early and step.bail_out and (
@@ -3947,7 +3957,17 @@ def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
             service_hub = service_hub,
         )
 
-    return report.bisect_ret.value, report
+
+    # Only take into account YIELD results if this is not the last iteration
+    if (
+        macro_step.iterations == 'inf'
+        or len(report.result.res_list) < macro_step.iterations
+    ):
+        bisect_ret = report.bisect_ret
+    else:
+        bisect_ret = report.filtered_bisect_ret(ignore_yield=True)
+
+    return bisect_ret.value, report
 
 def init_yaml(yaml, relative_root):
     """
@@ -4292,7 +4312,7 @@ class Report(Serializable):
 
     @property
     def bisect_ret(self):
-        return self.result.bisect_ret
+        return self.filtered_bisect_ret()
 
     def filtered_bisect_ret(self, *args, **kwargs):
         return self.result.filtered_bisect_ret(*args, **kwargs)
@@ -4310,16 +4330,19 @@ class Report(Serializable):
         out('Creation time: {self.creation_time}\n'.format(self=self))
         out(self.result.step.report(
             [(IterationCounterStack(), self.result)],
-            service_hub = service_hub,
-            steps_filter = steps_filter,
+            service_hub=service_hub,
+            steps_filter=steps_filter,
             *args, **kwargs
         ))
 
+        # Always ignore YIELD here, since it's only useful for run-time
+        bisect_ret = self.filtered_bisect_ret(steps_filter, ignore_yield=True)
+
         out('Overall bisect result: {} commit'.format(
-            self.filtered_bisect_ret(steps_filter).lower_name
+            bisect_ret.lower_name
         ))
 
-        return out, self.bisect_ret.value, self.bisect_ret
+        return out, bisect_ret
 
     def __str__(self):
         return str(self.show()[0])
@@ -5575,7 +5598,7 @@ command line""")
 
         report = Report.load(report_path, steps_path, use_cache=use_cache)
 
-        out, ret, bisect_ret = report.show(
+        out, bisect_ret = report.show(
             service_hub = service_hub,
             steps_filter = steps_filter,
             stat_test = stat_test,
@@ -5588,7 +5611,7 @@ command line""")
             export_path = format_placeholders(export_path, placeholder_map)
             report.save(export_path)
 
-        return ret
+        return bisect_ret.value
 
 
 # TODO: avoid the global variable by redirecting stdout to a tee (stdout and
