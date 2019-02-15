@@ -294,6 +294,8 @@ but we did rename/move things to make them more coherent.
 **LISA legacy**::
 
   trace.data_frame.trace_event("sched_switch")
+  # or
+  trace.df("sched_switch")
 
 **LISA next**::
 
