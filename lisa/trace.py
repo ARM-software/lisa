@@ -443,21 +443,6 @@ class Trace(Loggable):
 # DataFrame Getter Methods
 ###############################################################################
 
-    def df(self, event):
-        """
-        Get a dataframe containing all occurrences of the specified trace event
-        in the parsed trace.
-
-        :param event: Trace event name
-        :type event: str
-        """
-        warnings.simplefilter('always', DeprecationWarning) #turn off filter
-        warnings.warn("\n\tUse of Trace::df() is deprecated and will be soon removed."
-                      "\n\tUse Trace::df_events(event_name) instead.",
-                      category=DeprecationWarning)
-        warnings.simplefilter('default', DeprecationWarning) #reset filter
-        return self.df_events(event)
-
     def df_events(self, event):
         """
         Get a dataframe containing all occurrences of the specified trace event
