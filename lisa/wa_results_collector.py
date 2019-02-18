@@ -404,7 +404,7 @@ class WaResultsCollector(Loggable):
         events = ['irq_handler_entry', 'cpu_frequency', 'nohz_kick', 'sched_switch',
                   'sched_load_cfs_rq', 'sched_load_avg_task', 'thermal_temperature']
         plat_info = PlatformInfo({
-            'kernel-version': KernelVersion(target_info['kernel_release']),
+            'kernel': {'version': KernelVersion(target_info['kernel_release'])},
         })
         trace = Trace(trace_path, plat_info, events, self.platform)
 

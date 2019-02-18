@@ -100,17 +100,17 @@ class LoadTrackingHelpers:
         ]
 
     @classmethod
-    def get_max_capa_cpu(cls, te):
+    def get_max_capa_cpu(cls, plat_info):
         """
         :returns: A CPU with the highest capacity value that is not blacklisted.
         """
         # capacity-classes is sorted by capacity, last class therefore contains
         # the biggest CPUs
-        candidates = cls.filter_capacity_classes(te.plat_info)[-1]
+        candidates = cls.filter_capacity_classes(plat_info)[-1]
 
         if not candidates:
             raise RuntimeError('All CPUs of that class have been blacklisted: {}'.format(
-                te.plat_info['capacity-class'][-1]
+                plat_info['capacity-class'][-1]
             ))
         return candidates[0]
 
@@ -177,7 +177,8 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
 
     @classmethod
     def _from_testenv(cls, te, res_dir):
-        rtapp_profile = cls.get_rtapp_profile(te)
+        plat_info = te.plat_info
+        rtapp_profile = cls.get_rtapp_profile(plat_info)
 
         # After a bit of experimenting, it turns out that on some platforms
         # misprediction of the idle time (which leads to a shallow idle state,
@@ -191,7 +192,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
             with te.target.cpufreq.use_governor(**cls.cpufreq_conf):
                 cls._run_rtapp(te, res_dir, rtapp_profile)
 
-        return cls(res_dir, te.plat_info, rtapp_profile)
+        return cls(res_dir, plat_info, rtapp_profile)
 
     def get_task_sched_signals(self, trace, cpu, task_name, signals):
         """
@@ -247,7 +248,7 @@ class InvarianceItem(LoadTrackingBase):
         self.cpu = cpu
 
     @classmethod
-    def get_rtapp_profile(cls, te, cpu):
+    def get_rtapp_profile(cls, plat_info, cpu):
         """
         Get a specification for a rt-app workload with the specificied duty
         cycle, pinned to the given CPU.
@@ -275,7 +276,8 @@ class InvarianceItem(LoadTrackingBase):
 
     @classmethod
     def _from_testenv(cls, te, res_dir, cpu, freq, freq_list):
-        rtapp_profile = cls.get_rtapp_profile(te, cpu)
+        plat_info = te.plat_info
+        rtapp_profile = cls.get_rtapp_profile(plat_info, cpu)
         logger = cls.get_logger()
 
         with te.target.cpufreq.use_governor(**cls.cpufreq_conf):
@@ -283,7 +285,7 @@ class InvarianceItem(LoadTrackingBase):
             logger.debug('CPU{} frequency: {}'.format(cpu, te.target.cpufreq.get_frequency(cpu)))
             cls._run_rtapp(te, res_dir, rtapp_profile)
 
-        return cls(res_dir, te.plat_info, rtapp_profile, cpu, freq, freq_list)
+        return cls(res_dir, plat_info, rtapp_profile, cpu, freq, freq_list)
 
     def get_expected_util_avg(self, trace, cpu, task_name, capacity):
         """
@@ -636,9 +638,9 @@ class PELTTask(LoadTrackingBase):
         return super().from_testenv(te, res_dir)
 
     @classmethod
-    def get_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, plat_info):
         # Run the 50% workload on a CPU with highest capacity
-        cpu = cls.get_max_capa_cpu(te)
+        cpu = cls.get_max_capa_cpu(plat_info)
 
         rtapp_profile = {}
         rtapp_profile["{}_cpu{}".format(cls.task_prefix, cpu)] = Periodic(
