@@ -262,10 +262,6 @@ class RTA(Workload):
 
         :returns: a JSON dict
         """
-        # pload can either be a string like "CPU1" or an integer, if the
-        # former we need to quote it.
-        if not isinstance(pload, int):
-            pload = '"{}"'.format(pload)
 
         replacements = {
             '__DURATION__' : duration,
@@ -274,21 +270,14 @@ class RTA(Workload):
             '__WORKDIR__'  : work_dir,
         }
 
-        res = []
+        json_str = template
+        for placeholder, value in replacements.items():
+            if placeholder in template and placeholder is None:
+                raise ValueError('Missing value for {} placeholder'.format(placeholder))
+            else:
+                json_str = json_str.replace(placeholder, json.dumps(value))
 
-        for line in template.splitlines(True):
-            for token, replacement in replacements.items():
-                if token not in line:
-                    continue
-
-                if replacement is None:
-                    raise RuntimeError("No replacement value given for {}".format(token))
-
-                line = line.replace(token, str(replacement))
-
-            res.append(line)
-
-        return json.loads('\n'.join(res))
+        return json.loads(json_str)
 
     @classmethod
     def by_str(cls, target, name, str_conf, res_dir=None, max_duration_s=None,
