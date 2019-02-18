@@ -5670,6 +5670,7 @@ def main(argv=sys.argv[1:]):
     sys.exit(return_code)
 
 if __name__ == '__main__':
-    main()
+    print('bisector needs to be installed using pip and called through its shim, not executed directly', file=sys.stderr)
+    sys.exit(2)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
