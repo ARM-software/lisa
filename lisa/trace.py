@@ -88,9 +88,6 @@ class Trace(Loggable):
         # The platform information used to run the experiments
         self.plat_info = plat_info
 
-        # TRAPpy Trace object
-        self.ftrace = None
-
         # Trace format
         self.trace_format = trace_format
 
@@ -237,7 +234,7 @@ class Trace(Loggable):
 
         # Check for events available on the parsed trace
         self._check_available_events()
-        if len(self.available_events) == 0:
+        if not self.available_events:
             if has_function_stats:
                 logger.info('Trace contains only functions stats')
                 return
@@ -270,7 +267,7 @@ class Trace(Loggable):
         logger = self.get_logger()
         for val in self.ftrace.get_filters(key):
             obj = getattr(self.ftrace, val)
-            if len(obj.data_frame):
+            if not obj.data_frame.empty:
                 self.available_events.append(val)
         logger.debug('Events found on trace:')
         for evt in self.available_events:
@@ -451,13 +448,12 @@ class Trace(Loggable):
         :param event: Trace event name
         :type event: str
         """
-        if self.data_dir is None:
-            raise ValueError("trace data not (yet) loaded")
-        if self.ftrace and hasattr(self.ftrace, event):
+        try:
             return getattr(self.ftrace, event).data_frame
-        raise ValueError('Event [{}] not supported. '
-                         'Supported events are: {}'
-                         .format(event, self.available_events))
+        except AttributeError:
+            raise ValueError('Event [{}] not supported. '
+                             'Supported events are: {}'
+                             .format(event, self.available_events))
 
     def df_functions_stats(self, functions=None):
         """
@@ -474,8 +470,6 @@ class Trace(Loggable):
                           to report
         :type functions: str or list(str)
         """
-        if not hasattr(self, '_functions_stats_df'):
-            return None
         df = self._functions_stats_df
         if not functions:
             return df
@@ -699,7 +693,7 @@ class Trace(Loggable):
         # make sure fake cpu_frequency events are never interleaved with
         # OS generated events
         else:
-            if len(devlib_freq) > 0:
+            if not devlib_freq.empty:
 
                 # Frequencies injection is done in a per-cluster based.
                 # This is based on the assumption that clusters are
