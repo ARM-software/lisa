@@ -43,8 +43,8 @@ class Trace(Loggable):
     """
     The Trace object is the LISA trace events parser.
 
-    :param data_dir: folder containing all trace data
-    :type data_dir: str
+    :param trace_path: File containing the trace
+    :type trace_path: str
 
     :param events: events to be parsed (all the events by default)
     :type events: str or list(str)
@@ -72,7 +72,7 @@ class Trace(Loggable):
     """
 
     def __init__(self,
-                 data_dir,
+                 trace_path,
                  plat_info=None,
                  events=None,
                  window=(0, None),
@@ -117,21 +117,15 @@ class Trace(Loggable):
         self.freq_coherency = True
 
         # Folder containing trace
-        self.data_dir = data_dir
+        self.trace_path = trace_path
 
-        # By deafult, use the trace dir to save plots
-        self.plots_dir = plots_dir
-        if self.plots_dir is None:
-            # In case we're passed the trace.dat
-            if os.path.isfile(data_dir):
-                self.plots_dir = os.path.dirname(data_dir)
-            else:
-                self.plots_dir = data_dir
+        # By default, use the trace dir to save plots
+        self.plots_dir = plots_dir if plots_dir else os.path.dirname(trace_path)
 
         self.plots_prefix = plots_prefix
 
         self._register_trace_events(events)
-        self._parse_trace(self.data_dir, window, trace_format)
+        self._parse_trace(self.trace_path, window, trace_format)
 
         # Import here to avoid a circular dependency issue at import time
         # with lisa.analysis.base

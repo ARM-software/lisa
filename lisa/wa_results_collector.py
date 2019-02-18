@@ -423,7 +423,7 @@ class WaResultsCollector(Loggable):
                 df = trace.analysis.frequency.df_cluster_frequency_residency(cluster)
                 if df is None or df.empty:
                     logger.warning("Can't get cluster freq residency from %s",
-                                      trace.data_dir)
+                                      trace.trace_path)
                 else:
                     df = df.reset_index()
                     avg_freq = (df.frequency * df.time).sum() / df.time.sum()

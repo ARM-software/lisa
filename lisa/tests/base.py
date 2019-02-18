@@ -376,7 +376,8 @@ class RTATestBundle(TestBundle, abc.ABC):
         allows updating the underlying path before it is actually loaded to
         match a different folder structure.
         """
-        return Trace(self.res_dir, self.plat_info, events=self.ftrace_conf["events"])
+        path = os.path.join(self.res_dir, 'trace.dat')
+        return Trace(path, self.plat_info, events=self.ftrace_conf["events"])
 
     def __init__(self, res_dir, plat_info, rtapp_profile):
         super().__init__(res_dir, plat_info)
