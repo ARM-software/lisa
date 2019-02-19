@@ -39,6 +39,7 @@ def find_shortest_symref(repo_path, sha1):
         "git for-each-ref --sort=-committerdate "
         "--format='%(objectname:short) %(refname:short)' "
         "refs/heads/ refs/remotes/ refs/tags",
+        universal_newlines=True,
         cwd=repo_path, shell=True)
     for line in branches.splitlines():
         try:
