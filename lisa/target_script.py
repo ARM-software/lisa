@@ -126,9 +126,22 @@ class TargetScript:
 
         :param as_root: Execute that script as root
         :type as_root: bool
+
+        :returns: the :class:`subprocess.Popen` instance for the command
+
+        .. attention::
+
+          You'll have to properly close the file descriptors used by
+          :class:`subprocess.Popen`, for this we recommend using it as a context
+          manager::
+
+            with script.background():
+                pass
         """
         self._prerun_check()
         self._proc = self.target.background(self.remote_path, as_root=as_root)
+
+        return self._proc
 
     def wait(self, poll_sleep_s=1):
         """
