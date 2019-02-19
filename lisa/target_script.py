@@ -16,16 +16,14 @@
 #
 
 import os.path
+import contextlib
+
 from time import sleep
 
 class TargetScript:
     """
     This class provides utility to create and run a script
     directly on a devlib target.
-
-    The execute() method is made to look like Devlib's, so a Target instance can
-    be swapped with an instance of this TargetScript class, and the commands
-    will be accumulated for later use instead of being executed straight away.
 
     :param target: Reference :class:`devlib.target.Target` instance. Will be
       used for some commands that must really be executed instead of accumulated.
@@ -36,6 +34,10 @@ class TargetScript:
 
     :param local_dir: Local directory to use to prepare the script
     :type local_dir: str
+
+    :meth:`execute` is made to look like Devlib's, so a Target instance can
+    be swapped with an instance of this class, and the commands will be
+    accumulated for later use instead of being executed straight away.
     """
 
     _target_attrs = ['screen_resolution', 'android_id', 'abi', 'os_version', 'model']
@@ -116,6 +118,8 @@ class TargetScript:
 
         :param timeout: Timeout (in seconds) for the execution of the script
         :type timeout: int
+
+        .. attention:: :meth:`push` must have been called beforehand
         """
         self._prerun_check()
         self.target.execute(self.remote_path, as_root=as_root, timeout=timeout)
