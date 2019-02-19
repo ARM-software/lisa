@@ -20,9 +20,10 @@ import sys
 import random
 import os.path
 import collections
+from time import sleep
 
 from devlib.module.hotplug import HotplugModule
-from devlib.exception import TimeoutError
+from devlib.exception import TargetNotRespondingError
 
 from lisa.tests.base import TestMetric, ResultBundle, TestBundle
 from lisa.target_script import TargetScript
@@ -108,16 +109,13 @@ class HotplugBase(TestBundle, abc.ABC):
 
     @classmethod
     def _cpuhp_script(cls, te, res_dir, sequence, sleep_min_ms,
-                             sleep_max_ms, timeout_s, random_gen):
+                             sleep_max_ms, random_gen):
         """
         Generate a script consisting of a random sequence of hotplugs operations
 
         Two consecutive hotplugs can be separated by a random sleep in the script.
-        The hotplug stress must be stopped after some time using the timeout_s
-        parameter.
         """
-        shift = '    '
-        script = TargetScript(te, 'random_cpuhp.sh', res_dir)
+        script = TargetScript(te.target, 'random_cpuhp.sh', res_dir)
 
         # Record configuration
         # script.append('# File generated automatically')
@@ -126,28 +124,21 @@ class HotplugBase(TestBundle, abc.ABC):
         # script.append('# Hotpluggable CPUs:')
         # script.append('# {}'.format(cls.hotpluggable_cpus))
 
-        script.append('while true')
-        script.append('do')
         for cpu, plug_way in sequence:
             # Write in sysfs entry
             cmd = 'echo {} > {}'.format(plug_way, HotplugModule._cpu_path(te.target, cpu))
-            script.append(shift + cmd)
+            script.append(cmd)
+
             # Sleep if necessary
             if sleep_max_ms > 0:
                 sleep_dur_sec = random_gen.randint(sleep_min_ms, sleep_max_ms)/1000.0
-                script.append(shift + 'sleep {}'.format(sleep_dur_sec))
-        script.append('done &')
-
-        # Make sure to stop the hotplug stress after timeout_s seconds
-        script.append('LOOP_PID=$!')
-        script.append('sleep {}'.format(timeout_s))
-        script.append('[ $(ps -q $LOOP_PID | wc -l) -gt 1 ] && kill -9 $LOOP_PID')
+                script.append('sleep {}'.format(sleep_dur_sec))
 
         return script
 
     @classmethod
     def _from_testenv(cls, te, res_dir, seed, nr_operations, sleep_min_ms,
-                      sleep_max_ms, duration_s, max_cpus_off):
+                      sleep_max_ms, max_cpus_off):
 
         # Instantiate a generator so we can change the seed without any global
         # effect
@@ -164,21 +155,20 @@ class HotplugBase(TestBundle, abc.ABC):
             max_cpus_off, sequence)
 
         script = cls._cpuhp_script(
-            te, res_dir, sequence, sleep_min_ms, sleep_max_ms, duration_s,
-            random_gen)
+            te, res_dir, sequence, sleep_min_ms, sleep_max_ms, random_gen)
 
         script.push()
 
-        target_alive = True
-        timeout = duration_s + 60
+        # We don't want a timeout but we do want to detect if/when the target
+        # stops responding. So start a background shell and poll on it
+        with script.background(as_root=True):
+            try:
+                script.wait()
 
-        try:
-            script.run(as_root=True, timeout=timeout)
-            te.target.hotplug.online_all()
-        except TimeoutError:
-            #msg = 'Target not responding after {} seconds ...'
-            #cls._log.info(msg.format(timeout))
-            target_alive = False
+                target_alive = True
+                te.target.hotplug.online_all()
+            except TargetNotRespondingError:
+                target_alive = False
 
         live_cpus = te.target.list_online_cpus() if target_alive else []
 
@@ -187,7 +177,7 @@ class HotplugBase(TestBundle, abc.ABC):
     @classmethod
     def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None, seed=None,
                      nr_operations=100, sleep_min_ms=10, sleep_max_ms=100,
-                     duration_s=10, max_cpus_off=sys.maxsize) -> 'HotplugBase':
+                     max_cpus_off=sys.maxsize) -> 'HotplugBase':
         """
         :param seed: Seed of the RNG used to create the hotplug sequences
         :type seed: int
@@ -202,9 +192,6 @@ class HotplugBase(TestBundle, abc.ABC):
           (0 would lead to no sleep)
         :type sleep_max_ms: int
 
-        :param duration_s: Total duration of the hotplug torture
-        :type duration_s: int
-
         :param max_cpus_off: Maximum number of CPUs hotplugged out at any given
           moment
         :type max_cpus_off: int
@@ -213,7 +200,7 @@ class HotplugBase(TestBundle, abc.ABC):
         return super().from_testenv(
             te, res_dir, seed=seed, nr_operations=nr_operations,
             sleep_min_ms=sleep_min_ms, sleep_max_ms=sleep_max_ms,
-            duration_s=duration_s, max_cpus_off=max_cpus_off)
+            max_cpus_off=max_cpus_off)
 
     def test_target_alive(self) -> ResultBundle:
         """

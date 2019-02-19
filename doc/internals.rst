@@ -64,3 +64,6 @@ Miscellaneous utilities
 
 .. automodule:: lisa.utils
    :members:
+
+.. automodule:: lisa.target_script
+   :members:
