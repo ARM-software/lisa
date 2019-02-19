@@ -51,8 +51,27 @@ if [[ -z "$1" || -z "$2" ]]; then
 	exit -1
 fi
 
-set -u
+# Automatically detect the arm arch we are building for
+export ARCH=${ARCH:-$(grep -owE "(arm|arm64)" "$KERNEL_CONFIG")}
 
-# Update kernel .config to use the provided rootfs as builtin initramfs
-sed -i "s#[.]*CONFIG_INITRAMFS_SOURCE.*#CONFIG_INITRAMFS_SOURCE=\"$ROOTFS\"#" "$KERNEL_CONFIG"
-make -C "$KERNEL_DIR" olddefconfig
+# That env var is not needed, but wrong values can break the make command
+# executed by merge_config.sh
+unset CROSS_COMPILE
+
+if [ -z "$ARCH" ]; then
+	echo "ERROR: set ARCH environment variable"
+	exit -1
+fi
+
+echo "Assuming ARCH=$ARCH"
+
+echo "Merging Kconfig fragment into $KERNEL_CONFIG"
+fragment=$(mktemp)
+trap "rm "$fragment"" EXIT
+
+# Use that CPIO archive to be used as builtin initramfs
+tee "$fragment" << EOF
+CONFIG_INITRAMFS_SOURCE="$ROOTFS"
+EOF
+
+KCONFIG_CONFIG="$KERNEL_CONFIG" "$KERNEL_DIR/scripts/kconfig/merge_config.sh" "$KERNEL_CONFIG" "$fragment"
