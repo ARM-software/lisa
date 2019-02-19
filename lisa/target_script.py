@@ -156,7 +156,7 @@ class TargetScript:
         if not self._proc:
             raise RuntimeError('No background process currently executing')
 
-        cmd_pid = '$(pgrep {})'.format(self.script_name)
+        cmd_pid = '$(pgrep -x {})'.format(self.script_name)
         self.target.kill(cmd_pid, as_root=as_root)
         self._proc.kill()
 
