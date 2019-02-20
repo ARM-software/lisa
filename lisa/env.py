@@ -509,6 +509,9 @@ class TestEnv(Loggable, HideExekallID):
 
         target.setup()
 
+        if isinstance(target, devlib.AndroidTarget):
+            target.adb_root(force=True)
+
         # Verify that all the required modules have been initialized
         for module in devlib_module_list:
             if not hasattr(target, module):
