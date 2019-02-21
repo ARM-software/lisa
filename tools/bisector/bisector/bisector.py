@@ -5374,18 +5374,15 @@ command line""")
     cmd_group.add_argument('--log', action='store_true',
         help="""Show log in $PAGER.""")
 
-    cmd_group.add_argument('--notif', nargs=2,
-        help="Enable and disable desktop notifications.")
-
     cmd_group.add_argument('--report', nargs=argparse.REMAINDER,
         help="""Equivalent to running bisector report, all remaining options
         being passed to it.
         """)
 
-    # Options for monitor-server subcommand
-    dbus_service_parser.add_argument('--notif', nargs=2,
-        default=('enable', 'all'),
-        help="Enable and disable desktop notifications.")
+    for group in (cmd_group, dbus_service_parser):
+        group.add_argument('--notif', nargs=2,
+            metavar=('enable/disable', 'PROPERTY'),
+            help="Enable and disable desktop notifications when the given property changes. 'all' will select all properties.")
 
     try:
         args = parser.parse_args(argv)
