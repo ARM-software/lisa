@@ -193,7 +193,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
 
         return cls(res_dir, te.plat_info, rtapp_profile)
 
-    def get_task_sched_signals(self, trace, cpu, task_name, signals):
+    def get_task_sched_signals(self, trace, cpu, task_name):
         """
         Get a :class:`pandas.DataFrame` with the sched signals for the workload task
 
@@ -201,8 +201,6 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
         sched_load_avg_task or sched_pelt_se. You will need a target kernel that
         includes these events.
 
-        :param signals: List of load tracking signals to extract. Probably a
-          subset of ``['util_avg', 'load_avg']``
         :returns: :class:`pandas.DataFrame` with a column for each signal for
           the workload task
         """
@@ -302,7 +300,7 @@ class InvarianceItem(LoadTrackingBase):
         # Use utilization signal for both load and util, since they should be
         # proportionnal in the test environment we setup
         exp_signal = self.get_expected_util_avg(trace, cpu, task_name, capacity)
-        signal_df = self.get_task_sched_signals(trace, cpu, task_name, [signal_name])
+        signal_df = self.get_task_sched_signals(trace, cpu, task_name)
         signal = signal_df[UTIL_AVG_CONVERGENCE_TIME_S:][signal_name]
 
         signal_mean = area_under_curve(signal) / (signal.index[-1] - signal.index[0])
@@ -657,9 +655,9 @@ class PELTTask(LoadTrackingBase):
         """
         return list(self.rtapp_profile.keys())[0]
 
-    def get_task_sched_signals(self, cpu, signals):
+    def get_task_sched_signals(self, cpu):
         # We only have one task and one trace, simplify this method a bit
-        return super().get_task_sched_signals(self.trace, cpu, self.task_name, signals)
+        return super().get_task_sched_signals(self.trace, cpu, self.task_name)
 
     def get_simulated_pelt(self, cpu, signal_name):
         """
@@ -671,7 +669,7 @@ class PELTTask(LoadTrackingBase):
           - :class:`pandas.DataFrame` instance which reports the computed
           PELT values at each PELT sample interval.
         """
-        signal_df = self.get_task_sched_signals(cpu, [signal_name])
+        signal_df = self.get_task_sched_signals(cpu)
 
         init_value = pelt.Simulator.estimateInitialPeltValue(
             signal_df[signal_name].iloc[0], signal_df.index[0],
@@ -693,7 +691,7 @@ class PELTTask(LoadTrackingBase):
         cpu = task.phases[0].cpus[0]
 
         peltsim, pelt_task, sim_df = self.get_simulated_pelt(cpu, signal_name)
-        signal_df = self.get_task_sched_signals(cpu, [signal_name])
+        signal_df = self.get_task_sched_signals(cpu)
 
         sim_range = peltsim.stableRange(pelt_task)
         stable_time = peltsim.stableTime(pelt_task)
@@ -738,7 +736,7 @@ class PELTTask(LoadTrackingBase):
         cpu = phase.cpus[0]
 
         peltsim, _, sim_df = self.get_simulated_pelt(cpu, signal_name)
-        signal_df = self.get_task_sched_signals(cpu, [signal_name])
+        signal_df = self.get_task_sched_signals(cpu)
 
         trace_duty_cycle = self.get_task_duty_cycle_pct(
             self.trace, self.task_name, cpu)
@@ -746,7 +744,7 @@ class PELTTask(LoadTrackingBase):
 
         # Do a bit of plotting
         fig, axes = plt.subplots(2, 1, figsize=(32, 10), sharex=True)
-        self._plot_behaviour(axes[0], signal_df, "Trace signal", trace_duty_cycle)
+        self._plot_behaviour(axes[0], signal_df[signal_name], "Trace signal", trace_duty_cycle)
         self._plot_behaviour(axes[1], sim_df.pelt_value, "Expected signal",
                              requested_duty_cycle)
 
