@@ -31,6 +31,15 @@ from devlib.utils.misc import mask_to_list, ranges_to_list
 from devlib.exception import TargetStableError
 from trappy.stats.grammar import Parser
 
+#TODO: This should be moved into a utility library somewhere if its useful elsewhere
+from itertools import zip_longest
+def grouper(iterable, n, fillvalue=None):
+    """Collect data into fixed-length chunks or blocks"""
+    # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
+    # Since the same iterator is used, it will yield a new item every time zip call next() on it
+    args = [iter(iterable)] * n
+    return zip_longest(*args, fillvalue=fillvalue)
+
 """Classes for modeling and estimating energy usage of CPU systems"""
 
 def read_multiple_oneline_files(target, glob_patterns):
@@ -1047,31 +1056,23 @@ class EnergyModel(Serializable, Loggable):
             # frequency model support, and each state has three values to parse.
             nr_values = len(cap_states_strs)
             nr_states  = int(nr_cap_states_strs[0])
-            if (nr_states * 2) == nr_values:
-                freq_model_supported = False
-            elif (nr_states * 3) == nr_values:
-                freq_model_supported = True
-            else:
+            em_member_count = int(nr_values/nr_states)
+            if em_member_count not in (2, 3):
                 raise TargetStableError('Unsupported cap_states format '
                                   'cpu={} domain_level={} path={}'.format(cpu, domain_level, cap_states_path))
 
-            # In a two-value system (no frequency model),
-            # cap_states lists the capacity of each state followed by its power,
-            # in increasing order. The `zip` call does this:
+            # Here we split the incoming cap_states_strs list into em_member_count lists, so that
+            # we can use the first one (representing capacity) and the last one (representing power)
+            # to build the EM class. What we get is
+            # for a 2-element list:
             #   [c0, p0, c1, p1, c2, p2] -> [(c0, p0), (c1, p1), (c2, p2)]
-            if (not freq_model_supported):
-                cap_states = [ActiveState(capacity=int(c), power=int(p))
-                          for c, p in zip(cap_states_strs[0::2],
-                                          cap_states_strs[1::2])]
-            # In a three-value system (frequency model supported),
-            # cap_states lists the capacity of each state followed by its freq,
-            # then the power, in increasing order. The `zip` call does this:
-            #   [c0, p0, c1, p1, c2, p2] -> [(c0, f0, p0), (c1, f1, p1), (c2, f2, p2)]
-            if (freq_model_supported):
-                cap_states = [ActiveState(capacity=int(c), power=int(p))
-                          for c, f, p in zip(cap_states_strs[0::3],
-                                          cap_states_strs[1::3],
-                                          cap_states_strs[2::3])]
+            # or for a 3-element list:
+            #   [c0, f0, p0, c1, f1, p1, c2, f2, p2] -> [(c0, f0, p0), (c1, f1, p1), (c2, f2, p2)]
+            # it's generic, and doesn't care if the EM gets any more values in between so long as the
+            # capacity is first and power is last.
+            cap_states = [ActiveState(capacity=int(c), power=int(p))
+                          for c, p in map(lambda x: (x[0],x[-1]), grouper(cap_states_strs, em_member_count))]
+
             freqs = target.cpufreq.list_frequencies(cpu)
             return OrderedDict(list(zip(sorted(freqs), cap_states)))
 
