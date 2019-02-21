@@ -60,7 +60,7 @@ class RegressionResult:
     def from_result_list(cls, testcase_id, old_list, new_list, alpha=None):
         """
         Build a :class:`RegressionResult` from two list of
-        :class:`lisa.tests.kernel.test_bundle.Result`, or objects that can be
+        :class:`lisa.tests.base.Result`, or objects that can be
         converted to `bool`.
 
         .. note:: Only ``FAILED`` and ``PASSED`` results are taken into account,
@@ -70,10 +70,10 @@ class RegressionResult:
         :type testcase_id: str
 
         :param old_list: old series
-        :type old_list: list(lisa.tests.kernel.test_bundle.Result)
+        :type old_list: list(lisa.tests.base.Result)
 
         :param new_list: new series
-        :type new_list: list(lisa.tests.kernel.test_bundle.Result)
+        :type new_list: list(lisa.tests.base.Result)
 
         :param alpha: Alpha risk of the statistical test
         :type alpha: float
