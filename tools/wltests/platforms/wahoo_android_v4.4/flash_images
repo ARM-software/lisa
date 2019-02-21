@@ -36,40 +36,8 @@ fi
 case "$MODE" in
 
 ADB)
-	echo
-	c_info "Restart ADB in root mode..."
-	$ADB root &>/dev/null
-
-	# Verity must be disabled one time, right after the first boot, once a
-	# new set of stock images has been flashed on the device.
-	# This check is just there to ensure we can remount root rw, otherwise
-	# wltests will abort and the device must be rebooted by hand.
-	c_info "Checking that verity is disabled..."
-	OUTPUT="$($ADB disable-verity)"
-	echo
-	echo "$OUTPUT"
-	echo
-	if [[ $OUTPUT != *"verity is already disabled"* ]]; then
-		c_error   "Verity not disabled on this device!"
-		c_warning "It has been disabled now but you have to"
-		c_warning "manually reboot your device and restart wltests"
-		echo
-		echo
-		exit $EIO
-	fi
-
-	c_info "Remounting / rw..."
-	$ADB remount &>/dev/null; ERROR=$?
-	if [[ $ERROR -ne 0 ]]; then
-		c_error "Remount failed"
-		exit $EIO
-	fi
-	sleep 10
-
-	c_info "Pushing kernel modules..."
-	$ADB shell rm -rf /vendor/lib/modules
-	$ADB push ${ARTIFACTS_PATH}/push_files/* /
-	sleep 5
+	adb_flash_modules $MODULE_DIR; ERROR=$?
+	[ $ERROR -eq 0 ] || exit -$ERROR
 
 	exit $OK
 	;;
