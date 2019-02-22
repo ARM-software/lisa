@@ -182,15 +182,15 @@ class Serializable(Loggable):
         yaml.allow_unicode = ('utf' in cls.YAML_ENCODING)
         yaml.default_flow_style = False
         yaml.indent = 4
-        yaml.Constructor.add_constructor('!include', cls._yaml_include_constructor)
-        yaml.Constructor.add_constructor('!var', cls._yaml_var_constructor)
-        yaml.Constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
-        yaml.Constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
+        yaml.constructor.add_constructor('!include', cls._yaml_include_constructor)
+        yaml.constructor.add_constructor('!var', cls._yaml_var_constructor)
+        yaml.constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
+        yaml.constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
 
         # Replace unknown tags by a placeholder object containing the data.
         # This happens when the class was not imported at the time the object
         # was deserialized
-        yaml.Constructor.add_constructor(None, cls._yaml_unknown_tag_constructor)
+        yaml.constructor.add_constructor(None, cls._yaml_unknown_tag_constructor)
 
     @classmethod
     def _yaml_unknown_tag_constructor(cls, loader, node):
