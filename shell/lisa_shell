@@ -30,6 +30,9 @@ LISA_PYTHON=${LISA_PYTHON:-python3}
 # By default use internal libraries
 export LISA_DEVMODE=${LISA_DEVMODE:-1}
 
+# By default use Lisa's PS1 and colorscheme for the shell
+export LISA_PRESERVE_SHELL=${LISA_PRESERVE_SHELL:-0}
+
 # Setup colors
 source "$LISA_HOME/shell/lisa_colors"
 
@@ -426,21 +429,24 @@ EOF
 # LISA Shell MAIN
 ################################################################################
 
-# Dump out a nice LISA Shell logo
-clear
-echo -e "$LISASHELL_BANNER"
+if [[ $LISA_PRESERVE_SHELL == 0 ]]; then
+    # Dump out a nice LISA Shell logo
+    clear
+    echo -e "$LISASHELL_BANNER"
 
-echo "                                                                               "
-echo "                        .:: LISA Shell ::.                                     "
-echo "                                                                               "
-echo -ne "$LISASHELL_RESET"
-echo
+    echo "                                                                               "
+    echo "                        .:: LISA Shell ::.                                     "
+    echo "                                                                               "
+    echo -ne "$LISASHELL_RESET"
+    echo
+fi
 
 # Activate the venv unless it was explicitely disabled
 lisa-venv-activate
 
-echo -ne "$LISASHELL_RESET$LISASHELL_BLUE"
-cat <<EOF
+if [[ $LISA_PRESERVE_SHELL == 0 ]]; then
+    echo -ne "$LISASHELL_RESET$LISASHELL_BLUE"
+    cat <<EOF
 
 Welcome to the Linux Integrated System Analysis SHELL!
 
@@ -449,7 +455,11 @@ $(lisa-version)
 Type "lisa-help" for on-line help on available commands
 EOF
 
-# Setup default SHELL text color
-echo -e "$LISASHELL_DEFAULT"
-
+    # Setup default SHELL text color
+    echo -e "$LISASHELL_DEFAULT"
+else
+    lisa-version
+    echo "Environment variables:"
+    printenv | grep --color=no -E 'LISA|EXEKALL' | sort
+fi
 # vim: set tabstop=4 shiftwidth=4 textwidth=80 expandtab:
