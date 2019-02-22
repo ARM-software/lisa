@@ -19,7 +19,7 @@
 
 # The documentation of those modules causes some issues,
 # be permissive for warnings related to them
-IGNORE_PATTERN="devlib|bart|wa"
+IGNORE_PATTERN="devlib|bart|wa|exekall.engine"
 
 make SPHINXOPTS='-n' html 2>doc_build.log
 all_warns=$(cat doc_build.log)

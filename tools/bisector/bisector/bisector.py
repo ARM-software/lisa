@@ -1763,11 +1763,11 @@ class ExekallLISATestStep(ShellStep):
     attr_init = dict(
         cat = 'test',
         name = 'exekall-LISA-test',
-        use_systemd_run = False,
         compress_artifact = True,
         upload_artifact = False,
         delete_artifact = False,
         prune_db = True,
+        cmd = 'lisa-test',
     )
 
     options = dict(
@@ -2380,7 +2380,6 @@ class LISATestStep(ShellStep):
     attr_init = dict(
         cat = 'test',
         name = 'LISA-test',
-        use_systemd_run = False,
         compress_results = True,
         upload_results = False,
     )
@@ -5205,13 +5204,13 @@ command line""")
         subparser.add_argument('--debug', action='store_true',
             help="""Show Python traceback to help debugging this script.""")
 
-    # Same option for both subcommands
-    for subparser in (run_parser, report_parser):
+    run_step_group = run_parser.add_mutually_exclusive_group()
+    for subparser in (run_step_group, report_parser):
         subparser.add_argument('--steps',
-            help="""YAML configuration of steps to run. It superseeds inline
-            steps options. The steps definitions lives under a "step" toplevel
-            key.""")
+            help="""YAML configuration of steps to run. The steps definitions
+            lives under a "step" toplevel key.""")
 
+    for subparser in (run_parser, report_parser):
         stat_test_group = subparser.add_mutually_exclusive_group()
         stat_test_group.add_argument('--allowed-bad', type=int,
             default=0,
@@ -5256,6 +5255,12 @@ command line""")
         checkout failure that leads to bisect abortion. WARNING: this will
         erase all changes and untracked files from the worktree.""")
 
+    run_step_group.add_argument('--inline', '-s', nargs=2, action='append',
+        metavar=('CLASS', 'NAME'),
+        default=[],
+        help="""Class and name of inline step. Can be repeated to build a list
+        of steps in the order of appearance.""")
+
     run_parser.add_argument('-n', '--iterations', type=parse_iterations,
         # Use "inf" as default so that if only --timeout is specified, it will
         # iterate until the timeout expires instead of just 1 iteration.
@@ -5292,11 +5297,6 @@ command line""")
         steps will be extracted from the report instead of from the command
         line. The number of completed iterations will be deducted from the
         specified number of iterations.""")
-
-    run_parser.add_argument('--inline', '-s', nargs=2, metavar=('CLASS', 'NAME'),
-        default=[], action='append',
-        help="""Class and name of inline step. Can be repeated to build a list
-        of steps in the order of appearance. Superseded by --steps.""")
 
     run_parser.add_argument('--desc',
         default='Executed from ' + os.getcwd() + ' ({commit}, {date})',
@@ -5374,18 +5374,15 @@ command line""")
     cmd_group.add_argument('--log', action='store_true',
         help="""Show log in $PAGER.""")
 
-    cmd_group.add_argument('--notif', nargs=2,
-        help="Enable and disable desktop notifications.")
-
     cmd_group.add_argument('--report', nargs=argparse.REMAINDER,
         help="""Equivalent to running bisector report, all remaining options
         being passed to it.
         """)
 
-    # Options for monitor-server subcommand
-    dbus_service_parser.add_argument('--notif', nargs=2,
-        default=('enable', 'all'),
-        help="Enable and disable desktop notifications.")
+    for group in (cmd_group, dbus_service_parser):
+        group.add_argument('--notif', nargs=2,
+            metavar=('enable/disable', 'PROPERTY'),
+            help="Enable and disable desktop notifications when the given property changes. 'all' will select all properties.")
 
     try:
         args = parser.parse_args(argv)

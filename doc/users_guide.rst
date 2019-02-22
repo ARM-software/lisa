@@ -84,6 +84,27 @@ access to many LISA related functions (done automatically by Vagrant)::
 
 .. tip:: Run ``lisa-help`` to see an overview of the provided LISA commands.
 
+Running tests
+=============
+
+The shortest path to executing a test is:
+
+1. Update the ``target_conf.yml`` file located at the root of the repository
+   with the credentials to connect to the development board (see
+   :class:`~lisa.env.TargetConf` keys for more information)
+2. Run the following:
+
+  .. code-block:: sh
+
+    # To run all tests
+    lisa-test
+    # To list available tests
+    lisa-test --list
+    # To run a test matching a pattern
+    lisa-test '*test_task_placement'
+
+More advanced workflows are described at :ref:`automated-testing-page`.
+
 Updating
 ========
 

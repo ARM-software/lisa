@@ -67,3 +67,6 @@ Miscellaneous utilities
 
 .. automodule:: lisa.target_script
    :members:
+
+.. automodule:: lisa.regression
+   :members:

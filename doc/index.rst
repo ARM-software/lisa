@@ -34,6 +34,7 @@ Contents:
    users_guide
    contributors_guide
    kernel_tests
+   automated_testing
    wlgen
    internals
    analysis

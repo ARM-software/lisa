@@ -41,6 +41,10 @@ source "$LISA_HOME/shell/lisa_colors"
 export LISA_HOST_ABI=${LISA_HOST_ABI:-x86_64}
 export PATH=$PATH:$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI:$LISA_HOME/tools
 
+export LISA_CONF="$LISA_HOME/target_conf.yml"
+export LISA_RESULT_ROOT=$LISA_HOME/results
+export EXEKALL_ARTIFACT_ROOT=${EXEKALL_ARTIFACT_ROOT:-$LISA_RESULT_ROOT}
+
 ################################################################################
 # Helpers
 ################################################################################
@@ -358,35 +362,6 @@ function lisa-jupyter {
     esac
     echo
 echo
-}
-
-################################################################################
-# LISA Tests utility functions
-################################################################################
-
-export LISA_CONF="$LISA_HOME/target_conf.yml"
-export LISA_RESULT_ROOT=$LISA_HOME/results
-export EXEKALL_ARTIFACT_ROOT=${EXEKALL_ARTIFACT_ROOT:-$LISA_RESULT_ROOT}
-
-function lisa-test {
-    # Add --conf target_conf.yml if the file exists
-    if [[ -e "$LISA_CONF" ]]; then
-        local conf_opt=('--conf' "$LISA_CONF")
-    else
-        local conf_opt=()
-    fi
-
-    local cmd=(
-        exekall run "$LISA_HOME/lisa/tests/"             \
-        "${conf_opt[@]}"                                 \
-        --select-multiple "$@"
-    )
-
-    # Show the command before running, so --help makes more sense
-    echo "${cmd[@]}"
-    echo
-
-    "${cmd[@]}"
 }
 
 ################################################################################
