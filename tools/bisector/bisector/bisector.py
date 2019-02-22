@@ -3988,8 +3988,8 @@ def init_yaml(yaml, relative_root):
     def map_constructor(loader, node):
         return collections.OrderedDict(loader.construct_pairs(node))
 
-    yaml.Representer.add_representer(collections.OrderedDict, map_representer)
-    yaml.Constructor.add_constructor(yaml.resolver.DEFAULT_MAPPING_TAG, map_constructor)
+    yaml.representer.add_representer(collections.OrderedDict, map_representer)
+    yaml.constructor.add_constructor(yaml.resolver.DEFAULT_MAPPING_TAG, map_constructor)
 
     # Since strings are immutable, we can memoized the output to deduplicate
     # strings. This will make the dumped strings live forever, but that should
@@ -4001,7 +4001,7 @@ def init_yaml(yaml, relative_root):
         style = '|' if '\n' in data else None
         return dumper.represent_scalar('tag:yaml.org,2002:str', data, style=style)
 
-    yaml.Representer.add_representer(str, str_presenter)
+    yaml.representer.add_representer(str, str_presenter)
 
 # Compute the SHA1 of the script itself, to identify the version of the tool
 # that was used to generate a given report.
