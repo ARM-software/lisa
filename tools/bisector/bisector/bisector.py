@@ -1763,11 +1763,11 @@ class ExekallLISATestStep(ShellStep):
     attr_init = dict(
         cat = 'test',
         name = 'exekall-LISA-test',
-        use_systemd_run = False,
         compress_artifact = True,
         upload_artifact = False,
         delete_artifact = False,
         prune_db = True,
+        cmd = 'lisa-test',
     )
 
     options = dict(
@@ -2380,7 +2380,6 @@ class LISATestStep(ShellStep):
     attr_init = dict(
         cat = 'test',
         name = 'LISA-test',
-        use_systemd_run = False,
         compress_results = True,
         upload_results = False,
     )
