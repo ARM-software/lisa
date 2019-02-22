@@ -5205,13 +5205,13 @@ command line""")
         subparser.add_argument('--debug', action='store_true',
             help="""Show Python traceback to help debugging this script.""")
 
-    # Same option for both subcommands
-    for subparser in (run_parser, report_parser):
+    run_step_group = run_parser.add_mutually_exclusive_group()
+    for subparser in (run_step_group, report_parser):
         subparser.add_argument('--steps',
-            help="""YAML configuration of steps to run. It superseeds inline
-            steps options. The steps definitions lives under a "step" toplevel
-            key.""")
+            help="""YAML configuration of steps to run. The steps definitions
+            lives under a "step" toplevel key.""")
 
+    for subparser in (run_parser, report_parser):
         stat_test_group = subparser.add_mutually_exclusive_group()
         stat_test_group.add_argument('--allowed-bad', type=int,
             default=0,
@@ -5256,6 +5256,12 @@ command line""")
         checkout failure that leads to bisect abortion. WARNING: this will
         erase all changes and untracked files from the worktree.""")
 
+    run_step_group.add_argument('--inline', '-s', nargs=2, action='append',
+        metavar=('CLASS', 'NAME'),
+        default=[],
+        help="""Class and name of inline step. Can be repeated to build a list
+        of steps in the order of appearance.""")
+
     run_parser.add_argument('-n', '--iterations', type=parse_iterations,
         # Use "inf" as default so that if only --timeout is specified, it will
         # iterate until the timeout expires instead of just 1 iteration.
@@ -5292,11 +5298,6 @@ command line""")
         steps will be extracted from the report instead of from the command
         line. The number of completed iterations will be deducted from the
         specified number of iterations.""")
-
-    run_parser.add_argument('--inline', '-s', nargs=2, metavar=('CLASS', 'NAME'),
-        default=[], action='append',
-        help="""Class and name of inline step. Can be repeated to build a list
-        of steps in the order of appearance. Superseded by --steps.""")
 
     run_parser.add_argument('--desc',
         default='Executed from ' + os.getcwd() + ' ({commit}, {date})',
