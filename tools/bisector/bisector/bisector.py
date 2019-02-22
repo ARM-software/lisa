@@ -3668,7 +3668,7 @@ class MacroStep(StepBase):
                 continue
 
             # Select the kwargs applicable for this step
-            kwargs = get_step_kwargs(step.cat, step.name, step, 'report', step_options)
+            kwargs = get_step_kwargs(step.cat, step.name, type(step), 'report', step_options)
 
             # Pass down some MacroStep-specific parameters
             if isinstance(step, MacroStep):
