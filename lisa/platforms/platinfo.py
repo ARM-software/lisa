@@ -35,6 +35,9 @@ def compute_capa_classes(conf):
     """
     return list(group_by_value(conf['cpu-capacities']).values())
 
+class KernelConfigKeyDesc(KeyDesc):
+    def pretty_format(self, v):
+        return '<kernel config>'
 
 class PlatformInfo(MultiSrcConf, HideExekallID):
     """
@@ -51,6 +54,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     {generated_help}
 
     """
+
     # we could use mypy.subtypes.is_subtype and use the infrastructure provided
     # by typing module, but adding an external dependency is overkill for what
     # we need.
@@ -61,7 +65,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
         LevelKeyDesc('kernel', 'Kernel-related information', (
             KeyDesc('version', '', [KernelVersion]),
-            KeyDesc('config', '', [TypedKernelConfig]),
+            KernelConfigKeyDesc('config', '', [TypedKernelConfig]),
         )),
         KeyDesc('nrg-model', 'Energy model object', [EnergyModel]),
         KeyDesc('cpu-capacities', 'Dictionary of CPU ID to capacity value', [IntIntDict]),
