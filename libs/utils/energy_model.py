@@ -914,6 +914,7 @@ class EnergyModel(object):
         # Read all the files we might need in one go, otherwise this will take
         # ages.
         sge_globs = [sge_path('**', '**', '**', 'cap_states'),
+                     sge_path('**', '**', '**', 'nr_cap_states'),
                      sge_path('**', '**', '**', 'idle_states')]
         sge_file_values = read_multiple_oneline_files(target, sge_globs)
 
@@ -937,13 +938,43 @@ class EnergyModel(object):
         def read_active_states(cpu, domain_level):
             cap_states_path = sge_path(cpu, domain_level, 0, 'cap_states')
             cap_states_strs = read_sge_file(cap_states_path).split()
+            nr_cap_states_path = sge_path(cpu, domain_level, 0, 'nr_cap_states')
+            nr_cap_states_strs = read_sge_file(nr_cap_states_path).split()
+            # there are potentially two formats for this data which can be
+            # differentiated by knowing how many strings were obtained when
+            # we split cap_states *and* how many cap states there are.
+            # If the split has 2x the number of states, the reported states
+            # are from a kernel without frequency-model support and there
+            # two values per state. If the split has 3x the number of states
+            # then the reported states are from a kernel which *has*
+            # frequency model support, and each state has three values to parse.
+            nr_values = len(cap_states_strs)
+            nr_states  = int(nr_cap_states_strs[0])
+            if (nr_states * 2) == nr_values:
+                freq_model_supported = False
+            elif (nr_states * 3) == nr_values:
+                freq_model_supported = True
+            else:
+                raise TargetStableError('Unsupported cap_states format '
+                                  'cpu={} domain_level={} path={}'.format(cpu, domain_level, cap_states_path))
 
+            # In a two-value system (no frequency model),
             # cap_states lists the capacity of each state followed by its power,
             # in increasing order. The `zip` call does this:
             #   [c0, p0, c1, p1, c2, p2] -> [(c0, p0), (c1, p1), (c2, p2)]
-            cap_states = [ActiveState(capacity=int(c), power=int(p))
+            if (not freq_model_supported):
+                cap_states = [ActiveState(capacity=int(c), power=int(p))
                           for c, p in zip(cap_states_strs[0::2],
                                           cap_states_strs[1::2])]
+            # In a three-value system (frequency model supported),
+            # cap_states lists the capacity of each state followed by its freq,
+            # then the power, in increasing order. The `zip` call does this:
+            #   [c0, p0, c1, p1, c2, p2] -> [(c0, f0, p0), (c1, f1, p1), (c2, f2, p2)]
+            if (freq_model_supported):
+                cap_states = [ActiveState(capacity=int(c), power=int(p))
+                          for c, f, p in zip(cap_states_strs[0::3],
+                                          cap_states_strs[1::3],
+                                          cap_states_strs[2::3])]
             freqs = target.cpufreq.list_frequencies(cpu)
             return OrderedDict(zip(sorted(freqs), cap_states))
 
