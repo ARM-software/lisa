@@ -365,6 +365,34 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return df
 
+    @df_tasks_states.used_events
+    def df_tasks_runtime(self):
+        """
+        DataFrame of the time each task spent in TASK_ACTIVE (:class:`TaskState`)
+
+        :returns: a :class:`pandas.DataFrame` with:
+
+          * PIDs as index
+          * A ``comm`` column (the name of the task)
+          * A ``runtime`` column (the time that task spent running)
+        """
+        df = self.df_tasks_states()
+
+        runtimes = {}
+        for pid in df.pid.unique():
+            runtimes[pid] = df[
+                (df.pid == pid) &
+                (df.curr_state == TaskState.TASK_ACTIVE)
+            ].delta.sum()
+
+        df = pd.DataFrame.from_dict(runtimes, orient="index", columns=["runtime"])
+
+        df.index.name = "pid"
+        df.sort_values(by="runtime", ascending=False, inplace=True)
+        df.insert(0, "comm", df.index.map(self.trace.get_task_by_pid))
+
+        return df
+
     @df_task_states.used_events
     def df_task_total_residency(self, task):
         """
