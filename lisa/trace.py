@@ -18,6 +18,7 @@
 """ Trace Parser Module """
 
 import abc
+import copy
 import numpy as np
 import os
 import os.path
@@ -31,8 +32,10 @@ import logging
 import webbrowser
 from functools import reduce, wraps
 
-from lisa.utils import Loggable, memoized, deduplicate
+from lisa.utils import Loggable, HideExekallID, memoized, deduplicate
 from lisa.platforms.platinfo import PlatformInfo
+from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, StrList, Configurable
+import devlib
 from devlib.target import KernelVersion
 from trappy.utils import listify, handle_duplicate_index
 
@@ -1232,5 +1235,133 @@ class MissingTraceEventError(RuntimeError):
 
         self.missing_events = missing_events
 
+
+class FtraceConf(SimpleMultiSrcConf, HideExekallID):
+    """
+    Configuration class of :class:`FtraceCollector`
+    """
+    STRUCTURE = TopLevelKeyDesc('ftrace-conf', 'FTrace configuration', (
+        KeyDesc('events', 'FTrace events to trace', [StrList]),
+        KeyDesc('functions', 'FTrace functions to trace', [StrList]),
+        KeyDesc('buffer-size', 'FTrace buffer size', [int]),
+    ))
+
+    def __init__(self, conf=None, src='user'):
+        super().__init__(conf=conf, src=src)
+
+    def add_merged_src(self, src, conf, **kwargs):
+        """
+        Merge-in a configuration source.
+
+        :param src: Name of the merged source
+        :type src: str
+
+        :param conf: Conf to merge in
+        :type conf: FtraceConf
+        """
+        def merge_conf(key, val):
+            if key in ('events', 'functions'):
+                return sorted(set(val) | set(self.get(key, [])))
+            elif key == 'buffer-size':
+                return max(val, self.get(key, 0))
+            else:
+                raise KeyError('Cannot merge key "{}"'.format(key))
+
+        merged = {
+            key: merge_conf(key, val)
+            for key, val in conf.items()
+        }
+
+        def is_modified(key, val):
+            try:
+                existing_val = self[key]
+            except KeyError:
+                return True
+            else:
+                return val != existing_val
+
+        # We merge some keys with their current value in the conf
+        return self.add_src(src,
+            conf={
+                key: val
+                for key, val in merged.items()
+                # Only add to the source if the result is different than what is
+                # already set
+                if is_modified(key, val)
+            },
+            **kwargs,
+        )
+
+class FtraceCollector(devlib.FtraceCollector, Loggable, Configurable):
+    """
+    Thin wrapper around :class:`devlib.FtraceCollector`.
+
+    {configurable_params}
+    """
+
+    CONF_CLASS = FtraceConf
+
+    def __init__(self, target, events=[], functions=[], buffer_size=10240, autoreport=False, **kwargs):
+        kwargs.update(dict(
+            events=events,
+            functions=functions,
+            buffer_size=buffer_size,
+            autoreport=autoreport,
+        ))
+        self.check_init_param(**kwargs)
+
+        super().__init__(target, **kwargs)
+        # Ensure we have trace-cmd on the target
+        self.target.install_tools(['trace-cmd'])
+
+    @classmethod
+    def from_conf(cls, target, conf):
+        """
+        Build an :class:`FtraceCollector` from a :class:`FtraceConf`
+
+        :param target: Target to use when collecting the trace
+        :type target: lisa.target.Target
+
+        :param conf: Configuration object
+        :type conf: FtraceConf
+        """
+        cls.get_logger().info('Ftrace configuration:\n{}'.format(conf))
+        kwargs = cls.conf_to_init_kwargs(conf)
+        return cls(target, **kwargs)
+
+    @classmethod
+    def from_user_conf(cls, target, base_conf=None, user_conf=None, merged_src='merged'):
+        """
+        Build an :class:`FtraceCollector` from two :class:`FtraceConf`.
+
+        ``base_conf`` is expected to contain the minimal configuration, and
+        ``user_conf`` some additional settings that are used to augment the
+        base configuration.
+
+        :param target: Target to use when collecting the trace
+        :type target: lisa.target.Target
+
+        :param base_conf: Base configuration object, merged with ``user_conf``.
+        :type base_conf: FtraceConf
+
+        :param user_conf: User configuration object
+        :type user_conf: FtraceConf
+
+        :param merged_src: Name of the configuration source created by merging
+            ``base_conf`` and ``user_conf``
+        :type merged_src: str
+        """
+        user_conf = user_conf or FtraceConf()
+        base_conf = base_conf or FtraceConf()
+
+        # Make a copy of the conf, since it may be shared by multiple classes
+        conf = copy.copy(base_conf)
+
+        # Merge user configuration with the test's configuration
+        conf.add_merged_src(
+            src=merged_src,
+            conf=user_conf,
+        )
+        return cls.from_conf(target, conf)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
