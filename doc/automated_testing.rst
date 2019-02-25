@@ -1,4 +1,4 @@
-.. automated-testing-page:
+.. _automated-testing-page:
 
 *****************
 Automated testing
