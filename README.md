@@ -56,7 +56,7 @@ The main goals of LISA are:
 
 You should find everything on [ReadTheDocs](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/).
 Here are some noteworthy sections:
-* [Installation](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/overview.html#installation)
+* [Installation](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/users_guide.html#installation)
 * [Self-tests](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/lisa_tests.html)
 * [Kernel tests](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/kernel_tests.html)
 
