@@ -834,7 +834,7 @@ match_sha1() {
 	c_info "Current kernel: "
 	c_info "   $($ADB shell 'uname -a')"
 
-	CURRENT=$($ADB shell 'uname -r' | awk -F "-g" '{print $NF}')
+	CURRENT=$($ADB shell 'uname -r' | awk -F "-g" '{print $NF}' | awk -F "_" '{print $1}')
 	[[ $COMMIT_SHA1 =~ $CURRENT* ]] && return $OK
 
 	# It may happen that a tag pointing to a given commit has
