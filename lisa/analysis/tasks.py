@@ -199,7 +199,100 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return rt_tasks
 
+    @memoized
     @requires_events('sched_switch', 'sched_wakeup')
+    def df_tasks_states(self):
+        """
+        DataFrame of all tasks state updates events
+
+        :returns: a :class:`pandas.DataFrame` with:
+
+          * A ``cpu`` column (the CPU where the task was on)
+          * A ``pid`` column (the PID of the task)
+          * A ``target_cpu`` column (the CPU where the task has been scheduled).
+            Will be ``NaN`` for non-wakeup events
+          * A ``curr_state`` column (the current task state, see :class:`~TaskState`)
+          * A ``delta`` column (the duration for which the task will remain in
+            this state)
+          * A ``next_state`` column (the next task state)
+        """
+        ######################################################
+        # A) Assemble the sched_switch and sched_wakeup events
+        ######################################################
+
+        wk_df = self.trace.df_events('sched_wakeup')
+        sw_df = self.trace.df_events('sched_switch')
+
+        if "sched_wakeup_new" in self.trace.events:
+            wkn_df = self.trace.df_events('sched_wakeup_new')
+            wk_df = pd.concat([wk_df, wkn_df])
+
+        wk_df = wk_df[wk_df.success == 1][["pid", "target_cpu", "__cpu"]]
+        wk_df["curr_state"] = TaskState.TASK_WAKING
+
+        prev_sw_df = sw_df[["__cpu", "prev_pid", "prev_state"]].copy()
+        next_sw_df = sw_df[["__cpu", "next_pid"]].copy()
+
+        prev_sw_df.rename(columns={"prev_pid" : "pid", "prev_state" : "curr_state"},
+                          inplace=True)
+
+        next_sw_df["curr_state"] = TaskState.TASK_ACTIVE
+        next_sw_df.rename(columns={'next_pid' : 'pid'}, inplace=True)
+
+        all_sw_df = prev_sw_df.append(next_sw_df, sort=False)
+
+        # Integer values are prefered here, otherwise the whole column
+        # is converted to float64
+        all_sw_df['target_cpu'] = -1
+
+        df = all_sw_df.append(wk_df, sort=False)
+        df.sort_index(inplace=True)
+        df.rename(columns={'__cpu' : 'cpu'}, inplace=True)
+
+        # Move the target_cpu column to the 2nd position
+        columns = df.columns.to_list()
+        columns = columns[:1] + ["target_cpu"] + \
+                  [col for col in columns[1:] if col != "target_cpu"]
+
+        df = df[columns]
+
+        ######################################################
+        # B) Compute the deltas for each PID
+        ######################################################
+
+        # We have duplicate index values (timestamps) in there, so to make
+        # merging easier use an integer indexing instead.
+        df.reset_index(inplace=True)
+
+        # To speed up the sorting, we'll append all of the values sequentially
+        # and just sort them once at the very end
+        index = []
+        deltas = []
+        states = []
+
+        trace_end = self.trace.start_time + self.trace.time_range
+        pids = df.pid.unique()
+
+        for pid in pids:
+            df_slice = df[df.pid == pid]
+            time = df_slice.Time
+            state = df_slice.curr_state
+
+            index += time.index.to_list()
+            deltas += list(time.values[1:] - time.values[:-1]) + [trace_end - time.values[-1]]
+            states += list(state.values[1:]) + [state.values[-1]]
+
+        merged_df = pd.DataFrame(index=index,
+                                 data={"delta" : deltas, "next_state" : states})
+        merged_df.sort_index(inplace=True)
+
+        df["delta"] = merged_df.delta
+        df["next_state"] = merged_df.next_state
+        df.set_index("Time", inplace=True)
+
+        return df
+
+    @df_tasks_states.used_events
     def df_task_states(self, task, stringify=False):
         """
         DataFrame of task's state updates events
@@ -207,77 +300,68 @@ class TasksAnalysis(TraceAnalysisBase):
         :param task: The task's name or PID
         :type task: int or str
 
-        :param stringify: Use `TaskState`'s string representation (instead of int)
+        :param stringify: Include stringifed :class:`TaskState` columns
         :type stringify: bool
 
         :returns: a :class:`pandas.DataFrame` with:
 
+          * A ``cpu`` column (the CPU where the task was on)
           * A ``target_cpu`` column (the CPU where the task has been scheduled).
             Will be ``NaN`` for non-wakeup events
           * A ``curr_state`` column (the current task state, see :class:`~TaskState`)
-          * A ``next_state`` column (the next task state, see :class:`~TaskState`)
+          * A ``next_state`` column (the next task state)
           * A ``delta`` column (the duration for which the task will remain in
             this state)
         """
         pid = self.trace.get_task_pid(task)
+        df = self.df_tasks_states()
 
-        wk_df = self.trace.df_events('sched_wakeup')
-        sw_df = self.trace.df_events('sched_switch')
-
-        if "sched_wakeup_new" in self.trace.events:
-            wkn_df = self.trace.df_events('sched_wakeup_new')
-            wk_df = pd.concat([wk_df, wkn_df]).sort_index()
-
-        task_wakeup = wk_df[wk_df.pid == pid][['target_cpu', '__cpu']]
-        task_wakeup['curr_state'] = TaskState.TASK_WAKING
-
-        task_switches_df = sw_df[
-            (sw_df.prev_pid == pid) |
-            (sw_df.next_pid == pid)
-        ][['__cpu', 'prev_pid', 'prev_state']]
-
-        # This is a switch-in event
-        # (we don't care about the status of a task we are replacing)
-        task_switches_df.prev_state[task_switches_df.prev_pid != pid] = TaskState.TASK_ACTIVE
-
-        task_switches_df = task_switches_df.drop(columns=["prev_pid"])
-
-        task_switches_df.rename(columns={'prev_state' : 'curr_state'}, inplace=True)
-
-        # Integer values are prefered here, otherwise the whole column
-        # is converted to float64
-        task_switches_df['target_cpu'] = -1
-
-        task_state_df = task_wakeup.append(task_switches_df, sort=True).sort_index()
-
-        task_state_df.rename(columns={'__cpu' : 'cpu'}, inplace=True)
-        task_state_df = task_state_df[['target_cpu', 'cpu', 'curr_state']]
-        # Make the last "next_state" the same as the last "curr_state"
-        task_state_df['next_state'] = task_state_df.curr_state.shift(
-            -1, fill_value=task_state_df['curr_state'].values[-1])
-        self.trace.add_events_deltas(task_state_df, inplace=True)
+        df = df[df.pid == pid].copy()
+        df.drop("pid", axis=1, inplace=True)
 
         if stringify:
-            self.stringify_df_task_states(task_state_df, inplace=True)
+            self.stringify_df_task_states(df, ["curr_state", "next_state"], inplace=True)
 
-        return task_state_df
+        return df
 
     @classmethod
-    def stringify_df_task_states(cls, df_task_states, inplace=False):
+    def stringify_task_state_series(cls, series):
         """
-        Convert a Dataframe obtained from :meth:`df_task_states` with
-        ``stringify=False`` into its ``stringify=True`` variant.
-        """
-        df = df_task_states if inplace else df_task_states.copy()
+        Stringify a series containing :class:`TaskState` values
 
+        :param series: The series
+        :type series: pandas.Series
+
+        The common use case for this will be to pass a dataframe column::
+
+            df["state_str"] = stringify_task_state_series(df["state"])
+        """
         def stringify_state(state):
             try:
                 return TaskState(state).char
             except ValueError:
                 return TaskState.sched_switch_str(state)
 
-        for col in ['curr_state', 'next_state']:
-            df[col] = df[col].apply(stringify_state)
+        return series.apply(stringify_state)
+
+    @classmethod
+    def stringify_df_task_states(cls, df, columns, inplace=False):
+        """
+        Adds stringified :class:`TaskState` columns to a Dataframe
+
+        :param df: The DataFrame to operate on
+        :type df: pandas.DataFrame
+
+        :param columns: The columns to stringify
+        :type columns: list
+
+        :param inplace: Do the modification on the original DataFrame
+        :type inplace: bool
+        """
+        df = df if inplace else df.copy()
+
+        for col in columns:
+            df["{}_str".format(col)] = cls.stringify_task_state_series(df[col])
 
         return df
 
