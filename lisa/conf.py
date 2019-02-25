@@ -22,6 +22,7 @@ from collections import OrderedDict
 import difflib
 import inspect
 import itertools
+import textwrap
 
 from lisa.utils import Serializable, Loggable, get_nested_key, set_nested_key
 
@@ -1057,6 +1058,177 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         # For autocompletion purposes, we show the derived keys
         derived_keys = set(self._get_derived_key_names())
         return sorted(regular_keys + derived_keys)
+
+
+class ConfigurableMeta(abc.ABCMeta):
+    def __new__(metacls, name, bases, dct, **kwargs):
+        new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
+        try:
+            # inherited CONF_CLASS will not be taken into account if we look at
+            # the dictionary directly
+            conf_cls = dct['CONF_CLASS']
+        except KeyError:
+            return new_cls
+
+        # Link the configuration to the signature of __init__
+        sig = inspect.signature(new_cls.__init__)
+        init_kwargs_key_map = new_cls._get_kwargs_key_map(sig, conf_cls)
+        # What was already there has priority over auto-detected bindings
+        init_kwargs_key_map.update(dct.get('INIT_KWARGS_KEY_MAP', {}))
+        new_cls.INIT_KWARGS_KEY_MAP = init_kwargs_key_map
+
+        # Create an instance with default configuration, to merge it with
+        # defaults taken from __init__
+        default_conf = conf_cls()
+        default_conf.add_src(
+            src='__init__-default',
+            conf=metacls._get_default_conf(sig, init_kwargs_key_map),
+            # Default configuration set in the conf class still has priority
+            fallback=True,
+            # When an __init__ parameter has a None default value, we don't
+            # add any default value. That avoids failing the type check for
+            # keys that really need to be of a certain type when specified.
+            filter_none=True,
+        )
+        # Since a MultiSrcConf is a Mapping, it is useable as a source
+        conf_cls.DEFAULT_SRC = default_conf
+
+        # Update the docstring by using the configuration help
+        docstring = new_cls.__doc__
+        if docstring:
+            new_cls.__doc__ = textwrap.dedent(docstring).format(
+                configurable_params=new_cls._get_rst_param_doc()
+            )
+
+        return new_cls
+
+    def _get_kwargs_key_map(cls, sig, conf_cls):
+        """
+        Map implicitely keys in the conf class that matches param names.
+        """
+        def iter_param_key(sig):
+            return (
+                (param, param.replace('_', '-'))
+                for param in sig.parameters.keys()
+            )
+
+        return {
+            param: [key]
+            for param, key in iter_param_key(sig)
+            if key in conf_cls.STRUCTURE
+        }
+
+    @staticmethod
+    def _get_default_conf(sig, kwargs_key_map):
+        """
+        Get a default configuration source based on the the default parameter
+        values.
+        """
+        default_conf = {}
+        for param, param_desc in sig.parameters.items():
+            try:
+                conf_path = kwargs_key_map[param]
+            except KeyError:
+                continue
+            else:
+                default = param_desc.default
+                if default is not param_desc.empty:
+                    set_nested_key(default_conf, conf_path, default)
+
+        return default_conf
+
+    def _get_param_key_desc_map(cls):
+        return {
+            param: get_nested_key(cls.CONF_CLASS.STRUCTURE, conf_path)
+            for param, conf_path in cls.INIT_KWARGS_KEY_MAP.items()
+        }
+
+    def _get_rst_param_doc(cls):
+        def get_type_name(t):
+            if t is None:
+                return 'None'
+            else:
+                return t.__qualname__
+
+        return '\n'.join(
+            ':param {param}: {help}\n:type {param}: {type}\n'.format(
+                param=param,
+                help=key_desc.help,
+                type=' or '.join(get_type_name(t) for t in key_desc.classinfo),
+            )
+            for param, key_desc
+            in cls._get_param_key_desc_map().items()
+        )
+        return out
+
+
+class Configurable(abc.ABC, metaclass=ConfigurableMeta):
+    """
+    Pear a regular class with a configuration class.
+
+    The pearing is achieved by inheriting from :class:`Configurable` and
+    setting ``CONF_CLASS`` attribute. The benefits are:
+
+        * The docstring of the class is processed as a string template and
+          ``{configurable_params}`` is replaced with a Sphinx-compliant list of
+          parameters. The help and type of each parameter is extracted from the
+          configuration class.
+        * The ``DEFAULT_SRC`` attribute of the configuration class is updated
+          with non-``None`` default values of the class ``__init__`` parameters.
+        * The :meth:`~Configurable.conf_to_init_kwargs` method allows turning a
+          configuration object into a dictionary suitable for passing to
+          ``__init__`` as ``**kwargs``.
+        * The :meth:`~Configurable.check_init_param` method allows checking
+          types of ``__init__`` parameters according to what is specified in the
+          configuration class.
+
+    Most of the time, the configuration keys and ``__init__`` parameters have
+    the same name (modulo underscore/dashes which are handled automatically).
+    In that case, the mapping between config keys and ``__init__`` parameters
+    is done without user intervention. When that is not the case, the
+    ``INIT_KWARGS_KEY_MAP`` class attribute can be used. Its a dictionary with
+    keys being ``__init__`` parameter names, and values being path to
+    configuration key. That path is a list of strings to take into account
+    sublevels like ``['level-key', 'sublevel', 'foo']``.
+
+    .. note:: A given configuration class must be peared to only one class.
+        Otherwise, the ``DEFAULT_SRC`` conf class attribute will be updated
+        multiple times, leading to unexpected results.
+
+    .. note:: Some services offered by :class:`Configurable` are not extended
+        to subclasses of a class using it. For example, it would not make sense
+        to update ``DEFAULT_SRC`` using a subclass ``__init__`` parameters.
+
+    """
+    INIT_KWARGS_KEY_MAP = {}
+
+    @classmethod
+    def conf_to_init_kwargs(cls, conf):
+        """
+        Turn a configuration object into a dictionary suitable for passing to
+        ``__init__`` as ``**kwargs``.
+        """
+        kwargs = {}
+        for param, conf_path in cls.INIT_KWARGS_KEY_MAP.items():
+            try:
+                val = get_nested_key(conf, conf_path)
+            except KeyError:
+                continue
+            kwargs[param] = val
+
+        return kwargs
+
+    @classmethod
+    def check_init_param(cls, **kwargs):
+        """
+        Take the same parameters as ``__init__``, and check their types
+        according to what is specified in the configuration class.
+
+        :raises TypeError: When the wrong type is detected for a parameter.
+        """
+        for param, key_desc in cls._get_param_key_desc_map().items():
+            if param in kwargs:
+                key_desc.validate_val(kwargs[param])
 
 
 class GenericContainerMetaBase(type):
