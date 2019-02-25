@@ -383,7 +383,7 @@ class RTATestBundle(TestBundle, abc.ABC):
         self.rtapp_profile = rtapp_profile
 
     @classmethod
-    def unscaled_utilization(cls, te, cpu, utilization_pct):
+    def unscaled_utilization(cls, plat_info, cpu, utilization_pct):
         """
         Convert utilization scaled to a CPU to a 'raw', unscaled one.
 
@@ -393,16 +393,16 @@ class RTATestBundle(TestBundle, abc.ABC):
         :param utilization_pct: The scaled utilization in %
         :type utilization_pct: int
         """
-        if "nrg-model" in te.plat_info:
-            capacity_scale = te.plat_info["nrg-model"].capacity_scale
+        if "nrg-model" in plat_info:
+            capacity_scale = plat_info["nrg-model"].capacity_scale
         else:
             capacity_scale = 1024
 
-        return int((te.plat_info["cpu-capacities"][cpu] / capacity_scale) * utilization_pct)
+        return int((plat_info["cpu-capacities"][cpu] / capacity_scale) * utilization_pct)
 
     @classmethod
     @abc.abstractmethod
-    def get_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, plat_info):
         """
         :returns: a :class:`dict` with task names as keys and
           :class:`lisa.wlgen.rta.RTATask` as values
@@ -424,7 +424,7 @@ class RTATestBundle(TestBundle, abc.ABC):
 
     @classmethod
     def _from_testenv(cls, te, res_dir):
-        rtapp_profile = cls.get_rtapp_profile(te)
+        rtapp_profile = cls.get_rtapp_profile(te.plat_info)
         cls._run_rtapp(te, res_dir, rtapp_profile)
 
         return cls(res_dir, te.plat_info, rtapp_profile)

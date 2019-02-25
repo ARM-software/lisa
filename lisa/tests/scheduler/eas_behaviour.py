@@ -60,7 +60,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def get_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, plat_info):
         """Returns the RTapp profile for the given :class:`lisa.env.TestEnv`.
 
         :returns: :class:`lisa.wlgen.rta.RTATask`
@@ -79,7 +79,8 @@ class EASBehaviour(RTATestBundle, abc.ABC):
 
     @classmethod
     def _from_testenv(cls, te, res_dir):
-        rtapp_profile = cls.get_rtapp_profile(te)
+        plat_info = te.plat_info
+        rtapp_profile = cls.get_rtapp_profile(plat_info)
 
         # EAS doesn't make a lot of sense without schedutil,
         # so make sure this is what's being used
@@ -87,7 +88,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
             with te.target.cpufreq.use_governor("schedutil"):
                 cls._run_rtapp(te, res_dir, rtapp_profile)
 
-        return cls(res_dir, te.plat_info, rtapp_profile)
+        return cls(res_dir, plat_info, rtapp_profile)
 
     @classmethod
     def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'EASBehaviour':
@@ -397,9 +398,9 @@ class OneSmallTask(EASBehaviour):
     task_name = "small"
 
     @classmethod
-    def get_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, plat_info):
         # 50% of the smallest CPU's capacity
-        duty = cls.unscaled_utilization(te, te.plat_info["capacity-classes"][0][0], 50)
+        duty = cls.unscaled_utilization(plat_info, plat_info["capacity-classes"][0][0], 50)
 
         rtapp_profile = {}
         rtapp_profile[cls.task_name] = Periodic(
@@ -432,9 +433,9 @@ class ThreeSmallTasks(EASBehaviour):
         return super().test_task_placement(energy_est_threshold_pct, nrg_model)
 
     @classmethod
-    def get_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, plat_info):
         # 50% of the smallest CPU's capacity
-        duty = cls.unscaled_utilization(te, te.plat_info["capacity-classes"][0][0], 50)
+        duty = cls.unscaled_utilization(plat_info, plat_info["capacity-classes"][0][0], 50)
 
         rtapp_profile = {}
         for i in range(3):
@@ -454,9 +455,9 @@ class TwoBigTasks(EASBehaviour):
     task_prefix = "big"
 
     @classmethod
-    def get_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, plat_info):
         # 80% of the biggest CPU's capacity
-        duty = cls.unscaled_utilization(te, te.plat_info["capacity-classes"][-1][0], 80)
+        duty = cls.unscaled_utilization(plat_info, plat_info["capacity-classes"][-1][0], 80)
 
         rtapp_profile = {}
         for i in range(2):
@@ -477,13 +478,13 @@ class TwoBigThreeSmall(EASBehaviour):
     big_prefix = "big"
 
     @classmethod
-    def get_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, plat_info):
         # 50% of the smallest CPU's capacity
         small_duty = cls.unscaled_utilization(
-            te, te.plat_info["capacity-classes"][0][0], 50)
+            plat_info, plat_info["capacity-classes"][0][0], 50)
         # 80% of the biggest CPU's capacity
         big_duty = cls.unscaled_utilization(
-            te, te.plat_info["capacity-classes"][-1][0], 80)
+            plat_info, plat_info["capacity-classes"][-1][0], 80)
 
         rtapp_profile = {}
 
@@ -513,12 +514,12 @@ class EnergyModelWakeMigration(EASBehaviour):
     task_prefix = "emwm"
 
     @classmethod
-    def get_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, plat_info):
         rtapp_profile = {}
-        bigs = te.plat_info["capacity-classes"][-1]
+        bigs = plat_info["capacity-classes"][-1]
 
-        start_pct = cls.unscaled_utilization(te, te.plat_info["capacity-classes"][0][0], 20)
-        end_pct = cls.unscaled_utilization(te, bigs[0], 70)
+        start_pct = cls.unscaled_utilization(plat_info, plat_info["capacity-classes"][0][0], 20)
+        end_pct = cls.unscaled_utilization(plat_info, bigs[0], 70)
 
         for i in range(len(bigs)):
             rtapp_profile["{}_{}".format(cls.task_prefix, i)] = Step(
@@ -552,9 +553,9 @@ class RampUp(EASBehaviour):
         return super().test_task_placement(energy_est_threshold_pct, nrg_model)
 
     @classmethod
-    def get_rtapp_profile(cls, te):
-        start_pct = cls.unscaled_utilization(te, te.plat_info["capacity-classes"][0][0], 10)
-        end_pct = cls.unscaled_utilization(te, te.plat_info["capacity-classes"][-1][0], 70)
+    def get_rtapp_profile(cls, plat_info):
+        start_pct = cls.unscaled_utilization(plat_info, plat_info["capacity-classes"][0][0], 10)
+        end_pct = cls.unscaled_utilization(plat_info, plat_info["capacity-classes"][-1][0], 70)
 
         rtapp_profile = {
             cls.task_name : Ramp(
@@ -597,9 +598,9 @@ class RampDown(EASBehaviour):
         return super().test_task_placement(energy_est_threshold_pct, nrg_model)
 
     @classmethod
-    def get_rtapp_profile(cls, te):
-        start_pct = cls.unscaled_utilization(te, te.plat_info["capacity-classes"][-1][0], 70)
-        end_pct = cls.unscaled_utilization(te, te.plat_info["capacity-classes"][0][0], 10)
+    def get_rtapp_profile(cls, plat_info):
+        start_pct = cls.unscaled_utilization(plat_info, plat_info["capacity-classes"][-1][0], 70)
+        end_pct = cls.unscaled_utilization(plat_info, plat_info["capacity-classes"][0][0], 10)
 
         rtapp_profile = {
             cls.task_name : Ramp(

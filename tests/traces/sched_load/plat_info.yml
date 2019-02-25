@@ -53,18 +53,19 @@ platform-info:
             - 700000
             - 775000
             - 850000
-        kernel-version: !!python/object:devlib.target.KernelVersion
-            major: 19
-            minor: 0
-            parts: !!python/tuple
-            - 4
-            - 19
-            - 0
-            rc: null
-            release: 4.19.0-07801-gf317706
-            sha1: f317706
-            version: 38 SMP PREEMPT Fri Nov 30 13:55:54 GMT 2018
-            version_number: 4
+        kernel:
+            version: !!python/object:devlib.target.KernelVersion
+                major: 19
+                minor: 0
+                parts: !!python/tuple
+                - 4
+                - 19
+                - 0
+                rc: null
+                release: 4.19.0-07801-gf317706
+                sha1: f317706
+                version: 38 SMP PREEMPT Fri Nov 30 13:55:54 GMT 2018
+                version_number: 4
         name: juno
         nrg-model: !!python/object:lisa.energy_model.EnergyModel
             cpu_nodes:

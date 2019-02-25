@@ -196,12 +196,12 @@ class OneTaskCPUMigration(CPUMigrationBase):
     """
 
     @classmethod
-    def get_migration_cpus(cls, te):
+    def get_migration_cpus(cls, plat_info):
         """
         :returns: :attr:`NR_REQUIRED_CPUS` CPUs of same capacity.
         """
         # Iterate over descending CPU capacity groups
-        for cpus in reversed(te.plat_info["capacity-classes"]):
+        for cpus in reversed(plat_info["capacity-classes"]):
             if len(cpus) >= cls.NR_REQUIRED_CPUS:
                 return cpus[:cls.NR_REQUIRED_CPUS]
 
@@ -211,16 +211,16 @@ class OneTaskCPUMigration(CPUMigrationBase):
     def check_from_testenv(cls, te):
         super().check_from_testenv(te)
 
-        cpus = cls.get_migration_cpus(te)
+        cpus = cls.get_migration_cpus(te.plat_info)
         if not len(cpus) == cls.NR_REQUIRED_CPUS:
             raise CannotCreateError(
                 "This workload requires {} CPUs of identical capacity".format(
                     cls.NR_REQUIRED_CPUS))
 
     @classmethod
-    def get_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, plat_info):
         profile = {}
-        cpus = cls.get_migration_cpus(te)
+        cpus = cls.get_migration_cpus(plat_info)
 
         for task in ["migrating", "static0", "static1"]:
             # An empty RTATask just to sum phases up
@@ -229,18 +229,18 @@ class OneTaskCPUMigration(CPUMigrationBase):
         for i in range(2):
             # A task that will migrate to another CPU
             profile["migrating"] += Periodic(
-                duty_cycle_pct=cls.unscaled_utilization(te, cpus[i], 20),
+                duty_cycle_pct=cls.unscaled_utilization(plat_info, cpus[i], 20),
                 duration_s=cls.PHASE_DURATION_S, period_ms=cls.TASK_PERIOD_MS,
                 cpus=[cpus[i]])
 
             # Just some tasks that won't move to get some background utilization
             profile["static0"] += Periodic(
-                duty_cycle_pct=cls.unscaled_utilization(te, cpus[0], 30),
+                duty_cycle_pct=cls.unscaled_utilization(plat_info, cpus[0], 30),
                 duration_s=cls.PHASE_DURATION_S, period_ms=cls.TASK_PERIOD_MS,
                 cpus=[cpus[0]])
 
             profile["static1"] += Periodic(
-                duty_cycle_pct=cls.unscaled_utilization(te, cpus[1], 20),
+                duty_cycle_pct=cls.unscaled_utilization(plat_info, cpus[1], 20),
                 duration_s=cls.PHASE_DURATION_S, period_ms=cls.TASK_PERIOD_MS,
                 cpus=[cpus[1]])
 
@@ -252,9 +252,9 @@ class TwoTasksCPUMigration(OneTaskCPUMigration):
     """
 
     @classmethod
-    def get_rtapp_profile(cls, te):
+    def get_rtapp_profile(cls, plat_info):
         profile = {}
-        cpus = cls.get_migration_cpus(te)
+        cpus = cls.get_migration_cpus(plat_info)
 
         for task in ["migrating0", "migrating1"]:
             # An empty RTATask just to sum phases up

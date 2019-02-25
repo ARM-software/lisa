@@ -58,7 +58,7 @@ class MisfitMigrationBase(RTATestBundle):
 
     @classmethod
     @memoized
-    def _get_max_lb_interval(cls, te):
+    def _get_max_lb_interval(cls, plat_info):
         """
         Get the value of maximum_load_balance_interval.
 
@@ -70,8 +70,8 @@ class MisfitMigrationBase(RTATestBundle):
 
         :returns: The absolute maximum load-balance interval in seconds
         """
-        HZ = te.target.sched.get_hz()
-        return ((HZ * te.target.number_of_cpus) // 10) * (1. / HZ)
+        HZ = plat_info['kernel']['config']['CONFIG_HZ']
+        return ((HZ * plat_info['cpus-count']) // 10) * (1. / HZ)
 
     @classmethod
     def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'MisfitMigrationBase':
@@ -162,12 +162,12 @@ class StaggeredFinishes(MisfitMigrationBase):
                 "Target doesn't have SD_ASYM_CPUCAPACITY on any sched_domain")
 
     @classmethod
-    def get_rtapp_profile(cls, te):
-        cpus = list(range(te.target.number_of_cpus))
+    def get_rtapp_profile(cls, plat_info):
+        cpus = list(range(plat_info['cpus-count']))
 
         # We're pinning stuff in the first phase, so give it ample time to
         # clean the pinned logic out of balance_interval
-        free_time_s = 1.1 * cls._get_max_lb_interval(te)
+        free_time_s = 1.1 * cls._get_max_lb_interval(plat_info)
         stagger_s = free_time_s // (10 * len(cpus))
 
         profile = {}

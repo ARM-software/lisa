@@ -112,6 +112,7 @@ class KeyDescBase(abc.ABC):
         """
         pass
 
+
 class KeyDesc(KeyDescBase):
     """
     Key descriptor describing a leaf key in the configuration.
@@ -198,6 +199,17 @@ class KeyDesc(KeyDescBase):
             ),
             help=': ' + self.help if self.help else ''
         )
+
+    def pretty_format(self, v):
+        """
+        Format the value for pretty printing.
+
+        :param v: Value of the key that is being printed
+        :type v: object
+
+        :return: A string
+        """
+        return str(v)
 
 class MissingBaseKeyError(KeyError):
     """
@@ -971,14 +983,17 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             derived_items()
         ):
             v_cls = type(v)
-            is_sublevel = k in self._sublevel_map
+
+            key_desc = self._structure[k]
+            is_sublevel = isinstance(key_desc, LevelKeyDesc)
+
             if is_sublevel:
                 v = v.pretty_format(eval_deferred=eval_deferred)
                 # If there is no content, just skip that sublevel entirely
                 if not v.strip():
                    continue
             else:
-                v = str(v)
+                v = key_desc.pretty_format(v)
 
             if is_sublevel or '\n' in v:
                 v = '\n' + v

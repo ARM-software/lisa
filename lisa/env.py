@@ -47,6 +47,10 @@ FTRACE_BUFSIZE_DEFAULT = 10240
 RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
 
+class PasswordKeyDesc(KeyDesc):
+    def pretty_format(self, v):
+        return '<password>'
+
 class TargetConf(MultiSrcConf, HideExekallID):
     """
     Target connection settings.
@@ -120,7 +124,7 @@ class TargetConf(MultiSrcConf, HideExekallID):
 
         KeyDesc('host', 'Hostname or IP address of the host', [str, None]),
         KeyDesc('username', 'SSH username', [str, None]),
-        KeyDesc('password', 'SSH password', [str, None]),
+        PasswordKeyDesc('password', 'SSH password', [str, None]),
         KeyDesc('port', 'SSH or ADB server port', [int, None]),
         KeyDesc('device', 'ADB device. Takes precedence over "host"', [str, None]),
         KeyDesc('keyfile', 'SSH private key file', [str, None]),
