@@ -296,7 +296,7 @@ class TestTrace(StorageTestCase):
         columns = ['comm', 'pid', 'load', 'util', '__cpu']
         for column in columns:
             msg = 'Task signals parsed from {} missing {} column'.format(
-                trace.data_dir, column)
+                trace.trace_path, column)
             self.assertIn(column, lt_df, msg=msg)
 
         # Pick an arbitrary PID to try plotting signals for.

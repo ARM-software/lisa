@@ -324,6 +324,7 @@ but we did rename/move things to make them more coherent.
 * Removed last occurences of camelCase
 * Removed big.LITTLE assumptions and made the code only rely on CPU capacities or
   frequency domains, where relevant.
+* Constructor now only takes trace files as input, not folders anymore.
 * ``Trace.data_frame`` is gone:
 
 **LISA legacy**::

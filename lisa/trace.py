@@ -43,8 +43,8 @@ class Trace(Loggable):
     """
     The Trace object is the LISA trace events parser.
 
-    :param data_dir: folder containing all trace data
-    :type data_dir: str
+    :param trace_path: File containing the trace
+    :type trace_path: str
 
     :param events: events to be parsed (all the events by default)
     :type events: str or list(str)
@@ -72,7 +72,7 @@ class Trace(Loggable):
     """
 
     def __init__(self,
-                 data_dir,
+                 trace_path,
                  plat_info=None,
                  events=None,
                  window=(0, None),
@@ -87,9 +87,6 @@ class Trace(Loggable):
 
         # The platform information used to run the experiments
         self.plat_info = plat_info
-
-        # TRAPpy Trace object
-        self.ftrace = None
 
         # Trace format
         self.trace_format = trace_format
@@ -120,21 +117,15 @@ class Trace(Loggable):
         self.freq_coherency = True
 
         # Folder containing trace
-        self.data_dir = data_dir
+        self.trace_path = trace_path
 
-        # By deafult, use the trace dir to save plots
-        self.plots_dir = plots_dir
-        if self.plots_dir is None:
-            # In case we're passed the trace.dat
-            if os.path.isfile(data_dir):
-                self.plots_dir = os.path.dirname(data_dir)
-            else:
-                self.plots_dir = data_dir
+        # By default, use the trace dir to save plots
+        self.plots_dir = plots_dir if plots_dir else os.path.dirname(trace_path)
 
         self.plots_prefix = plots_prefix
 
         self._register_trace_events(events)
-        self._parse_trace(self.data_dir, window, trace_format)
+        self._parse_trace(self.trace_path, window, trace_format)
 
         # Import here to avoid a circular dependency issue at import time
         # with lisa.analysis.base
@@ -237,7 +228,7 @@ class Trace(Loggable):
 
         # Check for events available on the parsed trace
         self._check_available_events()
-        if len(self.available_events) == 0:
+        if not self.available_events:
             if has_function_stats:
                 logger.info('Trace contains only functions stats')
                 return
@@ -270,7 +261,7 @@ class Trace(Loggable):
         logger = self.get_logger()
         for val in self.ftrace.get_filters(key):
             obj = getattr(self.ftrace, val)
-            if len(obj.data_frame):
+            if not obj.data_frame.empty:
                 self.available_events.append(val)
         logger.debug('Events found on trace:')
         for evt in self.available_events:
@@ -451,13 +442,12 @@ class Trace(Loggable):
         :param event: Trace event name
         :type event: str
         """
-        if self.data_dir is None:
-            raise ValueError("trace data not (yet) loaded")
-        if self.ftrace and hasattr(self.ftrace, event):
+        try:
             return getattr(self.ftrace, event).data_frame
-        raise ValueError('Event [{}] not supported. '
-                         'Supported events are: {}'
-                         .format(event, self.available_events))
+        except AttributeError:
+            raise ValueError('Event [{}] not supported. '
+                             'Supported events are: {}'
+                             .format(event, self.available_events))
 
     def df_functions_stats(self, functions=None):
         """
@@ -474,8 +464,6 @@ class Trace(Loggable):
                           to report
         :type functions: str or list(str)
         """
-        if not hasattr(self, '_functions_stats_df'):
-            return None
         df = self._functions_stats_df
         if not functions:
             return df
@@ -699,7 +687,7 @@ class Trace(Loggable):
         # make sure fake cpu_frequency events are never interleaved with
         # OS generated events
         else:
-            if len(devlib_freq) > 0:
+            if not devlib_freq.empty:
 
                 # Frequencies injection is done in a per-cluster based.
                 # This is based on the assumption that clusters are
