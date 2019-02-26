@@ -511,7 +511,7 @@ usb_disconnect() {
 		;;
 	'MONSOON')
 		# not supported for now
-		c_warn "Energy meter $EMETER does not support usb_disconnect"
+		c_warning "Energy meter $EMETER does not support usb_disconnect"
 		;;
 	*)
 		c_error "Energy meter $EMETER not supported"
@@ -530,7 +530,7 @@ usb_connect() {
 		;;
 	'MONSOON')
 		# not supported for now
-		c_warn "Energy meter $EMETER does not support usb_connect"
+		c_warning "Energy meter $EMETER does not support usb_connect"
 		;;
 	*)
 		c_error "Energy meter $EMETER not supported"
@@ -920,7 +920,7 @@ flash_sha1() {
 	### Check that we are running the expected kernel
 	COMMIT_SHA1=$(git -C $KERNEL_TREE log --format="%h" | head -n 1)
 	match_sha1 $COMMIT_SHA1; ERROR=$?
-	[ $ERROR -eq 0 ] || c_error "Failed to flash kernel [$COMMIT_DESC]!"
+	[ $ERROR -eq 0 ] || c_warning "Kernel [$COMMIT_DESC] may not be flashed on the target"
 
 	return $?
 }
