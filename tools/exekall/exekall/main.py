@@ -972,14 +972,18 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                     op.callable_ not in hidden_callable_set
                     and not issubclass(op.value_type, engine.ForcedParamType)
                 ):
-                    info(msg.format(
-                        id=expr_val.get_id(
-                            full_qual=False,
-                            with_tags=True,
-                            hidden_callable_set=hidden_callable_set,
-                        ),
-                        uuid=get_uuid_str(expr_val),
-                    ))
+                    log_f = info
+                else:
+                    log_f = debug
+
+                log_f(msg.format(
+                    id=expr_val.get_id(
+                        full_qual=False,
+                        with_tags=True,
+                        hidden_callable_set=hidden_callable_set,
+                    ),
+                    uuid=get_uuid_str(expr_val),
+                ))
 
             # This returns an iterator
             executor = expr.execute(log_expr_val)
