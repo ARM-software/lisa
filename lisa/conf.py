@@ -934,7 +934,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         self.get_logger().debug('{caller} ({filename}:{lineno}) has used key {key} from source "{src}": {val}'.format(
             key=key_desc.qualname,
             src=src,
-            val=val,
+            val=key_desc.pretty_format(val),
             caller=caller,
             filename=filename,
             lineno=lineno,
