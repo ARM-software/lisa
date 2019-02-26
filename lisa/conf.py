@@ -1060,6 +1060,21 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         return sorted(regular_keys + derived_keys)
 
 
+class SimpleMultiSrcConf(MultiSrcConf):
+    """
+    Like :class:`MultiSrcConf`, with a simpler config file.
+
+    ``conf`` and ``source`` are not available, and the behaviour is as all keys
+    were located under a ``conf`` key. We do not allow overriding source for
+    this kind of configuration to keep the YAML interface simple and dict-like
+    """
+    @classmethod
+    def from_map(cls, mapping):
+        return cls(mapping)
+
+    def to_map(self):
+        return dict(self._get_effective_map())
+
 class ConfigurableMeta(abc.ABCMeta):
     def __new__(metacls, name, bases, dct, **kwargs):
         new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
