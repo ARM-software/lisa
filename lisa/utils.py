@@ -83,15 +83,21 @@ class Loggable:
                 continue
             cls.get_logger().log(level, 'Local variable: {}: {}'.format(name, val))
 
-def get_subclasses(cls, cls_set=None):
+def get_subclasses(cls, only_leaves=False, cls_set=None):
     """Get all indirect subclasses of the class."""
     if cls_set is None:
         cls_set = set()
 
     for subcls in cls.__subclasses__():
         if subcls not in cls_set:
-            cls_set.add(subcls)
-            cls_set.update(get_subclasses(subcls, cls_set))
+            to_be_added = set(get_subclasses(subcls, only_leaves, cls_set))
+            to_be_added.add(subcls)
+            if only_leaves:
+                to_be_added = {
+                    cls for cls in to_be_added
+                    if not cls.__subclasses__()
+                }
+            cls_set.update(to_be_added)
 
     return cls_set
 

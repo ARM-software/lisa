@@ -78,7 +78,7 @@ class LISAAdaptor(AdaptorBase):
 
         # Try to build as many configurations instances from all the files we
         # are given
-        conf_cls_set = set(get_subclasses(MultiSrcConf))
+        conf_cls_set = set(get_subclasses(MultiSrcConf, only_leaves=True))
         conf_list = []
         for conf_path in self.args.conf:
             for conf_cls in conf_cls_set:
