@@ -19,12 +19,12 @@ from matplotlib.ticker import MaxNLocator
 
 from devlib.utils.misc import list_to_mask, mask_to_list
 
-from lisa.analysis.base import AnalysisBase
+from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.trace import requires_events
 
 
-class ThermalAnalysis(AnalysisBase):
+class ThermalAnalysis(TraceAnalysisBase):
     """
     Support for plotting Thermal Analysis data
 

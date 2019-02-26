@@ -32,7 +32,7 @@ class PerfAnalysis(AnalysisHelpers):
     :type task_log_map: dict
 
     .. note:: That is not a subclass of
-        :class:`lisa.analysis.base.AnalysisBase` since it does not uses traces.
+        :class:`lisa.analysis.base.TraceAnalysisBase` since it does not uses traces.
     """
 
     RTA_LOG_PATTERN = 'rt-app-{task}.log'

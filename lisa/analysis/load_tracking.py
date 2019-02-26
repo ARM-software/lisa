@@ -19,10 +19,10 @@
 
 import pandas as pd
 
-from lisa.analysis.base import AnalysisBase
+from lisa.analysis.base import TraceAnalysisBase
 
 
-class LoadTrackingAnalysis(AnalysisBase):
+class LoadTrackingAnalysis(TraceAnalysisBase):
     """
     Support for scheduler load tracking analysis
 

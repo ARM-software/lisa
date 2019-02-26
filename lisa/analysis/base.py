@@ -167,7 +167,7 @@ class AnalysisHelpers(Loggable):
             self.save_plot(fig, filepath)
         return axis
 
-class AnalysisBase(AnalysisHelpers):
+class TraceAnalysisBase(AnalysisHelpers):
     """
     Base class for Analysis modules.
 

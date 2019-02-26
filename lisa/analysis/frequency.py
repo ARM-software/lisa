@@ -25,11 +25,11 @@ from matplotlib.ticker import FuncFormatter
 import pandas as pd
 import pylab as pl
 
-from lisa.analysis.base import AnalysisBase
+from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.trace import requires_events
 
-class FrequencyAnalysis(AnalysisBase):
+class FrequencyAnalysis(TraceAnalysisBase):
     """
     Support for plotting Frequency Analysis data
 

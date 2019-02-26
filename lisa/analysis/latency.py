@@ -18,11 +18,11 @@
 import pandas as pd
 import numpy as np
 
-from lisa.analysis.base import AnalysisBase, COLOR_CYCLES
+from lisa.analysis.base import TraceAnalysisBase, COLOR_CYCLES
 from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.utils import memoized
 
-class LatencyAnalysis(AnalysisBase):
+class LatencyAnalysis(TraceAnalysisBase):
     """
     Support for plotting Latency Analysis data
 

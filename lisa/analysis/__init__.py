@@ -20,7 +20,7 @@ import pkgutil
 
 # Import all the submodules before they are asked for by user code, since we
 # need to create the *Analysis classes in order for them to be registered
-# against AnalysisBase
+# against TraceAnalysisBase
 __all__ = []
 for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
     __all__.append(module_name)
