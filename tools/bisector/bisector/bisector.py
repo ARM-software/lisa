@@ -5132,7 +5132,10 @@ def _main(argv):
     commands) or SIGHUP (when the terminal dies) and will save the completed
     iterations to the report. The execution can later be resumed with --resume.
     """.format(generic_code=GENERIC_ERROR_CODE),
-    formatter_class=argparse.RawTextHelpFormatter)
+        formatter_class=argparse.RawTextHelpFormatter,
+        # Allow passing CLI options through a file
+        fromfile_prefix_chars='@',
+    )
 
 
     subparsers = parser.add_subparsers(title='subcommands', dest='subcommand')
