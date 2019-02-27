@@ -457,7 +457,9 @@ class ExpressionBase:
     def _get_structure(self, full_qual=True, indent=1):
         indent_str = 4 * ' ' * indent
 
-        if isinstance(self.op, PrebuiltOperator):
+        if isinstance(self.op, ConsumerOperator):
+            op_name = self.op.get_name(full_qual=True)
+        elif isinstance(self.op, PrebuiltOperator):
             op_name = '<provided>'
         else:
             op_name = self.op.get_name(full_qual=True)
@@ -831,10 +833,10 @@ class ExpressionBase:
             # When the ExprVal is from an Expression of the Consumer
             # operator, we directly print out the name of the function that was
             # selected since it is not serializable
-            callable_ = expr_val.expr.op.callable_
-            if attr == 'value' and callable_ is Consumer:
+            op = expr_val.expr.op
+            if attr == 'value' and isinstance(op, ConsumerOperator):
                 return Operator(obj).get_name(full_qual=True)
-            elif attr == 'value' and callable_ is ExprData:
+            elif attr == 'value' and isinstance(op, ExprDataOperator):
                 return self.EXPR_DATA_VAR_NAME
             else:
                 return script_db.get_snippet(expr_val, attr)
@@ -876,12 +878,12 @@ class ExpressionBase:
 
         # Consumer operator is special since we don't compute anything to
         # get its value, it is just the name of a function
-        if self.op.callable_ is Consumer:
+        if isinstance(self.op, ConsumerOperator):
             if not len(consumer_expr_stack) >= 2:
                 return ('None', '')
             else:
                 return (consumer_expr_stack[-2].op.get_name(full_qual=True), '')
-        elif self.op.callable_ is ExprData:
+        elif isinstance(self.op, ExprDataOperator):
             # When we actually have an ExprVal, use it so we have the right
             # UUID.
             if expr_val_set:
@@ -1195,10 +1197,58 @@ class ComputableExpression(ExpressionBase):
             for expr_val in comp_expr.execute(*args, **kwargs):
                 yield (comp_expr, expr_val)
 
-    def execute(self, post_compute_cb=None):
-        return self._execute([], post_compute_cb)
+    def _clone_consumer(self, consumer_expr_stack):
+        expr = self
+        if isinstance(expr.op, ConsumerOperator):
+            try:
+                consumer = consumer_expr_stack[-2].op.callable_
+            except IndexError:
+                consumer = None
 
-    def _execute(self, consumer_expr_stack, post_compute_cb):
+            # Build a new ConsumerOperator that references the right consumer,
+            # and a new Expression to go with it
+            expr = expr.__class__(
+                op=ConsumerOperator(consumer),
+                param_map={},
+            )
+        else:
+            # Clone the Expressions referencing their consumer, so each of
+            # their consumer will get a clone of them. Each clone will
+            # reference a different consumer through its parameter.
+            if any(
+                isinstance(param_expr.op, ConsumerOperator)
+                for param_expr in expr.param_map.values()
+            ):
+                expr = copy.copy(expr)
+
+            expr.param_map = OrderedDict(
+                (param, param_expr._clone_consumer(
+                    consumer_expr_stack + [expr],
+                ))
+                for param, param_expr in expr.param_map.items()
+            )
+
+        return expr
+
+    def _fill_expr_data(self, data):
+        if isinstance(self.op, ExprDataOperator):
+            self.op = ExprDataOperator(data)
+        for param_expr in self.param_map.values():
+            param_expr._fill_expr_data(data)
+
+    def prepare_execute(self):
+        # Make sure the Expressions referencing their Consumer get
+        # appropriately cloned.
+        self._clone_consumer([])
+        self._fill_expr_data(self.data)
+        return self
+
+    def execute(self, post_compute_cb=None):
+        # Call it in case it was not already done.
+        self.prepare_execute()
+        return self._execute(post_compute_cb)
+
+    def _execute(self, post_compute_cb):
         # Lazily compute the values of the Expression, trying to use
         # already computed values when possible
 
@@ -1209,7 +1259,6 @@ class ComputableExpression(ExpressionBase):
         def filter_param_exec_map(param_map, reusable):
             return OrderedDict(
                 (param, param_expr._execute(
-                    consumer_expr_stack=consumer_expr_stack + [self],
                     post_compute_cb=post_compute_cb,
                 ))
                 for param, param_expr in param_map.items()
@@ -1265,25 +1314,8 @@ class ComputableExpression(ExpressionBase):
                 for param, param_expr_val in param_map.items()
             )
 
-            # Consumer operator is special and we provide the value for it,
-            # instead of letting it computing its own value
-            if self.op.callable_ is Consumer:
-                try:
-                    consumer = consumer_expr_stack[-2].op.callable_
-                except IndexError:
-                    consumer = None
-                iterated = [ (None, consumer, NoValue) ]
-
-            elif self.op.callable_ is ExprData:
-                root_expr = consumer_expr_stack[0]
-                expr_data = root_expr.data
-                iterated = [ (expr_data.uuid, expr_data, NoValue) ]
-
-            # Otherwise, we just call the operators with its parameters
-            else:
-                iterated = self.op.generator_wrapper(**param_val_map)
-
-            iterator = iter(iterated)
+            # Call the operators with its parameters
+            iterator = self.op.generator_wrapper(**param_val_map)
             expr_val_seq = ExprValSeq(
                 self, iterator, param_map,
                 post_compute_cb
@@ -1411,12 +1443,13 @@ class ClassContext:
             # class can be built where in fact it cannot
             if compat_cls_set & op_map.keys()
         }
-        internal_cls_set = {Consumer, ExprData}
-        for internal_cls in internal_cls_set:
-            op_map[internal_cls] = {
-                Operator(internal_cls, non_reusable_type_set=internal_cls_set)
-            }
-            cls_map[internal_cls] = [internal_cls]
+
+        # Dummy placeholders that will get fixed up later right before
+        # execution
+        op_map[Consumer] = [ConsumerOperator()]
+        op_map[ExprData] = [ExprDataOperator()]
+        cls_map[ExprData] = [ExprData]
+        cls_map[Consumer] = [Consumer]
 
         expr_list = list()
         for result_op in result_op_seq:
@@ -2007,6 +2040,8 @@ class PrebuiltOperator(Operator):
             uuid_list.append(uuid_)
             obj_list_.append(obj)
 
+        # Make sure we will get all objects when using zip()
+        assert len(obj_list) == len(uuid_list)
         self.obj_list = obj_list_
         self.uuid_list = uuid_list
         self.obj_type = obj_type
@@ -2040,6 +2075,48 @@ class PrebuiltOperator(Operator):
         def genf():
             yield from zip(self.uuid_list, self.obj_list, itertools.repeat(NoValue))
         return genf
+
+class ConsumerOperator(PrebuiltOperator):
+    def __init__(self, consumer=None):
+        obj_type = Consumer
+        super().__init__(
+            obj_type, [consumer],
+            tags_getter=self._get_tag,
+        )
+        # That allows easily making it hidden
+        self.callable_ = obj_type
+
+    def _get_tag(self, expr_val):
+        return {'consumer': self.get_name()}
+
+    def get_name(self, *args, **kwargs):
+        obj = Consumer if self.consumer is None else self.consumer
+        return utils.get_name(obj, *args, **kwargs)
+
+    @property
+    def consumer(self):
+        return self.obj_list[0]
+
+class ExprDataOperator(PrebuiltOperator):
+    def __init__(self, data=None):
+        obj_type = ExprData
+        super().__init__(
+            obj_type, [data],
+        )
+        # That allows easily making it hidden
+        self.callable_ = obj_type
+
+    @property
+    def data(self):
+        return self.obj_list[0]
+
+    @property
+    def uuid_list(self):
+        return [self.data.uuid] if self.data is not None else []
+
+    @uuid_list.setter
+    def uuid_list(self, val):
+        pass
 
 class ExprValSeq:
     def __init__(self, expr, iterator, param_map, post_compute_cb=None):
@@ -2317,7 +2394,7 @@ class FrozenExprVal(ExprValBase):
 
         # Reloading these values will lead to issues, and they are regenerated
         # for any new Expression that would be created anyway.
-        if op.callable_ in (ExprData, Consumer):
+        if isinstance(op, (ExprDataOperator, ConsumerOperator)):
             value = NoValue
             excep = NoValue
 

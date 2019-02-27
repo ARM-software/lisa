@@ -816,8 +816,9 @@ def do_run(args, parser, run_parser, argv):
     else:
         iteration_expr_list = [expr_list]
 
-
-
+    # Make sure all references to Consumer are cloned appropriately
+    for expr in utils.flatten_seq(iteration_expr_list):
+        expr.prepare_execute()
 
     exec_ret_code = exec_expr_list(
         iteration_expr_list=iteration_expr_list,
