@@ -160,7 +160,7 @@ class ThermalAnalysis(TraceAnalysisBase):
             axis.grid(True)
             axis.set_title("Temperature evolution")
             axis.set_ylabel("Temperature (°C.10e3)")
-            axis.set_xlim(self.trace.x_min, self.trace.x_max)
+            axis.set_xlim(self.trace.start, self.trace.end)
             self.save_plot(fig, filepath)
 
         return axis
@@ -193,7 +193,7 @@ class ThermalAnalysis(TraceAnalysisBase):
             axis.set_title("cpufreq cooling devices status")
             axis.yaxis.set_major_locator(MaxNLocator(integer=True))
             axis.grid(axis='y')
-            axis.set_xlim(self.trace.x_min, self.trace.x_max)
+            axis.set_xlim(self.trace.start, self.trace.end)
             self.save_plot(fig, filepath)
 
         return axis
@@ -222,7 +222,7 @@ class ThermalAnalysis(TraceAnalysisBase):
             axis.set_title("devfreq cooling devices status")
             axis.yaxis.set_major_locator(MaxNLocator(integer=True))
             axis.grid(axis='y')
-            axis.set_xlim(self.trace.x_min, self.trace.x_max)
+            axis.set_xlim(self.trace.start, self.trace.end)
             self.save_plot(fig, filepath)
 
         return axis

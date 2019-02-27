@@ -131,9 +131,9 @@ class TestTrace(StorageTestCase):
 
         self.assertAlmostEqual(trace.time_range, expected_duration)
 
-    def test_time_range_window(self):
+    def test_time_range_view(self):
         """
-        TestTrace: time_range is the duration of the trace in the given window
+        TestTrace: time_range is the duration of the trace in the given view
         """
         expected_duration = 4.0
 
@@ -141,8 +141,7 @@ class TestTrace(StorageTestCase):
                       self.plat_info,
                       self.events,
                       normalize_time=False,
-                      window=(76.402065, 80.402065)
-        )
+        ).get_view((76.402065, 80.402065))
 
         self.assertAlmostEqual(trace.time_range, expected_duration)
 

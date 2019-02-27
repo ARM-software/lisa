@@ -39,8 +39,109 @@ import devlib
 from devlib.target import KernelVersion
 from trappy.utils import listify, handle_duplicate_index
 
-
 NON_IDLE_STATE = -1
+
+class TraceView(Loggable):
+    """
+    A view on a :class:`Trace`
+
+    :param trace: The trace to trim
+    :type trace: Trace
+
+    :param window: The time window to base this view on
+    :type window: tuple(float, float)
+
+    :ivar base_trace: The original :class:`Trace` this view is based on.
+    :ivar analysis: The analysis proxy on the trimmed down :class:`Trace`.
+
+    :ivar start: The timestamp of the first trace event in the view (>= ``window[0]``)
+    :ivar end: The timestamp of the last trace event in the view (<= ``window[1]``)
+
+    You can substitute an instance of :class:`Trace` with an instance of
+    :class:`TraceView`. This means you can create a view of a trimmed down trace
+    and run analysis code/plots that will only use data within that window, e.g.::
+
+      trace = Trace(...)
+      view = trace.get_view((2, 4))
+
+      # This will only use events in the (2, 4) time window
+      df = view.analysis.tasks.df_tasks_runtime()
+
+    **Design notes:**
+
+      * :meth:`df_events` uses the underlying :meth:`lisa.trace.Trace.df_events`
+        and trims the dataframe according to the given ``window`` before
+        returning it.
+      * ``self.start`` and ``self.end`` mimic the :class:`Trace` attributes but
+        they are adjusted to match the given window. On top of this, this class
+        mimics a regular :class:`Trace` using :func:`getattr`.
+    """
+    def __init__(self, trace, window):
+        self.base_trace = trace
+
+        t_min = window[0]
+        t_max = window[1]
+
+        trace_classes = [cls for cls in self.base_trace.ftrace.trace_classes
+                         if not cls.data_frame.empty]
+
+        if t_min is not None:
+            start = self.base_trace.end
+            for trace_class in trace_classes:
+                df = trace_class.data_frame[t_min:]
+                if not df.empty:
+                    start = min(start, df.index[0])
+            t_min = start
+        else:
+            t_min = self.base_trace.start
+
+        if t_max is not None:
+            end = self.base_trace.start
+            for trace_class in trace_classes:
+                df = trace_class.data_frame[:t_max]
+                if not df.empty:
+                    end = max(end, df.index[-1])
+            t_max = end
+        else:
+            t_max = self.base_trace.end
+
+        self.start = t_min
+        self.end = t_max
+        self.time_range = t_max - t_min
+
+        # Import here to avoid a circular dependency issue at import time
+        # with lisa.analysis.base
+        from lisa.analysis.proxy import AnalysisProxy
+        self.analysis = AnalysisProxy(self)
+
+    def __getattr__(self, name):
+        return getattr(self.base_trace, name)
+
+    def df_events(self, event):
+        """
+        Get a dataframe containing all occurrences of the specified trace event
+        in the parsed trace.
+
+        :param event: Trace event name
+        :type event: str
+        """
+        df = self.base_trace.df_events(event)
+        if not df.empty:
+            df = df[self.start:self.end]
+
+        return df
+
+    def get_view(self, window):
+        start = self.start
+        end   = self.end
+
+        if window[0]:
+            start = max(start, window[0])
+
+        if window[1]:
+            end = min(end, window[1])
+
+        return self.base_trace.get_view((start, end))
 
 class Trace(Loggable):
     """
@@ -72,13 +173,15 @@ class Trace(Loggable):
 
     :param plots_prefix: prefix for plots file names
     :type plots_prefix: str
+
+    :ivar start: The timestamp of the first trace event in the trace
+    :ivar end: The timestamp of the last trace event in the trace
     """
 
     def __init__(self,
                  trace_path,
                  plat_info=None,
                  events=None,
-                 window=(0, None),
                  normalize_time=True,
                  trace_format='FTrace',
                  plots_dir=None,
@@ -93,9 +196,6 @@ class Trace(Loggable):
 
         # Trace format
         self.trace_format = trace_format
-
-        # The time window used to limit trace parsing to
-        self.window = window
 
         # Whether trace timestamps are normalized or not
         self.normalize_time = normalize_time
@@ -128,7 +228,7 @@ class Trace(Loggable):
         self.plots_prefix = plots_prefix
 
         self._register_trace_events(events)
-        self._parse_trace(self.trace_path, window, trace_format)
+        self._parse_trace(self.trace_path, trace_format)
 
         # Import here to avoid a circular dependency issue at import time
         # with lisa.analysis.base
@@ -148,22 +248,6 @@ class Trace(Loggable):
             count = max_cpu + 1
             self.get_logger().info("Estimated CPU count from trace: %s", count)
             return count
-
-    def set_x_time_range(self, t_min=None, t_max=None):
-        """
-        Set x axis time range to the specified values.
-
-        :param t_min: lower bound
-        :type t_min: int or float
-
-        :param t_max: upper bound
-        :type t_max: int or float
-        """
-        self.x_min = t_min if t_min is not None else self.start_time
-        self.x_max = t_max if t_max is not None else self.start_time + self.time_range
-
-        self.get_logger().debug('Set plots time range to (%.6f, %.6f)[s]',
-                                float(self.x_min), float(self.x_max))
 
     def _register_trace_events(self, events):
         """
@@ -186,16 +270,13 @@ class Trace(Loggable):
         if 'cpu_frequency' in events:
             self.events.append('cpu_frequency_devlib')
 
-    def _parse_trace(self, path, window, trace_format):
+    def _parse_trace(self, path, trace_format):
         """
         Internal method in charge of performing the actual parsing of the
         trace.
 
         :param path: path to the trace folder (or trace file)
         :type path: str
-
-        :param window: time window to consider when parsing the trace
-        :type window: tuple(int, int)
 
         :param trace_format: format of the trace. Possible values are:
             - FTrace
@@ -216,17 +297,9 @@ class Trace(Loggable):
         else:
             raise ValueError("Unknown trace format {}".format(trace_format))
 
-        # If using normalized time, we should use
-        # TRAPpy's `abs_window` instead of `window`
-        window_kw = {}
-        if self.normalize_time:
-            window_kw['window'] = window
-        else:
-            window_kw['abs_window'] = window
-
         # Make sure event names are not unicode strings
         self.ftrace = trace_class(path, scope="custom", events=self.events,
-                                  normalize_time=self.normalize_time, **window_kw)
+                                  normalize_time=self.normalize_time)
 
         # Load Functions profiling data
         has_function_stats = self._loadFunctionsStats(path)
@@ -240,10 +313,9 @@ class Trace(Loggable):
             raise ValueError('The trace does not contain useful events '
                              'nor function stats')
 
+        self._compute_timespan()
         # Index PIDs and Task names
         self._load_tasks_names()
-
-        self._compute_timespan()
 
         # Setup internal data reference to interesting events/dataframes
         self._sanitize_SchedLoadAvgCpu()
@@ -310,16 +382,19 @@ class Trace(Loggable):
         else:
             return set(events).issubset(set(self.available_events))
 
+    def get_view(self, window):
+        return TraceView(self, window)
+
     def _compute_timespan(self):
         """
         Compute time axis range, considering all the parsed events.
         """
-        self.start_time = 0 if self.normalize_time else self.ftrace.basetime
-        self.time_range = self.ftrace.get_duration()
-        self.get_logger().debug('Collected events spans a %.3f [s] time interval',
-                       self.time_range)
+        self.start = 0 if self.ftrace.normalized_time else self.ftrace.basetime
+        self.end = self.start + self.ftrace.get_duration()
+        self.time_range = self.end - self.start
 
-        self.set_x_time_range(max(self.start_time, self.window[0]), self.window[1])
+        self.get_logger().debug('Trace contains events from %s to %s',
+                                self.start, self.end)
 
     def _scan_tasks(self, df, name_key='comm', pid_key='pid'):
         """
@@ -617,7 +692,8 @@ class Trace(Loggable):
         if not self.has_events('sched_overutilized'):
             return
 
-        df = self.df_events('sched_overutilized')
+        # df = self.df_events('sched_overutilized')
+        df = getattr(self.ftrace, "sched_overutilized").data_frame
         self.add_events_deltas(df, 'len')
 
         # Build a stat on trace overutilization
@@ -832,14 +908,10 @@ class Trace(Loggable):
             lambda s: 1 if s == NON_IDLE_STATE else 0
         )
 
-        start_time = 0.0
-        if not self.ftrace.normalized_time:
-            start_time = self.ftrace.basetime
-
         if cpu_active.empty:
-            cpu_active = pd.Series([0], index=[start_time])
-        elif cpu_active.index[0] != start_time:
-            entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[start_time])
+            cpu_active = pd.Series([0], index=[self.start])
+        elif cpu_active.index[0] != self.start:
+            entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[self.start])
             cpu_active = pd.concat([entry_0, cpu_active])
 
         # Fix sequences of wakeup/sleep events reported with the same index
@@ -873,7 +945,7 @@ class Trace(Loggable):
         freq['start'] = freq.index
         freq['len'] = (freq.start - freq.start.shift()).fillna(0).shift(-1)
         # The last value will be NaN, fix to be appropriate length
-        freq.loc[freq.index[-1], 'len'] = self.start_time + self.time_range - freq.index[-1]
+        freq.loc[freq.index[-1], 'len'] = self.end - freq.index[-1]
 
         freq = freq.fillna(method='ffill')
         freq['effective_rate'] = np.where(freq['state'] == 0, 0,
@@ -910,7 +982,7 @@ class Trace(Loggable):
         df.loc[df.index[:-1], col_name] = df.index.values[1:] - df.index.values[:-1]
         # Fix the last event, which will have a NaN duration
         # Set duration to trace_end - last_event
-        df.loc[df.index[-1], col_name] = self.start_time + self.time_range - df.index[-1]
+        df.loc[df.index[-1], col_name] = self.end - df.index[-1]
 
         return df
 
@@ -1239,7 +1311,6 @@ class MissingTraceEventError(RuntimeError):
             "Trace is missing the following required events: {}".format(missing_events))
 
         self.missing_events = missing_events
-
 
 class FtraceConf(SimpleMultiSrcConf, HideExekallID):
     """

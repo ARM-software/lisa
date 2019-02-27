@@ -214,7 +214,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         axis.set_title("Latencies of task \"{}\"".format(task))
         axis.set_ylabel("Latency (s)")
         axis.legend()
-        axis.set_xlim(self.trace.x_min, self.trace.x_max)
+        axis.set_xlim(self.trace.start, self.trace.end)
 
         self.save_plot(fig, filepath)
         return axis
@@ -359,7 +359,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         plot_bands(wkl_df, "wakeup_latency", "Wakeup latencies")
         plot_bands(prt_df, "preempt_latency", "Preemption latencies")
         axis.legend()
-        axis.set_xlim(self.trace.x_min, self.trace.x_max)
+        axis.set_xlim(self.trace.start, self.trace.end)
 
         if local_fig:
             self.save_plot(fig, filepath)
@@ -386,7 +386,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         axis.set_title("Activation intervals of task \"{}\"".format(task))
 
-        axis.set_xlim(self.trace.x_min, self.trace.x_max)
+        axis.set_xlim(self.trace.start, self.trace.end)
 
         self.save_plot(fig, filepath)
         return axis
@@ -411,7 +411,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         axis.set_title("Per-activation runtimes of task \"{}\"".format(task))
 
-        axis.set_xlim(self.trace.x_min, self.trace.x_max)
+        axis.set_xlim(self.trace.start, self.trace.end)
 
         self.save_plot(fig, filepath)
         return axis

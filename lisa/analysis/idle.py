@@ -166,7 +166,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
         # Extend the last cpu_idle event to the end of the time window under
         # consideration
-        final_entry = pd.DataFrame([cpu_idle.iloc[-1]], index=[self.trace.x_max])
+        final_entry = pd.DataFrame([cpu_idle.iloc[-1]], index=[self.trace.end])
         cpu_idle = cpu_idle.append(final_entry)
 
         idle_time = []
