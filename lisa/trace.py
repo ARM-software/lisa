@@ -163,7 +163,7 @@ class Trace(Loggable):
         self.x_max = t_max if t_max is not None else self.start_time + self.time_range
 
         self.get_logger().debug('Set plots time range to (%.6f, %.6f)[s]',
-                       self.x_min, self.x_max)
+                                float(self.x_min), float(self.x_max))
 
     def _register_trace_events(self, events):
         """
@@ -397,10 +397,15 @@ class Trace(Loggable):
         """
         if isinstance(task, str):
             pid_list = self.get_task_by_name(task)
+
+            if not pid_list:
+                raise ValueError('trace does not have any task named "{}".format(task)')
+
             if len(pid_list) > 1:
                 self.get_logger().warning(
                     "More than one PID found for task {}, "
                     "using the first one ({})".format(task, pid_list[0]))
+
             pid = pid_list[0]
         else:
             pid = task
