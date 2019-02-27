@@ -16,11 +16,14 @@
 #
 
 import enum
+import functools
 import os
 import os.path
 import abc
 import sys
+import textwrap
 from collections.abc import Mapping
+from inspect import signature, Parameter
 
 from devlib.target import KernelVersion
 
@@ -467,6 +470,74 @@ class RTATestBundle(TestBundle, abc.ABC):
         res.add_metric("noisiest task", metric)
 
         return res
+
+    @classmethod
+    #pylint: disable=unused-argument
+    def check_noisy_tasks(cls, noise_threshold_pct=None, noise_threshold_ms=None):
+        """
+        Decorator that applies :meth:`test_noisy_tasks` to the trace of the
+        :class:`TestBundle` returned by the underlying method. The :class:`Result`
+        will be changed to :attr:`Result.UNDECIDED` if that test fails.
+
+        We also expose :meth:`test_noisy_tasks` parameters to the decorated
+        function.
+        """
+        def decorator(func):
+            @cls.test_noisy_tasks.used_events
+            @functools.wraps(func)
+            def wrapper(self, *args,
+                        noise_threshold_pct=noise_threshold_pct,
+                        noise_threshold_ms=noise_threshold_ms,
+                        **kwargs):
+                res = func(self, *args, **kwargs)
+
+                noise_res = self.test_noisy_tasks(
+                    noise_threshold_pct, noise_threshold_ms)
+                res.metrics.update(noise_res.metrics)
+
+                if not noise_res:
+                    res.result = Result.UNDECIDED
+
+                return res
+
+            # https://stackoverflow.com/a/33112180
+            # The wrapper has all of `func`'s parameters plus `test_noisy_tasks`',
+            # but since we use `wraps(func)` we'll only get doc/autocompletion for
+            # `func`'s. Expose the extra parameters to the decorated function to
+            # make it more user friendly.
+            func_sig = signature(func)
+            dec_params = signature(cls.check_noisy_tasks).parameters
+
+            # We want the default values of the new parameters for the
+            # *decorated* function to be the values passed to the decorator,
+            # which aren't the default values of the decorator.
+            new_params = [
+                dec_params["noise_threshold_pct"].replace(default=noise_threshold_pct),
+                dec_params["noise_threshold_ms"].replace(default=noise_threshold_ms)
+            ]
+            wrapper.__signature__ = func_sig.replace(
+                parameters=list(func_sig.parameters.values()) + new_params
+            )
+
+            # Make it obvious in the doc where the extra parameters come from
+            merged_doc = textwrap.dedent(cls.test_noisy_tasks.__doc__).splitlines()
+            # Replace the one-liner func description
+            merged_doc[1] = textwrap.dedent(
+                """
+                **Added by** :meth:`~{}.{}.{}`:
+
+                The returned ``ResultBundle.result`` will be changed to
+                :attr:`~lisa.tests.base.Result.UNDECIDED` if the environment was
+                too noisy:
+                """.format(cls.__module__, cls.__name__, cls.check_noisy_tasks.__name__)
+            )
+
+            #pylint: disable=no-member
+            wrapper.__doc__ = textwrap.dedent(wrapper.__doc__) + "\n".join(merged_doc)
+
+            return wrapper
+        return decorator
+
     @classmethod
     def unscaled_utilization(cls, plat_info, cpu, utilization_pct):
         """
