@@ -949,9 +949,8 @@ class CPUMigrationBase(LoadTrackingBase):
         cpu_util = {cpu : {phase_id : 0 for phase_id in range(self.nr_phases)}
                     for cpu in self.cpus}
         df = self.trace.analysis.load_tracking.df_cpus_signals()
-        sw_df = self.trace.df_events("sched_switch")
 
-        phase_start = sw_df[sw_df.next_comm == list(self.rtapp_profile.keys())[0]].index[0]
+        phase_start = self.trace.start
 
         for phase in range(self.nr_phases):
             # Start looking at signals once they should've converged

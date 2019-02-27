@@ -100,22 +100,6 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         """
         return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
 
-    def _get_start_time(self):
-        """
-        Get the time where the first task spawned
-        """
-        tasks = list(self.rtapp_profile.keys())
-        sdf = self.trace.df_events('sched_switch')
-        start_time = self.trace.start_time + self.trace.time_range
-
-        for task in tasks:
-            pid = self.trace.get_task_by_name(task)
-            assert len(pid) == 1, "get_task_by_name returned more than one PID"
-            pid = pid[0]
-            start_time = min(start_time, sdf[sdf.next_pid == pid].index[0])
-
-        return start_time
-
     def _get_expected_task_utils_df(self, nrg_model):
         """
         Get a DataFrame with the *expected* utilization of each task over time
@@ -289,7 +273,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         """
         task_cpu_df = self._get_task_cpu_df()
         task_utils_df = self._get_expected_task_utils_df(nrg_model)
-        task_utils_df.index = [time + self._get_start_time() for time in task_utils_df.index]
+        task_utils_df.index = [time + self.trace.start for time in task_utils_df.index]
         tasks = list(self.rtapp_profile.keys())
 
         # Create a combined DataFrame with the utilization of a task and the CPU

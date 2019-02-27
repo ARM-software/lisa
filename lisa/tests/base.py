@@ -367,11 +367,36 @@ class RTATestBundle(TestBundle, abc.ABC):
     definitions.
     """
 
+    def trace_window(self, trace):
+        """
+        The time window to consider for this :class:`RTATestBundle`
+
+        :returns: a (start, stop) tuple
+
+        Since we're using rt-app profiles, we know the name of tasks we are
+        interested in, so we can trim our trace scope to filter out the
+        setup/teardown events we don't care about.
+
+        Override this method if you need a different trace trimming.
+
+        .. warning::
+
+          Don't call ``self.trace`` in here unless you like infinite recursion.
+        """
+        sdf = trace.df_events('sched_switch')
+
+        # Find when the first task starts running
+        rta_start = sdf[sdf.next_comm.isin(self.rtapp_profile.keys())].index[0]
+        # Find when the last task stops running
+        rta_stop = sdf[sdf.prev_comm.isin(self.rtapp_profile.keys())].index[-1]
+
+        return (rta_start, rta_stop)
+
     @property
     @memoized
     def trace(self):
         """
-        :returns: a Trace
+        :returns: a :class:`lisa.trace.TraceView`
 
         Having the trace as a property lets us defer the loading of the actual
         trace to when it is first used. Also, this prevents it from being
@@ -380,7 +405,9 @@ class RTATestBundle(TestBundle, abc.ABC):
         match a different folder structure.
         """
         path = os.path.join(self.res_dir, 'trace.dat')
-        return Trace(path, self.plat_info, events=self.ftrace_conf["events"])
+
+        trace = Trace(path, self.plat_info, events=self.ftrace_conf["events"])
+        return trace.get_view(self.trace_window(trace))
 
     def __init__(self, res_dir, plat_info, rtapp_profile):
         super().__init__(res_dir, plat_info)
