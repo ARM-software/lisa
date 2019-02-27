@@ -2154,12 +2154,22 @@ class ExprValParamMap(OrderedDict):
         # We need to pad since we may truncate the list of values we yield if
         # we detect an error in one of them.
         def pad(generator, length):
+            has_yielded = False
             for xs in generator:
+                has_yielded = True
                 xs.extend(
                     UnEvaluatedExprVal(expr)
                     for i in range(length - len(xs))
                 )
                 yield xs
+
+            # Ensure we yield at least once, to avoid not getting anything at
+            # all
+            if not has_yielded:
+                yield [
+                    UnEvaluatedExprVal(expr)
+                    for i in range(length)
+                ]
 
         # reverse the gen_list so we get the rightmost generator varying the
         # fastest. Typically, margins-like parameter on which we do sweeps are
