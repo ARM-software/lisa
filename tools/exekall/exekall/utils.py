@@ -59,7 +59,11 @@ def _get_callable_set(module, visited_obj_set, verbose):
 
         # If it is a class, get the list of methods
         if isinstance(obj, type):
-            callable_list = list(dict(inspect.getmembers(obj, predicate=callable)).values())
+            callable_list = [
+                callable_
+                for name, callable_
+                in inspect.getmembers(obj, predicate=callable)
+            ]
             callable_list.append(obj)
         else:
             callable_list = [obj]
@@ -68,7 +72,8 @@ def _get_callable_set(module, visited_obj_set, verbose):
 
         for callable_ in callable_list:
             try:
-                param_list, return_type = engine.Operator(callable_).get_prototype()
+                op = engine.Operator(callable_)
+                param_list, return_type = op.get_prototype()
             # If the callable is partially annotated, warn about it since it is
             # likely to be a mistake.
             except engine.PartialAnnotationError as e:
@@ -81,6 +86,11 @@ def _get_callable_set(module, visited_obj_set, verbose):
             # so we just ignore it
             except (AttributeError, ValueError, KeyError, engine.AnnotationError):
                 continue
+
+            # Swap-in a wrapper object, so we keep track on the class on which
+            # the function was looked up
+            if op.is_method:
+                callable_ = engine.UnboundMethod(callable_, obj)
 
             # Also make sure we don't accidentally get callables that will
             # return a abstract base class instance, since that would not work
@@ -115,3 +125,23 @@ def sweep_number(
         yield type_(i)
         i += step
 
+def get_method_class(function):
+    # Unbound instance methods
+    if isinstance(function, engine.UnboundMethod):
+        return function.cls
+
+    try:
+        obj = function.__self__
+    except AttributeError:
+        cls_name = function.__qualname__.rsplit('.', 1)[0]
+        if '<locals>' in cls_name:
+            return None
+        else:
+            return eval(cls_name, function.__globals__)
+    else:
+        # bound class methods
+        if isinstance(obj, type):
+            return obj
+        # bound instance method
+        else:
+            return type(obj)

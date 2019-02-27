@@ -1466,12 +1466,27 @@ class ClassContext:
 
         # Only keep the classes for "self" on which the method can be applied
         if op.is_method:
+            def keep_cls(cls):
+                # When UnboundMethod are used, it is expected that they are
+                # defined for each class where a given method is available.
+                # Therefore we can directly check if it should be selected or
+                # not
+                if isinstance(op.callable_, UnboundMethod):
+                    return cls is op.callable_.cls
+
+                try:
+                    looked_up = getattr(cls, op.callable_.__name__)
+                except AttributeError:
+                    return True
+                else:
+                    return looked_up is op.callable_
+
             cls_combis[0] = [
                 cls for cls in cls_combis[0]
                 # If the method with the same name would resolve to "op", then
                 # we keep this class as a candidate for "self", otherwise we
                 # discard it
-                if getattr(cls, op.callable_.__name__, None) is op.callable_
+                if keep_cls(cls)
             ]
 
         # Check that some produced classes are available for every parameter
@@ -1512,7 +1527,7 @@ class ClassContext:
             cls_combi = list(cls_combi)
 
             # Some classes may not be produced, but another combination
-            # with containing a subclass of it may actually be produced so we can
+            # containing a subclass of it may actually be produced so we can
             # just ignore that one.
             op_combis = [
                 op_map[cls] for cls in cls_combi
@@ -1582,6 +1597,35 @@ class PartialAnnotationError(AnnotationError):
 class ForcedParamType:
     pass
 
+class UnboundMethod:
+    """
+    Wrap a function in a similar way to Python 2 unbound methods
+    """
+    def __init__(self, callable_, cls):
+        self.cls = cls
+        self.__wrapped__ = callable_
+
+        self.__module__ = callable_.__module__
+        self.__name__ = callable_.__name__
+        self.__qualname__ = callable_.__qualname__
+
+    # Use a non-regular name for "self" so that "self" can be used again in the
+    # kwargs
+    def __call__(__UnboundMethod_self__, *args, **kwargs):
+        return __UnboundMethod_self__.__wrapped__(*args, **kwargs)
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, type(self))
+            and
+            self.__wrapped__ == other.__wrapped__
+            and
+            self.cls == other.cls
+        )
+
+    def __hash__(self):
+        return hash(self.__wrapped__) ^ hash(self.cls)
+
 class Operator:
     def __init__(self, callable_, non_reusable_type_set=None, tags_getter=None):
         if non_reusable_type_set is None:
@@ -1633,7 +1677,12 @@ class Operator:
 
     @property
     def callable_globals(self):
-        return self.resolved_callable.__globals__
+        globals_ = self.resolved_callable.__globals__
+        # Make sure the class name can be resolved
+        if isinstance(self.callable_, UnboundMethod):
+            globals_ = copy.copy(globals_)
+            globals_[self.callable_.cls.__name__] = self.callable_.cls
+        return globals_
 
     @property
     def signature(self):
@@ -1740,9 +1789,14 @@ class Operator:
     @property
     def mod_name(self):
         try:
-            name = inspect.getmodule(self.unwrapped_callable).__name__
+            if isinstance(self.callable_, UnboundMethod):
+                module = inspect.getmodule(self.callable_.cls)
+            else:
+                module = inspect.getmodule(self.unwrapped_callable)
         except Exception:
             name = self.callable_globals['__name__']
+        else:
+            name = module.__name__
         return name
 
     @property
@@ -1794,15 +1848,19 @@ class Operator:
     def is_method(self):
         if self.is_cls_method or self.is_static_method:
             return False
-        qualname = self.unwrapped_callable.__qualname__
-        # Get the rightmost group, in case the callable has been defined
-        # in a function
-        qualname = qualname.rsplit('<locals>.', 1)[-1]
+        elif isinstance(self.callable_, UnboundMethod):
+            return True
+        else:
+            qualname = self.unwrapped_callable.__qualname__
+            # Get the rightmost group, in case the callable has been defined in
+            # a function
+            qualname = qualname.rsplit('<locals>.', 1)[-1]
 
-        # Dots in the qualified name means this function has been defined in a
-        # class. This could also happen for closures, and they would get
-        # "<locals>." somewhere in their name, but we handled that already.
-        return '.' in qualname
+            # Dots in the qualified name means this function has been defined
+            # in a class. This could also happen for closures, and they would
+            # get "<locals>." somewhere in their name, but we handled that
+            # already.
+            return '.' in qualname
 
     @property
     def is_cls_method(self):
@@ -1852,7 +1910,8 @@ class Operator:
     def get_prototype(self):
         sig = self.signature
         first_param = utils.take_first(sig.parameters)
-        annotation_map = utils.resolve_annotations(self.annotations, self.callable_globals)
+        annotations = self.annotations
+        annotation_map = utils.resolve_annotations(annotations, self.callable_globals)
         pristine_annotation_map = copy.copy(annotation_map)
 
         extra_ignored_param = set()
@@ -1871,8 +1930,13 @@ class Operator:
             # When we have a method, we fill the annotations of the 1st
             # parameter with the name of the class it is defined in
             if self.is_method and first_param is not NoValue:
-                cls_name = self.resolved_callable.__qualname__.split('.')[0]
-                self.annotations[first_param] = cls_name
+                if isinstance(self.callable_, UnboundMethod):
+                    cls_name = self.callable_.cls.__qualname__
+                else:
+                    cls_name = self.resolved_callable.__qualname__.split('.')[0]
+                # Avoid modifying the original
+                annotations = copy.copy(annotations)
+                annotations[first_param] = cls_name
 
             # No return annotation is accepted and is equivalent to None return
             # annotation
@@ -1883,7 +1947,7 @@ class Operator:
                 produced = type(None)
 
         # Recompute after potentially modifying the annotations
-        annotation_map = utils.resolve_annotations(self.annotations, self.callable_globals)
+        annotation_map = utils.resolve_annotations(annotations, self.callable_globals)
 
         # Remove the return annotation, since we are handling that separately
         annotation_map.pop('return', None)
