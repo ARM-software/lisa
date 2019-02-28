@@ -360,9 +360,9 @@ class EASBehaviour(RTATestBundle, abc.ABC):
             activations with negative slack.
         :type negative_slack_allowed_pct: int
 
-        Use :class:`lisa.perf_analysis.PerfAnalysis` to find instances where the RT-App workload
-        wasn't able to complete its activations (i.e. its reported "slack"
-        was negative). Assert that this happened less than
+        Use :class:`lisa.analysis.rta.PerfAnalysis` to find instances where the
+        RT-App workload wasn't able to complete its activations (i.e. its
+        reported "slack" was negative). Assert that this happened less than
         ``negative_slack_allowed_pct`` percent of the time.
         """
         analysis = PerfAnalysis.from_dir(self.res_dir)
