@@ -295,6 +295,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         return res
 
     @TasksAnalysis.df_task_states.used_events
+    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_throughput(self, allowed_idle_time_s=None) -> ResultBundle:
         """
         Test that big CPUs are not idle when there are misfit tasks to upmigrate
