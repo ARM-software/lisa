@@ -454,16 +454,19 @@ class ExpressionBase:
         else:
             return self._get_structure(full_qual=full_qual)
 
+    @staticmethod
+    def _get_structure_op_name(op):
+        if isinstance(op, ConsumerOperator):
+            return op.get_name(full_qual=True)
+        elif isinstance(op, PrebuiltOperator):
+            return '<provided>'
+        else:
+            return op.get_name(full_qual=True)
+
     def _get_structure(self, full_qual=True, indent=1):
         indent_str = 4 * ' ' * indent
 
-        if isinstance(self.op, ConsumerOperator):
-            op_name = self.op.get_name(full_qual=True)
-        elif isinstance(self.op, PrebuiltOperator):
-            op_name = '<provided>'
-        else:
-            op_name = self.op.get_name(full_qual=True)
-
+        op_name = self._get_structure_op_name(self.op)
         out = '{op_name} ({value_type_name})'.format(
             op_name = op_name,
             value_type_name = utils.get_name(self.op.value_type, full_qual=full_qual),
@@ -484,10 +487,7 @@ class ExpressionBase:
         else:
             visited.add(self)
 
-        if isinstance(self.op, PrebuiltOperator):
-            op_name = '<provided>'
-        else:
-            op_name = self.op.get_name(full_qual=True)
+        op_name = self._get_structure_op_name(self.op)
 
         # Use the Python id as it is guaranteed to be unique during the lifetime of
         # the object, so it is a good candidate to refer to a node
