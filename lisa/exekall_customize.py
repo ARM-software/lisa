@@ -118,6 +118,12 @@ class LISAAdaptor(AdaptorBase):
                 non_reusable_type_set=non_reusable_type_set
             ))
 
+        # Inject a dummy empty TargetConf
+        if self.args.inject_empty_target_conf:
+            op_set.add(PrebuiltOperator(TargetConf, [TargetConf(conf={})],
+                non_reusable_type_set=non_reusable_type_set
+            ))
+
         return op_set
 
     def get_hidden_op_set(self, op_set):
@@ -138,6 +144,12 @@ class LISAAdaptor(AdaptorBase):
             metavar='SERIALIZED_OBJECT_PATH',
             default=[],
             help="Serialized object to inject when building expressions")
+
+        # Create an empty TargetConf, so we are able to get the list of tests
+        # as if we were going to execute them using a target.
+        # note: that is only used for generating the documentation.
+        parser.add_argument('--inject-empty-target-conf', action='store_true',
+            help=argparse.SUPPRESS)
 
     @staticmethod
     def register_compare_param(parser):

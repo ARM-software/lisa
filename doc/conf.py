@@ -407,20 +407,13 @@ def setup(app):
 
 def get_test_id_list():
     import lisa.tests as test_package
-    with tempfile.NamedTemporaryFile('wt') as conf:
-        # Create a dummy target configuration, so that exekall can build all
-        # expressions starting from that
-        conf.write('target-conf:\n')
-        conf.flush()
-
-        rst_list = []
-        for path in test_package.__path__:
-            rst_list.extend(subprocess.check_output((
-                'exekall', 'run', path,
-                '--conf', conf.name,
-                '--rst-list'
-                ), stderr=subprocess.STDOUT).decode('utf-8').splitlines()
-            )
+    rst_list = []
+    for path in test_package.__path__:
+        rst_list.extend(subprocess.check_output((
+            'exekall', 'run', path,
+            '--rst-list', '--inject-empty-target-conf',
+            ), stderr=subprocess.STDOUT).decode('utf-8').splitlines()
+        )
     return rst_list
 
 def create_test_list_file(path):
