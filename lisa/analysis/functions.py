@@ -19,10 +19,10 @@
 
 from trappy.utils import listify
 
-from lisa.analysis.base import AnalysisBase
+from lisa.analysis.base import TraceAnalysisBase
 
 
-class FunctionsAnalysis(AnalysisBase):
+class FunctionsAnalysis(TraceAnalysisBase):
     """
     Support for kernel functions profiling and analysis
 

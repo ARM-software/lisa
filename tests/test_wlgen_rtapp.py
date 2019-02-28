@@ -19,8 +19,8 @@ from collections import OrderedDict, namedtuple
 import json
 import os
 
-from lisa.perf_analysis import PerfAnalysis
 from lisa.wlgen.rta import RTA, Periodic, Ramp, Step, RunAndSync
+from lisa.analysis.rta import PerfAnalysis
 
 from .utils import StorageTestCase, create_local_testenv
 
@@ -52,8 +52,8 @@ class RTABase(StorageTestCase):
 
     def assert_can_read_logfile(self, exp_tasks):
         """Assert that the perf_analysis module understands the log output"""
-        pa = PerfAnalysis(self.res_dir)
-        self.assertSetEqual(set(exp_tasks), set(pa.tasks()))
+        analysis = PerfAnalysis.from_dir(self.res_dir)
+        self.assertSetEqual(set(exp_tasks), set(analysis.tasks))
 
 class TestRTAProfile(RTABase):
     def _do_test(self, profile, exp_phases):

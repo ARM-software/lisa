@@ -23,11 +23,11 @@ import pandas as pd
 from trappy.utils import handle_duplicate_index
 
 from lisa.utils import memoized
-from lisa.analysis.base import AnalysisBase
+from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
 
 
-class IdleAnalysis(AnalysisBase):
+class IdleAnalysis(TraceAnalysisBase):
     """
     Support for plotting Idle Analysis data
 

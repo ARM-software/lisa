@@ -20,7 +20,7 @@ from enum import Enum
 import numpy as np
 import pandas as pd
 
-from lisa.analysis.base import AnalysisBase
+from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.trace import requires_events
 
@@ -109,7 +109,7 @@ class TaskState(StateInt, Enum):
 
         return res
 
-class TasksAnalysis(AnalysisBase):
+class TasksAnalysis(TraceAnalysisBase):
     """
     Support for Tasks signals analysis.
 

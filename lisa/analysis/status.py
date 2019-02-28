@@ -19,10 +19,10 @@
 
 """ System Status Analaysis Module """
 
-from lisa.analysis.base import AnalysisBase
+from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
 
-class StatusAnalysis(AnalysisBase):
+class StatusAnalysis(TraceAnalysisBase):
     """
     Support for System Status analysis
 

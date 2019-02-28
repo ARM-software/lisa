@@ -20,11 +20,11 @@
 import pandas as pd
 
 from lisa.utils import memoized
-from lisa.analysis.base import AnalysisBase
+from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
 
 
-class CpusAnalysis(AnalysisBase):
+class CpusAnalysis(TraceAnalysisBase):
     """
     Support for CPUs signals analysis
     """
