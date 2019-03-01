@@ -451,7 +451,10 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
 
         mapping = cls._from_path(path, fmt='yaml')
         assert isinstance(mapping, Mapping)
-        data = mapping[toplevel_key] or {}
+        try:
+            data = mapping[toplevel_key] or {}
+        except KeyError:
+            raise ValueError('Key "{}" needs to appear at the top level'.format(toplevel_key))
         # "unwrap" an extra layer of toplevel key, to play well with !include
         if len(data) == 1 and toplevel_key in data.keys():
             data = data[toplevel_key]

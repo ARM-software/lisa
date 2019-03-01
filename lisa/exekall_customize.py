@@ -84,7 +84,7 @@ class LISAAdaptor(AdaptorBase):
             for conf_cls in conf_cls_set:
                 try:
                     conf = conf_cls.from_yaml_map(conf_path)
-                except KeyError:
+                except ValueError:
                     continue
                 else:
                     conf_list.append((conf, conf_path))
