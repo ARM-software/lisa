@@ -69,10 +69,15 @@ class ExekallArtifactPath(ArtifactPath, NonReusable):
         return cls(root, relative)
 
 class ExekallFtraceCollector(FtraceCollector, HideExekallID):
+    @staticmethod
+    def _get_consumer_conf(consumer):
+        consumer_cls = get_method_class(consumer)
+        conf = getattr(consumer_cls, 'ftrace_conf', FtraceConf())
+        return conf
+
     @classmethod
     def from_user_conf(cls, target:Target, consumer:Consumer, user_conf:FtraceConf=None) -> 'ExekallFtraceCollector':
-        consumer_cls = get_method_class(consumer)
-        base_conf = getattr(consumer_cls, 'ftrace_conf', FtraceConf())
+        base_conf = cls._get_consumer_conf(consumer)
         merged_src = 'user+{}'.format(consumer_cls.__qualname__)
 
         return super().from_user_conf(
@@ -149,6 +154,50 @@ class LISAAdaptor(AdaptorBase):
         self.hidden_op_set = hidden_op_set
         return hidden_op_set
 
+    def format_expr_list(self, expr_list, verbose=0):
+        if not self.args.list_trace_events:
+            return ''
+
+        def get_trace_events(expr):
+            events = set()
+            if issubclass(expr.op.value_type, TestBundle):
+                try:
+                    ftrace_conf = ExekallFtraceCollector._get_consumer_conf(
+                        expr.op.unwrapped_callable
+                    )
+                except Exception:
+                    pass
+                else:
+                    events = set(ftrace_conf.get('events', []))
+
+            for param_expr in expr.param_map.values():
+                events.update(get_trace_events(param_expr))
+            return events
+
+        def format_events(events):
+            if not events:
+                return '\n\t<no events>'
+            else:
+                joiner = '\n\t- '
+                return joiner + joiner.join(sorted(events))
+
+        def format_expr(expr):
+            hidden_callable_set = {
+                op.callable_ for op in self.hidden_op_set
+            }
+            expr_id = expr.get_id(
+                qual=False,
+                full_qual=verbose,
+                hidden_callable_set=hidden_callable_set
+            )
+            events = sorted(get_trace_events(expr))
+            return '{}:{}'.format(expr_id, format_events(events))
+
+        return 'Used trace events:\n' + '\n\n'.join(
+            format_expr(expr)
+            for expr in expr_list
+        )
+
     @staticmethod
     def register_run_param(parser):
         parser.add_argument('--conf', action='append',
@@ -159,6 +208,9 @@ class LISAAdaptor(AdaptorBase):
             metavar='SERIALIZED_OBJECT_PATH',
             default=[],
             help="Serialized object to inject when building expressions")
+
+        parser.add_argument('--list-trace-events', action='store_true',
+            help="Show the list of trace events collected for each testcase")
 
         # Create an empty TargetConf, so we are able to get the list of tests
         # as if we were going to execute them using a target.
