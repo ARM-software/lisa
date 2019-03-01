@@ -789,6 +789,10 @@ def do_run(args, parser, run_parser, argv):
             if verbose >= 2:
                 out(expr.get_structure() + '\n')
 
+    formatted_out = adaptor.format_expr_list(expr_list, verbose=verbose)
+    if formatted_out:
+        out('\n' + formatted_out + '\n')
+
     if only_list:
         return 0
 

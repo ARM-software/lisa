@@ -52,6 +52,9 @@ class AdaptorBase:
             if op.get_prototype()[0]
         }
 
+    def format_expr_list(self, expr_list, verbose=0):
+        return ''
+
     def get_prebuilt_set(self):
         return set()
 
