@@ -35,7 +35,7 @@ import pandas as pd
 
 import devlib
 
-from lisa.utils import Loggable, get_subclasses, ArtifactPath
+from lisa.utils import Loggable, get_subclasses, ArtifactPath, HideExekallID
 from lisa.conf import MultiSrcConf, KeyDesc, TopLevelKeyDesc, StrList, Configurable
 from lisa.target import Target
 
