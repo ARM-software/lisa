@@ -53,10 +53,10 @@ Trace
 .. automodule:: lisa.trace
    :members:
 
-Performance Analysis
-====================
+RTA logs Analysis
+=================
 
-.. automodule:: lisa.perf_analysis
+.. automodule:: lisa.analysis.rta
    :members:
 
 Miscellaneous utilities
