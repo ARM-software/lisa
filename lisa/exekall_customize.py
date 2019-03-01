@@ -78,6 +78,7 @@ class ExekallFtraceCollector(FtraceCollector, HideExekallID):
     @classmethod
     def from_user_conf(cls, target:Target, consumer:Consumer, user_conf:FtraceConf=None) -> 'ExekallFtraceCollector':
         base_conf = cls._get_consumer_conf(consumer)
+        consumer_cls = get_method_class(consumer)
         merged_src = 'user+{}'.format(consumer_cls.__qualname__)
 
         return super().from_user_conf(
