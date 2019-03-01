@@ -70,13 +70,15 @@ class RTA(Workload):
 
         self.command = '{0:s} {1:s} 2>&1'.format(rta_cmd, self.remote_json)
 
-    def _late_init(self, calibration=None, tasks_names=None):
+    def _late_init(self, calibration=None, tasks_names=None, log_dir=None):
         """
         Complete initialization with a ready json file
 
         :parameters: Attributes that have been pre-computed and ended up
           in the json file. Passing them can prevent a needless file read.
         """
+        self.log_dir = log_dir if log_dir else self.run_dir
+
         if not os.path.exists(self.local_json):
             raise RuntimeError("Could not find {}".format(self.local_json))
 
@@ -107,7 +109,7 @@ class RTA(Workload):
         for task in self.tasks:
             # RT-app appends some number to the logs, so we can't predict the
             # exact filename
-            logfile = self.target.path.join(self.run_dir, '*{}*.log'.format(task))
+            logfile = self.target.path.join(self.log_dir, '*{}*.log'.format(task))
             self.target.pull(logfile, self.res_dir)
 
     def _process_calibration(self, calibration):
@@ -175,11 +177,12 @@ class RTA(Workload):
 
         calibration = self._process_calibration(calibration)
 
+        log_dir = self.run_dir
         global_conf = {
             'default_policy': 'SCHED_OTHER',
             'duration': -1 if not max_duration_s else max_duration_s,
             'calibration': calibration,
-            'logdir': self.run_dir,
+            'logdir': log_dir,
         }
 
         if max_duration_s:
@@ -235,7 +238,8 @@ class RTA(Workload):
         with open(self.local_json, 'w') as outfile:
             json.dump(rta_profile, outfile, indent=4, separators=(',', ': '))
 
-        self._late_init(calibration=calibration, tasks_names=list(profile.keys()))
+        self._late_init(calibration=calibration, tasks_names=list(profile.keys()),
+                log_dir=log_dir)
         return self
 
     @classmethod
@@ -321,7 +325,9 @@ class RTA(Workload):
             json.dump(json_conf, fh)
 
         tasks_names = [tid for tid in json_conf['tasks']]
-        self._late_init(calibration=calibration, tasks_names=tasks_names)
+        log_dir = json_conf.get('global', {}).get('logdir')
+        self._late_init(calibration=calibration, tasks_names=tasks_names,
+                log_dir=log_dir)
 
         return self
 
