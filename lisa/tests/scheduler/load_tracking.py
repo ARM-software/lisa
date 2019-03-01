@@ -32,9 +32,10 @@ from trappy.stats.Topology import Topology
 from lisa.tests.base import (
     TestMetric, Result, ResultBundle, TestBundle, RTATestBundle
 )
-from lisa.env import TestEnv
+from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby
 from lisa.wlgen.rta import Periodic
+from lisa.trace import FtraceConf, FtraceCollector
 
 UTIL_SCALE = 1024
 """
@@ -156,7 +157,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
     Base class for shared functionality of load tracking tests
     """
 
-    ftrace_conf = {
+    ftrace_conf = FtraceConf({
         "events" : [
             "sched_switch",
             "sched_load_avg_task",
@@ -165,7 +166,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
             "sched_load_se",
             "sched_load_cfs_rq",
         ],
-    }
+    }, __qualname__)
 
     cpufreq_conf = {
         "governor" : "performance"
@@ -176,8 +177,8 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
     """
 
     @classmethod
-    def _from_testenv(cls, te, res_dir):
-        plat_info = te.plat_info
+    def _from_target(cls, target, res_dir, ftrace_coll):
+        plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
 
         # After a bit of experimenting, it turns out that on some platforms
@@ -188,9 +189,9 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
         # only 5 or 6 ms.
         # This is fine to do this here, as we only care about the proper
         # behaviour of the signal on running/not-running tasks.
-        with te.disable_idle_states():
-            with te.target.cpufreq.use_governor(**cls.cpufreq_conf):
-                cls._run_rtapp(te, res_dir, rtapp_profile)
+        with target.disable_idle_states():
+            with target.cpufreq.use_governor(**cls.cpufreq_conf):
+                cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
 
         return cls(res_dir, plat_info, rtapp_profile)
 
@@ -263,25 +264,25 @@ class InvarianceItem(LoadTrackingBase):
 
     @classmethod
     # Not annotated, to prevent exekall from picking it up. See
-    # Invariance.from_testenv
-    def from_testenv(cls, te, cpu, freq, freq_list, res_dir=None):
+    # Invariance.from_target
+    def from_target(cls, target, cpu, freq, freq_list, res_dir=None, ftrace_coll=None):
         """
-        .. warning:: `res_dir` is the last parameter, unlike most other
-            `from_testenv` where it is the second one.
+        .. warning:: `res_dir` is at the end of the parameter list, unlike most
+            other `from_target` where it is the second one.
         """
-        return super().from_testenv(te, res_dir,
-            cpu=cpu, freq=freq, freq_list=freq_list)
+        return super().from_target(target, res_dir,
+            cpu=cpu, freq=freq, freq_list=freq_list, ftrace_coll=ftrace_coll)
 
     @classmethod
-    def _from_testenv(cls, te, res_dir, cpu, freq, freq_list):
-        plat_info = te.plat_info
+    def _from_target(cls, target, res_dir, cpu, freq, freq_list, ftrace_coll):
+        plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info, cpu)
         logger = cls.get_logger()
 
-        with te.target.cpufreq.use_governor(**cls.cpufreq_conf):
-            te.target.cpufreq.set_frequency(cpu, freq)
-            logger.debug('CPU{} frequency: {}'.format(cpu, te.target.cpufreq.get_frequency(cpu)))
-            cls._run_rtapp(te, res_dir, rtapp_profile)
+        with target.cpufreq.use_governor(**cls.cpufreq_conf):
+            target.cpufreq.set_frequency(cpu, freq)
+            logger.debug('CPU{} frequency: {}'.format(cpu, target.cpufreq.get_frequency(cpu)))
+            cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
 
         return cls(res_dir, plat_info, rtapp_profile, cpu, freq, freq_list)
 
@@ -399,13 +400,17 @@ class Invariance(TestBundle, LoadTrackingHelpers):
     :class:`InvarianceItem`.
     """
 
+    # Make sure ftrace_conf is available so exekall can find the right settings
+    # when building the FtraceCollector
+    ftrace_conf = InvarianceItem.ftrace_conf
+
     def __init__(self, res_dir, plat_info, invariance_items):
         super().__init__(res_dir, plat_info)
 
         self.invariance_items = invariance_items
 
     @classmethod
-    def _build_invariance_items(cls, te, res_dir):
+    def _build_invariance_items(cls, target, res_dir, ftrace_coll):
         """
         Yield a :class:`InvarianceItem` for a subset of target's
         frequencies, for one CPU of each capacity class.
@@ -414,7 +419,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
 
         :rtype: Iterator[:class:`InvarianceItem`]
         """
-        plat_info = te.plat_info
+        plat_info = target.plat_info
 
         def pick_cpu(filtered_class, cpu_class):
             try:
@@ -435,7 +440,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
         logger = cls.get_logger()
         logger.info('Selected one CPU of each capacity class: {}'.format(cpus))
         for cpu in cpus:
-            all_freqs = te.target.cpufreq.list_frequencies(cpu)
+            all_freqs = target.cpufreq.list_frequencies(cpu)
             # If we have loads of frequencies just test a cross-section so it
             # doesn't take all day
             freq_list = all_freqs[::len(all_freqs) // 8 + (1 if len(all_freqs) % 2 else 0)]
@@ -453,21 +458,22 @@ class Invariance(TestBundle, LoadTrackingHelpers):
                 os.makedirs(item_dir)
 
                 logger.info('Running experiment for CPU {}@{}'.format(cpu, freq))
-                yield InvarianceItem.from_testenv(
-                    te, cpu, freq, all_freqs, res_dir=item_dir,
+                yield InvarianceItem.from_target(
+                    target, cpu, freq, all_freqs, res_dir=item_dir,
+                    ftrace_coll=ftrace_coll,
                 )
 
     def iter_invariance_items(self) -> InvarianceItem:
         yield from self.invariance_items
 
     @classmethod
-    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'Invariance':
-        return super().from_testenv(te, res_dir)
+    def from_target(cls, target:Target, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'Invariance':
+        return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
 
     @classmethod
-    def _from_testenv(cls, te, res_dir):
-        return cls(res_dir, te.plat_info,
-            list(cls._build_invariance_items(te, res_dir))
+    def _from_target(cls, target, res_dir, ftrace_coll):
+        return cls(res_dir, target.plat_info,
+            list(cls._build_invariance_items(target, res_dir, ftrace_coll))
         )
 
     def get_trace(self, cpu, freq):
@@ -627,13 +633,13 @@ class PELTTask(LoadTrackingBase):
     task_prefix = 'pelt_behv'
 
     @classmethod
-    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'PELTTask':
+    def from_target(cls, target:Target, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'PELTTask':
         """
         Factory method to create a bundle using a live target
 
         This will execute the rt-app workload described in :meth:`get_rtapp_profile`
         """
-        return super().from_testenv(te, res_dir)
+        return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):

@@ -26,27 +26,59 @@ import inspect
 import abc
 
 from collections import namedtuple
+from collections.abc import Mapping
 from subprocess import Popen, PIPE, STDOUT
 from time import sleep
 
 import numpy as np
 import pandas as pd
 
-from bart.common.Utils import area_under_curve
 import devlib
-from lisa.utils import Loggable, get_subclasses
+
+from lisa.utils import Loggable, get_subclasses, ArtifactPath
+from lisa.conf import MultiSrcConf, KeyDesc, TopLevelKeyDesc, StrList, Configurable
+from lisa.target import Target
+
+from bart.common.Utils import area_under_curve
 
 # Default energy measurements for each board
 EnergyReport = namedtuple('EnergyReport',
                           ['channels', 'report_file', 'data_frame'])
 
+class EnergyMeterConf(MultiSrcConf, HideExekallID):
+    """
+    Configuration class for :class:`EnergyMeter`.
+    """
+    STRUCTURE = TopLevelKeyDesc('emeter-conf', 'Energy Meter configuration', (
+        KeyDesc('name', 'Value of name attribute of the EnergyMeter subclass to use', [str]),
+        KeyDesc('conf', 'Emeter configuration, depending on the type of emeter used', [Mapping]),
+    ))
+
 class EnergyMeter(Loggable, abc.ABC):
+    """
+    Abstract Base Class of energy meters.
+    """
     def __init__(self, target, res_dir):
         self._target = target
+        res_dir = res_dir if res_dir else target.get_res_dir(
+            name='EnergyMeter-{}'.format(self.name),
+            symlink=False,
+        )
         self._res_dir = res_dir
 
     @classmethod
     def get_meter(cls, name, conf, target, res_dir=None):
+        """
+        Choose the appropriate :class:`EnergyMeter` subclass and build an
+        instance of it.
+
+        :param name: Name matching the ``name`` class attribute of energy meters
+        :type name: str
+
+        :param conf: Configuration mapping passed to the :class:`EnergyMeter`
+            subclass.
+        :type conf: collections.abc.Mapping
+        """
         logger = cls.get_logger()
         logger.debug('Results dir: %s', res_dir)
 
@@ -56,6 +88,26 @@ class EnergyMeter(Loggable, abc.ABC):
                     return subcls(target, conf, res_dir)
 
         raise ValueError('No EnergyMeter has name "{}"'.format(name))
+
+    @classmethod
+    def from_conf(cls, target:Target, conf:EnergyMeterConf, res_dir:ArtifactPath=None) -> 'EnergyMeter':
+        """
+        Build an instance of :class:`EnergyMeter` from a configuration object.
+
+        .. seealso:: :meth:`EnergyMeter.get_meter`
+
+        :param target: Target to use
+        :type target: lisa.target.Target
+
+        :param conf: Configuration to use
+        :type conf: EnergyMeterConf
+        """
+        return cls.get_meter(
+            name=conf['name'],
+            conf=conf['conf'],
+            target=target,
+            res_dir=res_dir,
+        )
 
     @abc.abstractmethod
     def name():

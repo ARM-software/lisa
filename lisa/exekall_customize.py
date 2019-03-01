@@ -17,6 +17,7 @@
 #
 
 import argparse
+import copy
 import contextlib
 import itertools
 import re
@@ -24,7 +25,8 @@ import os.path
 from pathlib import Path
 from collections import OrderedDict, namedtuple
 
-from lisa.env import TestEnv, TargetConf
+from lisa.target import Target, TargetConf
+from lisa.trace import FtraceCollector, FtraceConf
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable
 from lisa.conf import MultiSrcConf
@@ -32,7 +34,7 @@ from lisa.tests.base import TestBundle, ResultBundle
 from lisa.tests.scheduler.load_tracking import InvarianceItem
 from lisa.regression import compute_regressions
 
-from exekall.utils import get_name
+from exekall.utils import get_name, get_method_class
 from exekall.engine import ExprData, Consumer, PrebuiltOperator
 from exekall.customization import AdaptorBase
 
@@ -66,6 +68,19 @@ class ExekallArtifactPath(ArtifactPath, NonReusable):
         relative = artifact_dir.relative_to(root)
         return cls(root, relative)
 
+class ExekallFtraceCollector(FtraceCollector, HideExekallID):
+    @classmethod
+    def from_user_conf(cls, target:Target, consumer:Consumer, user_conf:FtraceConf=None) -> 'ExekallFtraceCollector':
+        consumer_cls = get_method_class(consumer)
+        base_conf = getattr(consumer_cls, 'ftrace_conf', FtraceConf())
+        merged_src = 'user+{}'.format(consumer_cls.__qualname__)
+
+        return super().from_user_conf(
+            target,
+            base_conf, user_conf,
+            merged_src=merged_src
+        )
+
 class LISAAdaptor(AdaptorBase):
     name = 'LISA'
 
@@ -78,13 +93,13 @@ class LISAAdaptor(AdaptorBase):
 
         # Try to build as many configurations instances from all the files we
         # are given
-        conf_cls_set = set(get_subclasses(MultiSrcConf))
+        conf_cls_set = set(get_subclasses(MultiSrcConf, only_leaves=True))
         conf_list = []
         for conf_path in self.args.conf:
             for conf_cls in conf_cls_set:
                 try:
                     conf = conf_cls.from_yaml_map(conf_path)
-                except KeyError:
+                except ValueError:
                     continue
                 else:
                     conf_list.append((conf, conf_path))
@@ -295,10 +310,8 @@ class LISAAdaptor(AdaptorBase):
     @classmethod
     def get_tags(cls, value):
         tags = {}
-        if isinstance(value, TestEnv):
-            tags['board'] = value.target_conf.get('name')
-        elif isinstance(value, PlatformInfo):
-            tags['board'] = value.get('name')
+        if isinstance(value, Target):
+            tags['board'] = value.name
         elif isinstance(value, InvarianceItem):
             if value.cpu is not None:
                 tags['cpu'] = '{}@{}'.format(value.cpu, value.freq)

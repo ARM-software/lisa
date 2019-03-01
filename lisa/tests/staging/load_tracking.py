@@ -24,7 +24,8 @@ from lisa.tests.scheduler.load_tracking import (
     UTIL_SCALE,
     LoadTrackingBase
 )
-from lisa.env import TestEnv, ArtifactPath
+from lisa.target import Target, ArtifactPath
+from lisa.trace import FtraceCollector
 
 class CPUMigrationBase(LoadTrackingBase):
     """
@@ -50,7 +51,7 @@ class CPUMigrationBase(LoadTrackingBase):
     """
 
     @classmethod
-    def _run_rtapp(cls, te, res_dir, profile):
+    def _run_rtapp(cls, target, res_dir, profile, ftrace_coll):
         # Just do some validation on the profile
         for name, task in profile.items():
             for phase in task.phases:
@@ -58,7 +59,7 @@ class CPUMigrationBase(LoadTrackingBase):
                     raise RuntimeError("Each phase must be tied to a single CPU. "
                                        "Task \"{}\" violates this".format(name))
 
-        super()._run_rtapp(te, res_dir, profile)
+        super()._run_rtapp(target, res_dir, profile, ftrace_coll)
 
     def __init__(self, res_dir, plat_info, rtapp_profile):
         super().__init__(res_dir, plat_info, rtapp_profile)
@@ -75,18 +76,18 @@ class CPUMigrationBase(LoadTrackingBase):
         self.phases_durations = [phase.duration_s
                                  for phase in self.reference_task.phases]
     @classmethod
-    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None) -> 'CPUMigrationBase':
+    def from_target(cls, target:Target, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'CPUMigrationBase':
         """
         Factory method to create a bundle using a live target
         """
-        return super().from_testenv(te=te, res_dir=res_dir)
+        return super().from_target(target=target, res_dir=res_dir, ftrace_coll=ftrace_coll)
 
     @classmethod
-    def check_from_testenv(cls, te):
-        super().check_from_testenv(te)
+    def check_from_target(cls, target):
+        super().check_from_target(target)
 
         try:
-            te.plat_info["cpu-capacities"]
+            target.plat_info["cpu-capacities"]
         except KeyError as e:
             raise CannotCreateError(str(e))
 
@@ -208,10 +209,10 @@ class OneTaskCPUMigration(CPUMigrationBase):
         return []
 
     @classmethod
-    def check_from_testenv(cls, te):
-        super().check_from_testenv(te)
+    def check_from_target(cls, target):
+        super().check_from_target(target)
 
-        cpus = cls.get_migration_cpus(te.plat_info)
+        cpus = cls.get_migration_cpus(target.plat_info)
         if not len(cpus) == cls.NR_REQUIRED_CPUS:
             raise CannotCreateError(
                 "This workload requires {} CPUs of identical capacity".format(

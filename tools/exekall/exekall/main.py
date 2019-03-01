@@ -816,8 +816,9 @@ def do_run(args, parser, run_parser, argv):
     else:
         iteration_expr_list = [expr_list]
 
-
-
+    # Make sure all references to Consumer are cloned appropriately
+    for expr in utils.flatten_seq(iteration_expr_list):
+        expr.prepare_execute()
 
     exec_ret_code = exec_expr_list(
         iteration_expr_list=iteration_expr_list,
@@ -955,8 +956,8 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
             computed_expr_val_set = set()
             reused_expr_val_set = set()
             def log_expr_val(expr_val, reused):
-                # Consider that PrebuiltOperator reuse values instead of actually
-                # computing them.
+                # Consider that PrebuiltOperator reuse values instead of
+                # actually computing them.
                 if isinstance(expr_val.expr.op, engine.PrebuiltOperator):
                     reused = True
 
@@ -972,14 +973,18 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                     op.callable_ not in hidden_callable_set
                     and not issubclass(op.value_type, engine.ForcedParamType)
                 ):
-                    info(msg.format(
-                        id=expr_val.get_id(
-                            full_qual=False,
-                            with_tags=True,
-                            hidden_callable_set=hidden_callable_set,
-                        ),
-                        uuid=get_uuid_str(expr_val),
-                    ))
+                    log_f = info
+                else:
+                    log_f = debug
+
+                log_f(msg.format(
+                    id=expr_val.get_id(
+                        full_qual=False,
+                        with_tags=True,
+                        hidden_callable_set=hidden_callable_set,
+                    ),
+                    uuid=get_uuid_str(expr_val),
+                ))
 
             # This returns an iterator
             executor = expr.execute(log_expr_val)
@@ -1023,7 +1028,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
             with (expr_artifact_dir/'TESTCASE.py').open('wt', encoding='utf-8') as f:
                 f.write(
                     expr.get_script(
-                        prefix = 'testcase',
+                        prefix = 'expr',
                         db_path = os.path.join('..', '..', DB_FILENAME),
                         db_relative_to = '__file__',
                     )[1]+'\n',

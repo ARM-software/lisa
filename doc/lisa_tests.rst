@@ -24,7 +24,7 @@ self-tests. It's a nice way to showcase that your code works, and also how it
 works. On top of that, it makes sure that later changes won't break it.
 
 It's possible to write tests that require a live target - see
-:meth:`~tests.utils.create_local_testenv`. However, as these tests
+:meth:`~tests.utils.create_local_target`. However, as these tests
 are meant to be run by Travis as part of our pull-request validation, they have
 to be designed to work on a target with limited privilege.
 

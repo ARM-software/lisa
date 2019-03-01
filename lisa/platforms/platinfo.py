@@ -82,8 +82,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     def __init__(self, conf=None, src='user'):
         super().__init__(conf=conf, src=src)
 
-    def add_target_src(self, te, src='target', **kwargs):
-        target = te.target
+    def add_target_src(self, target, rta_calib_res_dir, src='target', **kwargs):
         info = {
             'nrg-model': self._nrg_model_from_target(target),
             'kernel': {
@@ -94,9 +93,9 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             'os': target.os,
             'rtapp': {
                 # Since it is expensive to compute, use an on-demand DeferredValue
-                'calib': DeferredValue(RTA.get_cpu_calibrations, te)
+                'calib': DeferredValue(RTA.get_cpu_calibrations, target, rta_calib_res_dir)
             },
-            'cpus-count': te.target.number_of_cpus
+            'cpus-count': target.number_of_cpus
         }
 
         if hasattr(target, 'cpufreq'):

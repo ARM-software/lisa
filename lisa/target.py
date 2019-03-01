@@ -27,6 +27,9 @@ import copy
 import sys
 import argparse
 import textwrap
+import functools
+import inspect
+import abc
 
 import devlib
 from devlib.utils.misc import which
@@ -34,24 +37,16 @@ from devlib import Platform
 from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
-from lisa.energy_meter import EnergyMeter
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, setup_logging, ArtifactPath
-from lisa.conf import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrList
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath
+from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrList, Configurable
 
 from lisa.platforms.platinfo import PlatformInfo
-
-USERNAME_DEFAULT = 'root'
-ADB_PORT_DEFAULT = 5555
-SSH_PORT_DEFAULT = 22
-FTRACE_BUFSIZE_DEFAULT = 10240
-RESULT_DIR = 'results'
-LATEST_LINK = 'results_latest'
 
 class PasswordKeyDesc(KeyDesc):
     def pretty_format(self, v):
         return '<password>'
 
-class TargetConf(MultiSrcConf, HideExekallID):
+class TargetConf(SimpleMultiSrcConf, HideExekallID):
     """
     Target connection settings.
 
@@ -67,7 +62,8 @@ class TargetConf(MultiSrcConf, HideExekallID):
         TargetConf({{
             'name': 'myboard',
             'host': 192.0.2.1,
-            'usname': 'foo',
+            'kind': 'linux',
+            'username': 'foo',
             'password': 'bar',
         }})
 
@@ -92,11 +88,6 @@ class TargetConf(MultiSrcConf, HideExekallID):
             # environment variable.
             name: !env:str BOARD_NAME
             port: !env:int PORT
-
-            # It is possible to include another YAML file as a whole node in
-            # the current YAML document.
-            ftrace: !include /path/to/$ENV_VAR/ftrace.yml
-
 
     .. note:: That structure in a YAML file is allowed and will work:
 
@@ -130,16 +121,10 @@ class TargetConf(MultiSrcConf, HideExekallID):
         KeyDesc('keyfile', 'SSH private key file', [str, None]),
         KeyDesc('workdir', 'Remote target workdir', [str]),
         KeyDesc('tools', 'List of tools to install on the target', [StrList]),
-        LevelKeyDesc('ftrace', 'FTrace configuration', (
-            KeyDesc('events', 'FTrace events to trace', [StrList]),
-            KeyDesc('functions', 'FTrace functions to trace', [StrList]),
-            KeyDesc('buffsize', 'FTrace buffer size', [int]),
-        )),
-        LevelKeyDesc('emeter', 'Energy meter configuration', (
-            KeyDesc('name', 'Energy meter name to use', [str]),
-            KeyDesc('conf', 'Energy meter configuration', [Mapping]),
-        )),
         LevelKeyDesc('devlib', 'devlib configuration', (
+            # Using textual name of the Platform allows this YAML configuration
+            # to not use any python-specific YAML tags, so TargetConf files can
+            # be parsed and produced by any other third-party code
             LevelKeyDesc('platform', 'devlib.platform.Platform subclass specification', (
                 KeyDesc('class', 'Name of the class to use', [str]),
                 KeyDesc('args', 'Keyword arguments to build the Platform object', [Mapping]),
@@ -149,10 +134,6 @@ class TargetConf(MultiSrcConf, HideExekallID):
     ))
 
     DEFAULT_SRC = {
-        'username': USERNAME_DEFAULT,
-        'ftrace': {
-            'buffsize': FTRACE_BUFSIZE_DEFAULT,
-        },
         'devlib': {
             'platform': {
                 'class': 'devlib.platform.Platform'
@@ -160,33 +141,33 @@ class TargetConf(MultiSrcConf, HideExekallID):
         }
     }
 
-    def __init__(self, conf, src='user'):
+    def __init__(self, conf=None, src='user'):
         super().__init__(conf=conf, src=src)
 
-    # We do not allow overriding source for this kind of configuration to keep
-    # the YAML interface simple and dict-like
-    @classmethod
-    def from_map(cls, mapping):
-        return cls(mapping)
-
-    def to_map(self):
-        return dict(self._get_effective_map())
-
-class TestEnv(Loggable, HideExekallID):
+class Target(Loggable, HideExekallID, Configurable):
     """
-    Represents the environment configuring LISA, the target, and the test setup
+    Wrap :class:`devlib.target.Target` to provide additional features on top of
+    it.
 
-    :param target_conf: Configuration defining the target to use.
-    :type target_conf: TargetConf
+    {configurable_params}
+
+    :param devlib_platform: Instance of :class:`devlib.platform.Platform` to
+        use to build the :class:`devlib.target.Target`
+    :type devlib_platform: devlib.platform.Platform
 
     You need to provide the information needed to connect to the
     target. For SSH targets that means "host", "username" and
     either "password" or "keyfile". All other fields are optional if
     the relevant features aren't needed.
 
-    The role of :class:`TestEnv` is to wrap :class:`devlib.target.Target` to
-    provide additional features on top of it.
+    .. note:: The wrapping of :class:`devlib.target.Target` is done using
+        composition, as opposed to inheritance. This allows swapping the exact
+        class used under the hood, and avoids messing up with ``devlib``
+        internal members.
     """
+
+    ADB_PORT_DEFAULT = 5555
+    SSH_PORT_DEFAULT = 22
 
     CRITICAL_TASKS = {
         'linux': [
@@ -215,27 +196,34 @@ class TestEnv(Loggable, HideExekallID):
     freeze when using :meth:`freeze_userspace`.
     """
 
-    def __init__(self, target_conf:TargetConf, plat_info:PlatformInfo=None, res_dir:ArtifactPath=None):
+    CONF_CLASS = TargetConf
+    INIT_KWARGS_KEY_MAP = {
+        'devlib_excluded_modules': ['devlib', 'excluded-modules']
+    }
+
+    def __init__(self, kind, name='<noname>', tools=[], res_dir=None,
+        plat_info=None, workdir=None, device=None, host=None, port=None,
+        username='root', password=None, keyfile=None, devlib_platform=None,
+        devlib_excluded_modules=[]
+    ):
+
         super().__init__()
         logger = self.get_logger()
 
-        board_name = target_conf.get('name')
-        if not res_dir:
-            name = board_name or type(self).__qualname__
-            time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
-            name = '{}-{}'.format(name, time_str)
-            res_dir = os.path.join(LISA_HOME, RESULT_DIR, name)
+        self.name = name
 
-        # That res_dir is for the exclusive use of TestEnv itself, it must not
-        # be used by users of TestEnv
+        res_dir = res_dir if res_dir else self._get_res_dir(
+            root=os.path.join(LISA_HOME, RESULT_DIR),
+            relative='',
+            name='{}-{}'.format(self.__class__.__qualname__, self.name),
+            append_time=True,
+            symlink=True
+        )
+
         self._res_dir = res_dir
-        if self._res_dir:
-            os.makedirs(self._res_dir, exist_ok=True)
-            if os.listdir(self._res_dir):
-                raise ValueError('res_dir must be empty: {}'.format(self._res_dir))
-
-        self.target_conf = target_conf
-        logger.info('Target configuration:\n%s', self.target_conf)
+        os.makedirs(self._res_dir, exist_ok=True)
+        if os.listdir(self._res_dir):
+            raise ValueError('res_dir must be empty: {}'.format(self._res_dir))
 
         if plat_info is None:
             plat_info = PlatformInfo()
@@ -243,37 +231,88 @@ class TestEnv(Loggable, HideExekallID):
             # Make a copy of the PlatformInfo so we don't modify the original
             # one we were passed when adding the target source to it
             plat_info = copy.copy(plat_info)
+            logger.info('User-defined platform information:\n%s', plat_info)
+
         self.plat_info = plat_info
 
         # Take the board name from the target configuration so it becomes
         # available for later inspection. That board name is mostly free form
         # and no specific value should be expected for a given kind of board
         # (i.e. a Juno board might be named "foo-bar-juno-on-my-desk")
-        if board_name:
-            self.plat_info.add_src('target-conf', dict(name=board_name))
+        if name:
+            self.plat_info.add_src('target-conf', dict(name=name))
 
-        logger.info('User-defined platform information:\n%s', self.plat_info)
 
         self._installed_tools = set()
-        self.target = self._init_target(self.target_conf, self._res_dir)
+        self.target = self._init_target(
+                kind=kind,
+                name=name,
+                workdir=workdir,
+                device=device,
+                host=host,
+                port=port,
+                username=username,
+                password=password,
+                keyfile=keyfile,
+                devlib_platform=devlib_platform,
+                devlib_excluded_modules=devlib_excluded_modules,
+            )
 
         # Initialize binary tools to deploy
-        tools = self.target_conf.get('tools', [])
         if tools:
             logger.info('Tools to install: %s', tools)
             self.install_tools(target, tools)
 
-        # Autodetect information from the target, after the TestEnv is
+        # Autodetect information from the target, after the Target is
         # initialized. Expensive computations are deferred so they will only be
         # computed when actually needed.
-        self.plat_info.add_target_src(self, fallback=True)
+
+        rta_calib_res_dir = os.path.join(self._res_dir, 'rta_calib')
+        os.makedirs(rta_calib_res_dir)
+        self.plat_info.add_target_src(self, rta_calib_res_dir, fallback=True)
 
         logger.info('Effective platform information:\n%s', self.plat_info)
+
+    def __getattr__(self, attr):
+        """
+        Forward all non-overriden attributes/method accesses to the underlying
+        :class:`devlib.target.Target`.
+
+        .. note:: That will not forward special methods like __str__, since the
+            interpreter bypasses __getattr__ when looking them up.
+        """
+        return getattr(self.target, attr)
+
+    @classmethod
+    def from_conf(cls, conf:TargetConf, res_dir:ArtifactPath=None, plat_info:PlatformInfo=None) -> 'Target':
+        cls.get_logger().info('Target configuration:\n{}'.format(conf))
+        kwargs = cls.conf_to_init_kwargs(conf)
+        kwargs['res_dir'] = res_dir
+        kwargs['plat_info'] = plat_info
+
+        # Create a devlib Platform instance out of the configuration file
+        devlib_platform_conf = conf['devlib']['platform']
+
+        devlib_platform_cls = resolve_dotted_name(devlib_platform_conf['class'])
+        devlib_platform_kwargs = copy.copy(devlib_platform_conf.get('args', {}))
+
+        # Hack for Gem5 devlib Platform, that requires a "host_output_dir"
+        # argument computed at runtime.
+        # Note: lisa.target.Gem5SimulationPlatformWrapper should be used instead
+        # of the original one to benefit from mapping configuration
+        if issubclass(devlib_platform_cls, Gem5SimulationPlatform):
+            devlib_platform_kwargs.setdefault('host_output_dir', res_dir)
+
+        # Actually build the devlib Platform object
+        devlib_platform = devlib_platform_cls(**devlib_platform_kwargs)
+        kwargs['devlib_platform'] = devlib_platform
+
+        return cls(**kwargs)
 
     @classmethod
     def from_default_conf(cls):
         """
-        Create a :class:`TestEnv` from the YAML configuration file pointed by
+        Create a :class:`Target` from the YAML configuration file pointed by
         ``LISA_CONF`` environment variable.
         """
         path = os.environ['LISA_CONF']
@@ -282,23 +321,23 @@ class TestEnv(Loggable, HideExekallID):
     @classmethod
     def from_one_conf(cls, path):
         """
-        Create a :class:`TestEnv` from a single YAML configuration file.
+        Create a :class:`Target` from a single YAML configuration file.
 
         This file will be used to provide a :class:`TargetConf` and
         :class:`lisa.platforms.platinfo.PlatformInfo` instances.
         """
-        target_conf = TargetConf.from_yaml_map(path)
+        conf = TargetConf.from_yaml_map(path)
         try:
             plat_info = PlatformInfo.from_yaml_map(path)
         except Exception as e:
             cls.get_logger().warn('No platform information could be found: {}'.format(e))
             plat_info = None
-        return cls(target_conf=target_conf, plat_info=plat_info)
+        return cls.from_conf(conf=conf, plat_info=plat_info)
 
     @classmethod
-    def from_cli(cls, argv=None) -> 'TestEnv':
+    def from_cli(cls, argv=None) -> 'Target':
         """
-        Create a TestEnv from command line arguments.
+        Create a Target from command line arguments.
 
         :param argv: The list of arguments. ``sys.argv[1:]`` will be used if
           this is ``None``.
@@ -306,7 +345,7 @@ class TestEnv(Loggable, HideExekallID):
 
         Trying to use this in a script that expects extra arguments is bound
         to be confusing (help message woes, argument clashes...), so for now
-        this should only be used in scripts that only expect TestEnv args.
+        this should only be used in scripts that only expect Target args.
         """
         parser = argparse.ArgumentParser(
             formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -359,7 +398,7 @@ class TestEnv(Loggable, HideExekallID):
                             help="Verbosity level of the logs.")
 
         parser.add_argument("--res-dir", "-o",
-                            help="Result directory of the created TestEnv. If no directory is specified, a default location under $LISA_HOME will be used.")
+                            help="Result directory of the created Target. If no directory is specified, a default location under $LISA_HOME will be used.")
 
         # Options that are not a key in TargetConf must be listed here
         not_target_conf_opt = (
@@ -386,63 +425,57 @@ class TestEnv(Loggable, HideExekallID):
                 {k : v for k, v in vars(args).items()
                  if v is not None and k not in not_target_conf_opt})
 
-        return cls(target_conf, platform_info, res_dir=args.res_dir)
+        return cls.from_conf(conf=target_conf, plat_info=platform_info, res_dir=args.res_dir)
 
-    def _init_target(self, target_conf, res_dir):
+    def _init_target(self, kind, name, workdir, device, host,
+            port, username, password, keyfile,
+            devlib_platform, devlib_excluded_modules):
         """
         Initialize the Target
         """
         logger = self.get_logger()
-        target_kind = target_conf['kind']
-        target_workdir = target_conf.get('workdir')
         conn_settings = {}
 
         # If the target is Android, we need just (eventually) the device
-        if target_kind == 'android':
+        if kind == 'android':
             logger.debug('Setting up Android target...')
             devlib_target_cls = devlib.AndroidTarget
 
             # Workaround for ARM-software/devlib#225
-            target_workdir = target_workdir or '/data/local/tmp/devlib-target'
+            workdir = workdir or '/data/local/tmp/devlib-target'
 
-            device = target_conf.get('device')
-            host = target_conf.get('host')
             if device:
                 pass
             elif host:
-                port = target_conf.get('port', ADB_PORT_DEFAULT)
+                port = port or self.ADB_PORT_DEFAULT
                 device = '{}:{}'.format(host, port)
             else:
                 device = 'DEFAULT'
 
             conn_settings['device'] = device
 
-        elif target_kind == 'linux':
+        elif kind == 'linux':
             logger.debug('Setting up Linux target...')
             devlib_target_cls = devlib.LinuxTarget
 
-            conn_settings['username'] = target_conf['username']
-            conn_settings['port'] = target_conf.get('port', SSH_PORT_DEFAULT)
-            # Force reading 'host' from target_conf, so it will raise if the key
-            # does not exist
-            conn_settings['host'] = target_conf['host']
+            conn_settings['username'] = username
+            conn_settings['port'] = port or self.SSH_PORT_DEFAULT
+            conn_settings['host'] = host
 
 
             # Configure password or SSH keyfile
-            keyfile = target_conf.get('keyfile')
             if keyfile:
                 conn_settings['keyfile'] = keyfile
             else:
-                conn_settings['password'] = target_conf.get('password')
-        elif target_kind == 'host':
+                conn_settings['password'] = password
+        elif kind == 'host':
             logger.debug('Setting up localhost Linux target...')
             devlib_target_cls = devlib.LocalLinuxTarget
             conn_settings['unrooted'] = True
         else:
-            raise ValueError('Unsupported platform type {}'.format(target_kind))
+            raise ValueError('Unsupported platform type {}'.format(kind))
 
-        board_name = target_conf.get('name', '')
-        logger.info('%s %s target connection settings:', target_kind, board_name)
+        logger.info('%s %s target connection settings:', kind, name)
         for key, val in conn_settings.items():
             logger.info('%10s : %s', key, val)
 
@@ -450,20 +483,8 @@ class TestEnv(Loggable, HideExekallID):
         # Devlib Platform configuration
         ########################################################################
 
-        devlib_platform_cls_name = target_conf['devlib']['platform']['class']
-        devlib_platform_kwargs = target_conf['devlib']['platform'].get('args', {})
-
-        devlib_platform_cls = resolve_dotted_name(devlib_platform_cls_name)
-
-        # Hack for Gem5 devlib Platform, that requires a "host_output_dir"
-        # argument computed at runtime.
-        # Note: lisa.env.Gem5SimulationPlatformWrapper should be used instead
-        # of the original one to benefit from mapping configuration
-        if issubclass(devlib_platform_cls, Gem5SimulationPlatform):
-            devlib_platform_kwargs.setdefault('host_output_dir', res_dir)
-
-        # Actually build the devlib Platform object
-        devlib_platform = devlib_platform_cls(**devlib_platform_kwargs)
+        if not devlib_platform:
+            devlib_platform = devlib.platform.Platform()
 
         ########################################################################
         # Devlib modules configuration
@@ -486,8 +507,7 @@ class TestEnv(Loggable, HideExekallID):
 
         # The platform can define a list of modules to exclude, in case a given
         # module really have troubles on a given platform.
-        excluded_devlib_modules = set(target_conf['devlib'].get('excluded-modules', []))
-        devlib_module_set.difference_update(excluded_devlib_modules)
+        devlib_module_set.difference_update(devlib_excluded_modules)
 
         devlib_module_list = sorted(devlib_module_set)
         logger.info('Devlib modules to load: %s', ', '.join(devlib_module_list))
@@ -501,7 +521,7 @@ class TestEnv(Loggable, HideExekallID):
             modules = devlib_module_list,
             load_default_modules = False,
             connection_settings = conn_settings,
-            working_directory = target_workdir,
+            working_directory = workdir,
         )
 
         logger.debug('Checking target connection...')
@@ -543,7 +563,6 @@ class TestEnv(Loggable, HideExekallID):
           created results directory
         :type symlink: bool
         """
-        logger = self.get_logger()
 
         if isinstance(self._res_dir, ArtifactPath):
             root = self._res_dir.root
@@ -552,6 +571,16 @@ class TestEnv(Loggable, HideExekallID):
             root = self._res_dir
             relative = ''
 
+        return self._get_res_dir(
+            root=root,
+            relative=relative,
+            name=name,
+            append_time=append_time,
+            symlink=symlink,
+        )
+
+    def _get_res_dir(self, root, relative, name, append_time, symlink):
+        logger = self.get_logger()
         while True:
             time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
             if not name:
@@ -569,7 +598,7 @@ class TestEnv(Loggable, HideExekallID):
             # It will fail if the folder already exists. In that case,
             # append_time should be used to ensure we get a unique name.
             try:
-                os.mkdir(res_dir)
+                os.makedirs(res_dir)
                 break
             except FileExistsError:
                 # If the time is used in the name, there is some hope that the
@@ -592,6 +621,7 @@ class TestEnv(Loggable, HideExekallID):
 
         return res_dir
 
+
     def install_tools(self, tools):
         """
         Install tools additional to those specified in the test config 'tools'
@@ -605,77 +635,20 @@ class TestEnv(Loggable, HideExekallID):
         # Remove duplicates and already-installed tools
         tools.difference_update(self._installed_tools)
 
-        tools_to_install = []
+        tools_to_install = set()
         for tool in tools:
             binary = '{}/tools/scripts/{}'.format(LISA_HOME, tool)
             if not os.path.isfile(binary):
                 binary = '{}/tools/{}/{}'\
                          .format(LISA_HOME, self.target.abi, tool)
-            tools_to_install.append(binary)
+            tools_to_install.add(binary)
 
-        for tool_to_install in tools_to_install:
-            self.target.install(tool_to_install)
+        # TODO: compute the checksum of the tool + install location and keep
+        # that in _installed_tools, so we are sure to be correct
+        for tool in tools_to_install - self._installed_tools:
+            self.target.install(tool)
+            self._installed_tools.add(tool)
 
-        self._installed_tools.update(tools)
-
-    def get_ftrace_collector(self, events=None, functions=None, buffsize=0):
-        """
-        Get a configured FtraceCollector
-
-        :param events: The events to trace
-        :type events: list(str)
-
-        :param functions: the kernel functions to trace
-        :type functions: list(str)
-
-        :param buffsize: The size of the Ftrace buffer. The value used will be
-            the maximum of the one in the target configuration and the one
-            specified in that argument.
-        :type buffsize: int
-
-        :raises RuntimeError: If no event nor function is to be traced
-
-        :returns: devlib.trace.FtraceCollector
-        """
-        logger = self.get_logger()
-
-        # Merge with setup from target config
-        target_conf = self.target_conf.get('ftrace', {})
-
-        if events is None:
-            events = []
-        if functions is None:
-            functions = []
-
-        def merge_conf(value, index, default):
-            return sorted(set(value) | set(target_conf.get(index, default)))
-
-        events = merge_conf(events, 'events', [])
-        functions = merge_conf(functions, 'functions', [])
-        buffsize = max(buffsize, target_conf['buffsize'])
-
-        # If no events or functions have been specified:
-        # do not create the FtraceCollector
-        if not (events or functions):
-            raise RuntimeError(
-                "Tried to configure Ftrace, but no events nor functions were"
-                "provided from neither method parameters nor target_config"
-            )
-
-        # Ensure we have trace-cmd on the target
-        if 'trace-cmd' not in self._installed_tools:
-            self.install_tools(['trace-cmd'])
-
-        ftrace = devlib.FtraceCollector(
-            self.target,
-            events      = events,
-            functions   = functions,
-            buffer_size = buffsize,
-            autoreport  = False,
-            autoview    = False
-        )
-
-        return ftrace
 
     @contextlib.contextmanager
     def freeze_userspace(self):
@@ -706,36 +679,6 @@ class TestEnv(Loggable, HideExekallID):
             logger.info('Un-freezing userspace tasks')
             self.target.cgroups.freeze(thaw=True)
 
-    @contextlib.contextmanager
-    def collect_ftrace(self, output_file, events=None, functions=None,
-                       buffsize=0):
-        """
-        Context manager that lets you collect an Ftrace trace
-
-        :param output_file: Filepath for the trace to be created
-        :type output_file: str
-
-        :param events: The events to trace
-        :type events: list(str)
-
-        :param functions: the kernel functions to trace
-        :type functions: list(str)
-
-        :param buffsize: The size of the Ftrace buffer. The target
-            configuration provides a default value.
-        :type buffsize: int
-
-        :raises RuntimeError: If no event nor function is to be traced
-        """
-        ftrace = self.get_ftrace_collector(events, functions, buffsize)
-
-        ftrace.start()
-
-        try:
-            yield ftrace
-        finally:
-            ftrace.stop()
-            ftrace.get_trace(output_file)
 
     @contextlib.contextmanager
     def disable_idle_states(self):
@@ -754,22 +697,6 @@ class TestEnv(Loggable, HideExekallID):
             for domain in self.target.cpufreq.iter_domains():
                 self.target.cpuidle.enable_all(domain[0])
 
-    def get_emeter(self, res_dir=None):
-        spec = self.target_conf['emeter']
-        name = spec['name']
-        conf = spec['conf']
-
-        res_dir = res_dir if res_dir else self.get_res_dir(
-            name='EnergyMeter-{}'.format(name),
-            symlink=False
-        )
-
-        return EnergyMeter.get_meter(
-            name=name,
-            conf=conf,
-            target=self.target,
-            res_dir=res_dir,
-        )
 
 class Gem5SimulationPlatformWrapper(Gem5SimulationPlatform):
     def __init__(self, system, simulator, **kwargs):
@@ -803,4 +730,5 @@ class Gem5SimulationPlatformWrapper(Gem5SimulationPlatform):
                 virtio_args=virtio_args,
                 **kwargs
             )
+
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

@@ -18,15 +18,15 @@
 import shlex
 from unittest import TestCase
 
-from lisa.env import TestEnv
+from lisa.target import Target
 
-class TestEnvCheck(TestCase):
+class TargetEnvCheck(TestCase):
 
     def test_cli(self):
         """
-        Test that creating a TestEnv from the CLI works
+        Test that creating a Target from the CLI works
         """
         args = "--kind host"
-        te = TestEnv.from_cli(shlex.split(args))
+        target = Target.from_cli(shlex.split(args))
 
-        self.assertNotEqual(te.target.os, None)
+        self.assertNotEqual(target.os, None)

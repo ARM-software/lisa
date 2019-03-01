@@ -82,6 +82,12 @@ def get_mro(cls):
         assert isinstance(cls, type)
         return inspect.getmro(cls)
 
+def get_method_class(function):
+    cls_name = function.__qualname__.rsplit('.', 1)[0]
+    if '<locals>' in cls_name:
+        return None
+    return eval(cls_name, function.__globals__)
+
 def get_name(obj, full_qual=True, qual=True):
     # full_qual enabled implies qual enabled
     _qual = qual or full_qual

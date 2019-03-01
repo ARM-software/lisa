@@ -32,16 +32,6 @@ target-conf:
     # password: "mypassword"
     # keyfile: /complete/path/of/your/keyfile
 
-    # Optional ftrace configuration
-    # ftrace:
-        # Additional ftrace events and functions collected regardless of the
-        # test configuration
-        # events: []
-        # functions: []
-        #
-        # ftrace buffer size
-        # buffsize: 42
-
     # Optional devlib configuration
     # devlib:
         # Devlib modules names to enable/disbale for all the experiment
@@ -62,6 +52,17 @@ target-conf:
     #   architectures
     # - shell scripts under './tools/scripts/
     # tools: []
+    #
+
+# Ftrace collector configuration
+ftrace-conf:
+    # Additional ftrace events and functions collected regardless of the
+    # test configuration
+    # events: []
+    # functions: []
+    #
+    # ftrace buffer size
+    # buffer-size: 42
 
 # Platform information
 #

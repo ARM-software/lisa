@@ -17,7 +17,7 @@
 
 from lisa.tests.base import Result, ResultBundle, TestBundle
 from lisa.wlgen.sysbench import Sysbench
-from lisa.env import TestEnv
+from lisa.target import Target
 from lisa.utils import ArtifactPath
 
 class UserspaceSanity(TestBundle):
@@ -35,29 +35,29 @@ class UserspaceSanity(TestBundle):
         self.cpu_work = cpu_work
 
     @classmethod
-    def _from_testenv(cls, te, res_dir, freq_count_limit):
+    def _from_target(cls, target, res_dir, freq_count_limit):
         cpu_work = {}
-        sysbench = Sysbench(te, "sysbench", res_dir)
+        sysbench = Sysbench(target, "sysbench", res_dir)
 
-        with te.target.cpufreq.use_governor("userspace"):
-            for domain in te.target.cpufreq.iter_domains():
+        with target.cpufreq.use_governor("userspace"):
+            for domain in target.cpufreq.iter_domains():
                 cpu = domain[0]
                 cpu_work[cpu] = {}
-                freqs = te.target.cpufreq.list_frequencies(cpu)
+                freqs = target.cpufreq.list_frequencies(cpu)
 
                 if len(freqs) > freq_count_limit:
                     freqs = freqs[::len(freqs) // freq_count_limit +
                                   (1 if len(freqs) % 2 else 0)]
 
                 for freq in freqs:
-                    te.target.cpufreq.set_frequency(cpu, freq)
+                    target.cpufreq.set_frequency(cpu, freq)
                     sysbench.run(cpus=[cpu], max_duration_s=1)
                     cpu_work[cpu][freq] = sysbench.output.nr_events
 
-        return cls(res_dir, te.plat_info, cpu_work)
+        return cls(res_dir, target.plat_info, cpu_work)
 
     @classmethod
-    def from_testenv(cls, te:TestEnv, res_dir:ArtifactPath=None,
+    def from_target(cls, target:Target, res_dir:ArtifactPath=None,
                      freq_count_limit=5) -> 'UserspaceSanity':
         """
         Factory method to create a bundle using a live target
@@ -68,7 +68,7 @@ class UserspaceSanity(TestBundle):
         This will run Sysbench at different frequencies using the userspace
         governor
         """
-        return super().from_testenv(te, res_dir, freq_count_limit=freq_count_limit)
+        return super().from_target(target, res_dir, freq_count_limit=freq_count_limit)
 
     def test_performance_sanity(self) -> ResultBundle:
         """

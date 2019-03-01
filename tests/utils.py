@@ -21,7 +21,7 @@ import shutil
 
 from devlib.target import KernelVersion
 
-from lisa.env import TestEnv, TargetConf
+from lisa.target import Target, TargetConf
 from lisa.platforms.platinfo import PlatformInfo
 
 
@@ -40,11 +40,11 @@ HOST_PLAT_INFO = PlatformInfo({
     },
 })
 
-def create_local_testenv():
+def create_local_target():
     """
-    :returns: A localhost :class:`lisa.env.TestEnv` instance
+    :returns: A localhost :class:`lisa.target.Target` instance
     """
-    return TestEnv(HOST_TARGET_CONF, HOST_PLAT_INFO)
+    return Target.from_conf(conf=HOST_TARGET_CONF, plat_info=HOST_PLAT_INFO)
 
 class StorageTestCase(TestCase):
     """

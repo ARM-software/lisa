@@ -454,14 +454,19 @@ class ExpressionBase:
         else:
             return self._get_structure(full_qual=full_qual)
 
+    @staticmethod
+    def _get_structure_op_name(op):
+        if isinstance(op, ConsumerOperator):
+            return op.get_name(full_qual=True)
+        elif isinstance(op, PrebuiltOperator):
+            return '<provided>'
+        else:
+            return op.get_name(full_qual=True)
+
     def _get_structure(self, full_qual=True, indent=1):
         indent_str = 4 * ' ' * indent
 
-        if isinstance(self.op, PrebuiltOperator):
-            op_name = '<provided>'
-        else:
-            op_name = self.op.get_name(full_qual=True)
-
+        op_name = self._get_structure_op_name(self.op)
         out = '{op_name} ({value_type_name})'.format(
             op_name = op_name,
             value_type_name = utils.get_name(self.op.value_type, full_qual=full_qual),
@@ -482,10 +487,7 @@ class ExpressionBase:
         else:
             visited.add(self)
 
-        if isinstance(self.op, PrebuiltOperator):
-            op_name = '<provided>'
-        else:
-            op_name = self.op.get_name(full_qual=True)
+        op_name = self._get_structure_op_name(self.op)
 
         # Use the Python id as it is guaranteed to be unique during the lifetime of
         # the object, so it is a good candidate to refer to a node
@@ -831,10 +833,10 @@ class ExpressionBase:
             # When the ExprVal is from an Expression of the Consumer
             # operator, we directly print out the name of the function that was
             # selected since it is not serializable
-            callable_ = expr_val.expr.op.callable_
-            if attr == 'value' and callable_ is Consumer:
+            op = expr_val.expr.op
+            if attr == 'value' and isinstance(op, ConsumerOperator):
                 return Operator(obj).get_name(full_qual=True)
-            elif attr == 'value' and callable_ is ExprData:
+            elif attr == 'value' and isinstance(op, ExprDataOperator):
                 return self.EXPR_DATA_VAR_NAME
             else:
                 return script_db.get_snippet(expr_val, attr)
@@ -876,12 +878,12 @@ class ExpressionBase:
 
         # Consumer operator is special since we don't compute anything to
         # get its value, it is just the name of a function
-        if self.op.callable_ is Consumer:
+        if isinstance(self.op, ConsumerOperator):
             if not len(consumer_expr_stack) >= 2:
                 return ('None', '')
             else:
                 return (consumer_expr_stack[-2].op.get_name(full_qual=True), '')
-        elif self.op.callable_ is ExprData:
+        elif isinstance(self.op, ExprDataOperator):
             # When we actually have an ExprVal, use it so we have the right
             # UUID.
             if expr_val_set:
@@ -1195,10 +1197,58 @@ class ComputableExpression(ExpressionBase):
             for expr_val in comp_expr.execute(*args, **kwargs):
                 yield (comp_expr, expr_val)
 
-    def execute(self, post_compute_cb=None):
-        return self._execute([], post_compute_cb)
+    def _clone_consumer(self, consumer_expr_stack):
+        expr = self
+        if isinstance(expr.op, ConsumerOperator):
+            try:
+                consumer = consumer_expr_stack[-2].op.callable_
+            except IndexError:
+                consumer = None
 
-    def _execute(self, consumer_expr_stack, post_compute_cb):
+            # Build a new ConsumerOperator that references the right consumer,
+            # and a new Expression to go with it
+            expr = expr.__class__(
+                op=ConsumerOperator(consumer),
+                param_map={},
+            )
+        else:
+            # Clone the Expressions referencing their consumer, so each of
+            # their consumer will get a clone of them. Each clone will
+            # reference a different consumer through its parameter.
+            if any(
+                isinstance(param_expr.op, ConsumerOperator)
+                for param_expr in expr.param_map.values()
+            ):
+                expr = copy.copy(expr)
+
+            expr.param_map = OrderedDict(
+                (param, param_expr._clone_consumer(
+                    consumer_expr_stack + [expr],
+                ))
+                for param, param_expr in expr.param_map.items()
+            )
+
+        return expr
+
+    def _fill_expr_data(self, data):
+        if isinstance(self.op, ExprDataOperator):
+            self.op = ExprDataOperator(data)
+        for param_expr in self.param_map.values():
+            param_expr._fill_expr_data(data)
+
+    def prepare_execute(self):
+        # Make sure the Expressions referencing their Consumer get
+        # appropriately cloned.
+        self._clone_consumer([])
+        self._fill_expr_data(self.data)
+        return self
+
+    def execute(self, post_compute_cb=None):
+        # Call it in case it was not already done.
+        self.prepare_execute()
+        return self._execute(post_compute_cb)
+
+    def _execute(self, post_compute_cb):
         # Lazily compute the values of the Expression, trying to use
         # already computed values when possible
 
@@ -1209,7 +1259,6 @@ class ComputableExpression(ExpressionBase):
         def filter_param_exec_map(param_map, reusable):
             return OrderedDict(
                 (param, param_expr._execute(
-                    consumer_expr_stack=consumer_expr_stack + [self],
                     post_compute_cb=post_compute_cb,
                 ))
                 for param, param_expr in param_map.items()
@@ -1265,25 +1314,8 @@ class ComputableExpression(ExpressionBase):
                 for param, param_expr_val in param_map.items()
             )
 
-            # Consumer operator is special and we provide the value for it,
-            # instead of letting it computing its own value
-            if self.op.callable_ is Consumer:
-                try:
-                    consumer = consumer_expr_stack[-2].op.callable_
-                except IndexError:
-                    consumer = None
-                iterated = [ (None, consumer, NoValue) ]
-
-            elif self.op.callable_ is ExprData:
-                root_expr = consumer_expr_stack[0]
-                expr_data = root_expr.data
-                iterated = [ (expr_data.uuid, expr_data, NoValue) ]
-
-            # Otherwise, we just call the operators with its parameters
-            else:
-                iterated = self.op.generator_wrapper(**param_val_map)
-
-            iterator = iter(iterated)
+            # Call the operators with its parameters
+            iterator = self.op.generator_wrapper(**param_val_map)
             expr_val_seq = ExprValSeq(
                 self, iterator, param_map,
                 post_compute_cb
@@ -1411,12 +1443,13 @@ class ClassContext:
             # class can be built where in fact it cannot
             if compat_cls_set & op_map.keys()
         }
-        internal_cls_set = {Consumer, ExprData}
-        for internal_cls in internal_cls_set:
-            op_map[internal_cls] = {
-                Operator(internal_cls, non_reusable_type_set=internal_cls_set)
-            }
-            cls_map[internal_cls] = [internal_cls]
+
+        # Dummy placeholders that will get fixed up later right before
+        # execution
+        op_map[Consumer] = [ConsumerOperator()]
+        op_map[ExprData] = [ExprDataOperator()]
+        cls_map[ExprData] = [ExprData]
+        cls_map[Consumer] = [Consumer]
 
         expr_list = list()
         for result_op in result_op_seq:
@@ -1466,12 +1499,27 @@ class ClassContext:
 
         # Only keep the classes for "self" on which the method can be applied
         if op.is_method:
+            def keep_cls(cls):
+                # When UnboundMethod are used, it is expected that they are
+                # defined for each class where a given method is available.
+                # Therefore we can directly check if it should be selected or
+                # not
+                if isinstance(op.callable_, UnboundMethod):
+                    return cls is op.callable_.cls
+
+                try:
+                    looked_up = getattr(cls, op.callable_.__name__)
+                except AttributeError:
+                    return True
+                else:
+                    return looked_up is op.callable_
+
             cls_combis[0] = [
                 cls for cls in cls_combis[0]
                 # If the method with the same name would resolve to "op", then
                 # we keep this class as a candidate for "self", otherwise we
                 # discard it
-                if getattr(cls, op.callable_.__name__, None) is op.callable_
+                if keep_cls(cls)
             ]
 
         # Check that some produced classes are available for every parameter
@@ -1512,7 +1560,7 @@ class ClassContext:
             cls_combi = list(cls_combi)
 
             # Some classes may not be produced, but another combination
-            # with containing a subclass of it may actually be produced so we can
+            # containing a subclass of it may actually be produced so we can
             # just ignore that one.
             op_combis = [
                 op_map[cls] for cls in cls_combi
@@ -1582,6 +1630,35 @@ class PartialAnnotationError(AnnotationError):
 class ForcedParamType:
     pass
 
+class UnboundMethod:
+    """
+    Wrap a function in a similar way to Python 2 unbound methods
+    """
+    def __init__(self, callable_, cls):
+        self.cls = cls
+        self.__wrapped__ = callable_
+
+        self.__module__ = callable_.__module__
+        self.__name__ = callable_.__name__
+        self.__qualname__ = callable_.__qualname__
+
+    # Use a non-regular name for "self" so that "self" can be used again in the
+    # kwargs
+    def __call__(__UnboundMethod_self__, *args, **kwargs):
+        return __UnboundMethod_self__.__wrapped__(*args, **kwargs)
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, type(self))
+            and
+            self.__wrapped__ == other.__wrapped__
+            and
+            self.cls == other.cls
+        )
+
+    def __hash__(self):
+        return hash(self.__wrapped__) ^ hash(self.cls)
+
 class Operator:
     def __init__(self, callable_, non_reusable_type_set=None, tags_getter=None):
         if non_reusable_type_set is None:
@@ -1633,7 +1710,12 @@ class Operator:
 
     @property
     def callable_globals(self):
-        return self.resolved_callable.__globals__
+        globals_ = self.resolved_callable.__globals__
+        # Make sure the class name can be resolved
+        if isinstance(self.callable_, UnboundMethod):
+            globals_ = copy.copy(globals_)
+            globals_[self.callable_.cls.__name__] = self.callable_.cls
+        return globals_
 
     @property
     def signature(self):
@@ -1740,9 +1822,14 @@ class Operator:
     @property
     def mod_name(self):
         try:
-            name = inspect.getmodule(self.unwrapped_callable).__name__
+            if isinstance(self.callable_, UnboundMethod):
+                module = inspect.getmodule(self.callable_.cls)
+            else:
+                module = inspect.getmodule(self.unwrapped_callable)
         except Exception:
             name = self.callable_globals['__name__']
+        else:
+            name = module.__name__
         return name
 
     @property
@@ -1794,15 +1881,19 @@ class Operator:
     def is_method(self):
         if self.is_cls_method or self.is_static_method:
             return False
-        qualname = self.unwrapped_callable.__qualname__
-        # Get the rightmost group, in case the callable has been defined
-        # in a function
-        qualname = qualname.rsplit('<locals>.', 1)[-1]
+        elif isinstance(self.callable_, UnboundMethod):
+            return True
+        else:
+            qualname = self.unwrapped_callable.__qualname__
+            # Get the rightmost group, in case the callable has been defined in
+            # a function
+            qualname = qualname.rsplit('<locals>.', 1)[-1]
 
-        # Dots in the qualified name means this function has been defined in a
-        # class. This could also happen for closures, and they would get
-        # "<locals>." somewhere in their name, but we handled that already.
-        return '.' in qualname
+            # Dots in the qualified name means this function has been defined
+            # in a class. This could also happen for closures, and they would
+            # get "<locals>." somewhere in their name, but we handled that
+            # already.
+            return '.' in qualname
 
     @property
     def is_cls_method(self):
@@ -1852,7 +1943,8 @@ class Operator:
     def get_prototype(self):
         sig = self.signature
         first_param = utils.take_first(sig.parameters)
-        annotation_map = utils.resolve_annotations(self.annotations, self.callable_globals)
+        annotations = self.annotations
+        annotation_map = utils.resolve_annotations(annotations, self.callable_globals)
         pristine_annotation_map = copy.copy(annotation_map)
 
         extra_ignored_param = set()
@@ -1871,8 +1963,13 @@ class Operator:
             # When we have a method, we fill the annotations of the 1st
             # parameter with the name of the class it is defined in
             if self.is_method and first_param is not NoValue:
-                cls_name = self.resolved_callable.__qualname__.split('.')[0]
-                self.annotations[first_param] = cls_name
+                if isinstance(self.callable_, UnboundMethod):
+                    cls_name = self.callable_.cls.__qualname__
+                else:
+                    cls_name = self.resolved_callable.__qualname__.split('.')[0]
+                # Avoid modifying the original
+                annotations = copy.copy(annotations)
+                annotations[first_param] = cls_name
 
             # No return annotation is accepted and is equivalent to None return
             # annotation
@@ -1883,7 +1980,7 @@ class Operator:
                 produced = type(None)
 
         # Recompute after potentially modifying the annotations
-        annotation_map = utils.resolve_annotations(self.annotations, self.callable_globals)
+        annotation_map = utils.resolve_annotations(annotations, self.callable_globals)
 
         # Remove the return annotation, since we are handling that separately
         annotation_map.pop('return', None)
@@ -1943,6 +2040,8 @@ class PrebuiltOperator(Operator):
             uuid_list.append(uuid_)
             obj_list_.append(obj)
 
+        # Make sure we will get all objects when using zip()
+        assert len(obj_list) == len(uuid_list)
         self.obj_list = obj_list_
         self.uuid_list = uuid_list
         self.obj_type = obj_type
@@ -1976,6 +2075,48 @@ class PrebuiltOperator(Operator):
         def genf():
             yield from zip(self.uuid_list, self.obj_list, itertools.repeat(NoValue))
         return genf
+
+class ConsumerOperator(PrebuiltOperator):
+    def __init__(self, consumer=None):
+        obj_type = Consumer
+        super().__init__(
+            obj_type, [consumer],
+            tags_getter=self._get_tag,
+        )
+        # That allows easily making it hidden
+        self.callable_ = obj_type
+
+    def _get_tag(self, expr_val):
+        return {'consumer': self.get_name()}
+
+    def get_name(self, *args, **kwargs):
+        obj = Consumer if self.consumer is None else self.consumer
+        return utils.get_name(obj, *args, **kwargs)
+
+    @property
+    def consumer(self):
+        return self.obj_list[0]
+
+class ExprDataOperator(PrebuiltOperator):
+    def __init__(self, data=None):
+        obj_type = ExprData
+        super().__init__(
+            obj_type, [data],
+        )
+        # That allows easily making it hidden
+        self.callable_ = obj_type
+
+    @property
+    def data(self):
+        return self.obj_list[0]
+
+    @property
+    def uuid_list(self):
+        return [self.data.uuid] if self.data is not None else []
+
+    @uuid_list.setter
+    def uuid_list(self, val):
+        pass
 
 class ExprValSeq:
     def __init__(self, expr, iterator, param_map, post_compute_cb=None):
@@ -2154,12 +2295,22 @@ class ExprValParamMap(OrderedDict):
         # We need to pad since we may truncate the list of values we yield if
         # we detect an error in one of them.
         def pad(generator, length):
+            has_yielded = False
             for xs in generator:
+                has_yielded = True
                 xs.extend(
                     UnEvaluatedExprVal(expr)
                     for i in range(length - len(xs))
                 )
                 yield xs
+
+            # Ensure we yield at least once, to avoid not getting anything at
+            # all
+            if not has_yielded:
+                yield [
+                    UnEvaluatedExprVal(expr)
+                    for i in range(length)
+                ]
 
         # reverse the gen_list so we get the rightmost generator varying the
         # fastest. Typically, margins-like parameter on which we do sweeps are
@@ -2243,7 +2394,7 @@ class FrozenExprVal(ExprValBase):
 
         # Reloading these values will lead to issues, and they are regenerated
         # for any new Expression that would be created anyway.
-        if op.callable_ in (ExprData, Consumer):
+        if isinstance(op, (ExprDataOperator, ConsumerOperator)):
             value = NoValue
             excep = NoValue
 
