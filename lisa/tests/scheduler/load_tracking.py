@@ -693,8 +693,9 @@ class PELTTask(LoadTrackingBase):
         peltsim = pelt.Simulator(init_value=init_value,
                                  half_life_ms=HALF_LIFE_MS)
         period_samples = int(phase.period_ms*1e3/peltsim._sample_us)
+        duty_cycle_pct = self.get_task_duty_cycle_pct(self.trace, self.task_name, cpu)
         pelt_task = pelt.PeriodicTask(period_samples=period_samples,
-                                      duty_cycle_pct=phase.duty_cycle_pct)
+                                      duty_cycle_pct=duty_cycle_pct)
         df = peltsim.getSignal(pelt_task, 0, phase.duration_s)
 
         return peltsim, pelt_task, df
@@ -704,27 +705,25 @@ class PELTTask(LoadTrackingBase):
         task = self.rtapp_profile[self.task_name]
         cpu = task.phases[0].cpus[0]
 
+        # Note: This test-case is only valid if executed at capacity == 1024.
+        # The below assertion is insufficient as it only checks the CPU can potentially
+        # reach a capacity of 1024.
+        assert self.plat_info["cpu-capacities"][cpu] == UTIL_SCALE
+
         peltsim, pelt_task, sim_df = self.get_simulated_pelt(cpu, signal_name)
         signal_df = self.get_task_sched_signals(cpu)
 
         sim_range = peltsim.stableRange(pelt_task)
-        stable_time = peltsim.stableTime(pelt_task)
-        window = (stable_time, stable_time + 0.5)
 
         # Get signal statistics in a period of time where the signal is
         # supposed to be stable
-        signal_stats = signal_df[window[0]:window[1]][signal_name].describe()
-        # Narrow down simulated PELT signal to stable period
-        sim_df = sim_df[window[0]:window[1]].pelt_value
+        signal_stats = signal_df[UTIL_AVG_CONVERGENCE_TIME_S:][signal_name].describe()
 
         expected_data = {}
         trace_data = {}
 
-        for stat in ['min', 'max', 'mean']:
-            if stat == 'mean':
-                stat_value = sim_df.mean()
-            else:
-                stat_value = getattr(sim_range, '{}_value'.format(stat))
+        for stat in ['min', 'max']:
+            stat_value = getattr(sim_range, '{}_value'.format(stat))
 
             if not self.is_almost_equal(stat_value, signal_stats[stat], allowed_error_pct):
                 res.result = Result.FAILED
@@ -807,17 +806,17 @@ class PELTTask(LoadTrackingBase):
 
         return res
 
-    def test_util_avg_range(self, allowed_error_pct=15) -> ResultBundle:
+    def test_util_avg_range(self, allowed_error_pct=1) -> ResultBundle:
         """
-        Test that the util_avg value ranges (min, mean, max) are sane
+        Test that the util_avg value ranges (min, max) are sane
 
         :param allowed_error_pct: The allowed range difference
         """
         return self._test_range('util', allowed_error_pct)
 
-    def test_load_avg_range(self, allowed_error_pct=15) -> ResultBundle:
+    def test_load_avg_range(self, allowed_error_pct=1) -> ResultBundle:
         """
-        Test that the load_avg value ranges (min, mean, max) are sane
+        Test that the load_avg value ranges (min, max) are sane
 
         :param allowed_error_pct: The allowed range difference
         """
