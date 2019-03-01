@@ -34,13 +34,17 @@ class TestTrace(StorageTestCase):
     traces_dir = os.path.join(os.path.dirname(__file__), 'traces')
     events = [
         'sched_switch',
+        'sched_wakeup',
         'sched_overutilized',
         'cpu_idle',
         'sched_load_avg_task',
         'sched_load_se'
     ]
 
-    FLOAT_PLACES=6
+    FLOAT_PLACES = 6
+
+    def assertAlmostEqual(self, first, second, places=FLOAT_PLACES, msg=None, delta=None):
+        super().assertAlmostEqual(first, second, places, msg, delta)
 
     def __init__(self, *args, **kwargs):
         super(TestTrace, self).__init__(*args, **kwargs)
@@ -125,8 +129,7 @@ class TestTrace(StorageTestCase):
                       normalize_time=False
         )
 
-        self.assertAlmostEqual(trace.time_range, expected_duration,
-                               places=self.FLOAT_PLACES)
+        self.assertAlmostEqual(trace.time_range, expected_duration)
 
     def test_time_range_window(self):
         """
@@ -141,8 +144,7 @@ class TestTrace(StorageTestCase):
                       window=(76.402065, 80.402065)
         )
 
-        self.assertAlmostEqual(trace.time_range, expected_duration,
-                               places=self.FLOAT_PLACES)
+        self.assertAlmostEqual(trace.time_range, expected_duration)
 
     def test_squash_df(self):
         """
@@ -163,8 +165,8 @@ class TestTrace(StorageTestCase):
         tail = df1.tail(1)
         self.assertEqual(len(df1.index), 2)
         self.assertEqual(df1.index.tolist(), [16.5, 17])
-        self.assertAlmostEqual(head['delta'].values[0], 0.5, places=self.FLOAT_PLACES)
-        self.assertAlmostEqual(tail['delta'].values[0], 0.5, places=self.FLOAT_PLACES)
+        self.assertAlmostEqual(head['delta'].values[0], 0.5)
+        self.assertAlmostEqual(tail['delta'].values[0], 0.5)
         self.assertEqual(head['state'].values[0], 0)
         self.assertEqual(tail['state'].values[0], 1)
 
@@ -176,7 +178,7 @@ class TestTrace(StorageTestCase):
         df2 = Trace.squash_df(df, 16.2, 16.8)
         self.assertEqual(len(df2.index), 1)
         self.assertEqual(df2.index[0], 16.2)
-        self.assertAlmostEqual(df2['delta'].values[0], 0.6, places=self.FLOAT_PLACES)
+        self.assertAlmostEqual(df2['delta'].values[0], 0.6)
         self.assertEqual(df2['state'].values[0], 0)
 
         ## Test slice that matches an event's index
@@ -187,7 +189,7 @@ class TestTrace(StorageTestCase):
         df3 = Trace.squash_df(df, 16, 17)
         self.assertEqual(len(df3.index), 1)
         self.assertEqual(df3.index[0], 16)
-        self.assertAlmostEqual(df3['delta'].values[0], 1, places=self.FLOAT_PLACES)
+        self.assertAlmostEqual(df3['delta'].values[0], 1)
         self.assertEqual(df3['state'].values[0], 0)
 
         ## Test slice past last event
@@ -197,7 +199,7 @@ class TestTrace(StorageTestCase):
         df4 = Trace.squash_df(df, 19.5, 22)
         self.assertEqual(len(df4.index), 1)
         self.assertEqual(df4.index[0], 19.5)
-        self.assertAlmostEqual(df4['delta'].values[0], 0.5, places=self.FLOAT_PLACES)
+        self.assertAlmostEqual(df4['delta'].values[0], 0.5)
         self.assertEqual(df4['state'].values[0], 1)
 
         ## Test slice where there's no past event
@@ -222,8 +224,7 @@ class TestTrace(StorageTestCase):
         # Last event should be extended to the trace's end
         expected_time = (events[1] - events[0]) + (trace_end - events[2])
 
-        self.assertAlmostEqual(self.trace.overutilized_time, expected_time,
-                               places=self.FLOAT_PLACES)
+        self.assertAlmostEqual(self.trace.overutilized_time, expected_time)
 
     def test_plot_cpu_idle_state_residency(self):
         """
@@ -342,6 +343,12 @@ class TestTrace(StorageTestCase):
                 continue
             self.assertEqual(e,r)
 
+    def test_df_tasks_states(self):
+        df = self.trace.analysis.tasks.df_tasks_states()
+
+        self.assertEqual(len(df), 4780)
+        # Proxy check for detecting delta computation changes
+        self.assertAlmostEqual(df.delta.sum(), 207.705551)
 
 class TestTraceNoClusterData(TestTrace):
     """
