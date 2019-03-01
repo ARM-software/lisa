@@ -907,9 +907,7 @@ class Trace(Loggable):
         if not inplace:
             df = df.copy()
 
-        time_df = pd.DataFrame(index=df.index, data=df.index.values, columns=["start"])
-        df[col_name] = (time_df.start - time_df.start.shift()).fillna(0).shift(-1)
-
+        df.loc[df.index[:-1], col_name] = df.index.values[1:] - df.index.values[:-1]
         # Fix the last event, which will have a NaN duration
         # Set duration to trace_end - last_event
         df.loc[df.index[-1], col_name] = self.start_time + self.time_range - df.index[-1]
