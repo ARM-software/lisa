@@ -212,10 +212,10 @@ class ValueDB:
                     cls._do_froz_val_dfs(froz_val, callback)
                     for froz_val in froz_val_seq
                 ],
-                param_map={
-                    param: cls._do_froz_val_dfs(froz_val, callback)
+                param_map=OrderedDict(
+                    (param, cls._do_froz_val_dfs(froz_val, callback))
                     for param, froz_val in froz_val_seq.param_map.items()
-                }
+                )
             )
             for froz_val_seq in froz_val_seq_list
         ]
@@ -223,10 +223,10 @@ class ValueDB:
     @classmethod
     def _do_froz_val_dfs(cls, froz_val, callback):
         updated_froz_val = callback(froz_val)
-        updated_froz_val.param_map = {
-            param: cls._do_froz_val_dfs(param_froz_val, callback)
+        updated_froz_val.param_map = OrderedDict(
+            (param, cls._do_froz_val_dfs(param_froz_val, callback))
             for param, param_froz_val in updated_froz_val.param_map.items()
-        }
+        )
         return updated_froz_val
 
     def get_by_uuid(self, uuid):
@@ -318,7 +318,7 @@ class ValueDB:
             try:
                 param_map = froz_val_list[0].param_map
             except IndexError:
-                param_map = {}
+                param_map = OrderedDict()
 
             return FrozenExprValSeq(
                 froz_val_list=froz_val_list,
@@ -370,7 +370,26 @@ class ScriptValueDB:
 class CycleError(Exception):
     pass
 
-class ExpressionBase:
+
+class ExprHelpers(collections.abc.Mapping):
+    def __getitem__(self, k):
+        return self.param_map[k]
+
+    def __len__(self):
+        return len(self.param_map)
+
+    def __iter__(self):
+        return iter(self.param_map)
+
+    # Keep the default behavior
+    def __eq__(self, other):
+        return self is other
+
+    def __hash__(self):
+        return id(self)
+
+
+class ExpressionBase(ExprHelpers):
     def __init__(self, op, param_map):
         self.op = op
         # Map of parameters to other Expression
@@ -391,10 +410,10 @@ class ExpressionBase:
 
     def _cse(self, expr_map):
         # Deep first
-        self.param_map = {
-            param: param_expr._cse(expr_map=expr_map)
+        self.param_map = OrderedDict(
+            (param, param_expr._cse(expr_map=expr_map))
             for param, param_expr in self.param_map.items()
-        }
+        )
 
         key = (
             self.op.callable_,
@@ -431,10 +450,10 @@ class ExpressionBase:
         if op in shared_op_set:
             return self
 
-        param_map = {
-            param: param_expr._clone(shared_op_set)
+        param_map = OrderedDict(
+            (param, param_expr._clone(shared_op_set))
             for param, param_expr in self.param_map.items()
-        }
+        )
 
         # create a new clone, with different UUID and ExprData
         return self.__class__(
@@ -551,7 +570,7 @@ class ExpressionBase:
         hidden_callable_set.update((Consumer, ExprData))
 
         if expr_val is None:
-            param_map = dict()
+            param_map = OrderedDict()
         # If we were asked about the ID of a specific value, make sure we
         # don't explore other paths that lead to different values
         else:
@@ -1138,10 +1157,10 @@ class ComputableExpression(ExpressionBase):
 
     @classmethod
     def from_expr(cls, expr, **kwargs):
-        param_map = {
-            param: cls.from_expr(param_expr)
+        param_map = OrderedDict(
+            (param, cls.from_expr(param_expr))
             for param, param_expr in expr.param_map.items()
-        }
+        )
         return cls(
             op=expr.op,
             param_map=param_map,
@@ -1209,7 +1228,7 @@ class ComputableExpression(ExpressionBase):
             # and a new Expression to go with it
             expr = expr.__class__(
                 op=ConsumerOperator(consumer),
-                param_map={},
+                param_map=OrderedDict(),
             )
         else:
             # Clone the Expressions referencing their consumer, so each of
@@ -1258,7 +1277,7 @@ class ComputableExpression(ExpressionBase):
 
         def filter_param_exec_map(param_map, reusable):
             return OrderedDict(
-                (param, param_expr._execute(
+                ((param, param_expr), param_expr._execute(
                     post_compute_cb=post_compute_cb,
                 ))
                 for param, param_expr in param_map.items()
@@ -1269,7 +1288,7 @@ class ComputableExpression(ExpressionBase):
         reusable_param_exec_map = filter_param_exec_map(self.param_map, True)
 
         # Consume all the reusable parameters, since they are generators
-        for param_map in ExprValParamMap.from_gen_map_product(self, reusable_param_exec_map):
+        for param_map in ExprValParamMap.from_gen_map_product(reusable_param_exec_map):
             # Check if some ExprVal are already available for the current
             # set of reusable parameters. Non-reusable parameters are not
             # considered since they would be different every time in any case.
@@ -1293,7 +1312,7 @@ class ComputableExpression(ExpressionBase):
                 # for all operator calls.
 
                 nonreusable_param_exec_map = filter_param_exec_map(self.param_map, False)
-                param_map.update(ExprValParamMap.from_gen_map(self, nonreusable_param_exec_map))
+                param_map.update(ExprValParamMap.from_gen_map(nonreusable_param_exec_map))
 
             # Propagate exceptions if some parameters did not execute
             # successfully.
@@ -2208,14 +2227,14 @@ class ExprValParamMap(OrderedDict):
         )
 
     @classmethod
-    def from_gen_map(cls, expr, param_gen_map):
+    def from_gen_map(cls, param_gen_map):
         # Pre-fill UnEvaluatedExprVal with in case we exit the loop early
         param_map = cls(
-            (param, UnEvaluatedExprVal(expr))
-            for param in param_gen_map.keys()
+            (param, UnEvaluatedExprVal(param_expr))
+            for (param, param_expr), _ in param_gen_map.items()
         )
 
-        for param, generator in param_gen_map.items():
+        for (param, param_expr), generator in param_gen_map.items():
             val = next(generator)
             # There is no point in computing values of the other generators if
             # one failed to produce a useful value
@@ -2227,27 +2246,37 @@ class ExprValParamMap(OrderedDict):
         return param_map
 
     @classmethod
-    def from_gen_map_product(cls, expr, param_gen_map):
+    def from_gen_map_product(cls, param_gen_map):
         """
         Yield :class:`collections.OrderedDict` for each combination of parameter
         values.
 
-        :param param_gen_map: Mapping of parameter names to an iterator that is ready
-            to generate the possible values for the generator.
+        :param param_gen_map: Mapping of tuple(param_name, param_expr) to an
+            iterator that is ready to generate the possible values for the
+            generator.
         :type param_gen_map: collections.OrderedDict
 
         """
+
         if not param_gen_map:
             yield cls()
         else:
             # Since param_gen_map is an OrderedDict, we will always consume
             # parameters in the same order
-            param_list, gen_list = zip(*param_gen_map.items())
-            for values in cls._product(expr, gen_list):
+            param_spec_list, gen_list = zip(*param_gen_map.items())
+            param_list, param_expr_list = zip(*param_spec_list)
+            for values in cls._product(gen_list):
+                # We need to pad since we may truncate the list of values we
+                # yield if we detect an error in one of them.
+                values.extend(
+                    UnEvaluatedExprVal(param_expr)
+                    for param_expr in param_expr_list[len(values):]
+                )
                 yield cls(zip(param_list, values))
 
+
     @classmethod
-    def _product(cls, expr, gen_list):
+    def _product(cls, gen_list):
         """
         Similar to the cartesian product provided by itertools.product, with
         special handling of NoValue and some checks on the yielded sequences.
@@ -2284,6 +2313,8 @@ class ExprValParamMap(OrderedDict):
                     yield [expr_val]
                 else:
                     for expr_val_list in product_iter:
+                        # prepend to the list to counter-act the effects of
+                        # reversed(gen_list)
                         yield [expr_val] + expr_val_list
 
         def reducer(product_generator, generator):
@@ -2292,35 +2323,12 @@ class ExprValParamMap(OrderedDict):
         def initializer():
             yield []
 
-        # We need to pad since we may truncate the list of values we yield if
-        # we detect an error in one of them.
-        def pad(generator, length):
-            has_yielded = False
-            for xs in generator:
-                has_yielded = True
-                xs.extend(
-                    UnEvaluatedExprVal(expr)
-                    for i in range(length - len(xs))
-                )
-                yield xs
-
-            # Ensure we yield at least once, to avoid not getting anything at
-            # all
-            if not has_yielded:
-                yield [
-                    UnEvaluatedExprVal(expr)
-                    for i in range(length)
-                ]
-
         # reverse the gen_list so we get the rightmost generator varying the
         # fastest. Typically, margins-like parameter on which we do sweeps are
         # on the right side of the parameter list (to have a default value)
-        return pad(
-            functools.reduce(reducer, reversed(gen_list), initializer()),
-            len(gen_list)
-        )
+        return functools.reduce(reducer, reversed(gen_list), initializer())
 
-class ExprValBase(collections.abc.Mapping):
+class ExprValBase(ExprHelpers):
     def __init__(self, param_map, value, excep):
         self.param_map = param_map
         self.value = value
@@ -2351,15 +2359,6 @@ class ExprValBase(collections.abc.Mapping):
     def __hash__(self):
         # consistent with definition of __eq__
         return id(self)
-
-    def __getitem__(self, k):
-        return self.param_map[k]
-
-    def __len__(self):
-        return len(self.param_map)
-
-    def __iter__(self):
-        return self.param_map.keys()
 
 class FrozenExprVal(ExprValBase):
     def __init__(self,
@@ -2455,7 +2454,7 @@ class FrozenExprVal(ExprValBase):
 class PrunedFrozVal(FrozenExprVal):
     def __init__(self, froz_val):
         super().__init__(
-            param_map={},
+            param_map=OrderedDict(),
             value=NoValue,
             excep=NoValue,
             uuid=froz_val.uuid,
@@ -2482,10 +2481,10 @@ class FrozenExprValSeq(collections.abc.Sequence):
                 FrozenExprVal.from_expr_val(expr_val, **kwargs)
                 for expr_val in expr_val_seq.expr_val_list
             ],
-            param_map={
-                param: FrozenExprVal.from_expr_val(expr_val, **kwargs)
+            param_map=OrderedDict(
+                (param, FrozenExprVal.from_expr_val(expr_val, **kwargs))
                 for param, expr_val in expr_val_seq.param_map.items()
-            }
+            )
         )
 
     @classmethod
@@ -2552,6 +2551,8 @@ class UnEvaluatedExprVal(ExprVal):
     def __init__(self, expr):
         super().__init__(
             expr=expr,
+            # Having an empty param_map is important to avoid selecting it as
+            # an already-computed value
             param_map=ExprValParamMap(),
             uuid=None,
             value=NoValue,
