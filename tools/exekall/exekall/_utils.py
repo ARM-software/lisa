@@ -123,15 +123,37 @@ def get_name(obj, full_qual=True, qual=True):
 
     return module_name + name
 
-def get_src_loc(obj):
+def get_toplevel_module(obj):
+    module = inspect.getmodule(obj)
+    toplevel_module_name = module.__name__.split('.')[0]
+    toplevel_module = sys.modules[toplevel_module_name]
+    return toplevel_module
+
+def get_src_loc(obj, shorten=True):
     try:
         src_line = inspect.getsourcelines(obj)[1]
         src_file = inspect.getsourcefile(obj)
-        src_file = str(pathlib.Path(src_file).resolve())
+        src_file = pathlib.Path(src_file).resolve()
     except (OSError, TypeError):
         src_line, src_file = None, None
 
-    return (src_file, src_line)
+    if shorten and src_file:
+        mod = get_toplevel_module(obj)
+        try:
+            paths = mod.__path__
+        except AttributeError:
+            paths = [mod.__file__]
+
+        paths = [pathlib.Path(p) for p in paths if p]
+        paths = [
+            p.parent.resolve()
+            for p in paths
+            if p in src_file.parents
+        ]
+        if paths:
+            src_file = src_file.relative_to(paths[0])
+
+    return (str(src_file), src_line)
 
 def is_serializable(obj, raise_excep=False):
     """
