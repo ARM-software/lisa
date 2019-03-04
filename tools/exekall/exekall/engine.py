@@ -212,10 +212,10 @@ class ValueDB:
                     cls._do_froz_val_dfs(froz_val, callback)
                     for froz_val in froz_val_seq
                 ],
-                param_map={
-                    param: cls._do_froz_val_dfs(froz_val, callback)
+                param_map=OrderedDict(
+                    (param, cls._do_froz_val_dfs(froz_val, callback))
                     for param, froz_val in froz_val_seq.param_map.items()
-                }
+                )
             )
             for froz_val_seq in froz_val_seq_list
         ]
@@ -223,10 +223,10 @@ class ValueDB:
     @classmethod
     def _do_froz_val_dfs(cls, froz_val, callback):
         updated_froz_val = callback(froz_val)
-        updated_froz_val.param_map = {
-            param: cls._do_froz_val_dfs(param_froz_val, callback)
+        updated_froz_val.param_map = OrderedDict(
+            (param, cls._do_froz_val_dfs(param_froz_val, callback))
             for param, param_froz_val in updated_froz_val.param_map.items()
-        }
+        )
         return updated_froz_val
 
     def get_by_uuid(self, uuid):
@@ -318,7 +318,7 @@ class ValueDB:
             try:
                 param_map = froz_val_list[0].param_map
             except IndexError:
-                param_map = {}
+                param_map = OrderedDict()
 
             return FrozenExprValSeq(
                 froz_val_list=froz_val_list,
@@ -410,10 +410,10 @@ class ExpressionBase(ExprHelpers):
 
     def _cse(self, expr_map):
         # Deep first
-        self.param_map = {
-            param: param_expr._cse(expr_map=expr_map)
+        self.param_map = OrderedDict(
+            (param, param_expr._cse(expr_map=expr_map))
             for param, param_expr in self.param_map.items()
-        }
+        )
 
         key = (
             self.op.callable_,
@@ -450,10 +450,10 @@ class ExpressionBase(ExprHelpers):
         if op in shared_op_set:
             return self
 
-        param_map = {
-            param: param_expr._clone(shared_op_set)
+        param_map = OrderedDict(
+            (param, param_expr._clone(shared_op_set))
             for param, param_expr in self.param_map.items()
-        }
+        )
 
         # create a new clone, with different UUID and ExprData
         return self.__class__(
@@ -570,7 +570,7 @@ class ExpressionBase(ExprHelpers):
         hidden_callable_set.update((Consumer, ExprData))
 
         if expr_val is None:
-            param_map = dict()
+            param_map = OrderedDict()
         # If we were asked about the ID of a specific value, make sure we
         # don't explore other paths that lead to different values
         else:
@@ -1157,10 +1157,10 @@ class ComputableExpression(ExpressionBase):
 
     @classmethod
     def from_expr(cls, expr, **kwargs):
-        param_map = {
-            param: cls.from_expr(param_expr)
+        param_map = OrderedDict(
+            (param, cls.from_expr(param_expr))
             for param, param_expr in expr.param_map.items()
-        }
+        )
         return cls(
             op=expr.op,
             param_map=param_map,
@@ -1228,7 +1228,7 @@ class ComputableExpression(ExpressionBase):
             # and a new Expression to go with it
             expr = expr.__class__(
                 op=ConsumerOperator(consumer),
-                param_map={},
+                param_map=OrderedDict(),
             )
         else:
             # Clone the Expressions referencing their consumer, so each of
@@ -2454,7 +2454,7 @@ class FrozenExprVal(ExprValBase):
 class PrunedFrozVal(FrozenExprVal):
     def __init__(self, froz_val):
         super().__init__(
-            param_map={},
+            param_map=OrderedDict(),
             value=NoValue,
             excep=NoValue,
             uuid=froz_val.uuid,
@@ -2481,10 +2481,10 @@ class FrozenExprValSeq(collections.abc.Sequence):
                 FrozenExprVal.from_expr_val(expr_val, **kwargs)
                 for expr_val in expr_val_seq.expr_val_list
             ],
-            param_map={
-                param: FrozenExprVal.from_expr_val(expr_val, **kwargs)
+            param_map=OrderedDict(
+                (param, FrozenExprVal.from_expr_val(expr_val, **kwargs))
                 for param, expr_val in expr_val_seq.param_map.items()
-            }
+            )
         )
 
     @classmethod
