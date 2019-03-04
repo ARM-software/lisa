@@ -94,8 +94,6 @@ setup(
         "numpy",
         "scipy",
         "ruamel.yaml >= 0.15.81",
-        # 6.0 is borken
-        "tornado < 6.0",
 
         # Depdendencies that are shipped as part of the LISA repo as
         # subtree/submodule
