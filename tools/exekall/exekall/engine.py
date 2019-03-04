@@ -370,7 +370,26 @@ class ScriptValueDB:
 class CycleError(Exception):
     pass
 
-class ExpressionBase:
+
+class ExprHelpers(collections.abc.Mapping):
+    def __getitem__(self, k):
+        return self.param_map[k]
+
+    def __len__(self):
+        return len(self.param_map)
+
+    def __iter__(self):
+        return iter(self.param_map)
+
+    # Keep the default behavior
+    def __eq__(self, other):
+        return self is other
+
+    def __hash__(self):
+        return id(self)
+
+
+class ExpressionBase(ExprHelpers):
     def __init__(self, op, param_map):
         self.op = op
         # Map of parameters to other Expression
@@ -2320,7 +2339,7 @@ class ExprValParamMap(OrderedDict):
             len(gen_list)
         )
 
-class ExprValBase(collections.abc.Mapping):
+class ExprValBase(ExprHelpers):
     def __init__(self, param_map, value, excep):
         self.param_map = param_map
         self.value = value
@@ -2351,15 +2370,6 @@ class ExprValBase(collections.abc.Mapping):
     def __hash__(self):
         # consistent with definition of __eq__
         return id(self)
-
-    def __getitem__(self, k):
-        return self.param_map[k]
-
-    def __len__(self):
-        return len(self.param_map)
-
-    def __iter__(self):
-        return iter(self.param_map)
 
 class FrozenExprVal(ExprValBase):
     def __init__(self,
