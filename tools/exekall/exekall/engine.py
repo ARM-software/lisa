@@ -2359,7 +2359,7 @@ class ExprValBase(collections.abc.Mapping):
         return len(self.param_map)
 
     def __iter__(self):
-        return self.param_map.keys()
+        return iter(self.param_map)
 
 class FrozenExprVal(ExprValBase):
     def __init__(self,
