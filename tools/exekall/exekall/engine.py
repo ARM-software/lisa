@@ -1277,7 +1277,7 @@ class ComputableExpression(ExpressionBase):
 
         def filter_param_exec_map(param_map, reusable):
             return OrderedDict(
-                (param, param_expr._execute(
+                ((param, param_expr), param_expr._execute(
                     post_compute_cb=post_compute_cb,
                 ))
                 for param, param_expr in param_map.items()
@@ -1288,7 +1288,7 @@ class ComputableExpression(ExpressionBase):
         reusable_param_exec_map = filter_param_exec_map(self.param_map, True)
 
         # Consume all the reusable parameters, since they are generators
-        for param_map in ExprValParamMap.from_gen_map_product(self, reusable_param_exec_map):
+        for param_map in ExprValParamMap.from_gen_map_product(reusable_param_exec_map):
             # Check if some ExprVal are already available for the current
             # set of reusable parameters. Non-reusable parameters are not
             # considered since they would be different every time in any case.
@@ -1312,7 +1312,7 @@ class ComputableExpression(ExpressionBase):
                 # for all operator calls.
 
                 nonreusable_param_exec_map = filter_param_exec_map(self.param_map, False)
-                param_map.update(ExprValParamMap.from_gen_map(self, nonreusable_param_exec_map))
+                param_map.update(ExprValParamMap.from_gen_map(nonreusable_param_exec_map))
 
             # Propagate exceptions if some parameters did not execute
             # successfully.
@@ -2227,14 +2227,14 @@ class ExprValParamMap(OrderedDict):
         )
 
     @classmethod
-    def from_gen_map(cls, expr, param_gen_map):
+    def from_gen_map(cls, param_gen_map):
         # Pre-fill UnEvaluatedExprVal with in case we exit the loop early
         param_map = cls(
-            (param, UnEvaluatedExprVal(expr))
-            for param in param_gen_map.keys()
+            (param, UnEvaluatedExprVal(param_expr))
+            for (param, param_expr), _ in param_gen_map.items()
         )
 
-        for param, generator in param_gen_map.items():
+        for (param, param_expr), generator in param_gen_map.items():
             val = next(generator)
             # There is no point in computing values of the other generators if
             # one failed to produce a useful value
@@ -2246,27 +2246,37 @@ class ExprValParamMap(OrderedDict):
         return param_map
 
     @classmethod
-    def from_gen_map_product(cls, expr, param_gen_map):
+    def from_gen_map_product(cls, param_gen_map):
         """
         Yield :class:`collections.OrderedDict` for each combination of parameter
         values.
 
-        :param param_gen_map: Mapping of parameter names to an iterator that is ready
-            to generate the possible values for the generator.
+        :param param_gen_map: Mapping of tuple(param_name, param_expr) to an
+            iterator that is ready to generate the possible values for the
+            generator.
         :type param_gen_map: collections.OrderedDict
 
         """
+
         if not param_gen_map:
             yield cls()
         else:
             # Since param_gen_map is an OrderedDict, we will always consume
             # parameters in the same order
-            param_list, gen_list = zip(*param_gen_map.items())
-            for values in cls._product(expr, gen_list):
+            param_spec_list, gen_list = zip(*param_gen_map.items())
+            param_list, param_expr_list = zip(*param_spec_list)
+            for values in cls._product(gen_list):
+                # We need to pad since we may truncate the list of values we
+                # yield if we detect an error in one of them.
+                values.extend(
+                    UnEvaluatedExprVal(param_expr)
+                    for param_expr in param_expr_list[len(values):]
+                )
                 yield cls(zip(param_list, values))
 
+
     @classmethod
-    def _product(cls, expr, gen_list):
+    def _product(cls, gen_list):
         """
         Similar to the cartesian product provided by itertools.product, with
         special handling of NoValue and some checks on the yielded sequences.
@@ -2303,6 +2313,8 @@ class ExprValParamMap(OrderedDict):
                     yield [expr_val]
                 else:
                     for expr_val_list in product_iter:
+                        # prepend to the list to counter-act the effects of
+                        # reversed(gen_list)
                         yield [expr_val] + expr_val_list
 
         def reducer(product_generator, generator):
@@ -2311,33 +2323,10 @@ class ExprValParamMap(OrderedDict):
         def initializer():
             yield []
 
-        # We need to pad since we may truncate the list of values we yield if
-        # we detect an error in one of them.
-        def pad(generator, length):
-            has_yielded = False
-            for xs in generator:
-                has_yielded = True
-                xs.extend(
-                    UnEvaluatedExprVal(expr)
-                    for i in range(length - len(xs))
-                )
-                yield xs
-
-            # Ensure we yield at least once, to avoid not getting anything at
-            # all
-            if not has_yielded:
-                yield [
-                    UnEvaluatedExprVal(expr)
-                    for i in range(length)
-                ]
-
         # reverse the gen_list so we get the rightmost generator varying the
         # fastest. Typically, margins-like parameter on which we do sweeps are
         # on the right side of the parameter list (to have a default value)
-        return pad(
-            functools.reduce(reducer, reversed(gen_list), initializer()),
-            len(gen_list)
-        )
+        return functools.reduce(reducer, reversed(gen_list), initializer())
 
 class ExprValBase(ExprHelpers):
     def __init__(self, param_map, value, excep):
@@ -2562,6 +2551,8 @@ class UnEvaluatedExprVal(ExprVal):
     def __init__(self, expr):
         super().__init__(
             expr=expr,
+            # Having an empty param_map is important to avoid selecting it as
+            # an already-computed value
             param_map=ExprValParamMap(),
             uuid=None,
             value=NoValue,
