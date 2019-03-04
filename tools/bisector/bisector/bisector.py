@@ -75,19 +75,6 @@ try:
 except ImportError:
     ENABLE_DBUS = False
 
-def set_blocking(fd, blocking):
-    # Python >= 3.5 style
-    try:
-        os.set_blocking(fd, blocking)
-    # Python <= 3.4 style
-    except AttributeError:
-        flag = fcntl.fcntl(fd, fcntl.F_GETFL)
-        if blocking:
-            flag &= ~os.O_NONBLOCK
-        else:
-            flag |= os.O_NONBLOCK
-
-        fcntl.fcntl(fd, fcntl.F_SETFL, )
 
 def mask_signals(unblock=False):
     # Allow the handler to run again, now that we know it is safe to have
@@ -855,7 +842,7 @@ def read_stdout(p, timeout=None, kill_timeout=3):
     pipe_capacity = fcntl.fcntl(stdout_fd, F_GETPIPE_SZ)
     # We need to be able to check regularly if the process is alive, so
     # reading must not be blocking.
-    set_blocking(stdout_fd, False)
+    os.set_blocking(stdout_fd, False)
 
     watch_stdout = True
     begin_ts = time.monotonic()
@@ -923,11 +910,7 @@ def call_process(cmd, *args, merge_stderr=True, **kwargs):
     try:
         return subprocess.check_output(cmd, *args, **kwargs).decode()
     except subprocess.CalledProcessError as e:
-        try:
-            e.stdout = e.stdout.decode()
-        # Python 3.4 compatibility: CalledProcessError does not have stdout attr
-        except AttributeError:
-            e.stdout = ''
+        e.stdout = e.stdout.decode()
         raise
 
 def git_cleanup(repo='./'):
@@ -1055,27 +1038,7 @@ class StepMeta(abc.ABCMeta, type(Serializable)):
             # raised when the method is called to make it more obvious.
 
             bound_args = sig.bind_partial(*args, **kwargs)
-
-            # For Python >= 3.5, using apply_defaults instead of the below code
-            # is preferable.
-            #  bound_args.apply_defaults()
-            default_args = dict()
-            # Equivalent to BoundArguments.apply_defaults() but works for
-            # Python 3.4
-            argspec = inspect.getfullargspec(method)
-            if argspec.defaults:
-                default_args.update(zip(reversed(argspec.args), reversed(argspec.defaults)))
-            if argspec.kwonlydefaults:
-                default_args.update(argspec.kwonlydefaults)
-            # arguments already set, so we don't override these ones with
-            # default values
-            set_names = set(bound_args.arguments.keys())
-            bound_args.arguments.update(
-                (name, default)
-                for name, default in default_args.items()
-                # Only add values that are not already set
-                if name not in set_names
-            )
+            bound_args.apply_defaults()
 
             # Preprocess the values when they are an str
             for param, parser in parser_map.items():
@@ -3014,16 +2977,9 @@ def import_file(script_name, name=None):
     if name is None:
         name = inspect.getmodulename(script_name)
 
-    try:
-        # Python >= 3.5 style
-        spec = importlib.util.spec_from_file_location(name, script_name)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-    except AttributeError:
-        # Python <= v3.4 style
-        module = importlib.machinery.SourceFileLoader(
-                name, script_name).load_module()
-
+    spec = importlib.util.spec_from_file_location(name, script_name)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     return module
 
 def import_files(src_files):
@@ -4429,7 +4385,7 @@ class PipeSetter:
 
         # Make sure writing to the pipe is not blocking. This would hang the
         # main thread which is not acceptable.
-        set_blocking(self.pipe.fileno(), False)
+        os.set_blocking(self.pipe.fileno(), False)
 
     def __setattr__(self, attr, val):
         if not attr in self.attrs:
