@@ -1188,7 +1188,7 @@ class StepBase(StepABC):
             timeout = TimeoutParam('timeout in seconds before sending SIGTERM to the command, or "inf" for infinite timeout'),
             kill_timeout = TimeoutParam('time to wait before sending SIGKILL after having sent SIGTERM'),
             bail_out = BoolParam('start a new iteration if the command fails, without executing remaining steps for this iteration'),
-            use_systemd_run = BoolParam('use systemd-run to run the command. This allows cleanup of daemons spawned by the command (using cgroups)'),
+            use_systemd_run = BoolParam('use systemd-run to run the command. This allows cleanup of daemons spawned by the command (using cgroups), and using a private /tmp that is also cleaned up automatically'),
             env = EnvListParam('environment variables with a list of values that will be used for each iterations, wrapping around. The string format is: VAR1=val1%val2%...%%VAR2=val1%val2%.... In YAML, it is a map of var names to list of values. A single string can be supplied instead of a list of values.'),
         ),
         report = dict(
@@ -1318,6 +1318,7 @@ class StepBase(StepABC):
                 # systemd 236 so we call reset-failed manually at the end
                 cmd = ['systemd-run', '--user', '-q', '--scope',
                     '-p', 'TimeoutStopSec={self.kill_timeout}'.format(self=self),
+                    '-p', 'PrivateTmp=true',
                     '--unit', scope_name, '--'
                 ]
                 cmd.extend(subcmd)
