@@ -77,7 +77,7 @@ apt-get update
 
 # venv is not installed by default on Ubuntu, even though it is part of the
 # Python standard library
-apt-get -y install build-essential git wget expect kernelshark \
+apt-get -y install build-essential git wget expect kernelshark graphviz\
     python3 python3-dev python3-pip python3-venv python3-setuptools python3-tk \
     gobject-introspection libcairo2-dev libgirepository1.0-dev gir1.2-gtk-3.0
 
