@@ -300,6 +300,8 @@ class FrequencyAnalysis(TraceAnalysisBase):
         If ``sched_overutilized`` events are available, the plots will also
         show the intervals of time where the system was overutilized.
         """
+        logger = self.get_logger()
+
         df = self.trace.df_events('cpu_frequency')
         df = df[df.cpu == cpu]
 
@@ -308,10 +310,15 @@ class FrequencyAnalysis(TraceAnalysisBase):
         if local_fig:
             fig, axis = self.setup_plot()
 
-        frequencies = self.trace.plat_info['freqs'][cpu]
+        if "freqs" in self.trace.plat_info:
+            frequencies = self.trace.plat_info['freqs'][cpu]
+        else:
+            logger.info("Estimating CPU%s frequencies from trace", cpu)
+            frequencies = sorted(list(df.frequency.unique()))
+            logger.debug("Estimated frequencies: %s", frequencies)
 
         avg = self.get_average_cpu_frequency(cpu)
-        self.get_logger().info(
+        logger.info(
             "Average frequency for CPU{} : {:.3f} GHz".format(cpu, avg/1e6))
 
         df['frequency'].plot(
