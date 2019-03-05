@@ -145,7 +145,9 @@ class Trace(Loggable):
         except KeyError:
             max_cpu = max(int(self.df_events(e)['__cpu'].max())
                           for e in self.available_events)
-            return max_cpu + 1
+            count = max_cpu + 1
+            self.get_logger().info("Estimated CPU count from trace: %s", count)
+            return count
 
     def set_x_time_range(self, t_min=None, t_max=None):
         """
