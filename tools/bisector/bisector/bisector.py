@@ -66,8 +66,6 @@ import xml.etree.ElementTree as ET
 
 import ruamel.yaml
 
-yaml = ruamel.yaml.YAML(typ='unsafe')
-
 # If these modules are not available, DBus features will not be used.
 ENABLE_DBUS = True
 try:
@@ -77,19 +75,6 @@ try:
 except ImportError:
     ENABLE_DBUS = False
 
-def set_blocking(fd, blocking):
-    # Python >= 3.5 style
-    try:
-        os.set_blocking(fd, blocking)
-    # Python <= 3.4 style
-    except AttributeError:
-        flag = fcntl.fcntl(fd, fcntl.F_GETFL)
-        if blocking:
-            flag &= ~os.O_NONBLOCK
-        else:
-            flag |= os.O_NONBLOCK
-
-        fcntl.fcntl(fd, fcntl.F_SETFL, )
 
 def mask_signals(unblock=False):
     # Allow the handler to run again, now that we know it is safe to have
@@ -275,7 +260,6 @@ class BisectRet(enum.Enum):
 # are post-processed by the enum.Enum metaclass. That means we use
 # register_class() instead of ruamel.yaml.yaml_object() decorator as well.
 BisectRet.yaml_tag = '!git-bisect'
-yaml.register_class(BisectRet)
 
 # This will map to an "abort" meaning for "git bisect run"
 GENERIC_ERROR_CODE = 254
@@ -682,9 +666,6 @@ class SerializableMeta(type):
             if hasattr(base, '_attr_init')
         ))
 
-        # Make the class known to yaml package
-        yaml.register_class(self)
-
     def set_attr_init(cls, attr, val):
         """Set an initial value for instance attributes."""
         # Since attr_init is a ChainMap, the value will be stored in the
@@ -861,7 +842,7 @@ def read_stdout(p, timeout=None, kill_timeout=3):
     pipe_capacity = fcntl.fcntl(stdout_fd, F_GETPIPE_SZ)
     # We need to be able to check regularly if the process is alive, so
     # reading must not be blocking.
-    set_blocking(stdout_fd, False)
+    os.set_blocking(stdout_fd, False)
 
     watch_stdout = True
     begin_ts = time.monotonic()
@@ -929,11 +910,7 @@ def call_process(cmd, *args, merge_stderr=True, **kwargs):
     try:
         return subprocess.check_output(cmd, *args, **kwargs).decode()
     except subprocess.CalledProcessError as e:
-        try:
-            e.stdout = e.stdout.decode()
-        # Python 3.4 compatibility: CalledProcessError does not have stdout attr
-        except AttributeError:
-            e.stdout = ''
+        e.stdout = e.stdout.decode()
         raise
 
 def git_cleanup(repo='./'):
@@ -1061,27 +1038,7 @@ class StepMeta(abc.ABCMeta, type(Serializable)):
             # raised when the method is called to make it more obvious.
 
             bound_args = sig.bind_partial(*args, **kwargs)
-
-            # For Python >= 3.5, using apply_defaults instead of the below code
-            # is preferable.
-            #  bound_args.apply_defaults()
-            default_args = dict()
-            # Equivalent to BoundArguments.apply_defaults() but works for
-            # Python 3.4
-            argspec = inspect.getfullargspec(method)
-            if argspec.defaults:
-                default_args.update(zip(reversed(argspec.args), reversed(argspec.defaults)))
-            if argspec.kwonlydefaults:
-                default_args.update(argspec.kwonlydefaults)
-            # arguments already set, so we don't override these ones with
-            # default values
-            set_names = set(bound_args.arguments.keys())
-            bound_args.arguments.update(
-                (name, default)
-                for name, default in default_args.items()
-                # Only add values that are not already set
-                if name not in set_names
-            )
+            bound_args.apply_defaults()
 
             # Preprocess the values when they are an str
             for param, parser in parser_map.items():
@@ -2972,15 +2929,7 @@ def load_yaml(yaml_path):
     except FileNotFoundError as e:
         raise FileNotFoundError('Could not read YAML steps file: {e}'.format(**locals())) from e
 
-def get_relative_root(yaml_path):
-    """
-    Compute the root preprended to relative scripts paths in the class name
-    in the YAML file.
-    """
-    yaml_path = yaml_path or ''
-    return os.path.dirname(yaml_path)
-
-def get_class(full_qual_name, relative_root=None):
+def get_class(full_qual_name):
     """
     Parse the class name of an entry in a YAML steps map file and return the
     module name and the class name. It will also append the necessary
@@ -2995,7 +2944,6 @@ def get_class(full_qual_name, relative_root=None):
                            is directly importable (i.e. in sys.path). The module
                            can be omitted for class names that are already
                            imported in the script namespace.
-    :param relative_root:  Folder preprended to any relative path encountered.
     """
     tokens = full_qual_name.rsplit(':', 1)
 
@@ -3018,8 +2966,6 @@ def get_class(full_qual_name, relative_root=None):
     else:
         script_name, cls_name = tokens
         mod_name = os.path.splitext(os.path.basename(script_name))[0]
-        if relative_root and not os.path.isabs(script_name):
-            script_name = os.path.join(relative_root, script_name)
 
         # Import the module to make sure the class is available
         import_file(script_name, mod_name)
@@ -3032,16 +2978,9 @@ def import_file(script_name, name=None):
     if name is None:
         name = inspect.getmodulename(script_name)
 
-    try:
-        # Python >= 3.5 style
-        spec = importlib.util.spec_from_file_location(name, script_name)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-    except AttributeError:
-        # Python <= v3.4 style
-        module = importlib.machinery.SourceFileLoader(
-                name, script_name).load_module()
-
+    spec = importlib.util.spec_from_file_location(name, script_name)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     return module
 
 def import_files(src_files):
@@ -3060,22 +2999,21 @@ def import_steps_from_yaml(yaml_path):
     except FileNotFoundError as e:
         return e
 
-    relative_root = get_relative_root(yaml_path)
-    _import_steps_from_yaml(steps_list, relative_root)
+    _import_steps_from_yaml(steps_list)
 
-def _import_steps_from_yaml(steps_list, relative_root):
+def _import_steps_from_yaml(steps_list):
     for spec in steps_list:
         cls_name = spec['class']
         # Import the module so that all the classes are created and their
         # yaml_tag registered for deserialization.
-        cls = get_class(cls_name, relative_root)
+        cls = get_class(cls_name)
 
         # Recursively visit all the steps definitions.
         macrostep_names = {
             macrostep_cls.name for macrostep_cls in MacroStep.__subclasses__()
         } | {MacroStep.name}
         if cls.name in macrostep_names:
-            _import_steps_from_yaml(spec['steps'], relative_root)
+            _import_steps_from_yaml(spec['steps'])
 
 def get_subclasses(cls):
     """Get the subclasses recursively."""
@@ -3093,7 +3031,7 @@ def get_step_by_name(name):
             return cls
     raise ValueError('Could not find a class matching "{name}".'.format(name=name))
 
-def instantiate_step(spec, relative_root, step_options):
+def instantiate_step(spec, step_options):
     """
     Find the right Step* class using Step*.name attribute and build an instance
     of it.
@@ -3106,7 +3044,7 @@ def instantiate_step(spec, relative_root, step_options):
     spec = {key.replace('-','_'): val for key, val in spec.items()}
     del spec['class']
 
-    cls = get_class(cls_name, relative_root)
+    cls = get_class(cls_name)
     name = spec.get('name', cls.name)
     cat = spec.get('cat', cls.name)
 
@@ -3121,7 +3059,6 @@ def instantiate_step(spec, relative_root, step_options):
     if issubclass(cls, MacroStep):
         spec.update({
             'step_options': step_options,
-            'relative_root': relative_root,
         })
 
     return cls(**spec)
@@ -3361,7 +3298,6 @@ class MacroStep(StepBase):
             iterations = IterationParam('number of iterations'),
             timeout = TimeoutParam('time after which no new iteration will be started'),
             bail_out_early = BoolParam('start a new iteration when a step returned bisect status bad or untestable and skip all remaining steps'),
-            relative_root = BoolOrStrParam('root of relative paths in class names', allow_empty=True),
         ),
         report = dict()
     )
@@ -3373,7 +3309,6 @@ class MacroStep(StepBase):
             iterations = Default,
             timeout = Default,
             bail_out_early = Default,
-            relative_root = './'
         ):
         if step_options is None:
             step_options = dict()
@@ -3392,17 +3327,16 @@ class MacroStep(StepBase):
         # We are intializing the steps for the first time
         if steps:
             self.steps_list = [
-                instantiate_step(spec, relative_root, step_options)
+                instantiate_step(spec, step_options)
                 for spec in steps
             ]
 
-    def reinit(self, *args, steps=None, step_options=None, relative_root='./', **kwargs):
+    def reinit(self, *args, steps=None, step_options=None, **kwargs):
         # Calling __init__ again will only override specified parameters, the
         # other ones will keep their current value thanks to Default
         # behavior.
 
         # We do not pass "steps" to avoid rebuilding a new step list
-        kwargs['relative_root'] = relative_root
         self.__init__(*args, **kwargs)
 
         # If we have some step options, we also partially reinitialize the steps
@@ -3415,10 +3349,7 @@ class MacroStep(StepBase):
 
                 # Pass down MacroStep-specific information
                 if isinstance(step, MacroStep):
-                    step_kwargs.update(dict(
-                        step_options = step_options,
-                        relative_root = relative_root
-                    ))
+                    step_kwargs['step_options'] = step_options
                 step.reinit(**step_kwargs)
 
         return self
@@ -3875,7 +3806,7 @@ def do_steps_help(cls_list):
 def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
         bail_out_early=False, inline_step_list=[], steps_path=None,
         report_options=None, overall_timeout=0, step_options=None,
-        git_clean=False, relative_root=None, resume_path=None,
+        git_clean=False, resume_path=None,
         service_hub=None):
     """Run the specified list of steps."""
 
@@ -3887,7 +3818,6 @@ def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
         timeout = overall_timeout,
         bail_out_early = bail_out_early,
         step_options = step_options,
-        relative_root = relative_root,
     )
     if resume_path and not os.path.exists(resume_path):
         warn('Report {path} does not exist, starting from scratch ...'.format(
@@ -3968,40 +3898,6 @@ def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
         bisect_ret = report.filtered_bisect_ret(ignore_yield=True)
 
     return bisect_ret.value, report
-
-def init_yaml(yaml, relative_root):
-    """
-    Initialize pyyaml to allow transparent loading and dumping of
-    OrderedDict.
-    """
-    # Without allow_unicode, escape sequences are used to represent unicode
-    # characters in plain ASCII
-    yaml.allow_unicode = True
-    yaml.default_flow_style = True
-    yaml.indent(mapping=1, sequence=1, offset=0)
-
-    # Dump OrderedDict as regular dictionaries, since we will reload map as
-    # OrderedDict as well
-    def map_representer(dumper, data):
-        return dumper.represent_dict(data.items())
-
-    def map_constructor(loader, node):
-        return collections.OrderedDict(loader.construct_pairs(node))
-
-    yaml.representer.add_representer(collections.OrderedDict, map_representer)
-    yaml.constructor.add_constructor(yaml.resolver.DEFAULT_MAPPING_TAG, map_constructor)
-
-    # Since strings are immutable, we can memoized the output to deduplicate
-    # strings. This will make the dumped strings live forever, but that should
-    # not be a big issue since everything that ends up in a YAML document is
-    # also living in memory anyway in our use case.
-    @functools.lru_cache(maxsize=None, typed=True)
-    def str_presenter(dumper, data):
-        # Use block style for multiline strings
-        style = '|' if '\n' in data else None
-        return dumper.represent_scalar('tag:yaml.org,2002:str', data, style=style)
-
-    yaml.representer.add_representer(str, str_presenter)
 
 # Compute the SHA1 of the script itself, to identify the version of the tool
 # that was used to generate a given report.
@@ -4089,6 +3985,8 @@ class Report(Serializable):
     # The preamble is saved separately
     dont_save = ['preamble', 'path']
 
+    yaml = ruamel.yaml.YAML(typ='unsafe')
+
     REPORT_CACHE_TEMPLATE = '{report_filename}.cache.pickle'
 
     def __init__(self, macrostep_res, description='', path=None, src_files=None):
@@ -4102,6 +4000,54 @@ class Report(Serializable):
             report_version = 0,
             src_files = src_files,
         )
+
+
+    @classmethod
+    def _init_yaml(cls):
+        """
+        Initialize YAML document manager class attribute.
+
+        .. note:: That method should only be called once when the class is
+            created.
+        """
+        yaml = cls.yaml
+
+        # Make the relevant classes known to YAML
+        for cls_to_register in get_subclasses(Serializable):
+            yaml.register_class(cls_to_register)
+
+        # Register BisectRet as that cannot be done through a metaclass as
+        # usual since it is an enum.Enum
+        yaml.register_class(BisectRet)
+
+        # Without allow_unicode, escape sequences are used to represent unicode
+        # characters in plain ASCII
+        yaml.allow_unicode = True
+        yaml.default_flow_style = True
+        yaml.indent(mapping=1, sequence=1, offset=0)
+
+        # Dump OrderedDict as regular dictionaries, since we will reload map as
+        # OrderedDict as well
+        def map_representer(dumper, data):
+            return dumper.represent_dict(data.items())
+
+        def map_constructor(loader, node):
+            return collections.OrderedDict(loader.construct_pairs(node))
+
+        yaml.representer.add_representer(collections.OrderedDict, map_representer)
+        yaml.constructor.add_constructor(yaml.resolver.DEFAULT_MAPPING_TAG, map_constructor)
+
+        # Since strings are immutable, we can memoized the output to deduplicate
+        # strings. This will make the dumped strings live forever, but that should
+        # not be a big issue since everything that ends up in a YAML document is
+        # also living in memory anyway in our use case.
+        @functools.lru_cache(maxsize=None, typed=True)
+        def str_presenter(dumper, data):
+            # Use block style for multiline strings
+            style = '|' if '\n' in data else None
+            return dumper.represent_scalar('tag:yaml.org,2002:str', data, style=style)
+
+        yaml.representer.add_representer(str, str_presenter)
 
     def save(self, path=None, upload_service=None):
         """Save the report to the specified path.
@@ -4128,7 +4074,7 @@ class Report(Serializable):
             # The file needs to be opened as utf-8 since the underlying stream
             # will need to accept utf-8 data in its write() method.
             with open_f(temp_path, 'wt', encoding='utf-8') as yaml_f:
-                yaml.dump_all(
+                self.yaml.dump_all(
                     (self.preamble, self),
                     yaml_f,
                 )
@@ -4179,7 +4125,7 @@ class Report(Serializable):
         if is_yaml:
             # Get the generator that will parse the YAML documents
             with open_f(path, 'rt', encoding='utf-8') as f:
-                documents = yaml.load_all(f)
+                documents = cls.yaml.load_all(f)
 
                 # First document is the preamble
                 try:
@@ -4347,6 +4293,8 @@ class Report(Serializable):
     def __str__(self):
         return str(self.show()[0])
 
+Report._init_yaml()
+
 def ensure_dir(file_path):
     """
     Ensure that the parent directory of the `file_path` exists and creates if
@@ -4438,7 +4386,7 @@ class PipeSetter:
 
         # Make sure writing to the pipe is not blocking. This would hang the
         # main thread which is not acceptable.
-        set_blocking(self.pipe.fileno(), False)
+        os.set_blocking(self.pipe.fileno(), False)
 
     def __setattr__(self, attr, val):
         if not attr in self.attrs:
@@ -5433,8 +5381,6 @@ command line""")
     }
 
     steps_path = args.steps
-    relative_root = get_relative_root(steps_path)
-    init_yaml(yaml, relative_root)
     report_path = format_placeholders(args.report, placeholder_map)
     step_options = parse_step_options(args.option)
 
@@ -5579,7 +5525,6 @@ command line""")
             overall_timeout = overall_timeout,
             step_options = step_options,
             git_clean = git_clean,
-            relative_root = relative_root,
             resume_path = resume_path,
             service_hub = service_hub,
         )
