@@ -2922,7 +2922,7 @@ def load_yaml(yaml_path):
     """Load the sequence of steps from a YAML file."""
     try:
         with open(yaml_path, 'r', encoding='utf-8') as f:
-            return yaml.load(f)
+            return Report.yaml.load(f)
     except (ruamel.yaml.parser.ParserError, ruamel.yaml.scanner.ScannerError) as e:
         raise ValueError('Could not parse YAML file {yaml_path}: {e}'.format(**locals())) from e
 
@@ -2989,31 +2989,6 @@ def import_files(src_files):
             import_file(src)
         except (ModuleNotFoundError, FileNotFoundError) as e:
             pass
-
-def import_steps_from_yaml(yaml_path):
-    """Make sure the steps classes are available before deserializing."""
-    if not yaml_path:
-        return
-    try:
-        steps_list = load_steps_list(yaml_path)
-    except FileNotFoundError as e:
-        return e
-
-    _import_steps_from_yaml(steps_list)
-
-def _import_steps_from_yaml(steps_list):
-    for spec in steps_list:
-        cls_name = spec['class']
-        # Import the module so that all the classes are created and their
-        # yaml_tag registered for deserialization.
-        cls = get_class(cls_name)
-
-        # Recursively visit all the steps definitions.
-        macrostep_names = {
-            macrostep_cls.name for macrostep_cls in MacroStep.__subclasses__()
-        } | {MacroStep.name}
-        if cls.name in macrostep_names:
-            _import_steps_from_yaml(spec['steps'])
 
 def get_subclasses(cls):
     """Get the subclasses recursively."""
@@ -4109,6 +4084,32 @@ class Report(Serializable):
     @classmethod
     @disable_gc
     def _do_load(cls, path, steps_path):
+        def import_steps_from_yaml(yaml_path):
+            """Make sure the steps classes are available before deserializing."""
+            if not yaml_path:
+                return
+            try:
+                steps_list = load_steps_list(yaml_path)
+            except FileNotFoundError as e:
+                return e
+
+            _import_steps_from_yaml(steps_list)
+
+        def _import_steps_from_yaml(steps_list):
+            for spec in steps_list:
+                cls_name = spec['class']
+                # Import the module so that all the classes are created and their
+                # yaml_tag registered for deserialization.
+                cls = get_class(cls_name)
+
+                # Recursively visit all the steps definitions.
+                macrostep_names = {
+                    macrostep_cls.name for macrostep_cls in MacroStep.__subclasses__()
+                } | {MacroStep.name}
+                if cls.name in macrostep_names:
+                    _import_steps_from_yaml(spec['steps'])
+
+
         open_f, is_yaml = check_report_path(path, probe_file=True)
 
         def import_modules(steps_path, src_files):
