@@ -34,6 +34,7 @@ import numbers
 import difflib
 import threading
 import itertools
+import lisa
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -610,5 +611,51 @@ def set_nested_key(mapping, key_path, val, level=None):
             mapping = new_level
 
     mapping[key_path[-1]] = val
+
+def get_call_site(levels=0, exclude_caller_module=False):
+    """
+    Get the location of the source that called that function.
+
+    :returns: (caller, filename, lineno) tuples. Any component can be None if
+        nothing was found. Caller is a string containing the function name.
+
+    :param levels: How many levels to look at in the stack
+    :type levels: int
+
+    :param exclude_caller_module: Return the first function in the stack that
+        is not defined in the same module as the direct caller of
+        :func:`get_call_site`.
+
+    .. warning:: That function will exclude all source files that are not part
+        of the `lisa` package. It will also exclude functions of
+        :mod:`lisa.utils` module.
+    """
+
+    stack = inspect.stack()
+
+    # Exclude all functions from lisa.utils
+    excluded_files = {
+        __file__,
+    }
+    if exclude_caller_module:
+        excluded_files.add(stack[1].filename)
+
+    caller = None
+    filename = None
+    lineno = None
+    for frame in stack[levels + 1:]:
+        caller = frame.function
+        filename = frame.filename
+        lineno = frame.lineno
+        # exclude all non-lisa sources
+        if not any(
+            filename.startswith(path)
+            for path in lisa.__path__
+        ) or filename in excluded_files:
+            continue
+        else:
+            break
+
+    return (caller, filename, lineno)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

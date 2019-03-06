@@ -24,7 +24,9 @@ import inspect
 import itertools
 import textwrap
 
-from lisa.utils import Serializable, Loggable, get_nested_key, set_nested_key
+from lisa.utils import (
+    Serializable, Loggable, get_nested_key, set_nested_key, get_call_site
+)
 
 class DeferredValue:
     """
@@ -646,6 +648,22 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         This method provides a way to update the configuration, by importing a
         mapping as a new source.
         """
+
+        caller, filename, lineno = get_call_site(1, exclude_caller_module=True)
+
+        self.get_logger().debug('{caller} ({filename}:{lineno}) has set source "{src}":\n{conf}'.format(
+            src=src,
+            conf=conf,
+            caller=caller if caller else '<unknown>',
+            filename=filename if filename else '<unknown>',
+            lineno=lineno if lineno else '<unknown>',
+        ))
+        return self._add_src(
+            src, conf,
+            filter_none=filter_none, fallback=fallback
+        )
+
+    def _add_src(self, src, conf, filter_none=False, fallback=False):
         # Filter-out None values, so they won't override actual data from
         # another source
         if filter_none:
@@ -662,7 +680,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             if isinstance(key_desc, LevelKeyDesc):
                 # sublevels have already been initialized when the root object
                 # was created.
-                self._sublevel_map[key].add_src(src, val, filter_none=filter_none, fallback=fallback)
+                self._sublevel_map[key]._add_src(src, val, filter_none=filter_none, fallback=fallback)
             # Derived keys cannot be set, since they are purely derived from
             # other keys
             elif isinstance(key_desc, DerivedKeyDesc):
@@ -877,7 +895,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
         return state
 
-    def get_key(self, key, src=None, eval_deferred=True):
+    def get_key(self, key, src=None, eval_deferred=True, quiet=False):
         """
         Get the value of the given key.
 
@@ -890,6 +908,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         :param eval_deferred: If True, evaluate instances of
             :class:`DeferredValue` if needed
         :type eval_deferred: bool
+
+        :param quiet: Avoid logging the access
+        :type quiet: bool
 
         .. note:: Using the indexing operator ``self[key]`` is preferable in
             most cases , but this method provides more parameters.
@@ -926,23 +947,17 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             if eval_deferred:
                 val = self._eval_deferred_val(src, key)
 
-        try:
-            frame_conf = inspect.stack()[2]
-        except Exception:
-            caller, filename, lineno = ['<unknown>'] * 3
-        else:
-            caller = frame_conf.function
-            filename = frame_conf.filename
-            lineno = frame_conf.lineno
 
-        self.get_logger().debug('{caller} ({filename}:{lineno}) has used key {key} from source "{src}": {val}'.format(
-            key=key_desc.qualname,
-            src=src,
-            val=key_desc.pretty_format(val),
-            caller=caller,
-            filename=filename,
-            lineno=lineno,
-        ))
+        if not quiet:
+            caller, filename, lineno = get_call_site(2, exclude_caller_module=True)
+            self.get_logger().debug('{caller} ({filename}:{lineno}) has used key {key} from source "{src}": {val}'.format(
+                key=key_desc.qualname,
+                src=src,
+                val=key_desc.pretty_format(val),
+                caller=caller if caller else '<unknown>',
+                filename=filename if filename else '<unknown>',
+                lineno=lineno if lineno else '<unknown>',
+            ))
         return val
 
     def get_src_map(self, key):
@@ -1051,7 +1066,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         """
 
         return (
-            (k, self.get_key(k, eval_deferred=eval_deferred))
+            (k, self.get_key(k, eval_deferred=eval_deferred, quiet=True))
             for k in self.keys()
         )
 
