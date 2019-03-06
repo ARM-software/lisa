@@ -564,7 +564,7 @@ def deduplicate(seq, keep_last=True, key=lambda x: x):
     )
     return list(reorder(dedup.values()))
 
-def get_nested_key(mapping, key_path):
+def get_nested_key(mapping, key_path, getitem=operator.getitem):
     """
     Get a key in a nested mapping
 
@@ -574,12 +574,16 @@ def get_nested_key(mapping, key_path):
     :param key_path: Path to the key in the mapping, in the form of a list of
         keys.
     :type key_path: list
+
+    :param getitem: Function used to get items on the mapping. Defaults to
+        :func:`operator.getitem`.
+    :type getitem: callable
     """
     if not key_path:
         return mapping
     for key in key_path[:-1]:
-        mapping = mapping[key]
-    return mapping[key_path[-1]]
+        mapping = getitem(mapping, key)
+    return getitem(mapping, key_path[-1])
 
 def set_nested_key(mapping, key_path, val, level=None):
     """

@@ -260,11 +260,11 @@ class DerivedKeyDesc(KeyDesc):
 
     @staticmethod
     def _get_base_key_val(conf, path):
-        return get_nested_key(conf, path)
+        return get_nested_key(conf, path, getitem=conf.__class__._quiet_get_key)
 
     @staticmethod
     def _get_base_key_src(conf, path):
-        conf = get_nested_key(conf, path[:-1])
+        conf = get_nested_key(conf, path[:-1], getitem=conf.__class__._quiet_get_key)
         return conf.resolve_src(path[-1])
 
     def _get_base_key_qualname(self, key_path):
@@ -895,6 +895,10 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
         return state
 
+    def _quiet_get_key(self, *args, **kwargs):
+        kwargs['quiet'] = True
+        return self.get_key(*args, **kwargs)
+
     def get_key(self, key, src=None, eval_deferred=True, quiet=False):
         """
         Get the value of the given key.
@@ -993,7 +997,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         def derived_items():
             for key in self._get_derived_key_names():
                 try:
-                    yield key, self[key]
+                    yield key, self.get_key(key, quiet=True)
                 except MissingBaseKeyError:
                     continue
 
