@@ -1275,7 +1275,6 @@ class StepBase(StepABC):
                 # systemd 236 so we call reset-failed manually at the end
                 cmd = ['systemd-run', '--user', '-q', '--scope',
                     '-p', 'TimeoutStopSec={self.kill_timeout}'.format(self=self),
-                    '-p', 'PrivateTmp=true',
                     '--unit', scope_name, '--'
                 ]
                 cmd.extend(subcmd)
