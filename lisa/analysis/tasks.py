@@ -406,7 +406,7 @@ class TasksAnalysis(TraceAnalysisBase):
           * CPU IDs as index
           * A ``runtime`` column (the time the task spent being active)
         """
-        cpus = set(range(self.trace.plat_info['cpus-count']))
+        cpus = set(range(self.trace.cpus_count))
 
         df = self.df_task_states(task)
         df = df[df.curr_state == TaskState.TASK_ACTIVE]
