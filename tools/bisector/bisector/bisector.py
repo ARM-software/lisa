@@ -3308,7 +3308,7 @@ class MacroStep(StepBase):
             stat_test=Default, step_options=None,
             iterations = Default,
             timeout = Default,
-            bail_out_early = Default,
+            bail_out_early = Default
         ):
         if step_options is None:
             step_options = dict()
