@@ -94,4 +94,24 @@ class AnalysisProxy(Loggable):
                 self._instance_map[attr] = analysis_instance
                 return analysis_instance
 
+    # Hints for Jedi autocomplete library, which uses static code analysis
+    # to figure out the available attributes
+    def _hints_for_jedi(self):
+        raise RuntimeError('do not run that method !')
+        # That is enough to make jedi understand what modules we refer to
+        import lisa.analysis
+
+        # List of analysis classes.
+        # Note: This is dummy code that won't work, it's just hints for jedi
+        self.idle = lisa.analysis.idle.IdleAnalysis()
+        self.latency = lisa.analysis.latency.LatencyAnalysis()
+        self.frequency = lisa.analysis.frequency.FrequencyAnalysis()
+        self.load_tracking = lisa.analysis.load_tracking.LoadTrackingAnalysis()
+        self.tasks = lisa.analysis.tasks.TasksAnalysis()
+        self.functions = lisa.analysis.functions.FunctionsAnalysis()
+        self.status = lisa.analysis.status.StatusAnalysis()
+        self.thermal = lisa.analysis.thermal.ThermalAnalysis()
+        self.cpus = lisa.analysis.cpus.CpusAnalysis()
+        self.rta = lisa.analysis.rta.PerfAnalysis()
+
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
