@@ -662,4 +662,11 @@ def get_call_site(levels=0, exclude_caller_module=False):
 
     return (caller, filename, lineno)
 
+def is_running_sphinx():
+    """
+    Returns True if the module is imported when Sphinx is running, False
+    otherwise.
+    """
+    return 'sphinx' in sys.modules
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

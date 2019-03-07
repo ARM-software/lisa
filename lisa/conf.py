@@ -25,7 +25,8 @@ import itertools
 import textwrap
 
 from lisa.utils import (
-    Serializable, Loggable, get_nested_key, set_nested_key, get_call_site
+    Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
+    is_running_sphinx,
 )
 
 class DeferredValue:
@@ -420,8 +421,8 @@ class MultiSrcConfMeta(abc.ABCMeta):
     """
     Metaclass of :class:`MultiSrcConf`.
 
-    It will use the docstring of the class, using it as a ``str.format`` template
-    with the ``{generated_help}`` placeholder replaced by a snippet of
+    It will use the docstring of the class, using it as a ``str.format``
+    template with the ``{generated_help}`` placeholder replaced by a snippet of
     ResStructuredText containing the list of allowed keys.
 
     .. note:: Since the dosctring is interpreted as a template, "{" and "}"
@@ -432,8 +433,10 @@ class MultiSrcConfMeta(abc.ABCMeta):
         if not inspect.isabstract(new_cls):
             doc = new_cls.__doc__
             if doc:
-                # Create a ResStructuredText preformatted block
-                generated_help = '\n' + new_cls.get_help(style='rst')
+                # Create a ResStructuredText preformatted block when rendering
+                # with Sphinx
+                style = 'rst' if is_running_sphinx() else None
+                generated_help = '\n' + new_cls.get_help(style=style)
                 new_cls.__doc__ = doc.format(generated_help=generated_help)
         return new_cls
 
