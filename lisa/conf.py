@@ -1148,8 +1148,9 @@ class ConfigurableMeta(abc.ABCMeta):
             # keys that really need to be of a certain type when specified.
             filter_none=True,
         )
-        # Since a MultiSrcConf is a Mapping, it is useable as a source
-        conf_cls.DEFAULT_SRC = default_conf
+        # Convert to a dict so that the Sphinx documentation is able to show
+        # the content of the source
+        conf_cls.DEFAULT_SRC = dict(default_conf._get_effective_map())
 
         # Update the docstring by using the configuration help
         docstring = new_cls.__doc__
