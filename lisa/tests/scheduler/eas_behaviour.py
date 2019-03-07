@@ -261,7 +261,8 @@ class EASBehaviour(RTATestBundle, abc.ABC):
 
         Examine a trace and use :meth:EnergyModel.estimate_from_cpu_util to get
         a DataFrame showing the estimated power usage over time. This assumes
-        perfect cpuidle and cpufreq behaviour.
+        perfect cpuidle and cpufreq behaviour. Only the CPU on which the tasks
+        are running is extracted from the trace, all other signals are guessed.
 
         :param nrg_model: EnergyModel used compute the optimal placement and
                           CPUs
