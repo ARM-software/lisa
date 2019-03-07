@@ -194,14 +194,24 @@ class KeyDesc(KeyDescBase):
 
     def get_help(self, style=None):
         prefix = '*' if style == 'rst' else '|-'
-        return '{prefix} {key} ({classinfo}){help}'.format(
+        if self.help:
+            joiner = '\n{} '.format(' ' * len(prefix))
+            wrapped_lines = textwrap.wrap(self.help, width=60)
+            # If more than one line, output a paragraph on its own starting on
+            # a new line
+            if len(wrapped_lines) > 1:
+                wrapped_lines.insert(0, '')
+            help_ = ': ' + joiner.join(wrapped_lines)
+        else:
+            help_ = ''
+        return '{prefix} {key} ({classinfo}){help}.'.format(
             prefix=prefix,
             key=self.name,
             classinfo=' or '.join(
                 self._get_cls_name(key_cls, style=style)
                 for key_cls in self.classinfo
             ),
-            help=': ' + self.help if self.help else ''
+            help=help_,
         )
 
     def pretty_format(self, v):
@@ -431,8 +441,8 @@ class MultiSrcConfMeta(abc.ABCMeta):
     def __new__(metacls, name, bases, dct, **kwargs):
         new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
         if not inspect.isabstract(new_cls):
-            doc = new_cls.__doc__
-            if doc:
+            if new_cls.__doc__:
+                doc = textwrap.dedent(new_cls.__doc__)
                 # Create a ResStructuredText preformatted block when rendering
                 # with Sphinx
                 style = 'rst' if is_running_sphinx() else None
