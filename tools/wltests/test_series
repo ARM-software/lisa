@@ -506,7 +506,7 @@ usb_disconnect() {
 	if [ $DRYRUN ]; then return; fi
 	case $EMETER in
 	'ACME')
-		sh root@$ACME_IP \
+		ssh root@$ACME_IP \
 			"echo 0 > /sys/bus/iio/devices/iio:$ACME_USB/in_active"
 		;;
 	'MONSOON')
@@ -598,9 +598,10 @@ device_connected() {
 			return $ENODEV
 		fi
 		usb_disconnect
-		c_warning "Check again in 1s..."
 		sleep 1
 		usb_connect
+		c_warning "Check again in 10s..."
+		sleep 10
 	done
 	return $OK
 }
