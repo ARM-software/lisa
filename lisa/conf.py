@@ -966,9 +966,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 key=key_desc.qualname,
                 src=src,
                 val=key_desc.pretty_format(val),
-                    caller=caller if caller else '<unknown>',
-                    filename=filename if filename else '<unknown>',
-                    lineno=lineno if lineno else '<unknown>',
+                caller=caller if caller else '<unknown>',
+                filename=filename if filename else '<unknown>',
+                lineno=lineno if lineno else '<unknown>',
             ))
         return val
 
