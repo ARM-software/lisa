@@ -434,7 +434,10 @@ EOF
     echo -e "$LISASHELL_DEFAULT"
 else
     lisa-version
-    echo "Environment variables:"
-    printenv | grep --color=no -E 'LISA|EXEKALL' | sort
 fi
+
+# Show relevant env var
+echo "Environment variables:"
+printenv | grep --color=no -E 'LISA|EXEKALL' | sort
+
 # vim: set tabstop=4 shiftwidth=4 textwidth=80 expandtab:
