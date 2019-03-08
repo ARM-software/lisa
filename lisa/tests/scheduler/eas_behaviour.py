@@ -480,9 +480,9 @@ class TwoBigThreeSmall(EASBehaviour):
         # 50% of the smallest CPU's capacity
         small_duty = cls.unscaled_utilization(
             plat_info, plat_info["capacity-classes"][0][0], 50)
-        # 80% of the biggest CPU's capacity
+        # 70% of the biggest CPU's capacity
         big_duty = cls.unscaled_utilization(
-            plat_info, plat_info["capacity-classes"][-1][0], 80)
+            plat_info, plat_info["capacity-classes"][-1][0], 70)
 
         rtapp_profile = {}
 
