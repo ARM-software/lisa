@@ -271,7 +271,7 @@ class Target(Loggable, HideExekallID, Configurable):
         os.makedirs(rta_calib_res_dir)
         self.plat_info.add_target_src(self, rta_calib_res_dir, fallback=True)
 
-        logger.info('Effective platform information:\n%s', self.plat_info)
+        logger.info('Effective platform information:\n{}'.format(self.plat_info))
 
     def __getattr__(self, attr):
         """
