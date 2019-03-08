@@ -284,6 +284,14 @@ class DerivedKeyDesc(KeyDesc):
                 msg=e.args[0],
             )) from e
 
+    def can_be_computed(self, conf):
+        try:
+            self._get_base_conf(conf)
+        except MissingBaseKeyError:
+            return False
+        else:
+            return True
+
     def compute_val(self, conf):
         base_conf = self._get_base_conf(conf)
         val = self._compute(base_conf)
@@ -958,9 +966,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 key=key_desc.qualname,
                 src=src,
                 val=key_desc.pretty_format(val),
-                caller=caller if caller else '<unknown>',
-                filename=filename if filename else '<unknown>',
-                lineno=lineno if lineno else '<unknown>',
+                    caller=caller if caller else '<unknown>',
+                    filename=filename if filename else '<unknown>',
+                    lineno=lineno if lineno else '<unknown>',
             ))
         return val
 
@@ -996,10 +1004,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         # completeness. This will not honor eval_deferred for base keys.
         def derived_items():
             for key in self._get_derived_key_names():
-                try:
-                    yield key, self.get_key(key, quiet=True)
-                except MissingBaseKeyError:
-                    continue
+                yield key, self.get_key(key, quiet=True)
 
         for k, v in itertools.chain(
             self.items(eval_deferred=eval_deferred),
@@ -1053,7 +1058,10 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         return sorted(
             key
             for key, key_desc in self._structure.items()
-            if isinstance(key_desc, DerivedKeyDesc)
+            if (
+                isinstance(key_desc, DerivedKeyDesc)
+                and key_desc.can_be_computed(self)
+            )
         )
 
     def __iter__(self):
@@ -1079,7 +1087,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         regular_keys = set(self.keys())
         # For autocompletion purposes, we show the derived keys
         derived_keys = set(self._get_derived_key_names())
-        return sorted(regular_keys + derived_keys)
+        return sorted(regular_keys | derived_keys)
 
 
 class SimpleMultiSrcConf(MultiSrcConf):
