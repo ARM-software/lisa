@@ -37,7 +37,7 @@ from devlib import Platform
 from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_all_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrList, Configurable
 
 from lisa.platforms.platinfo import PlatformInfo
@@ -496,7 +496,7 @@ class Target(Loggable, HideExekallID, Configurable):
         # Get all devlib Module subclasses that exist
         devlib_module_set = {
             cls.name
-            for cls in get_all_subclasses(devlib.module.Module)
+            for cls in get_subclasses(devlib.module.Module)
             if (
                 getattr(cls, 'name', None)
                 # early modules try to connect to UART and do very

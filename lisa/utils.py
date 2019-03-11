@@ -136,15 +136,6 @@ def resolve_dotted_name(name):
     mod = importlib.import_module(mod_name)
     return getattr(mod, callable_name)
 
-def get_all_subclasses(cls, cls_set=None):
-    if cls_set is None:
-        cls_set = set()
-    cls_set.add(cls)
-    for subcls in cls.__subclasses__():
-        get_all_subclasses(subcls, cls_set)
-
-    return cls_set
-
 def import_all_submodules(pkg):
     """Import all submodules of a given package."""
     return _import_all_submodules(pkg.__name__, pkg.__path__)
