@@ -25,11 +25,6 @@ lisa-update-subtrees - Update the subtrees by pulling their latest changes
 
 lisa-jupyter - Start/Stop the Jupyter Notebook server
 
-.:: Results analysis and Documentation
---------------------------------------
-
-lisa-report  - Pretty format results of last test
-
 .:: Test commands
 --------------------------------------
 
