@@ -1,7 +1,7 @@
 ********
-Overview
+Bisector
 ********
 
-.. TODO:: Have some blurb here about LISA
+.. TODO:: write me
 
 **(This page is being worked on, come back later!)**
