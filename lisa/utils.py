@@ -147,9 +147,21 @@ def get_all_subclasses(cls, cls_set=None):
 
 def import_all_submodules(pkg):
     """Import all submodules of a given package."""
+    return _import_all_submodules(pkg.__name__, pkg.__path__)
+
+def _import_all_submodules(pkg_name, pkg_path):
+    def import_module(module_name):
+        # Load module under its right name, so explicit imports of it will hit
+        # the sys.module cache instead of importing twice, with two "version"
+        # of each classes defined inside.
+        full_name = '{}.{}'.format(pkg_name, module_name)
+        module = importlib.import_module(full_name)
+        return module
+
     return [
-        loader.find_module(module_name).load_module(module_name)
-        for loader, module_name, is_pkg in pkgutil.walk_packages(pkg.__path__)
+        import_module(module_name)
+        for finder, module_name, is_pkg
+        in pkgutil.walk_packages(pkg_path)
     ]
 
 class UnknownTagPlaceholder:
