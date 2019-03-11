@@ -1241,6 +1241,9 @@ class MissingTraceEventError(RuntimeError):
 class FtraceConf(SimpleMultiSrcConf, HideExekallID):
     """
     Configuration class of :class:`FtraceCollector`
+
+    Available keys:
+    {generated_help}
     """
     STRUCTURE = TopLevelKeyDesc('ftrace-conf', 'FTrace configuration', (
         KeyDesc('events', 'FTrace events to trace', [StrList]),

@@ -25,7 +25,8 @@ import itertools
 import textwrap
 
 from lisa.utils import (
-    Serializable, Loggable, get_nested_key, set_nested_key, get_call_site
+    Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
+    is_running_sphinx,
 )
 
 class DeferredValue:
@@ -193,14 +194,24 @@ class KeyDesc(KeyDescBase):
 
     def get_help(self, style=None):
         prefix = '*' if style == 'rst' else '|-'
-        return '{prefix} {key} ({classinfo}){help}'.format(
+        if self.help:
+            joiner = '\n{} '.format(' ' * len(prefix))
+            wrapped_lines = textwrap.wrap(self.help, width=60)
+            # If more than one line, output a paragraph on its own starting on
+            # a new line
+            if len(wrapped_lines) > 1:
+                wrapped_lines.insert(0, '')
+            help_ = ': ' + joiner.join(wrapped_lines)
+        else:
+            help_ = ''
+        return '{prefix} {key} ({classinfo}){help}.'.format(
             prefix=prefix,
             key=self.name,
             classinfo=' or '.join(
                 self._get_cls_name(key_cls, style=style)
                 for key_cls in self.classinfo
             ),
-            help=': ' + self.help if self.help else ''
+            help=help_,
         )
 
     def pretty_format(self, v):
@@ -420,8 +431,8 @@ class MultiSrcConfMeta(abc.ABCMeta):
     """
     Metaclass of :class:`MultiSrcConf`.
 
-    It will use the docstring of the class, using it as a ``str.format`` template
-    with the ``{generated_help}`` placeholder replaced by a snippet of
+    It will use the docstring of the class, using it as a ``str.format``
+    template with the ``{generated_help}`` placeholder replaced by a snippet of
     ResStructuredText containing the list of allowed keys.
 
     .. note:: Since the dosctring is interpreted as a template, "{" and "}"
@@ -430,10 +441,12 @@ class MultiSrcConfMeta(abc.ABCMeta):
     def __new__(metacls, name, bases, dct, **kwargs):
         new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
         if not inspect.isabstract(new_cls):
-            doc = new_cls.__doc__
-            if doc:
-                # Create a ResStructuredText preformatted block
-                generated_help = '\n' + new_cls.get_help(style='rst')
+            if new_cls.__doc__:
+                doc = textwrap.dedent(new_cls.__doc__)
+                # Create a ResStructuredText preformatted block when rendering
+                # with Sphinx
+                style = 'rst' if is_running_sphinx() else None
+                generated_help = '\n' + new_cls.get_help(style=style)
                 new_cls.__doc__ = doc.format(generated_help=generated_help)
         return new_cls
 
@@ -1135,8 +1148,9 @@ class ConfigurableMeta(abc.ABCMeta):
             # keys that really need to be of a certain type when specified.
             filter_none=True,
         )
-        # Since a MultiSrcConf is a Mapping, it is useable as a source
-        conf_cls.DEFAULT_SRC = default_conf
+        # Convert to a dict so that the Sphinx documentation is able to show
+        # the content of the source
+        conf_cls.DEFAULT_SRC = dict(default_conf._get_effective_map())
 
         # Update the docstring by using the configuration help
         docstring = new_cls.__doc__
