@@ -1356,6 +1356,9 @@ class IntIntDict(TypedDict):
 class IntList(TypedList):
     _type = int
 
+class FloatList(TypedList):
+    _type = float
+
 class IntIntListDict(TypedDict):
     _type = (int, IntList)
 

@@ -28,6 +28,7 @@ import abc
 from collections import namedtuple
 from collections.abc import Mapping
 from subprocess import Popen, PIPE, STDOUT
+import subprocess
 from time import sleep
 
 import numpy as np
@@ -36,7 +37,10 @@ import pandas as pd
 import devlib
 
 from lisa.utils import Loggable, get_subclasses, ArtifactPath, HideExekallID
-from lisa.conf import MultiSrcConf, KeyDesc, TopLevelKeyDesc, StrList, Configurable
+from lisa.conf import (
+    MultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable,
+    StrList, FloatList
+)
 from lisa.target import Target
 
 from bart.common.Utils import area_under_curve
@@ -45,20 +49,12 @@ from bart.common.Utils import area_under_curve
 EnergyReport = namedtuple('EnergyReport',
                           ['channels', 'report_file', 'data_frame'])
 
-class EnergyMeterConf(MultiSrcConf, HideExekallID):
-    """
-    Configuration class for :class:`EnergyMeter`.
-    """
-    STRUCTURE = TopLevelKeyDesc('emeter-conf', 'Energy Meter configuration', (
-        KeyDesc('name', 'Value of name attribute of the EnergyMeter subclass to use', [str]),
-        KeyDesc('conf', 'Emeter configuration, depending on the type of emeter used', [Mapping]),
-    ))
 
-class EnergyMeter(Loggable, abc.ABC):
+class EnergyMeter(Loggable, Configurable):
     """
     Abstract Base Class of energy meters.
     """
-    def __init__(self, target, res_dir):
+    def __init__(self, target, res_dir=None):
         self._target = target
         res_dir = res_dir if res_dir else target.get_res_dir(
             name='EnergyMeter-{}'.format(self.name),
@@ -66,47 +62,39 @@ class EnergyMeter(Loggable, abc.ABC):
         )
         self._res_dir = res_dir
 
-    @classmethod
-    def get_meter(cls, name, conf, target, res_dir=None):
-        """
-        Choose the appropriate :class:`EnergyMeter` subclass and build an
-        instance of it.
-
-        :param name: Name matching the ``name`` class attribute of energy meters
-        :type name: str
-
-        :param conf: Configuration mapping passed to the :class:`EnergyMeter`
-            subclass.
-        :type conf: collections.abc.Mapping
-        """
-        logger = cls.get_logger()
-        logger.debug('Results dir: %s', res_dir)
-
-        for subcls in get_subclasses(cls):
-            if not inspect.isabstract(subcls):
-                if name == subcls.name:
-                    return subcls(target, conf, res_dir)
-
-        raise ValueError('No EnergyMeter has name "{}"'.format(name))
 
     @classmethod
-    def from_conf(cls, target:Target, conf:EnergyMeterConf, res_dir:ArtifactPath=None) -> 'EnergyMeter':
+    def from_conf(cls, target, conf, res_dir=None):
         """
-        Build an instance of :class:`EnergyMeter` from a configuration object.
-
-        .. seealso:: :meth:`EnergyMeter.get_meter`
+        Build an instance of :class:`EnergyMeter` from a
+        configuration object.
 
         :param target: Target to use
         :type target: lisa.target.Target
 
-        :param conf: Configuration to use
-        :type conf: EnergyMeterConf
+        :param conf: Configuration object to use
+
+        :param res_dir: Result directory to use
+        :type res_dir: str or None
         """
-        return cls.get_meter(
-            name=conf['name'],
-            conf=conf['conf'],
+        # Select the right subclass according to the type of the configuration
+        # object we are given
+        for subcls in get_subclasses(cls) | {cls}:
+            try:
+                conf_cls = subcls.CONF_CLASS
+            except AttributeError:
+                continue
+            if isinstance(conf, conf_cls):
+                cls = subcls
+                break
+
+        cls.get_logger('{} energy meter configuration:\n{}'.format(cls.name, conf))
+        kwargs = cls.conf_to_init_kwargs(conf)
+        cls.check_init_param(**kwargs)
+        return cls(
             target=target,
             res_dir=res_dir,
+            **kwargs,
         )
 
     @abc.abstractmethod
@@ -134,10 +122,28 @@ class EnergyMeter(Loggable, abc.ABC):
         """
         pass
 
+class HWMonConf(MultiSrcConf, HideExekallID):
+    """
+    Configuration class for :class:`HWMon`.
+
+    {generated_help}
+    """
+    STRUCTURE = TopLevelKeyDesc('hwmon-conf', 'HWMon Energy Meter configuration', (
+        #TODO: find a better help and maybe a better type
+        KeyDesc('channel-map', 'Channels to use', [Mapping]),
+    ))
+
 class HWMon(EnergyMeter):
+    """
+    HWMon energy meter
+
+    {configurable_params}
+    """
+
+    CONF_CLASS = HWMonConf
     name = 'hwmon'
 
-    def __init__(self, target, conf=None, res_dir=None):
+    def __init__(self, target, channel_map, res_dir=None):
         super().__init__(target, res_dir)
         logger = self.get_logger()
 
@@ -159,7 +165,7 @@ class HWMon(EnergyMeter):
 
         available_sites = [c.site for c in self._hwmon.get_channels('energy')]
 
-        self._channels = conf.get('channel_map')
+        self._channels = channel_map
         if self._channels:
             # If the user provides a channel_map then require it to be correct.
             if not all (s in available_sites for s in list(self._channels.values())):
@@ -237,6 +243,7 @@ class HWMon(EnergyMeter):
 
         return EnergyReport(clusters_nrg, nrg_file, None)
 
+
 class _DevlibContinuousEnergyMeter(EnergyMeter):
     """Common functionality for devlib Instruments in CONTINUOUS mode"""
 
@@ -293,18 +300,39 @@ class _DevlibContinuousEnergyMeter(EnergyMeter):
                 channels_nrg[site] = area_under_curve(df[site]['power'])
         return channels_nrg
 
-class AEP(_DevlibContinuousEnergyMeter):
-    name = 'aep'
+class AEPConf(MultiSrcConf, HideExekallID):
+    """
+    Configuration class for :class:`AEP`.
 
-    def __init__(self, target, conf, res_dir):
+    {generated_help}
+    """
+    STRUCTURE = TopLevelKeyDesc('aep-conf', 'AEP Energy Meter configuration', (
+        KeyDesc('channel-map', 'Channels to use', [Mapping]),
+        KeyDesc('resistor-values', 'Resistor values', [FloatList]),
+        KeyDesc('labels', 'List of labels', [StrList]),
+        KeyDesc('device-entry', 'TTY device', [StrList]),
+    ))
+
+class AEP(_DevlibContinuousEnergyMeter):
+    """
+    Arm Energy Probe energy meter
+
+    {configurable_params}
+    """
+    name = 'aep'
+    CONF_CLASS = AEPConf
+
+    def __init__(self, target, resistor_values, labels=None, device_entry='/dev/ttyACM0', res_dir=None):
         super().__init__(target, res_dir)
         logger = self.get_logger()
 
         # Configure channels for energy measurements
-        logger.info('AEP configuration')
-        logger.info('    %s', conf)
         self._instrument = devlib.EnergyProbeInstrument(
-            self._target, labels=conf.get('channel_map'), **conf['conf'])
+            self._target,
+            resistor_values=resistor_values,
+            labels=labels,
+            device_entry=device_entry,
+        )
 
         # Configure channels for energy measurements
         logger.debug('Enabling channels')
@@ -315,16 +343,32 @@ class AEP(_DevlibContinuousEnergyMeter):
         logger.info('   %s', str(self._instrument.active_channels))
         logger.debug('Results dir: %s', self._res_dir)
 
+class MonsoonConf(MultiSrcConf, HideExekallID):
+    """
+    Configuration class for :class:`Monsoon`.
+
+    {generated_help}
+    """
+    STRUCTURE = TopLevelKeyDesc('monsoon-conf', 'Monsoon Energy Meter configuration', (
+        KeyDesc('channel-map', 'Channels to use', [Mapping]),
+        KeyDesc('monsoon-bin', 'monsoon binary path', [str]),
+        KeyDesc('tty-device', 'TTY device to use', [str]),
+    ))
+
 class Monsoon(_DevlibContinuousEnergyMeter):
     """
-    Monsoon Solutions energy monitor
+    Monsoon Solutions energy meter
+
+    {configurable_params}
     """
     name = 'monsoon'
+    CONF_CLASS = MonsoonConf
 
-    def __init__(self, target, conf, res_dir):
+    def __init__(self, target, monsoon_bin=None, tty_device=None, res_dir=None):
         super().__init__(target, res_dir)
 
-        self._instrument = devlib.MonsoonInstrument(self._target, **conf['conf'])
+        self._instrument = devlib.MonsoonInstrument(self._target,
+            monsoon_bin=monsoon_bin, tty_device=tty_device)
         self._instrument.reset()
 
 _acme_install_instructions = '''
@@ -338,11 +382,27 @@ _acme_install_instructions = '''
 
 '''
 
+class ACMEConf(MultiSrcConf, HideExekallID):
+    """
+    Configuration class for :class:`ACME`.
+
+    {generated_help}
+    """
+    STRUCTURE = TopLevelKeyDesc('acme-conf', 'ACME Energy Meter configuration', (
+        KeyDesc('channel-map', 'Channels to use', [Mapping]),
+        KeyDesc('host', 'Hostname or IP address of the ACME board', [str]),
+        KeyDesc('iio-capture-bin', 'path to iio-capture binary', [str]),
+    ))
+
 class ACME(EnergyMeter):
     """
     BayLibre's ACME board based EnergyMeter
+
+    {configurable_params}
     """
     name = 'acme'
+
+    CONF_CLASS = ACMEConf
 
     REPORT_DELAY_S = 2.0
     """
@@ -350,21 +410,18 @@ class ACME(EnergyMeter):
     so we have to enforce a delay between reset() and report()
     """
 
-    def __init__(self, target, conf, res_dir):
+    def __init__(self, target,
+          channel_map={'CH0': 0},
+          host='baylibre-acme.local', iio_capture_bin='iio-capture',
+          res_dir=None):
         super().__init__(target, res_dir)
         logger = self.get_logger()
 
-        # Assume iio-capture is available in PATH
-        iioc = conf.get('conf', {
-            'iio-capture' : 'iio-capture',
-            'ip_address'  : 'baylibre-acme.local',
-        })
-        self._iiocapturebin = iioc.get('iio-capture', 'iio-capture')
-        self._hostname = iioc.get('ip_address', 'baylibre-acme.local')
+        self._iiocapturebin = iio_capture_bin
+        self._hostname = host
 
-        self._channels = conf.get('channel_map', {
-            'CH0': '0'
-        })
+        # Make a copy to be sure to never modify the default value
+        self._channels = dict(channel_map)
         self._iio = {}
 
         logger.info('ACME configuration:')
@@ -376,12 +433,12 @@ class ACME(EnergyMeter):
 
         # Check if iio-capture binary is available
         try:
-            p = Popen([self._iiocapturebin, '-h'], stdout=PIPE, stderr=STDOUT)
-        except OSError:
+            p = subprocess.call([self._iiocapturebin, '-h'], stdout=PIPE, stderr=STDOUT)
+        except FileNotFoundError as e:
             logger.error('iio-capture binary [%s] not available',
                             self._iiocapturebin)
             logger.warning(_acme_install_instructions)
-            raise RuntimeError('Missing iio-capture binary')
+            raise FileNotFoundError('Missing iio-capture binary') from e
 
     def sample(self):
         raise NotImplementedError('Not available for ACME')
@@ -536,12 +593,24 @@ class ACME(EnergyMeter):
 
         return EnergyReport(channels_nrg, nrg_file, None)
 
+class Gem5EnergyMeterConf(MultiSrcConf, HideExekallID):
+    """
+    Configuration class for :class:`Gem5EnergyMeter`.
+
+    {generated_help}
+    """
+    STRUCTURE = TopLevelKeyDesc('gem5-energy-meter-conf', 'Gem5 Energy Meter configuration', (
+        KeyDesc('channel-map', 'Channels to use', [Mapping]),
+    ))
+
 class Gem5EnergyMeter(_DevlibContinuousEnergyMeter):
     name = 'gem5'
-    def __init__(self, target, conf, res_dir):
+    CONF_CLASS = Gem5EnergyMeterConf
+
+    def __init__(self, target, channel_map, res_dir=None):
         super().__init__(target, res_dir)
 
-        power_sites = list(conf['channel_map'].values())
+        power_sites = list(channel_map.values())
         self._instrument = devlib.Gem5PowerInstrument(self._target, power_sites)
 
     def reset(self):
