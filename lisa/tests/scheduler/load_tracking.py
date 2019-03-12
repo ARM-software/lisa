@@ -807,7 +807,7 @@ class PELTTask(LoadTrackingBase):
 
         return res
 
-    def test_util_avg_range(self, allowed_error_pct=1) -> ResultBundle:
+    def test_util_avg_range(self, allowed_error_pct=1.5) -> ResultBundle:
         """
         Test that the util_avg value ranges (min, max) are sane
 
@@ -815,7 +815,7 @@ class PELTTask(LoadTrackingBase):
         """
         return self._test_range('util', allowed_error_pct)
 
-    def test_load_avg_range(self, allowed_error_pct=1) -> ResultBundle:
+    def test_load_avg_range(self, allowed_error_pct=1.5) -> ResultBundle:
         """
         Test that the load_avg value ranges (min, max) are sane
 
