@@ -638,7 +638,12 @@ def get_call_site(levels=0, exclude_caller_module=False):
         :mod:`lisa.utils` module.
     """
 
-    stack = inspect.stack()
+    try:
+        stack = inspect.stack()
+    # Getting the stack can sometimes fail under IPython for some reason:
+    # https://github.com/ipython/ipython/issues/1456/
+    except IndexError:
+        return (None, None, None)
 
     # Exclude all functions from lisa.utils
     excluded_files = {
