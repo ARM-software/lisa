@@ -31,6 +31,7 @@ import operator
 import logging
 import webbrowser
 from functools import reduce, wraps
+from collections.abc import Sequence
 
 from lisa.utils import Loggable, HideExekallID, memoized, deduplicate
 from lisa.platforms.platinfo import PlatformInfo
@@ -232,7 +233,7 @@ class Trace(Loggable, SubscriptableTrace):
         self.overutilized_prc = 0
 
         # List of events required by user
-        self.events = []
+        self.events = self._process_events(events)
 
         # List of events available in the parsed trace
         self.available_events = []
@@ -248,7 +249,6 @@ class Trace(Loggable, SubscriptableTrace):
 
         self.plots_prefix = plots_prefix
 
-        self._register_trace_events(events)
         self._parse_trace(self.trace_path, trace_format)
 
         # Import here to avoid a circular dependency issue at import time
@@ -270,26 +270,29 @@ class Trace(Loggable, SubscriptableTrace):
             self.get_logger().info("Estimated CPU count from trace: %s", count)
             return count
 
-    def _register_trace_events(self, events):
+    @staticmethod
+    def _process_events(events):
         """
-        Save a copy of the parsed events.
+        Process the `events` parameter of :meth:`Trace.__init__`.
 
         :param events: single event name or list of events names
         :type events: str or list(str)
         """
         # Parse all events by default
         if events is None:
-            self.events = []
-            return
-        if isinstance(events, str):
-            self.events = events.split(' ')
-        elif isinstance(events, list):
-            self.events = events
+            events = []
+        elif isinstance(events, str):
+            events = [events]
+        elif isinstance(events, Sequence):
+            events = list(events)
         else:
-            raise ValueError('Events must be a string or a list of strings')
+            raise ValueError('Events must be a string or a sequence of strings')
+
         # Register devlib fake cpu_frequency events
         if 'cpu_frequency' in events:
-            self.events.append('cpu_frequency_devlib')
+            events.append('cpu_frequency_devlib')
+
+        return events
 
     def _parse_trace(self, path, trace_format):
         """
