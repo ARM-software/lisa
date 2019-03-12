@@ -49,7 +49,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
         :param metrics: the metrics to plot
                         avg   - average execution time
                         time  - total execution time
-        :type metrics: srt or list(str)
+        :type metrics: str or list(str)
         """
         if not hasattr(self.trace, '_functions_stats_df'):
             self.get_logger().warning('Functions stats data not available')
