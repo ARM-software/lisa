@@ -2354,6 +2354,13 @@ class ExprValBase(ExprHelpers):
 
         return self.get_by_predicate(predicate)
 
+    def get_by_type(self, cls, include_subclasses=True, **kwargs):
+        if include_subclasses:
+            predicate = lambda expr_val: isinstance(expr_val.value, cls)
+        else:
+            predicate = lambda expr_val: type(expr_val.value) is cls
+        return self.get_by_predicate(predicate, **kwargs)
+
 
 class FrozenExprVal(ExprValBase):
     def __init__(self,
