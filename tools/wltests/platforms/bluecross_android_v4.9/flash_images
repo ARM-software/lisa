@@ -14,29 +14,28 @@ MODE=${1:-FASTBOOT}
 # Check for DTBO image
 ls "${ARTIFACTS_PATH}/${ANDROID_DTBO_IMAGE}" &>/dev/null; ERROR=$?
 if [ $ERROR -ne 0 ]; then
-	c_error "No DTBO image to flash found in $PWD"
+	c_error "No DTBO image to flash found in $ARTIFACTS_PATH"
 	exit $ENOENT
 fi
 
 # Check for KERNEL image
 ls "${ARTIFACTS_PATH}/${KERNEL_IMAGE}" &>/dev/null; ERROR=$?
 if [ $ERROR -ne 0 ]; then
-	c_error "No KERNEL image to flash found in $PWD"
+	c_error "No KERNEL image to flash found in $ARTIFACTS_PATH"
 	exit $ENOENT
 fi
 
 # Check for modules to be pushed
-MODULE_DIR="${ARTIFACTS_PATH}/push_files/vendor/lib/modules"
-ls ${MODULE_DIR}/*.ko &>/dev/null; ERROR=$?
+ls ${ARTIFACTS_PATH}/*.ko &>/dev/null; ERROR=$?
 if [ $ERROR -ne 0 ]; then
-	c_error "No MODULES to push found in $MODULE_DIR"
+	c_error "No MODULES to push found in $ARTIFACTS_PATH"
 	exit $ENOENT
 fi
 
 case "$MODE" in
 
 ADB)
-	adb_flash_modules $MODULE_DIR; ERROR=$?
+	adb_flash_modules $ARTIFACTS_PATH; ERROR=$?
 	[ $ERROR -eq 0 ] || exit -$ERROR
 
 	exit $OK
@@ -45,7 +44,7 @@ ADB)
 FASTBOOT)
 	echo
 	c_info "Flashing [$KERNEL_IMAGE] on KERNEL partition..."
-	$FASTBOOT flash kernel ${ARTIFACTS_PATH}/${KERNEL_IMAGE}
+	$FASTBOOT flash:raw boot ${ARTIFACTS_PATH}/${KERNEL_IMAGE}
 	ERROR=$?
 	[ $ERROR -eq 0 ] || exit -$ERROR
 
