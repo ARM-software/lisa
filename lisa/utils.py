@@ -580,7 +580,7 @@ def get_nested_key(mapping, key_path, getitem=operator.getitem):
 
     :param getitem: Function used to get items on the mapping. Defaults to
         :func:`operator.getitem`.
-    :type getitem: callable
+    :type getitem: collections.abc.Callable
     """
     if not key_path:
         return mapping
