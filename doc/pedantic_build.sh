@@ -21,25 +21,30 @@
 # be permissive for warnings related to them
 IGNORE_PATTERN="devlib|bart|wa|exekall.engine"
 
-make SPHINXOPTS='-n' html 2>doc_build.log
-all_warns=$(cat doc_build.log)
-warns=$(cat doc_build.log | grep WARNING | grep -E -w -v "$IGNORE_PATTERN")
+make SPHINXOPTS='-n --no-color' html 2>doc_build.log
+log=$(cat doc_build.log)
+warns=$(cat doc_build.log | grep WARNING --color=always | grep -E -w -v "$IGNORE_PATTERN")
+ignored_warns=$(cat doc_build.log | grep WARNING | grep --color=always -E -w "$IGNORE_PATTERN")
 
 echo
 
-if [ ! -z "$warns" ]; then
-    echo "Documentation build warnings:"
-    echo
+echo "Documentation build warnings:"
+echo
+if [ -n "$warns" ]; then
     echo "Warnings to fix:"
     echo
     echo "$warns"
     echo
-    echo "Sphinx log:"
-    echo
-    echo "$all_warns"
-    exit 1
-elif [ ! -z "$all_warns" ]; then
+    ret=1
+else
     echo "Ignored warnings:"
     echo
-    echo "$all_warns"
+    echo "$ignored_warns"
+    ret=0
 fi
+
+echo
+echo "Sphinx log:"
+echo
+echo "$log"
+exit $ret
