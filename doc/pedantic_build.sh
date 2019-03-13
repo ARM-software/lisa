@@ -23,7 +23,7 @@ IGNORE_PATTERN="devlib|bart|wa|exekall.engine"
 
 make SPHINXOPTS='-n' html 2>doc_build.log
 all_warns=$(cat doc_build.log)
-warns=$(cat doc_build.log | grep WARNING | grep -E -v "$IGNORE_PATTERN")
+warns=$(cat doc_build.log | grep WARNING | grep -E -w -v "$IGNORE_PATTERN")
 
 echo
 
