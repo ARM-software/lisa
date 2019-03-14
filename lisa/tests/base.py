@@ -24,8 +24,8 @@ from collections.abc import Mapping
 
 from devlib.target import KernelVersion
 
-
-from lisa.trace import Trace
+from lisa.analysis.tasks import TasksAnalysis
+from lisa.trace import Trace, requires_events
 from lisa.wlgen.rta import RTA
 
 from lisa.utils import Serializable, memoized, ArtifactPath
@@ -367,6 +367,13 @@ class RTATestBundle(TestBundle, abc.ABC):
     definitions.
     """
 
+    NOISE_IGNORED_PIDS = [0]
+    """
+    PIDs to ignore in :meth:`test_noisy_tasks`.
+
+    PID 0 is the idle task, don't count it as noise.
+    """
+
     def trace_window(self, trace):
         """
         The time window to consider for this :class:`RTATestBundle`
@@ -413,6 +420,53 @@ class RTATestBundle(TestBundle, abc.ABC):
         super().__init__(res_dir, plat_info)
         self.rtapp_profile = rtapp_profile
 
+    @TasksAnalysis.df_tasks_runtime.used_events
+    def test_noisy_tasks(self, noise_threshold_pct=None, noise_threshold_ms=None):
+        """
+        Test that no non-rtapp ("noisy") task ran for longer than the specified thresholds
+
+        :param noise_threshold_pct: The maximum allowed runtime for noisy tasks in
+          percentage of the total rt-app execution time
+        :type noise_threshold_pct: float
+
+        :param noise_threshold_ms: The maximum allowed runtime for noisy tasks in ms
+        :type noise_threshold_ms: float
+
+        If both are specified, the smallest threshold (in seconds) will be used.
+        """
+        if noise_threshold_pct is None and noise_threshold_ms is None:
+            raise ValueError('Both "{}" and "{}" cannot be None'.format(
+                "noise_threshold_pct", "noise_threshold_ms"))
+
+        # No task can run longer than the recorded duration
+        threshold_s = self.trace.time_range
+
+        if noise_threshold_pct is not None:
+            threshold_s = noise_threshold_pct * self.trace.time_range / 100
+
+        if noise_threshold_ms is not None:
+            threshold_s = min(threshold_s, noise_threshold_ms * 1e3)
+
+        df = self.trace.analysis.tasks.df_tasks_runtime()
+        test_tasks = list(map(self.trace.get_task_pid, self.rtapp_profile.keys()))
+        df_noise = df[~df.index.isin(test_tasks + self.NOISE_IGNORED_PIDS)]
+
+        if df_noise.empty:
+            return ResultBundle.from_bool(True)
+
+        pid = df_noise.index[0]
+        comm = df_noise.comm.values[0]
+        duration_s = df_noise.runtime.values[0]
+        duration_pct = duration_s * 100 / self.trace.time_range
+
+        res = ResultBundle.from_bool(duration_s < threshold_s)
+        metric = {"pid" : pid,
+                  "comm": comm,
+                  "duration (abs)": TestMetric(duration_s, "s"),
+                  "duration (rel)" : TestMetric(duration_pct, "%")}
+        res.add_metric("noisiest task", metric)
+
+        return res
     @classmethod
     def unscaled_utilization(cls, plat_info, cpu, utilization_pct):
         """
