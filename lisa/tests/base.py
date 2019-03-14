@@ -357,6 +357,15 @@ class RTATestBundle(TestBundle, abc.ABC):
     :type rtapp_profile: dict
     """
 
+    TRACE_PATH = 'trace.dat'
+    """
+    Path to the ``trace-cmd`` trace.dat file in the result directory.
+    """
+    DMESG_PATH = 'dmesg.log'
+    """
+    Path to the dmesg log in the result directory.
+    """
+
     ftrace_conf = FtraceConf({
         "events" : [
             "sched_switch",
@@ -418,8 +427,7 @@ class RTATestBundle(TestBundle, abc.ABC):
         allows updating the underlying path before it is actually loaded to
         match a different folder structure.
         """
-        path = os.path.join(self.res_dir, 'trace.dat')
-
+        path = os.path.join(self.res_dir, self.TRACE_PATH)
         trace = Trace(path, self.plat_info, events=self.ftrace_conf["events"])
         return trace.get_view(self.trace_window(trace))
 
@@ -577,8 +585,8 @@ class RTATestBundle(TestBundle, abc.ABC):
         wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.lower()),
                                profile, res_dir=res_dir)
 
-        trace_path = os.path.join(res_dir, "trace.dat")
-        dmesg_path = os.path.join(res_dir, "dmesg.log")
+        trace_path = os.path.join(res_dir, cls.TRACE_PATH)
+        dmesg_path = os.path.join(res_dir, cls.DMESG_PATH)
         ftrace_coll = ftrace_coll or FtraceCollector.from_conf(target, cls.ftrace_conf)
         dmesg_coll = DmesgCollector(target)
 
