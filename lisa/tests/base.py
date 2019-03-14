@@ -357,7 +357,10 @@ class RTATestBundle(TestBundle, abc.ABC):
     """
 
     ftrace_conf = FtraceConf({
-        "events" : ["sched_switch"],
+        "events" : [
+            "sched_switch",
+            "sched_wakeup"
+        ],
     }, __qualname__)
     """
     The FTrace configuration used to record a trace while the synthetic workload
