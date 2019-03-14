@@ -26,6 +26,7 @@ from collections.abc import Mapping
 from inspect import signature, Parameter
 
 from devlib.target import KernelVersion
+from devlib.trace.dmesg import DmesgCollector
 
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.trace import Trace, requires_events
@@ -577,11 +578,14 @@ class RTATestBundle(TestBundle, abc.ABC):
                                profile, res_dir=res_dir)
 
         trace_path = os.path.join(res_dir, "trace.dat")
+        dmesg_path = os.path.join(res_dir, "dmesg.log")
         ftrace_coll = ftrace_coll or FtraceCollector.from_conf(target, cls.ftrace_conf)
+        dmesg_coll = DmesgCollector(target)
 
-        with ftrace_coll, target.freeze_userspace():
+        with dmesg_coll, ftrace_coll, target.freeze_userspace():
             wload.run()
         ftrace_coll.get_trace(trace_path)
+        dmesg_coll.get_trace(dmesg_path)
         return trace_path
 
     @classmethod
