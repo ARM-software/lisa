@@ -1133,8 +1133,18 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
 
         The decorated method must operate on instances that have a ``self.trace``
         attribute.
+
+        If some event requirements have already been defined for it (it has a
+        `used_events` attribute, i.e. it has already been decorated), these
+        will be combined with the new requirements using an
+        :class`AndTraceEventChecker`.
         """
-        checker = self
+        try:
+            used_events = f.used_events
+        except AttributeError:
+            checker = self
+        else:
+            checker = AndTraceEventChecker([self, used_events])
 
         @wraps(f)
         def wrapper(self, *args, **kwargs):
