@@ -109,7 +109,7 @@ The output of ``exekall compare`` looks like that:
     ThreeSmallTasks:test_task_placement                                0.0%   1.8%   1.8%    4.13e-03
     TwoBigTasks:test_slack                                             0.0%   3.1%   3.1%    1.03e-04
     TwoBigThreeSmall:test_slack                                       82.1%  95.7%  13.6%    1.69e-06
-    TwoBigThreeSmall:test_task_placement                              79.7%  95.7%  16.0%    7.18e-08 
+    TwoBigThreeSmall:test_task_placement                              79.7%  95.7%  16.0%    7.18e-08
 
 The columns have the following meaning:
 
@@ -135,7 +135,7 @@ of values for some of its parameters:
 
 .. code-block:: sh
 
-  # The energy_est_threshold_pct parameter of functions with a name matching 
+  # The energy_est_threshold_pct parameter of functions with a name matching
   # '*test_task_placement' will take the following values all values from 0 to 15
   # by increments of 5.
   exekall run lisa/tests/ --conf target_conf.yml --sweep '*test_task_placement' energy_est_threshold_pct 0 15 5
@@ -245,7 +245,7 @@ The most important option is ``--steps`` which needs to be pointed at a YAML
 file with this kind of content:
 
 .. code-block:: YAML
-  
+
   steps:
     - class: build
       cmd: make defconfig Image dtbs
@@ -273,7 +273,7 @@ file with this kind of content:
       # make sure we have ssh key authentication enabled on the target, to
       # simplify settings of other scripts
       cmd: sshpass -p password ssh-copy-id -i $HOME/.ssh/id_rsa "$USER@$HOSTNAME"
-        
+
 
     # A test step will make the result good if the command exit with 0, or bad otherwise.
     - class: exekall-LISA-test
@@ -282,8 +282,8 @@ file with this kind of content:
       # Block-style strings allow multiple lines. For more block style examples:
       # https://learnxinyminutes.com/docs/yaml/
       cmd: >
-        cd "$LISA_HOME" &&
-        exekall run lisa/tests/ --conf target_conf.yml -s 'OneSmallTask*'
+	cd "$LISA_HOME" &&
+	exekall run lisa/tests/ --conf target_conf.yml -s 'OneSmallTask*'
 
     # Another test example, that is not integrated with exekall
     - class: test
@@ -303,7 +303,7 @@ file with this kind of content:
 
 All available step classes along with available ``run`` options can be looked
 up using ``bisector step-help``. Options are documented in their CLI form, but
-also equally apply to the steps configuration file. 
+also equally apply to the steps configuration file.
 
 .. tip:: Bisector supports executing commands in a transient systemd scope
   using ``systemd-run`` binary, using the ``-ouse-systemd-run`` option. This
@@ -505,7 +505,7 @@ notifications on various events to keep you updated when something goes wrong.
 A monitoring command is also available:
 
 .. code-block:: sh
-  
+
   # used with an explicit PID, no monitor-server is needed
   bisector monitor BISECTOR_RUN_PID --log
   # used with "all", the monitor-server is needed as all run instances register
@@ -531,7 +531,7 @@ archive to download for further analysis (usually to look at ``trace-cmd``
 traces).
 
 .. code-block:: sh
-  
+
   export ARTIFACTORIAL_TOKEN='ONE_TOKEN_TO_RULE_THEM_ALL'
   export ARTIFACTORIAL_FOLDER='http://instance.of.artifactorial/artifacts/myfolder'
   bisector run --steps steps.yml --report myreport.yml.gz -oupload-artifact --upload-report
@@ -544,4 +544,3 @@ all the steps information collected so far. When using the
 accessible over HTTP. That can be changed using ``-odownload=false``.
 
 .. [#] https://github.com/ivoire/Artifactorial
-

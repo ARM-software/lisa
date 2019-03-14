@@ -21,17 +21,50 @@ They are commonly split into two steps:
 
 In our case, the data usually consists of
 `Ftrace <https://www.kernel.org/doc/Documentation/trace/ftrace.txt>`_ traces
-that we then postprocess using :mod:`trappy`.
+that we then postprocess using :mod:`trappy`
+
+.. seealso:: :ref:`analysis-page`
 
 Available tests
 ===============
 
 The following tests are available. They can be used as:
+
   * direct execution using ``lisa-test`` command (``LISA shell``) and ``exekall``
+    (see :ref:`automated-testing-page`)
   * the individual classes/methods they are composed of can be used in custom
     scripts/jupyter notebooks (see ipynb/tests/synthetics_example.ipynb)
 
 .. include:: test_list.rst
+
+Running tests
+=============
+
+From the CLI
+++++++++++++
+
+The shortest path to executing a test from a shell is:
+
+1. Update the ``target_conf.yml`` file located at the root of the repository
+   with the credentials to connect to the development board (see
+   :class:`~lisa.target.TargetConf` keys for more information)
+2. Run the following:
+
+  .. code-block:: sh
+
+    # To run all tests
+    lisa-test
+    # To list available tests
+    lisa-test --list
+    # To run a test matching a pattern
+    lisa-test '*test_task_placement'
+
+More advanced workflows are described at :ref:`automated-testing-page`.
+
+From a python environment
++++++++++++++++++++++++++
+
+See the usage example of :class:`~lisa.tests.base.TestBundle`
 
 Writing tests
 =============
@@ -47,17 +80,19 @@ undesired mechanic from barging in. That's why we rely on the freezer cgroup to
 reduce the amount of noise introduced by the userspace, but it's not solving all
 of the issues. As such, your tests should be designed to:
 
-a. minimize the amount of non test-related noise (freezer, disable some
-   devlib module...)
+a. minimize the amount of non test-related noise (e.g. freezer)
 b. withstand events we can't control (use error margins, averages...)
 
 Where to start
 ++++++++++++++
 
 The main class of the kernel tests is :class:`~lisa.tests.base.TestBundle`.
-Have a look at its documentation for implementation and usage examples. It can
-also be worth to look at a simple test, such as
-:class:`~lisa.tests.scheduler.sanity.CapacitySanity`.
+Have a look at its documentation for implementation and usage examples.
+
+.. tip::
+
+   A simple test implementation worth looking at is
+   :class:`~lisa.tests.scheduler.sanity.CapacitySanity`.
 
 Implementations of :class:`~lisa.tests.base.TestBundle` can
 execute any sort of arbitry Python code. This means that you are free to
@@ -125,6 +160,3 @@ Staged tests
 
 Those are tests that have been merged into LISA but whose behaviour are being
 actively evaluated.
-
-.. automodule:: lisa.tests.staging
-   :members:

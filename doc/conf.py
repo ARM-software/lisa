@@ -416,20 +416,49 @@ def get_test_id_list():
         )
     return rst_list
 
-def create_test_list_file(path):
-    try:
-        content = '\n'.join(
-            '* {}'.format(test_id)
-            for test_id in get_test_id_list()
-        )
-    except FileNotFoundError:
-        content = 'Please install exekall in order to generate the list of tests.'
-        print('WARNING: could not generate the list of test without exekall', file=sys.stderr)
+def get_analysis_list(prefix):
+    from lisa.analysis.base import TraceAnalysisBase
+    from lisa.utils import get_subclasses
+
+    rst_list = []
+
+    for subclass in get_subclasses(TraceAnalysisBase):
+        class_path = "{}.{}".format(subclass.__module__, subclass.__qualname__)
+        analysis = subclass.__module__.split(".")[-1]
+        meth_list = [name for name, member in inspect.getmembers(subclass, callable)
+                     if name.startswith(prefix)]
+
+        rst_list += [":class:`{0}<{1}>`::meth:`~{1}.{2}`".format(analysis, class_path, meth)
+                     for meth in meth_list]
+
+    return rst_list
+
+def get_analysis_df_list():
+    return get_analysis_list("df_")
+
+def get_analysis_plot_list():
+    return get_analysis_list("plot_")
+
+def create_doc_list_file(path, list_generator):
+    content = '\n'.join(
+        '* {}'.format(item)
+        for item in list_generator()
+    )
 
     with open(path, 'wt') as f:
         f.write(content + '\n')
 
-create_test_list_file('test_list.rst')
+def create_test_list_file(path):
+    try:
+        create_doc_list_file(path, get_test_id_list)
+    except FileNotFoundError:
+        content = 'Please install exekall in order to generate the list of tests.'
+        print('WARNING: could not generate the list of test without exekall', file=sys.stderr)
+        with open(path, 'wt') as f:
+            f.write(content + '\n')
 
+create_test_list_file('test_list.rst')
+create_doc_list_file('analysis_df_list.rst', get_analysis_df_list)
+create_doc_list_file('analysis_plot_list.rst', get_analysis_plot_list)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab:
