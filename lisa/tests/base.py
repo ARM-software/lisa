@@ -26,6 +26,8 @@ import re
 
 from collections.abc import Mapping
 from inspect import signature
+import inspect
+import copy
 
 from devlib.trace.dmesg import DmesgCollector
 
@@ -347,7 +349,65 @@ class TestBundle(Serializable, abc.ABC):
         """
         super().to_path(self._filepath(res_dir))
 
-class RTATestBundle(TestBundle):
+
+class RTATestBundleMeta(abc.ABCMeta):
+    """
+    Metaclass of :class:`RTATestBundle`.
+
+    This metaclass ensures that each class will get its own copy of
+    ``ftrace_conf`` attribute, and that the events specified in that
+    configuration are a superset of what is needed by methods using the
+    decorator :func:`lisa.trace.requires_events`. This makes sure that the
+    default set of events is always enough to run all defined methods, without
+    duplicating that information.
+
+    .. note:: An existing ``ftrace_conf`` attribute is used, with extra
+        detected events merged-in.
+    """
+
+    def __new__(metacls, name, bases, dct, **kwargs):
+        new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
+
+        # Collect all the events that can be used by all methods available on
+        # that class.
+        ftrace_events = set()
+        for name, obj in inspect.getmembers(new_cls, callable):
+            try:
+                used_events = obj.used_events
+            except AttributeError:
+                continue
+            else:
+                ftrace_events.update(used_events.get_all_events())
+
+        # Get the ftrace_conf attribute of the class, and make sure it is
+        # unique to that class (i.e. not shared with any other parent or
+        # sibling classes)
+        try:
+            ftrace_conf = new_cls.ftrace_conf
+        except AttributeError:
+            ftrace_conf = FtraceConf(src=new_cls.__qualname__)
+        else:
+            # If the ftrace_conf attribute has been defined in a base class,
+            # make sure that class gets its own copy since we are going to
+            # modify it
+            if 'ftrace_conf' not in dct:
+                ftrace_conf = copy.copy(ftrace_conf)
+
+        new_cls.ftrace_conf = ftrace_conf
+
+        # Merge-in a new source to FtraceConf that contains the events we
+        # collected
+        ftrace_conf.add_merged_src(
+            src='{}(required)'.format(new_cls.__qualname__),
+            conf={
+                'events': sorted(ftrace_events),
+            },
+        )
+
+        return new_cls
+
+
+class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
     """
     Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
     """
