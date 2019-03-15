@@ -157,9 +157,6 @@ class LISAAdaptor(AdaptorBase):
         return hidden_op_set
 
     def format_expr_list(self, expr_list, verbose=0):
-        if not self.args.list_trace_events:
-            return ''
-
         def get_trace_events(expr):
             events = set()
             if issubclass(expr.op.value_type, TestBundle):
@@ -197,9 +194,6 @@ class LISAAdaptor(AdaptorBase):
             metavar='SERIALIZED_OBJECT_PATH',
             default=[],
             help="Serialized object to inject when building expressions")
-
-        parser.add_argument('--list-trace-events', action='store_true',
-            help="Show the list of trace events collected for each testcase")
 
         # Create an empty TargetConf, so we are able to get the list of tests
         # as if we were going to execute them using a target.
