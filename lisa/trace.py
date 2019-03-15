@@ -41,7 +41,25 @@ from trappy.utils import listify, handle_duplicate_index
 
 NON_IDLE_STATE = -1
 
-class TraceView(Loggable):
+class SubscriptableTrace(abc.ABC):
+    @abc.abstractmethod
+    def get_view(self, window):
+        """
+        Get a view on a trace cropped time-wise to fit in ``window``
+        """
+        pass
+
+    def __getitem__(self, window):
+        if not isinstance(window, slice):
+            raise TypeError("Cropping window must be an instance of slice")
+
+        if window.step is not None:
+            raise ValueError("Slice step is not supported")
+
+        return self.get_view((window.start, window.stop))
+
+
+class TraceView(Loggable, SubscriptableTrace):
     """
     A view on a :class:`Trace`
 
@@ -63,6 +81,9 @@ class TraceView(Loggable):
 
       trace = Trace(...)
       view = trace.get_view((2, 4))
+
+      # Alias for the above
+      view = trace[2:4]
 
       # This will only use events in the (2, 4) time window
       df = view.analysis.tasks.df_tasks_runtime()
@@ -143,7 +164,7 @@ class TraceView(Loggable):
 
         return self.base_trace.get_view((start, end))
 
-class Trace(Loggable):
+class Trace(Loggable, SubscriptableTrace):
     """
     The Trace object is the LISA trace events parser.
 
