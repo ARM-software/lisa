@@ -1094,6 +1094,16 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         """
         pass
 
+    @abc.abstractmethod
+    def get_all_events(self):
+        """
+        Return a set of all events that are checked by this checker.
+
+        That may be a superset of events that are strictly required, when the
+        checker checks a logical OR combination of events for example.
+        """
+        pass
+
     def __call__(self, f):
         """
         Decorator for methods that require some given trace events
@@ -1175,6 +1185,9 @@ class TraceEventChecker(TraceEventCheckerBase):
     def __init__(self, event):
         self.event = event
 
+    def get_all_events(self):
+        return {self.event}
+
     def check_events(self, event_set):
         if self.event not in event_set:
             raise MissingTraceEventError(self)
@@ -1209,6 +1222,12 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
 
         self.checkers = checker_list
         self.op_str = op_str
+
+    def get_all_events(self):
+        events = set()
+        for checker in self.checkers:
+            events.update(checker.get_all_events())
+        return events
 
     @classmethod
     def from_events(cls, events):
