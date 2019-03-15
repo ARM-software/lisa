@@ -157,18 +157,26 @@ class LISAAdaptor(AdaptorBase):
         return hidden_op_set
 
     def format_expr_list(self, expr_list, verbose=0):
-        def get_trace_events(expr):
-            events = set()
-            if issubclass(expr.op.value_type, TestBundle):
-                try:
-                    ftrace_conf = ExekallFtraceCollector._get_consumer_conf(
-                        expr.op.unwrapped_callable
-                    )
-                except Exception:
-                    pass
-                else:
-                    events = set(ftrace_conf.get('events', []))
+        def get_callable_events(callable_):
+            """
+            Recursively unwraps all layers of wrappers, collecting the events
+            at each stage. That is needed in order to cope with things like
+            :class:`exekall.engine.UnboundMethod`.
+            """
+            try:
+                used_events = callable_.used_events
+            except AttributeError:
+                events = set()
+            else:
+                events = set(used_events.get_all_events())
 
+            with contextlib.suppress(AttributeError):
+                events.update(get_callable_events(callable_.__wrapped__))
+
+            return events
+
+        def get_trace_events(expr):
+            events = get_callable_events(expr.op.callable_)
             for param_expr in expr.param_map.values():
                 events.update(get_trace_events(param_expr))
             return events
