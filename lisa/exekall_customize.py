@@ -176,29 +176,16 @@ class LISAAdaptor(AdaptorBase):
                 events.update(get_trace_events(param_expr))
             return events
 
-        def format_events(events):
-            if not events:
-                return '\n\t<no events>'
-            else:
-                joiner = '\n\t- '
-                return joiner + joiner.join(sorted(events))
+        events = set()
+        for expr in expr_list:
+            events.update(get_trace_events(expr))
 
-        def format_expr(expr):
-            hidden_callable_set = {
-                op.callable_ for op in self.hidden_op_set
-            }
-            expr_id = expr.get_id(
-                qual=False,
-                full_qual=verbose,
-                hidden_callable_set=hidden_callable_set
-            )
-            events = sorted(get_trace_events(expr))
-            return '{}:{}'.format(expr_id, format_events(events))
-
-        return 'Used trace events:\n' + '\n\n'.join(
-            format_expr(expr)
-            for expr in expr_list
-        )
+        if events:
+            joiner = '\n  - '
+            events_str = joiner + joiner.join(sorted(events))
+        else:
+            events_str = ' <no events>'
+        return 'Used trace events:{}'.format(events_str)
 
     @staticmethod
     def register_run_param(parser):
