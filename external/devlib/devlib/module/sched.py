@@ -440,10 +440,10 @@ class SchedModule(Module):
         sd_info = self.get_sd_info()
 
         for cpu in cpus:
-            if self.has_em(cpu, sd_info.cpus[cpu]):
-                capacities[cpu] = self.get_em_capacity(cpu, sd_info.cpus[cpu])
-            elif self.has_dmips_capacity(cpu):
+            if self.has_dmips_capacity(cpu):
                 capacities[cpu] = self.get_dmips_capacity(cpu)
+            elif self.has_em(cpu, sd_info.cpus[cpu]):
+                capacities[cpu] = self.get_em_capacity(cpu, sd_info.cpus[cpu])
             else:
                 if default != None:
                     capacities[cpu] = default

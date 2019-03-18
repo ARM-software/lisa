@@ -41,23 +41,13 @@ except OSError:
     pass
 
 
-with open(os.path.join(devlib_dir, '__init__.py')) as fh:
-    # Extract the version by parsing the text of the file,
-    # as may not be able to load as a module yet.
-    for line in fh:
-        if '__version__' in line:
-            parts = line.split("'")
-            __version__ = parts[1]
-            break
-    else:
-        raise RuntimeError('Did not see __version__')
-
-    vh_path = os.path.join(devlib_dir, 'utils', 'version.py')
-    # can load this, as it does not have any devlib imports
-    version_helper = imp.load_source('version_helper', vh_path)
-    commit = version_helper.get_commit()
-    if commit:
-        __version__ = '{}+{}'.format(__version__, commit)
+vh_path = os.path.join(devlib_dir, 'utils', 'version.py')
+# can load this, as it does not have any devlib imports
+version_helper = imp.load_source('version_helper', vh_path)
+__version__ = version_helper.get_devlib_version()
+commit = version_helper.get_commit()
+if commit:
+    __version__ = '{}+{}'.format(__version__, commit)
 
 
 packages = []
