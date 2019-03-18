@@ -56,10 +56,8 @@ class Glb(ApkUiautoWorkload):
     view = 'com.glbenchmark.glbenchmark27/com.glbenchmark.activities.GLBRender'
 
     package_names = ['com.glbenchmark.glbenchmark27', 'com.glbenchmark.glbenchmark25']
-    packages = {
-        '2.7': 'com.glbenchmark.glbenchmark27',
-        '2.5': 'com.glbenchmark.glbenchmark25',
-    }
+    supported_versions = ['2.7', '2.5']
+
     # If usecase is not specified the default usecase is the first supported usecase alias
     # for the specified version.
     supported_usecase_aliases = {
@@ -74,7 +72,7 @@ class Glb(ApkUiautoWorkload):
     regex = re.compile(r'GLBenchmark (metric|FPS): (.*)')
 
     parameters = [
-        Parameter('version', default='2.7', allowed_values=['2.7', '2.5'], override=True,
+        Parameter('version', allowed_values=supported_versions, override=True,
                   description=('Specifies which version of the benchmark to run (different versions '
                                'support different use cases).')),
         Parameter('use_case', default=None,
@@ -107,10 +105,9 @@ class Glb(ApkUiautoWorkload):
         Alias('t-rex_offscreen', use_case='t-rex', type='offscreen'),
     ]
 
-    def __init__(self, target, **kwargs):
-        super(Glb, self).__init__(target, **kwargs)
+    def initialize(self, context):
+        super(Glb, self).initialize(context)
         self.gui.uiauto_params['version'] = self.version
-
         if self.use_case is None:
             self.use_case = self.supported_usecase_aliases[self.version][0]
         if self.use_case.lower() in USE_CASE_MAP:
@@ -124,7 +121,6 @@ class Glb(ApkUiautoWorkload):
         self.gui.uiauto_params['usecase_type'] = self.type.replace(' ', '_')
 
         self.gui.uiauto_params['timeout'] = self.run_timeout
-        self.package_names = [self.packages[self.version]]
 
     def update_output(self, context):
         super(Glb, self).update_output(context)

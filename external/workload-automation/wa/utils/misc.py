@@ -41,7 +41,6 @@ else:
 from itertools import chain, cycle
 from distutils.spawn import find_executable  # pylint: disable=no-name-in-module, import-error
 
-import yaml
 from dateutil import tz
 
 # pylint: disable=wrong-import-order
@@ -325,6 +324,11 @@ def load_struct_from_python(filepath=None, text=None):
 def load_struct_from_yaml(filepath=None, text=None):
     """Parses a config structure from a .yaml file. The structure should be composed
     of basic Python types (strings, ints, lists, dicts, etc.)."""
+
+    # Import here to avoid circular imports
+    # pylint: disable=wrong-import-position,cyclic-import
+    from wa.utils.serializer import yaml
+
     if not (filepath or text) or (filepath and text):
         raise ValueError('Exactly one of filepath or text must be specified.')
     try:

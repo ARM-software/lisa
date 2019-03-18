@@ -15,7 +15,22 @@
 
 import os
 import sys
+from collections import namedtuple
 from subprocess import Popen, PIPE
+
+
+VersionTuple = namedtuple('Version', ['major', 'minor', 'revision', 'dev'])
+
+version = VersionTuple(1, 1, 1, 'dev1')
+
+
+def get_devlib_version():
+    version_string = '{}.{}.{}'.format(
+        version.major, version.minor, version.revision)
+    if version.dev:
+        version_string += '.{}'.format(version.dev)
+    return version_string
+
 
 def get_commit():
     p = Popen(['git', 'rev-parse', 'HEAD'], cwd=os.path.dirname(__file__),

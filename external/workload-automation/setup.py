@@ -29,7 +29,8 @@ except ImportError:
 wa_dir = os.path.join(os.path.dirname(__file__), 'wa')
 
 sys.path.insert(0, os.path.join(wa_dir, 'framework'))
-from version import get_wa_version, get_wa_version_with_commit
+from version import (get_wa_version, get_wa_version_with_commit,
+                     format_version, required_devlib_version)
 
 # happens if falling back to distutils
 warnings.filterwarnings('ignore', "Unknown distribution option: 'install_requires'")
@@ -61,6 +62,8 @@ for root, dirs, files in os.walk(wa_dir):
 
 scripts = [os.path.join('scripts', s) for s in os.listdir('scripts')]
 
+
+devlib_version = format_version(required_devlib_version)
 params = dict(
     name='wlauto',
     description='A framework for automating workload execution and measurement collection on ARM devices.',
@@ -81,15 +84,15 @@ params = dict(
         'pexpect>=3.3',  # Send/receive to/from device
         'pyserial',  # Serial port interface
         'colorama',  # Printing with colors
-        'pyYAML',  # YAML-formatted agenda parsing
+        'pyYAML>=5.1b3',  # YAML-formatted agenda parsing
         'requests',  # Fetch assets over HTTP
-        'devlib>=1.1.dev1',  # Interacting with devices
+        'devlib>={}'.format(devlib_version),  # Interacting with devices
         'louie-latest',  # callbacks dispatch
         'wrapt',  # better decorators
         'pandas>=0.23.0',  # Data analysis and manipulation
         'future',  # Python 2-3 compatiblity
     ],
-    dependency_links=['https://github.com/ARM-software/devlib/tarball/master#egg=devlib-1.1.dev1'],
+    dependency_links=['https://github.com/ARM-software/devlib/tarball/master#egg=devlib-{}'.format(devlib_version)],
     extras_require={
         'other': ['jinja2'],
         'test': ['nose', 'mock'],
@@ -122,7 +125,6 @@ class sdist(orig_sdist):
     def initialize_options(self):
         orig_sdist.initialize_options(self)
         self.strip_commit = False
-
 
     def run(self):
         if self.strip_commit:

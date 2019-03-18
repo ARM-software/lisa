@@ -313,7 +313,7 @@ def cache_target_info(target_info, overwrite=False):
 
 class TargetInfo(Podable):
 
-    _pod_serialization_version = 3
+    _pod_serialization_version = 4
 
     @staticmethod
     def from_pod(pod):
@@ -409,3 +409,7 @@ class TargetInfo(Podable):
             config[key.upper()] = value
         pod['kernel_config'] = config
         return pod
+
+    @staticmethod
+    def _pod_upgrade_v4(pod):
+        return TargetInfo._pod_upgrade_v3(pod)

@@ -22,7 +22,7 @@ from wa.framework.plugin import TargetedPlugin, Parameter
 from wa.framework.resource import (ApkFile, ReventFile,
                                    File, loose_version_matching)
 from wa.framework.exception import WorkloadError, ConfigError
-from wa.utils.types import ParameterDict
+from wa.utils.types import ParameterDict, list_or_string
 from wa.utils.revent import ReventRecorder
 from wa.utils.exec_control import once_per_instance
 
@@ -174,6 +174,7 @@ class ApkWorkload(Workload):
     # Times are in seconds
     loading_time = 10
     package_names = []
+    supported_versions = []
     view = None
     clear_data_on_reset = True
 
@@ -259,7 +260,7 @@ class ApkWorkload(Workload):
                                   package_name=self.package_name,
                                   variant=self.variant,
                                   strict=self.strict,
-                                  version=self.version,
+                                  version=self.version or self.supported_versions,
                                   force_install=self.force_install,
                                   install_timeout=self.install_timeout,
                                   uninstall=self.uninstall,
@@ -271,6 +272,9 @@ class ApkWorkload(Workload):
     def initialize(self, context):
         super(ApkWorkload, self).initialize(context)
         self.apk.initialize(context)
+        # pylint: disable=access-member-before-definition, attribute-defined-outside-init
+        if self.version is None:
+            self.version = self.apk.apk_info.version_name
         if self.view is None:
             self.view = 'SurfaceView - {}/{}'.format(self.apk.package,
                                                      self.apk.activity)
@@ -755,8 +759,9 @@ class PackageHandler(object):
                 matching_packages = []
                 for package in installed_versions:
                     package_version = self.target.get_package_version(package)
-                    if loose_version_matching(self.version, package_version):
-                        matching_packages.append(package)
+                    for v in list_or_string(self.version):
+                        if loose_version_matching(v, package_version):
+                            matching_packages.append(package)
                 if len(matching_packages) == 1:
                     self.package_name = matching_packages[0]
                 elif len(matching_packages) > 1:

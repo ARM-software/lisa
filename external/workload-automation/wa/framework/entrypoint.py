@@ -21,14 +21,19 @@ import os
 import warnings
 
 import devlib
+try:
+    from devlib.utils.version import version as installed_devlib_version
+except ImportError:
+    installed_devlib_version = None
 
 from wa.framework import pluginloader
 from wa.framework.command import init_argument_parser
 from wa.framework.configuration import settings
 from wa.framework.configuration.execution import ConfigManager
 from wa.framework.host import init_user_directory, init_config
-from wa.framework.exception import ConfigError
-from wa.framework.version import get_wa_version_with_commit
+from wa.framework.exception import ConfigError, HostError
+from wa.framework.version import (get_wa_version_with_commit, format_version,
+                                  required_devlib_version)
 from wa.utils import log
 from wa.utils.doc import format_body
 
@@ -62,6 +67,13 @@ def split_joined_options(argv):
         else:
             output.append(part)
     return output
+
+
+# Instead of presenting an obscure error due to a version mismatch explicitly warn the user.
+def check_devlib_version():
+    if not installed_devlib_version or installed_devlib_version < required_devlib_version:
+        msg = 'WA requires Devlib version >={}. Please update the currently installed version {}'
+        raise HostError(msg.format(format_version(required_devlib_version), devlib.__version__))
 
 
 def main():
@@ -102,6 +114,7 @@ def main():
         logger.debug('Version: {}'.format(get_wa_version_with_commit()))
         logger.debug('devlib version: {}'.format(devlib.__full_version__))
         logger.debug('Command Line: {}'.format(' '.join(sys.argv)))
+        check_devlib_version()
 
         # each command will add its own subparser
         subparsers = parser.add_subparsers(dest='command')
