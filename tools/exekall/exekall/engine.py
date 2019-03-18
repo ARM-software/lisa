@@ -381,11 +381,12 @@ class ExprHelpers(collections.abc.Mapping):
     def __iter__(self):
         return iter(self.param_map)
 
-    # Keep the default behavior
+    # Keep the default behavior, to override the one from Mapping
     def __eq__(self, other):
         return self is other
 
     def __hash__(self):
+        # consistent with definition of __eq__
         return id(self)
 
 
@@ -2353,12 +2354,13 @@ class ExprValBase(ExprHelpers):
 
         return self.get_by_predicate(predicate)
 
-    def __eq__(self, other):
-        return self is other
+    def get_by_type(self, cls, include_subclasses=True, **kwargs):
+        if include_subclasses:
+            predicate = lambda expr_val: isinstance(expr_val.value, cls)
+        else:
+            predicate = lambda expr_val: type(expr_val.value) is cls
+        return self.get_by_predicate(predicate, **kwargs)
 
-    def __hash__(self):
-        # consistent with definition of __eq__
-        return id(self)
 
 class FrozenExprVal(ExprValBase):
     def __init__(self,
