@@ -270,7 +270,6 @@ class TasksAnalysis(TraceAnalysisBase):
         deltas = []
         states = []
 
-        trace_end = self.trace.start_time + self.trace.time_range
         pids = df.pid.unique()
 
         for pid in pids:
@@ -279,7 +278,8 @@ class TasksAnalysis(TraceAnalysisBase):
             state = df_slice.curr_state
 
             index += time.index.to_list()
-            deltas += list(time.values[1:] - time.values[:-1]) + [trace_end - time.values[-1]]
+            deltas += list(time.values[1:] - time.values[:-1]) + \
+                      [self.trace.end - time.values[-1]]
             states += list(state.values[1:]) + [state.values[-1]]
 
         merged_df = pd.DataFrame(index=index,
@@ -470,7 +470,7 @@ class TasksAnalysis(TraceAnalysisBase):
         axis.set_ylabel('CPUs')
         axis.grid(True)
         axis.legend()
-        axis.set_xlim(self.trace.x_min, self.trace.x_max)
+        axis.set_xlim(self.trace.start, self.trace.end)
 
         self.save_plot(fig, filepath)
 
@@ -502,10 +502,10 @@ class TasksAnalysis(TraceAnalysisBase):
         """
         Discrete the contents of ``series`` in ``time_delta`` buckets
         """
-        left = self.trace.x_min
+        left = self.trace.start
         data = []
         index = []
-        for right in np.arange(left + time_delta, self.trace.x_max, time_delta):
+        for right in np.arange(left + time_delta, self.trace.end, time_delta):
             index.append(left)
             data.append(series[left:right].count())
             left = right
@@ -547,7 +547,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df.plot(ax=axis, legend=False)
 
         axis.set_title("Number of task wakeups within {}s windows".format(time_delta))
-        axis.set_xlim(self.trace.x_min, self.trace.x_max)
+        axis.set_xlim(self.trace.start, self.trace.end)
 
         self.save_plot(fig, filepath)
 
@@ -571,7 +571,7 @@ class TasksAnalysis(TraceAnalysisBase):
             df.index, df.target_cpu, xbins, "Number of wakeups", cmap=colormap)
 
         axis.set_title("Tasks wakeups over time")
-        axis.set_xlim(self.trace.x_min, self.trace.x_max)
+        axis.set_xlim(self.trace.start, self.trace.end)
 
         self.save_plot(fig, filepath)
 
@@ -600,7 +600,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df.plot(ax=axis, legend=False)
 
         axis.set_title("Number of task forks within {}s windows".format(time_delta))
-        axis.set_xlim(self.trace.x_min, self.trace.x_max)
+        axis.set_xlim(self.trace.start, self.trace.end)
 
         self.save_plot(fig, filepath)
 
@@ -624,7 +624,7 @@ class TasksAnalysis(TraceAnalysisBase):
             df.index, df.target_cpu, xbins, "Number of forks", cmap=colormap)
 
         axis.set_title("Tasks forks over time")
-        axis.set_xlim(self.trace.x_min, self.trace.x_max)
+        axis.set_xlim(self.trace.start, self.trace.end)
 
         self.save_plot(fig, filepath)
 

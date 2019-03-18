@@ -125,17 +125,14 @@ class StaggeredFinishes(MisfitMigrationBase):
     def __init__(self, res_dir, plat_info, rtapp_profile):
         super().__init__(res_dir, plat_info, rtapp_profile)
 
-        cpu_classes = plat_info['capacity-classes']
-
         sdf = self.trace.df_events('sched_switch')
-        # Get the time where the first rt-app task spawns
-        init_start = sdf[sdf.next_comm.str.contains(self.task_prefix)].index[0]
 
         # The tasks don't wake up at the same exact time, find the task that is
-        # the last to wake up.
+        # the last to wake up. We don't want to redefine trace_window() here
+        # because we still need the first wakeups to be visible.
         last_start = 0
 
-        sdf = sdf[init_start + self.IDLING_DELAY_S * 0.9 :]
+        sdf = sdf[self.trace.start + self.IDLING_DELAY_S * 0.9:]
 
         for task in self.rtapp_profile.keys():
             task_cpu = int(task.strip("{}_".format(self.task_prefix)))
@@ -143,9 +140,10 @@ class StaggeredFinishes(MisfitMigrationBase):
             last_start = max(last_start, task_start)
 
         self.start_time = last_start
-
-        self.end_time = sdf[sdf.prev_comm.str.contains(self.task_prefix)].index[-1]
+        self.end_time = self.trace.end
         self.duration = self.end_time - self.start_time
+
+        cpu_classes = plat_info['capacity-classes']
 
         self.src_cpus = cpu_classes[0]
         # XXX: Might need to check the tasks can fit on all of those, rather
@@ -297,6 +295,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         return res
 
     @TasksAnalysis.df_task_states.used_events
+    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_throughput(self, allowed_idle_time_s=None) -> ResultBundle:
         """
         Test that big CPUs are not idle when there are misfit tasks to upmigrate

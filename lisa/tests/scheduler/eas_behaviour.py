@@ -100,22 +100,6 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         """
         return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
 
-    def _get_start_time(self):
-        """
-        Get the time where the first task spawned
-        """
-        tasks = list(self.rtapp_profile.keys())
-        sdf = self.trace.df_events('sched_switch')
-        start_time = self.trace.start_time + self.trace.time_range
-
-        for task in tasks:
-            pid = self.trace.get_task_by_name(task)
-            assert len(pid) == 1, "get_task_by_name returned more than one PID"
-            pid = pid[0]
-            start_time = min(start_time, sdf[sdf.next_pid == pid].index[0])
-
-        return start_time
-
     def _get_expected_task_utils_df(self, nrg_model):
         """
         Get a DataFrame with the *expected* utilization of each task over time
@@ -289,7 +273,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
         """
         task_cpu_df = self._get_task_cpu_df()
         task_utils_df = self._get_expected_task_utils_df(nrg_model)
-        task_utils_df.index = [time + self._get_start_time() for time in task_utils_df.index]
+        task_utils_df.index = [time + self.trace.start for time in task_utils_df.index]
         tasks = list(self.rtapp_profile.keys())
 
         # Create a combined DataFrame with the utilization of a task and the CPU
@@ -318,6 +302,7 @@ class EASBehaviour(RTATestBundle, abc.ABC):
 
 
     @requires_events('sched_switch')
+    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_task_placement(self, energy_est_threshold_pct=5, nrg_model:EnergyModel=None) -> ResultBundle:
         """
         Test that task placement was energy-efficient
@@ -416,7 +401,8 @@ class ThreeSmallTasks(EASBehaviour):
     task_prefix = "small"
 
     @EASBehaviour.test_task_placement.used_events
-    def test_task_placement(self, energy_est_threshold_pct=20, nrg_model:EnergyModel=None) -> ResultBundle:
+    def test_task_placement(self, energy_est_threshold_pct=20, nrg_model:EnergyModel=None,
+                            noise_threshold_pct=1, noise_threshold_ms=None) -> ResultBundle:
         """
         Same as :meth:`EASBehaviour.test_task_placement` but with a higher
         default threshold
@@ -428,7 +414,10 @@ class ThreeSmallTasks(EASBehaviour):
         hopefully prevents too much use of big CPUs but otherwise is flexible in
         allocation of LITTLEs.
         """
-        return super().test_task_placement(energy_est_threshold_pct, nrg_model)
+        return super().test_task_placement(
+            energy_est_threshold_pct, nrg_model,
+            noise_threshold_pct=noise_threshold_pct,
+            noise_threshold_ms=noise_threshold_ms)
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):
@@ -537,7 +526,8 @@ class RampUp(EASBehaviour):
     task_name = "ramp_up"
 
     @EASBehaviour.test_task_placement.used_events
-    def test_task_placement(self, energy_est_threshold_pct=15, nrg_model:EnergyModel=None) -> ResultBundle:
+    def test_task_placement(self, energy_est_threshold_pct=15, nrg_model:EnergyModel=None,
+                            noise_threshold_pct=1, noise_threshold_ms=None) -> ResultBundle:
         """
         Same as :meth:`EASBehaviour.test_task_placement` but with a higher
         default threshold.
@@ -548,7 +538,10 @@ class RampUp(EASBehaviour):
         done, since there must be some hysteresis to avoid a performance cost.
         Therefore allow a larger energy usage threshold
         """
-        return super().test_task_placement(energy_est_threshold_pct, nrg_model)
+        return super().test_task_placement(
+            energy_est_threshold_pct, nrg_model,
+            noise_threshold_pct=noise_threshold_pct,
+            noise_threshold_ms=noise_threshold_ms)
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):
@@ -574,7 +567,8 @@ class RampDown(EASBehaviour):
     task_name = "ramp_down"
 
     @EASBehaviour.test_task_placement.used_events
-    def test_task_placement(self, energy_est_threshold_pct=18, nrg_model:EnergyModel=None) -> ResultBundle:
+    def test_task_placement(self, energy_est_threshold_pct=18, nrg_model:EnergyModel=None,
+                            noise_threshold_pct=1, noise_threshold_ms=None) -> ResultBundle:
         """
         Same as :meth:`EASBehaviour.test_task_placement` but with a higher
         default threshold
@@ -593,7 +587,10 @@ class RampDown(EASBehaviour):
         dependent, so until we have a way to do that easily in test classes, let's
         stick with the arbitrary threshold.
         """
-        return super().test_task_placement(energy_est_threshold_pct, nrg_model)
+        return super().test_task_placement(
+            energy_est_threshold_pct, nrg_model,
+            noise_threshold_pct=noise_threshold_pct,
+            noise_threshold_ms=noise_threshold_ms)
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):

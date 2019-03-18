@@ -16,16 +16,19 @@
 #
 
 import enum
+import functools
 import os
 import os.path
 import abc
 import sys
+import textwrap
 from collections.abc import Mapping
+from inspect import signature, Parameter
 
 from devlib.target import KernelVersion
 
-
-from lisa.trace import Trace
+from lisa.analysis.tasks import TasksAnalysis
+from lisa.trace import Trace, requires_events
 from lisa.wlgen.rta import RTA
 
 from lisa.utils import Serializable, memoized, ArtifactPath
@@ -354,7 +357,10 @@ class RTATestBundle(TestBundle, abc.ABC):
     """
 
     ftrace_conf = FtraceConf({
-        "events" : ["sched_switch"],
+        "events" : [
+            "sched_switch",
+            "sched_wakeup"
+        ],
     }, __qualname__)
     """
     The FTrace configuration used to record a trace while the synthetic workload
@@ -367,11 +373,43 @@ class RTATestBundle(TestBundle, abc.ABC):
     definitions.
     """
 
+    NOISE_IGNORED_PIDS = [0]
+    """
+    PIDs to ignore in :meth:`test_noisy_tasks`.
+
+    PID 0 is the idle task, don't count it as noise.
+    """
+
+    def trace_window(self, trace):
+        """
+        The time window to consider for this :class:`RTATestBundle`
+
+        :returns: a (start, stop) tuple
+
+        Since we're using rt-app profiles, we know the name of tasks we are
+        interested in, so we can trim our trace scope to filter out the
+        setup/teardown events we don't care about.
+
+        Override this method if you need a different trace trimming.
+
+        .. warning::
+
+          Don't call ``self.trace`` in here unless you like infinite recursion.
+        """
+        sdf = trace.df_events('sched_switch')
+
+        # Find when the first task starts running
+        rta_start = sdf[sdf.next_comm.isin(self.rtapp_profile.keys())].index[0]
+        # Find when the last task stops running
+        rta_stop = sdf[sdf.prev_comm.isin(self.rtapp_profile.keys())].index[-1]
+
+        return (rta_start, rta_stop)
+
     @property
     @memoized
     def trace(self):
         """
-        :returns: a Trace
+        :returns: a :class:`lisa.trace.TraceView`
 
         Having the trace as a property lets us defer the loading of the actual
         trace to when it is first used. Also, this prevents it from being
@@ -380,11 +418,128 @@ class RTATestBundle(TestBundle, abc.ABC):
         match a different folder structure.
         """
         path = os.path.join(self.res_dir, 'trace.dat')
-        return Trace(path, self.plat_info, events=self.ftrace_conf["events"])
+
+        trace = Trace(path, self.plat_info, events=self.ftrace_conf["events"])
+        return trace.get_view(self.trace_window(trace))
 
     def __init__(self, res_dir, plat_info, rtapp_profile):
         super().__init__(res_dir, plat_info)
         self.rtapp_profile = rtapp_profile
+
+    @TasksAnalysis.df_tasks_runtime.used_events
+    def test_noisy_tasks(self, noise_threshold_pct=None, noise_threshold_ms=None):
+        """
+        Test that no non-rtapp ("noisy") task ran for longer than the specified thresholds
+
+        :param noise_threshold_pct: The maximum allowed runtime for noisy tasks in
+          percentage of the total rt-app execution time
+        :type noise_threshold_pct: float
+
+        :param noise_threshold_ms: The maximum allowed runtime for noisy tasks in ms
+        :type noise_threshold_ms: float
+
+        If both are specified, the smallest threshold (in seconds) will be used.
+        """
+        if noise_threshold_pct is None and noise_threshold_ms is None:
+            raise ValueError('Both "{}" and "{}" cannot be None'.format(
+                "noise_threshold_pct", "noise_threshold_ms"))
+
+        # No task can run longer than the recorded duration
+        threshold_s = self.trace.time_range
+
+        if noise_threshold_pct is not None:
+            threshold_s = noise_threshold_pct * self.trace.time_range / 100
+
+        if noise_threshold_ms is not None:
+            threshold_s = min(threshold_s, noise_threshold_ms * 1e3)
+
+        df = self.trace.analysis.tasks.df_tasks_runtime()
+        test_tasks = list(map(self.trace.get_task_pid, self.rtapp_profile.keys()))
+        df_noise = df[~df.index.isin(test_tasks + self.NOISE_IGNORED_PIDS)]
+
+        if df_noise.empty:
+            return ResultBundle.from_bool(True)
+
+        pid = df_noise.index[0]
+        comm = df_noise.comm.values[0]
+        duration_s = df_noise.runtime.values[0]
+        duration_pct = duration_s * 100 / self.trace.time_range
+
+        res = ResultBundle.from_bool(duration_s < threshold_s)
+        metric = {"pid" : pid,
+                  "comm": comm,
+                  "duration (abs)": TestMetric(duration_s, "s"),
+                  "duration (rel)" : TestMetric(duration_pct, "%")}
+        res.add_metric("noisiest task", metric)
+
+        return res
+
+    @classmethod
+    #pylint: disable=unused-argument
+    def check_noisy_tasks(cls, noise_threshold_pct=None, noise_threshold_ms=None):
+        """
+        Decorator that applies :meth:`test_noisy_tasks` to the trace of the
+        :class:`TestBundle` returned by the underlying method. The :class:`Result`
+        will be changed to :attr:`Result.UNDECIDED` if that test fails.
+
+        We also expose :meth:`test_noisy_tasks` parameters to the decorated
+        function.
+        """
+        def decorator(func):
+            @cls.test_noisy_tasks.used_events
+            @functools.wraps(func)
+            def wrapper(self, *args,
+                        noise_threshold_pct=noise_threshold_pct,
+                        noise_threshold_ms=noise_threshold_ms,
+                        **kwargs):
+                res = func(self, *args, **kwargs)
+
+                noise_res = self.test_noisy_tasks(
+                    noise_threshold_pct, noise_threshold_ms)
+                res.metrics.update(noise_res.metrics)
+
+                if not noise_res:
+                    res.result = Result.UNDECIDED
+
+                return res
+
+            # https://stackoverflow.com/a/33112180
+            # The wrapper has all of `func`'s parameters plus `test_noisy_tasks`',
+            # but since we use `wraps(func)` we'll only get doc/autocompletion for
+            # `func`'s. Expose the extra parameters to the decorated function to
+            # make it more user friendly.
+            func_sig = signature(func)
+            dec_params = signature(cls.check_noisy_tasks).parameters
+
+            # We want the default values of the new parameters for the
+            # *decorated* function to be the values passed to the decorator,
+            # which aren't the default values of the decorator.
+            new_params = [
+                dec_params["noise_threshold_pct"].replace(default=noise_threshold_pct),
+                dec_params["noise_threshold_ms"].replace(default=noise_threshold_ms)
+            ]
+            wrapper.__signature__ = func_sig.replace(
+                parameters=list(func_sig.parameters.values()) + new_params
+            )
+
+            # Make it obvious in the doc where the extra parameters come from
+            merged_doc = textwrap.dedent(cls.test_noisy_tasks.__doc__).splitlines()
+            # Replace the one-liner func description
+            merged_doc[1] = textwrap.dedent(
+                """
+                **Added by** :meth:`~{}.{}.{}`:
+
+                The returned ``ResultBundle.result`` will be changed to
+                :attr:`~lisa.tests.base.Result.UNDECIDED` if the environment was
+                too noisy:
+                """.format(cls.__module__, cls.__name__, cls.check_noisy_tasks.__name__)
+            )
+
+            #pylint: disable=no-member
+            wrapper.__doc__ = textwrap.dedent(wrapper.__doc__) + "\n".join(merged_doc)
+
+            return wrapper
+        return decorator
 
     @classmethod
     def unscaled_utilization(cls, plat_info, cpu, utilization_pct):

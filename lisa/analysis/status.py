@@ -102,7 +102,7 @@ class StatusAnalysis(TraceAnalysisBase):
 
         if local_fig:
             axis.set_title("System-wide overutilized status")
-            axis.set_xlim(self.trace.x_min, self.trace.x_max)
+            axis.set_xlim(self.trace.start, self.trace.end)
             self.save_plot(fig, filepath)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

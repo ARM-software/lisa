@@ -210,7 +210,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 plot_overutilized(axis=axis)
 
             axis.set_ylim(0, 1100)
-            axis.set_xlim(self.trace.x_min, self.trace.x_max)
+            axis.set_xlim(self.trace.start, self.trace.end)
             axis.legend()
 
         self.save_plot(fig, filepath)
@@ -240,7 +240,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         axis.set_title('Load-tracking signals of task "{}"'.format(task))
         axis.legend()
         axis.grid(True)
-        axis.set_xlim(self.trace.x_min, self.trace.x_max)
+        axis.set_xlim(self.trace.start, self.trace.end)
 
         self.save_plot(fig, filepath)
         return axis
@@ -278,7 +278,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         if local_fig:
             axis.set_title(task_name)
             axis.set_ylim(0, 1100)
-            axis.set_xlim(self.trace.x_min, self.trace.x_max)
+            axis.set_xlim(self.trace.start, self.trace.end)
             axis.set_ylabel('Utilization')
             axis.set_xlabel('Time (s)')
 
@@ -327,7 +327,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         axis.set_title("Utilization vs placement of task \"{}\"".format(task))
 
-        axis.set_xlim(self.trace.x_min, self.trace.x_max)
+        axis.set_xlim(self.trace.start, self.trace.end)
         axis.grid(True)
         axis.legend()
 

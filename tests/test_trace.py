@@ -28,9 +28,7 @@ from lisa.trace import Trace
 from lisa.platforms.platinfo import PlatformInfo
 from .utils import StorageTestCase
 
-class TestTrace(StorageTestCase):
-    """Smoke tests for LISA's Trace class"""
-
+class TraceTestCase(StorageTestCase):
     traces_dir = os.path.join(os.path.dirname(__file__), 'traces')
     events = [
         'sched_switch',
@@ -47,7 +45,7 @@ class TestTrace(StorageTestCase):
         super().assertAlmostEqual(first, second, places, msg, delta)
 
     def __init__(self, *args, **kwargs):
-        super(TestTrace, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.test_trace = os.path.join(self.traces_dir, 'test_trace.txt')
         self.plat_info = self._get_plat_info()
@@ -70,9 +68,7 @@ class TestTrace(StorageTestCase):
         """
         Get a trace from a separate provided trace file
         """
-        dir = os.path.join(self.traces_dir, trace_name)
-
-        trace_path = os.path.join(dir, 'trace.dat')
+        trace_path = os.path.join(self.traces_dir, trace_name, 'trace.dat')
         return Trace(trace_path, self._get_plat_info(trace_name), self.events)
 
     def _get_plat_info(self, trace_name=None):
@@ -82,6 +78,9 @@ class TestTrace(StorageTestCase):
 
         path = os.path.join(trace_dir, 'plat_info.yml')
         return PlatformInfo.from_yaml_map(path)
+
+class TestTrace(TraceTestCase):
+    """Smoke tests for LISA's Trace class"""
 
     def test_get_task_by_name(self):
         """TestTrace: get_task_by_name() returns the list of PIDs for all tasks with the specified name"""
@@ -127,21 +126,6 @@ class TestTrace(StorageTestCase):
                       self.plat_info,
                       self.events,
                       normalize_time=False
-        )
-
-        self.assertAlmostEqual(trace.time_range, expected_duration)
-
-    def test_time_range_window(self):
-        """
-        TestTrace: time_range is the duration of the trace in the given window
-        """
-        expected_duration = 4.0
-
-        trace = Trace(self.trace_path,
-                      self.plat_info,
-                      self.events,
-                      normalize_time=False,
-                      window=(76.402065, 80.402065)
         )
 
         self.assertAlmostEqual(trace.time_range, expected_duration)
@@ -349,6 +333,64 @@ class TestTrace(StorageTestCase):
         self.assertEqual(len(df), 4780)
         # Proxy check for detecting delta computation changes
         self.assertAlmostEqual(df.delta.sum(), 207.705551)
+
+class TestTraceView(TraceTestCase):
+
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # We don't want normalized time
+        self.trace = Trace(self.trace_path,
+                           self.plat_info,
+                           self.events,
+                           normalize_time=False)
+
+    def test_lower_slice(self):
+        view = self.trace[81:]
+        self.assertEqual(len(view.analysis.status.df_overutilized()), 1)
+
+    def test_upper_slice(self):
+        view = self.trace[:80.402065]
+        self.assertEqual(len(view.analysis.status.df_overutilized()), 2)
+
+    def test_full_slice(self):
+        view = self.trace[80:81]
+        self.assertEqual(len(view.analysis.status.df_overutilized()), 1)
+
+    def test_time_range(self):
+        expected_duration = 4.0
+
+        trace = Trace(self.trace_path,
+                      self.plat_info,
+                      self.events,
+                      normalize_time=False,
+        ).get_view((76.402065, 80.402065))
+
+        self.assertAlmostEqual(trace.time_range, expected_duration)
+
+    def test_time_range_subscript(self):
+        expected_duration = 4.0
+
+        trace = Trace(self.trace_path,
+                      self.plat_info,
+                      self.events,
+                      normalize_time=False,
+        )[76.402065:80.402065]
+
+        self.assertAlmostEqual(trace.time_range, expected_duration)
+
+class TestNestedTraceView(TestTraceView):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # We don't want normalized time
+        self.trace = Trace(self.trace_path,
+                           self.plat_info,
+                           self.events,
+                           normalize_time=False)
+
+        self.trace = self.trace[self.trace.start:self.trace.end]
 
 class TestTraceNoClusterData(TestTrace):
     """
