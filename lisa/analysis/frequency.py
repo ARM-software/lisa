@@ -198,7 +198,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         # We can't use the pandas average because it's not weighted by
         # time spent in each frequency, so we have to craft our own.
         df = self.trace.add_events_deltas(df, inplace=False)
-        timespan = df.index[-1] - df.index[0]
+        timespan = self.trace.end - self.trace.start
 
         return (df['frequency'] * df['delta']).sum() / timespan
 
