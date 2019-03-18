@@ -505,6 +505,13 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         """
         return self.get_rtapp_profile(self.plat_info)
 
+    @property
+    def cgroup_configuration(self):
+        """
+        Compute the cgroup configuration based on ``plat_info``
+        """
+        return self.get_cgroup_configuration(self.plat_info)
+
     @TasksAnalysis.df_tasks_runtime.used_events
     def test_noisy_tasks(self, noise_threshold_pct=None, noise_threshold_ms=None):
         """
@@ -678,7 +685,45 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         pass
 
     @classmethod
-    def _run_rtapp(cls, target, res_dir, profile, ftrace_coll=None):
+    def get_cgroup_configuration(cls, plat_info):
+        """
+        :returns: a :class:`dict` representing the configuration of a
+          particular cgroup.
+
+        This is a method you may optionally override to configure a cgroup for
+        the synthetic workload.
+
+        Example of return value::
+
+          {
+              'name': 'lisa_test',
+              'controller': 'schedtune',
+              'attributes' : {
+                  'prefer_idle' : 1,
+                  'boost': 50
+              }
+          }
+
+        """
+        return None
+
+    @classmethod
+    def _target_configure_cgroup(cls, target, cfg):
+        if not cfg:
+            return None
+
+        kind = cfg['controller']
+        if kind not in target.cgroups.controllers:
+            raise CannotCreateError('"{}" cgroup controller unavailable'.format(kind))
+        ctrl = target.cgroups.controllers[kind]
+
+        cg = ctrl.cgroup(cfg['name'])
+        cg.set(**cfg['attributes'])
+
+        return '/' + cg.name
+
+    @classmethod
+    def _run_rtapp(cls, target, res_dir, profile, ftrace_coll=None, cg_cfg=None):
         wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.lower()),
                                profile, res_dir=res_dir)
 
@@ -687,8 +732,12 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         ftrace_coll = ftrace_coll or FtraceCollector.from_conf(target, cls.ftrace_conf)
         dmesg_coll = DmesgCollector(target)
 
+        cgroup = cls._target_configure_cgroup(target, cg_cfg)
+        as_root = cgroup is not None
+
         with dmesg_coll, ftrace_coll, target.freeze_userspace():
-            wload.run()
+            wload.run(cgroup=cgroup, as_root=as_root)
+
         ftrace_coll.get_trace(trace_path)
         dmesg_coll.get_trace(dmesg_path)
         return trace_path
@@ -697,7 +746,8 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
     def _from_target(cls, target, res_dir, ftrace_coll=None):
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
-        cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
+        cgroup_config = cls.get_cgroup_configuration(plat_info)
+        cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll, cgroup_config)
 
         return cls(res_dir, plat_info)
 
