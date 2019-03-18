@@ -126,7 +126,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
         sr = pd.Series()
         for cpu in cpus:
-            cpu_sr = self.trace.get_cpu_active_signal(cpu)
+            cpu_sr = self.signal_cpu_active(cpu)
             cpu_sr = cpu_sr[cpu_sr == 1]
             cpu_sr = cpu_sr.replace(1, cpu)
             sr = sr.append(cpu_sr)

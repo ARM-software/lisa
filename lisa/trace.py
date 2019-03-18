@@ -902,43 +902,6 @@ class Trace(Loggable, SubscriptableTrace):
         return len(self._functions_stats_df) > 0
 
     @memoized
-    def get_cpu_active_signal(self, cpu):
-        """
-        Build a square wave representing the active (i.e. non-idle) CPU time,
-        i.e.:
-
-          cpu_active[t] == 1 if the CPU is reported to be non-idle by cpuidle at
-          time t
-          cpu_active[t] == 0 otherwise
-
-        :param cpu: CPU ID
-        :type cpu: int
-
-        :returns: A :class:`pandas.Series` or ``None`` if the trace contains no
-                  "cpu_idle" events
-        """
-        if not self.has_events('cpu_idle'):
-            self.get_logger().warning('Events [cpu_idle] not found, '
-                              'cannot compute CPU active signal!')
-            return None
-
-        idle_df = self.df_events('cpu_idle')
-        cpu_df = idle_df[idle_df.cpu_id == cpu]
-
-        cpu_active = cpu_df.state.apply(
-            lambda s: 1 if s == NON_IDLE_STATE else 0
-        )
-
-        if cpu_active.empty:
-            cpu_active = pd.Series([0], index=[self.start])
-        elif cpu_active.index[0] != self.start:
-            entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[self.start])
-            cpu_active = pd.concat([entry_0, cpu_active])
-
-        # Fix sequences of wakeup/sleep events reported with the same index
-        return handle_duplicate_index(cpu_active)
-
-    @memoized
     def get_peripheral_clock_effective_rate(self, clk_name):
         logger = self.get_logger()
         if clk_name is None:
