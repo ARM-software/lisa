@@ -12,14 +12,11 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import itertools
 import logging
 import os
 import re
 import subprocess
 import sys
-import inspect
-import tempfile
 import unittest
 
 from docutils import nodes
@@ -33,6 +30,9 @@ sys.path.insert(0, os.path.abspath('../'))
 
 # Import our packages after modifying sys.path
 import lisa
+from lisa.doc.helpers import (
+    autodoc_process_test_method, autodoc_process_analysis_events
+)
 
 # This ugly hack is required because by default TestCase.__module__ is
 # equal to 'case', so sphinx replaces all of our TestCase uses to
@@ -356,111 +356,8 @@ autodoc_default_options = {
 }
 autodoc_inherit_docstrings = True
 
-def is_test(method):
-    if not callable(method):
-        return False
-
-    if method.__name__.startswith('test_'):
-        return True
-
-    # Tests are methods with an annotated return type, with at least
-    # one base class with a name containing 'result'
-    try:
-        ret_type = method.__annotations__['return']
-        base_cls_list = inspect.getmro(ret_type)
-    except (AttributeError, KeyError):
-        return False
-    else:
-        return any(
-            'result' in cls.__qualname__.lower()
-            for cls in base_cls_list
-        )
-
-def autodoc_process_test_method(app, what, name, obj, options, lines):
-    # Append the list of available test methods for all classes that appear to
-    # have some.
-    if what == 'class':
-        test_list = [
-            member
-            for member_name, member in inspect.getmembers(obj, is_test)
-        ]
-        if test_list:
-            test_list_doc = '\n:Test methods:\n\n{}\n\n'.format('\n'.join(
-                '    * :meth:`~{}`'.format(
-                    method.__module__ + '.' + method.__qualname__
-                )
-                for method in test_list
-            ))
-
-            lines.extend(test_list_doc.splitlines())
-
-def autodoc_process_analysis_events(app, what, name, obj, options, lines):
-    # Append the list of required trace events
-    if what != 'method' or not hasattr(obj, "used_events"):
-        return
-
-    events_doc = "\n:Required trace events:\n\n{}\n\n".format(obj.used_events.doc_str())
-    lines.extend(events_doc.splitlines())
-
 def setup(app):
     app.connect('autodoc-process-docstring', autodoc_process_test_method)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
-
-
-def get_test_id_list():
-    import lisa.tests as test_package
-    rst_list = []
-    for path in test_package.__path__:
-        rst_list.extend(subprocess.check_output((
-            'exekall', 'run', path,
-            '--rst-list', '--inject-empty-target-conf',
-            ), stderr=subprocess.STDOUT).decode('utf-8').splitlines()
-        )
-    return rst_list
-
-def get_analysis_list(prefix):
-    from lisa.analysis.base import TraceAnalysisBase
-    from lisa.utils import get_subclasses
-
-    rst_list = []
-
-    for subclass in get_subclasses(TraceAnalysisBase):
-        class_path = "{}.{}".format(subclass.__module__, subclass.__qualname__)
-        analysis = subclass.__module__.split(".")[-1]
-        meth_list = [name for name, member in inspect.getmembers(subclass, callable)
-                     if name.startswith(prefix)]
-
-        rst_list += [":class:`{0}<{1}>`::meth:`~{1}.{2}`".format(analysis, class_path, meth)
-                     for meth in meth_list]
-
-    return rst_list
-
-def get_analysis_df_list():
-    return get_analysis_list("df_")
-
-def get_analysis_plot_list():
-    return get_analysis_list("plot_")
-
-def create_doc_list_file(path, list_generator):
-    content = '\n'.join(
-        '* {}'.format(item)
-        for item in list_generator()
-    )
-
-    with open(path, 'wt') as f:
-        f.write(content + '\n')
-
-def create_test_list_file(path):
-    try:
-        create_doc_list_file(path, get_test_id_list)
-    except FileNotFoundError:
-        content = 'Please install exekall in order to generate the list of tests.'
-        print('WARNING: could not generate the list of test without exekall', file=sys.stderr)
-        with open(path, 'wt') as f:
-            f.write(content + '\n')
-
-create_test_list_file('test_list.rst')
-create_doc_list_file('analysis_df_list.rst', get_analysis_df_list)
-create_doc_list_file('analysis_plot_list.rst', get_analysis_plot_list)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab:

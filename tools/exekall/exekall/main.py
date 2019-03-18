@@ -780,7 +780,7 @@ def do_run(args, parser, run_parser, argv):
     if rst_expr_list:
         id_kwargs['style'] = 'rst'
         for expr in expr_list:
-            out(expr.get_id(**id_kwargs))
+           out('* {}'.format(expr.get_id(**id_kwargs)))
     else:
         out('The following expressions will be executed:\n')
         for expr in expr_list:

@@ -44,7 +44,9 @@ The majority of these dataframes are time-indexed (and if they aren't, it will
 be called out in the docstring). This makes it easy to create dataframe slices
 to study specific trace windows.
 
-.. include:: analysis_df_list.rst
+.. exec::
+    from lisa.doc.helpers import get_analysis_list
+    print(get_analysis_list("df_"))
 
 Plots
 +++++
@@ -54,7 +56,9 @@ they are also saved in the same directory as your ``trace.dat``
 
 .. TODO:: Generate some sample plots using the nosetest trace
 
-.. include:: analysis_plot_list.rst
+.. exec::
+    from lisa.doc.helpers import get_analysis_list
+    print(get_analysis_list("plot_"))
 
 API
 ===
