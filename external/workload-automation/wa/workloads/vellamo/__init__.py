@@ -48,11 +48,11 @@ class Vellamo(ApkUiautoWorkload):
         '3.0': ['Browser', 'Metal', 'Multi'],
         '3.2.4': ['Browser', 'Metal', 'Multi'],
     }
-    valid_versions = list(benchmark_types.keys())
+    supported_versions = list(benchmark_types.keys())
     summary_metrics = None
 
     parameters = [
-        Parameter('version', kind=str, allowed_values=valid_versions, default=sorted(benchmark_types, reverse=True)[0], override=True,
+        Parameter('version', kind=str, allowed_values=supported_versions, override=True,
                   description=('Specify the version of Vellamo to be run. '
                                'If not specified, the latest available version will be used.')),
         Parameter('benchmarks', kind=list_of_strs, allowed_values=benchmark_types['3.0'], default=benchmark_types['3.0'],
@@ -66,15 +66,15 @@ class Vellamo(ApkUiautoWorkload):
     ]
 
     def setup(self, context):
+        super(Vellamo, self).setup(context)
         self.gui.uiauto_params['version'] = self.version
         self.gui.uiauto_params['browserToUse'] = self.browser
         self.gui.uiauto_params['metal'] = 'Metal' in self.benchmarks
         self.gui.uiauto_params['browser'] = 'Browser' in self.benchmarks
         self.gui.uiauto_params['multicore'] = 'Multi' in self.benchmarks
-        super(Vellamo, self).setup(context)
 
-    def validate(self):
-        super(Vellamo, self).validate()
+    def initialize(self, context):
+        super(Vellamo, self).initialize(context)
         if self.version == '2.0.3' or not self.benchmarks:  # pylint: disable=access-member-before-definition
             self.benchmarks = self.benchmark_types[self.version]  # pylint: disable=attribute-defined-outside-init
         else:

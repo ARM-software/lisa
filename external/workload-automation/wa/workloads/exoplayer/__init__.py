@@ -77,13 +77,13 @@ class ExoPlayer(ApkWorkload):
     video_directory = os.path.join(settings.dependencies_directory, name)
 
     package_names = ['com.google.android.exoplayer2.demo']
-    versions = ['2.4', '2.5', '2.6']
+    supported_versions = ['2.4', '2.5', '2.6']
     action = 'com.google.android.exoplayer.demo.action.VIEW'
     default_format = 'mov_720p'
     view = 'SurfaceView - com.google.android.exoplayer2.demo/com.google.android.exoplayer2.demo.PlayerActivity'
 
     parameters = [
-        Parameter('version', allowed_values=versions, default=versions[-1], override=True),
+        Parameter('version', allowed_values=supported_versions, override=True),
         Parameter('duration', kind=int, default=20,
                   description="""
                   Playback duration of the video file. This becomes the duration of the workload.

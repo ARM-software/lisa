@@ -3,6 +3,34 @@ What's New in Workload Automation
 =================================
 
 *************
+Version 3.1.2
+*************
+
+Fixes/Improvements
+==================
+
+Framework:
+----------
+    - Implement an explicit check for Devlib versions to ensure that versions
+      are kept in sync with each other.
+    - Added a ``View`` parameter to ApkWorkloads for use with certain instruments
+      for example ``fps``.
+    - Added ``"supported_versions"`` attribute to workloads to allow specifying a
+      list of supported version for a particular workload.
+    - Change default behaviour to run any available version of a workload if a
+      specific version is not specified.
+
+Output Processors:
+------------------
+    - ``Postgres``: Fix handling of ``screen_resoultion`` during processing.
+
+Other
+-----
+    - Added additional information to documentation
+    - Added fix for Devlib's ``KernelConfig`` refactor
+    - Added a ``"label"`` property to ``Metrics``
+
+*************
 Version 3.1.1
 *************
 

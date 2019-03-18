@@ -78,12 +78,13 @@ class Geekbench(ApkUiautoWorkload):
             'activity': '.HomeActivity',
         },
     }
+    supported_versions = sorted(versions.keys())
     begin_regex = re.compile(r'^\s*D/WebViewClassic.loadDataWithBaseURL\(\s*\d+\s*\)'
                              r'\s*:\s*(?P<content>\<.*)\s*$')
     replace_regex = re.compile(r'<[^>]*>')
 
     parameters = [
-        Parameter('version', default=sorted(versions.keys())[-1], allowed_values=sorted(versions.keys()),
+        Parameter('version', allowed_values=supported_versions,
                   description='Specifies which version of the workload should be run.',
                   override=True),
         Parameter('loops', kind=int, default=1, aliases=['times'],
@@ -110,22 +111,15 @@ class Geekbench(ApkUiautoWorkload):
         return self.versions[self.version]['activity']
 
     @property
-    def package(self):
-        return self.versions[self.version]['package']
-
-    @property
     def package_names(self):
-        return [self.package]
+        return set(self.versions[v]['package'] for v in self.versions)
 
-    def __init__(self, *args, **kwargs):
-        super(Geekbench, self).__init__(*args, **kwargs)
+    def initialize(self, context):
+        super(Geekbench, self).initialize(context)
         self.gui.uiauto_params['version'] = self.version
         self.gui.uiauto_params['loops'] = self.loops
         self.gui.uiauto_params['is_corporate'] = self.is_corporate
         self.gui.timeout = self.timeout
-
-    def initialize(self, context):
-        super(Geekbench, self).initialize(context)
         if not self.disable_update_result and not self.target.is_rooted:
             raise WorkloadError(
                 'Geekbench workload requires root to collect results. '
@@ -135,7 +129,6 @@ class Geekbench(ApkUiautoWorkload):
     def setup(self, context):
         super(Geekbench, self).setup(context)
         self.run_timeout = self.timeout * self.loops
-        self.exact_apk_version = self.version
 
     def update_output(self, context):
         super(Geekbench, self).update_output(context)
@@ -154,7 +147,7 @@ class Geekbench(ApkUiautoWorkload):
         score_calculator.update_results(context)
 
     def update_result_3(self, context):
-        outfile_glob = self.target.path.join(self.target.package_data_directory, self.package, 'files', '*gb3')
+        outfile_glob = self.target.path.join(self.target.package_data_directory, self.apk.package, 'files', '*gb3')
         on_target_output_files = [f.strip() for f in self.target.execute('ls {}'.format(outfile_glob),
                                                                          as_root=True).split('\n') if f]
         for i, on_target_output_file in enumerate(on_target_output_files):
@@ -176,7 +169,7 @@ class Geekbench(ApkUiautoWorkload):
                                    section['multicore_score'])
 
     def update_result_4(self, context):
-        outfile_glob = self.target.path.join(self.target.package_data_directory, self.package, 'files', '*gb*')
+        outfile_glob = self.target.path.join(self.target.package_data_directory, self.apk.package, 'files', '*gb*')
         on_target_output_files = [f.strip() for f in self.target.execute('ls {}'.format(outfile_glob),
                                                                          as_root=True).split('\n') if f]
         for i, on_target_output_file in enumerate(on_target_output_files):
@@ -395,16 +388,12 @@ class GeekbenchCorproate(Geekbench):  # pylint: disable=too-many-ancestors
     name = "geekbench-corporate"
     is_corporate = True
     requires_network = False
-
-    versions = ['4.1.0', '5.0.0']
-
+    supported_versions = ['4.1.0', '5.0.0']
+    package_names = ['com.primatelabs.geekbench4.corporate']
     activity = 'com.primatelabs.geekbench.HomeActivity'
-    package = 'com.primatelabs.geekbench4.corporate'
 
     parameters = [
-        Parameter('version',
-                  default=sorted(versions)[-1], allowed_values=versions,
-                  override=True)
+        Parameter('version', allowed_values=supported_versions, override=True)
     ]
 
 

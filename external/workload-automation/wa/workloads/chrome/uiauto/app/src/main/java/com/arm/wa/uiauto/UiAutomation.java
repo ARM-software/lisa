@@ -81,12 +81,22 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         // Activate the tab switcher
         tabSwitcher = mDevice.findObject(new UiSelector().resourceId(packageID + "tab_switcher_button")
                                                          .className("android.widget.ImageButton"));
-        tabSwitcher.clickAndWaitForNewWindow(uiAutoTimeout);
-
-        // Click the New Tab button
-        newTab = mDevice.findObject(new UiSelector().resourceId(packageID + "new_tab_button")
-                                                    .className("android.widget.Button"));
-        newTab.clickAndWaitForNewWindow(uiAutoTimeout);
+        if (tabSwitcher.exists()){
+            tabSwitcher.clickAndWaitForNewWindow(uiAutoTimeout);
+            // Click the New Tab button
+            newTab = mDevice.findObject(new UiSelector().resourceId(packageID + "new_tab_button")
+                                                        .className("android.widget.Button"));
+            newTab.clickAndWaitForNewWindow(uiAutoTimeout);
+        }
+        // Support Tablet devices which do not have tab switcher
+        else {
+            UiObject menu_button = mDevice.findObject(new UiSelector().resourceId(packageID + "menu_button")
+                                                              .className("android.widget.ImageButton"));
+            menu_button.click();
+            newTab = mDevice.findObject(new UiSelector().resourceId(packageID + "menu_item_text")
+                                                        .textContains("New tab"));
+            newTab.click();
+        }
     }
 
     public void followTextLink(String text) throws Exception {
