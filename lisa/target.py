@@ -261,7 +261,7 @@ class Target(Loggable, HideExekallID, Configurable):
         # Initialize binary tools to deploy
         if tools:
             logger.info('Tools to install: %s', tools)
-            self.install_tools(target, tools)
+            self.install_tools(tools)
 
         # Autodetect information from the target, after the Target is
         # initialized. Expensive computations are deferred so they will only be
