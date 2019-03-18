@@ -42,8 +42,8 @@ FROM ubuntu:17.10
 
 # Please update the references below to use different versions of
 # devlib, WA or the Android SDK
-ARG DEVLIB_REF=v1.1.0
-ARG WA_REF=v3.1.1
+ARG DEVLIB_REF=v1.1.1
+ARG WA_REF=v3.1.3
 ARG ANDROID_SDK_URL=https://dl.google.com/android/repository/sdk-tools-linux-3859397.zip
 
 RUN apt-get update

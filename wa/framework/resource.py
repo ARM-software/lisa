@@ -273,10 +273,14 @@ class ResourceResolver(object):
 
 
 def apk_version_matches(path, version):
+    version = list_or_string(version)
     info = ApkInfo(path)
-    if info.version_name == version or info.version_code == version:
-        return True
-    return loose_version_matching(version, info.version_name)
+    for v in version:
+        if info.version_name == v or info.version_code == v:
+            return True
+        if loose_version_matching(v, info.version_name):
+            return True
+    return False
 
 
 def loose_version_matching(config_version, apk_version):

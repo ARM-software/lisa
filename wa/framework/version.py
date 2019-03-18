@@ -21,15 +21,21 @@ from subprocess import Popen, PIPE
 
 VersionTuple = namedtuple('Version', ['major', 'minor', 'revision', 'dev'])
 
-version = VersionTuple(3, 1, 1, 'dev1')
+version = VersionTuple(3, 1, 3, 'dev1')
+
+required_devlib_version = VersionTuple(1, 1, 1, 'dev1')
+
+
+def format_version(v):
+    version_string = '{}.{}.{}'.format(
+        v.major, v.minor, v.revision)
+    if v.dev:
+        version_string += '.{}'.format(v.dev)
+    return version_string
 
 
 def get_wa_version():
-    version_string = '{}.{}.{}'.format(
-        version.major, version.minor, version.revision)
-    if version.dev:
-        version_string += '.{}'.format(version.dev)
-    return version_string
+    return format_version(version)
 
 
 def get_wa_version_with_commit():

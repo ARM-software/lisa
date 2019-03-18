@@ -63,6 +63,11 @@ from collections import OrderedDict
 from datetime import datetime
 import dateutil.parser
 import yaml as _yaml  # pylint: disable=wrong-import-order
+try:
+    from yaml import FullLoader as _yaml_loader
+except ImportError:
+    from yaml import Loader as _yaml_loader
+
 
 # pylint: disable=redefined-builtin
 from past.builtins import basestring  # pylint: disable=wrong-import-order
@@ -234,10 +239,10 @@ _yaml.add_representer(OrderedDict, _wa_dict_representer)
 _yaml.add_representer(regex_type, _wa_regex_representer)
 _yaml.add_representer(level, _wa_level_representer)
 _yaml.add_representer(cpu_mask, _wa_cpu_mask_representer)
-_yaml.add_constructor(_mapping_tag, _wa_dict_constructor)
-_yaml.add_constructor(_regex_tag, _wa_regex_constructor)
-_yaml.add_constructor(_level_tag, _wa_level_constructor)
-_yaml.add_constructor(_cpu_mask_tag, _wa_cpu_mask_constructor)
+_yaml.add_constructor(_regex_tag, _wa_regex_constructor, Loader=_yaml_loader)
+_yaml.add_constructor(_level_tag, _wa_level_constructor, Loader=_yaml_loader)
+_yaml.add_constructor(_cpu_mask_tag, _wa_cpu_mask_constructor, Loader=_yaml_loader)
+_yaml.add_constructor(_mapping_tag, _wa_dict_constructor, Loader=_yaml_loader)
 
 
 class yaml(object):
@@ -249,7 +254,7 @@ class yaml(object):
     @staticmethod
     def load(fh, *args, **kwargs):
         try:
-            return _yaml.load(fh, *args, **kwargs)
+            return _yaml.load(fh, *args, Loader=_yaml_loader, **kwargs)
         except _yaml.YAMLError as e:
             lineno = None
             if hasattr(e, 'problem_mark'):

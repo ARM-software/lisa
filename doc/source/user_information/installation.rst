@@ -199,6 +199,11 @@ Alternatively, you can also install the latest development version from GitHub
        cd workload-automation
        sudo -H python setup.py install
 
+.. note:: Please note that if using pip to install from github this will most
+          likely result in an older and incompatible version of devlib being
+          installed alongside WA. If you wish to use pip please also manually
+          install the latest version of
+          `devlib <https://github.com/ARM-software/devlib>`_.
 
 
 If the above succeeds, try ::
@@ -222,7 +227,7 @@ image in a container.
 
 The Dockerfile can be found in the "extras" directory or online at
 `<https://github.com/ARM-software /workload- automation/blob/next/extras/Dockerfile>`_
-which contains addional information about how to build and to use the file.
+which contains additional information about how to build and to use the file.
 
 
 (Optional) Post Installation

@@ -106,3 +106,11 @@ may get something like:
 From these ``"SurfaceView - com.rovio.angrybirdsrio/com.rovio.fusion.App#0"`` is
 the mostly likely the View that needs to be set as the ``view`` workload
 parameter and will be picked up be the ``fps`` augmentation.
+
+
+**Q:** I am getting an error which looks similar to ``'CONFIG_SND_BT87X is not exposed in kernel config'...``
+-------------------------------------------------------------------------------------------------------------
+**A:** If you are receiving this under normal operation this can be caused by a
+mismatch of your WA and devlib versions. Please update both to their latest
+versions and delete your ``$USER_HOME/.workload_automation/cache/targets.json``
+(or equivalent) file.

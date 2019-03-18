@@ -15,11 +15,11 @@
 # pylint: disable=attribute-defined-outside-init
 
 import os
-import yaml
 
 from wa import Workload, Parameter, ConfigError, Executable
 from wa.framework.exception import WorkloadError
 from wa.utils.exec_control import once
+from wa.utils.serializer import yaml
 
 
 class StressNg(Workload):
