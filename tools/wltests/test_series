@@ -325,12 +325,10 @@ export PLATFORM_OVERLAY_PATH=$PLATFORM_PATH
 
 source $PLATFORM_PATH/definitions
 
-# On targets that don't use 'repo', KERNEL_SRC == GIT_TREE == KERNEL_TREE
+# On targets that don't use 'repo', KERNEL_SRC == KERNEL_TREE
 # On targets that do use 'repo':
 #   - KERNEL_SRC points to the top level of the repo
-#   - GIT_TREE points to the _manifest_ git tree in the repo
 #   - KERNEL_TREE points to the _kernel_ git tree in the repo
-GIT_TREE=""
 KERNEL_TREE=""
 
 export KERNEL_SRC=$(realpath -s $KERNEL_SRC)
@@ -348,7 +346,6 @@ if [ "x$WLTEST_REPO_TARGET" == "xy" ]; then
 		echo
 		exit $EINVAL
 	fi
-	GIT_TREE="$KERNEL_SRC/.repo/manifests"
 	KERNEL_TREE="$KERNEL_SRC/$REPO_KERNEL_PATH"
 else
 	# Prepare KERNEL_SRC
@@ -359,7 +356,6 @@ else
 		echo
 		exit $EINVAL
 	fi
-	GIT_TREE="$KERNEL_SRC"
 	KERNEL_TREE="$KERNEL_SRC"
 fi
 
@@ -807,9 +803,12 @@ name_sha1() {
 	# In case the specified SHA1 has not a name, let's use the SHA1
 	COMMIT_NAME=$COMMIT_SHA1
 
+	if [ "x$WLTEST_REPO_TARGET" == "xy" ]; then
+		return $OK
+	fi
 	# Find a name for each possible REF
 	mkfifo tmp_pipe &>/dev/null
-	git -C $GIT_TREE for-each-ref \
+	git -C $KERNEL_TREE for-each-ref \
 			--sort=-committerdate \
 			--format='%(objectname:short) %(refname:short)' \
 			refs/heads/ refs/remotes/ refs/tags |
@@ -852,28 +851,21 @@ match_sha1() {
 build_sha1() {
 	COMMIT_SHA1=$1
 
-	### Prepare GIT_TREE for build
-	pushd $GIT_TREE &>/dev/null
+	### Prepare KERNEL_SRC for build
+	pushd $KERNEL_SRC &>/dev/null
 	echo
-	c_info "Checkout: $GIT_TREE @ $COMMIT_SHA1..."
-	git checkout $COMMIT_SHA1; ERROR=$?
+	c_info "Checkout: $KERNEL_SRC @ $COMMIT_SHA1..."
+	if [ "x$WLTEST_REPO_TARGET" == "xy" ]; then
+		repo checkout $COMMIT_SHA1; ERROR=$?
+	else
+		git checkout $COMMIT_SHA1; ERROR=$?
+	fi
 	if [ $ERROR -ne 0 ]; then
 		c_error "Failed to checkout [$COMMIT_SHA1]"
 		popd &>/dev/null
 		return $ERROR
 	fi
 	popd &>/dev/null
-
-	### Sync the repo if needed
-	if [ "x$WLTEST_REPO_TARGET" == "xy" ]; then
-		pushd $KERNEL_SRC &> /dev/null
-		repo sync -l; ERROR=$?
-		popd &> /dev/null
-		if [ $ERROR -ne 0 ]; then
-			c_error "Failed to sync [$COMMIT_SHA1]"
-			return $ERROR
-		fi
-	fi
 
 	### Build all IMAGES
 	pushd $BASE_DIR &>/dev/null
@@ -1040,14 +1032,21 @@ while read -u10 COMMITS; do
 	COMMIT=${COMMITS%% *}
 
 	# Translate possible branch name to SHA1
-	COMMITS=$(git -C $GIT_TREE show-ref -s $COMMIT)
+	COMMITS=$(git -C $KERNEL_TREE show-ref -s $COMMIT)
 	if [ $? -ne 0 ]; then
 		COMMIT_SHA1=$COMMIT
-	elif [ $(echo $COMMITS | wc -w) -eq 1 ]; then
-		COMMIT_SHA1=$COMMITS
+	elif [ $(echo $(git -C $KERNEL_TREE show-ref -s $COMMIT | sort | uniq) | wc -w) -eq 1 ]; then
+		if [ "x$WLTEST_REPO_TARGET" == "xy" ]; then
+			# For repo targets, the series file contains the name
+			# of repo branches, which is what 'repo checkout'
+			# understands
+			COMMIT_SHA1=$COMMIT
+		else
+			COMMIT_SHA1=$(git -C $KERNEL_TREE show-ref -s $COMMIT | sort | uniq)
+		fi
 	else
 		c_error "The branch name must be univocal, \"$COMMIT\" may refer to:"
-		for b in $(git -C $GIT_TREE show-ref $COMMIT | cut -f 2 -d " "); do
+		for b in $(git -C $KERNEL_TREE show-ref $COMMIT | cut -f 2 -d " "); do
 			c_error "    $b"
 		done
 		exit $EINVAL
