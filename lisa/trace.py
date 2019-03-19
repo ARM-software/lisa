@@ -41,7 +41,11 @@ from trappy.utils import listify, handle_duplicate_index
 
 NON_IDLE_STATE = -1
 
-class SubscriptableTrace(abc.ABC):
+class TraceBase(abc.ABC):
+    """
+    Base class for common functionalities between :class:`Trace` and :class:`TraceView`
+    """
+
     @abc.abstractmethod
     def get_view(self, window):
         """
@@ -58,8 +62,41 @@ class SubscriptableTrace(abc.ABC):
 
         return self.get_view((window.start, window.stop))
 
+    def add_events_deltas(self, df, col_name='delta', inplace=True):
+        """
+        Store the time between each event in a new dataframe column
 
-class TraceView(Loggable, SubscriptableTrace):
+        :param df: The DataFrame to operate one
+        :type df: pandas.DataFrame
+
+        :param col_name: The name of the column to add
+        :type col_name: str
+
+        :param inplace: Whether to operate on the passed DataFrame, or to use
+          a copy of it
+        :type inplace: bool
+
+        This method only really makes sense for events tracking an on/off state
+        (e.g. overutilized, idle)
+        """
+        if df.empty:
+            return df
+
+        if col_name in df.columns:
+            raise RuntimeError("Column {} is already present in the dataframe".
+                               format(col_name))
+
+        if not inplace:
+            df = df.copy()
+
+        df.loc[df.index[:-1], col_name] = df.index.values[1:] - df.index.values[:-1]
+        # Fix the last event, which will have a NaN duration
+        # Set duration to trace_end - last_event
+        df.loc[df.index[-1], col_name] = self.end - df.index[-1]
+
+        return df
+
+class TraceView(Loggable, TraceBase):
     """
     A view on a :class:`Trace`
 
@@ -164,7 +201,7 @@ class TraceView(Loggable, SubscriptableTrace):
 
         return self.base_trace.get_view((start, end))
 
-class Trace(Loggable, SubscriptableTrace):
+class Trace(Loggable, TraceBase):
     """
     The Trace object is the LISA trace events parser.
 
@@ -902,43 +939,6 @@ class Trace(Loggable, SubscriptableTrace):
         return len(self._functions_stats_df) > 0
 
     @memoized
-    def get_cpu_active_signal(self, cpu):
-        """
-        Build a square wave representing the active (i.e. non-idle) CPU time,
-        i.e.:
-
-          cpu_active[t] == 1 if the CPU is reported to be non-idle by cpuidle at
-          time t
-          cpu_active[t] == 0 otherwise
-
-        :param cpu: CPU ID
-        :type cpu: int
-
-        :returns: A :class:`pandas.Series` or ``None`` if the trace contains no
-                  "cpu_idle" events
-        """
-        if not self.has_events('cpu_idle'):
-            self.get_logger().warning('Events [cpu_idle] not found, '
-                              'cannot compute CPU active signal!')
-            return None
-
-        idle_df = self.df_events('cpu_idle')
-        cpu_df = idle_df[idle_df.cpu_id == cpu]
-
-        cpu_active = cpu_df.state.apply(
-            lambda s: 1 if s == NON_IDLE_STATE else 0
-        )
-
-        if cpu_active.empty:
-            cpu_active = pd.Series([0], index=[self.start])
-        elif cpu_active.index[0] != self.start:
-            entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[self.start])
-            cpu_active = pd.concat([entry_0, cpu_active])
-
-        # Fix sequences of wakeup/sleep events reported with the same index
-        return handle_duplicate_index(cpu_active)
-
-    @memoized
     def get_peripheral_clock_effective_rate(self, clk_name):
         logger = self.get_logger()
         if clk_name is None:
@@ -972,40 +972,6 @@ class Trace(Loggable, SubscriptableTrace):
         freq['effective_rate'] = np.where(freq['state'] == 0, 0,
                                           np.where(freq['state'] == 1, freq['rate'], float('nan')))
         return freq
-
-    def add_events_deltas(self, df, col_name='delta', inplace=True):
-        """
-        Store the time between each event in a new dataframe column
-
-        :param df: The DataFrame to operate one
-        :type df: pandas.DataFrame
-
-        :param col_name: The name of the column to add
-        :type col_name: str
-
-        :param inplace: Whether to operate on the passed DataFrame, or to use
-          a copy of it
-        :type inplace: bool
-
-        This method only really makes sense for events tracking an on/off state
-        (e.g. overutilized, idle)
-        """
-        if df.empty:
-            return df
-
-        if col_name in df.columns:
-            raise RuntimeError("Column {} is already present in the dataframe".
-                               format(col_name))
-
-        if not inplace:
-            df = df.copy()
-
-        df.loc[df.index[:-1], col_name] = df.index.values[1:] - df.index.values[:-1]
-        # Fix the last event, which will have a NaN duration
-        # Set duration to trace_end - last_event
-        df.loc[df.index[-1], col_name] = self.end - df.index[-1]
-
-        return df
 
     @staticmethod
     def squash_df(df, start, end, column='delta'):
