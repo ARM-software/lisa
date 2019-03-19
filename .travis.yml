@@ -29,7 +29,7 @@ dist: xenial
 
 install:
   - cd "$TRAVIS_BUILD_DIR"
-  - sudo ./install_base_ubuntu.sh
+  - sudo ./install_base_ubuntu.sh --install-doc-extras
   - echo "$(python3 --version)"
 
 script:

@@ -114,7 +114,8 @@ setup(
 
         "doc": [
             "sphinx >= 1.8",
-            "sphinx_rtd_theme"
+            "sphinx_rtd_theme",
+            "sphinxcontrib-plantuml",
         ],
 
         "test": [
