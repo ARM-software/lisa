@@ -34,7 +34,7 @@ from lisa.tests.base import TestBundle, ResultBundle
 from lisa.tests.scheduler.load_tracking import InvarianceItem
 from lisa.regression import compute_regressions
 
-from exekall.utils import get_name, get_method_class
+from exekall.utils import get_name, get_method_class, add_argument
 from exekall.engine import ExprData, Consumer, PrebuiltOperator
 from exekall.customization import AdaptorBase
 
@@ -194,11 +194,11 @@ class LISAAdaptor(AdaptorBase):
 
     @staticmethod
     def register_run_param(parser):
-        parser.add_argument('--conf', action='append',
+        add_argument(parser, '--conf', action='append',
             default=[],
             help="LISA configuration file. If multiple configurations of a given type are found, they are merged (last one can override keys in previous ones)")
 
-        parser.add_argument('--inject', action='append',
+        add_argument(parser, '--inject', action='append',
             metavar='SERIALIZED_OBJECT_PATH',
             default=[],
             help="Serialized object to inject when building expressions")
@@ -206,19 +206,19 @@ class LISAAdaptor(AdaptorBase):
         # Create an empty TargetConf, so we are able to get the list of tests
         # as if we were going to execute them using a target.
         # note: that is only used for generating the documentation.
-        parser.add_argument('--inject-empty-target-conf', action='store_true',
+        add_argument(parser, '--inject-empty-target-conf', action='store_true',
             help=argparse.SUPPRESS)
 
     @staticmethod
     def register_compare_param(parser):
-        parser.add_argument('--alpha', type=float,
+        add_argument(parser, '--alpha', type=float,
             default=5,
             help="""Alpha risk for Fisher exact test in percents.""")
 
-        parser.add_argument('--non-significant', action='store_true',
+        add_argument(parser, '--non-significant', action='store_true',
             help="""Also show non-significant changes of failure rate.""")
 
-        parser.add_argument('--remove-tag', action='append',
+        add_argument(parser, '--remove-tag', action='append',
             default=[],
             help="""Remove the given tags in the testcase IDs before comparison.""")
 

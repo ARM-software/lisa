@@ -35,6 +35,8 @@ import traceback
 import types
 import uuid
 import glob
+import textwrap
+import argparse
 
 class NotSerializableError(Exception):
     pass
@@ -686,3 +688,10 @@ def render_graphviz(expr):
             return (True, svg)
 
         return (False, graphviz)
+
+def add_argument(parser, *args, help, **kwargs):
+    if help is not argparse.SUPPRESS:
+        help=textwrap.dedent(help)
+        # Preserve all new lines where there are, and only wrap the other lines.
+        help='\n'.join(textwrap.fill(line) for line in help.splitlines())
+    return parser.add_argument(*args, **kwargs, help=help)
