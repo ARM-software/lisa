@@ -52,6 +52,12 @@ class SchedProcFSNode(object):
 
     _re_procfs_node = re.compile(r"(?P<name>.*\D)(?P<digits>\d+)$")
 
+    PACKABLE_ENTRIES = [
+        "cpu",
+        "domain",
+        "group"
+    ]
+
     @staticmethod
     def _ends_with_digits(node):
         if not isinstance(node, basestring):
@@ -71,18 +77,19 @@ class SchedProcFSNode(object):
         """
         :returns: The name of the procfs node
         """
-        return re.search(SchedProcFSNode._re_procfs_node, node).group("name")
+        match = re.search(SchedProcFSNode._re_procfs_node, node)
+        if match:
+            return match.group("name")
 
-    @staticmethod
-    def _packable(node, entries):
+        return node
+
+    @classmethod
+    def _packable(cls, node):
         """
         :returns: Whether it makes sense to pack a node into a common entry
         """
         return (SchedProcFSNode._ends_with_digits(node) and
-                any([SchedProcFSNode._ends_with_digits(x) and
-                     SchedProcFSNode._node_digits(x) != SchedProcFSNode._node_digits(node) and
-                     SchedProcFSNode._node_name(x) == SchedProcFSNode._node_name(node)
-                     for x in entries]))
+                SchedProcFSNode._node_name(node) in cls.PACKABLE_ENTRIES)
 
     @staticmethod
     def _build_directory(node_name, node_data):
@@ -119,7 +126,7 @@ class SchedProcFSNode(object):
         # Find which entries can be packed into a common entry
         packables = {
             node : SchedProcFSNode._node_name(node) + "s"
-            for node in list(nodes.keys()) if SchedProcFSNode._packable(node, list(nodes.keys()))
+            for node in list(nodes.keys()) if SchedProcFSNode._packable(node)
         }
 
         self._dyn_attrs = {}
@@ -228,7 +235,7 @@ class SchedProcFSData(SchedProcFSNode):
         # Even if we have a CPU entry, it can be empty (e.g. hotplugged out)
         # Make sure some data is there
         for cpu in cpus:
-            if target.file_exists(target.path.join(path, cpu, "domain0", "name")):
+            if target.file_exists(target.path.join(path, cpu, "domain0", "flags")):
                 return True
 
         return False
@@ -423,7 +430,6 @@ class SchedModule(Module):
             int
         )
 
-    @memoized
     def get_capacities(self, default=None):
         """
         :param default: Default capacity value to find if no data is
@@ -434,7 +440,7 @@ class SchedModule(Module):
         :raises RuntimeError: Raised when no capacity information is
         found and 'default' is None
         """
-        cpus = list(range(self.target.number_of_cpus))
+        cpus = self.target.list_online_cpus()
 
         capacities = {}
         sd_info = self.get_sd_info()
