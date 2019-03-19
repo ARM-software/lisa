@@ -922,7 +922,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
     def get_key(self, key, src=None, eval_deferred=True, quiet=False):
         """
-        Get the value of the given key.
+        Get the value of the given key. It returns a deepcopy of the value.
 
         :param key: name of the key to lookup
         :type key: str
@@ -983,7 +983,11 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 filename=filename if filename else '<unknown>',
                 lineno=lineno if lineno else '<unknown>',
             ))
-        return val
+
+        if isinstance(val, DeferredValue):
+            return val
+        else:
+            return copy.deepcopy(val)
 
     def get_src_map(self, key):
         """
