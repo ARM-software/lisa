@@ -218,7 +218,7 @@ PATTERNS
 
 
     add_argument(run_parser, '-s', '--select', action='append',
-        metavar='SELECT_PATTERN',
+        metavar='ID_PATTERN',
         default=[],
         help="""Only run the expressions with an ID matching any of the supplied filters.""")
 
@@ -260,7 +260,7 @@ PATTERNS
         help="""Reload a database to use some of its objects. The DB and its artifact directory will be merged in the produced DB at the end of the execution, to form a self-contained artifact directory.""")
 
     add_argument(run_parser, '--load-type', action='append',
-        metavar='LOAD_TYPE_PATTERN',
+        metavar='TYPE_PATTERN',
         default=[],
         help="""Load the (indirect) instances of the given class from the database instead of the root objects.""")
 
@@ -280,28 +280,28 @@ PATTERNS
         help=argparse.SUPPRESS)
 
     add_argument(run_parser, '--restrict', action='append',
-        metavar='RESTRICT_PATTERN',
+        metavar='CALLABLE_PATTERN',
         default=[],
         help="""Callable names patterns. Types produced by these callables will only be produced by these (other callables will be excluded).""")
 
     add_argument(run_parser, '--forbid', action='append',
-        metavar='FORBID_PATTERN',
+        metavar='TYPE_PATTERN',
         default=[],
         help="""Fully qualified type names patterns. Callable returning these types or any subclass will not be called.""")
 
     add_argument(run_parser, '--allow', action='append',
-        metavar='ALLOW_PATTERN',
+        metavar='CALLABLE_PATTERN',
         default=[],
         help="""Allow using callable with a fully qualified name matching these patterns, even if they have been not selected for various reasons.""")
 
     goal_group = run_parser.add_mutually_exclusive_group()
     add_argument(goal_group, '--goal', action='append',
-        metavar='GOAL_PATTERN',
+        metavar='TYPE_PATTERN',
         default=[],
         help="""Compute expressions leading to an instance of a class with name matching this pattern (or a subclass of it).""")
 
     add_argument(goal_group, '--callable-goal', action='append',
-        metavar='CALLABLE_GOAL_PATTERN',
+        metavar='CALLABLE_PATTERN',
         default=[],
         help="""Compute expressions ending with a callable which name is matching this pattern.""")
 
@@ -325,6 +325,7 @@ PATTERNS
         help="""Run the tests for a number of iterations.""")
 
     add_argument(run_parser, '--share', action='append',
+        metavar='TYPE_PATTERN',
         default=[],
         help="""Class name pattern to share between multiple iterations.""")
 
