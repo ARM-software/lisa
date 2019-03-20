@@ -42,4 +42,13 @@ echo "Available LISA tests:"
 lisa-test --list
 
 echo "Starting documentation pedantic build ..."
-cd doc/ && ./pedantic_build.sh
+(cd doc/ && ./pedantic_build.sh)
+
+echo "Checking that the man pages are up to date ..."
+
+if ! git diff --exit-code doc/man1/; then
+    echo "Please regenerate man pages in doc/man1 and commit them"
+    exit 1
+fi
+
+
