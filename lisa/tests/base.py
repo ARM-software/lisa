@@ -348,7 +348,7 @@ class TestBundle(Serializable, abc.ABC):
         """
         super().to_path(self._filepath(res_dir))
 
-class RTATestBundle(TestBundle, abc.ABC):
+class RTATestBundle(TestBundle):
     """
     "Abstract" class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
 
