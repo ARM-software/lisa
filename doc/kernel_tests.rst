@@ -109,8 +109,8 @@ tasks with a pre-determined utilization.
 API
 ===
 
-Base API
-++++++++
+Base classes
+++++++++++++
 
 .. automodule:: lisa.tests.base
    :members:
@@ -123,11 +123,25 @@ Scheduler tests
 
 EAS tests
 ---------
+
+.. inheritance-diagram:: lisa.tests.scheduler.eas_behaviour
+   :top-classes: lisa.tests.base.TestBundle
+   :parts: 1
+
+|
+
 .. automodule:: lisa.tests.scheduler.eas_behaviour
    :members:
 
 Load tracking tests
 -------------------
+
+.. inheritance-diagram:: lisa.tests.scheduler.load_tracking
+   :top-classes: lisa.tests.base.TestBundle
+   :parts: 1
+
+|
+
 .. automodule:: lisa.tests.scheduler.load_tracking
    :members:
    :private-members: _from_target
@@ -135,22 +149,47 @@ Load tracking tests
 Misfit tests
 ------------
 
+.. inheritance-diagram:: lisa.tests.scheduler.misfit
+   :top-classes: lisa.tests.base.TestBundle
+   :parts: 1
+
+|
+
 .. automodule:: lisa.tests.scheduler.misfit
    :members:
 
 Sanity tests
 ------------
 
+.. inheritance-diagram:: lisa.tests.scheduler.sanity
+   :top-classes: lisa.tests.base.TestBundle
+   :parts: 1
+
+|
+
 .. automodule:: lisa.tests.scheduler.sanity
    :members:
 
 Hotplug tests
 +++++++++++++
+
+.. inheritance-diagram:: lisa.tests.hotplug.torture
+   :top-classes: lisa.tests.base.TestBundle
+   :parts: 1
+
+|
+
 .. automodule:: lisa.tests.hotplug.torture
    :members:
 
 Cpufreq tests
 +++++++++++++
+
+.. inheritance-diagram:: lisa.tests.cpufreq.sanity
+   :top-classes: lisa.tests.base.TestBundle
+   :parts: 1
+
+|
 
 .. automodule:: lisa.tests.cpufreq.sanity
    :members:
