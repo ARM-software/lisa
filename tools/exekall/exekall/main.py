@@ -204,7 +204,11 @@ PATTERNS
 
     run_parser = subparsers.add_parser('run',
     description="""
-    Run the tests
+Run expressions
+
+Note that the adaptor in the customization module is able to add more
+parameters to ``exekall run``. In order to get the complete set of options,
+please run ``exekall run YOUR_SOURCES --help``.
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
@@ -337,9 +341,9 @@ PATTERNS
     description="""
 Merge artifact directories of "exekall run" executions.
 
-By default, it will use hardlinks instead of copies to improve speed and avoid
-eating up large amount of space, but that means that artifact directories
-should be treated as read-only.
+By default, it will use hardlinks instead of copies to improve speed and
+avoid eating up large amount of space, but that means that artifact
+directories should be treated as read-only.
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
@@ -356,6 +360,10 @@ should be treated as read-only.
     compare_parser = subparsers.add_parser('compare',
     description="""
 Compare two DBs produced by exekall run.
+
+Note that the adaptor in the customization module recorded in the database
+is able to add more parameters to ``exekall compare``. In order to get the
+complete set of options, please run ``exekall compare DB1 DB2 --help``.
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
