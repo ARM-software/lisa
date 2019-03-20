@@ -911,7 +911,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
         with graphviz_path.open('wt', encoding='utf-8') as f:
             f.write(dot_output)
 
-        with (expr_artifact_dir/'TESTCASE_TEMPLATE.py').open(
+        with (expr_artifact_dir/'EXPRESSION_TEMPLATE.py').open(
             'wt', encoding='utf-8'
         ) as f:
             f.write(
@@ -1038,7 +1038,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
             adaptor.finalize_expr(expr)
 
             # Dump the reproducer script
-            with (expr_artifact_dir/'TESTCASE.py').open('wt', encoding='utf-8') as f:
+            with (expr_artifact_dir/'EXPRESSION.py').open('wt', encoding='utf-8') as f:
                 f.write(
                     expr.get_script(
                         prefix = 'expr',
