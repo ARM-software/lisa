@@ -194,10 +194,10 @@ class TestBundle(Serializable, abc.ABC):
         a :class:`TestBundle`.
       * :attr:`VERIFY_SERIALIZATION` is there to ensure both above methods remain
         operationnal at all times.
-      * `res_dir` parameter of `__init__` must be stored as an attribute
+      * ``res_dir`` parameter of ``__init__`` must be stored as an attribute
         without further processing, in order to support result directory
         relocation.
-      * Test methodes should have a return annotation for the
+      * Test methods should have a return annotation for the
         :class:`ResultBundle` to be picked up by the test runners.
 
     **Implementation example**::
