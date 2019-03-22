@@ -10,7 +10,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 cd "$SCRIPT_DIR"
 
 usage() {
-    echo Usage: "$0" [--install-android-sdk]
+    echo Usage: "$0" [--install-android-sdk] [--install-doc-extras]
 }
 
 latest_version() {
@@ -59,13 +59,20 @@ install_nodejs() {
     apt-get install -y nodejs npm
 }
 
+install_doc_extras() {
+    apt-get -y install plantuml graphviz
+}
+
 set -eu
 
 install_android_sdk=n
+install_doc_extras=n
 
 for arg in "$@"; do
     if [ "$arg" == "--install-android-sdk" ]; then
-        install_android_sdk=y
+	install_android_sdk=y
+    elif [ "$arg" == "--install-doc-extras" ]; then
+	install_doc_extras=y
     else
         echo "Unrecognised argument: $arg"
         usage
@@ -85,6 +92,10 @@ install_nodejs
 
 if [ "$install_android_sdk" == y ]; then
     install_sdk
+fi
+
+if [ "$install_doc_extras" == y ]; then
+    install_doc_extras
 fi
 
 # Make sure we exit with no errors, so we can start making use of that

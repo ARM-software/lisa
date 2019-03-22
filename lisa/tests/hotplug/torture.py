@@ -33,7 +33,7 @@ from lisa.utils import ArtifactPath
 class CPUHPSequenceError(Exception):
     pass
 
-class HotplugBase(TestBundle, abc.ABC):
+class HotplugBase(TestBundle):
     def __init__(self, plat_info, target_alive, hotpluggable_cpus, live_cpus):
         res_dir = None
         super().__init__(res_dir, plat_info)

@@ -69,8 +69,8 @@ See the usage example of :class:`~lisa.tests.base.TestBundle`
 Writing tests
 =============
 
-Basics
-++++++
+Concepts
+++++++++
 
 Writing scheduler tests can be difficult, especially when you're
 trying to make them work without relying on custom tracepoints (which is
@@ -94,7 +94,70 @@ Have a look at its documentation for implementation and usage examples.
    A simple test implementation worth looking at is
    :class:`~lisa.tests.scheduler.sanity.CapacitySanity`.
 
-Implementations of :class:`~lisa.tests.base.TestBundle` can
+The relationship between the test classes has been condensed into this diagram,
+although you'll find more details in the API documentation of these classes.
+
+.. uml::
+
+  class TestMetric {
+	+ data
+	+ units
+  }
+
+
+  note bottom of TestMetric {
+       TestMetrics serve to answer
+       <b>"Why did my test fail/pass ?"</b>.
+       They are free-form, so they can be
+       error counts, durations, stats...
+  }
+
+  class Result {
+	PASSED
+	FAILED
+	UNDECIDED
+  }
+
+  class ResultBundle {
+	+ result : Result
+	+ add_metric()
+  }
+
+  ResultBundle "1" *- "1" Result
+  ' This forces a longer arrow ------------v
+  ResultBundle "1" *- "1..*" TestMetric : "          "
+
+  class TestBundle {
+      # _from_target() : TestBundle
+      + from_target() : TestBundle
+      + from_dir() : TestBundle
+  }
+
+  note right of TestBundle {
+      Methods returning <b>TestBundle</b>
+      are alternative constructors
+
+      <b>from_target()</b> does some generic
+      work, then calls <b>_from_target()</b>. You'll
+      have to override it depending on what
+      you want to execute on the target.
+  }
+
+  class MyTestBundle {
+	# _from_target() : TestBundle
+	+ test_foo_is_bar() : ResultBundle
+  }
+
+  note right of MyTestBundle {
+      Non-abstract <b>TestBundle</b> classes
+      must define test methods that return
+      a <b>ResultBundle</b>
+  }
+
+  TestBundle <|-- MyTestBundle
+  MyTestBundle .. ResultBundle
+
+Implementations of :class:`~lisa.tests.base.TestBundle._from_target` can
 execute any sort of arbitry Python code. This means that you are free to
 manipulate sysfs entries, or to execute arbitray binaries on the target. The
 :class:`~lisa.wlgen.workload.Workload` class has been created to
@@ -109,8 +172,8 @@ tasks with a pre-determined utilization.
 API
 ===
 
-Base API
-++++++++
+Base classes
+++++++++++++
 
 .. automodule:: lisa.tests.base
    :members:
@@ -123,11 +186,25 @@ Scheduler tests
 
 EAS tests
 ---------
+
+.. inheritance-diagram:: lisa.tests.scheduler.eas_behaviour
+   :top-classes: lisa.tests.base.TestBundle
+   :parts: 1
+
+|
+
 .. automodule:: lisa.tests.scheduler.eas_behaviour
    :members:
 
 Load tracking tests
 -------------------
+
+.. inheritance-diagram:: lisa.tests.scheduler.load_tracking
+   :top-classes: lisa.tests.base.TestBundle
+   :parts: 1
+
+|
+
 .. automodule:: lisa.tests.scheduler.load_tracking
    :members:
    :private-members: _from_target
@@ -135,22 +212,47 @@ Load tracking tests
 Misfit tests
 ------------
 
+.. inheritance-diagram:: lisa.tests.scheduler.misfit
+   :top-classes: lisa.tests.base.TestBundle
+   :parts: 1
+
+|
+
 .. automodule:: lisa.tests.scheduler.misfit
    :members:
 
 Sanity tests
 ------------
 
+.. inheritance-diagram:: lisa.tests.scheduler.sanity
+   :top-classes: lisa.tests.base.TestBundle
+   :parts: 1
+
+|
+
 .. automodule:: lisa.tests.scheduler.sanity
    :members:
 
 Hotplug tests
 +++++++++++++
+
+.. inheritance-diagram:: lisa.tests.hotplug.torture
+   :top-classes: lisa.tests.base.TestBundle
+   :parts: 1
+
+|
+
 .. automodule:: lisa.tests.hotplug.torture
    :members:
 
 Cpufreq tests
 +++++++++++++
+
+.. inheritance-diagram:: lisa.tests.cpufreq.sanity
+   :top-classes: lisa.tests.base.TestBundle
+   :parts: 1
+
+|
 
 .. automodule:: lisa.tests.cpufreq.sanity
    :members:

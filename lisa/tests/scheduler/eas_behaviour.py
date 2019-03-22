@@ -36,7 +36,7 @@ from lisa.trace import requires_events
 from lisa.target import Target
 from lisa.trace import FtraceCollector
 
-class EASBehaviour(RTATestBundle, abc.ABC):
+class EASBehaviour(RTATestBundle):
     """
     Abstract class for EAS behavioural testing.
 
