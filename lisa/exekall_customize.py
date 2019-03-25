@@ -104,7 +104,9 @@ class LISAAdaptor(AdaptorBase):
         for conf_path in self.args.conf:
             for conf_cls in conf_cls_set:
                 try:
-                    conf = conf_cls.from_yaml_map(conf_path)
+                    # Do not add the default source, to avoid overriding user
+                    # configuration with the default one.
+                    conf = conf_cls.from_yaml_map(conf_path, add_default_src=False)
                 except ValueError:
                     continue
                 else:
@@ -119,13 +121,12 @@ class LISAAdaptor(AdaptorBase):
         # alternative sources.
         for (_, conf_cls), conf_and_path_seq in groupby(conf_list, key=keyfunc):
             conf_and_path_list = list(conf_and_path_seq)
-            # Since we use reversed order, we get the source override from the
-            # last one.
-            conf_and_path_list.reverse()
 
-            conf = conf_and_path_list[0][0]
-            for conf_src, conf_path in conf_and_path_list[1:]:
-                conf.add_src(conf_path, conf_src, fallback=True)
+            # Get the default configuration, and stack all user-defined keys
+            conf = conf_cls()
+            for conf_src, conf_path in conf_and_path_list:
+                src = os.path.basename(conf_path)
+                conf.add_src(src, conf_src)
 
             op_set.add(PrebuiltOperator(
                 conf_cls, [conf],
