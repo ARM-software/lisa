@@ -141,6 +141,7 @@ class DmesgCollector(TraceCollector):
         # help with an exit code of 1
         self.basic_dmesg = 'BusyBox' in self.target.execute('dmesg -h',
                                                         check_exit_code=False)
+        self.facility = facility
         self.reset()
 
     @property
@@ -163,7 +164,7 @@ class DmesgCollector(TraceCollector):
     def start(self):
         self.reset()
         # Empty the dmesg ring buffer
-        self.target.execute('dmesg -c')
+        self.target.execute('dmesg -c', as_root=True)
 
     def stop(self):
         levels_list = list(takewhile(
