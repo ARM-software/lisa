@@ -350,11 +350,7 @@ class TestBundle(Serializable, abc.ABC):
 
 class RTATestBundle(TestBundle):
     """
-    "Abstract" class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
-
-    :param rtapp_profile: The rtapp parameters used to create the synthetic
-      workload. That happens to be what is returned by :meth:`get_rtapp_profile`
-    :type rtapp_profile: dict
+    Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
     """
 
     TRACE_PATH = 'trace.dat'
@@ -431,9 +427,12 @@ class RTATestBundle(TestBundle):
         trace = Trace(path, self.plat_info, events=self.ftrace_conf["events"])
         return trace.get_view(self.trace_window(trace))
 
-    def __init__(self, res_dir, plat_info, rtapp_profile):
-        super().__init__(res_dir, plat_info)
-        self.rtapp_profile = rtapp_profile
+    @property
+    def rtapp_profile(self):
+        """
+        Compute the RTapp profile based on ``plat_info``.
+        """
+        return self.get_rtapp_profile(self.plat_info)
 
     @TasksAnalysis.df_tasks_runtime.used_events
     def test_noisy_tasks(self, noise_threshold_pct=None, noise_threshold_ms=None):
@@ -602,6 +601,6 @@ class RTATestBundle(TestBundle):
         rtapp_profile = cls.get_rtapp_profile(plat_info)
         cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
 
-        return cls(res_dir, plat_info, rtapp_profile)
+        return cls(res_dir, plat_info)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
