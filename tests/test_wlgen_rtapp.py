@@ -36,13 +36,13 @@ class RTABase(StorageTestCase):
 
     def get_expected_command(self, rta_wload):
         """Return the rt-app command we should execute when `run` is called"""
-        rta_path = self.te.target.which('rt-app')
+        rta_path = self.target.which('rt-app')
         json_path = os.path.join(rta_wload.run_dir, rta_wload.json)
         return '{} {} 2>&1'.format(rta_path, json_path)
 
     def setUp(self):
         super().setUp()
-        self.te = create_local_target()
+        self.target = create_local_target()
 
     def assert_output_file_exists(self, path):
         """Assert that a file was created"""
@@ -58,7 +58,7 @@ class RTABase(StorageTestCase):
 class TestRTAProfile(RTABase):
     def _do_test(self, profile, exp_phases):
         rtapp = RTA.by_profile(
-            self.te, name='test', profile=profile, res_dir=self.res_dir,
+            self.target, name='test', profile=profile, res_dir=self.res_dir,
             calibration=None)
 
         with open(rtapp.local_json) as f:
@@ -74,7 +74,7 @@ class TestRTAProfile(RTABase):
         # files
         rtapp.run()
 
-        # rtapp_cmds = [c for c in self.te.target.executed_commands if 'rt-app' in c]
+        # rtapp_cmds = [c for c in self.target.executed_commands if 'rt-app' in c]
         # self.assertListEqual(rtapp_cmds, [self.get_expected_command(rtapp)])
 
         self.assert_output_file_exists('output.log')
@@ -257,7 +257,7 @@ class TestRTACustom(RTABase):
             str_conf = fh.read()
 
         rtapp = RTA.by_str(
-            self.te, name='test', str_conf=str_conf, res_dir=self.res_dir,
+            self.target, name='test', str_conf=str_conf, res_dir=self.res_dir,
             max_duration_s=5, calibration=calibration)
 
         with open(rtapp.local_json, 'r') as fh:
@@ -273,7 +273,7 @@ class TestRTACustom(RTABase):
         # Would like to try running the workload but mp3-short.json has nonzero
         # 'priority' fields, and we probably don't have permission for that
         # unless we're root.
-        if self.te.target.is_rooted:
+        if self.target.is_rooted:
             rtapp.run()
 
             # rtapp_cmds = [c for c in self.target.executed_commands
@@ -285,7 +285,7 @@ class TestRTACustom(RTABase):
 
     def test_custom_smoke_calib(self):
         """Test RTA custom workload (providing calibration)"""
-        calibration = min(self.te.plat_info['rtapp']['calib'].values())
+        calibration = min(self.target.plat_info['rtapp']['calib'].values())
         self._test_custom_smoke(calibration)
 
     def test_custom_smoke_no_calib(self):
@@ -298,7 +298,7 @@ class TestRTACalibrationConf(RTABase):
     def _get_calib_conf(self, calibration):
         profile = {"test_task" : Periodic()}
         rtapp = RTA.by_profile(
-            self.te, name='test', res_dir=self.res_dir, profile=profile,
+            self.target, name='test', res_dir=self.res_dir, profile=profile,
             calibration=calibration)
 
         with open(rtapp.local_json) as fh:
