@@ -556,7 +556,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     when instances are built.
     """
 
-    def __init__(self, conf=None, src='conf', add_default_src=True):
+    def __init__(self, conf=None, src='user', add_default_src=True):
         self._nested_init(
             structure=self.STRUCTURE,
             src_prio=[]

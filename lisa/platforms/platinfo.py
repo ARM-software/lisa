@@ -79,9 +79,6 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     ))
     """Some keys have a reserved meaning with an associated type."""
 
-    def __init__(self, conf=None, src='user'):
-        super().__init__(conf=conf, src=src)
-
     def add_target_src(self, target, rta_calib_res_dir, src='target', **kwargs):
         info = {
             'nrg-model': self._nrg_model_from_target(target),

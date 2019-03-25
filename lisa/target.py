@@ -141,9 +141,6 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         }
     }
 
-    def __init__(self, conf=None, src='user'):
-        super().__init__(conf=conf, src=src)
-
 class Target(Loggable, HideExekallID, Configurable):
     """
     Wrap :class:`devlib.target.Target` to provide additional features on top of

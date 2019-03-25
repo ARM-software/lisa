@@ -1325,9 +1325,6 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('buffer-size', 'FTrace buffer size', [int]),
     ))
 
-    def __init__(self, conf=None, src='user'):
-        super().__init__(conf=conf, src=src)
-
     def add_merged_src(self, src, conf, **kwargs):
         """
         Merge-in a configuration source.
