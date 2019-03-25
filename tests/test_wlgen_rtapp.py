@@ -263,10 +263,8 @@ class TestRTACustom(RTABase):
         with open(rtapp.local_json, 'r') as fh:
             conf = json.load(fh)
 
-        # Convert k to str because the json loader gives us unicode strings
-        tasks = set([str(k) for k in list(conf['tasks'].keys())])
         self.assertSetEqual(
-            tasks,
+            set(conf['tasks'].keys()),
             set(['AudioTick', 'AudioOut', 'AudioTrack',
                  'mp3.decoder', 'OMXCall']))
 
