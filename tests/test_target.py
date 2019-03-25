@@ -26,7 +26,7 @@ class TargetEnvCheck(TestCase):
         """
         Test that creating a Target from the CLI works
         """
-        args = "--kind host"
+        args = "--kind host --password 'foobar'"
         target = Target.from_cli(shlex.split(args))
 
         self.assertNotEqual(target.os, None)
