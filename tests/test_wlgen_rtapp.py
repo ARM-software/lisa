@@ -22,7 +22,7 @@ import os
 from lisa.wlgen.rta import RTA, Periodic, Ramp, Step, RunAndSync
 from lisa.analysis.rta import PerfAnalysis
 
-from .utils import StorageTestCase, create_local_target
+from .utils import StorageTestCase, create_local_target, ASSET_DIR
 
 class RTABase(StorageTestCase):
     """
@@ -251,7 +251,7 @@ class TestRTACustom(RTABase):
         the workload.
         """
 
-        json_path = os.path.join(os.path.dirname(__file__), 'mp3-short.json')
+        json_path = os.path.join(ASSET_DIR, 'mp3-short.json')
 
         with open(json_path, 'r') as fh:
             str_conf = fh.read()

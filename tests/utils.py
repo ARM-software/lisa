@@ -18,12 +18,14 @@
 from unittest import TestCase
 import tempfile
 import shutil
+import os.path
 
 from devlib.target import KernelVersion
 
 from lisa.target import Target, TargetConf
 from lisa.platforms.platinfo import PlatformInfo
 
+ASSET_DIR = os.path.join(os.path.dirname(__file__), 'assets')
 
 HOST_TARGET_CONF = TargetConf({
     'kind': 'host',
