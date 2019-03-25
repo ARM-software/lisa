@@ -2126,7 +2126,7 @@ class ExekallLISATestStep(ShellStep):
 
                 url = urllib.parse.urlparse(archive_path)
                 # If this is a URL, we download it
-                if download and url.scheme == 'http':
+                if download and url.scheme.startswith('http'):
                     info('Downloading {archive_path} to {archive_dst} ...'.format(
                         archive_path = archive_path,
                         archive_dst = archive_dst,
@@ -2638,7 +2638,7 @@ class LISATestStep(ShellStep):
 
                 url = urllib.parse.urlparse(archive_path)
                 # If this is a URL, we download it
-                if download and url.scheme == 'http':
+                if download and url.scheme.startswith('http'):
                     info('Downloading {archive_path} to {archive_dst} ...'.format(
                         archive_path = archive_path,
                         archive_dst = archive_dst,
@@ -4201,7 +4201,7 @@ class Report(Serializable):
 
         url = urllib.parse.urlparse(path)
         # If this is a URL, we download it
-        if url.scheme == 'http':
+        if url.scheme.startswith('http'):
             # Make sure the infered file type matches by using the whole
             # original name
             suffix = os.path.basename(url.path)
