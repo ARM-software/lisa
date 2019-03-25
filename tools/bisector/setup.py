@@ -44,6 +44,7 @@ setup(
         "ruamel.yaml >= 0.15.72",
         "pandas",
         "scipy",
+        "requests",
     ],
 
     extras_require={

@@ -60,10 +60,10 @@ import traceback
 import tempfile
 import types
 import urllib.parse
-import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
 
+import requests
 import ruamel.yaml
 
 # If these modules are not available, DBus features will not be used.
@@ -2132,8 +2132,8 @@ class ExekallLISATestStep(ShellStep):
                         archive_dst = archive_dst,
                     ))
                     try:
-                        urllib.request.urlretrieve(archive_path, archive_dst)
-                    except urllib.error.HTTPError as e:
+                        urlretrieve(archive_path, archive_dst)
+                    except requests.exceptions.RequestException as e:
                         error('Could not retrieve {archive_path}: {e}'.format(
                             archive_path = archive_path,
                             e = e
@@ -2644,8 +2644,8 @@ class LISATestStep(ShellStep):
                         archive_dst = archive_dst,
                     ))
                     try:
-                        urllib.request.urlretrieve(archive_path, archive_dst)
-                    except urllib.error.HTTPError as e:
+                        urlretrieve(archive_path, archive_dst)
+                    except requests.exceptions.RequestException as e:
                         error('Could not retrieve {archive_path}: {e}'.format(
                             archive_path = archive_path,
                             e = e
@@ -2835,6 +2835,13 @@ class UploadService(abc.ABC):
         """Upload a file"""
         pass
 
+def urlretrieve(url, path):
+    response = requests.get(url)
+    # Raise an exception is the request failed
+    response.raise_for_status()
+    with open(path, 'wb') as f:
+        f.write(response.content)
+
 class ArtifactorialService(UploadService):
     """Upload files to Artifactorial."""
     def __init__(self, url=None, token=None):
@@ -2870,21 +2877,15 @@ class ArtifactorialService(UploadService):
             return path
 
         info('Uploading {path} to {dest} ...'.format(path=path, dest=dest))
-        try:
-            uploaded_link = call_process(
-                ['curl', '-Fpath=@'+path, '-Ftoken='+token, dest],
-                merge_stderr = False
-            ).strip()
-        except subprocess.CalledProcessError as e:
-            warn('Failed to upload {path} to {dest}: {e}'.format(
-                path = path,
-            dest = dest,
-            e = e
-            ))
-            # Return the path unmodified
-            return path
-        else:
-            uploaded_link = uploaded_link.split('/', 1)[1]
+
+        data = dict(token=token)
+        with open(path, 'rb') as f:
+            content = f.read()
+        files = dict(path=(os.path.basename(path), content))
+        response = requests.post(dest, data=data, files=files)
+
+        if response.ok:
+            uploaded_link = response.text.split('/', 1)[1]
             url = list(urllib.parse.urlparse(dest))
             url[2] += '/' + uploaded_link
             url = urllib.parse.urlunparse(url)
@@ -2892,7 +2893,18 @@ class ArtifactorialService(UploadService):
                 path = path,
                 url = url
             ))
-            return url
+            path = url
+        # Return the path unmodified if it failed
+        else:
+            warn('Failed to upload {path} to {dest} (HTTP {error}/{reason}): {msg}'.format(
+                path=path,
+                dest=dest,
+                error=response.status_code,
+                reason=response.reason,
+                msg=response.text,
+            ))
+
+        return path
 
 def update_json(path, mapping):
     """
@@ -4207,7 +4219,7 @@ class Report(Serializable):
             suffix = os.path.basename(url.path)
             with tempfile.NamedTemporaryFile(suffix=suffix) as temp_report:
                 path = temp_report.name
-                path, headers = urllib.request.urlretrieve(url.geturl(), path)
+                urlretrieve(url.geturl(), path)
                 return cls._load(path, steps_path, use_cache=False)
         else:
             return cls._load(path, steps_path, use_cache)
