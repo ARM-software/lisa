@@ -274,7 +274,7 @@ class TestRTACustom(RTABase):
         # 'priority' fields, and we probably don't have permission for that
         # unless we're root.
         if self.target.is_rooted:
-            rtapp.run()
+            rtapp.run(as_root=True)
 
             # rtapp_cmds = [c for c in self.target.executed_commands
             #               if 'rt-app' in c]
