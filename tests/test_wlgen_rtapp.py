@@ -251,9 +251,7 @@ class TestRTACustom(RTABase):
         the workload.
         """
 
-        #TODO: update the path to mp3-short.json
-        json_path = os.path.join(os.getenv('LISA_HOME'),
-                                 'lisa', 'assets', 'mp3-short.json')
+        json_path = os.path.join(os.path.dirname(__file__), 'mp3-short.json')
 
         with open(json_path, 'r') as fh:
             str_conf = fh.read()
