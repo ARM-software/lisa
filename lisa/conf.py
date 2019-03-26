@@ -459,15 +459,22 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
 
     @classmethod
     @abc.abstractmethod
-    def from_map(cls, mapping):
+    def from_map(cls, mapping, add_default_src=True):
         raise NotImplementedError
 
     @classmethod
-    def from_yaml_map(cls, path):
+    def from_yaml_map(cls, path, add_default_src=True):
         """
         Allow reloading from a plain mapping, to avoid having to specify a tag
         in the configuration file. The content is hosted under the top-level
         key specified in ``STRUCTURE``.
+
+        :param path: Path to the YAML file
+        :type path: str
+
+        :param add_default_src: Add a default source if available for that
+            class.
+        :type add_default_src: bool
         """
 
         toplevel_key = cls.STRUCTURE.name
@@ -481,7 +488,7 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
         # "unwrap" an extra layer of toplevel key, to play well with !include
         if len(data) == 1 and toplevel_key in data.keys():
             data = data[toplevel_key]
-        return cls.from_map(data)
+        return cls.from_map(data, add_default_src=add_default_src)
 
     def to_yaml_map(self, path):
         data = self.to_map()
@@ -549,7 +556,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     when instances are built.
     """
 
-    def __init__(self, conf=None, src='conf'):
+    def __init__(self, conf=None, src='user', add_default_src=True):
         self._nested_init(
             structure=self.STRUCTURE,
             src_prio=[]
@@ -558,7 +565,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             self.add_src(src, conf)
 
         # Give some preset in the the lowest prio source
-        if self.DEFAULT_SRC:
+        if self.DEFAULT_SRC and add_default_src:
             self.add_src('default', self.DEFAULT_SRC, fallback=True)
 
     @classmethod
@@ -633,16 +640,16 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         return mapping
 
     @classmethod
-    def from_map(cls, mapping):
+    def from_map(cls, mapping, add_default_src=True):
         """
         Create a new configuration instance, using the output of :meth:`to_map`
         """
-        conf = mapping.get('conf', {})
+        conf_src = mapping.get('conf', {})
         src_override = mapping.get('source', {})
 
-        plat_conf = cls(conf)
-        plat_conf.force_src_nested(src_override)
-        return plat_conf
+        conf = cls(conf_src, add_default_src=add_default_src)
+        conf.force_src_nested(src_override)
+        return conf
 
     def add_src(self, src, conf, filter_none=False, fallback=False):
         """
@@ -1116,8 +1123,8 @@ class SimpleMultiSrcConf(MultiSrcConf):
     this kind of configuration to keep the YAML interface simple and dict-like
     """
     @classmethod
-    def from_map(cls, mapping):
-        return cls(mapping)
+    def from_map(cls, *args, **kwargs):
+        return cls(*args, **kwargs)
 
     def to_map(self):
         return dict(self._get_effective_map())
