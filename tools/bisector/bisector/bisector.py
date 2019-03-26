@@ -1951,7 +1951,7 @@ class ExekallLISATestStep(ShellStep):
         considered_iteration_set = set(iterations)
 
         # Read the ValueDB from exekall to know the failing tests
-        testcase_map = collections.defaultdict(list)
+        testcase_map = dict()
         filtered_step_res_seq = list()
         db_list = []
         for step_res_item in step_res_seq:
@@ -2072,7 +2072,7 @@ class ExekallLISATestStep(ShellStep):
                     elif entry['result'] == 'passed':
                         # Only change from None to GOOD but not from BAD to GOOD
                         bisect_ret = BisectRet.GOOD if bisect_ret is None else bisect_ret
-                    testcase_map[testcase_id].append(entry)
+                    testcase_map.setdefault(testcase_id, []).append(entry)
 
             any_entries = bisect_ret is not None
             if not any_entries:
@@ -2205,10 +2205,15 @@ class ExekallLISATestStep(ShellStep):
                         (
                             # Show pass rate if we were explicitly asked for
                             show_pass_rate
-                            # Show passed if we got 100% pass rate
                             or (
                                 issue_n > 0
-                                and set(iterations_summary) == {'passed'}
+                                and (
+                                    # Show if we are going to show the details,
+                                    # since we need a "header" line
+                                    show_details
+                                    # Show passed if we got 100% pass rate
+                                    or set(iterations_summary) == {'passed'}
+                                )
                             )
                         # in any case, hide it we explicitly asked for
                         ) and not ignore_non_issue
