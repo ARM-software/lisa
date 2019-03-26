@@ -29,9 +29,6 @@ ASSET_DIR = os.path.join(os.path.dirname(__file__), 'assets')
 
 HOST_TARGET_CONF = TargetConf({
     'kind': 'host',
-    # Travis has a passwordless sudo, so we provide an garbage password since
-    # sudo will accept anything
-    'password': 'foobar',
     # Don't load cpufreq, it usually won't work with CI targets
     'devlib': {
         'excluded-modules': ['cpufreq', 'hwmon'],
