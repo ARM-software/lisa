@@ -39,6 +39,8 @@ class KernelLogEntry(object):
     """
 
     _TIMESTAMP_MSG_REGEX = re.compile(r'\[(.*?)\] (.*)')
+    _RAW_LEVEL_REGEX = re.compile(r'<([0-9]+)>(.*)')
+    _PRETTY_LEVEL_REGEX = re.compile(r'\s*([a-z]+)\s*:([a-z]+)\s*:\s*(.*)')
 
     def __init__(self, facility, level, timestamp, msg):
         self.facility = facility
@@ -52,50 +54,57 @@ class KernelLogEntry(object):
         Parses a "dmesg --decode" output line, formatted as following:
         kern  :err   : [3618282.310743] nouveau 0000:01:00.0: systemd-logind[988]: nv50cal_space: -16
 
-        Or the more basic output:
-        [3618282.310743] nouveau 0000:01:00.0: systemd-logind[988]: nv50cal_space: -16
+        Or the more basic output given by "dmesg -r":
+        <3>[3618282.310743] nouveau 0000:01:00.0: systemd-logind[988]: nv50cal_space: -16
 
         """
 
-        def parse_timestamp_msg(line):
-            match = cls._TIMESTAMP_MSG_REGEX.match(line.strip())
+        def parse_raw_level(line):
+            match = cls._RAW_LEVEL_REGEX.match(line)
             if not match:
                 raise ValueError('dmesg entry format not recognized: {}'.format(line))
+            level, remainder = match.groups()
+            levels = DmesgCollector.LOG_LEVELS
+            # BusyBox dmesg can output numbers that need to wrap around
+            level = levels[int(level) % len(levels)]
+            return level, remainder
+
+        def parse_pretty_level(line):
+            match = cls._PRETTY_LEVEL_REGEX.match(line)
+            facility, level, remainder = match.groups()
+            return facility, level, remainder
+
+        def parse_timestamp_msg(line):
+            match = cls._TIMESTAMP_MSG_REGEX.match(line)
             timestamp, msg = match.groups()
+            timestamp = timedelta(seconds=float(timestamp.strip()))
             return timestamp, msg
 
-        # If we can parse the timestamp directly, that is a basic line
+        line = line.strip()
+
+        # If we can parse the raw prio directly, that is a basic line
         try:
-            timestamp, msg = parse_timestamp_msg(line)
-        except ValueError:
-            facility, level, remainder = line.split(':', 2)
-            timestamp, msg = parse_timestamp_msg(remainder)
-            facility = facility.strip()
-            level = level.strip()
-        else:
+            level, remainder = parse_raw_level(line)
             facility = None
-            level = None
+        except ValueError:
+            facility, level, remainder = parse_pretty_level(line)
+
+        timestamp, msg = parse_timestamp_msg(remainder)
 
         return cls(
             facility=facility,
             level=level,
-            timestamp=timedelta(seconds=float(timestamp.strip())),
+            timestamp=timestamp,
             msg=msg.strip(),
         )
 
     def __str__(self):
-        if self.facility and self.level:
-            prefix = '{facility}:{level}:'.format(
-                facility=self.facility,
-                level=self.level,
-            )
-        else:
-            prefix = ''
-
-        return '{prefix}[{timestamp}] {msg}'.format(
+        facility = self.facility + ': ' if self.facility else ''
+        return '{facility}{level}: [{timestamp}] {msg}'.format(
+            facility=facility,
+            level=self.level,
             timestamp=self.timestamp.total_seconds(),
             msg=self.msg,
-            prefix=prefix,
         )
 
 
@@ -136,11 +145,12 @@ class DmesgCollector(TraceCollector):
             ))
         self.level = level
 
-        # Check if dmesg is the BusyBox one, or the one from util-linux.
+        # Check if dmesg is the BusyBox one, or the one from util-linux in a
+        # recent version.
         # Note: BusyBox dmesg does not support -h, but will still print the
         # help with an exit code of 1
-        self.basic_dmesg = 'BusyBox' in self.target.execute('dmesg -h',
-                                                        check_exit_code=False)
+        self.basic_dmesg = '--force-prefix' not in \
+                self.target.execute('dmesg -h', check_exit_code=False)
         self.facility = facility
         self.reset()
 
@@ -173,7 +183,7 @@ class DmesgCollector(TraceCollector):
         ))
         levels_list.append(self.level)
         if self.basic_dmesg:
-            cmd = 'dmesg'
+            cmd = 'dmesg -r'
         else:
             cmd = 'dmesg --facility={facility} --force-prefix --decode --level={levels}'.format(
                 levels=','.join(levels_list),
