@@ -36,7 +36,7 @@ source init_env || exit 1
 set -e
 
 echo "Starting nosetests ..."
-python3 -m nose
+python3 -m nose -vv
 
 echo "Available LISA tests:"
 lisa-test --list
