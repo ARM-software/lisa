@@ -37,6 +37,9 @@ from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc
 def info(msg):
     logging.info(msg)
 
+def warn(msg):
+    logging.warning(msg)
+
 class BatchRebaseManifest(SimpleMultiSrcConf):
     """
     Configuration of batch-rebase
@@ -114,6 +117,15 @@ def has_unresolved(repo):
         return True
     else:
         return False
+
+def empty_staging_area(repo):
+    git = make_git_func(repo)
+    try:
+        git(['diff', '--quiet', '--exit-code', '--cached'])
+    except subprocess.CalledProcessError:
+        return False
+    else:
+        return True
 
 def do_create(conf_folder, repo, temp_repo, new_branch, conf, persistent_tags):
     # Use --shared to avoid copying the git objects, so we only pay for a
@@ -312,8 +324,13 @@ def rerere_autocommit(repo):
             return False
         # If rerere did its job, commit and carry on
         else:
-            info('Git rerere supplied solution, carrying on')
-            git(['commit', '--no-edit'])
+            if empty_staging_area(repo):
+                # If the commit would be empty, just skip it
+                warn('Empty commit, skipping it')
+                git(['reset'])
+            else:
+                info('Git rerere supplied solution, carrying on')
+                git(['commit', '--no-edit'])
 
         try:
             git(['cherry-pick', '--continue'])
