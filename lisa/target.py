@@ -283,6 +283,13 @@ class Target(Loggable, HideExekallID, Configurable):
         """
         return getattr(self.target, attr)
 
+    def __dir__(self):
+        """
+        List our attributes plus the ones from the underlying target.
+        """
+        attrs = set(super().__dir__()) | set(dir(self.target))
+        return sorted(attrs)
+
     @classmethod
     def from_conf(cls, conf:TargetConf, res_dir:ArtifactPath=None, plat_info:PlatformInfo=None) -> 'Target':
         cls.get_logger().info('Target configuration:\n{}'.format(conf))
