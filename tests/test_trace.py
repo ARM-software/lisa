@@ -26,10 +26,10 @@ from devlib.target import KernelVersion
 
 from lisa.trace import Trace
 from lisa.platforms.platinfo import PlatformInfo
-from .utils import StorageTestCase
+from .utils import StorageTestCase, ASSET_DIR
 
 class TraceTestCase(StorageTestCase):
-    traces_dir = os.path.join(os.path.dirname(__file__), 'traces')
+    traces_dir = ASSET_DIR
     events = [
         'sched_switch',
         'sched_wakeup',

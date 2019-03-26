@@ -478,7 +478,10 @@ class Target(Loggable, HideExekallID, Configurable):
         elif kind == 'host':
             logger.debug('Setting up localhost Linux target...')
             devlib_target_cls = devlib.LocalLinuxTarget
-            conn_settings['unrooted'] = True
+            # If we are given a password, assume we can use it as a sudo
+            # password.
+            conn_settings['unrooted'] = password is None
+            conn_settings['password'] = password
         else:
             raise ValueError('Unsupported platform type {}'.format(kind))
 
