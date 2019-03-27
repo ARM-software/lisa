@@ -41,8 +41,8 @@ source "$LISA_HOME/shell/lisa_colors"
 export LISA_HOST_ABI=${LISA_HOST_ABI:-x86_64}
 export PATH=$PATH:$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI:$LISA_HOME/tools
 
-export LISA_CONF="$LISA_HOME/target_conf.yml"
-export LISA_RESULT_ROOT=$LISA_HOME/results
+export LISA_CONF=${LISA_CONF:-$LISA_HOME/target_conf.yml}
+export LISA_RESULT_ROOT=${LISA_RESULT_ROOT:-$LISA_HOME/results}
 export EXEKALL_ARTIFACT_ROOT=${EXEKALL_ARTIFACT_ROOT:-$LISA_RESULT_ROOT}
 
 ################################################################################
