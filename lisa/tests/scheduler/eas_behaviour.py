@@ -60,15 +60,6 @@ class EASBehaviour(RTATestBundle):
         return self.plat_info['nrg-model']
 
     @classmethod
-    @abc.abstractmethod
-    def get_rtapp_profile(cls, plat_info):
-        """Returns the RTapp profile for the given :class:`lisa.platforms.platinfo.PlatformInfo`.
-
-        :returns: :class:`lisa.wlgen.rta.RTATask`
-        """
-        pass
-
-    @classmethod
     def check_from_target(cls, target):
         for domain in target.cpufreq.iter_domains():
             if "schedutil" not in target.cpufreq.list_governors(domain[0]):
