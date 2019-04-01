@@ -2300,7 +2300,10 @@ class ExekallLISATestStep(ShellStep):
         assert counts['total'] == nr_tests
 
         # Only account for tests that only passed and had no other issues
-        counts['passed'] = nr_tests - (sum(counts.values()) - nr_tests)
+        counts['passed'] = sum(
+            set(stats['iterations_summary']) == {'passed'}
+            for stats in testcase_stats.values()
+        )
 
         out(
             'Error: {counts[error]}/{total}, '
