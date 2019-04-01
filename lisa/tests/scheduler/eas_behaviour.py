@@ -40,10 +40,6 @@ class EASBehaviour(RTATestBundle):
     """
     Abstract class for EAS behavioural testing.
 
-    :param rtapp_profile: The rtapp parameters used to create the synthetic
-      workload. That happens to be what is returned by :meth:`get_rtapp_profile`
-    :type rtapp_profile: dict
-
     :param nrg_model: The energy model of the platform the synthetic workload
       was run on
     :type nrg_model: EnergyModel
@@ -58,15 +54,6 @@ class EASBehaviour(RTATestBundle):
     @property
     def nrg_model(self):
         return self.plat_info['nrg-model']
-
-    @classmethod
-    @abc.abstractmethod
-    def get_rtapp_profile(cls, plat_info):
-        """Returns the RTapp profile for the given :class:`lisa.platforms.platinfo.PlatformInfo`.
-
-        :returns: :class:`lisa.wlgen.rta.RTATask`
-        """
-        pass
 
     @classmethod
     def check_from_target(cls, target):
@@ -89,14 +76,15 @@ class EASBehaviour(RTATestBundle):
             with target.cpufreq.use_governor("schedutil"):
                 cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
 
-        return cls(res_dir, plat_info, rtapp_profile)
+        return cls(res_dir, plat_info)
 
     @classmethod
     def from_target(cls, target:Target, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'EASBehaviour':
         """
         Factory method to create a bundle using a live target
 
-        This will execute the rt-app workload described in :meth:`get_rtapp_profile`
+        This will execute the rt-app workload described in
+        :meth:`lisa.tests.base.RTATestBundle.get_rtapp_profile`
         """
         return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
 

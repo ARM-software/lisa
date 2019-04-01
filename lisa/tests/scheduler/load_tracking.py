@@ -194,7 +194,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
             with target.cpufreq.use_governor(**cls.cpufreq_conf):
                 cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
 
-        return cls(res_dir, plat_info, rtapp_profile)
+        return cls(res_dir, plat_info)
 
     def get_task_sched_signals(self, trace, cpu, task_name):
         """
@@ -240,12 +240,16 @@ class InvarianceItem(LoadTrackingBase):
         "governor" : "userspace"
     }
 
-    def __init__(self, res_dir, plat_info, rtapp_profile, cpu, freq, freq_list):
-        super().__init__(res_dir, plat_info, rtapp_profile)
+    def __init__(self, res_dir, plat_info, cpu, freq, freq_list):
+        super().__init__(res_dir, plat_info)
 
         self.freq = freq
         self.freq_list = freq_list
         self.cpu = cpu
+
+    @property
+    def rtapp_profile(self):
+        return self.get_rtapp_profile(self.plat_info, cpu=self.cpu)
 
     @classmethod
     def get_rtapp_profile(cls, plat_info, cpu):
@@ -285,7 +289,7 @@ class InvarianceItem(LoadTrackingBase):
             logger.debug('CPU{} frequency: {}'.format(cpu, target.cpufreq.get_frequency(cpu)))
             cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
 
-        return cls(res_dir, plat_info, rtapp_profile, cpu, freq, freq_list)
+        return cls(res_dir, plat_info, cpu, freq, freq_list)
 
     def get_expected_util_avg(self, trace, cpu, task_name, capacity):
         """
@@ -895,8 +899,8 @@ class CPUMigrationBase(LoadTrackingBase):
 
         super()._run_rtapp(target, res_dir, profile, ftrace_coll)
 
-    def __init__(self, res_dir, plat_info, rtapp_profile):
-        super().__init__(res_dir, plat_info, rtapp_profile)
+    def __init__(self, res_dir, plat_info):
+        super().__init__(res_dir, plat_info)
 
         self.cpus = set()
 

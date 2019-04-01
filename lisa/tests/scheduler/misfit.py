@@ -122,8 +122,8 @@ class StaggeredFinishes(MisfitMigrationBase):
     rq->avg_idle > sysctl_sched_migration_cost
     """
 
-    def __init__(self, res_dir, plat_info, rtapp_profile):
-        super().__init__(res_dir, plat_info, rtapp_profile)
+    def __init__(self, res_dir, plat_info):
+        super().__init__(res_dir, plat_info)
 
         sdf = self.trace.df_events('sched_switch')
 
