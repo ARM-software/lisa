@@ -178,7 +178,11 @@ def do_resume(temp_repo, conf):
     branch = conf['resume']['branch']
     rr_cache = Path(conf['resume']['rr-cache'])
 
-    return do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, branch, rr_cache)
+    try:
+        return do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, branch, rr_cache)
+    # If there was an error, make sure we do not delete the temp repo
+    except subprocess.CalledProcessError:
+        return (False, True)
 
 def do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, branch, rr_cache):
     has_conflict, persistent_refs = _do_cherry_pick(temp_repo, conf, persistent_tags, tags_suffix)
@@ -460,18 +464,17 @@ def main():
     keep_temp = args.keep_temp
 
     ret = 0
-    if args.subcommand == 'create':
-        conf = BatchRebaseManifest.from_yaml_map(args.manifest)
-        new_branch = args.create_branch
-        persistent_tags = args.tags
-        tags_suffix = args.tags_suffix
+    delete_temp_repo = True
+    temp_repo = None
+    try:
+        if args.subcommand == 'create':
+            conf = BatchRebaseManifest.from_yaml_map(args.manifest)
+            new_branch = args.create_branch
+            persistent_tags = args.tags
+            tags_suffix = args.tags_suffix
 
-        # Make sure we use resolved absolute path
-        conf_folder = Path(args.manifest).parent
-
-        temp_repo = None
-        delete_temp_repo = True
-        try:
+            # Make sure we use resolved absolute path
+            conf_folder = Path(args.manifest).parent
             temp_repo = Path(tempfile.mkdtemp())
             delete_temp_repo, ret = do_create(
                 conf_folder,
@@ -480,14 +483,14 @@ def main():
                 conf,
                 persistent_tags, tags_suffix,
             )
-        finally:
-            if delete_temp_repo and temp_repo and not keep_temp:
-                shutil.rmtree(str(temp_repo))
 
-    elif args.subcommand == 'resume':
-        conf = BatchRebaseManifest.from_yaml_map(repo/RESUME_MANIFEST_NAME)
-        delete_temp_repo, ret = do_resume(repo, conf)
-        if delete_temp_repo and not keep_temp:
+        elif args.subcommand == 'resume':
+            temp_repo = repo
+            conf = BatchRebaseManifest.from_yaml_map(temp_repo/RESUME_MANIFEST_NAME)
+            delete_temp_repo, ret = do_resume(temp_repo, conf)
+
+    finally:
+        if delete_temp_repo and temp_repo and not keep_temp:
             shutil.rmtree(str(repo))
 
     return ret
