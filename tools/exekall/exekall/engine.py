@@ -2507,7 +2507,12 @@ class ExprVal(ExprValBase):
         super().__init__(param_map=param_map, value=value, excep=excep)
 
     def format_tags(self):
-        tag_map = self.expr.op.tags_getter(self.value)
+        tag_map = {
+            # Make sure there are no brackets in tag values, since that
+            # would break all regex parsing done on IDs.
+            k: str(v).replace('[', '').replace(']', '')
+            for k, v in self.expr.op.tags_getter(self.value).items()
+        }
         if tag_map:
             return ''.join(
                 '[{}={}]'.format(k, v) if k else '[{}]'.format(v)
