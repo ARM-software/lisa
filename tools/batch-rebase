@@ -57,7 +57,10 @@ class BatchRebaseManifest(SimpleMultiSrcConf):
         LevelKeyDesc('resume', 'Internal state used for resuming after a conflict', [
             KeyDesc('conflict-topic', 'Topic where the conflict happened', [str]),
             KeyDesc('persistent-refs', 'List of references that needs to be pushed back to the main repo', [StrList]),
-            KeyDesc('persistent-tags', 'whether tags should be pushed back or not', [bool]),
+            LevelKeyDesc('tags', 'Topic branch tags', [
+                KeyDesc('persistent', 'whether tags should be pushed back or not', [bool]),
+                KeyDesc('suffix', 'suffix to use for tags, or None', [str]),
+            ]),
             KeyDesc('repo', 'Path to the main repo', [str]),
             KeyDesc('branch', 'Branch that is being created', [str]),
             KeyDesc('rr-cache', 'Source of the rr-cache', [str]),
@@ -127,7 +130,7 @@ def empty_staging_area(repo):
     else:
         return True
 
-def do_create(conf_folder, repo, temp_repo, new_branch, conf, persistent_tags):
+def do_create(conf_folder, repo, temp_repo, new_branch, conf, persistent_tags, tags_suffix):
     # Use --shared to avoid copying the git objects, so we only pay for a
     # checkout
     call_git(['clone', '--shared', repo, temp_repo])
@@ -166,18 +169,19 @@ def do_create(conf_folder, repo, temp_repo, new_branch, conf, persistent_tags):
     git(['checkout', '-b', new_branch, 'FETCH_HEAD'])
 
     # Start cherry picking topics
-    return do_cherry_pick(repo, temp_repo, conf, persistent_tags, new_branch, rr_cache)
+    return do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, new_branch, rr_cache)
 
 def do_resume(temp_repo, conf):
     repo = conf['resume']['repo']
-    persistent_tags = conf['resume']['persistent-tags']
+    persistent_tags = conf['resume']['tags']['persistent']
+    tags_suffix = conf['resume']['tags']['suffix']
     branch = conf['resume']['branch']
     rr_cache = Path(conf['resume']['rr-cache'])
 
-    return do_cherry_pick(repo, temp_repo, conf, persistent_tags, branch, rr_cache)
+    return do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, branch, rr_cache)
 
-def do_cherry_pick(repo, temp_repo, conf, persistent_tags, branch, rr_cache):
-    has_conflict, persistent_refs = _do_cherry_pick(temp_repo, conf, persistent_tags)
+def do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, branch, rr_cache):
+    has_conflict, persistent_refs = _do_cherry_pick(temp_repo, conf, persistent_tags, tags_suffix)
 
     if has_conflict:
         conf['resume'].add_src('conflict', {
@@ -204,11 +208,14 @@ def do_cherry_pick(repo, temp_repo, conf, persistent_tags, branch, rr_cache):
     return (not has_conflict, 1 if has_conflict else 0)
 
 
-def _do_cherry_pick(repo, conf, persistent_tags):
+def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
     git = make_git_func(repo)
 
     def add_tag(name):
-        tag_name = 'topic-{}-{}'.format(name, datetime.datetime.now().strftime("%Y%m%d"))
+        tag_name = 'topic-{name}-{suffix}'.format(
+            name=name,
+            suffix=tags_suffix,
+        )
         # Force create the tag
         git(['tag', '-f', tag_name])
         return tag_name
@@ -217,7 +224,7 @@ def _do_cherry_pick(repo, conf, persistent_tags):
     topics = conf['topics']
 
     # If we are resuming after a conflict
-    if conf['resume']:
+    if 'conflict-topic' in conf['resume']:
         resume_topic = conf['resume']['conflict-topic']
         persistent_refs.update(conf['resume']['persistent-refs'])
 
@@ -279,7 +286,10 @@ def _do_cherry_pick(repo, conf, persistent_tags):
                 {
                     'conflict-topic': name,
                     'persistent-refs': sorted(persistent_refs),
-                    'persistent-tags': persistent_tags,
+                    'tags': {
+                        'persistent': persistent_tags,
+                        'suffix': tags_suffix,
+                    }
                 },
             )
             info(textwrap.dedent("""
@@ -440,6 +450,11 @@ def main():
         help='Create a tag per topic'
     )
 
+    create_parser.add_argument('--tags-suffix',
+        default=datetime.datetime.now().strftime("%Y%m%d"),
+        help='Replace the default tag suffix (current date)'
+    )
+
     args = parser.parse_args()
     repo = Path(args.GIT_TREE).resolve()
     keep_temp = args.keep_temp
@@ -449,6 +464,7 @@ def main():
         conf = BatchRebaseManifest.from_yaml_map(args.manifest)
         new_branch = args.create_branch
         persistent_tags = args.tags
+        tags_suffix = args.tags_suffix
 
         # Make sure we use resolved absolute path
         conf_folder = Path(args.manifest).parent
@@ -462,7 +478,7 @@ def main():
                 repo, temp_repo,
                 new_branch,
                 conf,
-                persistent_tags
+                persistent_tags, tags_suffix,
             )
         finally:
             if delete_temp_repo and temp_repo and not keep_temp:
