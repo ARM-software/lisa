@@ -335,10 +335,10 @@ intersphinx_mapping = {
     'pandas' : ('https://pandas.pydata.org/pandas-docs/stable/', None),
     'matplotlib' : ('https://matplotlib.org', None),
     # XXX: Doesn't seem to work, might be due to how devlib doc is generated
-    'devlib' : ('https://pythonhosted.org/devlib/', None),
+    'wa' : ('https://devlib.readthedocs.io/en/latest/', None),
     'trappy' : ('https://pythonhosted.org/TRAPpy', None),
     'bart' :   ('https://pythonhosted.org/bart-py/', None),
-    'wa' : ('https://pythonhosted.org/wlauto/', None),
+    'wa' : ('https://workload-automation.readthedocs.io/en/latest/', None),
 }
 
 #
