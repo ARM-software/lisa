@@ -199,7 +199,7 @@ class EASBehaviour(RTATestBundle):
         pl.savefig(figname, bbox_inches='tight')
         plt.close()
 
-    def _get_expected_power_df(self, nrg_model):
+    def _get_expected_power_df(self, nrg_model, capacity_margin_pct):
         """
         Estimate *optimal* power usage over time
 
@@ -214,6 +214,8 @@ class EASBehaviour(RTATestBundle):
         :param nrg_model: EnergyModel used compute the optimal placement
         :type nrg_model: EnergyModel
 
+        :param capacity_margin_pct:
+
         :returns: A Pandas DataFrame with a column each node in the energy model
                   (keyed with a tuple of the CPUs contained by that node) and a
                   "power" column with the sum of other columns. Shows the
@@ -226,7 +228,7 @@ class EASBehaviour(RTATestBundle):
 
         def exp_power(row):
             task_utils = row.to_dict()
-            expected_utils = nrg_model.get_optimal_placements(task_utils)[0]
+            expected_utils = nrg_model.get_optimal_placements(task_utils, capacity_margin_pct)[0]
             power = nrg_model.estimate_from_cpu_util(expected_utils)
             columns = list(power.keys())
 
@@ -292,7 +294,8 @@ class EASBehaviour(RTATestBundle):
 
     @requires_events('sched_switch')
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
-    def test_task_placement(self, energy_est_threshold_pct=5, nrg_model:EnergyModel=None) -> ResultBundle:
+    def test_task_placement(self, energy_est_threshold_pct=5,
+            nrg_model:EnergyModel=None, capacity_margin_pct=20) -> ResultBundle:
         """
         Test that task placement was energy-efficient
 
@@ -311,7 +314,7 @@ class EASBehaviour(RTATestBundle):
         """
         nrg_model = nrg_model or self.nrg_model
 
-        exp_power = self._get_expected_power_df(nrg_model)
+        exp_power = self._get_expected_power_df(nrg_model, capacity_margin_pct)
         est_power = self._get_estimated_power_df(nrg_model)
 
         exp_energy = area_under_curve(exp_power.sum(axis=1), method='rect')
@@ -391,7 +394,8 @@ class ThreeSmallTasks(EASBehaviour):
 
     @EASBehaviour.test_task_placement.used_events
     def test_task_placement(self, energy_est_threshold_pct=20, nrg_model:EnergyModel=None,
-                            noise_threshold_pct=1, noise_threshold_ms=None) -> ResultBundle:
+                            noise_threshold_pct=1, noise_threshold_ms=None,
+                            capacity_margin_pct=20) -> ResultBundle:
         """
         Same as :meth:`EASBehaviour.test_task_placement` but with a higher
         default threshold
@@ -406,7 +410,8 @@ class ThreeSmallTasks(EASBehaviour):
         return super().test_task_placement(
             energy_est_threshold_pct, nrg_model,
             noise_threshold_pct=noise_threshold_pct,
-            noise_threshold_ms=noise_threshold_ms)
+            noise_threshold_ms=noise_threshold_ms,
+            capacity_margin_pct=capacity_margin_pct)
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):
@@ -517,7 +522,8 @@ class RampUp(EASBehaviour):
 
     @EASBehaviour.test_task_placement.used_events
     def test_task_placement(self, energy_est_threshold_pct=15, nrg_model:EnergyModel=None,
-                            noise_threshold_pct=1, noise_threshold_ms=None) -> ResultBundle:
+                            noise_threshold_pct=1, noise_threshold_ms=None,
+                            capacity_margin_pct=20) -> ResultBundle:
         """
         Same as :meth:`EASBehaviour.test_task_placement` but with a higher
         default threshold.
@@ -531,7 +537,8 @@ class RampUp(EASBehaviour):
         return super().test_task_placement(
             energy_est_threshold_pct, nrg_model,
             noise_threshold_pct=noise_threshold_pct,
-            noise_threshold_ms=noise_threshold_ms)
+            noise_threshold_ms=noise_threshold_ms,
+            capacity_margin_pct=capacity_margin_pct)
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):
@@ -561,7 +568,8 @@ class RampDown(EASBehaviour):
 
     @EASBehaviour.test_task_placement.used_events
     def test_task_placement(self, energy_est_threshold_pct=18, nrg_model:EnergyModel=None,
-                            noise_threshold_pct=1, noise_threshold_ms=None) -> ResultBundle:
+                            noise_threshold_pct=1, noise_threshold_ms=None,
+                            capacity_margin_pct=20) -> ResultBundle:
         """
         Same as :meth:`EASBehaviour.test_task_placement` but with a higher
         default threshold
@@ -583,7 +591,8 @@ class RampDown(EASBehaviour):
         return super().test_task_placement(
             energy_est_threshold_pct, nrg_model,
             noise_threshold_pct=noise_threshold_pct,
-            noise_threshold_ms=noise_threshold_ms)
+            noise_threshold_ms=noise_threshold_ms,
+            capacity_margin_pct=capacity_margin_pct)
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):
