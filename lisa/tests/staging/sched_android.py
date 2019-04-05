@@ -25,6 +25,7 @@ from lisa.trace import Trace, FtraceCollector, FtraceConf, requires_events
 from lisa.target import Target
 from lisa.utils import ArtifactPath
 from lisa.analysis.frequency import FrequencyAnalysis
+from lisa.analysis.tasks import TasksAnalysis
 
 class SchedTuneItemBase(RTATestBundle):
     """
@@ -239,6 +240,83 @@ class SchedTuneFrequencyTest(SchedTuneBase):
         """
         res_bundles = {
                 'boost{}'.format(b.boost): b.test_stune_frequency(freq_margin_pct)
+                for b in self.test_bundles
+        }
+        return self._merge_res_bundles(res_bundles)
+
+
+class SchedTunePlacementItem(SchedTuneItemBase):
+    """
+    Runs a tiny RT-App task marked 'prefer_idle' at a given boost level and
+    tests if it was placed on big-enough CPUs.
+    """
+
+    @classmethod
+    def get_rtapp_profile(cls, plat_info):
+        rtapp_profile = {}
+        rtapp_profile['rta_stune'] = Periodic(
+            duty_cycle_pct = 1,
+            duration_s = 3,
+            period_ms = 16,
+        )
+
+        return rtapp_profile
+
+    @TasksAnalysis.df_task_total_residency.used_events
+    def test_stune_task_placement(self, bad_cpu_margin_pct=10) -> ResultBundle:
+        """
+        Test that the task placement satisfied the boost requirement
+
+        Check that top-app tasks spend no more than ``bad_cpu_margin_pct`` of
+        their time on CPUs that don't have enough capacity to serve their
+        boost.
+        """
+        assert len(self.rtapp_profile) == 1
+        task = list(self.rtapp_profile.keys())[0]
+        df = self.trace.analysis.tasks.df_task_total_residency(task)
+
+        # Find CPUs without enough capacity to meet the boost
+        boost = self.boost
+        cpu_caps = self.plat_info['cpu-capacities']
+        ko_cpus = list(filter(lambda x: (cpu_caps[x] / 10.24) < boost, cpu_caps))
+
+        # Count how much time was spend on wrong CPUs
+        time_ko = 0
+        total_time = 0
+        for cpu in cpu_caps:
+            t = df['runtime'][cpu]
+            if cpu in ko_cpus:
+                time_ko += t
+            total_time += t
+
+        pct_ko = time_ko * 100 / total_time
+        res = ResultBundle.from_bool(pct_ko < bad_cpu_margin_pct)
+        res.add_metric("time spent on inappropriate CPUs", pct_ko, '%')
+
+        return res
+
+class SchedTunePlacementTest(SchedTuneBase):
+    """
+    Runs multiple ``SchedTunePlacementItem`` tests with prefer_idle set and
+    typical top-app boost levels, then checks all succedeed.
+    """
+
+    # Make sure exekall will always collect all events required by items
+    ftrace_conf = SchedTunePlacementItem.ftrace_conf
+
+    @classmethod
+    def _create_test_bundles(cls, target, res_dir, ftrace_coll):
+        # Typically top-app tasks are boosted by 10%, or 50% during touchboost
+        for boost in [10, 50]:
+            yield cls._create_test_bundle_item(target, res_dir, ftrace_coll,
+                    SchedTunePlacementItem, boost, True)
+
+    def test_stune_task_placement(self, margin_pct=10) -> ResultBundle:
+        """
+        .. seealso:: :meth:`SchedTunePlacementItem.test_stune_task_placement`
+        """
+        res_bundles = {
+                'boost{}'.format(b.boost): b.test_stune_task_placement(margin_pct)
                 for b in self.test_bundles
         }
         return self._merge_res_bundles(res_bundles)
