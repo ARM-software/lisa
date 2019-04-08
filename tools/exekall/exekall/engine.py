@@ -1250,17 +1250,25 @@ class ComputableExpression(ExpressionBase):
 
         return expr
 
-    def _fill_expr_data(self, data):
+    def _clone_expr_data(self, data):
+        # Make sure that ExprDataOperator expressions are cloned, so we don't
+        # end up sharing the ExprData between different expressions.
         if isinstance(self.op, ExprDataOperator):
-            self.op = ExprDataOperator(data)
-        for param_expr in self.param_map.values():
-            param_expr._fill_expr_data(data)
+            expr = ComputableExpression(ExprDataOperator(data), {})
+        else:
+            expr = self
+
+        self.param_map = OrderedDict(
+            (param, param_expr._clone_expr_data(data))
+            for param, param_expr in expr.param_map.items()
+        )
+        return expr
 
     def prepare_execute(self):
         # Make sure the Expressions referencing their Consumer get
         # appropriately cloned.
         self._clone_consumer([])
-        self._fill_expr_data(self.data)
+        self._clone_expr_data(self.data)
         return self
 
     def execute(self, post_compute_cb=None):
