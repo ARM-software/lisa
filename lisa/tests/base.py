@@ -25,18 +25,15 @@ import textwrap
 import re
 
 from collections.abc import Mapping
-from inspect import signature, Parameter
+from inspect import signature
 
-from devlib.target import KernelVersion
 from devlib.trace.dmesg import DmesgCollector
 
 from lisa.analysis.tasks import TasksAnalysis
-from lisa.trace import Trace, requires_events
+from lisa.trace import Trace
 from lisa.wlgen.rta import RTA
 
 from lisa.utils import Serializable, memoized, ArtifactPath
-from lisa.platforms.platinfo import PlatformInfo
-from lisa.target import Target
 from lisa.trace import FtraceCollector, FtraceConf
 
 class TestMetric:
