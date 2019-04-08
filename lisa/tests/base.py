@@ -22,6 +22,8 @@ import os.path
 import abc
 import sys
 import textwrap
+import re
+
 from collections.abc import Mapping
 from inspect import signature, Parameter
 
@@ -379,11 +381,19 @@ class RTATestBundle(TestBundle):
     definitions.
     """
 
-    NOISE_IGNORED_PIDS = [0]
+    NOISE_ACCOUNTING_THRESHOLDS = {
+        # Idle task - ignore completely
+        0 : 100,
+        # Feeble boards like Juno/TC2 spend a while in sugov
+        r"^sugov:\d+$" : 5,
+    }
     """
-    PIDs to ignore in :meth:`test_noisy_tasks`.
+    PID/comm specific tuning for :meth:`test_noisy_tasks`
 
-    PID 0 is the idle task, don't count it as noise.
+    * **keys** can be PIDs, comms, or regexps for comms.
+
+    * **values** are noisiness thresholds (%), IOW below that runtime threshold
+      the associated task will be ignored in the noise accounting.
     """
 
     def trace_window(self, trace):
@@ -462,8 +472,35 @@ class RTATestBundle(TestBundle):
             threshold_s = min(threshold_s, noise_threshold_ms * 1e3)
 
         df = self.trace.analysis.tasks.df_tasks_runtime()
-        test_tasks = list(map(self.trace.get_task_pid, self.rtapp_profile.keys()))
-        df_noise = df[~df.index.isin(test_tasks + self.NOISE_IGNORED_PIDS)]
+
+        # We don't want to account the test tasks
+        ignored_pids = list(map(self.trace.get_task_pid, self.rtapp_profile.keys()))
+
+        def compute_duration_pct(row):
+            return row.runtime * 100 / self.trace.time_range
+
+        df["runtime_pct"] = df.apply(compute_duration_pct, axis=1)
+
+        # Figure out which PIDs to exclude from the thresholds
+        for key, threshold in self.NOISE_ACCOUNTING_THRESHOLDS.items():
+            # Find out which task(s) this threshold is about
+            if isinstance(key, int):
+                pids = [key]
+            elif isinstance(key, str):
+                comms = [comm for comm in df.comm.values if re.match(key, comm)]
+                pids = df[df.comm.isin(comms)].index.values
+            else:
+                pids = []
+
+            # For those tasks, check the threshold
+            ignored_pids += [pid for pid in pids if df.loc[pid].runtime_pct <= threshold]
+
+        log_pids = ["{} ({})".format(pid, df.loc[pid].comm) for pid in ignored_pids]
+        self.get_logger().info(
+            "Ignored PIDs for noise contribution: %s", ", ".join(log_pids))
+
+        # Filter out unwanted tasks (rt-app tasks + thresholds)
+        df_noise = df[~df.index.isin(ignored_pids)]
 
         if df_noise.empty:
             return ResultBundle.from_bool(True)
