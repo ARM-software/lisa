@@ -30,6 +30,7 @@ import warnings
 import operator
 import logging
 import webbrowser
+import inspect
 from functools import reduce, wraps
 from collections.abc import Sequence
 
@@ -1115,11 +1116,27 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         else:
             checker = AndTraceEventChecker([self, used_events])
 
-        @wraps(f)
-        def wrapper(self, *args, **kwargs):
-            available_events = set(self.trace.available_events)
-            checker.check_events(available_events)
-            return f(self, *args, **kwargs)
+        sig = inspect.signature(f)
+        if sig.parameters:
+            @wraps(f)
+            def wrapper(self, *args, **kwargs):
+                try:
+                    trace = self.trace
+                # If there is no "trace" attribute, silently skip the check. This
+                # allows using the decorator for documentation and chaining purpose
+                # without having an actual trace to work on.
+                except AttributeError:
+                    pass
+                else:
+                    available_events = set(trace.available_events)
+                    checker.check_events(available_events)
+
+                return f(self, *args, **kwargs)
+        # If the decorated object takes no parameters, we cannot check anything
+        else:
+            @wraps(f)
+            def wrapper(*args, **kwargs):
+                return f(*args, **kwargs)
 
         # Set an attribute on the wrapper itself, so it can be e.g. added
         # to the method documentation
