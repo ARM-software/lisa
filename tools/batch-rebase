@@ -491,7 +491,7 @@ def main():
 
     finally:
         if delete_temp_repo and temp_repo and not keep_temp:
-            shutil.rmtree(str(repo))
+            shutil.rmtree(str(temp_repo))
 
     return ret
 
