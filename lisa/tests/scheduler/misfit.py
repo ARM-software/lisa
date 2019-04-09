@@ -25,6 +25,7 @@ from lisa.wlgen.rta import Periodic
 from lisa.tests.base import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
 from lisa.target import Target
 from lisa.analysis.tasks import TasksAnalysis, TaskState
+from lisa.analysis.idle import IdleAnalysis
 
 class MisfitMigrationBase(RTATestBundle):
     """
@@ -32,14 +33,6 @@ class MisfitMigrationBase(RTATestBundle):
 
     This class provides some helpers for features related to Misfit.
     """
-
-    ftrace_conf = FtraceConf({
-        "events" : [
-            "sched_switch",
-            "sched_wakeup",
-            "cpu_idle"
-        ]
-    }, __qualname__)
 
     @classmethod
     def _has_asym_cpucapacity(cls, target):
@@ -237,6 +230,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         return res
 
     @memoized
+    @IdleAnalysis.signal_cpu_active.used_events
     def _get_active_df(self, cpu):
         """
         :returns: A dataframe that describes the idle status (on/off) of 'cpu'
@@ -247,6 +241,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         self.trace.add_events_deltas(active_df)
         return active_df
 
+    @_get_active_df.used_events
     def _max_idle_time(self, start, end, cpus):
         """
         :returns: The maximum idle time of 'cpus' in the [start, end] interval
@@ -269,6 +264,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         return max_time, max_cpu
 
+    @_max_idle_time.used_events
     def _test_cpus_busy(self, task_state_dfs, cpus, allowed_idle_time_s):
         """
         Test that for every window in which the tasks are running, :attr:`cpus`
@@ -297,6 +293,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         return res
 
     @TasksAnalysis.df_task_states.used_events
+    @_test_cpus_busy.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_throughput(self, allowed_idle_time_s=None) -> ResultBundle:
         """
