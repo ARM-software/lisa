@@ -410,6 +410,14 @@ class RTATestBundleMeta(abc.ABCMeta):
 class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
     """
     Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
+
+    Optionally, an ``ftrace_conf`` class attribute can be defined to hold
+    additional FTrace configuration used to record a trace while the synthetic
+    workload is being run. By default, the required events are extracted from
+    decorated test methods.
+
+    .. seealso: :class:`lisa.tests.base.RTATestBundleMeta` for default
+        ``ftrace_conf`` content.
     """
 
     TRACE_PATH = 'trace.dat'
@@ -419,17 +427,6 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
     DMESG_PATH = 'dmesg.log'
     """
     Path to the dmesg log in the result directory.
-    """
-
-    ftrace_conf = FtraceConf({
-        "events" : [
-            "sched_switch",
-            "sched_wakeup"
-        ],
-    }, __qualname__)
-    """
-    The FTrace configuration used to record a trace while the synthetic workload
-    is being run.
     """
 
     TASK_PERIOD_MS = 16
