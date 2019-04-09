@@ -35,7 +35,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
     def __init__(self, trace):
         super(FunctionsAnalysis, self).__init__(trace)
 
-    def plot_profiling_stats(self, functions=None, metrics='avg'):
+    def plot_profiling_stats(self, functions=None, metrics='avg', filepath=None, axes=None):
         """
         Plot functions profiling metrics for the specified kernel functions.
 
@@ -50,6 +50,8 @@ class FunctionsAnalysis(TraceAnalysisBase):
                         avg   - average execution time
                         time  - total execution time
         :type metrics: str or list(str)
+
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         if not hasattr(self.trace, '_functions_stats_df'):
             self.get_logger().warning('Functions stats data not available')
@@ -66,18 +68,21 @@ class FunctionsAnalysis(TraceAnalysisBase):
                             available_metrics)
             raise ValueError(msg)
 
-        for metric in metrics:
-            if metric.upper() == 'AVG':
-                title = 'Average Completion Time per CPUs'
-                ylabel = 'Completion Time [us]'
-            if metric.upper() == 'TIME':
-                title = 'Total Execution Time per CPUs'
-                ylabel = 'Execution Time [us]'
-            data = df[metric.lower()].unstack()
-            axes = data.plot(kind='bar',
-                             figsize=(16, 8), legend=True,
-                             title=title, table=True)
-            axes.set_ylabel(ylabel)
-            axes.get_xaxis().set_visible(False)
+        def plotter(axes, local_fig):
+            for metric in metrics:
+                if metric.upper() == 'AVG':
+                    title = 'Average Completion Time per CPUs'
+                    ylabel = 'Completion Time [us]'
+                if metric.upper() == 'TIME':
+                    title = 'Total Execution Time per CPUs'
+                    ylabel = 'Execution Time [us]'
+                data = df[metric.lower()].unstack()
+                data.plot(kind='bar',
+                         ax=axes, figsize=(16, 8), legend=True,
+                         title=title, table=True)
+                axes.set_ylabel(ylabel)
+                axes.get_xaxis().set_visible(False)
+
+        return self.do_plot(plotter, filepath, axes)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

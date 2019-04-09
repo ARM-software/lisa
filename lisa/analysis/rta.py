@@ -187,49 +187,41 @@ class PerfAnalysis(AnalysisHelpers):
         """
         Plot the performance Index
 
-        :param axis: If specified, the axis to use for plotting
-        :type axis: matplotlib.axes.Axes
-
         :param filepath: If no axis is specified, the figure will be saved to
             that path
+
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-        def plotter(axis):
+        def plotter(axis, local_fig):
             axis.set_title('Task [{0:s}] Performance Index'.format(task))
             data = self.get_df(task)[['PerfIndex',]]
             data.plot(ax=axis, drawstyle='steps-post')
             axis.set_ylim(0, 2)
 
-        return self._do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, filepath, axis)
 
     def plot_latency(self, task, filepath=None, axis=None):
         """
         Plot the Latency/Slack and Performance data for the specified task.
 
-        :param axis: If specified, the axis to use for plotting
-        :type axis: matplotlib.axes.Axes
-
-        :param filepath: If no axis is specified, the figure will be saved to
-            that path
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-        def plotter(axis):
+        def plotter(axis, local_fig):
             axis.set_title('Task [{0:s}] (start) Latency and (completion) Slack'\
                     .format(task))
             data = self.get_df(task)[['Slack', 'WKPLatency']]
             data.plot(ax=axis, drawstyle='steps-post')
 
-        return self._do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, filepath, axis)
 
     def plot_slack_histogram(self, task, filepath=None, axis=None):
         """
         Plot the Slack Histogram
 
-        :param axis: If specified, the axis to use for plotting
-        :type axis: matplotlib.axes.Axes
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
 
-        :param filepath: If no axis is specified, the figure will be saved to
-            that path
         """
-        def plotter(axis):
+        def plotter(axis, local_fig):
             data = self.get_df(task)[['PerfIndex',]]
             data.hist(bins=30, ax=axis, alpha=0.4)
             pindex_avg = data.mean()[0]
@@ -238,6 +230,6 @@ class PerfAnalysis(AnalysisHelpers):
                     task, pindex_avg, pindex_std)
             axis.axvline(pindex_avg, linestyle='--', linewidth=2)
 
-        return self._do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, filepath, axis)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

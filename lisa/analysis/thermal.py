@@ -140,30 +140,28 @@ class ThermalAnalysis(TraceAnalysisBase):
 
         :param thermal_zone_id: ID of the zone
         :type thermal_zone_id: int
-        """
-        local_fig = axis is None
 
-        if local_fig:
-            fig, axis = self.setup_plot()
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
+        """
 
         df = self.df_thermal_zones_temperature()
         df = df[df.id == thermal_zone_id]
 
         tz_name = df.thermal_zone.unique()[0]
 
-        df.temp.plot(drawstyle="steps-post", ax=axis,
-                     label="Thermal zone \"{}\"".format(tz_name))
+        def plotter(axis, local_fig):
+            df.temp.plot(drawstyle="steps-post", ax=axis,
+                         label="Thermal zone \"{}\"".format(tz_name))
 
-        axis.legend()
+            axis.legend()
 
-        if local_fig:
-            axis.grid(True)
-            axis.set_title("Temperature evolution")
-            axis.set_ylabel("Temperature (°C.10e3)")
-            axis.set_xlim(self.trace.start, self.trace.end)
-            self.save_plot(fig, filepath)
+            if local_fig:
+                axis.grid(True)
+                axis.set_title("Temperature evolution")
+                axis.set_ylabel("Temperature (°C.10e3)")
+                axis.set_xlim(self.trace.start, self.trace.end)
 
-        return axis
+        return self.do_plot(plotter, filepath, axis)
 
     @df_cpufreq_cooling_state.used_events
     def plot_cpu_cooling_states(self, cpu, filepath=None, axis=None):
@@ -174,29 +172,27 @@ class ThermalAnalysis(TraceAnalysisBase):
           a single cooling device, they will be plotted as long this CPU
           belongs to the cluster.
         :type cpu: int
-        """
-        local_fig = axis is None
 
-        if local_fig:
-            fig, axis = self.setup_plot()
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
+        """
 
         df = self.df_cpufreq_cooling_state([cpu])
         cdev_name = "CPUs {}".format(mask_to_list(df.cpus.unique()[0]))
 
-        df.cdev_state.plot(drawstyle="steps-post", ax=axis,
-                           label="\"{}\"".format(cdev_name))
+        def plotter(axis, local_fig):
+            df.cdev_state.plot(drawstyle="steps-post", ax=axis,
+                               label="\"{}\"".format(cdev_name))
 
-        axis.legend()
+            axis.legend()
 
-        if local_fig:
-            axis.grid(True)
-            axis.set_title("cpufreq cooling devices status")
-            axis.yaxis.set_major_locator(MaxNLocator(integer=True))
-            axis.grid(axis='y')
-            axis.set_xlim(self.trace.start, self.trace.end)
-            self.save_plot(fig, filepath)
+            if local_fig:
+                axis.grid(True)
+                axis.set_title("cpufreq cooling devices status")
+                axis.yaxis.set_major_locator(MaxNLocator(integer=True))
+                axis.grid(axis='y')
+                axis.set_xlim(self.trace.start, self.trace.end)
 
-        return axis
+        return self.do_plot(plotter, filepath, axis)
 
     def plot_dev_freq_cooling_states(self, device, filepath=None, axis=None):
         """
@@ -204,28 +200,25 @@ class ThermalAnalysis(TraceAnalysisBase):
 
         :param device: The devfreq devices to consider
         :type device: str
+
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-        local_fig = axis is None
-
-        if local_fig:
-            fig, axis = self.setup_plot()
-
         df = self.df_devfreq_cooling_state([device])
 
         df.cdev_state.plot(drawstyle="steps-post", ax=axis,
                            label="Device \"{}\"".format(device))
 
-        axis.legend()
+        def plotter(axis, local_fig):
+            axis.legend()
 
-        if local_fig:
-            axis.grid(True)
-            axis.set_title("devfreq cooling devices status")
-            axis.yaxis.set_major_locator(MaxNLocator(integer=True))
-            axis.grid(axis='y')
-            axis.set_xlim(self.trace.start, self.trace.end)
-            self.save_plot(fig, filepath)
+            if local_fig:
+                axis.grid(True)
+                axis.set_title("devfreq cooling devices status")
+                axis.yaxis.set_major_locator(MaxNLocator(integer=True))
+                axis.grid(axis='y')
+                axis.set_xlim(self.trace.start, self.trace.end)
 
-        return axis
+        return self.do_plot(plotter, filepath, axis)
 
 ###############################################################################
 # Utility Methods
