@@ -187,7 +187,9 @@ def compute_regressions(old_list, new_list, remove_tags=[], **kwargs):
     The tests are first grouped by their ID, and then a
     :class:`RegressionResult` is computed for each of these ID.
 
-    :param old_list: old series of :class:`exekall.engine.FrozenVal`
+    :param old_list: old series of :class:`exekall.engine.FrozenVal`.  Values
+        with a UUID that is also present in `new_list` will be removed from
+        that list before the regressions are computed.
     :type old_list: list(exekall.engine.FrozenVal)
 
     :param new_list: new series of :class:`exekall.engine.FrozenVal`. Values
@@ -203,25 +205,25 @@ def compute_regressions(old_list, new_list, remove_tags=[], **kwargs):
     :param kwargs: extra :meth:`RegressionResult.from_result_list` parameters
     """
 
-    def get_uuids(froz_val_list):
-        return {
+    def dedup_list(froz_val_list, excluded_froz_val_list):
+        excluded_uuids = {
             froz_val.uuid
-            for froz_val in froz_val_list
+            for froz_val in excluded_froz_val_list
         }
-
-    def dedup_list(froz_val_list):
-        common_uuid = get_uuids(old_list) & get_uuids(new_list)
         return [
             froz_val
             for froz_val in froz_val_list
-            if froz_val.uuid not in common_uuid
+            if froz_val.uuid not in excluded_uuids
         ]
 
     # Remove from the new_list all the FrozenVal that were carried from the
     # old_list sequence. That is important since running "exekall run --load-db"
     # will contain both new and old data, so old data needs to be filtered out
     # before we can actually compare the two sets.
-    new_list = dedup_list(new_list)
+    _new_list = dedup_list(new_list, old_list)
+    _old_list = dedup_list(old_list, new_list)
+    old_list = _old_list
+    new_list = _new_list
 
     def get_id(froz_val):
         id_ = froz_val.get_id(qual=False, with_tags=True)
