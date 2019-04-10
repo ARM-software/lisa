@@ -159,14 +159,17 @@ class RTA(Workload):
         self = cls.__new__(cls)
         self._early_init(target, name, res_dir, None)
 
-        # Sanity check for task names
-        for task in list(profile.keys()):
-            if len(task) > 15:
-                # rt-app uses pthread_setname_np(3) which limits the task name
-                # to 16 characters including the terminal '\0'.
-                raise ValueError(
-                    'Task name "{}" too long, please configure your tasks '
-                    'with names shorter than 16 characters'.format(task))
+        # Sanity check for task names rt-app uses pthread_setname_np(3) which
+        # limits the task name to 16 characters including the terminal '\0'.
+        too_long_tids = sorted((
+            tid for tid in profile.keys()
+            if len(tid) > 15
+        ))
+        if too_long_tids:
+            raise ValueError(
+                'Task names too long, please configure your tasks with names shorter than 16 characters: {}'.format(
+                too_long_tids
+            ))
 
         rta_profile = {
             'tasks': {},
@@ -197,7 +200,7 @@ class RTA(Workload):
         rta_profile['global'] = global_conf
 
         # Setup tasks parameters
-        for tid, task in list(profile.items()):
+        for tid, task in profile.items():
             task_conf = {}
 
             if not task.sched_policy:
@@ -262,10 +265,6 @@ class RTA(Workload):
 
         :returns: a JSON dict
         """
-        # pload can either be a string like "CPU1" or an integer, if the
-        # former we need to quote it.
-        if not isinstance(pload, int):
-            pload = '"{}"'.format(pload)
 
         replacements = {
             '__DURATION__' : duration,
@@ -274,21 +273,14 @@ class RTA(Workload):
             '__WORKDIR__'  : work_dir,
         }
 
-        res = []
+        json_str = template
+        for placeholder, value in replacements.items():
+            if placeholder in template and placeholder is None:
+                raise ValueError('Missing value for {} placeholder'.format(placeholder))
+            else:
+                json_str = json_str.replace(placeholder, json.dumps(value))
 
-        for line in template.splitlines(True):
-            for token, replacement in replacements.items():
-                if token not in line:
-                    continue
-
-                if replacement is None:
-                    raise RuntimeError("No replacement value given for {}".format(token))
-
-                line = line.replace(token, str(replacement))
-
-            res.append(line)
-
-        return json.loads('\n'.join(res))
+        return json.loads(json_str)
 
     @classmethod
     def by_str(cls, target, name, str_conf, res_dir=None, max_duration_s=None,

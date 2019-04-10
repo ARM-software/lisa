@@ -59,7 +59,7 @@
 		"duration" : __DURATION__,
 		"ftrace" : false,
 		"gnuplot" : false,
-		"logdir" : "__LOGDIR__",
+		"logdir" : __LOGDIR__,
 		"log_basename" : "mp3",
 		"lock_pages" : true,
 		"frag" : 1,
