@@ -26,7 +26,7 @@ import textwrap
 
 from lisa.utils import (
     Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
-    is_running_sphinx,
+    is_running_sphinx, get_cls_name
 )
 
 class DeferredValue:
@@ -72,27 +72,6 @@ class KeyDescBase(abc.ABC):
         if self.parent is None:
             return self.name
         return '/'.join((self.parent.qualname, self.name))
-
-    @staticmethod
-    def _get_cls_name(cls, style=None):
-        """
-        Get a prettily-formated name for the class given as parameter
-
-        :param cls: class to get the name from
-        :type cls: type
-
-        :param style: When "rst", a RestructuredText snippet is returned
-        :param style: str
-
-        """
-        if cls is None:
-            return 'None'
-        mod_name = inspect.getmodule(cls).__name__
-        mod_name = mod_name + '.' if mod_name not in ('builtins', '__main__') else ''
-        name = mod_name + cls.__qualname__
-        if style == 'rst':
-            name = ':class:`~{}`'.format(name)
-        return name
 
     @abc.abstractmethod
     def get_help(self, style=None):
@@ -148,11 +127,11 @@ class KeyDesc(KeyDescBase):
         classinfo = self.classinfo
         key = self.qualname
         def get_excep(key, val, classinfo, cls, msg):
-            classinfo = ' or '.join(self._get_cls_name(cls) for cls in classinfo)
+            classinfo = ' or '.join(get_cls_name(cls) for cls in classinfo)
             msg = ': ' + msg if msg else ''
             return TypeError('Key "{key}" is an instance of {actual_cls}, but should be instance of {classinfo}{msg}. Help: {help}'.format(
                         key=key,
-                        actual_cls=self._get_cls_name(type(val)),
+                        actual_cls=get_cls_name(type(val)),
                         classinfo=classinfo,
                         msg=msg,
                         help=self.help,
@@ -208,7 +187,7 @@ class KeyDesc(KeyDescBase):
             prefix=prefix,
             key=self.name,
             classinfo=' or '.join(
-                self._get_cls_name(key_cls, style=style)
+                get_cls_name(key_cls, style=style)
                 for key_cls in self.classinfo
             ),
             help=help_,
@@ -1214,17 +1193,11 @@ class ConfigurableMeta(abc.ABCMeta):
         }
 
     def _get_rst_param_doc(cls):
-        def get_type_name(t):
-            if t is None:
-                return 'None'
-            else:
-                return t.__qualname__
-
         return '\n'.join(
             ':param {param}: {help}\n:type {param}: {type}\n'.format(
                 param=param,
                 help=key_desc.help,
-                type=' or '.join(get_type_name(t) for t in key_desc.classinfo),
+                type=' or '.join(get_cls_name(t) for t in key_desc.classinfo),
             )
             for param, key_desc
             in cls._get_param_key_desc_map().items()
