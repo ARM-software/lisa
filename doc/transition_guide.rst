@@ -252,3 +252,32 @@ framework has been put in place. Tests are now coded as pure Python classes,
 which means they can be imported and executed in scripts/notebooks without any
 additionnal effort. See :ref:`kernel-testing-page` for more details about
 using/writing tests.
+
+
+Energy Meter
+++++++++++++
+
+Energy meters are all subclasses of :class:`lisa.energy_meter.EnergyMeter`.
+They can now be created in two ways. For :class:`lisa.energy_meter.HWMon`, this
+would give::
+
+  target = Target.from_default_conf()
+  res_dir = "/foo/bar"
+
+  # Directly build an instance
+  emeter = HWMon(target, channel_map=..., res_dir=res_dir)
+
+  # Or using a configuration file
+  conf = HWMonConf.from_yaml_map('path/to/hwmon_conf.yml')
+  emeter = HWMon.from_conf(target, conf, res_dir)
+
+with ``hwmon_conf.yml`` containing:
+
+.. code-block:: YAML
+
+  hwmon-conf:
+       channel-map: ...
+
+All subclasses of :class:`lisa.energy_meter.EnergyMeter` have a configuration
+class named `*Conf`.
+
