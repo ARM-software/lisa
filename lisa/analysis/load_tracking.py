@@ -20,6 +20,7 @@
 import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
+from lisa.trace import requires_one_event_of
 
 
 class LoadTrackingAnalysis(TraceAnalysisBase):
@@ -87,6 +88,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         raise RuntimeError("Trace is missing one of either events: {}".format(events))
 
+    @requires_one_event_of('sched_load_cfs_rq', 'sched_load_avg_cpu')
     def df_cpus_signals(self):
         """
         Get the load-tracking signals for the CPUs
@@ -95,15 +97,10 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
           * A ``util`` column (the average utilization of a CPU at time t)
           * A ``load`` column (the average load of a CPU at time t)
-
-        :Required events:
-          Either of:
-
-          * ``sched_load_cfs_rq``
-          * ``sched_load_avg_cpu``
         """
         return self._df_either_event(['sched_load_cfs_rq', 'sched_load_avg_cpu'])
 
+    @requires_one_event_of('sched_load_se', 'sched_load_avg_task')
     def df_tasks_signals(self):
         """
         Get the load-tracking signals for the tasks
@@ -117,12 +114,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
           * A ``required_capacity`` column (the minimum available CPU capacity
             required to run this task without being CPU-bound)
-
-        :Required events:
-          Either of:
-
-          * ``sched_load_se``
-          * ``sched_load_avg_task``
         """
         df =  self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
 
@@ -142,6 +133,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         return df
 
+    @df_tasks_signals.used_events
     def df_top_big_tasks(self, util_threshold, min_samples=100):
         """
         Tasks which had 'utilization' samples bigger than the specified
@@ -171,6 +163,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         return top_df
 
+    @df_cpus_signals.used_events
     def plot_cpus_signals(self, cpus=None, filepath=None):
         """
         Plot the CPU-related load-tracking signals
@@ -216,6 +209,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         self.save_plot(fig, filepath)
         return axes
 
+    @df_tasks_signals.used_events
     def plot_task_signals(self, task, filepath=None):
         """
         Plot the task-related load-tracking signals
@@ -245,6 +239,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         self.save_plot(fig, filepath)
         return axis
 
+    @df_tasks_signals.used_events
     def plot_task_required_capacity(self, task, filepath=None, axis=None):
         """
         Plot the minimum required capacity of a task
@@ -286,6 +281,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         return axis
 
+    @df_tasks_signals.used_events
     def plot_task_placement(self, task, filepath=None):
         """
         Plot the CPU placement of the task

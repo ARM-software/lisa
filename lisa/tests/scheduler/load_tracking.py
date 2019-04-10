@@ -36,7 +36,8 @@ from lisa.tests.base import (
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby
 from lisa.wlgen.rta import Periodic, RTATask
-from lisa.trace import FtraceConf, FtraceCollector
+from lisa.trace import FtraceConf, FtraceCollector, requires_events
+from lisa.analysis.load_tracking import LoadTrackingAnalysis
 
 UTIL_SCALE = 1024
 """
@@ -158,17 +159,6 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
     Base class for shared functionality of load tracking tests
     """
 
-    ftrace_conf = FtraceConf({
-        "events" : [
-            "sched_switch",
-            "sched_load_avg_task",
-            "sched_load_avg_cpu",
-            "sched_pelt_se",
-            "sched_load_se",
-            "sched_load_cfs_rq",
-        ],
-    }, __qualname__)
-
     cpufreq_conf = {
         "governor" : "performance"
     }
@@ -196,13 +186,14 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
 
         return cls(res_dir, plat_info)
 
+    @LoadTrackingAnalysis.df_tasks_signals.used_events
+    @requires_events('sched_switch')
     def get_task_sched_signals(self, trace, cpu, task_name):
         """
         Get a :class:`pandas.DataFrame` with the sched signals for the workload task
 
-        This examines scheduler load tracking trace events, supporting either
-        sched_load_avg_task or sched_pelt_se. You will need a target kernel that
-        includes these events.
+        This examines scheduler load tracking trace events. You will need a
+        target kernel that includes the required events.
 
         :returns: :class:`pandas.DataFrame` with a column for each signal for
           the workload task
@@ -291,6 +282,7 @@ class InvarianceItem(LoadTrackingBase):
 
         return cls(res_dir, plat_info, cpu, freq, freq_list)
 
+    @requires_events('sched_switch')
     def get_expected_util_avg(self, trace, cpu, task_name, capacity):
         """
         Examine trace to figure out an expected mean for util_avg
@@ -303,6 +295,8 @@ class InvarianceItem(LoadTrackingBase):
         # Scale the relative CPU/freq capacity
         return (duty_cycle_pct / 100) * capacity
 
+    @LoadTrackingBase.get_task_sched_signals.used_events
+    @get_expected_util_avg.used_events
     def _test_task_signal(self, signal_name, allowed_error_pct,
                           trace, cpu, task_name, capacity):
         # Use utilization signal for both load and util, since they should be
@@ -330,6 +324,7 @@ class InvarianceItem(LoadTrackingBase):
 
         return ok, exp_signal, signal_mean
 
+    @_test_task_signal.used_events
     def _test_signal(self, signal_name, allowed_error_pct):
         passed = True
         expected_data = {}
@@ -359,6 +354,7 @@ class InvarianceItem(LoadTrackingBase):
         bundle.add_metric("Trace signals", trace_data)
         return bundle
 
+    @_test_signal.used_events
     def test_task_util_avg(self, allowed_error_pct=15) -> ResultBundle:
         """
         Test that the mean of the util_avg signal matched the expected value
@@ -378,6 +374,7 @@ class InvarianceItem(LoadTrackingBase):
         """
         return self._test_signal('util', allowed_error_pct)
 
+    @_test_signal.used_events
     def test_task_load_avg(self, allowed_error_pct=15) -> ResultBundle:
         """
         Test that the mean of the load_avg signal matched the expected value.
@@ -502,6 +499,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
     # Combined version of some other tests, applied on all available
     # InvarianceItem with the result merged.
 
+    @InvarianceItem.test_task_util_avg.used_events
     def test_task_util_avg(self, allowed_error_pct=15) -> ResultBundle:
         """
         Aggregated version of :meth:`InvarianceItem.test_task_util_avg`
@@ -512,6 +510,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             )
         return self._test_all_freq(item_test)
 
+    @InvarianceItem.test_task_load_avg.used_events
     def test_task_load_avg(self, allowed_error_pct=15) -> ResultBundle:
         """
         Aggregated version of :meth:`InvarianceItem.test_task_load_avg`
@@ -544,6 +543,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
 
         return overall_bundle
 
+    @InvarianceItem.test_task_util_avg.used_events
     def test_cpu_invariance(self) -> ResultBundle:
         """
         Check that items using the max freq on each CPU is passing util avg test.
@@ -580,6 +580,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
 
         return res
 
+    @InvarianceItem.test_task_util_avg.used_events
     def test_freq_invariance(self) -> ResultBundle:
         """
         Check that at least one CPU has items passing for all tested frequencies.
@@ -682,10 +683,12 @@ class PELTTask(LoadTrackingBase):
         """
         return list(self.rtapp_profile.keys())[0]
 
+    @LoadTrackingBase.get_task_sched_signals.used_events
     def get_task_sched_signals(self, cpu):
         # We only have one task and one trace, simplify this method a bit
         return super().get_task_sched_signals(self.trace, cpu, self.task_name)
 
+    @requires_events('sched_switch')
     def get_simulated_pelt(self, cpu, signal_name):
         """
         Get simulated PELT signal and the periodic task used to model it.
@@ -714,6 +717,7 @@ class PELTTask(LoadTrackingBase):
 
         return peltsim, pelt_task, df
 
+    @get_simulated_pelt.used_events
     def _test_range(self, signal_name, allowed_error_pct):
         res = ResultBundle.from_bool(True)
         task = self.rtapp_profile[self.task_name]
@@ -756,6 +760,8 @@ class PELTTask(LoadTrackingBase):
         ax.axhline(avg, label="duty-cycle based average", linestyle="--", color="orange")
         ax.legend()
 
+    @get_simulated_pelt.used_events
+    @requires_events('sched_switch')
     def _test_behaviour(self, signal_name, error_margin_pct, allowed_error_pct):
         res = ResultBundle.from_bool(True)
         task = self.rtapp_profile[self.task_name]
@@ -820,6 +826,7 @@ class PELTTask(LoadTrackingBase):
 
         return res
 
+    @_test_range.used_events
     def test_util_avg_range(self, allowed_error_pct=1.5) -> ResultBundle:
         """
         Test that the util_avg value ranges (min, max) are sane
@@ -828,6 +835,7 @@ class PELTTask(LoadTrackingBase):
         """
         return self._test_range('util', allowed_error_pct)
 
+    @_test_range.used_events
     def test_load_avg_range(self, allowed_error_pct=1.5) -> ResultBundle:
         """
         Test that the load_avg value ranges (min, max) are sane
@@ -836,6 +844,7 @@ class PELTTask(LoadTrackingBase):
         """
         return self._test_range('load', allowed_error_pct)
 
+    @_test_behaviour.used_events
     def test_util_avg_behaviour(self, error_margin_pct=7, allowed_error_pct=5)\
         -> ResultBundle:
         """
@@ -850,6 +859,7 @@ class PELTTask(LoadTrackingBase):
         """
         return self._test_behaviour('util', error_margin_pct, allowed_error_pct)
 
+    @_test_behaviour.used_events
     def test_load_avg_behaviour(self, error_margin_pct=7, allowed_error_pct=5)\
         -> ResultBundle:
         """
@@ -944,6 +954,7 @@ class CPUMigrationBase(LoadTrackingBase):
 
         return cpu_util
 
+    @LoadTrackingAnalysis.df_cpus_signals.used_events
     def get_trace_cpu_util(self):
         """
         Get the per-phase average CPU utilization read from the trace
@@ -974,6 +985,7 @@ class CPUMigrationBase(LoadTrackingBase):
 
         return cpu_util
 
+    @get_trace_cpu_util.used_events
     def test_util_task_migration(self, allowed_error_pct=5) -> ResultBundle:
         """
         Test that a migrated task properly propagates its utilization at the CPU level

@@ -30,6 +30,7 @@ import warnings
 import operator
 import logging
 import webbrowser
+import inspect
 from functools import reduce, wraps
 from collections.abc import Sequence
 
@@ -1093,6 +1094,16 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         """
         pass
 
+    @abc.abstractmethod
+    def get_all_events(self):
+        """
+        Return a set of all events that are checked by this checker.
+
+        That may be a superset of events that are strictly required, when the
+        checker checks a logical OR combination of events for example.
+        """
+        pass
+
     def __call__(self, f):
         """
         Decorator for methods that require some given trace events
@@ -1115,11 +1126,27 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         else:
             checker = AndTraceEventChecker([self, used_events])
 
-        @wraps(f)
-        def wrapper(self, *args, **kwargs):
-            available_events = set(self.trace.available_events)
-            checker.check_events(available_events)
-            return f(self, *args, **kwargs)
+        sig = inspect.signature(f)
+        if sig.parameters:
+            @wraps(f)
+            def wrapper(self, *args, **kwargs):
+                try:
+                    trace = self.trace
+                # If there is no "trace" attribute, silently skip the check. This
+                # allows using the decorator for documentation and chaining purpose
+                # without having an actual trace to work on.
+                except AttributeError:
+                    pass
+                else:
+                    available_events = set(trace.available_events)
+                    checker.check_events(available_events)
+
+                return f(self, *args, **kwargs)
+        # If the decorated object takes no parameters, we cannot check anything
+        else:
+            @wraps(f)
+            def wrapper(*args, **kwargs):
+                return f(*args, **kwargs)
 
         # Set an attribute on the wrapper itself, so it can be e.g. added
         # to the method documentation
@@ -1158,6 +1185,9 @@ class TraceEventChecker(TraceEventCheckerBase):
     def __init__(self, event):
         self.event = event
 
+    def get_all_events(self):
+        return {self.event}
+
     def check_events(self, event_set):
         if self.event not in event_set:
             raise MissingTraceEventError(self)
@@ -1192,6 +1222,12 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
 
         self.checkers = checker_list
         self.op_str = op_str
+
+    def get_all_events(self):
+        events = set()
+        for checker in self.checkers:
+            events.update(checker.get_all_events())
+        return events
 
     @classmethod
     def from_events(cls, events):
