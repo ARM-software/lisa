@@ -600,7 +600,7 @@ class _DefaultType:
     When assigning the Default singleton to an attribute, it will:
 
     - Check if the attribute already exists. If yes, its value is retained.
-    - Otherwise, lookup the attribute in the :attr:`attr_init` dict of the class.
+    - Otherwise, lookup the attribute in the ``attr_init`` dict of the class.
 
     This behaviour allows setting a default value to an attribute, without
     overwriting a pre-existing value. Partial reinitialization of deserialized
@@ -629,10 +629,10 @@ class SerializableMeta(type):
     """
     Metaclass for all serializable classes.
 
-    It ensures the class will always have a :attr:`name` and :attr:`cat`
-    attributes, as well as constructing a ChainMap from the :attr:`attr_init`
+    It ensures the class will always have a ``name`` and ``cat``
+    attributes, as well as constructing a ChainMap from the ``attr_init``
     dictionaries of its base classes. That means that usual inheritance rules
-    will apply to the content of :attr:`attr_init` .
+    will apply to the content of ``attr_init`` .
     """
 
     def __init__(self, *args, **kwargs):
@@ -676,7 +676,7 @@ class Serializable(metaclass=SerializableMeta):
     """
     Base class of all serializable classes.
 
-    Subclasses MUST implement a :attr:`yaml_tag` class attribute, in order to
+    Subclasses MUST implement a ``yaml_tag`` class attribute, in order to
     have a stable tag associated with them that can survive accross class
     renames and refactoring.
     """
@@ -723,14 +723,14 @@ class Serializable(metaclass=SerializableMeta):
         Determine what state must be preserved when the instance is serialized.
 
         Attributes with a value equal to the corresponding value in
-        :attr:`attr_init` will not be serialized, since they will be recreated
+        ``attr_init`` will not be serialized, since they will be recreated
         when the instance is deserialized. That limits the number of attributes
         that are actually stored, thereby limiting the scope of backward
         compatibility issues.  It also means that an update to the code could
         change the default value, so the deserialized instance will not
         necessarily be equal to the serialized one.
 
-        Attributes listed in :attr:`dont_save` will not be serialized.
+        Attributes listed in ``dont_save`` will not be serialized.
         """
         cls = type(self)
         attr_init_map = cls.attr_init
@@ -751,8 +751,8 @@ class StepResultBase(Serializable):
     """
     Base class of all step results.
 
-    Step results are returned by the :meth:`run` method of steps.
-    It must implement :attr:`bisect_ret` containing a value of :class:`BisectRet` .
+    Step results are returned by the :meth:`StepBase.run` method of steps.
+    It must implement ``bisect_ret`` containing a value of :class:`BisectRet` .
     """
 
     def filtered_bisect_ret(self, steps_filter=None):
@@ -897,12 +897,14 @@ def write_stdout(txt):
     LOG_FILE.buffer.flush()
 
 def call_process(cmd, *args, merge_stderr=True, **kwargs):
-    """Call a given command with the given arguments and return its standard output.
+    """
+    Call a given command with the given arguments and return its standard
+    output.
 
     :param cmd: name of the command to run
     :param args: command line arguments passed to the command
     :param merge_stderr: merge stderr with stdout.
-    :param kwargs: parameters passed to :meth:`subprocess.check_output`
+    :param kwargs: parameters passed to :func:`subprocess.check_output`
     """
     cmd = tuple(str(arg) for arg in cmd)
     if merge_stderr:
@@ -953,7 +955,7 @@ def get_steps_kwarg_parsers(cls, method_name):
     Analyze a method to extract the parameters with command line parsers.
 
     The parser must be a :class:`Param` so it handles parsing of arguments
-    coming from the command line. It must be specified in the :attr:`options`
+    coming from the command line. It must be specified in the ``options``
     class attribute.
 
     :param method_name: name of the method to analyze
@@ -1004,8 +1006,8 @@ class StepMeta(abc.ABCMeta, type(Serializable)):
     """
     Metaclass of all steps.
 
-    Wraps :meth:`__init__` and :meth:`report` to preprocess the values
-    of the parameters annotated with a command line option parser.
+    Wraps ``__init__()`` and ``report()`` to preprocess the values of the
+    parameters annotated with a command line option parser.
     """
     def __new__(meta_cls, name, bases, dct):
         # Wrap some methods to preprocess some parameters that have a parser
@@ -1107,7 +1109,7 @@ class StepABC(Serializable, metaclass=StepMeta):
         """
         Display the list of results gathered when executing :meth:`run`.
 
-        Keyword-only parameters are supported as for :meth:`__init__`
+        Keyword-only parameters are supported as for ``__init__()``
         """
         pass
 
@@ -1240,7 +1242,7 @@ class StepBase(StepABC):
         return out
 
     def _run_cmd(self, i_stack, env=None):
-        """Run :attr:`cmd` command and records the result."""
+        """Run ``cmd`` command and records the result."""
 
         res_list = list()
 
@@ -2340,6 +2342,10 @@ class LISATestStep(ShellStep):
     result directory and record its path. It will also define some environment
     variables that are expected to be used by the command to be able to locate
     resources to collect.
+
+    .. deprecated:: 1.0
+        This class is designed for legacy LISA, use
+        :class:`ExekallLISATestStep` for current LISA instead.
     """
 
     yaml_tag = '!LISA-test-step'
@@ -2959,7 +2965,7 @@ def get_class(full_qual_name):
                            for serialization, e.g.:
                            /path/to/mod.py:mymodule.LISA-step
                            Note: the name is not the Python class name, but the
-                           value of the :attr:`name` attribute of the class.
+                           value of the ``name`` attribute of the class.
                            The path to the script can be omitted if the module
                            is directly importable (i.e. in sys.path). The module
                            can be omitted for class names that are already
@@ -4048,7 +4054,7 @@ class Report(Serializable):
         """Save the report to the specified path.
 
         :param path: Used to save the report is not None, otherwise use the
-                     existing :attr:`path` attribute.
+             existing ``path`` attribute.
 
         """
         if path:
@@ -4342,7 +4348,10 @@ def get_dbus_bus():
     return pydbus.SessionBus()
 
 def dbus_variant(v):
-    "Build a :class:`Glib.Variant` instance out of a Python object."
+    """
+    Build a :class:`gi.repository.Glib.Variant` instance out of a Python
+    object.
+    """
     if isinstance(v, str):
         v = GLib.Variant('s', v)
     # Signed 64 bits value for integers.
@@ -4361,8 +4370,8 @@ def dbus_variant(v):
 
 def dbus_variant_dict(dct):
     """
-    Build a dictionary with :class:`GLib.Variant` values, so it can be used to
-    create DBus types a{sv} objects.
+    Build a dictionary with :class:`gi.repository.GLib.Variant` values, so it
+    can be used to create DBus types a{sv} objects.
     """
     return {k: dbus_variant(v) for k, v in dct.items()}
 
@@ -5088,9 +5097,9 @@ def _main(argv):
     global SHOW_TRACEBACK
 
     parser = argparse.ArgumentParser(description="""
-    Git-bisect-compatible command driver.
+    Git-bisect-compatible command sequencer.
 
-    This script allows to run commands with timeout handling in predefined
+    bisector allows to run commands with timeout handling in predefined
     sequences (steps). The output is saved in a report that can be later
     analyzed. The exit status of all steps is merged to obtain a git bisect
     compatible value which is returned. The error code {generic_code} is used
@@ -5135,6 +5144,9 @@ def _main(argv):
     report_parser = subparsers.add_parser('report',
         description="""Analyze a report generated by run command. The exit status
         is suitable for git bisect.
+
+        In most cases, step options (``-o``) will act as filters to ignore
+        parts of the data before computing the overall bisect result.
         """
     )
     edit_parser = subparsers.add_parser('edit',

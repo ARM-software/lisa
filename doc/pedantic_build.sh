@@ -25,7 +25,7 @@ ret=0
 
 # The documentation of those modules causes some issues,
 # be permissive for warnings related to them
-IGNORE_PATTERN="devlib|bart|wa|docutils.parsers"
+IGNORE_PATTERN="devlib|bart|wa|docutils.parsers|gi.repository"
 
 make SPHINXOPTS='-n --no-color' html 2>doc_build.log
 log=$(cat doc_build.log)
@@ -62,6 +62,7 @@ echo
 #################
 
 docs=(
+    "tools/bisector/doc/man/"
     "tools/exekall/doc/man/"
 )
 
