@@ -19,6 +19,8 @@ on top of ``exekall``. It efficiently shares as many stages as possible between
 tests to speed up the process, and it records these results in a database for
 later inspection.
 
+.. seealso:: :ref:`exekall main documentation<exekall-doc>`
+
 Running tests
 +++++++++++++
 
@@ -226,6 +228,8 @@ bisector
 
 ``bisector`` allows setting up the steps of a test iteration, repeating
 them an infinite number of times (by default). 
+
+.. seealso:: :ref:`bisector main documentation<bisector-doc>`
 
 .. [#] https://git-scm.com/docs/git-bisect
 
