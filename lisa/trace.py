@@ -68,6 +68,17 @@ class TraceBase(abc.ABC):
         """
         Store the time between each event in a new dataframe column
 
+        This function assumes that at time [n] the event starts and at [n+1]
+        the event stops, so the formula for the returned value is::
+
+                  |        |            |
+                  |        |            |
+                  |        |            |
+            ------+--------+------------+------
+                [n-1]     [n]         [n+1]
+
+            delta[n] = index[n+1] - index[n]
+
         :param df: The DataFrame to operate one
         :type df: pandas.DataFrame
 
