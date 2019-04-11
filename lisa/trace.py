@@ -91,7 +91,8 @@ class TraceBase(abc.ABC):
         if not inplace:
             df = df.copy()
 
-        df.loc[df.index[:-1], col_name] = df.index.values[1:] - df.index.values[:-1]
+        df[col_name] = df.index
+        df[col_name] = df[col_name].diff().shift(-1)
         # Fix the last event, which will have a NaN duration
         # Set duration to trace_end - last_event
         df.loc[df.index[-1], col_name] = self.end - df.index[-1]
