@@ -468,14 +468,14 @@ class ExpressionBase(ExprHelpers):
             id = hex(id(self))
         )
 
-    def get_structure(self, full_qual=True, graphviz=False):
+    def format_structure(self, full_qual=True, graphviz=False):
         if graphviz:
-            return self._get_graphviz_structure(full_qual, level=0, visited=set())
+            return self._format_graphviz_structure(full_qual, level=0, visited=set())
         else:
-            return self._get_structure(full_qual=full_qual)
+            return self._format_structure(full_qual=full_qual)
 
     @staticmethod
-    def _get_structure_op_name(op):
+    def _format_structure_op_name(op):
         if isinstance(op, ConsumerOperator):
             return op.get_name(full_qual=True)
         elif isinstance(op, PrebuiltOperator):
@@ -483,17 +483,17 @@ class ExpressionBase(ExprHelpers):
         else:
             return op.get_name(full_qual=True)
 
-    def _get_structure(self, full_qual=True, indent=1):
+    def _format_structure(self, full_qual=True, indent=1):
         indent_str = 4 * ' ' * indent
 
-        op_name = self._get_structure_op_name(self.op)
+        op_name = self._format_structure_op_name(self.op)
         out = '{op_name} ({value_type_name})'.format(
             op_name = op_name,
             value_type_name = utils.get_name(self.op.value_type, full_qual=full_qual),
         )
         if self.param_map:
             out += ':\n'+ indent_str + ('\n'+indent_str).join(
-                '{param}: {desc}'.format(param=param, desc=desc._get_structure(
+                '{param}: {desc}'.format(param=param, desc=desc._format_structure(
                     full_qual=full_qual,
                     indent=indent+1
                 ))
@@ -501,13 +501,13 @@ class ExpressionBase(ExprHelpers):
             )
         return out
 
-    def _get_graphviz_structure(self, full_qual, level, visited):
+    def _format_graphviz_structure(self, full_qual, level, visited):
         if self in visited:
             return ''
         else:
             visited.add(self)
 
-        op_name = self._get_structure_op_name(self.op)
+        op_name = self._format_structure_op_name(self.op)
 
         # Use the Python id as it is guaranteed to be unique during the lifetime of
         # the object, so it is a good candidate to refer to a node
@@ -537,7 +537,7 @@ class ExpressionBase(ExprHelpers):
                 )
 
                 out.append(
-                    param_expr._get_graphviz_structure(
+                    param_expr._format_graphviz_structure(
                         full_qual=full_qual,
                         level=level+1,
                         visited=visited,
@@ -728,7 +728,7 @@ class ExpressionBase(ExprHelpers):
                 '#'*80 + '\n# Computed expressions:' +
                 make_comment(expr.get_id(mark_excep=True, full_qual=False))
                 + '\n' +
-                make_comment(expr.get_structure()) + '\n\n'
+                make_comment(expr.format_structure()) + '\n\n'
             )
             idt = IndentationManager(' '*4)
 

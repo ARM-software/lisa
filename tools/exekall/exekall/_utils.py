@@ -670,7 +670,7 @@ def disable_gc():
         gc.enable()
 
 def render_graphviz(expr):
-    graphviz = expr.get_structure(graphviz=True)
+    graphviz = expr.format_structure(graphviz=True)
     with tempfile.NamedTemporaryFile('wt') as f:
         f.write(graphviz)
         f.flush()

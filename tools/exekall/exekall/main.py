@@ -796,7 +796,7 @@ def do_run(args, parser, run_parser, argv):
             out(expr.get_id(**id_kwargs))
 
             if verbose >= 2:
-                out(expr.get_structure() + '\n')
+                out(expr.format_structure() + '\n')
 
         formatted_out = adaptor.format_expr_list(expr_list, verbose=verbose)
         if formatted_out:
@@ -902,7 +902,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                 with_tags=False,
                 full_qual=True,
             ) + '\n\n')
-            f.write(expr.get_structure() + '\n')
+            f.write(expr.format_structure() + '\n')
 
         is_svg, dot_output = utils.render_graphviz(expr)
         graphviz_path = expr_artifact_dir/'STRUCTURE.{}'.format(
