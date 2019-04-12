@@ -1126,6 +1126,9 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
             checker = self
         else:
             checker = AndTraceEventChecker([self, used_events])
+            # remove a layer of wrapper, since we took its used_events into
+            # account already
+            f = f.__wrapped__
 
         sig = inspect.signature(f)
         if sig.parameters:
