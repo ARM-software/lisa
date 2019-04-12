@@ -35,11 +35,18 @@ import traceback
 import types
 import uuid
 import glob
+import textwrap
+import argparse
 
 class NotSerializableError(Exception):
     pass
 
-def get_class_from_name(cls_name, module_map=sys.modules):
+def get_class_from_name(cls_name, module_map=None):
+    """
+    Get a class object from its full name (including the module name).
+    """
+    # Avoid argument default value that would be huge in Sphinx doc
+    module_map = module_map if module_map is not None else sys.modules
     possible_mod_set = {
         mod_name
         for mod_name in module_map.keys()
@@ -73,9 +80,16 @@ def _get_class_from_name(cls_name, namespace):
         return obj
 
 def create_uuid():
+    """
+    Creates a UUID.
+    """
     return uuid.uuid4().hex
 
 def get_mro(cls):
+    """
+    Wrapper on top of :func:`inspect.getmro` that recognizes ``None`` as a
+    type (treated like ``type(None)``).
+    """
     if cls is type(None) or cls is None:
         return (type(None), object)
     else:
@@ -83,12 +97,25 @@ def get_mro(cls):
         return inspect.getmro(cls)
 
 def get_method_class(function):
+    """
+    Get the class of a method by analyzing its name.
+    """
     cls_name = function.__qualname__.rsplit('.', 1)[0]
     if '<locals>' in cls_name:
         return None
     return eval(cls_name, function.__globals__)
 
 def get_name(obj, full_qual=True, qual=True):
+    """
+    Get a name for ``obj`` (function or class) that can be used in a generated
+    script.
+
+    :param full_qual: Full name of the object, including its module name.
+    :type full_qual: bool
+
+    :param qual: Qualified name of the object
+    :type qual: bool
+    """
     # full_qual enabled implies qual enabled
     _qual = qual or full_qual
     # qual disabled implies full_qual disabled
@@ -124,12 +151,25 @@ def get_name(obj, full_qual=True, qual=True):
     return module_name + name
 
 def get_toplevel_module(obj):
+    """
+    Return the outermost module object in which ``obj`` is defined as a tuple
+    of source file path and line number.
+
+    This is usually a package.
+    """
     module = inspect.getmodule(obj)
     toplevel_module_name = module.__name__.split('.')[0]
     toplevel_module = sys.modules[toplevel_module_name]
     return toplevel_module
 
 def get_src_loc(obj, shorten=True):
+    """
+    Get the source code location of ``obj``
+
+    :param shorten: Shorten the paths of the source files by only keeping the
+        part relative to the top-level package.
+    :type shorten: bool
+    """
     try:
         src_line = inspect.getsourcelines(obj)[1]
         src_file = inspect.getsourcefile(obj)
@@ -174,17 +214,25 @@ def is_serializable(obj, raise_excep=False):
     else:
         return True
 
-# Call the given function at most once per set of parameters
 def once(callable_):
+    """
+    Call the given function at most once per set of parameters
+    """
     return functools.lru_cache(maxsize=None, typed=True)(callable_)
 
 def remove_indices(iterable, ignored_indices):
+    """
+    Filter the given ``iterable`` by removing listed in ``ignored_indices``.
+    """
     return [v for i, v in enumerate(iterable) if i not in ignored_indices]
 
-# Basic reimplementation of typing.get_type_hints for Python versions that
-# do not have a typing module available, and also avoids creating Optional[]
-# when the parameter has a None default value.
 def resolve_annotations(annotations, module_vars):
+    """
+    Basic reimplementation of typing.get_type_hints.
+
+    Some Python versions do not have a typing module available, and it also
+    avoids creating ``Optional[]`` when the parameter has a None default value.
+    """
     return {
         # If we get a string, evaluate it in the global namespace of the
         # module in which the callable was defined
@@ -193,6 +241,9 @@ def resolve_annotations(annotations, module_vars):
     }
 
 def get_module_basename(path):
+    """
+    Get the module name of the module defined in source ``path``.
+    """
     path = pathlib.Path(path)
     module_name = inspect.getmodulename(str(path))
     # This is either garbage or a package
@@ -201,6 +252,15 @@ def get_module_basename(path):
     return module_name
 
 def iterate_cb(iterator, pre_hook=None, post_hook=None):
+    """
+    Iterate over ``iterator``, and  call some callbacks.
+
+    :param pre_hook: Callback called right before getting a new value.
+    :type pre_hook: collections.abc.Callable
+
+    :param post_hook: Callback called right after getting a new value.
+    :type post_hook: collections.abc.Callable
+    """
     with contextlib.suppress(StopIteration):
         for i in itertools.count():
             # Do not execute pre_hook on the first iteration
@@ -213,14 +273,29 @@ def iterate_cb(iterator, pre_hook=None, post_hook=None):
             yield val
 
 def format_exception(e):
+    """
+    Format the traceback of the exception ``e`` in a string.
+    """
     elements = traceback.format_exception(type(e), e, e.__traceback__)
     return ''.join(elements)
 
 
 # Logging level above CRITICAL that is always displayed and used for output
 LOGGING_OUT_LEVEL = 60
+"""
+Log level used for the ``OUT`` level.
+
+This allows sending all the output through the logging module instead of using
+:func:`print`, so it can easily be recorded to a file
+"""
 
 class ExekallFormatter(logging.Formatter):
+    """
+    Custom :class:`logging.Formatter` that takes care of ``OUT`` level.
+
+    This ``OUT`` level allows using :mod:`logging` instead of :func:`print` so
+    it can be redirected to a file easily.
+    """
     def __init__(self, fmt, *args, **kwargs):
         self.default_fmt = logging.Formatter(fmt, *args, **kwargs)
         self.out_fmt = logging.Formatter('%(message)s', *args, **kwargs)
@@ -234,6 +309,24 @@ class ExekallFormatter(logging.Formatter):
             return self.default_fmt.format(record)
 
 def setup_logging(log_level, debug_log_file=None, info_log_file=None, verbose=0):
+    """
+    Setup the :mod:`logging` module.
+
+    :param log_level: Lowest log level name to display.
+    :type log_level: str
+
+    :param debug_log_file: Path to a file where logs are collected at the
+        ``DEBUG`` level.
+    :type debug_log_file: str
+
+    :param info_log_file: Path to a file where logs are collected at the
+        ``INFO`` level.
+    :type info_log_file: str
+
+    :param verbose: Verbosity level. The format string for log entries will
+        contain more information when the level increases.`
+    :type verbose: int
+    """
     logging.addLevelName(LOGGING_OUT_LEVEL, 'OUT')
     level=getattr(logging, log_level.upper())
 
@@ -268,6 +361,11 @@ def setup_logging(log_level, debug_log_file=None, info_log_file=None, verbose=0)
 EXEKALL_LOGGER  = logging.getLogger('EXEKALL')
 
 def out(msg):
+    """
+    To be used as a replacement of :func:`print`.
+
+    This allows easy redirection of the output to a file.
+    """
     EXEKALL_LOGGER.log(LOGGING_OUT_LEVEL, msg)
 
 def info(msg):
@@ -333,6 +431,13 @@ def infer_mod_name(python_src):
     return module_name
 
 def find_customization_module_set(module_set):
+    """
+    Find all customization modules, where subclasses of
+    :class:`exekall.customization.AdaptorBase` are expected to be found.
+
+    It looks for modules named ``exekall_customize`` present in any enclosing
+    package of modules in ``module_set``.
+    """
     def build_full_names(l_l):
         """Explode list of lists, and build full package names."""
         for l in l_l:
@@ -373,6 +478,11 @@ def find_customization_module_set(module_set):
     return customization_module_set
 
 def import_paths(paths):
+    """
+    Import the modules in the given list of paths.
+
+    If a folder is passed, all Python sources are recursively imported.
+    """
     def import_it(path):
         # Recursively import all modules when passed folders
         if path.is_dir():
@@ -388,6 +498,21 @@ def import_paths(paths):
     ))
 
 def import_file(python_src, module_name=None, is_package=False):
+    """
+    Import a module.
+
+    :param python_src: Path to a Python source file.
+    :type python_src: str or pathlib.Path
+
+    :param module_name: Name under which to import the module. If ``None``, the
+        name is inferred using :func:`infer_mod_name`
+    :type module_name: str
+
+    :param is_package: ``True`` if the module is a package. If a folder or
+        ``__init__.py`` is passed, this is forcefully set to ``True``.
+    :type is_package: bool
+
+    """
     python_src = pathlib.Path(python_src).resolve()
 
     # Directly importing __init__.py does not really make much sense and may
@@ -459,6 +584,9 @@ def import_file(python_src, module_name=None, is_package=False):
     return module
 
 def flatten_seq(seq, levels=1):
+    """
+    Flatten a nested sequence, up to ``levels`` levels.
+    """
     if levels == 0:
         return seq
     else:
@@ -466,11 +594,20 @@ def flatten_seq(seq, levels=1):
         return flatten_seq(seq, levels=levels - 1)
 
 def take_first(iterable):
+    """
+    Pick the first item of ``iterable``.
+    """
     for i in iterable:
         return i
     return NoValue
 
 class _NoValueType:
+    """
+    Type of the :attr:`NoValue` singleton.
+
+    This is mostly used like ``None``, in places where ``None`` may be an
+    acceptable value.
+    """
     # Use a singleton pattern to make sure that even deserialized instances
     # will be the same object
     def __new__(cls):
@@ -497,6 +634,9 @@ class _NoValueType:
         return type(self) is type(other)
 
 NoValue = _NoValueType()
+"""
+Singleton with similar purposes as ``None``.
+"""
 
 
 class RestartableIter:
@@ -528,6 +668,19 @@ class RestartableIter:
 
 
 def get_froz_val_set_set(db, uuid_seq=None, type_pattern_seq=None):
+    """
+    Get a set of sets of :class:`exekall.engine.FrozenExprVal`.
+
+    :param db: :class:`exekall.engine.ValueDB` to look into
+    :type db: exekall.engine.ValueDB
+
+    :param uuid_seq: Sequence of UUIDs to select.
+    :type uuid_seq: list(str)
+
+    :param type_pattern_seq: Sequence of :func:`fnmatch.fnmatch` patterns
+        matching type names (including module name).
+    :type type_pattern_seq: list(str)
+    """
 
     def uuid_predicate(froz_val):
         return froz_val.uuid in uuid_seq
@@ -551,7 +704,9 @@ def get_froz_val_set_set(db, uuid_seq=None, type_pattern_seq=None):
     return db.get_by_predicate(predicate, flatten=False, deduplicate=True)
 
 def match_base_cls(cls, pattern_list):
-    # Match on the name of the class of the object and all its base classes
+    """
+    Match the name of the class of the object and all its base classes.
+    """
     for base_cls in get_mro(cls):
         base_cls_name = get_name(base_cls, full_qual=True)
         if not base_cls_name:
@@ -562,6 +717,11 @@ def match_base_cls(cls, pattern_list):
     return False
 
 def match_name(name, pattern_list):
+    """
+    Return ``True`` if ``name`` is matched by any pattern in ``pattern_list``.
+
+    If a pattern starts with ``!``, it is taken as a negative pattern.
+    """
     if name is None:
         return False
 
@@ -596,6 +756,9 @@ def match_name(name, pattern_list):
     return (check(pos_patterns, identity) and check(neg_patterns, invert))
 
 def get_common_base(cls_list):
+    """
+    Get the most derived common base class of classes in ``cls_list``.
+    """
     # MRO in which "object" will appear first
     def rev_mro(cls):
         return reversed(inspect.getmro(cls))
@@ -613,15 +776,19 @@ def get_common_base(cls_list):
     return functools.reduce(common, cls_list)
 
 def get_subclasses(cls):
+    """
+    Get all the (direct and indirect) subclasses of ``cls``.
+    """
     subcls_set = {cls}
     for subcls in cls.__subclasses__():
         subcls_set.update(get_subclasses(subcls))
     return subcls_set
 
 def get_recursive_module_set(module_set, package_set):
-    """Retrieve the set of all modules recurisvely imported from the modules in
-    `module_set`, if they are (indirectly) part of one of the packages named in
-    `package_set`.
+    """
+    Retrieve the set of all modules recursively imported from the modules in
+    ``module_set`` if they are (indirectly) part of one of the packages named
+    in ``package_set``.
     """
 
     recursive_module_set = set()
@@ -655,7 +822,7 @@ def disable_gc():
     Context manager to disable garbage collection.
 
     This can result in significant speed-up in code creating a lot of objects,
-    like ``pickle.load()``.
+    like :func:`pickle.load`.
     """
     if not gc.isenabled():
         yield
@@ -668,7 +835,16 @@ def disable_gc():
         gc.enable()
 
 def render_graphviz(expr):
-    graphviz = expr.get_structure(graphviz=True)
+    """
+    Render the structure of an expression as a graphviz description or SVG.
+
+    :returns: A tuple(bool, content) where the boolean is ``True`` if SVG could
+        be rendered or ``False`` if it still a graphviz description.
+
+    :param expr: Expression to render
+    :type expr: exekall.engine.ExpressionBase
+    """
+    graphviz = expr.format_structure(graphviz=True)
     with tempfile.NamedTemporaryFile('wt') as f:
         f.write(graphviz)
         f.flush()
@@ -686,3 +862,16 @@ def render_graphviz(expr):
             return (True, svg)
 
         return (False, graphviz)
+
+def add_argument(parser, *args, help, **kwargs):
+    """
+    Equivalent to :meth:`argparse.ArgumentParser.add_argument`, with ``help``
+    formatting.
+
+    This allows using parsers setup using raw formatters.
+    """
+    if help is not argparse.SUPPRESS:
+        help=textwrap.dedent(help)
+        # Preserve all new lines where there are, and only wrap the other lines.
+        help='\n'.join(textwrap.fill(line) for line in help.splitlines())
+    return parser.add_argument(*args, **kwargs, help=help)

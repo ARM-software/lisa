@@ -182,20 +182,20 @@ class RegressionResult:
 def compute_regressions(old_list, new_list, remove_tags=[], **kwargs):
     """
     Compute a list of :class:`RegressionResult` out of two lists of
-    :class:`exekall.engine.FrozenVal`.
+    :class:`exekall.engine.FrozenExprVal`.
 
     The tests are first grouped by their ID, and then a
     :class:`RegressionResult` is computed for each of these ID.
 
-    :param old_list: old series of :class:`exekall.engine.FrozenVal`.  Values
+    :param old_list: old series of :class:`exekall.engine.FrozenExprVal`.  Values
         with a UUID that is also present in `new_list` will be removed from
         that list before the regressions are computed.
-    :type old_list: list(exekall.engine.FrozenVal)
+    :type old_list: list(exekall.engine.FrozenExprVal)
 
-    :param new_list: new series of :class:`exekall.engine.FrozenVal`. Values
+    :param new_list: new series of :class:`exekall.engine.FrozenExprVal`. Values
         with a UUID that is also present in `old_list` will be removed from
         that list before the regressions are computed.
-    :type new_list: list(exekall.engine.FrozenVal)
+    :type new_list: list(exekall.engine.FrozenExprVal)
 
     :param remove_tags: remove the given list of tags from the IDs before
         computing the regression. That allows computing regressions with a
@@ -216,7 +216,7 @@ def compute_regressions(old_list, new_list, remove_tags=[], **kwargs):
             if froz_val.uuid not in excluded_uuids
         ]
 
-    # Remove from the new_list all the FrozenVal that were carried from the
+    # Remove from the new_list all the FrozenExprVal that were carried from the
     # old_list sequence. That is important since running "exekall run --load-db"
     # will contain both new and old data, so old data needs to be filtered out
     # before we can actually compare the two sets.

@@ -35,7 +35,10 @@ The following tests are available. They can be used as:
   * the individual classes/methods they are composed of can be used in custom
     scripts/jupyter notebooks (see ipynb/tests/synthetics_example.ipynb)
 
-.. include:: test_list.rst
+.. run-command::
+  :capture-stderr:
+  
+  exekall run $LISA_HOME/lisa/tests --rst-list --inject-empty-target-conf
 
 Running tests
 =============

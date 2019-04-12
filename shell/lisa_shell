@@ -45,6 +45,9 @@ export LISA_CONF=${LISA_CONF:-$LISA_HOME/target_conf.yml}
 export LISA_RESULT_ROOT=${LISA_RESULT_ROOT:-$LISA_HOME/results}
 export EXEKALL_ARTIFACT_ROOT=${EXEKALL_ARTIFACT_ROOT:-$LISA_RESULT_ROOT}
 
+# Add our man pages
+export MANPATH="$MANPATH:$LISA_HOME/doc/"
+
 ################################################################################
 # Helpers
 ################################################################################

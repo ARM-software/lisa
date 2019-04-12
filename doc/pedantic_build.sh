@@ -17,9 +17,15 @@
 
 #!/bin/bash
 
+ret=0
+
+##############################
+# Build the main documentation
+##############################
+
 # The documentation of those modules causes some issues,
 # be permissive for warnings related to them
-IGNORE_PATTERN="devlib|bart|wa|exekall.engine"
+IGNORE_PATTERN="devlib|bart|wa|docutils.parsers|gi.repository"
 
 make SPHINXOPTS='-n --no-color' html 2>doc_build.log
 log=$(cat doc_build.log)
@@ -40,11 +46,28 @@ else
     echo "Ignored warnings:"
     echo
     echo "$ignored_warns"
-    ret=0
 fi
 
 echo
 echo "Sphinx log:"
 echo
 echo "$log"
+
+echo
+echo "Building man pages"
+echo
+
+#################
+# Build man pages
+#################
+
+docs=(
+    "tools/bisector/doc/man/"
+    "tools/exekall/doc/man/"
+)
+
+for doc in "${docs[@]}"; do
+    sphinx-build "$LISA_HOME/$doc" "$LISA_HOME/doc/man1" -Enab man || ret=2
+done
+
 exit $ret

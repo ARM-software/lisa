@@ -33,9 +33,16 @@ import exekall._utils as utils
 from exekall._utils import NoValue
 
 class NoOperatorError(Exception):
+    """
+    Exception raised when no operator has been found to build objects of a
+    needed type.
+    """
     pass
 
 class IndentationManager:
+    """
+    Manage the indentation level in a generated script.
+    """
     def __init__(self, style):
         self.style = style
         self.level = 0
@@ -50,6 +57,27 @@ class IndentationManager:
         return str(self.style) * self.level
 
 class ValueDB:
+    """
+    Serializable object that contains a graph of :class:`FrozenExprVal`.
+
+    This allows storing all the objects computed for each subexpression that
+    was executed for later inspection.
+
+    :param froz_val_seq_list: List of :class:`FrozenExprValSeq` to store at the
+        root of the database.
+    :type froz_val_seq_list: list(FrozenExprValSeq)
+
+    :param adaptor_cls: A subclass of
+        :class:`exekall.customization.AdaptorBase` that was used when setting
+        up the expressions. This class can provide hooks that are called when
+        deserializing the database.
+    :type adaptor_cls: type
+
+
+    The values of each expression is recorded in a root list of
+    :class:`FrozenExprValSeq`.
+
+    """
     # Version 4 is available since Python 3.4 and improves a bit loading and
     # dumping speed.
     PICKLE_PROTOCOL = 4
@@ -112,6 +140,14 @@ class ValueDB:
 
     @classmethod
     def merge(cls, db_list):
+        """
+        Merge multiple databases together.
+
+        When two different :class:`FrozenExprVal` are available for a given
+        UUID, the one that contains the most information will be selected.
+        This allows natural removal of values created using an
+        :class:`PrebuiltOperator` when the original object is also available.
+        """
         db_list = list(db_list)
         adaptor_cls_set = {
             db.adaptor_cls
@@ -129,6 +165,22 @@ class ValueDB:
 
     @classmethod
     def from_path(cls, path, relative_to=None):
+        """
+        Deserialize a :class:`ValueDB` from a file.
+
+        At the moment, it is assumed to be an LZMA compressed Pickle file.
+
+        :param path: Path to the file containing the serialized
+            :class:`ValueDB`.
+        :type path: str or pathlib.Path
+
+        :param relative_to: If provided, ``path`` is interpreted as being
+            relative to that folder, or to the containing folder if it is a
+            file. This is mainly used to ease generation of scripts that can
+            provide ``relative_to=__file__`` so that the artifact folder can be
+            moved around easily.
+        :type relative_to: str or pathlib.Path
+        """
         if relative_to is not None:
             relative_to = pathlib.Path(relative_to).resolve()
             if not relative_to.is_dir():
@@ -161,6 +213,9 @@ class ValueDB:
         return db
 
     def __reduce_ex__(self, protocol):
+        """
+        Provide custom serialization that will call the adaptor's hooks.
+        """
         return (self._reload_serialized, (self.__dict__,))
 
     @staticmethod
@@ -178,7 +233,8 @@ class ValueDB:
         :type path: pathlib.Path or str
 
         :param optimize: Optimize the representation of the DB. This may
-            increase the dump time, but should speed-up loading/file size.
+            increase the dump time and memory consumption, but should speed-up
+            loading/file size.
         :type optimize: bool
         """
         if optimize:
@@ -230,11 +286,18 @@ class ValueDB:
         return updated_froz_val
 
     def get_by_uuid(self, uuid):
+        """
+        Get a :class:`FrozenExprVal` by its UUID.
+        """
         return self._uuid_map[uuid]
 
     def get_by_predicate(self, predicate, flatten=True, deduplicate=False):
         """
-        Get objects matching the predicate.
+        Get :class:`FrozenExprVal` matching the predicate.
+
+        :param predicate: Predicate callable called with an instance of
+            :class:`FrozenExprVal`. If it returns True, the value is selected.
+        :type predicate: collections.abc.Callable
 
         :param flatten: If False, return a set of frozenset of objects.
             There is a frozenset set for each expression result that shared
@@ -282,6 +345,18 @@ class ValueDB:
             return froz_val_set_set
 
     def get_roots(self, flatten=True):
+        """
+        Get all the root :class:`FrozenExprVal`.
+
+        :param flatten: If True, a set of :class:`FrozenExprVal` is returned,
+            otherwise a set of frozensets of :class:`FrozenExprVal` is returned.
+            Each set will correspond to an expression, and values inside the
+            frozenset will correspond to the values of that expression.
+        :type flatten: bool
+
+        Root values are the result of full expression (as opposed to
+        subexpressions).
+        """
         froz_val_set_set = {
             frozenset(froz_val_seq)
             for froz_val_seq in self.froz_val_seq_list
@@ -292,6 +367,17 @@ class ValueDB:
             return froz_val_set_set
 
     def prune_by_predicate(self, predicate):
+        """
+        Create a new :class:`ValueDB` with all :class:`FrozenExprVal` matching
+        the predicate replaced by a terminal :class:`PrunedFrozVal`.
+
+        :param predicate: Predicate callable called with an instance of
+            :class:`FrozenExprVal`. If it returns True, the value is pruned out.
+        :type predicate: collections.abc.Callable
+
+        This allows trimming a :class:`ValueDB` to a smaller size by removing
+        non-necessary content.
+        """
         def prune(froz_val):
             if isinstance(froz_val, PrunedFrozVal):
                 return froz_val
@@ -336,26 +422,81 @@ class ValueDB:
         )
 
     def get_all(self, **kwargs):
+        """
+        Get all :class:`FrozenExprVal` contained in this database.
+
+        :param kwargs: Keyword arguments forwarded to
+            :meth:`ValueDB.get_by_predicate`
+        :type kwargs: dict
+        """
         return self.get_by_predicate(lambda froz_val: True, **kwargs)
 
     def get_by_type(self, cls, include_subclasses=True, **kwargs):
+        """
+        Get all :class:`FrozenExprVal` contained in this database which value
+        has the specified type.
+
+        :param cls: Class to match.
+        :type cls: type
+
+        :param include_subclasses: If True, the check is done using
+            ``isinstance``, otherwise an exact type check is done using ``is``.
+        :type include_subclasses: bool
+
+        :param kwargs: Keyword arguments forwarded to
+            :meth:`ValueDB.get_by_predicate`
+        :type kwargs: dict
+
+        .. note:: If a subexpressions had a :class:`exekall._utils.NoValue`
+            value, it will not be selected as type matching is done on the
+            value itself, not the return type of the callable used for that sub
+            expression.
+        """
         if include_subclasses:
             predicate = lambda froz_val: isinstance(froz_val.value, cls)
         else:
             predicate = lambda froz_val: type(froz_val.value) is cls
         return self.get_by_predicate(predicate, **kwargs)
 
-    def get_by_id(self, id_, qual=False, full_qual=False, **kwargs):
+    def get_by_id(self, id_pattern, qual=False, full_qual=False, **kwargs):
+        """
+        Get all :class:`FrozenExprVal` contained in this database which ID
+        matches the given pattern.
+
+        :param id_pattern: :func:`fnmatch.fnmatch` pattern used to match the ID.
+        :type id_pattern: str
+
+        :param qual: If True, the match will be performed on the qualified ID.
+        :type qual: bool
+
+        :param full_qual: If True, the match will be performed on the fully
+            qualified ID.
+        :type full_qual: bool
+
+        :param kwargs: Keyword arguments forwarded to
+            :meth:`ValueDB.get_by_predicate`
+        :type kwargs: dict
+        """
         def predicate(froz_val):
             return utils.match_name(
                 froz_val.get_id(qual=qual, full_qual=full_qual),
-                [id_]
+                [id_pattern]
             )
 
         return self.get_by_predicate(predicate, **kwargs)
 
 
 class ScriptValueDB:
+    """
+    Class tying together a generated script and a :class:`ValueDB`.
+
+    :param db: :class:`ValueDB` used.
+    :type db: ValueDB
+
+    :param var_name: Name of the variable used to represent the
+        :class:`ValueDB` in the generated script.
+    :type var_name: str
+    """
     def __init__(self, db, var_name='db'):
         self.db = db
         self.var_name = var_name
@@ -368,10 +509,20 @@ class ScriptValueDB:
         )
 
 class CycleError(Exception):
+    """
+    Exception raised when a cyclic dependency is detected when building the
+    :class:`Expression` out of a set of callables.
+    """
     pass
 
 
 class ExprHelpers(collections.abc.Mapping):
+    """
+    Helper class used by all expression-like classes.
+
+    It mainly implements the mapping protocol, with keys being parameters and
+    values being subexpressions computing the value of these parameters.
+    """
     def __getitem__(self, k):
         return self.param_map[k]
 
@@ -391,6 +542,18 @@ class ExprHelpers(collections.abc.Mapping):
 
 
 class ExpressionBase(ExprHelpers):
+    """
+    Base class of all expressions proper.
+
+    :param op: Operator to call for that expression
+    :type op: Operator
+
+    :param param_map: Mapping of parameter names to other
+        :class:`ExpressionBase`. The mapping must maintain its order, so that
+        it is possible to get the parameter list in the order it was defined in
+        the sources.
+    :type param_map: collections.OrderedDict
+    """
     def __init__(self, op, param_map):
         self.op = op
         # Map of parameters to other Expression
@@ -399,8 +562,8 @@ class ExpressionBase(ExprHelpers):
     @classmethod
     def cse(cls, expr_list):
         """
-        Apply a flavor of common subexpressions elimination to the
-        Expression.
+        Apply a flavor of common subexpressions elimination to the list of
+        :class:`ExpressionBase`.
         """
 
         expr_map = {}
@@ -443,6 +606,17 @@ class ExpressionBase(ExprHelpers):
         return shared_op_set
 
     def clone_by_predicate(self, predicate):
+        """
+        Create a new :class:`ExpressionBase`, with the outer levels cloned and
+        the inner sub expressions shared with the original one.
+
+        :param predicate: Predicate called on :class:`ExpressionBase` used to
+            know at what level the sub expressions should not be cloned
+            anymore, but instead shared with the original
+            :class:`ExpressionBase`. All parents of a shared expression will be
+            shared no matter what to ensure consistent expressions.
+        :type predicate: collections.abc.Callable
+        """
         shared_op_set = self._find_shared_op_set(predicate, False)
         return self._clone(shared_op_set)
 
@@ -468,14 +642,25 @@ class ExpressionBase(ExprHelpers):
             id = hex(id(self))
         )
 
-    def get_structure(self, full_qual=True, graphviz=False):
+    def format_structure(self, full_qual=True, graphviz=False):
+        """
+        Format the expression in a human readable way.
+
+        :param full_qual: If True, use fully qualified IDs.
+        :type full_qual: bool
+
+        :param graphviz: If True, return a graphviz description suitable for
+            the ``dot`` graph rendering tool.
+        :param graphviz: bool
+        """
+
         if graphviz:
-            return self._get_graphviz_structure(full_qual, level=0, visited=set())
+            return self._format_graphviz_structure(full_qual, level=0, visited=set())
         else:
-            return self._get_structure(full_qual=full_qual)
+            return self._format_structure(full_qual=full_qual)
 
     @staticmethod
-    def _get_structure_op_name(op):
+    def _format_structure_op_name(op):
         if isinstance(op, ConsumerOperator):
             return op.get_name(full_qual=True)
         elif isinstance(op, PrebuiltOperator):
@@ -483,17 +668,17 @@ class ExpressionBase(ExprHelpers):
         else:
             return op.get_name(full_qual=True)
 
-    def _get_structure(self, full_qual=True, indent=1):
+    def _format_structure(self, full_qual=True, indent=1):
         indent_str = 4 * ' ' * indent
 
-        op_name = self._get_structure_op_name(self.op)
+        op_name = self._format_structure_op_name(self.op)
         out = '{op_name} ({value_type_name})'.format(
             op_name = op_name,
             value_type_name = utils.get_name(self.op.value_type, full_qual=full_qual),
         )
         if self.param_map:
             out += ':\n'+ indent_str + ('\n'+indent_str).join(
-                '{param}: {desc}'.format(param=param, desc=desc._get_structure(
+                '{param}: {desc}'.format(param=param, desc=desc._format_structure(
                     full_qual=full_qual,
                     indent=indent+1
                 ))
@@ -501,13 +686,13 @@ class ExpressionBase(ExprHelpers):
             )
         return out
 
-    def _get_graphviz_structure(self, full_qual, level, visited):
+    def _format_graphviz_structure(self, full_qual, level, visited):
         if self in visited:
             return ''
         else:
             visited.add(self)
 
-        op_name = self._get_structure_op_name(self.op)
+        op_name = self._format_structure_op_name(self.op)
 
         # Use the Python id as it is guaranteed to be unique during the lifetime of
         # the object, so it is a good candidate to refer to a node
@@ -537,7 +722,7 @@ class ExpressionBase(ExprHelpers):
                 )
 
                 out.append(
-                    param_expr._get_graphviz_structure(
+                    param_expr._format_graphviz_structure(
                         full_qual=full_qual,
                         level=level+1,
                         visited=visited,
@@ -553,6 +738,33 @@ class ExpressionBase(ExprHelpers):
         return node_out.format(';\n'.join(line for line in out if line.strip()))
 
     def get_id(self, *args, marked_expr_val_set=set(), **kwargs):
+        """
+        Return the ID of the expression.
+
+        :param marked_expr_val_set: If True, return a two-line strings with the
+            second line containing marker characters under the ID of all
+            :class:`ExpressionBase` specified in that set.
+        :type marked_expr_val_set: set(ExpressionBase)
+
+        :param with_tags: Add the tags extracted from the values of each
+            :class:`ExprVal`.
+        :type with_tags: bool
+
+        :param qual: If True, return the qualified ID.
+        :type qual: bool
+
+        :param full_qual: If True, return the fully qualified ID.
+        :type full_qual: bool
+
+        :param style: If ``"rst"``, return a Sphinx reStructuredText string
+            with references to types.
+        :type style: str or None
+
+        :param hidden_callable_set: Hide the ID of all callables given in that
+            set, including their parent's ID.
+        :type hidden_callable_set: set(collections.abc.Callable)
+        """
+
         id_, marker = self._get_id(*args,
             marked_expr_val_set=marked_expr_val_set,
             **kwargs
@@ -695,10 +907,49 @@ class ExpressionBase(ExprHelpers):
             return (id_, marker_str)
 
     def get_script(self, *args, **kwargs):
+        """
+        Return a script equivalent to that :class:`ExpressionBase`.
+
+        :param kwargs: Keyword arguments forwarded to :meth:`get_all_script`.
+        :type kwargs: dict
+        """
         return self.get_all_script([self], *args, **kwargs)
 
     @classmethod
     def get_all_script(cls, expr_list, prefix='value', db_path='VALUE_DB.pickle.xz', db_relative_to=None, db=None, adaptor_cls=None):
+        """
+        Return a script equivalent to executing the specified
+        :class:`ExpressionBase`.
+
+        :param expr_list: List of :class:`ExpressionBase` to turn into a script
+        :type expr_list: list(ExpressionBase)
+
+        :param prefix: Prefix used to name variables containing the values of
+            expressions of ``expr_list``.
+        :type prefix: str
+
+        :param db_path: Path to the serialized :class:`ValueDB` that contains
+            the :class:`FrozenExprVal` of the expressions in ``expr_list``.
+            This is used to generate commented-out code allowing to deserialize
+            values instead of calling the operator again.
+        :type db_path: str
+
+        :param relative_to: Passed to :meth:`ValueDB.from_path` when the
+            :class:`ValueDB` is opened at the beginning of the script. This can
+            typically be set to ``__file__``, so that the script will be able
+            to refer to the :class:`ValueDB` using a relative path.
+        :type relative_to: str
+
+        :param db: :class:`ValueDB` containing the :class:`FrozenExprVal` that
+            were computed when computing expressions of ``expr_list``. If None
+            is provided, a new :class:`ValueDB` object will be built assuming
+            ``expr_list`` is a list of :class:`ComputableExpression`.
+        :type db: ValueDB or None
+
+        :param adaptor_cls: If ``db=None``, used to build a new
+            :class:`ValueDB`.
+        :type adaptor_cls: type
+        """
         assert expr_list
 
         if db is None:
@@ -728,7 +979,7 @@ class ExpressionBase(ExprHelpers):
                 '#'*80 + '\n# Computed expressions:' +
                 make_comment(expr.get_id(mark_excep=True, full_qual=False))
                 + '\n' +
-                make_comment(expr.get_structure()) + '\n\n'
+                make_comment(expr.format_structure()) + '\n\n'
             )
             idt = IndentationManager(' '*4)
 
@@ -1150,6 +1401,19 @@ class ExpressionBase(ExprHelpers):
 
 
 class ComputableExpression(ExpressionBase):
+    """
+    Expression that also contains its computed values.
+
+    :param data: :class:`ExprData` to use when computing the values of the
+        expression. The ``data`` of the root :class:`ComputableExpression` will
+        be used for all the subexpressions as well during the execution.
+    :type data: ExprData or None
+
+    .. seealso:: :class:`ExpressionBase`
+
+    Instances of this class contains values, whereas :class:`Expression` do
+    not.
+    """
     def __init__(self, op, param_map, data=None):
         self.uuid = utils.create_uuid()
         self.expr_val_seq_list = list()
@@ -1158,6 +1422,12 @@ class ComputableExpression(ExpressionBase):
 
     @classmethod
     def from_expr(cls, expr, **kwargs):
+        """
+        Build an instance from an :class:`ExpressionBase`
+
+        :param kwargs: Keyword arguments forwarded to ``__init__``
+        :type kwargs: dict
+        """
         param_map = OrderedDict(
             (param, cls.from_expr(param_expr))
             for param, param_expr in expr.param_map.items()
@@ -1170,6 +1440,12 @@ class ComputableExpression(ExpressionBase):
 
     @classmethod
     def from_expr_list(cls, expr_list):
+        """
+        Build an a list of instances from a list of :class:`ExpressionBase`.
+
+        .. note:: Common Subexpression Elimination using
+            :meth:`ExpressionBase.cse` will be applied on the resulting list.
+        """
         # Apply Common Subexpression Elimination to ExpressionBase before they
         # are run
         return cls.cse(
@@ -1183,6 +1459,18 @@ class ComputableExpression(ExpressionBase):
         )
 
     def get_id(self, mark_excep=False, marked_expr_val_set=set(), **kwargs):
+        """
+        Return the ID of the expression.
+
+        :param mark_excep: Mark expressions listed by :meth:`get_excep`.
+        :type mark_excep: bool
+
+        :param marked_expr_val_set: If ``mark_excep=False`` mark these
+            exceptions, otherwise it is ignored.
+        :type marked_expr_val_set: bool
+
+        .. seealso:: :meth:`ExpressionBase.get_id`
+        """
         # Mark all the values that failed to be computed because of an
         # exception
         marked_expr_val_set = self.get_excep() if mark_excep else marked_expr_val_set
@@ -1193,6 +1481,15 @@ class ComputableExpression(ExpressionBase):
         )
 
     def find_expr_val_seq_list(self, param_map):
+        """
+        Return a list of :class:`ExprValSeq` that were computed using the given
+        parameters.
+
+        :param param_map: Mapping of parameter names to values
+        :type param_map: collections.OrderedDict
+
+        .. note:: ``param_map`` will be checked as a subset of the parameters.
+        """
         def value_map(param_map):
             return ExprValParamMap(
                 # Extract the actual value from ExprVal
@@ -1213,6 +1510,21 @@ class ComputableExpression(ExpressionBase):
 
     @classmethod
     def execute_all(cls, expr_list, *args, **kwargs):
+        """
+        Execute all expressions of ``expr_list`` after applying Common
+        Expression Elimination and yield tuples of (:class:`ExpressionBase`,
+        :class:`ExprVal`).
+
+        :param expr_list: List of expressions to execute
+        :type expr_list: list(ExpressionBase)
+
+        :param kwargs: Keyword arguments forwarded to
+            :meth:`execute`.
+        :type kwargs: dict
+
+        .. seealso: :meth:`execute` and
+            :meth:`from_expr_list`.
+        """
         for comp_expr in cls.from_expr_list(expr_list):
             for expr_val in comp_expr.execute(*args, **kwargs):
                 yield (comp_expr, expr_val)
@@ -1265,6 +1577,16 @@ class ComputableExpression(ExpressionBase):
         return expr
 
     def prepare_execute(self):
+        """
+        Prepare the expression for execution.
+
+        This includes appropriate cloning of expressions using
+        :class:`ConsumerOperator` and :class:`ExprData`.
+
+        .. note:: Calling this method manually is only useful to get more
+            accurate graphs when showing the structure of the expression, since
+            it is done in any case by :meth:`execute`.`
+        """
         # Make sure the Expressions referencing their Consumer get
         # appropriately cloned.
         self._clone_consumer([])
@@ -1272,6 +1594,17 @@ class ComputableExpression(ExpressionBase):
         return self
 
     def execute(self, post_compute_cb=None):
+        """
+        Execute the expression and yield its :class:`ExprVal`.
+
+        :param post_compute_cb: Callback called after every computed value. It
+            takes two parameters: 1) the :class:`ExprVal` that was just
+            computed and 2) a boolean that is ``True`` if the :class:`ExprVal`
+            was merely reused and ``False`` if it was actually computed.
+        :type post_compute_cb: collections.abc.Callable
+
+        .. note:: The :meth:`prepare_execute` is called prior to executing.
+        """
         # Call it in case it was not already done.
         self.prepare_execute()
         return self._execute(post_compute_cb)
@@ -1352,18 +1685,39 @@ class ComputableExpression(ExpressionBase):
             yield from expr_val_seq.iter_expr_val()
 
     def get_all_vals(self):
+        """
+        Get all :class:`ExprVal` that were computed for that expression.
+        """
         return utils.flatten_seq(
             expr_val_seq.expr_val_list
             for expr_val_seq in self.expr_val_seq_list
         )
 
     def get_excep(self):
+        """
+        Get all :class:`ExprVal` containing an exception that are reachable
+        from :class:`ExprVal` computed for that expression.
+        """
         return set(utils.flatten_seq(
             expr_val.get_excep()
             for expr_val in self.get_all_vals()
         ))
 
 class ClassContext:
+    """
+    Collect callables and types that put together will be used to create
+    :class:`Expression`.
+
+    :param op_map: Mapping of types to list of :class:`Operator` that can
+        produce that type.
+    :type op_map: dict(type, list(Operator))
+
+    :param cls_map: Mapping of types to a list of compatible types. A common
+        "compatibility" relation is ``issubclass``. In that case, keys are
+        classes and values are the list of all (direct and indirect)
+        subclasses.
+    :type cls_map: dict(type, list(type))
+    """
     def __init__(self, op_map, cls_map):
         self.op_map = op_map
         self.cls_map = cls_map
@@ -1449,6 +1803,27 @@ class ClassContext:
 
     @classmethod
     def from_op_set(cls, op_set, forbidden_pattern_set=set(), restricted_pattern_set=set(), compat_cls=issubclass):
+        """
+        Build an :class:`ClassContext` out of a set of :class:`Operator`.
+
+        :param op_set: Set of :class:`Operator` to consider.
+        :type op_set: set(Operator)
+
+        :param forbidden_pattern_set: Set :func:`fnmatch.fnmatch` type name
+            patterns that are not allowed to be produced.
+        :type forbidden_pattern_set: set(str)
+
+        :parm restricted_pattern_set: Set of :func:`fnmatch.fnmatch`
+            :class:`Operator` ID pattern. Operators matching that pattern will
+            be the only one allowed to produce the type they are producing, or
+            any other compatible type.
+        :type restricted_pattern_set: set(str)
+
+        :param compat_cls: Callable defining the compatibility relation between
+            two classes. It will be called on two classes and shall return
+            ``True`` if the classes are compatible, ``False`` otherwise.
+        :type compat_cls: collections.abc.Callable
+        """
         # Build the mapping of compatible classes
         cls_map = cls._build_cls_map(op_set, compat_cls)
         # Build the mapping of classes to producing operators
@@ -1460,8 +1835,47 @@ class ClassContext:
             cls_map=cls_map
         )
 
-    def build_expr_list(self, result_op_seq,
+    def build_expr_list(self, result_op_set,
             non_produced_handler='raise', cycle_handler='raise'):
+        """
+        Build a list of consistent :class:`Expression`.
+
+        :param result_op_set: Set of :class:`Operator` that will constitute the
+            roots of expressions.
+        :type result_op_set: set(Operator)
+
+        :param non_produced_handler: Handler to be used when a needed type is
+            produced by no :class:`Operator`:
+
+                * ``raise``: will raise a :class:`NoOperatorError` exception
+                * ``ignore``: the expression will be ignored
+                * a callback: called with the following parameters:
+
+                    * __qualname__ of the type that cannot be produced.
+                    * name of the :class:`Operator` for which a value of the
+                      type was needed.
+                    * name of the parameter for which a value of the type was
+                      needed.
+                    * a stack (tuple) of callables which is the path leading
+                      from the root expression to the operator for which the
+                      type was needed.
+
+        :type non_produced_handler: str or collections.abc.Callable
+
+        :param cycle_handler: Handler to be used when a cycle is detected in
+            the built :class:`Expression`:
+
+                * ``raise``: will raise a :class:`CycleError` exception
+                * ``ignore``: the expression will be ignored
+                * a callback: called with a tuple of callables constituting the
+                  cycle.
+
+        :type cycle_handler: str or collections.abc.Callable
+
+        All combinations of compatible classes and operators will be generated.
+        """
+
+
         op_map = copy.copy(self.op_map)
         cls_map = {
             cls: compat_cls_set
@@ -1480,7 +1894,7 @@ class ClassContext:
         cls_map[Consumer] = [Consumer]
 
         expr_list = list()
-        for result_op in result_op_seq:
+        for result_op in result_op_set:
             expr_gen = self._build_expr(result_op, op_map, cls_map,
                 op_stack = [],
                 non_produced_handler=non_produced_handler,
@@ -1615,13 +2029,29 @@ class ClassContext:
                         yield Expression(op, param_map)
 
 class Expression(ExpressionBase):
+    """
+    Static subclass :class:`ExpressionBase` tying :class:`Operator` with its
+    parameters.
+
+    Instances of this class do not contain any computed values, they can be
+    considered as read-only structure.
+
+    .. seealso:: :class:`ComputableExpression`.
+    """
     def validate(self, op_map):
-        type_map, valid = self._get_type_map()
+        """
+        Check that the Expression does not involve two classes that are
+        compatible.
+
+        This ensures that only one class of each "category" will be used in
+        each expression, so that all references to that class will point to the
+        same expression after :meth:`ExpressionBase.cse` is applied.
+        """
+        type_map = dict()
+        valid = self._populate_type_map(type_map)
         if not valid:
             return False
 
-        # Check that the Expression does not involve 2 classes that are
-        # compatible
         cls_bags = [set(cls_list) for cls_list in op_map.values()]
         cls_used = set(type_map.keys())
         for cls1, cls2 in itertools.product(cls_used, repeat=2):
@@ -1630,10 +2060,6 @@ class Expression(ExpressionBase):
                     return False
 
         return True
-
-    def _get_type_map(self):
-        type_map = dict()
-        return (type_map, self._populate_type_map(type_map))
 
     def _populate_type_map(self, type_map):
         value_type = self.op.value_type
@@ -1650,17 +2076,41 @@ class Expression(ExpressionBase):
         return True
 
 class AnnotationError(Exception):
+    """
+    Exception raised when there is a missing PEP 484 annotation.
+    """
     pass
 
 class PartialAnnotationError(AnnotationError):
+    """
+    Exception raised when there is a missing PEP 484 annotation, but other
+    parameters are annotated.
+
+    This usually indicates a missing annotation in a function otherwise
+    supposed to be annotated.
+    """
     pass
 
 class ForcedParamType:
+    """
+    Base class for types placeholders used when forcing the value of a
+    parameter using :meth:`Operator.force_param`.
+    """
     pass
 
 class UnboundMethod:
     """
-    Wrap a function in a similar way to Python 2 unbound methods
+    Wrap a function in a similar way to Python 2 unbound methods.
+
+    :param callable_: method to wrap.
+    :type callable_: collections.abc.Callable
+
+    :param cls: Class on which the method is available.
+    :type cls: type
+
+    .. note:: It is generally assumed that if a given method is wrapped in an
+        :class:`UnboundMethod`, all subclasses will also have that method
+        wrapped the same way.
     """
     def __init__(self, callable_, cls):
         self.cls = cls
@@ -1688,6 +2138,22 @@ class UnboundMethod:
         return hash(self.__wrapped__) ^ hash(self.cls)
 
 class Operator:
+    """
+    Wrap a callable.
+
+    :param callable_: callable to represent.
+    :type callable_: collections.abc.Callable
+
+    :param non_reusable_type_set: Set of non reusable types. If the callable
+        produces a subclass of these types, it will be considered as
+        non-reusable.
+    :type non_reusable_type_set: set(type)
+
+    :param tags_getter: Callback used to get the tags for the objects returned
+        by the callable. It takes the object as argument, and is expected to
+        return a mapping of tags names to values.
+    :type tags_getter: collections.abc.Callable
+    """
     def __init__(self, callable_, non_reusable_type_set=None, tags_getter=None):
         if non_reusable_type_set is None:
             non_reusable_type_set = set()
@@ -1738,6 +2204,9 @@ class Operator:
 
     @property
     def callable_globals(self):
+        """
+        Returns a dictionnary of global variables as seen by the callable.
+        """
         globals_ = self.resolved_callable.__globals__
         # Make sure the class name can be resolved
         if isinstance(self.callable_, UnboundMethod):
@@ -1747,14 +2216,28 @@ class Operator:
 
     @property
     def signature(self):
+        """
+        :class:`inspect.Signature` of the callable.
+        """
         return inspect.signature(self.resolved_callable)
 
     def __repr__(self):
         return '<Operator of ' + str(self.callable_) + '>'
 
-    def force_param(self, param_callable_map, tags_getter=None):
+    def force_param(self, param_value_map, tags_getter=None):
+        """
+        Force the value of a given parameter of the callable.
+
+        :param param_value_map: Mapping of parameter names to list of values
+            that this parameter should take.
+        :type param_value_map: dict(str, list(object))
+
+        :param tags_getter: Callable used to return the tags for the values of
+            the parameter. Same as :class:`Operator`'s ``__init__`` parameter.
+        :type tags_getter: collections.abc.Callable
+        """
         prebuilt_op_set = set()
-        for param, value_list in param_callable_map.items():
+        for param, value_list in param_value_map.items():
             # Get the most derived class that is in common between all
             # instances
             value_type = utils.get_common_base(type(v) for v in value_list)
@@ -1798,6 +2281,10 @@ class Operator:
 
     @property
     def resolved_callable(self):
+        """
+        Fully unwrapped callable. If the callable is a class, it's ``__init__``
+        will be returned.
+        """
         unwrapped = self.unwrapped_callable
         # We use __init__ when confronted to a class
         if inspect.isclass(unwrapped):
@@ -1806,15 +2293,35 @@ class Operator:
 
     @property
     def unwrapped_callable(self):
+        """
+        Fully unwrapped callable.
+
+        .. seealso:: :func:`functools.wraps`
+        """
         return inspect.unwrap(self.callable_)
 
     def get_name(self, *args, **kwargs):
+        """
+        Get the name of the callable, or None if no name can be retrieved.
+        """
         try:
             return utils.get_name(self.callable_, *args, **kwargs)
         except AttributeError:
             return None
 
     def get_id(self, full_qual=True, qual=True, style=None):
+        """
+        Get the ID of the operator.
+
+        :param full_qual: Fully qualified name, including the module name.
+        :type full_qual: bool
+
+        :param qual: Qualified name.
+        :type qual: bool
+
+        :param style: If ``rst``, a Sphinx reStructuredText string is returned.
+        :type style: str or None
+        """
         if style == 'rst':
             if self.is_factory_cls_method:
                 qualname = utils.get_name(self.value_type, full_qual=True)
@@ -1841,14 +2348,21 @@ class Operator:
 
     @property
     def name(self):
+        """
+        Same as :meth:`get_name`
+        """
         return self.get_name()
 
     @property
-    def id_(self):
-        return self.get_id()
-
-    @property
     def mod_name(self):
+        """
+        Name of the module the callable is defined in.
+
+        If the callable is an :class:`UnboundMethod`, the module of its class
+        is returned.
+
+        .. note:: The callable is first unwrapped.
+        """
         try:
             if isinstance(self.callable_, UnboundMethod):
                 module = inspect.getmodule(self.callable_.cls)
@@ -1862,22 +2376,39 @@ class Operator:
 
     @property
     def src_loc(self):
+        """
+        Get the source location of the unwrapped callable.
+
+        .. seealso:: :func:`exekall._utils.get_src_loc`
+        """
         return utils.get_src_loc(self.unwrapped_callable)
 
     @property
     def value_type(self):
+        """
+        Annotated return type of the callable.
+        """
         return self.get_prototype()[1]
 
     @property
     def is_genfunc(self):
+        """
+        ``True`` if the callable is a generator function.
+        """
         return inspect.isgeneratorfunction(self.resolved_callable)
 
     @property
     def is_class(self):
+        """
+        ``True`` if the callable is a class.
+        """
         return inspect.isclass(self.unwrapped_callable)
 
     @property
     def is_static_method(self):
+        """
+        ``True`` if the callable is a ``staticmethod``.
+        """
         callable_ = self.unwrapped_callable
 
         try:
@@ -1907,6 +2438,9 @@ class Operator:
 
     @property
     def is_method(self):
+        """
+        ``True`` if the callable is a plain method.
+        """
         if self.is_cls_method or self.is_static_method:
             return False
         elif isinstance(self.callable_, UnboundMethod):
@@ -1925,6 +2459,9 @@ class Operator:
 
     @property
     def is_cls_method(self):
+        """
+        ``True`` if the callable is a ``classmethod``.
+        """
         # Class methods appear as a bound method object when referenced through
         # their class. The method is bound to a class, which is not the case
         # if this is not a class method.
@@ -1935,10 +2472,18 @@ class Operator:
 
     @property
     def is_factory_cls_method(self):
+        """
+        ``True`` if the callable is a factory ``classmethod``, i.e. a
+        classmethod that returns objects of the class it is defined in (or of a
+        subclass of it).
+        """
         return self.is_cls_method and issubclass(self.unwrapped_callable.__self__, self.value_type)
 
     @property
     def generator_wrapper(self):
+        """
+        Wrap the callable in a generator suitable for execution.
+        """
         if self.is_genfunc:
             @functools.wraps(self.callable_)
             def genf(*args, **kwargs):
@@ -1969,6 +2514,12 @@ class Operator:
         return genf
 
     def get_prototype(self):
+        """
+        Return the prototype of the callable as a tuple of:
+
+            * map of parameter names to types
+            * return type
+        """
         sig = self.signature
         first_param = utils.take_first(sig.parameters)
         annotations = self.annotations
@@ -2053,6 +2604,22 @@ class Operator:
         return (param_map, produced)
 
 class PrebuiltOperator(Operator):
+    """
+    :class:`Operator` that injects prebuilt objects.
+
+    :param obj_type: Type of the objects that are injected.
+    :type obj_type: type
+
+    :param obj_list: List of objects to inject
+    :type obj_list: list(object)
+
+    :param id_: ID of the operator.
+    :type id_: str or None
+
+    :param kwargs: Keyword arguments forwarded to :class:`Operator`
+        constructor.
+    :type kwargs: dict
+    """
     def __init__(self, obj_type, obj_list, id_=None, **kwargs):
         obj_list_ = list()
         uuid_list = list()
@@ -2105,6 +2672,14 @@ class PrebuiltOperator(Operator):
         return genf
 
 class ConsumerOperator(PrebuiltOperator):
+    """
+    Placeholder operator used to represent the consumer of the an expression
+    asking for it.
+
+    :param consumer: Callable that will consume the value of the expression
+        refering to its consumer.
+    :type consumer: collections.abc.Callable
+    """
     def __init__(self, consumer=None):
         obj_type = Consumer
         super().__init__(
@@ -2126,6 +2701,12 @@ class ConsumerOperator(PrebuiltOperator):
         return self.obj_list[0]
 
 class ExprDataOperator(PrebuiltOperator):
+    """
+    Placeholder operator for :class:`ExprData`.
+
+    The :class:`ExprData` that will be used is the same throughout an
+    expression, and is the one of the root expression.
+    """
     def __init__(self, data=None):
         obj_type = ExprData
         super().__init__(
@@ -2147,6 +2728,27 @@ class ExprDataOperator(PrebuiltOperator):
         pass
 
 class ExprValSeq:
+    """
+    Sequence of :class:`ExprVal` produced by an :class:`ComputableExpression`.
+
+    :param expr: :class:`ComputableExpression` that was used to compute the
+        values.
+    :type expr: ComputableExpression
+
+    :param iterator: Iterator that yields the values. This is used when the
+        expressions are being executed.
+    :type iterator: collections.abc.Iterator
+
+    :param param_map: Ordered mapping of parameters name to :class:`ExprVal`
+        used to compute the recored :class:`ExprVal`.
+    :type param_map: collections.OrderedDict
+
+    :param post_compute_cb: See :meth:`ComputableExpression.execute`
+    :type post_compute_cb: collections.abc.Callable
+
+    Since :class:`ComputableExpression` can represent generator functions, they
+    are allowed to create multiple :class:`ExprVal`.
+    """
     def __init__(self, expr, iterator, param_map, post_compute_cb=None):
         self.expr = expr
         assert isinstance(iterator, collections.abc.Iterator)
@@ -2157,6 +2759,11 @@ class ExprValSeq:
 
     @classmethod
     def from_one_expr_val(cls, expr, expr_val, param_map):
+        """
+        Build an :class:`ExprValSeq` out of a single :class:`ExprVal`.
+
+        .. seealso:: :class:`ExprValSeq` for parameters description.
+        """
         iterated = [
             (expr_val.uuid, expr_val.value, expr_val.excep)
         ]
@@ -2174,6 +2781,11 @@ class ExprValSeq:
         return new
 
     def iter_expr_val(self):
+        """
+        Iterate over the iterator and yield :class:`ExprVal`.
+
+        ``post_compute_cb`` will be called when a value is computed or reused.
+        """
         callback = self.post_compute_cb
         if not callback:
             callback = lambda x, reused: None
@@ -2217,7 +2829,19 @@ class ExprValSeq:
 
 
 class ExprValParamMap(OrderedDict):
+    """
+    Mapping of parameters to :class:`ExprVal` used when computing the value of
+    a :class:`ComputableExpression`.
+    """
     def is_partial(self, ignore_error=False):
+        """
+        Return ``True`` if the map is partial, i.e. some parameters don't have
+        a value.
+
+        That could be because one of them could not be computed due to an
+        exception, or because it was skipped since it could not lead to a
+        result anyway.
+        """
         def is_partial(expr_val):
             # Some arguments are missing: there was no attempt to compute
             # them because another argument failed to be computed
@@ -2237,6 +2861,20 @@ class ExprValParamMap(OrderedDict):
 
     @classmethod
     def from_gen_map(cls, param_gen_map):
+        """
+        Build a :class:`ExprValParamMap` out of a mapping of parameters names
+        and expressions to generators.
+
+        :param param_gen_map: Mapping of tuple(param_name, param_expr) to an
+            iterator that is ready to generate the possible values for the
+            generator.
+        :type param_gen_map: collections.OrderedDict
+
+        Generators are assumed to only yield once.
+
+        .. seealso:: :meth:`from_gen_map_product` for cases where the generator
+            is expected to yield more than once.
+        """
         # Pre-fill UnEvaluatedExprVal with in case we exit the loop early
         param_map = cls(
             (param, UnEvaluatedExprVal(param_expr))
@@ -2257,8 +2895,8 @@ class ExprValParamMap(OrderedDict):
     @classmethod
     def from_gen_map_product(cls, param_gen_map):
         """
-        Yield :class:`collections.OrderedDict` for each combination of parameter
-        values.
+        Yield :class:`collections.OrderedDict` for each combination of
+        parameter values.
 
         :param param_gen_map: Mapping of tuple(param_name, param_expr) to an
             iterator that is ready to generate the possible values for the
@@ -2338,12 +2976,33 @@ class ExprValParamMap(OrderedDict):
         return functools.reduce(reducer, reversed(gen_list), initializer())
 
 class ExprValBase(ExprHelpers):
+    """
+    Base class for classes representing the value of an expression.
+
+    :param param_map: Map of parameter names of the :class:`Operator` that gave
+        this value to their :class:`ExprValBase` value.
+    :type param_map: dict(str, ExprValBase)
+
+    :param value: Value that was computed. If no value was computed,
+        :attr:`exekall._utils.NoValue` will be used.
+    :type value: object
+
+    :param excep: Exception that was raised while computing the value. If no
+        excpetion was raised, :attr:`exekall._utils.NoValue` will be used.
+    :type value: Exception
+    """
     def __init__(self, param_map, value, excep):
         self.param_map = param_map
         self.value = value
         self.excep = excep
 
     def get_by_predicate(self, predicate):
+        """
+        Get a list of parents :class:`ExprValBase` for which the predicate
+        returns ``True``.
+
+        :type predicate: collections.abc.Callable
+        """
         return list(self._get_by_predicate(predicate))
 
     def _get_by_predicate(self, predicate):
@@ -2355,7 +3014,8 @@ class ExprValBase(ExprHelpers):
 
     def get_excep(self):
         """
-        Get all the failed parents.
+        Get all the parents :class:`ExprValBase` for which an exception was
+        raised.
         """
         def predicate(val):
             return val.excep is not NoValue
@@ -2363,6 +3023,17 @@ class ExprValBase(ExprHelpers):
         return self.get_by_predicate(predicate)
 
     def get_by_type(self, cls, include_subclasses=True, **kwargs):
+        """
+        Get a list of parents :class:`ExprValBase` having a value of the given
+        type.
+
+        :param cls: Type to look for.
+        :type cls: type
+
+        :param include_subclasses: If True, the check is done using
+            ``isinstance``, otherwise an exact type check is done using ``is``.
+        :type include_subclasses: bool
+        """
         if include_subclasses:
             predicate = lambda expr_val: isinstance(expr_val.value, cls)
         else:
@@ -2371,6 +3042,58 @@ class ExprValBase(ExprHelpers):
 
 
 class FrozenExprVal(ExprValBase):
+    """
+    Serializable version of :class:`ExprVal`.
+
+    :param uuid: UUID of the :class:`ExprVal`
+    :type uuid: str
+
+    :param callable_qualname: Qualified name of the callable that was used to
+        compute the value, including module name.
+    :type callable_qualname: str
+
+    :param callable_name: Name of the callable that was used to compute the
+        value.
+    :type callable_name: str
+
+    :param recorded_id_map: Mapping of :meth:`ExprVal.get_id` parameters to the
+        corresponding ID. The parameters
+    :type recorded_id_map: dict
+
+    The most important instance attributes are:
+
+    ..  list-table::
+        :widths: auto
+
+        * - ``value``
+          - Value that was computed, or :attr:`~exekall._utils.NoValue` if it
+            was not computed. This could be because of an exception when
+            computing it, or because computing the value was skipped.
+
+        * - ``excep``
+          - Exception that was raised when trying to compute the value, or
+            :attr:`~exekall._utils.NoValue`.
+
+        * - ``uuid``
+          - String UUID of that value. This is unique and can be used to
+            correlate with logs, or deduplicate across multiple
+            :class:`ValueDB`.
+
+
+    Since it is a subclass of :class:`ExprValBase`, the :class:`FrozenExprVal`
+    value of the parameters of the callable that was used to compute it can be
+    accessed using the subscript operator ``[]``.
+
+    Instances of this class will not refer to the callable that was used to
+    create the values, and will record the ID of the values instead of
+    recomputing it from the graph of :class:`ExpressionBase`. This allows
+    manipulating :class:`FrozenExprVal` as standalone objects, with minimal
+    references to the code, which improves robustness against API change that
+    would make deserializing them impossible.
+
+    .. seealso:: :class:`ExprValBase`
+
+    """
     def __init__(self,
             param_map, value, excep, uuid,
             callable_qualname, callable_name, recorded_id_map,
@@ -2396,6 +3119,13 @@ class FrozenExprVal(ExprValBase):
 
     @classmethod
     def from_expr_val(cls, expr_val, hidden_callable_set=None):
+        """
+        Build a :class:`FrozenExprVal` from one :class:`ExprVal`.
+
+        :param hidden_callable_set: Set of callables that should not appear in
+            the ID.
+        :type hidden_callable_set: set(collections.abc.Callable)
+        """
         value = expr_val.value if utils.is_serializable(expr_val.value) else NoValue
         excep = expr_val.excep if utils.is_serializable(expr_val.excep) else NoValue
 
@@ -2453,6 +3183,9 @@ class FrozenExprVal(ExprValBase):
         return tuple(sorted(kwargs.items()))
 
     def get_id(self, full_qual=True, qual=True, with_tags=True):
+        """
+        Return recorded IDs generated using :meth:`ExprVal.get_id`.
+        """
         full_qual = full_qual and qual
         key = self._make_id_key(
             full_qual=full_qual,
@@ -2462,6 +3195,10 @@ class FrozenExprVal(ExprValBase):
         return self.recorded_id_map[key]
 
 class PrunedFrozVal(FrozenExprVal):
+    """
+    Placeholder introduced by :meth:`ValueDB.prune_by_predicate` when a
+    :class:`FrozenExprVal` is pruned.
+    """
     def __init__(self, froz_val):
         super().__init__(
             param_map=OrderedDict(),
@@ -2474,6 +3211,19 @@ class PrunedFrozVal(FrozenExprVal):
         )
 
 class FrozenExprValSeq(collections.abc.Sequence):
+    """
+    Sequence of :class:`FrozenExprVal` analogous to :class:`ExprValSeq`.
+
+    :param froz_val_list: List of :class:`FrozenExprVal`.
+    :type froz_val_list: list(FrozenExprVal)
+
+    :param param_map: Parameter map that was used to compute the :class:`ExprVal`.
+        See :class:`ExprValSeq`.
+    :type param_map: dict
+
+    Since it inherits from :class:`collections.abc.Sequence`, it can be
+    iterated over directly.
+    """
     def __init__(self, froz_val_list, param_map):
         self.froz_val_list = froz_val_list
         self.param_map = param_map
@@ -2486,6 +3236,13 @@ class FrozenExprValSeq(collections.abc.Sequence):
 
     @classmethod
     def from_expr_val_seq(cls, expr_val_seq, **kwargs):
+        """
+        Build a :class:`FrozenExprValSeq` from an :class:`ExprValSeq`.
+
+        :param kwargs: Keyword arguments forwarded to
+            :meth:`FrozenExprVal.from_expr_val`.
+        :type kwargs: dict
+        """
         return cls(
             froz_val_list=[
                 FrozenExprVal.from_expr_val(expr_val, **kwargs)
@@ -2499,6 +3256,19 @@ class FrozenExprValSeq(collections.abc.Sequence):
 
     @classmethod
     def from_expr_list(cls, expr_list, **kwargs):
+        """
+        Build a list of :class:`FrozenExprValSeq` from an list of
+        :class:`ComputableExpression`.
+
+        :param expr_list: List of :class:`ComputableExpression` to extract the
+            :class:`ExprVal` from.
+        :type expr_list: list(ComputableExpression)
+
+        :param kwargs: Keyword arguments forwarded to
+            :meth:`from_expr_val_seq`.
+        :type kwargs: dict
+
+        """
         expr_val_seq_list = utils.flatten_seq(expr.expr_val_seq_list for expr in expr_list)
         return [
             cls.from_expr_val_seq(expr_val_seq, **kwargs)
@@ -2507,6 +3277,17 @@ class FrozenExprValSeq(collections.abc.Sequence):
 
 
 class ExprVal(ExprValBase):
+    """
+    Value computed when executing :class:`ComputableExpression`.
+
+    :param expr: Expression for which this value was computed
+    :type expr: ExpressionBase
+
+    :param uuid: UUID of the value.
+    :type uuid: str
+
+    .. seealso:: :class:`ExprValBase` for the other parameters.
+    """
     def __init__(self, expr, param_map,
         value=NoValue, excep=NoValue, uuid=None,
     ):
@@ -2515,6 +3296,9 @@ class ExprVal(ExprValBase):
         super().__init__(param_map=param_map, value=value, excep=excep)
 
     def format_tags(self):
+        """
+        Return a formatted string for the tags of that :class:`ExprVal`.
+        """
         tag_map = {
             # Make sure there are no brackets in tag values, since that
             # would break all regex parsing done on IDs.
@@ -2531,6 +3315,10 @@ class ExprVal(ExprValBase):
 
     @classmethod
     def validate(cls, expr_val_list):
+        """
+        Check that the list contains only one :class:`ExprVal` for each
+        :class:`ComputableExpression`, unless it is non reusable.
+        """
         expr_map = {}
         def update_map(expr_val1):
             # The check does not apply for non-reusable operators, since it is
@@ -2556,6 +3344,9 @@ class ExprVal(ExprValBase):
             return True
 
     def get_id(self, *args, with_tags=True, **kwargs):
+        """
+        See :class:`ExpressionBase.get_id`.
+        """
         return self.expr.get_id(
             with_tags=with_tags,
             expr_val=self,
@@ -2563,6 +3354,10 @@ class ExprVal(ExprValBase):
         )
 
 class UnEvaluatedExprVal(ExprVal):
+    """
+    Placeholder :class:`ExprVal` created when computing the value was known to
+    not lead to anything useful.
+    """
     def __init__(self, expr):
         super().__init__(
             expr=expr,
@@ -2575,10 +3370,21 @@ class UnEvaluatedExprVal(ExprVal):
         )
 
 class Consumer:
+    """
+    Placeholder type used in PEP 484 annotations by callables to refer to the
+    callable that will use their value.
+
+    .. note:: This leads to cloning the expression refering to its consumer for
+        each different consumer.
+    """
     def __init__(self):
         pass
 
 class ExprData(dict):
+    """
+    Placeholder type used in PEP 484 annotations by callables to refer to the
+    expression-wide data dictionnary.
+    """
     def __init__(self):
         super().__init__()
         self.uuid = utils.create_uuid()

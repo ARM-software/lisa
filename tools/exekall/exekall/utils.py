@@ -27,6 +27,12 @@ import exekall.engine as engine
 from exekall._utils import *
 
 def get_callable_set(module_set, verbose=False):
+    """
+    Get the set of callables defined in all modules of ``module_set``.
+
+    :param module_set: Set of modules to scan.
+    :type module_set: set(types.ModuleType)
+    """
     # We keep the search local to the packages these modules are defined in, to
     # avoid getting a huge set of uninteresting callables.
     package_set = {
@@ -103,9 +109,29 @@ def _get_callable_set(module, visited_obj_set, verbose):
                 callable_pool.add(callable_)
     return callable_pool
 
-def sweep_number(
-    callable_, param,
-    start, stop=None, step=1):
+def sweep_number(callable_, param, start, stop=None, step=1):
+    """
+    Used to generate a stream of numbers to feed to a callable.
+
+    :param callable_: Callable the numbers will be used by.
+    :type callable_: collections.abc.Callable
+
+    :param param: Name of the parameter of the callable the numbers will be
+        providing values for.
+    :type param: str
+
+    :param start: Starting value.
+    :type start: float
+
+    :param stop: End value (inclusive)
+    :type stop: float
+
+    :param step: Increment step.
+    :type step: float
+
+    The type used will either be one that is annotated on the callable, or
+    the type of the value given as ``start``.
+    """
 
     step = step if step > 0 else 1
 
@@ -126,6 +152,9 @@ def sweep_number(
         i += step
 
 def get_method_class(function):
+    """
+    Get the class in which a ``function`` is defined.
+    """
     # Unbound instance methods
     if isinstance(function, engine.UnboundMethod):
         return function.cls

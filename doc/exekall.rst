@@ -1,7 +1,14 @@
+
+.. This shim allows including the tool's documentation as one entity in LISA
+   documentation. A plain ".. include::" would break relative paths.
+   
+.. _exekall-doc:
+
 *******
 Exekall
 *******
 
-.. TODO:: write me
+.. toctree::
+   :maxdepth: 2
 
-**(This page is being worked on, come back later!)**
+   exekall/index

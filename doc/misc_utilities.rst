@@ -24,3 +24,9 @@ Utilities
 
 .. automodule:: lisa.utils
    :members:
+
+Sphinx documentation
+====================
+
+.. automodule:: lisa.doc.helpers
+   :members:

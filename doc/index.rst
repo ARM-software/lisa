@@ -25,8 +25,6 @@ via Github pull requests.
 
 Contents:
 
-.. TODO: Move wiki to here, wirte a proper module doc, proove Riemann's hypothesis
-
 .. toctree::
    :maxdepth: 2
 

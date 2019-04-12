@@ -33,7 +33,7 @@ import sys
 
 from exekall.customization import AdaptorBase
 import exekall.utils as utils
-from exekall.utils import NoValue, error, warn, debug, info, out
+from exekall.utils import NoValue, error, warn, debug, info, out, add_argument
 import exekall.engine as engine
 
 DB_FILENAME = 'VALUE_DB.pickle.xz'
@@ -197,14 +197,18 @@ PATTERNS
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
-    parser.add_argument('--debug', action='store_true',
+    add_argument(parser, '--debug', action='store_true',
         help="""Show complete Python backtrace when exekall crashes.""")
 
     subparsers = parser.add_subparsers(title='subcommands', dest='subcommand')
 
     run_parser = subparsers.add_parser('run',
     description="""
-    Run the tests
+Run expressions
+
+Note that the adaptor in the customization module is able to add more
+parameters to ``exekall run``. In order to get the complete set of options,
+please run ``exekall run YOUR_SOURCES --help``.
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
@@ -212,13 +216,13 @@ PATTERNS
     # otherwise adaptor-specific options' values will be picked up as Python
     # sources, and importing the modules will therefore fail with unknown files
     # error.
-    run_parser.add_argument('python_files', nargs='+',
+    add_argument(run_parser, 'python_files', nargs='+',
         metavar='PYTHON_SRC',
         help="""Python modules files. If passed a folder, all contained files recursively are selected. By default, the current directory is selected.""")
 
 
-    run_parser.add_argument('-s', '--select', action='append',
-        metavar='SELECT_PATTERN',
+    add_argument(run_parser, '-s', '--select', action='append',
+        metavar='ID_PATTERN',
         default=[],
         help="""Only run the expressions with an ID matching any of the supplied filters.""")
 
@@ -226,86 +230,86 @@ PATTERNS
     # repeat the option. This is mostly available to support wrapper
     # scripts, and is not recommended for direct use since it can lead to
     # some parsing ambiguities.
-    run_parser.add_argument('--select-multiple', nargs='*',
+    add_argument(run_parser, '--select-multiple', nargs='*',
         default=[],
         help=argparse.SUPPRESS,
     )
 
-    run_parser.add_argument('--list', action='store_true',
+    add_argument(run_parser, '--list', action='store_true',
         help="""List the expressions that will be run without running them.""")
 
     # Show the list of expressions in reStructuredText format, suitable for
     # inclusion in Sphinx documentation
-    run_parser.add_argument('--rst-list', action='store_true',
+    add_argument(run_parser, '--rst-list', action='store_true',
         help=argparse.SUPPRESS)
 
-    run_parser.add_argument('--log-level', default='info',
+    add_argument(run_parser, '--log-level', default='info',
         choices=('debug', 'info', 'warn', 'error', 'critical'),
         help="""Change the default log level of the standard logging module.""")
 
-    run_parser.add_argument('--verbose', '-v', action='count', default=0,
+    add_argument(run_parser, '--verbose', '-v', action='count', default=0,
         help="""More verbose output. Can be repeated for even more verbosity. This only impacts exekall output, --log-level for more global settings.""")
 
     artifact_dir_group = run_parser.add_mutually_exclusive_group()
-    artifact_dir_group.add_argument('--artifact-root',
+    add_argument(artifact_dir_group, '--artifact-root',
         default=os.getenv('EXEKALL_ARTIFACT_ROOT', 'artifacts'),
         help="Root folder under which the artifact folders will be created. Defaults to EXEKALL_ARTIFACT_ROOT env var.")
 
-    artifact_dir_group.add_argument('--artifact-dir',
+    add_argument(artifact_dir_group, '--artifact-dir',
         default=os.getenv('EXEKALL_ARTIFACT_DIR'),
         help="""Folder in which the artifacts will be stored. Defaults to EXEKALL_ARTIFACT_DIR env var.""")
 
-    run_parser.add_argument('--load-db', action='append',
+    add_argument(run_parser, '--load-db', action='append',
         default=[],
         help="""Reload a database to use some of its objects. The DB and its artifact directory will be merged in the produced DB at the end of the execution, to form a self-contained artifact directory.""")
 
-    run_parser.add_argument('--load-type', action='append',
-        metavar='LOAD_TYPE_PATTERN',
+    add_argument(run_parser, '--load-type', action='append',
+        metavar='TYPE_PATTERN',
         default=[],
         help="""Load the (indirect) instances of the given class from the database instead of the root objects.""")
 
     uuid_group = run_parser.add_mutually_exclusive_group()
 
-    uuid_group.add_argument('--load-uuid', action='append',
+    add_argument(uuid_group, '--load-uuid', action='append',
         default=[],
         help="""Load the given UUID from the database.""")
 
-    uuid_group.add_argument('--replay',
+    add_argument(uuid_group, '--replay',
         help="""Replay the execution of the given UUID, loading as much prerequisite from the DB as possible.""")
 
     # Load the parameters that were used to compute the value with the given
     # UUID from the database. This can be used as a more flexible form of
     # --replay that does not imply restricting the selection
-    uuid_group.add_argument('--load-uuid-args',
+    add_argument(uuid_group, '--load-uuid-args',
         help=argparse.SUPPRESS)
 
-    run_parser.add_argument('--restrict', action='append',
-        metavar='RESTRICT_PATTERN',
+    add_argument(run_parser, '--restrict', action='append',
+        metavar='CALLABLE_PATTERN',
         default=[],
         help="""Callable names patterns. Types produced by these callables will only be produced by these (other callables will be excluded).""")
 
-    run_parser.add_argument('--forbid', action='append',
-        metavar='FORBID_PATTERN',
+    add_argument(run_parser, '--forbid', action='append',
+        metavar='TYPE_PATTERN',
         default=[],
         help="""Fully qualified type names patterns. Callable returning these types or any subclass will not be called.""")
 
-    run_parser.add_argument('--allow', action='append',
-        metavar='ALLOW_PATTERN',
+    add_argument(run_parser, '--allow', action='append',
+        metavar='CALLABLE_PATTERN',
         default=[],
         help="""Allow using callable with a fully qualified name matching these patterns, even if they have been not selected for various reasons.""")
 
     goal_group = run_parser.add_mutually_exclusive_group()
-    goal_group.add_argument('--goal', action='append',
-        metavar='GOAL_PATTERN',
+    add_argument(goal_group, '--goal', action='append',
+        metavar='TYPE_PATTERN',
         default=[],
         help="""Compute expressions leading to an instance of a class with name matching this pattern (or a subclass of it).""")
 
-    goal_group.add_argument('--callable-goal', action='append',
-        metavar='CALLABLE_GOAL_PATTERN',
+    add_argument(goal_group, '--callable-goal', action='append',
+        metavar='CALLABLE_PATTERN',
         default=[],
         help="""Compute expressions ending with a callable which name is matching this pattern.""")
 
-    run_parser.add_argument('--sweep', nargs=5, action='append', default=[],
+    add_argument(run_parser, '--sweep', nargs=5, action='append', default=[],
         metavar=('CALLABLE_PATTERN', 'PARAM', 'START', 'STOP', 'STEP'),
         help="""Parametric sweep on a function parameter. It needs five fields:
     * pattern matching qualified name of the callable
@@ -314,21 +318,22 @@ PATTERNS
     * stop value
     * step size.""")
 
-    run_parser.add_argument('--template-scripts', metavar='SCRIPT_FOLDER',
+    add_argument(run_parser, '--template-scripts', metavar='SCRIPT_FOLDER',
         help="""Only create the template scripts of the expressions without running them.""")
 
-    run_parser.add_argument('--adaptor',
+    add_argument(run_parser, '--adaptor',
         help="""Adaptor to use from the customization module, if there is more than one to choose from.""")
 
-    run_parser.add_argument('-n', type=int,
+    add_argument(run_parser, '-n', type=int,
         default=1,
         help="""Run the tests for a number of iterations.""")
 
-    run_parser.add_argument('--share', action='append',
+    add_argument(run_parser, '--share', action='append',
+        metavar='TYPE_PATTERN',
         default=[],
         help="""Class name pattern to share between multiple iterations.""")
 
-    run_parser.add_argument('--random-order', action='store_true',
+    add_argument(run_parser, '--random-order', action='store_true',
         help="""Run the expressions in a random order, instead of sorting by name.""")
 
 
@@ -336,29 +341,33 @@ PATTERNS
     description="""
 Merge artifact directories of "exekall run" executions.
 
-By default, it will use hardlinks instead of copies to improve speed and avoid
-eating up large amount of space, but that means that artifact directories
-should be treated as read-only.
+By default, it will use hardlinks instead of copies to improve speed and
+avoid eating up large amount of space, but that means that artifact
+directories should be treated as read-only.
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
-    merge_parser.add_argument('artifact_dirs', nargs='+',
+    add_argument(merge_parser, 'artifact_dirs', nargs='+',
         help="""Artifact directories created using "exekall run", or value databases to merge.""")
 
-    merge_parser.add_argument('-o', '--output', required=True,
+    add_argument(merge_parser, '-o', '--output', required=True,
         help="""Output merged artifacts directory or value database.""")
 
-    merge_parser.add_argument('--copy', action='store_true',
+    add_argument(merge_parser, '--copy', action='store_true',
         help="""Force copying files, instead of using hardlinks.""")
 
 
     compare_parser = subparsers.add_parser('compare',
     description="""
 Compare two DBs produced by exekall run.
+
+Note that the adaptor in the customization module recorded in the database
+is able to add more parameters to ``exekall compare``. In order to get the
+complete set of options, please run ``exekall compare DB1 DB2 --help``.
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
-    compare_parser.add_argument('db', nargs=2,
+    add_argument(compare_parser, 'db', nargs=2,
         help="""DBs created using exekall run to compare.""")
 
     # Avoid showing help message on the incomplete parser. Instead, we carry on
@@ -666,7 +675,7 @@ def do_run(args, parser, run_parser, argv):
     # Get the prebuilt operators from the adaptor
     else:
         db_list = []
-        op_set.update(adaptor.get_prebuilt_set())
+        op_set.update(adaptor.get_prebuilt_op_set())
 
     # Force some parameter values to be provided with a specific callable
     patch_map = build_patch_map(args.sweep, op_set)
@@ -780,14 +789,14 @@ def do_run(args, parser, run_parser, argv):
     if rst_expr_list:
         id_kwargs['style'] = 'rst'
         for expr in expr_list:
-            out(expr.get_id(**id_kwargs))
+           out('* {}'.format(expr.get_id(**id_kwargs)))
     else:
         out('The following expressions will be executed:\n')
         for expr in expr_list:
             out(expr.get_id(**id_kwargs))
 
             if verbose >= 2:
-                out(expr.get_structure() + '\n')
+                out(expr.format_structure() + '\n')
 
         formatted_out = adaptor.format_expr_list(expr_list, verbose=verbose)
         if formatted_out:
@@ -879,8 +888,6 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
         data['artifact_dir'] = artifact_dir
         data['expr_artifact_dir'] = expr_artifact_dir
 
-        adaptor.update_expr_data(data)
-
         with (expr_artifact_dir/'UUID').open('wt') as f:
             f.write(expr.uuid + '\n')
 
@@ -893,7 +900,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                 with_tags=False,
                 full_qual=True,
             ) + '\n\n')
-            f.write(expr.get_structure() + '\n')
+            f.write(expr.format_structure() + '\n')
 
         is_svg, dot_output = utils.render_graphviz(expr)
         graphviz_path = expr_artifact_dir/'STRUCTURE.{}'.format(
@@ -902,7 +909,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
         with graphviz_path.open('wt', encoding='utf-8') as f:
             f.write(dot_output)
 
-        with (expr_artifact_dir/'TESTCASE_TEMPLATE.py').open(
+        with (expr_artifact_dir/'EXPRESSION_TEMPLATE.py').open(
             'wt', encoding='utf-8'
         ) as f:
             f.write(
@@ -1018,7 +1025,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                     prefix=prefix,
                 ))
 
-                out(adaptor.result_str(result))
+                out(adaptor.format_result(result))
                 result_list.append(result)
 
 
@@ -1029,7 +1036,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
             adaptor.finalize_expr(expr)
 
             # Dump the reproducer script
-            with (expr_artifact_dir/'TESTCASE.py').open('wt', encoding='utf-8') as f:
+            with (expr_artifact_dir/'EXPRESSION.py').open('wt', encoding='utf-8') as f:
                 f.write(
                     expr.get_script(
                         prefix = 'expr',
