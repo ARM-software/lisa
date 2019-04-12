@@ -422,7 +422,7 @@ class MultiSrcConfMeta(abc.ABCMeta):
         new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
         if not inspect.isabstract(new_cls):
             if new_cls.__doc__:
-                doc = textwrap.dedent(new_cls.__doc__)
+                doc = inspect.getdoc(new_cls)
                 # Create a ResStructuredText preformatted block when rendering
                 # with Sphinx
                 style = 'rst' if is_running_sphinx() else None
@@ -1146,7 +1146,7 @@ class ConfigurableMeta(abc.ABCMeta):
         conf_cls.DEFAULT_SRC = dict(default_conf._get_effective_map())
 
         # Update the docstring by using the configuration help
-        docstring = new_cls.__doc__
+        docstring = inspect.getdoc(new_cls)
         if docstring:
             new_cls.__doc__ = textwrap.dedent(docstring).format(
                 configurable_params=new_cls._get_rst_param_doc()
