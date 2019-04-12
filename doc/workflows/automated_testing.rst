@@ -82,16 +82,21 @@ the change is considered non-significant can be modified using ``--alpha``,
 which will set the alpha risk of the Fisher's exact test carried out on a
 contingency table like this one:
 
-.. table:: Contingency table for one testcase
+.. list-table:: Contingency table for one testcase
   :widths: auto
   :align: center
+  :header-rows: 1
+  :stub-columns: 1
 
-  ======   =====  =====
-  count     old    new
-  ======   =====  =====
-  passed   15     80
-  failed   5      20
-  ======   =====  =====
+  * - count
+    - old
+    - new
+  * - passed
+    - 15
+    - 80
+  * - failed
+    - 5
+    - 20
 
 That would represent an ``old`` test session with 20 iterations of the test, 15
 of which passed and 5 failed. The ``new`` session would have had 100
