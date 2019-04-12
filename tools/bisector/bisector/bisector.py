@@ -1222,7 +1222,7 @@ class StepBase(StepABC):
             if not parser_map:
                 continue
             out(indent + '{}:'.format(pretty))
-            for name, param in parser_map.items():
+            for name, param in sorted(parser_map.items(), key=lambda k_v: k_v[0]):
                 name = name.replace('_', '-')
                 opt_header = indent + '  -o {name}= ({type_desc}) '.format(
                     name = name,
