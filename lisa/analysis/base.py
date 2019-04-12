@@ -152,16 +152,31 @@ class AnalysisHelpers(Loggable):
         default_dir = '.'
         return self._save_plot(figure, default_dir, filepath, img_format)
 
-    def _do_plot(self, plotter, filepath, axis):
+    def do_plot(self, plotter, filepath, axis, **kwargs):
         """
         Simple helper for consistent behavior across methods.
+
+        :returns: An :class:`matplotlib.axes.Axes` containing the plot.
+
+        :param filepath: Path of the file to save the figure in. If `None`, no
+            file is saved.
+        :type filepath: str or None
+
+        :param axis: instance of :class:`matplotlib.axes.Axes` to plot into.
+            If `None`, a new figure and axis are created and returned.
+        :type axis: matplotlib.axes.Axes
+            or numpy.ndarray(matplotlib.axes.Axes)
+            or None
+
+        :param kwargs: keyword arguments forwarded to :meth:`setup_plot`
+        :type kwargs: dict
         """
 
-        local_fig = not axis
+        local_fig = axis is None
         if local_fig:
-            fig, axis = self.setup_plot()
+            fig, axis = self.setup_plot(**kwargs)
 
-        plotter(axis)
+        plotter(axis, local_fig)
 
         if local_fig:
             self.save_plot(fig, filepath)

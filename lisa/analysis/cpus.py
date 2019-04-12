@@ -64,33 +64,35 @@ class CpusAnalysis(TraceAnalysisBase):
 ###############################################################################
 
     @df_context_switches.used_events
-    def plot_context_switches(self, filepath=None):
+    def plot_context_switches(self, filepath=None, axis=None):
         """
         Plot histogram of context switches on each CPU.
+
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-        fig, axis = self.setup_plot(height=8)
+        def plotter(axis, local_fig):
+            ctx_sw_df = self.df_context_switches()
+            ctx_sw_df["context_switch_cnt"].plot.bar(
+                title="Per-CPU Task Context Switches", legend=False, ax=axis)
+            axis.grid()
 
-        ctx_sw_df = self.df_context_switches()
-        ctx_sw_df["context_switch_cnt"].plot.bar(
-            title="Per-CPU Task Context Switches", legend=False, ax=axis)
-        axis.grid()
+        return self.do_plot(plotter, filepath, axis, height=8)
 
-        self.save_plot(fig, filepath)
-        return axis
-
-    def plot_orig_capacity(self, axis, cpu):
+    def plot_orig_capacity(self, cpu, filepath=None, axis=None):
         """
         Plot the orig capacity of a CPU onto a given axis
 
-        :param axis: The axis
-        :type axis: matplotlib.axes.Axes
-
         :param cpu: The CPU
         :type cpu: int
+
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-        if "cpu-capacities" in self.trace.plat_info:
-            axis.axhline(self.trace.plat_info["cpu-capacities"][cpu],
-                         color=self.get_next_color(axis),
-                         linestyle='--', label="orig_capacity")
+        def plotter(axis, local_fig):
+            if "cpu-capacities" in self.trace.plat_info:
+                axis.axhline(self.trace.plat_info["cpu-capacities"][cpu],
+                             color=self.get_next_color(axis),
+                             linestyle='--', label="orig_capacity")
+
+        return self.do_plot(plotter, filepath, axis)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

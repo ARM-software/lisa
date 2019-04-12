@@ -73,36 +73,33 @@ class StatusAnalysis(TraceAnalysisBase):
         """
         Draw the system's overutilized status as colored bands
 
-        :param axis: If provided, overlay the bands on this axis
-        :type axis: matplotlib.axes.Axes
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-        local_fig = axis is None
-
-        if local_fig:
-            fig, axis = self.setup_plot()
 
         df = self.df_overutilized()
 
         # Compute intervals in which the system is reported to be overutilized
         bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]
 
-        color = self.get_next_color(axis)
-        label = "Overutilized"
-        for (start, delta, overutilized) in bands:
-            if not overutilized:
-                continue
+        def plotter(axis, local_fig):
+            color = self.get_next_color(axis)
+            label = "Overutilized"
+            for (start, delta, overutilized) in bands:
+                if not overutilized:
+                    continue
 
-            end = start + delta
-            axis.axvspan(start, end, alpha=0.2, facecolor=color, label=label)
+                end = start + delta
+                axis.axvspan(start, end, alpha=0.2, facecolor=color, label=label)
 
-            if label:
-                label = None
+                if label:
+                    label = None
 
-        axis.legend()
+            axis.legend()
 
-        if local_fig:
-            axis.set_title("System-wide overutilized status")
-            axis.set_xlim(self.trace.start, self.trace.end)
-            self.save_plot(fig, filepath)
+            if local_fig:
+                axis.set_title("System-wide overutilized status")
+                axis.set_xlim(self.trace.start, self.trace.end)
+
+        return self.do_plot(plotter, filepath, axis)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

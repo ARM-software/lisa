@@ -246,7 +246,7 @@ class IdleAnalysis(TraceAnalysisBase):
 ###############################################################################
 
     @df_cpu_idle_state_residency.used_events
-    def plot_cpu_idle_state_residency(self, cpu, filepath=None, pct=False):
+    def plot_cpu_idle_state_residency(self, cpu, pct=False, filepath=None, axis=None):
         """
         Plot the idle state residency of a CPU
 
@@ -255,22 +255,21 @@ class IdleAnalysis(TraceAnalysisBase):
 
         :param pct: Plot residencies in percentage
         :type pct: bool
-        """
-        fig, axis = self.setup_plot()
 
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
+        """
         df = self.df_cpu_idle_state_residency(cpu)
 
-        self._plot_idle_state_residency(df, axis, pct)
+        def plotter(axis, local_fig):
+            self._plot_idle_state_residency(df, axis, pct)
+            axis.set_title("CPU{} idle state residency".format(cpu))
 
-        axis.set_title("CPU{} idle state residency".format(cpu))
 
-        self.save_plot(fig, filepath)
-
-        return axis
+        return self.do_plot(plotter, filepath, axis)
 
     @df_cluster_idle_state_residency.used_events
-    def plot_cluster_idle_state_residency(self, cluster, filepath=None,
-                                          pct=False, axis=None):
+    def plot_cluster_idle_state_residency(self, cluster, pct=False,
+                                                    filepath=None, axis=None):
         """
         Plot the idle state residency of a cluster
 
@@ -280,27 +279,19 @@ class IdleAnalysis(TraceAnalysisBase):
         :param pct: Plot residencies in percentage
         :type pct: bool
 
-        :param axes: If specified, the axis to use for plotting
-        :type axis: matplotlib.axes.Axes
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-        local_fig = axis is None
-
-        if local_fig:
-            fig, axis = self.setup_plot()
 
         df = self.df_cluster_idle_state_residency(cluster)
 
-        self._plot_idle_state_residency(df, axis, pct)
+        def plotter(axis, local_fig):
+            self._plot_idle_state_residency(df, axis, pct)
+            axis.set_title("CPUs {} idle state residency".format(cluster))
 
-        axis.set_title("CPUs {} idle state residency".format(cluster))
-
-        if local_fig:
-            self.save_plot(fig, filepath)
-
-        return axis
+        return self.do_plot(plotter, filepath, axis)
 
     @plot_cluster_idle_state_residency.used_events
-    def plot_clusters_idle_state_residency(self, filepath=None, pct=False):
+    def plot_clusters_idle_state_residency(self, pct=False, filepath=None, axes=None):
         """
         Plot the idle state residency of all clusters
 
@@ -309,19 +300,16 @@ class IdleAnalysis(TraceAnalysisBase):
 
         .. note:: This assumes clusters == frequency domains, which may
           not hold true...
+
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         clusters = self.trace.plat_info['freq-domains']
 
-        fig, axes = self.setup_plot(nrows=len(clusters), sharex=True)
+        def plotter(axes, local_fig):
+            for axis, cluster in zip(axes, clusters):
+                self.plot_cluster_idle_state_residency(cluster, pct=pct, axis=axis)
 
-        for idx, cluster in enumerate(clusters):
-            axis = axes[idx]
-
-            self.plot_cluster_idle_state_residency(cluster, pct=pct, axis=axis)
-
-        self.save_plot(fig, filepath)
-
-        return axes
+        return self.do_plot(plotter, filepath, axes, nrows=len(clusters), sharex=True)
 
 ###############################################################################
 # Utility Methods

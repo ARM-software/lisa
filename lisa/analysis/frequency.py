@@ -294,21 +294,15 @@ class FrequencyAnalysis(TraceAnalysisBase):
         :param cpu: The CPU for which to plot frequencies
         :type cpus: int
 
-        :param axis: If specified, the axis to use for plotting
-        :type axis: matplotlib.axes.Axes
-
         If ``sched_overutilized`` events are available, the plots will also
         show the intervals of time where the system was overutilized.
+
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         logger = self.get_logger()
 
         df = self.trace.df_events('cpu_frequency')
         df = df[df.cpu == cpu]
-
-        local_fig = not axis
-
-        if local_fig:
-            fig, axis = self.setup_plot()
 
         if "freqs" in self.trace.plat_info:
             frequencies = self.trace.plat_info['freqs'][cpu]
@@ -321,57 +315,55 @@ class FrequencyAnalysis(TraceAnalysisBase):
         logger.info(
             "Average frequency for CPU{} : {:.3f} GHz".format(cpu, avg/1e6))
 
-        df['frequency'].plot(
-            ax=axis, drawstyle='steps-post')
+        def plotter(axis, local_fig):
+            df['frequency'].plot(
+                ax=axis, drawstyle='steps-post')
 
-        if avg > 0:
-            axis.axhline(avg, color=self.get_next_color(axis), linestyle='--',
-                         label="average")
+            if avg > 0:
+                axis.axhline(avg, color=self.get_next_color(axis), linestyle='--',
+                             label="average")
 
-        plot_overutilized = self.trace.analysis.status.plot_overutilized
-        if self.trace.has_events(plot_overutilized.used_events):
-            plot_overutilized(axis=axis)
+            plot_overutilized = self.trace.analysis.status.plot_overutilized
+            if self.trace.has_events(plot_overutilized.used_events):
+                plot_overutilized(axis=axis)
 
-        axis.set_ylim(frequencies[0] * 0.9, frequencies[-1] * 1.1)
-        axis.set_xlim(self.trace.start, self.trace.end)
+            axis.set_ylim(frequencies[0] * 0.9, frequencies[-1] * 1.1)
+            axis.set_xlim(self.trace.start, self.trace.end)
 
-        axis.set_ylabel('Frequency (Hz)')
-        axis.set_xlabel('Time')
+            axis.set_ylabel('Frequency (Hz)')
+            axis.set_xlabel('Time')
 
-        axis.set_title('Frequency of CPU{}'.format(cpu))
-        axis.grid(True)
-        axis.legend()
+            axis.set_title('Frequency of CPU{}'.format(cpu))
+            axis.grid(True)
+            axis.legend()
 
-        if local_fig:
-            self.save_plot(fig, filepath)
-
-        return axis
+        return self.do_plot(plotter, filepath, axis)
 
     @plot_cpu_frequencies.used_events
-    def plot_domain_frequencies(self, filepath=None):
+    def plot_domain_frequencies(self, filepath=None, axes=None):
         """
         Plot frequency trend for all frequency domains.
 
         If ``sched_overutilized`` events are available, the plots will also show
         the intervals of time where the cluster was overutilized.
+
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         domains = self.trace.plat_info['freq-domains']
 
-        fig, axes = self.setup_plot(nrows=len(domains), sharex=True)
-        for idx, domain in enumerate(domains):
-            axis = axes[idx] if len(domains) > 1 else axes
+        def plotter(axes, local_fig):
+            for idx, domain in enumerate(domains):
+                axis = axes[idx] if len(domains) > 1 else axes
 
-            self.plot_cpu_frequencies(domain[0], filepath, axis)
+                self.plot_cpu_frequencies(domain[0], axis=axis)
 
-            axis.set_title('Frequencies of CPUS {}'.format(domain))
-            axis.set_xlim(self.trace.start, self.trace.end)
+                axis.set_title('Frequencies of CPUS {}'.format(domain))
+                axis.set_xlim(self.trace.start, self.trace.end)
 
-        self.save_plot(fig, filepath)
-
-        return axes
+        return self.do_plot(plotter, filepath, axes, nrows=len(domains), sharex=True)
 
     @df_cpu_frequency_residency.used_events
-    def plot_cpu_frequency_residency(self, cpu, filepath=None, pct=False, axes=None):
+    def plot_cpu_frequency_residency(self, cpu, pct=False, filepath=None, axes=None):
         """
         Plot per-CPU frequency residency.
 
@@ -381,14 +373,8 @@ class FrequencyAnalysis(TraceAnalysisBase):
         :param pct: Plot residencies in percentage
         :type pct: bool
 
-        :param axes: If specified, the axes to use for plotting
-        :type axis: numpy.ndarray(matplotlib.axes.Axes)
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-
-        local_fig = axes is None
-
-        if local_fig:
-            fig, axes = self.setup_plot(nrows=2)
 
         residency_df = self.df_cpu_frequency_residency(cpu)
 
@@ -399,51 +385,51 @@ class FrequencyAnalysis(TraceAnalysisBase):
             total_df = total_df * 100 / total_df.sum()
             active_df = active_df * 100 / active_df.sum()
 
-        total_df.plot.barh(ax=axes[0])
-        axes[0].set_title("CPU{} total frequency residency".format(cpu))
+        def plotter(axes, local_fig):
+            total_df.plot.barh(ax=axes[0])
+            axes[0].set_title("CPU{} total frequency residency".format(cpu))
 
-        active_df.plot.barh(ax=axes[1])
-        axes[1].set_title("CPU{} active frequency residency".format(cpu))
+            active_df.plot.barh(ax=axes[1])
+            axes[1].set_title("CPU{} active frequency residency".format(cpu))
 
-        for axis in axes:
-            if pct:
-                axis.set_xlabel("Time share (%)")
-            else:
-                axis.set_xlabel("Time (s)")
+            for axis in axes:
+                if pct:
+                    axis.set_xlabel("Time share (%)")
+                else:
+                    axis.set_xlabel("Time (s)")
 
-            axis.set_ylabel("Frequency (Hz)")
-            axis.grid(True)
+                axis.set_ylabel("Frequency (Hz)")
+                axis.grid(True)
 
-        if local_fig:
-            self.save_plot(fig, filepath)
-
-        return axes
+        return self.do_plot(plotter, filepath, axes, nrows=2)
 
     @plot_cpu_frequency_residency.used_events
-    def plot_domain_frequency_residency(self, filepath=None, pct=False):
+    def plot_domain_frequency_residency(self, pct=False, filepath=None, axes=None):
         """
         Plot the frequency residency for all frequency domains.
 
         :param pct: Plot residencies in percentage
         :type pct: bool
+
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         domains = self.trace.plat_info['freq-domains']
 
-        fig, axes = self.setup_plot(nrows=2*len(domains), sharex=True)
-        for idx, domain in enumerate(domains):
-            local_axes = axes[2 * idx : 2 * (idx + 1)]
+        def plotter(axes, local_fig):
+            for idx, domain in enumerate(domains):
+                local_axes = axes[2 * idx : 2 * (idx + 1)]
 
-            self.plot_cpu_frequency_residency(domain[0], filepath, pct, local_axes)
-            for axis in local_axes:
-                title = axis.get_title()
-                axis.set_title(title.replace("CPU{}".format(domain[0]), "CPUs {}".format(domain)))
+                self.plot_cpu_frequency_residency(domain[0], filepath, pct,
+                                                                    local_axes)
+                for axis in local_axes:
+                    title = axis.get_title()
+                    axis.set_title(title.replace(
+                        "CPU{}".format(domain[0]), "CPUs {}".format(domain)))
 
-        self.save_plot(fig, filepath)
-
-        return axes
+        return self.do_plot(plotter, filepath, axes, nrows=2*len(domains), sharex=True)
 
     @df_cpu_frequency_transitions.used_events
-    def plot_cpu_frequency_transitions(self, cpu, filepath=None, pct=False, axis=None):
+    def plot_cpu_frequency_transitions(self, cpu, pct=False, filepath=None, axis=None):
         """
         Plot frequency transitions count of the specified CPU
 
@@ -452,56 +438,51 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         :param pct: Plot frequency transitions in percentage
         :type pct: bool
-        """
-        local_fig = axis is None
 
-        if local_fig:
-            fig, axis = self.setup_plot()
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
+        """
 
         df = self.df_cpu_frequency_transitions(cpu)
 
         if pct:
             df = df * 100 / df.sum()
 
-        df["transitions"].plot.barh(ax=axis)
 
-        axis.set_title('Frequency transitions of CPU{}'.format(cpu))
+        def plotter(axis, local_fig):
+            df["transitions"].plot.barh(ax=axis)
+            axis.set_title('Frequency transitions of CPU{}'.format(cpu))
 
-        if pct:
-            axis.set_xlabel("Transitions share (%)")
-        else:
-            axis.set_xlabel("Transition count")
+            if pct:
+                axis.set_xlabel("Transitions share (%)")
+            else:
+                axis.set_xlabel("Transition count")
 
-        axis.set_ylabel("Frequency (Hz)")
-        axis.grid(True)
+            axis.set_ylabel("Frequency (Hz)")
+            axis.grid(True)
 
-        if local_fig:
-            self.save_plot(fig, filepath)
-
-        return axis
+        return self.do_plot(plotter, filepath, axis)
 
     @plot_cpu_frequency_transitions.used_events
-    def plot_domain_frequency_transitions(self, filepath=None, pct=False):
+    def plot_domain_frequency_transitions(self, pct=False, filepath=None, axes=None):
         """
         Plot frequency transitions count for all frequency domains
 
         :param pct: Plot frequency transitions in percentage
         :type pct: bool
+
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         domains = self.trace.plat_info['freq-domains']
 
-        fig, axes = self.setup_plot(nrows=len(domains))
+        def plotter(axes, local_fig):
+            for domain, axis in zip(domains, axes):
+                self.plot_cpu_frequency_transitions(domain[0], filepath, pct, axis)
 
-        for idx, domain in enumerate(domains):
-            axis = axes[idx]
+                title = axis.get_title()
+                axis.set_title(title.replace("CPU{}".format(domain[0]),
+                                                    "CPUs {}".format(domain)))
 
-            self.plot_cpu_frequency_transitions(domain[0], filepath, pct, axis)
 
-            title = axis.get_title()
-            axis.set_title(title.replace("CPU{}".format(domain[0]), "CPUs {}".format(domain)))
-
-        self.save_plot(fig, filepath)
-
-        return axes
+        return self.do_plot(plotter, filepath, axes, nrows=len(domains))
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
