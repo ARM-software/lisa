@@ -93,7 +93,7 @@ class LISAAdaptor(AdaptorBase):
     def get_non_reusable_type_set(self):
         return {NonReusable}
 
-    def get_prebuilt_set(self):
+    def get_prebuilt_op_set(self):
         non_reusable_type_set = self.get_non_reusable_type_set()
         op_set = set()
 

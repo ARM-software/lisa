@@ -1710,10 +1710,11 @@ def deprecated_parse_testcase_res(testcase, kind, ignored_except_set):
 
 class ExekallLISATestStep(ShellStep):
     """
-    Execute an exekall LISA test command and collect exekall's ValueDB. Also
-    compress the result directory and record its path. It will also define some
-    environment variables that are expected to be used by the command to be
-    able to locate resources to collect.
+    Execute an exekall LISA test command and collect
+    :class:`exekall.engine.ValueDB`. Also compress the result directory and
+    record its path. It will also define some environment variables that are
+    expected to be used by the command to be able to locate resources to
+    collect.
     """
 
     yaml_tag = '!exekall-LISA-test-step'

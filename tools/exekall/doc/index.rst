@@ -25,6 +25,8 @@ Contents
    :maxdepth: 2
 
    man/man
+   public_api
+   internal_api
 
 Indices and tables
 ==================

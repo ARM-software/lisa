@@ -675,7 +675,7 @@ def do_run(args, parser, run_parser, argv):
     # Get the prebuilt operators from the adaptor
     else:
         db_list = []
-        op_set.update(adaptor.get_prebuilt_set())
+        op_set.update(adaptor.get_prebuilt_op_set())
 
     # Force some parameter values to be provided with a specific callable
     patch_map = build_patch_map(args.sweep, op_set)
@@ -888,8 +888,6 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
         data['artifact_dir'] = artifact_dir
         data['expr_artifact_dir'] = expr_artifact_dir
 
-        adaptor.update_expr_data(data)
-
         with (expr_artifact_dir/'UUID').open('wt') as f:
             f.write(expr.uuid + '\n')
 
@@ -1027,7 +1025,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                     prefix=prefix,
                 ))
 
-                out(adaptor.result_str(result))
+                out(adaptor.format_result(result))
                 result_list.append(result)
 
 
