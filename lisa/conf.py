@@ -23,6 +23,7 @@ import difflib
 import inspect
 import itertools
 import textwrap
+import logging
 
 from lisa.utils import (
     Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
@@ -677,15 +678,16 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         mapping as a new source.
         """
 
-        caller, filename, lineno = get_call_site(1, exclude_caller_module=True)
-
-        self.get_logger().debug('{caller} ({filename}:{lineno}) has set source "{src}":\n{conf}'.format(
-            src=src,
-            conf=conf,
-            caller=caller if caller else '<unknown>',
-            filename=filename if filename else '<unknown>',
-            lineno=lineno if lineno else '<unknown>',
-        ))
+        logger = self.get_logger()
+        if logger.isEnabledFor(logging.DEBUG):
+            caller, filename, lineno = get_call_site(1, exclude_caller_module=True)
+            logger.debug('{caller} ({filename}:{lineno}) has set source "{src}":\n{conf}'.format(
+                src=src,
+                conf=conf,
+                caller=caller if caller else '<unknown>',
+                filename=filename if filename else '<unknown>',
+                lineno=lineno if lineno else '<unknown>',
+            ))
         return self._add_src(
             src, conf,
             filter_none=filter_none, fallback=fallback
@@ -980,9 +982,10 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 val = self._eval_deferred_val(src, key)
 
 
-        if not quiet:
+        logger = self.get_logger()
+        if not quiet and logger.isEnabledFor(logging.DEBUG):
             caller, filename, lineno = get_call_site(2, exclude_caller_module=True)
-            self.get_logger().debug('{caller} ({filename}:{lineno}) has used key {key} from source "{src}": {val}'.format(
+            logger.debug('{caller} ({filename}:{lineno}) has used key {key} from source "{src}": {val}'.format(
                 key=key_desc.qualname,
                 src=src,
                 val=key_desc.pretty_format(val),
