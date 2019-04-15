@@ -660,7 +660,9 @@ def get_call_site(levels=0, exclude_caller_module=False):
     """
 
     try:
-        stack = inspect.stack()
+        # context=0 speeds up a lot the stack retrieval, since it avoids
+        # reading the source files
+        stack = inspect.stack(context=0)
     # Getting the stack can sometimes fail under IPython for some reason:
     # https://github.com/ipython/ipython/issues/1456/
     except IndexError:
