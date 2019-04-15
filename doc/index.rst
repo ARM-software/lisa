@@ -3,8 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-LISA API Documentation
-======================
+LISA Documentation
+==================
 
 LISA - "Linux Integrated System Analysis" is a toolkit for interactive analysis
 and automated regression testing of Linux kernel behaviour.
