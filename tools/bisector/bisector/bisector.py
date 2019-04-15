@@ -61,7 +61,6 @@ import tempfile
 import types
 import urllib.parse
 import uuid
-import xml.etree.ElementTree as ET
 
 import requests
 import ruamel.yaml
@@ -1663,54 +1662,44 @@ class RebootStep(ShellStep):
 
         return res
 
-class LISATestStepResult(StepResult):
+class ExekallStepResult(StepResult):
     """
-    Result of a LISA step.
+    Result of a LISA (exekall) step.
 
-    It collects the content of the xUnit file, as well as the path of the LISA
-    result directory in addition than to what is collected by
+    It collects an :class:`exekall.engine.ValueDB`, as well as the path of the
+    LISA result directory in addition than to what is collected by
     :class:`StepResult` .
     """
-    yaml_tag = '!LISA-test-step-result'
+    yaml_tag = '!exekall-step-result'
     attr_init = dict(
         name = 'LISA-test',
     )
 
-    # TODO: get rid of xunit and only use db
-    def __init__(self, results_path, db=None, xunit=None, **kwargs):
+    def __init__(self, results_path, db, **kwargs):
         super().__init__(**kwargs)
-        self.xunit = xunit
         self.results_path = results_path
         self.db = db
 
-def deprecated_parse_testcase_res(testcase, kind, ignored_except_set):
-    """Parse a <testcase> XML tag of an xUnit file, looking for a specific
-    subtag.
 
-    :param kind: subtag looked for in <testcase>
-    :param ignored_except_set: set of ignored exceptions
+class Deprecated:
     """
-    tag = testcase.find(kind)
-    if tag is not None:
-        excep = tag.get('type')
-        # If the type is missing, assume a generic Exception
-        excep = excep if excep is not None else 'Exception'
-        excep_components = excep.split('.')
-        excep_components.reverse()
-        # If any exception name is matching, we ignore the testcase result
-        if any(
-            # Check if all components are matching. Iterate backward so we
-            # match on trailing components of exception names.
-            all(a == b for a, b in zip(excep_components, reversed(ignored_excep)))
-            for ignored_excep in ignored_except_set
-        ):
-            return True, None
-        else:
-            return False, (excep, tag.get('message'), tag.text)
-    else:
-        return False, None
+    Base class to inherit from to mark a subclass as deprecated.
 
-class ExekallLISATestStep(ShellStep):
+    This removes it from the documented classes, and will generally mask it.
+    """
+    pass
+
+
+class LISATestStepResult(ExekallStepResult, Deprecated):
+    """
+    .. deprecated:: 1.0
+        Deprecated alias for :class:`ExekallStepResult`, it is only kept around
+        to be able to reload old YAML and pickle reports.
+    """
+    yaml_tag = '!LISA-test-step-result'
+
+
+class LISATestStep(ShellStep):
     """
     Execute an exekall LISA test command and collect
     :class:`exekall.engine.ValueDB`. Also compress the result directory and
@@ -1719,10 +1708,12 @@ class ExekallLISATestStep(ShellStep):
     collect.
     """
 
+    # YAML tag mentions exekall, so we can support other engines easily if
+    # needed without breaking the tag compat
     yaml_tag = '!exekall-LISA-test-step'
     attr_init = dict(
         cat = 'test',
-        name = 'exekall-LISA-test',
+        name = 'LISA-test',
         compress_artifact = True,
         upload_artifact = False,
         delete_artifact = False,
@@ -1902,7 +1893,7 @@ class ExekallLISATestStep(ShellStep):
                     path = artifact_local_path,
                 ))
 
-        return LISATestStepResult(
+        return ExekallStepResult(
             step = self,
             res_list = res_list,
             bisect_ret = bisect_ret,
@@ -2081,7 +2072,7 @@ class ExekallLISATestStep(ShellStep):
             if not any_entries:
                 bisect_ret = BisectRet.NA
 
-            # Update the LISATestStepResult bisect result based on the DB
+            # Update the ExekallStepResult bisect result based on the DB
             # content.
             step_res.bisect_ret = bisect_ret
 
@@ -2333,508 +2324,13 @@ class ExekallLISATestStep(ShellStep):
 
         return out
 
-
-# Deprecated, will be removed once that old infrastructure is phased out in
-# favor of LISA-next
-class LISATestStep(ShellStep):
+class ExekallLISATestStep(LISATestStep, Deprecated):
     """
-    Execute a LISA test command and collect xUnit results. Also compress the
-    result directory and record its path. It will also define some environment
-    variables that are expected to be used by the command to be able to locate
-    resources to collect.
-
     .. deprecated:: 1.0
-        This class is designed for legacy LISA, use
-        :class:`ExekallLISATestStep` for current LISA instead.
+        Deprecated alias for :class:`LISATestStep`, it is only kept around to
+        be able to reload old pickle reports.
     """
-
-    yaml_tag = '!LISA-test-step'
-    attr_init = dict(
-        cat = 'test',
-        name = 'LISA-test',
-        compress_results = True,
-        upload_results = False,
-    )
-
-    options = dict(
-        __init__ = dict(
-            compress_results = BoolParam('compress the LISA result directory in an archive'),
-            upload_results = BoolParam('upload the LISA results directory to Artifactorial as the execution goes, and delete the local archive.'),
-            **StepBase.options['__init__'],
-        ),
-        report = dict(
-            verbose = StepBase.options['report']['verbose'],
-            show_basic = StepBase.options['report']['show_basic'],
-            iterations = StepBase.options['report']['iterations'],
-            show_rates = BoolParam('show percentages of failure, error, skipped and passed tests'),
-            show_dist = BoolParam('show graphical distribution of issues among iterations with a one letter code: passed=".", failed="F", error="#", skipped="s"'),
-            show_pass_rate = BoolParam('always show the pass rate of tests, even when there are failures or crashes as well'),
-            show_details = ChoiceOrBoolParam(['msg'], 'show details of erros and failures. Use "msg" for only a brief message'),
-            show_results_dir = BoolParam('show LISA result directory for all iterations'),
-            testcase = CommaListParam('show only the test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
-            ignore_non_issue = BoolParam('consider only tests that failed'),
-            ignore_excep = CommaListParam('ignore the given comma-separated list of exceptions that caused tests failure or error. * can be used to match any part of the name'),
-            dump_results_dir = BoolOrStrParam('write the list of LISA result directories to a file. Useful to implement garbage collection of unreferenced results archives'),
-            xunit2json = BoolOrStrParam('append consolidated xUnit information to a JSON file'),
-            export_logs = BoolOrStrParam('export the logs, xUnit file and result dir symlink to the given directory'),
-            download = BoolParam('Download the LISA results archives if necessary'),
-            upload_results = BoolParam('upload the results directory to Artifactorial and update the in-memory report. Following env var are needed: ARTIFACTORIAL_FOLDER set to the folder URL and ARTIFACTORIAL_TOKEN. Note: --export should be used to save the report with updated paths'),
-        )
-
-    )
-
-    def __init__(self,
-            compress_results = Default,
-            upload_results = Default,
-            **kwargs
-        ):
-        super().__init__(**kwargs)
-        self.upload_results = upload_results
-        # upload_results implies compress_results, in order to have an archive
-        # instead of a folder
-        if self.upload_results:
-            compress_results = True
-
-        self.compress_results = compress_results
-
-    def run(self, i_stack, service_hub):
-        # Set the path to tests results
-        results_path = os.path.join(
-            os.getenv('LISA_RESULTS_ROOT', 'results'),
-            datetime.datetime.now().strftime('%Y%m%d_%H%M%S'),
-        )
-
-        # This also strips the trailing /, which is needed later on when
-        # archiving the results.
-        results_path = os.path.abspath(results_path)
-
-        env = {
-            'LISA_RESULTS_BASE': results_path,
-            'LISA_RESULTS_DIR': results_path
-        }
-        info('Setting LISA_RESULTS_BASE = {results_path} ...'.format(**locals()))
-
-        if self.trials > 1:
-          warn('More than one trials requested for LISA test, the xUnit XML file will only be recorded for the last trial.')
-
-        res_list = self._run_cmd(i_stack, env=env)
-        ret = res_list[-1][0]
-
-        if ret is None or ret != 0:
-            bisect_ret = BisectRet.BAD
-        else:
-            bisect_ret = BisectRet.GOOD
-
-        xunit_path = os.path.join(results_path, 'results.xml')
-        try:
-            with open(xunit_path, 'r') as xunit_file:
-                xunit_report = xunit_file.read()
-        except OSError:
-            warn('Could not open xUnit report ({xunit_path}).'.format(**locals()))
-            xunit_report = ""
-
-        # Compress results directory
-        if self.compress_results:
-            try:
-                results_dir = results_path
-                # Create a compressed tar archive
-                info('Compressing LISA results directory {results_path} ...'.format(**locals()))
-                archive_name = shutil.make_archive(
-                    base_name = results_path,
-                    format = 'xztar',
-                    root_dir = os.path.join(results_path, '..'),
-                    base_dir = os.path.split(results_path)[-1],
-                )
-                info('LISA results directory {results_path} compressed as {archive_name}'.format(**locals()))
-
-                # From now on, the results_path is the path to the archive.
-                results_path = os.path.abspath(archive_name)
-
-                # Delete the original results directory since we archived it
-                # successfully.
-                info('Deleting LISA results directory {results_dir} ...'.format(**locals()))
-                shutil.rmtree(results_dir)
-                info('LISA results directory {results_dir} deleted.'.format(**locals()))
-
-            except Exception as e:
-                warn('Failed to compress LISA results: {e}'.format(e=e))
-
-        # If an upload service is available, upload the traces as we go
-        if self.upload_results:
-            upload_service = service_hub.upload
-            if upload_service:
-                results_local_path = results_path
-                try:
-                    results_path = upload_service.upload(results_path)
-                except Exception as e:
-                    error('Could not upload LISA results: ' + str(e))
-                else:
-                    try:
-                        os.remove(results_local_path)
-                    except Exception as e:
-                        error('Could not delete local results {path}: {e}'.format(
-                            e = e,
-                            path = results_local_path,
-                        ))
-            else:
-                error('No upload service available, could not upload LISA results.')
-
-        return LISATestStepResult(
-            step = self,
-            res_list = res_list,
-            bisect_ret = bisect_ret,
-            results_path = results_path,
-            xunit = xunit_report,
-        )
-
-
-    def report(self, step_res_seq, service_hub,
-            verbose = False,
-            show_basic = False,
-            show_rates = True,
-            show_dist = False,
-            show_details = False,
-            show_pass_rate = False,
-            show_results_dir = False,
-            testcase = [],
-            iterations = [],
-            ignore_non_issue = False,
-            ignore_excep = [],
-            dump_results_dir = False,
-            xunit2json = False,
-            export_logs = False,
-            download = True,
-            upload_results = False
-        ):
-        """Print out a report for a list of executions results created using
-        the run() method.
-        """
-
-        if verbose:
-            show_basic = True
-            show_rates = True
-            show_dist = True
-            show_results_dir = True
-            show_details = True
-            ignore_non_issue = False
-
-        out = MLString()
-
-        ignored_except_set = {
-            tuple(e.strip().rsplit('.')) for e in ignore_excep
-        }
-        considered_testcase_set = set(testcase)
-        considered_iteration_set = set(iterations)
-
-        # Parse the xUnit XML report from nosetests to know the failing LISA
-        # tests.
-        testcase_map = collections.defaultdict(list)
-        filtered_step_res_seq = list()
-        # Highest iteration number this step was ran during. We assume it ran
-        # from the start to the end, or that the iteration number at the leaf
-        # level of macro steps is the iteration number (in case of nested macro
-        # steps). We use the highest number we find.
-        # Note: This should be replace by a function mapping the i_stack to a
-        # global iteration number, and we should take the maximum of that.
-        i_max = max(
-            len(step_res_seq),
-            max(res[0][-1] for res in step_res_seq)
-        )
-        for step_res_item in step_res_seq:
-            i_stack, step_res = step_res_item
-
-            # Ignore the iterations we are not interested in
-            if considered_iteration_set and i_stack[0] not in considered_iteration_set:
-                continue
-
-            # The xunit attribute of LISATestStepResult results contains the
-            # xUnit file content generated by nosetests.
-            xunit = step_res.xunit.strip()
-            if not xunit:
-                warn("Empty nosetest's xUnit for {step_name} step, iteration {i}".format(
-                    step_name = step_res.step.name,
-                    i = i_stack
-                ))
-                continue
-
-            try:
-                xunit_testsuite = ET.fromstring(step_res.xunit.strip())
-            except ET.ParseError as e:
-                warn("Could not open nosetest's xUnit report: {e}".format(e=e))
-                continue
-
-            bisect_ret = None
-            for testcase in xunit_testsuite.findall('testcase'):
-                testcase_id = (testcase.get('classname'), testcase.get('name'))
-                testcase_qualname = '.'.join(testcase_id)
-
-                # Ignore tests we are not interested in
-                if considered_testcase_set and not any(
-                        fnmatch.fnmatch(testcase_qualname, pattern)
-                        for pattern in considered_testcase_set
-                ):
-                    continue
-
-                entry_list = list()
-                res_entry = {
-                    'i_stack': i_stack,
-                    'results_path': step_res.results_path,
-                }
-                for issue in ('error', 'failure', 'skipped'):
-                    ignored, res = deprecated_parse_testcase_res(testcase, issue, ignored_except_set)
-                    res_entry[issue] = res
-                    entry_list.append((ignored, res))
-
-                # If some results were ignored and they are all None, we don't
-                # append any entry so they will not contribute to the number of
-                # iterations of this test
-                if (
-                        any(entry[0] for entry in entry_list)
-                    and all(entry[1] is None for entry in entry_list)
-                ):
-                    continue
-
-                if res_entry['error'] or res_entry['failure']:
-                    bisect_ret = BisectRet.BAD
-                else:
-                    # Only change from None to GOOD but not from BAD to GOOD
-                    bisect_ret = BisectRet.GOOD if bisect_ret is None else bisect_ret
-                testcase_map[testcase_id].append(res_entry)
-
-            any_entries = bisect_ret is not None
-            if not any_entries:
-                bisect_ret = BisectRet.NA
-
-            # Update the LISATestStepResult bisect result based on the xUnit
-            # content.
-            step_res.bisect_ret = bisect_ret
-
-            # Filter out non-interesting entries
-            if any_entries and not (ignore_non_issue and bisect_ret != BisectRet.BAD):
-                filtered_step_res_seq.append(step_res_item)
-
-        step_res_seq = filtered_step_res_seq
-
-        if show_results_dir:
-            out('Results directories:')
-
-        # Apply processing on selected results
-        for i_stack, step_res in step_res_seq:
-
-            # Upload the results and update the result path
-            if upload_results and os.path.exists(step_res.results_path):
-                upload_service = service_hub.upload
-                if upload_service:
-                    try:
-                        url = upload_service.upload(step_res.results_path)
-                        step_res.results_path = url
-                    except Exception as e:
-                        error('Could not upload LISA results: ' + str(e))
-                else:
-                    error('No upload service available, could not upload LISA results.')
-
-            if show_results_dir:
-                out('    #{i_stack: <2}: {step_res.results_path}'.format(**locals()))
-
-            # Accumulate the results path to a file, that can be used to garbage
-            # collect all results path that are not referenced by any report.
-            if dump_results_dir:
-                with open(dump_results_dir,'a') as f:
-                    f.write(os.path.abspath(step_res.results_path) + '\n')
-
-            # Add extra information to the dumped logs
-            if export_logs:
-                archive_path = step_res.results_path
-                log_dir = self._get_exported_logs_dir(export_logs, i_stack)
-
-                archive_basename = os.path.basename(archive_path)
-                archive_dst = 'lisa_results.' + archive_basename.split('.', 1)[1]
-                archive_dst = os.path.join(log_dir, archive_dst)
-
-                url = urllib.parse.urlparse(archive_path)
-                # If this is a URL, we download it
-                if download and url.scheme.startswith('http'):
-                    info('Downloading {archive_path} to {archive_dst} ...'.format(
-                        archive_path = archive_path,
-                        archive_dst = archive_dst,
-                    ))
-                    try:
-                        urlretrieve(archive_path, archive_dst)
-                    except requests.exceptions.RequestException as e:
-                        error('Could not retrieve {archive_path}: {e}'.format(
-                            archive_path = archive_path,
-                            e = e
-                        ))
-
-                # Otherwise, assume it is a file and symlink it alongside
-                # the logs.
-                else:
-                    # Make sure we overwrite the symlink if it is already there.
-                    with contextlib.suppress(FileNotFoundError):
-                        os.unlink(archive_dst)
-                    os.symlink(archive_path, archive_dst)
-
-                # Save the xUnit file as well
-                if step_res.xunit:
-                    xunit_log_path = os.path.join(log_dir, 'results.xml')
-                    with open(xunit_log_path, 'w') as f:
-                        f.write(step_res.xunit)
-
-        out('')
-
-        # Always execute that for the potential side effects like exporting the
-        # logs.
-        basic_report = super().report(
-            step_res_seq, service_hub, export_logs=export_logs,
-            show_basic=show_basic, verbose=verbose,
-            ignore_non_issue=ignore_non_issue, iterations=iterations,
-        )
-
-        if show_basic:
-            out(basic_report)
-
-        # Display a summary of failed tests
-        counts = collections.defaultdict(int)
-        # Contains the percentage of skipped, failed, crashed and passed
-        # iterations for every testcase.
-        testcase_stats = collections.defaultdict(dict)
-        table_out = MLString()
-        dist_out = MLString()
-        for testcase_id, res_seq in sorted(testcase_map.items()):
-            case_class, case_name = testcase_id
-            any_issue = False
-            # We only count the iterations where the testcase was run
-            iteration_n = len(res_seq)
-
-            testcase_stats[testcase_id]['events'] = dict()
-
-            testcase_stats[testcase_id]['iterations_summary'] = dict()
-            for issue, pretty_issue in (
-                    ('skipped', 'skipped'), ('failure', 'FAILED'), ('error', 'CRASHED')
-                ):
-                issue_list = [res for res in res_seq if res[issue] is not None]
-
-                # Only works when no nested macro steps are used. That is the
-                # only way of getting a number that is guaranteed to be
-                # synchronised with other steps.
-                i_set = {res['i_stack'][-1] for res in issue_list}
-                testcase_stats[testcase_id]['iterations_summary'].update({
-                    i: issue for i in i_set
-                })
-
-                issue_n = len(issue_list)
-                issue_pc = (100 * issue_n) / iteration_n
-                testcase_stats[testcase_id][issue] = issue_n
-                # The event value for a given issue at a given iteration will
-                # be True if the issue appeared, False otherwise.
-                testcase_stats[testcase_id]['events'][issue] = [
-                    (i in i_set)
-                    for i in range(1, i_max + 1)
-                ]
-
-                if issue_list:
-                    any_issue = True
-                    counts[issue] += 1
-                    if show_rates:
-                        table_out(
-                            '{case_class}: {case_name}: {pretty_issue} {issue_n}/{iteration_n} ({issue_pc:.1f}%)'.format(**locals())
-                        )
-                    if show_details:
-                        for res in issue_list:
-                            i_stack = res['i_stack']
-                            results_path = '\n' + res['results_path'] if show_results_dir else ''
-                            exception_name, msg, content = res[issue]
-
-                            # remove the "exceptions." prefix to increase
-                            # readability.
-                            if show_details == 'msg':
-                                content = ''
-                            else:
-                                content = ':\n' + content
-
-                            if '\n' in msg:
-                                msg = msg.strip() + '\n'
-                            else:
-                                msg += ' '
-
-                            table_out(
-                                '   #{i_stack: <2}) {msg}({exception_name}){results_path}{content}'.format(**locals()).replace('\n', '\n\t')
-                            )
-
-            iterations_summary = testcase_stats[testcase_id]['iterations_summary']
-            if show_dist and iterations_summary:
-                issue_letter = {
-                    'passed': '.',
-                    'failure': 'F',
-                    'skipped': 's',
-                    'error': '#',
-                }
-                iterations_summary = [
-                    issue_letter[iterations_summary.get(i, 'passed')]
-                    for i in range(1, i_max + 1)
-                ]
-                dist_out('{case_class}: {case_name}\n\t{dist}\n'.format(
-                    case_class = case_class,
-                    case_name = case_name,
-                    dist = ''.join(iterations_summary)
-                ))
-
-            issues_total_n = (
-                  testcase_stats[testcase_id]['skipped']
-                + testcase_stats[testcase_id]['failure']
-                + testcase_stats[testcase_id]['error']
-            )
-            passed_n = iteration_n - issues_total_n
-            testcase_stats[testcase_id]['passed'] = passed_n
-            testcase_stats[testcase_id]['total'] = iteration_n
-
-            if show_pass_rate or not any_issue:
-                # We completely remove <nose.suit "testcases" when they pass
-                # since they are not actual test cases. We only want to see
-                # their failures.
-                if case_class == '<nose.suite':
-                    del testcase_map[(case_class, case_name)]
-                else:
-                    counts['passed'] += 1
-                    if not ignore_non_issue and show_rates:
-                        passed_pc = 100 * passed_n / iteration_n
-                        table_out(
-                            '{case_class}: {case_name}: passed {passed_n}/{iteration_n} ({passed_pc:.1f}%)'.format(**locals())
-                        )
-
-        if show_details:
-            out(table_out)
-        else:
-            out(table_out.tabulate(' ', ' '))
-
-        out()
-        out(dist_out)
-
-        # This shows the number of tests that failed or crashed at least on
-        # one iteration. Therefore, the total might exceed the number of
-        # tests if one test failed at one iteration and crashed at another
-        # one. Only tests passing at all iterations are accounted for in
-        # the "Passed" count.
-        total = len(testcase_map)
-        out(
-            'Crashed: {counts[error]}/{total}, '
-            'Failed: {counts[failure]}/{total}, '
-            'Skipped: {counts[skipped]}/{total}, '
-            'Passed: {counts[passed]}/{total}'.format(**locals())
-        )
-
-        # Write out the digest in JSON format so another tool can exploit it
-        if xunit2json:
-            update_json(xunit2json,
-                {
-                    '.'.join(testcase_id): stats
-                    for testcase_id, stats in testcase_stats.items()
-                    # We don't care about nosetests machinery issues
-                    if testcase_id[0] != '<nose.suite'
-                }
-            )
-
-        return out
+    pass
 
 class StepNotifService:
     """Allows steps to send notifications."""
@@ -5324,7 +4820,10 @@ command line""")
 
     # Options for step-help subcommand
     step_help_parser.add_argument('steps', nargs='*',
-        default = sorted(cls.name for cls in get_subclasses(StepBase)),
+        default = sorted(
+            cls.name for cls in get_subclasses(StepBase)
+            if not issubclass(cls, Deprecated)
+        ),
         help="Steps name to get help of, or nothing for all steps.")
 
     # Options for monitor subcommand
