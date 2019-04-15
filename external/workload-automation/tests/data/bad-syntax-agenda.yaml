@@ -1,0 +1,6 @@
+config:
+      # tab on the following line
+          reboot_policy: never
+  workloads:
+      - antutu
+
