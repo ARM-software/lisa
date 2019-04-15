@@ -1,0 +1,252 @@
+{
+	"tasks" : {
+		"surfaceflinger" : {
+			"priority" : -7,
+			"loop" : -1,
+			"suspend",
+			"run" : 1500
+		},
+
+		"DispSync" : {
+			"priority" : -7,
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"suspend",
+					"run" : 35,
+					"resume" : "EventThread",
+					"run" : 40,
+				},
+
+				"p2" : {
+					"loop" : 2,
+					"suspend",
+					"run" : 30
+				}
+			},
+		},
+
+		"hwc_eventmon" : {
+			"priority" : -19,
+			"loop" : -1,
+			"resume" : "DispSync",
+			"run" : 115,
+			"timer" : { "ref" : "timerA", "period" : 16667 }
+		},
+
+		"EventThread1" : {
+			"priority" : -8,
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"suspend" : "EventThread",
+					"run" : 25,
+					"resume" : "DispSync",
+					"sleep" : 9650,
+					"run" : 70,
+					"resume" : "DispSync",
+					"run" : 80
+				},
+
+				"p2" : {
+					"suspend" : "EventThread",
+					"run" : 90,
+					"resume" : "DispSync"
+				}
+			}
+		},
+
+		"EventThread2" : {
+			"priority" : -8,
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"suspend" : "EventThread",
+					"run" : 30,
+					"resume" : "surfaceflinger"
+				},
+
+				"p2" : {
+					"suspend" : "EventThread",
+					"run" : 35,
+					"sleep" : 2000,
+					"run" : 110,
+					"resume" : "DispSync",
+					"run" : 60
+				}
+			}
+		},
+
+		"waker" : {
+			"priority" : -19,
+			"loop" : -1,
+			"resume" : "NuPlayerRenderer",
+			"timer" : { "ref" : "timerB", "period" : 33333 }
+		},
+
+		"NuPlayerRenderer" : {
+			"priority" : -15,
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"loop" : 3,
+					"suspend" : "NuPlayerRenderer",
+					"run" : 140,
+					"resume" : "NuPlayerDriver1",
+					"run" : 95
+				},
+
+				"p2" : {
+					"sleep" : 27000,
+					"run" : 580,
+					"resume" : "NPDecoder",
+					"resume" : "NPDecoder-CL",
+					"resume" : "gle.aac.decoder"
+				}
+			}
+		},
+
+		"NuPlayerDriver1" : {
+			"priority" : -15,
+			"loop" : -1,
+			"suspend",
+			"run" : 100,
+			"lock" : "NuPlayerDriver",
+			"sync" : { "ref" : "NuPlayerDriver", "mutex" : "NuPlayerDriver" },
+			"unlock" : "NuPlayerDriver",
+			"run" : 50,
+			"suspend" : "NuPlayerDriver",
+			"run" : 80,
+			"lock" : "NuPlayerDriver",
+			"sync" : { "ref" : "NuPlayerDriver", "mutex" : "NuPlayerDriver" },
+			"unlock" : "NuPlayerDriver",
+			"run" : 370,
+			"lock" : "NuPlayerDriver",
+			"sync" : { "ref" : "NuPlayerDriver", "mutex" : "NuPlayerDriver" },
+			"unlock" : "NuPlayerDriver",
+			"run" : 135,
+			"resume" : "NuPlayerDriver"
+		},
+
+		"NuPlayerDriver2" : {
+			"priority" : -15,
+			"loop" : -1,
+			"suspend" : "NuPlayerDriver",
+			"run" : 110,
+			"resume" : "NuPlayerDriver",
+			"resume" : "CodecLooper1",
+			"sleep" : 2500,
+			"run" : 80,
+			"lock" : "NuPlayerDriver",
+			"sync" : { "ref" : "NuPlayerDriver", "mutex" : "NuPlayerDriver" },
+			"unlock" : "NuPlayerDriver",
+			"run" : 50,
+			"lock" : "NuPlayerDriver",
+			"sync" : { "ref" : "NuPlayerDriver", "mutex" : "NuPlayerDriver" },
+			"unlock" : "NuPlayerDriver",
+			"run" : 70,
+			"lock" : "NuPlayerDriver",
+			"sync" : { "ref" : "NuPlayerDriver", "mutex" : "NuPlayerDriver" },
+			"unlock" : "NuPlayerDriver",
+			"run" : 35
+		},
+
+		"CodecLooper1" : {
+			"priority" : -15,
+			"loop" : -1,
+			"suspend",
+			"run" : 230,
+			"sleep" : 80,
+			"run" : 150,
+			"sleep" : 210,
+			"run" : 330,
+			"resume" : "CodecLooper2",
+			"sleep" : 900,
+			"run" : 170,
+			"sleep" : 670,
+			"run" : 125,
+			"resume" : "CodecLooper2"
+		},
+
+		"CodecLooper2" : {
+			"priority" : -1,
+			"loop" : -1,
+			"suspend",
+			"run" : 160,
+			"resume" : "CodecLooper3",
+			"sleep" : 590,
+			"resume" : "OMXCallbackDisp2",
+			"run" : 75,
+			"suspend",
+			"run" : 260
+		},
+
+		"OMXCallbackDisp2" : {
+			"priority" : -1,
+			"loop" : -1,
+			"suspend",
+			"run" : 180
+		},
+
+		"CodecLooper3" : {
+			"priority" : -1,
+			"loop" : -1,
+			"suspend",
+			"run" : 1000
+		},
+
+		"NPDecoder" : {
+			"priority" : -15,
+			"loop" : -1,
+			"suspend",
+			"run" : 500,
+			"sleep" : 680,
+			"resume" : "OMXCallbackDisp1",
+			"run" : 2000
+		},
+
+		"NPDecoder-CL" : {
+			"priority" : -15,
+			"loop" : -1,
+			"suspend",
+			"run" : 570,
+			"sleep" : 570,
+			"run" : 2100
+		},
+
+		"gle.aac.decoder" : {
+			"priority" : -1,
+			"loop" : -1,
+			"suspend",
+			"run" : 2400,
+			"sleep" : 430,
+			"run" : 45
+		},
+
+		"OMXCallbackDisp1" : {
+			"priority" : -1,
+			"loop" : -1,
+			"suspend",
+			"run" : 135,
+			"sleep" : 230,
+			"run" : 140,
+			"sleep" : 330,
+			"run" : 190,
+			"sleep" : 550,
+			"run" : 160
+		}
+	},
+
+	"global" : {
+		"default_policy" : "SCHED_OTHER",
+		"duration" : 600,
+		"ftrace" : false,
+		"gnuplot" : false,
+		"logdir" : "./",
+		"log_basename" : "video",
+		"lock_pages" : true,
+		"frag" : 1,
+		"calibration" : "CPU0"
+	}
+}
+

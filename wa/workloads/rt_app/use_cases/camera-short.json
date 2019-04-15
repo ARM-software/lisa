@@ -1,0 +1,980 @@
+{
+	"tasks" : {
+		"surfaceflinger" : {
+			"priority" : -7,
+			"loop" : -1,
+			"suspend": "surfaceflinger",
+			"run" : 1500,
+			"resume" : "Binder1"
+		},
+
+		"emulate_irq" : {
+			"priority" : -19,
+			"loop" : -1,
+			"resume" : "rpmsg_tx_tsk",
+			"run" : 50,
+			"timer" : { "ref" : "timerA", "period" : 33333 }
+		},
+
+		"rpmsg_tx_tsk" : {
+			"priority" : -19,
+			"loop" : -1,
+			"phases" : {
+
+				"p1" : {
+					"run" : 50,
+					"resume" : "ispack",
+					"sleep" : 3500
+				},
+
+				"p2" : {
+					"run" : 50,
+					"resume" : "ispack",
+					"sleep" : 4000
+				},
+
+				"p3" : {
+					"run" : 50,
+					"resume" : "ispack",
+					"suspend" : "rpmsg_tx_tsk"
+				}
+			}
+		},
+
+		"ispack" : {
+			"priority" : -20,
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"suspend" : "ispack",
+					"run" : 400,
+					"resume" : "ispout_1",
+					"resume" : "ispin_1",
+					"resume" : "LogdWriter",
+				},
+
+				"p2" : {
+					"resume" : "ispout_2"
+				},
+
+				"p3" : {
+					"resume" : "ispout_8"
+				},
+
+				"p4": {
+					"resume" : "ispout_6",
+					"run" : 200
+				},
+
+				"p5" : {
+					"suspend" : "ispack",
+					"run" : 150
+				},
+
+				"p6" : {
+					"suspend" : "ispack",
+					"run" : 150
+				}
+			}
+		},
+
+		"ispout_1" : {
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"suspend" :  "ispout_1",
+					"run" : 140
+				},
+
+				"p2" : {
+					"lock" : "ispout_1_mutex",
+					"wait" : { "ref" : "ispout_1_queue", "mutex": "ispout_1_mutex" },
+					"unlock" : "ispout_1_mutex",
+					"sleep" : 30,
+					"lock1" : "ispout_1_mutex",
+					"wait1" : { "ref" : "ispout_1_queue", "mutex": "ispout_1_mutex" },
+					"unlock1" : "ispout_1_mutex",
+					"run" : 1500
+				},
+
+				"p3" : {
+					"resume" : "fork1"
+				},
+
+				"p4" : {
+					"resume" : "fork2"
+				},
+
+				"p5" : {
+					"resume" : "fork3"
+				}
+			}
+		},
+
+		"ispout_2" : {
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"suspend" :  "ispout_2",
+					"run" : 140
+				},
+
+				"p2" : {
+					"lock" : "ispout_2_mutex",
+					"wait" : { "ref" : "ispout_2_queue", "mutex": "ispout_2_mutex" },
+					"unlock" : "ispout_2_mutex",
+					"run" : 350,
+					"resume" : "SceneDetection",
+					"run1" : 200
+				},
+
+				"p3" : {
+					"resume" : "FaceDetection"
+				},
+
+				"p4" : {
+					"resume" : "Misc",
+					"resume" : "LogdWriter",
+				},
+
+				"p5" : {
+					"resume" : "AssitAF",
+					"sleep" : 20,
+					"run" : 600
+				}
+			}
+		},
+
+		"ispout_6" : {
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"suspend" :  "ispout_6",
+					"run" : 1000
+				},
+
+				"p2" : {
+					"resume" : "ev2",
+					"run" : 400
+				},
+
+				"p3" : {
+					"lock" : "ispout_8_mutex",
+					"signal" : "ispout_8_queue",
+					"unlock" : "ispout_8_mutex"
+				},
+
+				"p4" : {
+					"lock" : "ispout_2_mutex",
+					"signal" : "ispout_2_queue",
+					"unlock" : "ispout_2_mutex",
+					"resume" : "pl2"
+				},
+
+				"p5" : {
+					"lock" : "ispout_1_mutex",
+					"signal" : "ispout_1_queue",
+					"unlock" : "ispout_1_mutex",
+					"run" : 150,
+					"lock1" : "ispout_1_mutex",
+					"signal1" : "ispout_1_queue",
+					"unlock1" : "ispout_1_mutex",
+					"resume" : "LogdWriter",
+				}
+			}
+		},
+
+		"ispout_8" : {
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"suspend" :  "ispout_8",
+					"run" : 140
+				},
+
+				"p2" : {
+					"lock" : "ispout_8_mutex",
+					"wait" : { "ref" : "ispout_8_queue", "mutex": "ispout_8_mutex" },
+					"unlock" : "ispout_8_mutex",
+					"run" : 300,
+					"resume" : "ispreproc"
+				}
+			}
+		},
+
+		"ispin_1" : {
+			"loop" : -1,
+			"suspend" :  "ispin_1",
+			"run" : 180,
+			"resume" : "isp_0",
+
+			"lock" : "ispin_1_mutex",
+			"wait" : { "ref" : "ispin_1_queue", "mutex": "ispin_1_mutex" },
+			"unlock" : "ispin_1_mutex",
+			"run" : 50,
+		},
+
+		"ispin_2" : {
+			"loop" : -1,
+			"suspend" :  "ispin_2",
+			"run" : 50,
+		},
+
+
+		"ispin_8" : {
+			"loop" : -1,
+			"suspend" :  "ispin_8",
+			"run" : 125,
+		},
+
+		"isp_0" : {
+			"loop" : -1,
+			"suspend" :  "ispin_1",
+			"run" : 1500,
+
+			"lock" : "ispin_1_mutex",
+			"signal" : "ispin_1_queue",
+			"unlock" : "ispin_1_mutex",
+
+			"resume" : "ispin_2",
+
+
+			"run" : 50,
+
+			"resume" : "ispin_8",
+		},
+
+		"SceneDetection" : {
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"suspend" :  "SceneDetection",
+					"run" : 3500,
+				},
+
+				"p2" : {
+					"resume" : "LogdWriter",
+					"lock" : "ev2_mutex",
+					"signal" : "ev2_queue",
+					"unlock" : "ev2_mutex"
+				},
+
+				"p3" : {
+					"suspend" :  "SceneDetection",
+					"run" : 6500,
+				},
+
+				"p4" : {
+					"resume" : "LogdWriter",
+					"lock" : "ev2_mutex",
+					"signal" : "ev2_queue",
+					"unlock" : "ev2_mutex"
+				}
+			}
+		},
+
+		"FaceDetection" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "FaceDetection",
+					"run" : 5736,
+					"resume" : "LogdWriter",
+				},
+
+				"p2" : {
+					"suspend" : "FaceDetection",
+					"run" : 7626,
+					"resume" : "LogdWriter",
+				},
+
+				"p3" : {
+					"suspend" : "FaceDetection",
+					"run" : 2405,
+					"resume" : "LogdWriter",
+				},
+
+				"p4" : {
+					"suspend" : "FaceDetection",
+					"run" : 8184,
+					"resume" : "LogdWriter",
+				}
+			}
+		},
+
+		"ispreproc" : {
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"suspend" : "ispreproc",
+					"run" : 150
+				},
+
+				"p2" : {
+					"lock" : "ispreproc_mutex",
+					"wait" : { "ref" : "ispreproc_queue", "mutex": "ispreproc_mutex" },
+					"unlock" : "ispreproc_mutex",
+					"run" : 150
+				}
+			}
+		},
+
+		"ev2" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "ev2",
+					"run" : 260
+				},
+
+				"p2" : {
+					"resume" : "ispreq",
+					"run" : 260,
+					"resume" : "LogdWriter",
+				},
+
+				"p3" : {
+					"lock" : "ev2_mutex",
+					"wait" : { "ref" : "ev2_queue", "mutex": "ev2_mutex" },
+					"unlock" : "ev2_mutex",
+					"run" : 140
+				},
+
+				"p3" : {
+					"lock" : "ispreproc_mutex",
+					"signal" : "ispreproc_queue",
+					"unlock" : "ispreproc_mutex",
+					"run" : 110
+				}
+			}
+		},
+
+		"Misc" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "Misc",
+				       	"run" : 178
+				}
+			}
+		},
+
+		"AssitAF" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "AssitAF",
+					"run" : 178
+				}
+			}
+		},
+
+		"ispreq" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "ispreq",
+					"run" : 180
+				}
+			}
+		},
+
+		"pl2" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "pl2",
+					"run" : 285,
+					"resume" : "CameraData"
+				},
+
+				"p2" : {
+					"sleep" : 11848,
+					"run" : 896
+				}
+			}
+		},
+
+		"fork1" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "fork1",
+					"run" : 182
+				},
+
+				"p2" : {
+					"resume" : "ThumbnailBase1"
+				}
+			}
+		},
+
+		"ThumbnailBase1" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "ThumbnailBase1",
+					"run" : 7000,
+					"resume" : "LogdWriter",
+				}
+			}
+		},
+
+		"fork2" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "fork2",
+					"run" : 82
+				},
+
+				"p2" : {
+					"resume" : "ThumbnailBase2"
+				}
+			}
+		},
+
+		"ThumbnailBase2" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "ThumbnailBase2",
+					"run" : 6400,
+					"resume" : "LogdWriter",
+				}
+			}
+		},
+
+		"fork3" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "fork3",
+					"run" : 82
+				},
+
+				"p2" : {
+					"resume" : "ThumbnailBase3"
+				}
+			}
+		},
+
+		"ThumbnailBase3" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "ThumbnailBase3",
+					"run" : 7361
+				}
+			}
+		},
+
+		"SensorService" : {
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"run" : 300,
+					"resume" : "m_camera",
+					"timer" : { "ref" : "timerB", "period" : 3000 }
+				},
+
+				"p2" : {
+					"run" : 300,
+					"timer" : { "ref" : "timerB", "period" : 3000 }
+				},
+
+				"p3" : {
+					"run" : 300,
+					"timer" : { "ref" : "timerB", "period" : 3000 }
+				},
+
+				"p4" : {
+					"run" : 300,
+					"resume" : "m_camera",
+					"timer" : { "ref" : "timerB", "period" : 3000 }
+				}
+			}
+		},
+
+		"DisplaySync" : {
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"run" : 180
+				},
+
+				"p2" : {
+					"resume" : "EventThread1"
+				},
+
+				"p3" : {
+					"resume" : "EventThread2"
+				},
+
+				"p4" : {
+					"sleep" : 30,
+					"run" : 120,
+					"timer" : { "ref" : "timerB", "period" : 16667 }
+				}
+			}
+		},
+
+
+		"EventThread1" : {
+			"loop" : -1,
+
+			"phases" : {
+
+				"p1" : {
+					"suspend" : "EventThread1",
+					"run" : 200,
+					"resume" : "m_camera",
+					"run1" : 280,
+					"resume": "surfaceflinger",
+				},
+
+				"p2" : {
+					"sleep" : 660,
+					"run" : 300,
+					"sleep1" : 60,
+					"run1" : 150
+				}
+			}
+		},
+
+		"EventThread2" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "EventThread2",
+					"run" : 150
+				}
+			}
+		},
+
+		"m_camera" : {
+			"loop" : -1,
+
+			"phases" : {
+				"p1" : {
+					"suspend" : "m_camera",
+					"run" : 660
+				},
+
+				"p2" : {
+					"lock" : "render_thread_mutex",
+					"signal" : "render_thread_queue",
+					"unlock" : "render_thread_mutex"
+				}
+			}
+		},
+
+		"RenderThread" : {
+			"loop" : -1,
+
+			"lock" : "render_thread_mutex",
+			"wait" : { "ref" : "render_thread_queue", "mutex": "render_thread_mutex" },
+			"unlock" : "render_thread_mutex",
+
+			"run" : 300,
+			"resume" :  "mali-render",
+			"sleep" : 240,
+			"run1" : 1000,
+			"sleep1" : 210,
+			"run2" : 1040,
+			"sleep2" : 580,
+			"run3" : 350
+
+		},
+
+		"MaliRender" : {
+			"loop" : -1,
+
+			"suspend" : "mali-render",
+			"run" : 250,
+			"resume" :  "mali-render-hnd",
+			"sleep" : 20,
+			"run1" : 160,
+			"sleep1" : 1373,
+			"run2" : 250,
+			"resume2" :  "mali-render-hnd",
+			"sleep2" : 20,
+			"run3" : 250,
+			"sleep3" : 568,
+			"run4" : 500,
+			"sleep4" : 30,
+			"run5" : 300,
+			"resume5" :  "mali-render-hnd",
+			"sleep5" : 200,
+			"run6" : 120,
+
+			"resume": "surfaceflinger",
+		},
+
+		"MaliRenderHnd" : {
+			"loop" : -1,
+			"suspend" : "mali-render-hnd",
+			"run" : 150
+		},
+
+		"AudioTick" : {
+			"priority" : -19,
+			"loop" : -1,
+			"phases" : {
+				"p1" : {
+					"loop" : 1,
+					"run" : 150,
+					"resume" : "AudioIn",
+					"timer" :  { "ref" : "tick", "period": 20000 }
+				}
+			}
+		},
+
+		"AudioIn" : {
+			"loop" : -1,
+			"suspend" : "AudioIn",
+			"run" : 2730,
+			"resume" : "AudioRecord"
+		},
+
+		"AudioRecord" : {
+			"loop" : -1,
+			"suspend" : "AudioRecord",
+			"resume" : "pull_looper",
+			"sleep" : 2600,
+			"resume1" : "pull_looper"
+		},
+
+		"pull_looper" : {
+			"loop" : -1,
+			"suspend" : "pull_looper",
+
+			"lock" : "mutex",
+			"signal" : "queue",
+			"unlock" : "mutex"
+		},
+
+		"recoder_looper" : {
+			"loop" : -1,
+			"lock" : "mutex",
+			"signal" : "queue",
+			"wait" : { "ref" : "queue", "mutex": "mutex" },
+			"unlock" : "mutex",
+			"run" : 180,
+
+			"lock1" : "mutex",
+			"signal1" : "queue",
+			"wait1" : { "ref" : "queue", "mutex": "mutex" },
+			"unlock1" : "mutex",
+			"run1" : 130,
+
+			"resume" : "gle.acc.encoder",
+
+			"lock2" : "mutex",
+			"signal2" : "queue",
+			"wait2" : { "ref" : "queue", "mutex": "mutex" },
+			"unlock2" : "mutex",
+			"run2" : 130
+		},
+
+		"codec_looper" : {
+			"loop" : -1,
+			"lock" : "mutex",
+			"wait" : { "ref" : "queue", "mutex": "mutex" },
+			"unlock" : "mutex",
+			"run" :  130,
+
+			"lock1" : "mutex",
+			"signal" : "queue",
+			"unlock1" : "mutex",
+			"run1" :  180,
+
+			"suspend" : "codec_looper",
+			"run2" :  160,
+			"lock2" : "mutex",
+			"signal2" : "queue",
+			"unlock2" : "mutex"
+		},
+
+		"gle.acc.encoder" : {
+			"loop" : -1,
+			"suspend" : "gle.acc.encoder",
+			"run" : 20,
+			"resume" : "OMXCall",
+
+			"suspend1" : "gle.acc.encoder",
+			"run1" : 800,
+			"resume1" : "OMXCall"
+		},
+
+		"OMXCall" : {
+			"loop" : -1,
+			"suspend" : "OMXCall",
+			"run" :  130,
+			"resume" : "codec_looper"
+		},
+
+		"CameraData" : {
+			"loop" : -1,
+			"suspend" : "CameraData",
+			"run" :  2000,
+			"lock" : "camera_data_mutex",
+			"signal" : "camera_data_queue",
+			"unlock" : "camera_data_mutex",
+
+			"resume" : "Binder1",
+			"resume1" : "Binder2",
+			"run1" :  2080,
+
+			"lock1" : "camera_data_mutex",
+			"signal1" : "camera_data_queue",
+			"unlock1" : "camera_data_mutex",
+
+			"resume2" : "Binder3"
+		},
+
+		"CameraDataProc" : {
+			"loop" : -1,
+			"lock" : "camera_data_mutex",
+			"wait" : { "ref" : "camera_data_queue", "mutex": "camera_data_mutex" },
+			"unlock" : "camera_data_mutex",
+			"run" :  150,
+
+			"lock1" : "camera_stream1_mutex",
+			"signal" : "camera_stream1_queue",
+			"unlock1" : "camera_stream1_mutex",
+
+			"lock2" : "camera_data_mutex",
+			"wait2" : { "ref" : "camera_data_queue", "mutex": "camera_data_mutex" },
+			"unlock2" : "camera_data_mutex",
+			"run2" :  1000,
+
+			"resume" : "Binder1"
+		},
+
+		"CameraStream1" : {
+			"loop" : -1,
+			"lock" : "camera_stream1_mutex",
+			"wait" : { "ref" : "camera_stream1_queue", "mutex": "camera_stream1_mutex" },
+			"unlock" : "camera_stream1_mutex",
+			"run" :  240,
+
+			"resume" : "Binder1",
+
+			"lock1" : "camera_stream2_mutex",
+			"signal" : "camera_stream2_queue",
+			"unlock1" : "camera_stream2_mutex",
+
+			"sleep" : 2500,
+			"run1" :  240,
+
+			"lock2" : "camera_stream3_mutex",
+			"signal2" : "camera_stream3_queue",
+			"unlock2" : "camera_stream3_mutex",
+
+			"resume" : "LogdWriter",
+
+			"lock3" : "camera_req_mutex",
+			"signal3" : "camera_req_queue",
+			"unlock3" : "camera_req_mutex"
+		},
+
+		"CameraStream2" : {
+			"loop" : -1,
+			"lock" : "camera_stream2_mutex",
+			"wait" : { "ref" : "camera_stream2_queue", "mutex": "camera_stream2_mutex" },
+			"unlock" : "camera_stream2_mutex",
+			"run" :  180,
+			"sleep" : 2500,
+			"run1" :  240,
+			"sleep1" : 850,
+			"run2" :  90,
+
+			"resume" : "Binder1",
+
+			"lock2" : "camera_req_mutex",
+			"signal" : "camera_req_queue",
+			"unlock2" : "camera_req_mutex",
+
+			"resume" : "LogdWriter",
+		},
+
+		"CameraStream3" : {
+			"loop" : -1,
+			"lock" : "camera_stream3_mutex",
+			"wait" : { "ref" : "camera_stream3_queue", "mutex": "camera_stream3_mutex" },
+			"unlock" : "camera_stream3_mutex",
+			"run" :  90,
+
+			"lock1" : "eb_mutex",
+			"signal" : "eb_queue",
+			"unlock1" : "eb_mutex",
+
+			"resume" : "LogdWriter",
+		},
+
+		"CameraReqQueue" : {
+			"loop" : -1,
+			"lock" : "camera_req_mutex",
+			"wait" : { "ref" : "camera_req_queue", "mutex": "camera_req_mutex" },
+			"unlock" : "camera_req_mutex",
+			"run" :  200,
+
+			"lock1" : "camera_req_mutex",
+			"wait1" : { "ref" : "camera_req_queue", "mutex": "camera_req_mutex" },
+			"unlock1" : "camera_req_mutex",
+			"run1" :  200,
+
+			"resume" : "Binder3",
+
+			"sleep" : 120,
+			"run2" : 200,
+
+			"resume2" : "Binder2",
+
+			"sleep2" : 1900,
+			"run3" : 270,
+			"lock3" : "camera_s0_mutex",
+			"signal" : "camera_s0_queue",
+			"unlock3" : "camera_s0_mutex",
+
+			"resume3" : "Binder1",
+
+			"sleep3" : 560,
+			"run4" : 700,
+			"lock4" : "camera_s1_mutex",
+			"signal4" : "camera_s1_queue",
+			"unlock4" : "camera_s1_mutex",
+
+			"resume" : "LogdWriter",
+
+			"sleep4" : 533,
+			"run5" : 300,
+			"lock5" : "camera_s2_mutex",
+			"signal5" : "camera_s2_queue",
+			"unlock5" : "camera_s2_mutex"
+		},
+
+		"CameraS0" : {
+			"loop" : -1,
+			"lock" : "camera_s0_mutex",
+			"wait" : { "ref" : "camera_s0_queue", "mutex": "camera_s0_mutex" },
+			"unlock" : "camera_s0_mutex",
+			"run" :  300,
+
+			"lock1" : "camera_s1_mutex",
+			"wait1" : { "ref" : "camera_s1_queue", "mutex": "camera_s1_mutex" },
+			"unlock1" : "camera_s1_mutex",
+			"run1" :  300,
+
+			"lock2" : "camera_s2_mutex",
+			"wait2" : { "ref" : "camera_s2_queue", "mutex": "camera_s2_mutex" },
+			"unlock2" : "camera_s2_mutex",
+			"run2" :  400,
+
+			"sleep" : 900,
+			"run3" :  380,
+			"sleep3" : 250,
+			"run4" :  278
+		},
+
+		"EmptyBuffer" : {
+			"loop" : -1,
+			"lock" : "eb_mutex",
+			"wait" : { "ref" : "eb_queue", "mutex": "eb_mutex" },
+			"unlock" : "eb_mutex",
+			"run" :  240,
+
+			"lock1" : "encb_mutex",
+			"signal" : "encb_queue",
+			"unlock1" : "encb_mutex"
+		},
+
+		"EncodeBuffer" : {
+			"loop" : -1,
+			"lock" : "encb_mutex",
+			"wait" : { "ref" : "encb_queue", "mutex": "encb_mutex" },
+			"unlock" : "encb_mutex",
+			"run" :  370,
+
+			"lock1" : "fb_mutex",
+			"signal" : "fb_queue",
+			"wait1" : { "ref" : "fb_queue", "mutex": "fb_mutex" },
+			"unlock1" : "fb_mutex",
+			"run1" :  350
+		},
+
+		"FillBuffer" : {
+			"loop" : -1,
+			"lock" : "fb_mutex",
+			"wait" : { "ref" : "fb_queue", "mutex": "fb_mutex" },
+			"unlock" : "fb_mutex",
+			"run" :  200,
+
+			"sleep" : 14800,
+			"run1" :  2400,
+
+			"lock1" : "fb_mutex",
+			"signal" : "fb_queue",
+			"unlock1" : "fb_mutex"
+		},
+
+		"Binder1" : {
+			"loop" : -1,
+			"suspend" : "Binder1",
+			"run" :  350
+		},
+
+		"Binder2" : {
+			"loop" : -1,
+			"suspend" : "Binder2",
+			"run" :  365
+		},
+
+		"Binder3" : {
+			"loop" : -1,
+			"suspend" : "Binder3",
+			"run" :  369,
+		},
+
+		"LogdWriter" : {
+			"loop" : -1,
+			"suspend" : "LogdWriter",
+			"run" :  300,
+			"resume" : "LogdReader",
+		},
+
+		"LogdReader" : {
+			"loop" : -1,
+			"suspend" : "LogdReader",
+			"run" :  30,
+		}
+
+	},
+
+	"global" : {
+		"default_policy" : "SCHED_OTHER",
+		"duration" : 6,
+		"ftrace" : false,
+		"gnuplot" : false,
+		"logdir" : "./",
+		"log_basename" : "camera",
+		"lock_pages" : true,
+		"frag" : 1,
+		"calibration" : "CPU0"
+	}
+}
+

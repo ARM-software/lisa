@@ -1,0 +1,68 @@
+{
+	"tasks" : {
+		"AudioTick" : {
+			"priority" : -19,
+			"loop" : -1,
+			"cpus" : [0],
+			"phases" : {
+				"p1" : {
+					"loop" : 1,
+					"resume" : "AudioOut",
+					"timer" :  { "ref" : "tick", "period": 6000 }
+				},
+				"p2" : {
+					"loop" : 4,
+					"timer" :  { "ref" : "tick", "period": 6000 }
+				}
+			}
+		},
+		"AudioOut" : {
+			"priority" : -19,
+			"loop" : -1,
+			"run" :  275,
+			"resume" : "AudioTrack",
+			"run" : 4725,
+			"suspend" : "AudioOut"
+		},
+		"AudioTrack" : { 
+			"priority" : -16,
+			"loop" : -1,
+				"suspend" : "AudioTrack",
+				"run" :  300,
+				"resume" : "mp3.decoder"
+		},
+		"mp3.decoder" : {
+			"priority" : -2,
+			"loop" : -1,
+				"suspend" : "mp3.decoder",
+				"run" :  1000,
+				"lock" : "mutex",
+				"signal" : "queue",
+				"wait" : { "ref" : "queue", "mutex": "mutex" },
+				"unlock" : "mutex",
+				"run" :  150
+		},
+		"OMXCall" : {
+			"priority" : -2,
+			"loop" : -1,
+			"lock" : "mutex",
+			"wait" : { "ref" : "queue", "mutex": "mutex" },
+			"unlock" : "mutex",
+			"run" :  300,
+			"lock" : "mutex",
+			"signal" : "queue",
+			"unlock" : "mutex"
+		}
+	},
+	"global" : {
+		"default_policy" : "SCHED_OTHER",
+		"duration" : 600,
+		"ftrace" : false,
+		"gnuplot" : false,
+		"logdir" : "./",
+		"log_basename" : "mp3",
+		"lock_pages" : true,
+		"frag" : 1,
+		"calibration" : "CPU0"
+	}
+}

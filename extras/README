@@ -1,0 +1,20 @@
+This directory is intended for miscellaneous extra stuff that may be
+useful while developing Workload Automation. It should *NOT* contain
+anything necessary for *using* workload automation.  Whenever you add
+something to this directory, please also add a short description of
+what it is in this file.
+
+Dockerfile
+        Docker file for generating a Docker image containing WA,
+        devlib, and the required parts of the Android SDK. This can be
+        run in a container to avoid configuring WA on the host. Should
+        work "out of the box".
+
+pylintrc 
+        pylint configuration file set up for WA development (see
+        comment at the top of the file for how to use).
+
+walog.vim
+        Vim syntax file for WA logs; adds highlighting similar to what
+        comes out in the console. See comment in the file for how to
+        enable it.

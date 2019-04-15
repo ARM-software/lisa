@@ -1,0 +1,3 @@
+#!/bin/bash
+# Clear workload automation user environment.
+rm -rf ~/.workload_automation/

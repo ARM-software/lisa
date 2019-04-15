@@ -1,0 +1,3 @@
+recursive-include scripts *
+recursive-include doc *
+recursive-include wa *
