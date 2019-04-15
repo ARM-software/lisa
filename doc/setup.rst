@@ -13,7 +13,7 @@ Native installation
 For now, you will need to clone LISA from `github <https://github.com/ARM-software/lisa>`_ ,
 and then issue these commands::
 
-  git clone https://github.com/ARM-software/lisa.git -b next
+  git clone https://github.com/ARM-software/lisa.git
   cd lisa
   # A few packages need to be installed, like python3 or kernelshark. Python
   # modules will be installed in a venv at the next step, without touching
@@ -64,7 +64,7 @@ use such a virtual machine you need:
 
 Once these two components are available on your machine, issue these commands::
 
-  git clone https://github.com/ARM-software/lisa.git -b next
+  git clone https://github.com/ARM-software/lisa.git
   cd lisa
   vagrant up
 
