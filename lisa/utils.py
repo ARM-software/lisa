@@ -105,6 +105,27 @@ def get_subclasses(cls, only_leaves=False, cls_set=None):
 
     return cls_set
 
+
+def get_cls_name(cls, style=None):
+    """
+    Get a prettily-formated name for the class given as parameter
+
+    :param cls: class to get the name from
+    :type cls: type
+
+    :param style: When "rst", a RestructuredText snippet is returned
+    :param style: str
+
+    """
+    if cls is None:
+        return 'None'
+    mod_name = inspect.getmodule(cls).__name__
+    mod_name = mod_name + '.' if mod_name not in ('builtins', '__main__') else ''
+    name = mod_name + cls.__qualname__
+    if style == 'rst':
+        name = ':class:`~{}`'.format(name)
+    return name
+
 class HideExekallID:
     """Hide the subclasses in the simplified ID format of exekall.
 
