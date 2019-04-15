@@ -1,0 +1,7 @@
+version = 6
+CPU 3 is empty
+CPU 4 is empty
+cpus=6
+              ls-4734  [002] 106439.675591: sched_switch:          prev_comm=trace-cmd prev_pid=4734 prev_prio=120 prev_state=1024 next_comm=migration/2 next_pid=18 next_prio=0
+     migration/2-18    [002] 106439.675613: sched_switch:          prev_comm=migration/2 prev_pid=18 prev_prio=0 prev_state=1 next_comm=trace-cmd next_pid=4732 next_prio=120
+       trace-cmd-4730  [001] 106439.675718: sched_switch:          prev_comm=trace-cmd prev_pid=4730 prev_prio=120 prev_state=1 next_comm=trace-cmd next_pid=4729 next_prio=120
