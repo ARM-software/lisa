@@ -1,0 +1,8 @@
+  VideoDecMsgThr-32342 [007] 85636.208531: clock_set_rate:       video_subcore0_clk_src state=200000000 cpu_id=7
+  VideoDecMsgThr-32342 [007] 85636.208637: clock_set_rate:       mmss_video_subcore1_clk state=200000000 cpu_id=7
+  VideoDecMsgThr-32342 [007] 85636.208640: clock_set_rate:       video_subcore1_clk_src state=200000000 cpu_id=7
+          writer-14965 [001] 85636.216529: clock_enable:         blsp2_qup1_i2c_apps_clk_src state=1 cpu_id=1
+          writer-14965 [001] 85636.216531: clock_enable:         gcc_blsp2_qup1_i2c_apps_clk state=1 cpu_id=1
+          writer-14965 [000] 85636.216771: clock_disable:        gcc_blsp2_qup1_i2c_apps_clk state=0 cpu_id=0
+          writer-14965 [000] 85636.216774: clock_disable:        blsp2_qup1_i2c_apps_clk_src state=0 cpu_id=0
+          writer-14965 [000] 85636.216801: clock_enable:         blsp2_qup1_i2c_apps_clk_src state=1 cpu_id=0
