@@ -52,13 +52,13 @@ The main goals of LISA are:
     * **enables** kernel developers to easily post process data to produce
       statistics and plots
 
-# Documentation [![Documentation Status](https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=next)](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/?badge=next)
+# Documentation [![Documentation Status](https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=master)](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/?badge=master)
 
-You should find everything on [ReadTheDocs](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/).
+You should find everything on [ReadTheDocs](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/).
 Here are some noteworthy sections:
-* [Installation](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/users_guide.html#installation)
-* [Self-tests](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/lisa_tests.html)
-* [Kernel tests](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/kernel_tests.html)
+* [Installation](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/users_guide.html#installation)
+* [Self-tests](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/lisa_tests.html)
+* [Kernel tests](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/kernel_tests.html)
 
 # External Links
 * Linux Integrated System Analysis (LISA) & Friends
