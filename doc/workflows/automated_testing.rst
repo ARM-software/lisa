@@ -272,7 +272,7 @@ file with this kind of content:
 
 
     # A test step will make the result good if the command exit with 0, or bad otherwise.
-    - class: exekall-LISA-test
+    - class: LISA-test
       name: eas-behaviour
       timeout: 3600
       # Block-style strings allow multiple lines. For more block style examples:
@@ -343,7 +343,7 @@ options can be set as usual:
 
 .. code-block:: sh
 
-  bisector run --inline reboot reboot -oreboot.cmd='reboot_my_board.sh' --inline exekall-LISA-test mytest -omytest.cmd='lisa-test' --report myreport.yml.gz
+  bisector run --inline reboot reboot -oreboot.cmd='reboot_my_board.sh' --inline LISA-test mytest -omytest.cmd='lisa-test' --report myreport.yml.gz
 
 Analyzing results
 +++++++++++++++++
@@ -378,7 +378,7 @@ that if everything went well:
       #4 : OK
       #5 : OK
 
-  test/behaviour (exekall-LISA-test) [GOOD]
+  test/behaviour (LISA-test) [GOOD]
       OneSmallTask[board=juno-r0]:test_slack:                      passed 163/163 (100.0%)
       OneSmallTask[board=juno-r0]:test_task_placement:             passed 163/163 (100.0%)
       Error: 0/2, Failed: 0/2, Undecided: 0/2, Skipped: 0/2, Passed: 2/2
@@ -398,7 +398,7 @@ will aggregate the results of all its iterations. The header is formatted as
 *<step name>/<step category> (step class name) [<step result>]*. The overall
 bisect result is the combination of the result of each steps.
 
-``exekall-LISA-test`` has special support for inspecting ``exekall``'s database
+``LISA-test`` has special support for inspecting ``exekall``'s database
 collected during each iteration of ``bisector``, and can display a summary
 table. By default, a **passed** label will only appear if all iteration
 successfully passed.  Otherwise, an appropriate combination of **FAILED**,
@@ -409,7 +409,7 @@ Various options can affect what is displayed and taken into account. For
 example, ``--skip my-other-test`` will remove the contribution of that step to
 the final result. Step-specific report options are documented in ``bisector
 step-help``. Some of the options allow exporting collected artifacts from the
-report, like ``-oexport-logs``. In the case of ``exekall-LISA-test`` step,
+report, like ``-oexport-logs``. In the case of ``LISA-test`` step,
 that option also makes a symlink to the artifact folder available along the
 stdout/stderr log.
 
@@ -421,7 +421,7 @@ stdout/stderr log.
 Looking for regressions
 -----------------------
 
-Using the ``exekall-LISA-test`` step, ``bisector`` collects a pruned version of
+Using the ``LISA-test`` step, ``bisector`` collects a pruned version of
 ``VALUE_DB.pickle.xz`` artifact for each iteration. These databases are stored
 directly inside the report. When using the ``-oexport-db=VALUE_DB.pickle.xz``,
 it is possible to export a database that is the result of merging all the
@@ -519,7 +519,7 @@ Integration in a CI loop
 ``bisector run`` has the ability of uploading reports on the fly to
 *Artifactorial* [#]_. *Artifactorial* is convenient since it allows pushing
 large quantities of data to a server, that are automatically cleaned up after a
-period of time. The ``exekall-LISA-test`` step can upload compressed exekall
+period of time. The ``LISA-test`` step can upload compressed exekall
 artifact archives using ``-oupload-artifact`` run option. It will record the
 new HTTP location of the artifacts in the report. In a way, the report becomes
 an index that contains enough information to make a decision on what artifact

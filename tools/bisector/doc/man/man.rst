@@ -141,7 +141,7 @@ The YAML file is structured as following:
        # exekall LISA test will interpret a non-zero exit status of the command
        # as bisect bad, and a zero exit status as bisect good.
        -
-         class: exekall-LISA-test
+         class: LISA-test
          name: one-small-task
          # Using systemd-run ensures all child process is killed if the session
          # is interrupted
@@ -196,7 +196,7 @@ A typical flow of ``bisector`` looks like that:
    bisector report bisector.report.yml.gz --only test
     
    # Help of a exekall LISA's step options
-   bisector step-help exekall-LISA-test
+   bisector step-help LISA-test
     
    # Get all information about tests failures
    bisector report bisector.report.yml.gz -overbose
