@@ -60,9 +60,6 @@ Here are some noteworthy sections:
 * [Self-tests](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/lisa_tests.html)
 * [Kernel tests](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/kernel_tests.html)
 
-We are working towards phasing out the [Github wiki](https://github.com/ARM-software/lisa/wiki) in favor of
-ReadTheDocs, but in the meantime you may find some extra information there.
-
 # External Links
 * Linux Integrated System Analysis (LISA) & Friends
   [Slides](http://events.linuxfoundation.org/sites/events/files/slides/ELC16_LISA_20160326.pdf)

@@ -4,19 +4,16 @@
    contain the root `toctree` directive.
 
 LISA API Documentation
-==============================================
+======================
 
 LISA - "Linux Integrated System Analysis" is a toolkit for interactive analysis
 and automated regression testing of Linux kernel behaviour.
 
 - See the README on the project's `Github home page`__ for an overview.
-- Check out the project's `Github Wiki`__ for some guides to installation
-  and setup.
 - Once you have LISA running, take a look at the tutorial and example notebooks
   included with the installation.
 
 __ https://github.com/ARM-software/lisa
-__ https://github.com/ARM-software/lisa/wiki
 
 Contributions to LISA and its documentation are very welcome, and handled
 via Github pull requests.
