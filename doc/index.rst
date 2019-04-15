@@ -51,8 +51,8 @@ Contents:
 
    tools_separator
 
-   bisector
-   exekall
+   bisector/index
+   exekall/index
 
 Indices and tables
 ==================
