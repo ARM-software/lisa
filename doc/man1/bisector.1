@@ -273,184 +273,6 @@ LISA\-test (test)
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 Inherits from: shell
 
-    Execute a LISA test command and collect xUnit results. Also compress the
-    result directory and record its path. It will also define some environment
-    variables that are expected to be used by the command to be able to locate
-    resources to collect.
-    
-    .. deprecated:: 1.0
-        This class is designed for legacy LISA, use
-        :class:\(gaExekallLISATestStep\(ga for current LISA instead.
-
-    run:
-      \-o bail\-out= (bool) 
-            start a new iteration if the command fails, without executing
-            remaining steps for this iteration
-
-      \-o cmd= (non\-empty str) 
-            shell command to be executed
-
-      \-o compress\-results= (bool) 
-            compress the LISA result directory in an archive
-
-      \-o env= (env var list) 
-            environment variables with a list of values that will be used for
-            each iterations, wrapping around. The string format is:
-            VAR1=val1%val2%...%%VAR2=val1%val2%.... In YAML, it is a map of var
-            names to list of values. A single string can be supplied instead of
-            a list of values.
-
-      \-o kill\-timeout= (int or "inf") 
-            time to wait before sending SIGKILL after having sent SIGTERM
-
-      \-o shell= (non\-empty str) 
-            shell to execute the command in
-
-      \-o timeout= (int or "inf") 
-            timeout in seconds before sending SIGTERM to the command, or "inf"
-            for infinite timeout
-
-      \-o trials= (int) 
-            number of times the command will be retried if it does not return 0
-
-      \-o upload\-results= (bool) 
-            upload the LISA results directory to Artifactorial as the execution
-            goes, and delete the local archive.
-
-      \-o use\-systemd\-run= (bool) 
-            use systemd\-run to run the command. This allows cleanup of daemons
-            spawned by the command (using cgroups), and using a private /tmp
-            that is also cleaned up automatically
-
-
-    report:
-      \-o download= (bool) 
-            Download the LISA results archives if necessary
-
-      \-o dump\-results\-dir= (non\-empty str) 
-            write the list of LISA result directories to a file. Useful to
-            implement garbage collection of unreferenced results archives
-
-      \-o export\-logs= (non\-empty str) 
-            export the logs, xUnit file and result dir symlink to the given
-            directory
-
-      \-o ignore\-excep= (comma\-separated list) 
-            ignore the given comma\-separated list of exceptions that caused
-            tests failure or error. * can be used to match any part of the name
-
-      \-o ignore\-non\-issue= (bool) 
-            consider only tests that failed
-
-      \-o iterations= (comma\-separated list of integer ranges) 
-            comma\-separated list of iterations to consider. Inclusive ranges can
-            be specified with <first>\-<last>
-
-      \-o show\-basic= (bool) 
-            show command exit status for all iterations
-
-      \-o show\-details= ("msg" or bool) 
-            show details of erros and failures. Use "msg" for only a brief
-            message
-
-      \-o show\-dist= (bool) 
-            show graphical distribution of issues among iterations with a one
-            letter code: passed=".", failed="F", error="#", skipped="s"
-
-      \-o show\-pass\-rate= (bool) 
-            always show the pass rate of tests, even when there are failures or
-            crashes as well
-
-      \-o show\-rates= (bool) 
-            show percentages of failure, error, skipped and passed tests
-
-      \-o show\-results\-dir= (bool) 
-            show LISA result directory for all iterations
-
-      \-o testcase= (comma\-separated list) 
-            show only the test cases matching one of the patterns in the comma\-
-            separated list. * can be used to match any part of the name.
-
-      \-o upload\-results= (bool) 
-            upload the results directory to Artifactorial and update the in\-
-            memory report. Following env var are needed: ARTIFACTORIAL_FOLDER
-            set to the folder URL and ARTIFACTORIAL_TOKEN. Note: \-\-export should
-            be used to save the report with updated paths
-
-      \-o verbose= (bool) 
-            increase verbosity
-
-      \-o xunit2json= (non\-empty str) 
-            append consolidated xUnit information to a JSON file
-
-
-
-build (build)
-\-\-\-\-\-\-\-\-\-\-\-\-\-
-Inherits from: shell
-
-    Similar to :class:\(gaShellStep\(ga .
-    
-    Non\-zero exit status of the command will be interpreted as a bisect
-    untestable status, and zero exit status as bisect good.
-
-    run:
-      \-o bail\-out= (bool) 
-            start a new iteration if the command fails, without executing
-            remaining steps for this iteration
-
-      \-o cmd= (non\-empty str) 
-            shell command to be executed
-
-      \-o env= (env var list) 
-            environment variables with a list of values that will be used for
-            each iterations, wrapping around. The string format is:
-            VAR1=val1%val2%...%%VAR2=val1%val2%.... In YAML, it is a map of var
-            names to list of values. A single string can be supplied instead of
-            a list of values.
-
-      \-o kill\-timeout= (int or "inf") 
-            time to wait before sending SIGKILL after having sent SIGTERM
-
-      \-o shell= (non\-empty str) 
-            shell to execute the command in
-
-      \-o timeout= (int or "inf") 
-            timeout in seconds before sending SIGTERM to the command, or "inf"
-            for infinite timeout
-
-      \-o trials= (int) 
-            number of times the command will be retried if it does not return 0
-
-      \-o use\-systemd\-run= (bool) 
-            use systemd\-run to run the command. This allows cleanup of daemons
-            spawned by the command (using cgroups), and using a private /tmp
-            that is also cleaned up automatically
-
-
-    report:
-      \-o export\-logs= (non\-empty str) 
-            export the logs to the given directory
-
-      \-o ignore\-non\-issue= (bool) 
-            consider only iteration with non\-zero command exit status
-
-      \-o iterations= (comma\-separated list of integer ranges) 
-            comma\-separated list of iterations to consider. Inclusive ranges can
-            be specified with <first>\-<last>
-
-      \-o show\-basic= (bool) 
-            show command exit status for all iterations
-
-      \-o verbose= (bool) 
-            increase verbosity
-
-
-
-exekall\-LISA\-test (test)
-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
-Inherits from: shell
-
     Execute an exekall LISA test command and collect
     :class:\(gaexekall.engine.ValueDB\(ga. Also compress the result directory and
     record its path. It will also define some environment variables that are
@@ -569,6 +391,68 @@ Inherits from: shell
             memory report. Following env var are needed: ARTIFACTORIAL_FOLDER
             set to the folder URL and ARTIFACTORIAL_TOKEN. Note: \-\-export should
             be used to save the report with updated paths
+
+      \-o verbose= (bool) 
+            increase verbosity
+
+
+
+build (build)
+\-\-\-\-\-\-\-\-\-\-\-\-\-
+Inherits from: shell
+
+    Similar to :class:\(gaShellStep\(ga .
+    
+    Non\-zero exit status of the command will be interpreted as a bisect
+    untestable status, and zero exit status as bisect good.
+
+    run:
+      \-o bail\-out= (bool) 
+            start a new iteration if the command fails, without executing
+            remaining steps for this iteration
+
+      \-o cmd= (non\-empty str) 
+            shell command to be executed
+
+      \-o env= (env var list) 
+            environment variables with a list of values that will be used for
+            each iterations, wrapping around. The string format is:
+            VAR1=val1%val2%...%%VAR2=val1%val2%.... In YAML, it is a map of var
+            names to list of values. A single string can be supplied instead of
+            a list of values.
+
+      \-o kill\-timeout= (int or "inf") 
+            time to wait before sending SIGKILL after having sent SIGTERM
+
+      \-o shell= (non\-empty str) 
+            shell to execute the command in
+
+      \-o timeout= (int or "inf") 
+            timeout in seconds before sending SIGTERM to the command, or "inf"
+            for infinite timeout
+
+      \-o trials= (int) 
+            number of times the command will be retried if it does not return 0
+
+      \-o use\-systemd\-run= (bool) 
+            use systemd\-run to run the command. This allows cleanup of daemons
+            spawned by the command (using cgroups), and using a private /tmp
+            that is also cleaned up automatically
+
+
+    report:
+      \-o export\-logs= (non\-empty str) 
+            export the logs to the given directory
+
+      \-o ignore\-non\-issue= (bool) 
+            consider only iteration with non\-zero command exit status
+
+      \-o iterations= (comma\-separated list of integer ranges) 
+            comma\-separated list of iterations to consider. Inclusive ranges can
+            be specified with <first>\-<last>
+
+      \-o show\-basic= (bool) 
+            show command exit status for all iterations
 
       \-o verbose= (bool) 
             increase verbosity
@@ -1049,7 +933,7 @@ steps:
     # exekall LISA test will interpret a non\-zero exit status of the command
     # as bisect bad, and a zero exit status as bisect good.
     \-
-      class: exekall\-LISA\-test
+      class: LISA\-test
       name: one\-small\-task
       # Using systemd\-run ensures all child process is killed if the session
       # is interrupted
@@ -1102,7 +986,7 @@ bisector report bisector.report.yml.gz
 bisector report bisector.report.yml.gz \-\-only test
 
 # Help of a exekall LISA\(aqs step options
-bisector step\-help exekall\-LISA\-test
+bisector step\-help LISA\-test
 
 # Get all information about tests failures
 bisector report bisector.report.yml.gz \-overbose
