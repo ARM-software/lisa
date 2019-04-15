@@ -169,7 +169,9 @@ class Target(Loggable, HideExekallID, Configurable):
     CRITICAL_TASKS = {
         'linux': [
             'init',
-            'systemd',
+            # We want to freeze everything except PID 1, we don't want to let
+            # sysmted-journald or systemd-timesyncd running.
+            'systemd[^-]',
             'dbus',
             'sh',
             'ssh',
