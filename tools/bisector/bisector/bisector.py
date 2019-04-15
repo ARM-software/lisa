@@ -2350,6 +2350,11 @@ def urlretrieve(url, path):
     response = requests.get(url)
     # Raise an exception is the request failed
     response.raise_for_status()
+
+    # If that is a broken symlink, get rid of it
+    if not os.path.exists(path) and os.path.islink(path):
+        os.unlink(path)
+
     with open(path, 'wb') as f:
         f.write(response.content)
 
