@@ -1,9 +1,0 @@
-{
-    "board" : {
-        "cores" : [
-            "A53", "A53", "A53", "A53", "A57", "A57"
-        ],
-        "big_core" : "A57",
-        "modules" : ["bl", "cpufreq"]
-    }
-}

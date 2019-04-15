@@ -1,0 +1,77 @@
+#! /bin/bash
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2018, ARM Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+set -e
+
+BUILDROOT_DIR=$LISA_HOME/src/buildroot
+
+ROOTFS="$1"
+KERNEL_DIR="$2"
+KERNEL_CONFIG="$2/.config"
+
+function print_usage {
+	echo "Usage: $0 <path/to/rootfs.cpio> <path/to/kernel/tree>"
+	echo "	options:"
+	echo "		-h: print this help message"
+}
+
+while getopts "hp" opt
+do
+	case $opt in
+		h)
+			print_usage
+			exit 0
+			;;
+		*)
+			print_usage
+			exit -1
+			;;
+	esac
+done
+
+if [[ -z "$1" || -z "$2" ]]; then
+	echo "ERROR: missing argument"
+	echo ""
+	print_usage
+	exit -1
+fi
+
+# Automatically detect the arm arch we are building for
+export ARCH=${ARCH:-$(grep -owE "(arm|arm64)" "$KERNEL_CONFIG")}
+
+# That env var is not needed, but wrong values can break the make command
+# executed by merge_config.sh
+unset CROSS_COMPILE
+
+if [ -z "$ARCH" ]; then
+	echo "ERROR: set ARCH environment variable"
+	exit -1
+fi
+
+echo "Assuming ARCH=$ARCH"
+
+echo "Merging Kconfig fragment into $KERNEL_CONFIG"
+fragment=$(mktemp)
+trap "rm "$fragment"" EXIT
+
+# Use that CPIO archive to be used as builtin initramfs
+tee "$fragment" << EOF
+CONFIG_INITRAMFS_SOURCE="$ROOTFS"
+EOF
+
+KCONFIG_CONFIG="$KERNEL_CONFIG" "$KERNEL_DIR/scripts/kconfig/merge_config.sh" "$KERNEL_CONFIG" "$fragment"

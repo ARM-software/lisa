@@ -1,0 +1,446 @@
+#! /bin/sh
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2015, ARM Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# LISA Shell: the Linux Integrated System Analysis Shell
+
+################################################################################
+# Set environment variables
+################################################################################
+
+# Python binary to use. This allows users to install multiple versions in
+# parallel, and ease testing
+LISA_PYTHON=${LISA_PYTHON:-python3}
+
+# By default use internal libraries
+export LISA_DEVMODE=${LISA_DEVMODE:-1}
+
+# By default use Lisa's PS1 and colorscheme for the shell
+export LISA_PRESERVE_SHELL=${LISA_PRESERVE_SHELL:-0}
+
+# Setup colors
+source "$LISA_HOME/shell/lisa_colors"
+
+# Add some shell utilities to the PATH, with lower priority than system's one
+# in case the user needs a different version of them
+export LISA_HOST_ABI=${LISA_HOST_ABI:-x86_64}
+export PATH=$PATH:$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI:$LISA_HOME/tools
+
+export LISA_CONF=${LISA_CONF:-$LISA_HOME/target_conf.yml}
+export LISA_RESULT_ROOT=${LISA_RESULT_ROOT:-$LISA_HOME/results}
+export EXEKALL_ARTIFACT_ROOT=${EXEKALL_ARTIFACT_ROOT:-$LISA_RESULT_ROOT}
+
+# Add our man pages
+export MANPATH="$MANPATH:$LISA_HOME/doc/"
+
+################################################################################
+# Helpers
+################################################################################
+
+# Avoid having quotes all over the place in that script, so we define a
+# function for it
+function _lisa-python {
+    "$LISA_PYTHON" "$@"
+}
+
+# Only clear the screen if stdout is a terminal, to avoid ASCII escape
+# characters to be sent to a log file for example.
+function clear {
+    case "$-" in
+        *i*) test -t 1 && command clear ;;
+        *) ;;
+    esac
+}
+
+################################################################################
+# Generic LISA Shell commands
+################################################################################
+
+# LISA Shell On-Line HELP
+function lisa-help {
+    clear
+    echo -e "$LISASHELL_HELP"
+    echo "                                                                               "
+    echo "                    .:: LISA Shell - HELP On-Line ::.                          "
+    echo "                                                                               "
+    echo -ne "$LISASHELL_RESET$LISASHELL_GREEN"
+    cat "$LISA_HOME/shell/README.txt"
+    echo -ne "$LISASHELL_DEFAULT"
+}
+
+function lisa-version {
+cat <<EOF
+LISA version:
+    $LISA_HOME
+    branch: $(git -C "$LISA_HOME" describe --all)
+    commit: $(git -C "$LISA_HOME" rev-parse --short=11 HEAD)
+
+Python version: $PYTHON_VERSION
+
+EOF
+
+    if which jupyter >/dev/null; then
+        jupyter labextension list 2>&1
+    fi
+}
+
+################################################################################
+# LISA Install functions
+################################################################################
+
+# major.minor version number
+PYTHON_VERSION=$(_lisa-python -c 'import sys; print("{}.{}".format(*sys.version_info))')
+export LISA_USE_VENV=${LISA_USE_VENV:-1}
+export LISA_VENV_PATH=${LISA_VENV_PATH:-"$LISA_HOME/.lisa-venv-$PYTHON_VERSION"}
+
+
+# Force the shell to rescan the folders listed in $PATH
+function _lisa-reload-PATH {
+    # that should work for most shells (at least bash and zsh)
+    hash -r
+}
+
+function _lisa-venv-create {
+    if [[ "$LISA_USE_VENV" == 1 ]]; then
+        # Make sure we don't nest venv, by calling deactivate if it exists,
+        # otherwise it will fail with a symlink levels errors
+        lisa-venv-deactivate || return 1
+
+        echo "Creating LISA venv from scratch ($LISA_VENV_PATH) ..."
+        # With --clear, the folder is emptied to create a fresh environment
+        _lisa-python -m venv --clear "$LISA_VENV_PATH"
+    fi
+}
+
+function lisa-venv-activate {
+    if [[ "$LISA_USE_VENV" == 1 ]]; then
+        # If the venv is not found, we install LISA in there
+        if [[ ! -e "$LISA_VENV_PATH" ]]; then
+            lisa-install || return 1
+        fi
+
+        if [[ -n "$PYTHONPATH" ]]; then
+            echo "WARNING: Your PYTHONPATH is not empty, it may interfere with LISA's venv: $PYTHONPATH" >&2
+        fi
+
+        echo "Activating LISA Python $PYTHON_VERSION venv ($LISA_VENV_PATH) ..."
+        VIRTUAL_ENV_DISABLE_PROMPT=1 source "$LISA_VENV_PATH/bin/activate"
+    fi
+
+    # Make sure the shell takes into account the new content of folders listed
+    # in $PATH, even if we did not actually activate a venv
+    _lisa-reload-PATH
+
+    # Check if lisa-install needs to be run again, but ignore the return value
+    # so it won't make activation fail just because of that
+    (cd "$LISA_HOME" && check-setuppy; exit 0)
+}
+
+function lisa-venv-deactivate {
+    if type deactivate &>/dev/null; then
+        echo "Deactivating LISA Python venv ($LISA_VENV_PATH) ..."
+        deactivate
+    fi
+}
+
+function _lisa-upgrade-pip {
+    # Only upgrade pip when using the venv, so we don't touch the system-wide
+    # install
+    if [[ "$LISA_USE_VENV" == 1 ]]; then
+        lisa-venv-activate || return 1
+        echo "Upgrading pip and setuptools ..."
+        _lisa-python -m pip install --upgrade pip setuptools
+    fi
+}
+
+function _lisa-install-nbextensions {
+    which jupyter &>/dev/null || return
+    if which node &>/dev/null; then
+        echo
+        echo "Enabling ipywidget extensions..."
+        jupyter labextension install @jupyter-widgets/jupyterlab-manager
+        return
+    fi
+
+    # If NodeJS is still not available, we just warn the user
+    echo
+    echo "NOTE: Missing NodeJS support!"
+    echo "Install it on your system and run lisa-install "
+    echo "again if you want to enable ipywidgets support."
+}
+
+function lisa-install {
+    # Check that some prerequisites are available on the system, since they
+    # cannot be installed using pip in a venv
+    _lisa-python "$LISA_HOME/setup.py" systemcheck
+
+    _lisa-venv-create &&
+    _lisa-upgrade-pip || return 1
+
+    # Record the point in time when we ran that install command
+    (cd "$LISA_HOME" && check-setuppy --update-recorded-commit HEAD)
+
+    if [[ "$LISA_DEVMODE" == 1 ]]; then
+        # This set of requirements will install all the shipped dependencies
+        # in editable mode
+        local requirements='devmode_requirements.txt'
+    else
+        # This one will install the packages that are developed here, but will
+        # take the external dependencies from PyPI
+        local requirements='requirements.txt'
+    fi
+
+    echo
+    echo "Installing LISA packages ..."
+    echo
+
+    # Make sure we install all packages, even if they are satisfied by the
+    # system's site-packages location. This ensures we use up to date packages,
+    # and that the installation process will give the same result on all
+    # machines at a given point in time.
+    (cd "$LISA_HOME" && _lisa-python -m pip install --no-cache-dir -r "$LISA_HOME/$requirements" "$@")
+
+    local custom_requirements="$LISA_HOME/custom_requirements.txt"
+    if [[ -e "$custom_requirements" ]]; then
+        echo
+        echo "Installing requirements from $custom_requirements ..."
+        echo
+        _lisa-python -m pip install -r "$custom_requirements" "$@"
+    fi
+
+    # Make sure the shell has taken into account the new content of directories
+    # listed in $PATH.
+    _lisa-reload-PATH
+
+    # Install additiona Jupyter Notebook extensions
+    _lisa-install-nbextensions
+}
+
+################################################################################
+# LISA Update utility functions
+################################################################################
+
+function lisa-update-subtrees {
+    echo -ne "${LISASHELL_BLUE}"
+    if [[ "$LISA_DEVMODE" == 1 ]]; then
+        # Force update existing modules
+        echo
+        echo 'Developer mode ENABLED, updating local libraries...'
+        for-each-subtree.py "$LISA_HOME/external/subtrees.conf" --fetch pull --squash
+        echo 'DONE'
+    fi
+    echo -ne "$LISASHELL_DEFAULT"
+}
+
+################################################################################
+# LISA Notebooks utility functions
+################################################################################
+
+function _lisa-jupyter-usage {
+    echo "Usage: lisa-jupyter CMD [NETIF [PORT]]"
+    echo " CMD     - Jupyter Notebooks command (deafult: start)"
+    echo "  start  start the jupyter server"
+    echo "   stop  stop the jupyter server"
+    echo " NETIF   - the network interface to start the server on (default: lo)"
+    echo " PORT    - the tcp port for the server (default: 8888)"
+}
+
+function _lisa-jupyter-start {
+    # Get IP address for the specified interface
+    IPADDR=
+
+    if [[ -x /sbin/ifconfig ]]; then
+	IPADDR=$(/sbin/ifconfig $NETIF 2>/dev/null  | \
+	    awk '/inet / {print $2}' | \
+	    grep -Eo [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)
+    fi
+
+    if [[ -z "$IPADDR" && -x /sbin/ip ]]; then
+        IPADDR=$(/sbin/ip a show dev $NETIF 2>/dev/null | \
+            awk '/inet / { gsub("/.*", ""); print $2; }')
+    fi
+
+    if [[ -z "$IPADDR" ]]; then
+        echo
+        echo "could not determine IP address of $NETIF"
+        echo
+	_lisa-jupyter-usage
+        return 1
+    fi
+
+    # Setup paths
+    PYDIR="$LISA_HOME/ipynb"
+    LOGFILE="$PYDIR/server.log"
+    PIDFILE="$PYDIR/server.pid"
+    URLFILE="$PYDIR/server.url"
+
+    # Generate server URL
+    TOKEN=$(cat /dev/urandom | tr -dc 'a-fA-F0-9' | fold -w 48 | head -n 1)
+    URL="http://$IPADDR:$PORT/?token=$TOKEN"
+
+    # Check if an instance is already running
+    if [[ -f "$PIDFILE" ]] && pgrep -F "$PIDFILE" >/dev/null; then
+        echo "Server already running:"
+        echo "  " "$(cat $URLFILE)"
+        xdg-open "$(cat $URLFILE)"
+        return 1
+    fi
+
+    # Check required port is available (e.g. Vagrant could using the same port)
+    if netstat -nlt | grep $PORT &>/dev/null; then
+        echo
+        echo "ERROR: required port [$PORT] already in use"
+        echo "       try again with a different PORT option"
+        echo
+	_lisa-jupyter-usage
+	return 1
+    fi
+
+    # Start the server bound to the specified interface
+    echo
+    echo 'Notebook server configuration:'
+    echo '  URL        : ' $URL
+    echo '  Folder     : ' $PYDIR
+    echo '  Logfile    : ' $LOGFILE
+    cd $PYDIR
+    echo
+    echo -n 'Notebook server task: '
+    nohup jupyter lab --ip="$IPADDR" --port="$PORT" \
+                      --NotebookApp.token="$TOKEN" \
+                      >"$LOGFILE" 2>&1 &
+    echo $! >"$PIDFILE"
+    echo $URL >"$URLFILE"
+    cd - >/dev/null
+}
+
+function _lisa-jupyter-stop {
+    PIDFILE="$PYDIR/server.pid"
+    if [[ -f "$PIDFILE" ]] && pgrep -F "$PIDFILE" >/dev/null; then
+        kill "$(<"$PIDFILE")" 2>/dev/null
+    fi
+    rm -f "$PIDFILE" 2>/dev/null
+}
+
+function lisa-jupyter {
+    CMD=${1:-start}
+
+    if [[ -z "$2" && $USER == vagrant && -e /vagrant/shell/lisa_shell ]]; then
+        # NETIF not set and we are in a vagrant environment.  Default to
+        # the ethernet interface as loopback won't let you connect from your
+        # host machine.
+        NETIF=$(ip route | awk '/default/ { print $5 }')
+    else
+        NETIF=${2:-lo}
+    fi
+
+    PORT=${3:-8888}
+    echo
+    case "$CMD" in
+    'start')
+        echo "Starting Jupyter Notebooks..."
+        _lisa-jupyter-start "$NETIF" "$PORT"
+        ;;
+    'stop')
+        echo "Stopping Jupyter Notebooks..."
+        _lisa-jupyter-stop
+        ;;
+    "help"|*)
+        _lisa-jupyter-usage
+        ;;
+    esac
+    echo
+echo
+}
+
+################################################################################
+# LISA Workloads utility functions
+################################################################################
+
+function lisa-wltest-series {
+    export WLTEST_HOME="$LISA_HOME/tools/wltests"
+    export WA_USER_DIRECTORY="$LISA_HOME/tools/wa_user_directory"
+
+    # Check that the environment is properly configured
+    if [[ -z "$ANDROID_HOME" ]]; then
+cat <<EOF
+
+    ERROR: No Android SDK found!
+
+    Please point ANDROID_HOME to your local Android SDK.
+
+EOF
+        return -1
+    fi
+
+    # Check for required external dependencies
+
+    if ! which realpath &>/dev/null; then
+cat <<EOF
+ERROR: this script requires the realpath binary!
+
+You can install it on Ubuntu systems with:
+    $> sudo apt-get install coreutils
+EOF
+        return -1
+    fi
+
+    # Run the build's provided test_series
+    "$WLTEST_HOME/test_series" "$@"
+}
+
+################################################################################
+# LISA Shell MAIN
+################################################################################
+
+if [[ $LISA_PRESERVE_SHELL == 0 ]]; then
+    # Dump out a nice LISA Shell logo
+    clear
+    echo -e "$LISASHELL_BANNER"
+
+    echo "                                                                               "
+    echo "                        .:: LISA Shell ::.                                     "
+    echo "                                                                               "
+    echo -ne "$LISASHELL_RESET"
+    echo
+fi
+
+# Activate the venv unless it was explicitely disabled
+lisa-venv-activate
+
+if [[ $LISA_PRESERVE_SHELL == 0 ]]; then
+    echo -ne "$LISASHELL_RESET$LISASHELL_BLUE"
+    cat <<EOF
+
+Welcome to the Linux Integrated System Analysis SHELL!
+
+$(lisa-version)
+
+Type "lisa-help" for on-line help on available commands
+EOF
+
+    # Setup default SHELL text color
+    echo -e "$LISASHELL_DEFAULT"
+else
+    lisa-version
+fi
+
+# Show relevant env var
+echo "Environment variables:"
+printenv | grep --color=no -E 'LISA|EXEKALL' | sort
+
+# vim: set tabstop=4 shiftwidth=4 textwidth=80 expandtab:

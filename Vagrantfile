@@ -3,7 +3,7 @@
 
 
 Vagrant.configure(2) do |config|
-  config.vm.box = "ubuntu/trusty64"
+  config.vm.box = "ubuntu/bionic64"
 
   # Compiling pandas requires 1Gb of memory
   config.vm.provider "virtualbox" do |v|
@@ -21,18 +21,28 @@ Vagrant.configure(2) do |config|
     fi
 
     cd /home/vagrant/lisa
+    # Install required packages
     ./install_base_ubuntu.sh --install-android-sdk
 
-    chown vagrant.vagrant /home/vagrant/lisa
-    echo cd /home/vagrant/lisa >> /home/vagrant/.bashrc
+    chown -R vagrant.vagrant /home/vagrant/lisa
+
+    # Let' use a venv local to vagrant so that we don't pollute the host one.
+    # This allows to use LISA both from the host and the VM.
+    export LISA_VENV_PATH=/home/vagrant/venv
+
+    # .bashrc setup
+    echo "cd /home/vagrant/lisa" >> /home/vagrant/.bashrc
     for LC in $(locale | cut -d= -f1);
     do
         echo unset $LC  >> /home/vagrant/.bashrc
     done
-    echo "export ANDROID_HOME=/vagrant/tools/android-sdk-linux" >> /home/vagrant/.bashrc
-    echo 'export PATH=\$ANDROID_HOME/platform-tools:\$ANDROID_HOME/tools:\$PATH' >> /home/vagrant/.bashrc
-    echo source init_env >> /home/vagrant/.bashrc
+    echo 'export LISA_VENV_PATH=$LISA_VENV_PATH' >> /home/vagrant/.bashrc
+    echo 'source init_env' >> /home/vagrant/.bashrc
 
+    # Trigger the creation of a venv
+    su vagrant bash -c 'source ./init_env'
+
+    # We're all done!
     echo "Virtual Machine Installation completed successfully!                "
     echo "                                                                    "
     echo "You can now access and use the virtual machine by running:          "
@@ -44,5 +54,20 @@ Vagrant.configure(2) do |config|
     echo "                                                                    "
     echo "    $ vagrant suspend                                               "
     echo "                                                                    "
+    echo " To destroy it, use:                                                "
+    echo "                                                                    "
+    echo "    $ vagrant destroy                                               "
+    echo "                                                                    "
   SHELL
+
+  # TODO: Run self tests to explode sooner rather than later
+  # config.trigger.after :up do |trigger|
+  #   trigger.info = "Verifying LISA installation"
+  #   trigger.name = "LISA install verification"
+  #   trigger.run_remote = {inline: "
+  #     cd /home/vagrant/lisa
+  #     source init_env
+  #     python3 -m nose
+  #   "}
+  # end
 end

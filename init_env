@@ -17,16 +17,50 @@
 #
 
 # LISA Shell: Initialization
-grep "bash" /proc/$$/cmdline &>/dev/null
-if [ $? -eq 0 ]; then
-	source ./src/shell/lisa_shell
+
+_lisa_shell_ret=1
+
+# Ensure we aleays start from a clean new shell
+if [[ -n $LISA_HOME ]]; then
+	echo
+	echo "ERROR: Please source init_env from a fresh new shell."
+	echo
+	return
+fi
+
+setup_paths() {
+	# Bail out if local tools are not installed
+	[[ -d $LISA_HOME/tools/android-sdk-linux ]] || return
+	export ANDROID_HOME="$LISA_HOME/tools/android-sdk-linux"
+	export PATH="$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:$PATH"
+}
+
+# Running under BASH
+if [[ -n $BASH_VERSION ]]; then
+	# Get base installation path of LISA
+	export LISA_HOME=$(readlink -f "$(dirname "$BASH_SOURCE")")
+	source "$(dirname "$BASH_SOURCE")/shell/lisa_shell"; _lisa_shell_ret=$?
+
+	if [[ $LISA_PRESERVE_SHELL == 0 ]]; then
+		PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}\]] \> \[${LISASHELL_RESET}\]"
+	fi
+
+# Running under ZSH
+elif [[ -n $ZSH_VERSION ]]; then
+	# Get base installation path of LISA
+	export LISA_HOME=${${${(%):-%N}:h}:A}
+
+	# Source the script in "sh" emulation mode. This will also mark the
+	# functions declared there to be executed in emulated mode, so they will
+	# work as well
+	emulate sh -c "source "$LISA_HOME/shell/lisa_shell""; _lisa_shell_ret=$?
+
 else
 	echo "WARNING: Current shell is not a BASH"
 	# Check if a bash shell is available
-	which bash &>/dev/null
-	if [ $? -eq 0 ]; then
+	if which bash &>/dev/null; then
 		# Switch to a BASH shell
-		exec bash --init-file ./init_env
+		exec bash --init-file ./init_env; _lisa_shell_ret=$?
 	else
 		echo "ERROR: A BASH shell is not available in PATH"
 	fi
@@ -35,3 +69,8 @@ else
 	echo "Please, source this configuration from a terminal running BASH."
 fi
 
+setup_paths
+
+return $_lisa_shell_ret
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

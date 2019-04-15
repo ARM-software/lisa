@@ -1,17 +1,3 @@
-# A word about the future
-
-A revamped and streamlined version of LISA is available under the 'next' branch
-(https://github.com/ARM-software/lisa/tree/next). Active development is moving
-towards that branch, so while we'll accept small fixes to LISA/master until we feel
-confident it is time to flip the switch, any other kind of pull requests should be
-sent against LISA/next.
-
-In short, this what you should expect to see:
-* Complete redo of our test classes (LisaTest & Executor)
-* Various clean ups of LISA internals (e.g. TestEnv)
-* Migration to Python3
-* Documentation overhaul (as in, not just bare docstrings)
-
 # Introduction
 
 The LISA project provides a toolkit that supports regression testing and
@@ -48,7 +34,7 @@ There are two "entry points" for running LISA:
   automated pass/fail regression tests for kernel behaviour. The
   [BART](https://github.com/ARM-software/trappy) toolkit provides additional
   domain-specific test assertions for this use-case. LISA provides some
-  ready-made automated tests under the `tests/` directory.
+  ready-made automated tests under the `lisa/tests/` directory.
 
 # Motivations
 
@@ -66,13 +52,13 @@ The main goals of LISA are:
     * **enables** kernel developers to easily post process data to produce
       statistics and plots
 
-# Documentation
+# Documentation [![Documentation Status](https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=next)](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/?badge=next)
 
-* [Wiki Home page](https://github.com/ARM-software/lisa/wiki)
-* [Installation](https://github.com/ARM-software/lisa/wiki/Installation)
-* [Quickstart Tutorial](https://github.com/ARM-software/lisa/wiki/Quickstart-tutorial)
-
-* [API Documentation](http://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/)
+You should find everything on [ReadTheDocs](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/).
+Here are some noteworthy sections:
+* [Installation](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/users_guide.html#installation)
+* [Self-tests](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/lisa_tests.html)
+* [Kernel tests](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/kernel_tests.html)
 
 # External Links
 * Linux Integrated System Analysis (LISA) & Friends

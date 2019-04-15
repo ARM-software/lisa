@@ -1,0 +1,3 @@
+./tools/exekall
+./[notebook,doc,test]
+./tools/bisector[dbus]

@@ -179,6 +179,72 @@ c_extract() {
 	fi
 }
 
+adb_flash_modules() {
+	MODULES_FOLDER=$1
+
+	echo
+	c_info "Restart ADB in root mode..."
+	timeout 10 $ADB wait-for-device root &>/dev/null; ERROR=$?
+	if [[ $ERROR -ne 0 ]]; then
+		c_error "Cannot restart ADB in root mode"
+		return $EIO
+	fi
+
+	timeout 10 $ADB wait-for-device; ERROR=$?
+	if [[ $ERROR -ne 0 ]]; then
+		c_error "Device inaccesible"
+		return $EIO
+	fi
+
+	# Verity must be disabled one time, right after the first boot, once a
+	# new set of stock images has been flashed on the device.
+	# This check is just there to ensure we can remount root rw, otherwise
+	# wltests will abort and the device must be rebooted by hand.
+	c_info "Checking that verity is disabled..."
+	OUTPUT="$($ADB disable-verity)"
+	echo
+	echo "$OUTPUT"
+	echo
+	if [[ $OUTPUT != *"verity is already disabled"* ]]; then
+		c_error   "Verity not disabled on this device!"
+		c_warning "It has been disabled now but you have to"
+		c_warning "manually reboot your device and restart wltests"
+		echo
+		echo
+		return $EIO
+	fi
+
+	c_info "Remounting / rw..."
+	timeout 10 $ADB wait-for-device remount &>/dev/null; ERROR=$?
+	if [[ $ERROR -ne 0 ]]; then
+		c_error "Remount failed"
+		return $EIO
+	fi
+
+	timeout 10 $ADB wait-for-device; ERROR=$?
+	if [[ $ERROR -ne 0 ]]; then
+		c_error "Device inaccesible"
+		return $EIO
+	fi
+
+	c_info "Pushing kernel modules..."
+	$ADB shell rm -rf /vendor/lib/modules/*; ERROR=$?
+	if [[ $ERROR -ne 0 ]]; then
+		c_error "Failed to remove /vendor/lib/modules/"
+		return $EIO
+	fi
+	for m in $MODULES_FOLDER/*.ko; do
+		$ADB push $m /vendor/lib/modules/; ERROR=$?
+		if [[ $ERROR -ne 0 ]]; then
+			c_error "Failed to flash $m"
+			return $EIO
+		fi
+	done
+	sleep 5
+
+	return $OK
+}
+
 
 ################################################################################
 # Colors

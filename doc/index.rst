@@ -4,36 +4,52 @@
    contain the root `toctree` directive.
 
 LISA API Documentation
-==============================================
+======================
 
 LISA - "Linux Integrated System Analysis" is a toolkit for interactive analysis
-and automated regression testing of Linux kernel behaviour. To get started with LISA:
+and automated regression testing of Linux kernel behaviour.
 
 - See the README on the project's `Github home page`__ for an overview.
-- Check out the project's `Github Wiki`__ for some guides to installation
-  and setup.
 - Once you have LISA running, take a look at the tutorial and example notebooks
   included with the installation.
 
 __ https://github.com/ARM-software/lisa
-__ https://github.com/ARM-software/lisa/wiki
 
-This site contains documentation for LISA's APIs. For some parts of LISA, API
-documentation is a work-in-progress. Where the API documentation is lacking, see
-the example/tutorial notebooks provided with LISA, or just dive in and read the
-code. Contributions to LISA and its documentation are very welcome, and handled
+Contributions to LISA and its documentation are very welcome, and handled
 via Github pull requests.
 
 .. _Readme:
 
 Contents:
 
-.. TODO: due to our slightly weird package structure the index here is wildly
-   nested where it needn't be.
-
 .. toctree::
+   :maxdepth: 2
 
-  modules
+   first_separator
+
+   overview
+   setup
+   lisa_shell
+
+   guides_separator
+
+   transition_guide
+   contributors_guide
+   workflows/index
+
+   api_separator
+
+   target
+   workloads
+   kernel_tests
+   trace_analysis
+   energy_analysis
+   misc_utilities
+
+   tools_separator
+
+   bisector/index
+   exekall/index
 
 Indices and tables
 ==================
@@ -46,5 +62,5 @@ Indices and tables
 Building this documentation
 ==============================
 - Install ``sphinx-doc``
-- From the root of the LISA source tree: ``source init_env && make -C doc/ html``
+- From the root of the LISA source tree: ``cd doc && make html``
 - Find the HTML in ``doc/_build/html``

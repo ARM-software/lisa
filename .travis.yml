@@ -15,16 +15,23 @@
 # limitations under the License.
 #
 
+git:
+  # make sure we have all relevant commits for subtree modif detection
+  depth: 1000
+
 sudo: required
-language: python
+# Use "generic" language to avoid having a virtualenv created for Python by default
+language: generic
+
+# Ubuntu Xenial 16.04 (latest version we can have on Travis)
+# https://docs.travis-ci.com/user/reference/overview/
+dist: xenial
+
 install:
-  - pip install --upgrade trappy bart-py devlib psutil wrapt matplotlib
-    future jupyter sphinx
+  - cd "$TRAVIS_BUILD_DIR"
+  - sudo ./install_base_ubuntu.sh --install-doc-extras
+  - echo "$(python3 --version)"
+
 script:
-  - cd $TRAVIS_BUILD_DIR
-  - 'echo backend : Agg > matplotlibrc' # Otherwise it tries to use tkinter
-  - export PATH=$TRAVIS_BUILD_DIR/tools/x86_64/:$PATH # For trace-cmd
-  - source init_env && lisa-test tests/lisa/
-  # -W is like -Werror.
-  # Ideally we should use -n too, which is like -Wall, but we have too many errors for that.
-  - cd doc/ && sphinx-build -W -b html . _build/html
+  - cd "$TRAVIS_BUILD_DIR"
+  - bash ./tools/scripts/travis_tests.sh
