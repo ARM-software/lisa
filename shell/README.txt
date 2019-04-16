@@ -19,6 +19,8 @@ lisa-install         - Remove the previous venv and do a fresh ven install
 lisa-activate-venv   - Activate the LISA venv, and create it if it does not exist
 lisa-deactivate-venv - Deactivate the LISA venv, and create it if it does not exist
 lisa-update-subtrees - Update the subtrees by pulling their latest changes
+lisa-log-subtree     - Git log on the squashed commits of the give subtree. All other 
+                       options are passed to `git log`.
 
 .:: Notebooks commands
 ----------------------

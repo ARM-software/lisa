@@ -247,6 +247,17 @@ function lisa-update-subtrees {
     echo -ne "$LISASHELL_DEFAULT"
 }
 
+
+function lisa-log-subtree {
+    subtree="$1"
+    shift
+
+    # Show the second parent (^2) of the last (-n1) merge commit (--merges)
+    # touching the given subtree. This corresponds to the top-most squashed
+    # commit, and gives access to all the squashed commits.
+    git log "$(git rev-list HEAD --merges -n 1 -- "$subtree" )^2" "$@"
+}
+
 ################################################################################
 # LISA Notebooks utility functions
 ################################################################################
