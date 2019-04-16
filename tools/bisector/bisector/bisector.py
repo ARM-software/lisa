@@ -2330,7 +2330,10 @@ class ExekallLISATestStep(LISATestStep, Deprecated):
         Deprecated alias for :class:`LISATestStep`, it is only kept around to
         be able to reload old pickle reports.
     """
-    pass
+
+    # Use the former name
+    attr_init = copy.copy(LISATestStep.attr_init)
+    attr_init['name'] = 'exekall-LISA-test'
 
 class StepNotifService:
     """Allows steps to send notifications."""
