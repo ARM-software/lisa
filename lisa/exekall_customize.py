@@ -247,7 +247,7 @@ comparison. Can be repeated.""")
 
         id_len = max(len(regr.testcase_id) for regr in regr_list)
 
-        header = '{id:<{id_len}}   old%   new% delta%      pvalue{regr_column}'.format(
+        header = '{id:<{id_len}}   old%   new%  delta%       pvalue fix_iter# {regr_column}'.format(
             id='testcase'.format(alpha),
             id_len=id_len,
             regr_column=' significant' if show_non_significant else ''
@@ -256,13 +256,21 @@ comparison. Can be repeated.""")
         for regr in regr_list:
             if regr.significant or show_non_significant:
                 old_pc, new_pc = regr.failure_pc
-                print('{id:<{id_len}} {old_pc:>5.1f}% {new_pc:>5.1f}% {delta_pc:>5.1f}%    {pval:.2e} {significant}'.format(
+                # Only show the number of iterations required to validate a fix
+                # when there was a regression.
+                if regr.failure_delta_pc > 0:
+                    validation_nr=regr.fix_validation_min_iter_nr
+                else:
+                    validation_nr = ''
+
+                print('{id:<{id_len}} {old_pc:>5.1f}% {new_pc:>5.1f}% {delta_pc:>6.1f}%    {pval:>9.2e} {validation_nr:>9} {significant}'.format(
                     id=regr.testcase_id,
                     old_pc=old_pc,
                     new_pc=new_pc,
                     delta_pc=regr.failure_delta_pc,
                     pval=regr.p_val,
                     id_len=id_len,
+                    validation_nr=validation_nr,
                     significant='*' if regr.significant and show_non_significant else '',
                 ))
 

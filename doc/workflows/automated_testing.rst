@@ -109,15 +109,17 @@ iterations, out of which 80 passed and 20 failed.
 
 The output of ``exekall compare`` looks like that:
 
+.. Comparison of 20190222 and 20190412 integration
+
 ::
 
-    testcase                                                           old%   new% delta%      pvalue
-    -------------------------------------------------------------------------------------------------
-    PELTTask:test_load_avg_behaviour                                   3.8%   6.7%   2.9%    9.26e-02
-    ThreeSmallTasks:test_task_placement                                0.0%   1.8%   1.8%    4.13e-03
-    TwoBigTasks:test_slack                                             0.0%   3.1%   3.1%    1.03e-04
-    TwoBigThreeSmall:test_slack                                       82.1%  95.7%  13.6%    1.69e-06
-    TwoBigThreeSmall:test_task_placement                              79.7%  95.7%  16.0%    7.18e-08
+  testcase                                                             old%   new%  delta%       pvalue fix_iter# 
+  ----------------------------------------------------------------------------------------------------------------
+  PELTTask:test_load_avg_behaviour                                     2.9%   0.0%   -2.9%     4.58e-04           
+  PELTTask:test_load_avg_range                                         0.0%   7.1%    7.1%     1.08e-10        54 
+  PELTTask:test_util_avg_behaviour                                     2.4%   0.0%   -2.4%     1.70e-03           
+  PELTTask:test_util_avg_range                                         0.0%   7.1%    7.1%     1.08e-10        54 
+  TwoBigTasks:test_slack                                               4.7%   1.6%   -3.1%     1.25e-02           
 
 The columns have the following meaning:
 
@@ -126,6 +128,13 @@ The columns have the following meaning:
   * ``delta%``: the difference in the old and new failure rates
   * ``pvalue``: The p-value resulting from the Fisher's exact test used to
     filter significant regressions or improvements
+  * ``fix_iter#``: The number of iterations required to observe the effects of
+    a fix of a regression. This gives an indication on how many iterations are
+    needed to have `exekall compare` answer the question "is my fix fixing this
+    regression ?", assuming that you actually fixed it. Running less iterations
+    than that to validate a fix will likely result in ``exekall compare`` not
+    being able to conclude that there was a failure rate change (i.e. an
+    improvement), even if the fix is actually correct.
 
 .. tip:: When comparing results collected from different boards, the test IDs
   will probably not match since they are tagged with the user-defined board

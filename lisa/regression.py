@@ -16,7 +16,9 @@
 #
 
 import argparse
+import math
 import re
+import itertools
 from collections import OrderedDict, namedtuple
 
 from lisa.utils import groupby, memoized
@@ -178,6 +180,57 @@ class RegressionResult:
             alternative = alternative,
         )
         return p_val
+
+    @property
+    @memoized
+    def fix_validation_min_iter_nr(self):
+        """
+        Number of iterations required to validate a fix that would "revert"
+        a regression.
+
+        Assuming that the "fixed" failure rate is exactly equal to the "old"
+        one, this gives the number of iterations after which comparing the
+        "fixed" failure rate with the "new" failure rate will give a
+        statistically significant result.
+        """
+
+        # We want to be able to detect at least this amount of change
+        failure_delta_pc = self.failure_delta_pc
+        failure_rate_old, failure_rate_new = (x/100 for x in self.failure_pc)
+
+        # If the failure rate is exactly the same, there is nothing to fix and
+        # no way of telling them apart.
+        if failure_rate_old == failure_rate_new:
+            return math.inf
+
+        # Find the sample size needed to be able to reject the following null
+        # hypothesis in the case we know it is false (i.e. the issue has been
+        # fixed):
+        # The failure rate of the sample is no different than the "new" failure
+        # rate.
+        for n in itertools.count(start=1):
+            # Assume the "fixed" sample we got has the "old" mean, which means
+            # the regression was fixed.
+            fixed_failed = int(n * failure_rate_old)
+            fixed_passed = n - fixed_failed
+
+            contingency_table = [
+                [fixed_failed, fixed_passed],
+                [self.new_count.failed, self.new_count.passed],
+            ]
+
+            odds_ratio, p_val = scipy.stats.fisher_exact(
+                contingency_table,
+                # Use two-sided alternative, since that is what will be used to
+                # check the actual data
+                alternative='two-sided'
+            )
+
+            # As soon as we have a big enough sample to be able to reject that
+            # the "fixed" sample has the "new" failure rate.
+            if p_val <= self.alpha:
+                return n
+
 
 def compute_regressions(old_list, new_list, remove_tags=[], **kwargs):
     """
