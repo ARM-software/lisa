@@ -1,4 +1,4 @@
-# Introduction
+# Introduction [![Travis status](https://travis-ci.org/ARM-software/lisa.svg?branch=master)](https://travis-ci.org/ARM-software/lisa) [![Documentation Status](https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=master)](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/?badge=master)
 
 The LISA project provides a toolkit that supports regression testing and
 interactive analysis of Linux kernel behavior. LISA stands for Linux
@@ -52,7 +52,7 @@ The main goals of LISA are:
     * **enables** kernel developers to easily post process data to produce
       statistics and plots
 
-# Documentation [![Documentation Status](https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=master)](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/?badge=master)
+# Documentation
 
 You should find everything on [ReadTheDocs](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/).
 Here are some noteworthy sections:
