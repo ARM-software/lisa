@@ -439,7 +439,9 @@ def do_compare(parser, compare_parser, argv, db_path_list):
 
     # Add all the CLI arguments of the adaptor before reparsing the
     # command line.
-    adaptor_cls.register_compare_param(compare_parser)
+
+    adaptor_group = utils.create_adaptor_parser_group(compare_parser, adaptor_cls)
+    adaptor_cls.register_compare_param(adaptor_group)
 
     # Reparse the command line after the adaptor had a chance to add its own
     # arguments.
@@ -574,7 +576,8 @@ def do_run(args, parser, run_parser, argv):
         raise RuntimeError('Adaptor "{}" cannot be found'.format(adaptor_name))
     # Add all the CLI arguments of the adaptor before reparsing the
     # command line.
-    adaptor_cls.register_run_param(run_parser)
+    adaptor_group = utils.create_adaptor_parser_group(run_parser, adaptor_cls)
+    adaptor_cls.register_run_param(adaptor_group)
 
     # Reparse the command line after the adaptor had a chance to add its own
     # arguments.

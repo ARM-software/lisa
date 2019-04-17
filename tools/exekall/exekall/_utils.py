@@ -875,3 +875,7 @@ def add_argument(parser, *args, help, **kwargs):
         # Preserve all new lines where there are, and only wrap the other lines.
         help='\n'.join(textwrap.fill(line) for line in help.splitlines())
     return parser.add_argument(*args, **kwargs, help=help)
+
+def create_adaptor_parser_group(parser, adaptor_cls):
+    description = '{} custom options.\nCan only be specified *after* positional parameters.'.format(adaptor_cls.name)
+    return parser.add_argument_group(adaptor_cls.name, description)
