@@ -187,9 +187,7 @@ def compute_regressions(old_list, new_list, remove_tags=[], **kwargs):
     The tests are first grouped by their ID, and then a
     :class:`RegressionResult` is computed for each of these ID.
 
-    :param old_list: old series of :class:`exekall.engine.FrozenExprVal`.  Values
-        with a UUID that is also present in `new_list` will be removed from
-        that list before the regressions are computed.
+    :param old_list: old series of :class:`exekall.engine.FrozenExprVal`.
     :type old_list: list(exekall.engine.FrozenExprVal)
 
     :param new_list: new series of :class:`exekall.engine.FrozenExprVal`. Values
@@ -217,13 +215,10 @@ def compute_regressions(old_list, new_list, remove_tags=[], **kwargs):
         ]
 
     # Remove from the new_list all the FrozenExprVal that were carried from the
-    # old_list sequence. That is important since running "exekall run --load-db"
-    # will contain both new and old data, so old data needs to be filtered out
-    # before we can actually compare the two sets.
-    _new_list = dedup_list(new_list, old_list)
-    _old_list = dedup_list(old_list, new_list)
-    old_list = _old_list
-    new_list = _new_list
+    # old_list sequence. That is important since a ValueDB could contain both
+    # new and old data, so old data needs to be filtered out before we can
+    # actually compare the two sets.
+    new_list = dedup_list(new_list, old_list)
 
     def get_id(froz_val):
         id_ = froz_val.get_id(qual=False, with_tags=True)
