@@ -102,10 +102,6 @@ class ValueDB:
             return froz_val
         cls._froz_val_dfs(froz_val_seq_list, update_uuid_map)
 
-        # Make sure no deduplication will occur on None, as it is used as a
-        # marker when no exception was raised or when no value was available.
-        uuid_map[(None, None)] = set()
-
         # Select one FrozenExprVal for each UUID pair
         def select_froz_val(froz_val_set):
             candidates = [
@@ -128,12 +124,14 @@ class ValueDB:
                 return utils.take_first(froz_val_set)
 
         uuid_map = {
-            uuid_pair: select_froz_val(froz_val_set)
-            for uuid_pair, froz_val_set in uuid_map.items()
+            uuid_: select_froz_val(froz_val_set)
+            for uuid_, froz_val_set in uuid_map.items()
         }
 
         # Second pass: only keep one frozen value for each UUID
         def rewrite_graph(froz_val):
+            if froz_val.uuid is None:
+                return froz_val
             return uuid_map[froz_val.uuid]
 
         return cls._froz_val_dfs(froz_val_seq_list, rewrite_graph)
