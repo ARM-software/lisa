@@ -352,11 +352,11 @@ directories should be treated as read-only.
 
     add_argument(merge_parser, '-o', '--output', required=True,
         help="""
-        Output merged artifacts directory or value database. If the
-        output already exists, the merged DB will only contain the same roots
-        as this one. This allows patching-up a pruned DB with other DBs that
-        contains subexpression's values.
-        """
+Output merged artifacts directory or value database. If the
+output already exists, the merged DB will only contain the same roots
+as this one. This allows patching-up a pruned DB with other DBs that
+contains subexpression's values.
+"""
     )
 
     add_argument(merge_parser, '--copy', action='store_true',
