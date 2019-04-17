@@ -581,7 +581,10 @@ def do_run(args, parser, run_parser, argv):
     adaptor_name = args.adaptor
     adaptor_cls = AdaptorBase.get_adaptor_cls(adaptor_name)
     if not adaptor_cls:
-        raise RuntimeError('Adaptor "{}" cannot be found'.format(adaptor_name))
+        if adaptor_name:
+            raise RuntimeError('Adaptor "{}" cannot be found'.format(adaptor_name))
+        else:
+            raise RuntimeError('No adaptor was found')
     # Add all the CLI arguments of the adaptor before reparsing the
     # command line.
     adaptor_group = utils.create_adaptor_parser_group(run_parser, adaptor_cls)
