@@ -220,7 +220,8 @@ class LISAAdaptor(AdaptorBase):
 
         add_argument(parser, '--remove-tag', action='append',
             default=[],
-            help="""Remove the given tags in the testcase IDs before comparison.""")
+            help="""Remove the given tags in the testcase IDs before
+comparison. Can be repeated.""")
 
     def compare_db_list(self, db_list):
         alpha = self.args.alpha / 100
