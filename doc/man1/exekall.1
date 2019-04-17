@@ -183,6 +183,39 @@ optional arguments:
 .fi
 .UNINDENT
 .UNINDENT
+.SS exekall merge
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+usage: exekall merge [\-h] \-o OUTPUT [\-\-copy] artifact_dirs [artifact_dirs ...]
+
+Merge artifact directories of "exekall run" executions.
+
+By default, it will use hardlinks instead of copies to improve speed and
+avoid eating up large amount of space, but that means that artifact
+directories should be treated as read\-only.
+    
+
+positional arguments:
+  artifact_dirs         Artifact directories created using "exekall run", or value databases
+                        to merge.
+
+optional arguments:
+  \-h, \-\-help            show this help message and exit
+  \-o OUTPUT, \-\-output OUTPUT
+                        
+                        Output merged artifacts directory or value database. If the
+                        output already exists, the merged DB will only contain the same roots
+                        as this one. This allows patching\-up a pruned DB with other DBs that
+                        contains subexpression\(aqs values.
+  \-\-copy                Force copying files, instead of using hardlinks.
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
 .SH EXECUTING EXPRESSIONS
 .sp
 Expressions are built by scanning the python source code passed to \fBexekall

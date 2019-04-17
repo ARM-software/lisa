@@ -39,6 +39,15 @@ exekall compare
 
    exekall compare --help
 
+exekall merge
+-------------
+
+.. run-command::
+   :ignore-error:
+   :literal:
+
+   exekall merge --help
+
 
 EXECUTING EXPRESSIONS
 +++++++++++++++++++++

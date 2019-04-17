@@ -102,10 +102,6 @@ class ValueDB:
             return froz_val
         cls._froz_val_dfs(froz_val_seq_list, update_uuid_map)
 
-        # Make sure no deduplication will occur on None, as it is used as a
-        # marker when no exception was raised or when no value was available.
-        uuid_map[(None, None)] = set()
-
         # Select one FrozenExprVal for each UUID pair
         def select_froz_val(froz_val_set):
             candidates = [
@@ -128,20 +124,31 @@ class ValueDB:
                 return utils.take_first(froz_val_set)
 
         uuid_map = {
-            uuid_pair: select_froz_val(froz_val_set)
-            for uuid_pair, froz_val_set in uuid_map.items()
+            uuid_: select_froz_val(froz_val_set)
+            for uuid_, froz_val_set in uuid_map.items()
         }
 
         # Second pass: only keep one frozen value for each UUID
         def rewrite_graph(froz_val):
+            if froz_val.uuid is None:
+                return froz_val
             return uuid_map[froz_val.uuid]
 
         return cls._froz_val_dfs(froz_val_seq_list, rewrite_graph)
 
     @classmethod
-    def merge(cls, db_list):
+    def merge(cls, db_list, roots_from=None):
         """
         Merge multiple databases together.
+
+        :param db_list: Lists of DB to merge
+        :type db_list: list(ValueDB)
+
+        :param roots_from: Only get the root values from the specified DB.
+            The other DBs are only used to provide subexpressions values for
+            expressions already present in that DB. That DB is also appended to
+            ``db_list``.
+        :type roots_from: ValueDB
 
         When two different :class:`FrozenExprVal` are available for a given
         UUID, the one that contains the most information will be selected.
@@ -157,11 +164,30 @@ class ValueDB:
             raise ValueError('Cannot merge ValueDB with different adaptor classes: {}'.format(adaptor_cls_set))
         adaptor_cls = utils.take_first(adaptor_cls_set)
 
+        if roots_from is not None:
+            db_list.append(roots_from)
+
         froz_val_seq_list = list(itertools.chain.from_iterable(
             db.froz_val_seq_list
             for db in db_list
         ))
-        return cls(froz_val_seq_list, adaptor_cls=adaptor_cls)
+
+        db = cls(froz_val_seq_list, adaptor_cls=adaptor_cls)
+
+        # Remove all roots that we don't want
+        if roots_from is not None:
+            allowed_roots = {
+                froz_val.uuid for froz_val in roots_from.get_roots()
+            }
+            db.froz_val_seq_list = [
+                froz_val_seq
+                for froz_val_seq in db.froz_val_seq_list
+                # Only keep FrozenExprValSeq that only contains allowed
+                # FrozenExprVal
+                if {froz_val.uuid for froz_val in froz_val_seq} <= allowed_roots
+            ]
+
+        return db
 
     @classmethod
     def from_path(cls, path, relative_to=None):
