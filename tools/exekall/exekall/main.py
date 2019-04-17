@@ -364,6 +364,9 @@ Compare two DBs produced by exekall run.
 Note that the adaptor in the customization module recorded in the database
 is able to add more parameters to ``exekall compare``. In order to get the
 complete set of options, please run ``exekall compare DB1 DB2 --help``.
+
+Options part of a custom group will need to be passed after positional
+arguments.
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
@@ -564,7 +567,12 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
 
 def do_run(args, parser, run_parser, argv):
     # Import all modules, before selecting the adaptor
-    module_set = utils.import_paths(args.python_files)
+    module_set = set()
+    for path in args.python_files:
+        # This might fail, since some adaptor options may introduce "fake"
+        # positional arguments, since these options are not registered yet.
+        with contextlib.suppress(ValueError):
+            module_set.update(utils.import_paths([path]))
 
     # Look for a customization submodule in one of the parent packages of the
     # modules we specified on the command line.
@@ -582,6 +590,9 @@ def do_run(args, parser, run_parser, argv):
     # Reparse the command line after the adaptor had a chance to add its own
     # arguments.
     args = parser.parse_args(argv)
+
+    # Re-import now that we are sure to have the correct list of sources
+    module_set.update(utils.import_paths(args.python_files))
 
     verbose = args.verbose
 
