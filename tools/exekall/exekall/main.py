@@ -351,7 +351,13 @@ directories should be treated as read-only.
         help="""Artifact directories created using "exekall run", or value databases to merge.""")
 
     add_argument(merge_parser, '-o', '--output', required=True,
-        help="""Output merged artifacts directory or value database.""")
+        help="""
+        Output merged artifacts directory or value database. If the
+        output already exists, the merged DB will only contain the same roots
+        as this one. This allows patching-up a pruned DB with other DBs that
+        contains subexpression's values.
+        """
+    )
 
     add_argument(merge_parser, '--copy', action='store_true',
         help="""Force copying files, instead of using hardlinks.""")
@@ -552,12 +558,15 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
             f.write(combined_uuid+'\n')
 
     if output_exist:
-        db_path_list.append(merged_db_path)
+        root_db = engine.ValueDB.from_path(merged_db_path)
+    else:
+        root_db = None
 
-    merged_db = engine.ValueDB.merge(
+    db_list = [
         engine.ValueDB.from_path(path)
         for path in db_path_list
-    )
+    ]
+    merged_db = engine.ValueDB.merge(db_list, roots_from=root_db)
     merged_db.to_path(merged_db_path)
 
 def do_run(args, parser, run_parser, argv):
