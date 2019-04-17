@@ -105,6 +105,22 @@ That would represent an ``old`` test session with 20 iterations of the test, 15
 of which passed and 5 failed. The ``new`` session would have had 100
 iterations, out of which 80 passed and 20 failed.
 
+.. note:: This kind of experiments only fixes some marginal totals and
+  therefore does not totally satisfy the conditions to use Fisher's exact test.
+  The total number of results on one column (columns marginal total) is fixed,
+  since a test either has to pass or fail. However, the row marginal totals are
+  not fixed, since the experiment does not constrains the total number of
+  success and total number of failures. This kind of experiment would be best
+  analysed using Barnard's test.
+
+  That said, Fisher's exact test is just less powerful than Barnard's test,
+  which means its only issue is to be too conservative, i.e. will sometimes
+  fail to spot a failure rate change although there actually was one.
+
+  Another way to express that is that Fisher's exact test will require more
+  iterations before detecting a failure rate change than strictly required.
+  Barnard's test is unfortunately not widely implemented, so Fisher it is !
+
 .. seealso:: :class:`lisa.regression.RegressionResult`
 
 The output of ``exekall compare`` looks like that:
