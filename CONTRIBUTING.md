@@ -48,7 +48,7 @@ You should strive to validate as much of your code as possible through self-test
 It’s a nice way to showcase that your code works, and also how it works. On top
 of that, it makes sure that later changes won’t break it.
 
-Have a look at [the doc](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/next/lisa_tests.html) for more info on LISA self-tests.
+Have a look at [the doc](https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/contributors_guide.html#validating-your-changes) for more info on LISA self-tests.
 
 ## Commits
 
