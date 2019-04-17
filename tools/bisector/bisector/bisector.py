@@ -2145,10 +2145,12 @@ class LISATestStep(ShellStep):
 
         # Always execute that for the potential side effects like exporting the
         # logs.
+        # Do not propagate ignore_non_issue since exekall will always return 0
+        # exit code.
         basic_report = super().report(
             step_res_seq, service_hub, export_logs=export_logs,
             show_basic=show_basic, verbose=verbose,
-            ignore_non_issue=ignore_non_issue, iterations=iterations,
+            iterations=iterations,
         )
 
         if show_basic:
