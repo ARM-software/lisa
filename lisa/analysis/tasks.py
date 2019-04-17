@@ -423,6 +423,38 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return residency_df
 
+    @df_task_total_residency.used_events
+    def df_tasks_total_residency(self, tasks=None, ascending=False, count=None):
+        """
+        DataFrame of tasks execution time on each CPU
+
+        :param tasks: List of tasks to report, all trace tasks by default
+        :type tasks: list(int or str)
+
+        :param ascending: Set True to order plot by ascending task runtime
+                          False by default
+        :type ascending: bool
+
+        :param count: Maximum number of tasks to report
+        :type count: int
+        """
+        if tasks is None:
+            tasks = list(self.trace.get_tasks().keys())
+        res_df = pd.DataFrame()
+
+        for pid in [self.trace.get_task_pid(task) for task in tasks]:
+            task = self.trace.get_task_by_pid(pid)
+            mapping = {'runtime': '{}:[{}]'.format(pid, task)}
+            _df = self.trace.analysis.tasks.df_task_total_residency(pid).T.rename(index=mapping)
+            res_df = res_df.append(_df)
+
+        res_df['Total'] = res_df.iloc[:, :].sum(axis=1)
+        res_df.sort_values(by='Total', ascending=ascending, inplace=True)
+        if count is None:
+            count = len(res_df)
+
+        return res_df[:count]
+
 ###############################################################################
 # Plotting Methods
 ###############################################################################
@@ -497,6 +529,37 @@ class TasksAnalysis(TraceAnalysisBase):
             axis.grid(True)
 
         return self.do_plot(plotter, filepath, axis, height=8)
+
+    @df_tasks_total_residency.used_events
+    def plot_tasks_total_residency(self, tasks=None, ascending=False,
+                                   count=None, filepath=None, axis=None):
+        """
+        Plot the stacked total time spent by each task on each CPU
+
+        :param tasks: List of tasks to plot, all trace tasks by default
+        :type tasks: list(int or str)
+
+        :param ascending: Set True to order plot by ascending task runtime,
+                          False by default
+        :type ascending: bool
+
+        :param count: Maximum number of tasks to report
+        :type count: int
+
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
+        """
+        df = self.df_tasks_total_residency(tasks, ascending, count)
+
+        def plotter(axis, local_fig):
+            df.T.plot.barh(ax=axis, stacked=True)
+            axis.set_title("Stacked CPU residency of [{}] selected tasks"\
+                           .format(len(df.index)))
+            axis.set_ylabel("CPU")
+            axis.set_xlabel("Runtime (s)")
+            axis.grid(True)
+            axis.legend(loc='upper left',ncol=5, bbox_to_anchor=(0, -.15))
+
+        return self.do_plot(plotter, filepath, axis)
 
     def _df_discretize_series(self, series, time_delta, name):
         """
