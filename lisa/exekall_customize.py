@@ -249,20 +249,20 @@ class LISAAdaptor(AdaptorBase):
         header = '{id:<{id_len}}   old%   new% delta%      pvalue{regr_column}'.format(
             id='testcase'.format(alpha),
             id_len=id_len,
-            regr_column=' changed' if show_non_significant else ''
+            regr_column=' significant' if show_non_significant else ''
         )
         print(header + '\n' + '-' * len(header))
         for regr in regr_list:
             if regr.significant or show_non_significant:
                 old_pc, new_pc = regr.failure_pc
-                print('{id:<{id_len}} {old_pc:>5.1f}% {new_pc:>5.1f}% {delta_pc:>5.1f}%    {pval:.2e} {has_regr}'.format(
+                print('{id:<{id_len}} {old_pc:>5.1f}% {new_pc:>5.1f}% {delta_pc:>5.1f}%    {pval:.2e} {significant}'.format(
                     id=regr.testcase_id,
                     old_pc=old_pc,
                     new_pc=new_pc,
                     delta_pc=regr.failure_delta_pc,
                     pval=regr.p_val,
                     id_len=id_len,
-                    has_regr='*' if regr.significant and show_non_significant else '',
+                    significant='*' if regr.significant and show_non_significant else '',
                 ))
 
     @staticmethod
