@@ -531,14 +531,19 @@ class EnergyModel(Serializable, Loggable):
         return [s or list(c.idle_states.keys())[0]
                 for s, c in zip(states, self.cpu_nodes)]
 
-    def _guess_freqs(self, cpu_utils):
+    def _guess_freqs(self, cpu_utils, capacity_margin_pct):
         overutilized = False
         # Find what frequency each CPU would need if it was alone in its
         # frequency domain
         ideal_freqs = [0 for _ in self.cpus]
         for node in self.cpu_nodes:
             [cpu] = node.cpus
-            required_cap = cpu_utils[cpu]
+
+            # A capacity margin should be provided to meet the demand at a
+            # given utilizaton level as per the scheduler's 'capacity_margin'
+            # coefficient so reflect that here
+            margin = 100 / (100 - capacity_margin_pct)
+            required_cap = cpu_utils[cpu] * margin
 
             possible_freqs = [f for f, s in node.active_states.items()
                               if s.capacity >= required_cap]
@@ -559,7 +564,7 @@ class EnergyModel(Serializable, Loggable):
 
         return freqs, overutilized
 
-    def guess_freqs(self, cpu_utils):
+    def guess_freqs(self, cpu_utils, capacity_margin_pct=0):
         """Work out CPU frequencies required to execute a workload
 
         Find the lowest possible frequency for each CPU that provides enough
@@ -568,10 +573,11 @@ class EnergyModel(Serializable, Loggable):
 
         :param cpu_utils: Utilization distribution, see
                              :ref:`cpu_utils <cpu-utils>`
+        :param capacity_margin_pct: Capacity margin before overutilizing a CPU
         :returns: List ``ret`` where ``ret[N]`` is the frequency that CPU N must
                   run at
         """
-        freqs, _ = self._guess_freqs(cpu_utils)
+        freqs, _ = self._guess_freqs(cpu_utils, capacity_margin_pct)
         return freqs
 
     def _estimate_from_active_time(self, cpu_active_time, freqs, idle_states,
@@ -669,7 +675,7 @@ class EnergyModel(Serializable, Loggable):
         return self._estimate_from_active_time(cpu_active_time,
                                                freqs, idle_states, combine=True)
 
-    def get_optimal_placements(self, capacities):
+    def get_optimal_placements(self, capacities, capacity_margin_pct=0):
         """Find the optimal distribution of work for a set of tasks
 
         Find a list of candidates which are estimated to be optimal in terms of
@@ -698,6 +704,7 @@ class EnergyModel(Serializable, Loggable):
                            have a single static utilization value. A set of
                            single-phase periodic RT-App tasks is an example of a
                            suitable workload for this model.
+        :param capacity_margin_pct: Capacity margin before overutilizing a CPU
         :returns: List of ``cpu_utils`` items representing distributions of work
                   under optimal task placements, see
                   :ref:`cpu_utils <cpu-utils>`. Multiple task placements
@@ -729,7 +736,7 @@ class EnergyModel(Serializable, Loggable):
                 continue
 
             if util not in candidates:
-                freqs, overutilized = self._guess_freqs(util)
+                freqs, overutilized = self._guess_freqs(util, capacity_margin_pct)
                 if overutilized:
                     # This isn't a valid placement
                     excluded.append(util)

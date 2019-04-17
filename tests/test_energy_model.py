@@ -182,6 +182,11 @@ class TestOptimalPlacement(TestCase):
         self.assertRaises(EnergyModelCapacityError,
                           em.get_optimal_placements, {'task0' : 401})
 
+    def test_capacity_margin_single(self):
+        self.assertRaises(EnergyModelCapacityError,
+                          em.get_optimal_placements, {'task0' : 350},
+                          capacity_margin_pct=20)
+
     def test_overutilized_many(self):
         total_cap = 400 * 2 + 200 * 2
         task_size = 200
