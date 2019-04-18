@@ -370,6 +370,9 @@ Compare two DBs produced by exekall run.
 Note that the adaptor in the customization module recorded in the database
 is able to add more parameters to ``exekall compare``. In order to get the
 complete set of options, please run ``exekall compare DB1 DB2 --help``.
+
+Options part of a custom group will need to be passed after positional
+arguments.
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
@@ -445,7 +448,9 @@ def do_compare(parser, compare_parser, argv, db_path_list):
 
     # Add all the CLI arguments of the adaptor before reparsing the
     # command line.
-    adaptor_cls.register_compare_param(compare_parser)
+
+    adaptor_group = utils.create_adaptor_parser_group(compare_parser, adaptor_cls)
+    adaptor_cls.register_compare_param(adaptor_group)
 
     # Reparse the command line after the adaptor had a chance to add its own
     # arguments.
@@ -571,7 +576,12 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
 
 def do_run(args, parser, run_parser, argv):
     # Import all modules, before selecting the adaptor
-    module_set = utils.import_paths(args.python_files)
+    module_set = set()
+    for path in args.python_files:
+        # This might fail, since some adaptor options may introduce "fake"
+        # positional arguments, since these options are not registered yet.
+        with contextlib.suppress(ValueError):
+            module_set.update(utils.import_paths([path]))
 
     # Look for a customization submodule in one of the parent packages of the
     # modules we specified on the command line.
@@ -580,14 +590,21 @@ def do_run(args, parser, run_parser, argv):
     adaptor_name = args.adaptor
     adaptor_cls = AdaptorBase.get_adaptor_cls(adaptor_name)
     if not adaptor_cls:
-        raise RuntimeError('Adaptor "{}" cannot be found'.format(adaptor_name))
+        if adaptor_name:
+            raise RuntimeError('Adaptor "{}" cannot be found'.format(adaptor_name))
+        else:
+            raise RuntimeError('No adaptor was found')
     # Add all the CLI arguments of the adaptor before reparsing the
     # command line.
-    adaptor_cls.register_run_param(run_parser)
+    adaptor_group = utils.create_adaptor_parser_group(run_parser, adaptor_cls)
+    adaptor_cls.register_run_param(adaptor_group)
 
     # Reparse the command line after the adaptor had a chance to add its own
     # arguments.
     args = parser.parse_args(argv)
+
+    # Re-import now that we are sure to have the correct list of sources
+    module_set.update(utils.import_paths(args.python_files))
 
     verbose = args.verbose
 

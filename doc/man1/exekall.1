@@ -148,6 +148,11 @@ optional arguments:
   \-n N                  Run the tests for a number of iterations.
   \-\-share TYPE_PATTERN  Class name pattern to share between multiple iterations.
   \-\-random\-order        Run the expressions in a random order, instead of sorting by name.
+
+LISA:
+  LISA custom options.
+  Can only be specified *after* positional parameters.
+
   \-\-conf CONF           LISA configuration file. If multiple configurations of a given type
                         are found, they are merged (last one can override keys in previous
                         ones)
@@ -171,6 +176,9 @@ Compare two DBs produced by exekall run.
 Note that the adaptor in the customization module recorded in the database
 is able to add more parameters to \(ga\(gaexekall compare\(ga\(ga. In order to get the
 complete set of options, please run \(ga\(gaexekall compare DB1 DB2 \-\-help\(ga\(ga.
+
+Options part of a custom group will need to be passed after positional
+arguments.
     
 
 positional arguments:
