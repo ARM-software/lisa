@@ -1950,7 +1950,6 @@ class LISATestStep(ShellStep):
         # Read the ValueDB from exekall to know the failing tests
         testcase_map = dict()
         filtered_step_res_seq = list()
-        db_list = []
         for step_res_item in step_res_seq:
             i_stack, step_res = step_res_item
             bisect_ret = None
@@ -1967,7 +1966,6 @@ class LISATestStep(ShellStep):
                 ))
                 continue
             else:
-                db_list.append(db)
                 def key(froz_val):
                     return froz_val.get_id(full_qual=True, with_tags=True)
 
@@ -2063,6 +2061,7 @@ class LISATestStep(ShellStep):
                         is_ignored = True
 
                     entry['froz_val'] = froz_val
+                    entry['db'] = db
 
                     # Ignored testcases will not contribute to the number of
                     # iterations
@@ -2323,11 +2322,35 @@ class LISATestStep(ShellStep):
 
         # Write-out a merged DB
         if export_db:
-            try:
+
+            entry_list = [
+                entry
+                for entry_list in testcase_map.values()
+                for entry in entry_list
+            ]
+
+            # Prune the DBs so we only keep the root values we selected
+            # previously and all its parents.
+            def get_parents_uuid(froz_val):
+                yield froz_val.uuid
+                for parent_froz_val in froz_val.values():
+                    yield from get_parents_uuid(parent_froz_val)
+
+            allowed_uuids = set(itertools.chain.from_iterable(
+                get_parents_uuid(entry['froz_val'])
+                for entry in entry_list
+            ))
+
+            def prune_predicate(froz_val):
+                return froz_val.uuid not in allowed_uuids
+
+            db_list = [
+                db.prune_by_predicate(prune_predicate)
+                for db in {entry['db'] for entry in entry_list}
+            ]
+
+            with contextlib.suppress(FileNotFoundError):
                 existing_db = ValueDB.from_path(export_db)
-            except FileNotFoundError:
-                pass
-            else:
                 db_list.append(existing_db)
 
             merged_db = ValueDB.merge(db_list)
