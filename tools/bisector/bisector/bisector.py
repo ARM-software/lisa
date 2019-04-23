@@ -1739,9 +1739,9 @@ class LISATestStep(ShellStep):
             show_pass_rate = BoolParam('always show the pass rate of tests, even when there are failures or errors as well'),
             show_details = ChoiceOrBoolParam(['msg'], 'show details of results. Use "msg" for only a brief message'),
             show_artifact_dirs = BoolParam('show exekall artifact directory for all iterations'),
-            testcase = CommaListParam('show only the test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name'),
+            testcase = CommaListParam('show only the untagged test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name'),
             result_uuid = CommaListParam('show only the test results with a UUID in the comma-separated list.'),
-            ignore_testcase = CommaListParam('completely ignore test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
+            ignore_testcase = CommaListParam('completely ignore untagged test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
             ignore_non_issue = BoolParam('consider only tests that failed or had an error'),
             ignore_non_error = BoolParam('consider only tests that had an error'),
             ignore_excep = CommaListParam('ignore the given comma-separated list of exceptions class name patterns that caused tests error. This will also match on base classes of the exception.'),
@@ -1975,12 +1975,12 @@ class LISATestStep(ShellStep):
                 froz_val_list = sorted(db.get_roots(), key=key)
 
                 for froz_val in froz_val_list:
-                    testcase_id = froz_val.get_id(qual=False, with_tags=True)
+                    untagged_testcase_id = froz_val.get_id(qual=False, with_tags=False)
 
                     # Ignore tests we are not interested in
                     if (
                         (considered_testcase_set and not any(
-                            fnmatch.fnmatch(testcase_id, pattern)
+                            fnmatch.fnmatch(untagged_testcase_id, pattern)
                             for pattern in considered_testcase_set
                         ))
                         or
@@ -1989,12 +1989,13 @@ class LISATestStep(ShellStep):
                         )
                         or
                         (ignored_testcase_set and any(
-                            fnmatch.fnmatch(testcase_id, pattern)
+                            fnmatch.fnmatch(untagged_testcase_id, pattern)
                             for pattern in ignored_testcase_set
                         ))
                     ):
                         continue
 
+                    testcase_id = froz_val.get_id(qual=False, with_tags=True)
                     entry = {
                         'testcase_id': testcase_id,
                         'i_stack': i_stack,
@@ -2073,6 +2074,7 @@ class LISATestStep(ShellStep):
                     elif entry['result'] == 'passed':
                         # Only change from None to GOOD but not from BAD to GOOD
                         bisect_ret = BisectRet.GOOD if bisect_ret is None else bisect_ret
+
                     testcase_map.setdefault(testcase_id, []).append(entry)
 
             any_entries = bisect_ret is not None
