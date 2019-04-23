@@ -479,10 +479,10 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
         merged_db_path = output_dir
     else:
         # This will fail loudly if the folder already exists
-        os.makedirs(str(output_dir), exist_ok=output_exist)
+        output_dir.mkdir(parents=True, exist_ok=output_exist)
+        (output_dir/'BY_UUID').mkdir(exist_ok=True)
         merged_db_path = output_dir/DB_FILENAME
 
-    (output_dir/'BY_UUID').mkdir(exist_ok=True)
     testsession_uuid_list = []
     for artifact_dir in artifact_dirs:
         with (artifact_dir/'UUID').open(encoding='utf-8') as f:
