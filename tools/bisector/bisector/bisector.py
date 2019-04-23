@@ -1740,6 +1740,7 @@ class LISATestStep(ShellStep):
             show_details = ChoiceOrBoolParam(['msg'], 'show details of results. Use "msg" for only a brief message'),
             show_artifact_dirs = BoolParam('show exekall artifact directory for all iterations'),
             testcase = CommaListParam('show only the test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name'),
+            result_uuid = CommaListParam('show only the test results with a UUID in the comma-separated list.'),
             ignore_testcase = CommaListParam('completely ignore test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
             ignore_non_issue = BoolParam('consider only tests that failed or had an error'),
             ignore_non_error = BoolParam('consider only tests that had an error'),
@@ -1910,6 +1911,7 @@ class LISATestStep(ShellStep):
             show_pass_rate = False,
             show_artifact_dirs = False,
             testcase = [],
+            result_uuid = [],
             ignore_testcase = [],
             iterations = [],
             ignore_non_issue = False,
@@ -1941,6 +1943,7 @@ class LISATestStep(ShellStep):
         out = MLString()
 
         considered_testcase_set = set(testcase)
+        considered_uuid_set = set(result_uuid)
         ignored_testcase_set = set(ignore_testcase)
         considered_iteration_set = set(iterations)
 
@@ -1980,6 +1983,10 @@ class LISATestStep(ShellStep):
                             fnmatch.fnmatch(testcase_id, pattern)
                             for pattern in considered_testcase_set
                         ))
+                        or
+                        (considered_uuid_set and
+                            froz_val.uuid not in considered_uuid_set
+                        )
                         or
                         (ignored_testcase_set and any(
                             fnmatch.fnmatch(testcase_id, pattern)
