@@ -38,6 +38,8 @@ import glob
 import textwrap
 import argparse
 
+DB_FILENAME = 'VALUE_DB.pickle.xz'
+
 class NotSerializableError(Exception):
     pass
 

@@ -36,8 +36,6 @@ import exekall.utils as utils
 from exekall.utils import NoValue, error, warn, debug, info, out, add_argument
 import exekall.engine as engine
 
-DB_FILENAME = 'VALUE_DB.pickle.xz'
-
 # Create an operator for all callables that have been detected in a given
 # set of modules
 def build_op_set(callable_pool, non_reusable_type_set, allowed_pattern_set, adaptor):
@@ -481,7 +479,7 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
         # This will fail loudly if the folder already exists
         output_dir.mkdir(parents=True, exist_ok=output_exist)
         (output_dir/'BY_UUID').mkdir(exist_ok=True)
-        merged_db_path = output_dir/DB_FILENAME
+        merged_db_path = output_dir/utils.DB_FILENAME
 
     testsession_uuid_list = []
     for artifact_dir in artifact_dirs:
@@ -551,7 +549,7 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
                 else:
                     shutil.copy2(str(path), str(dst_path))
 
-                if dirpath == artifact_dir and name == DB_FILENAME:
+                if dirpath == artifact_dir and name == utils.DB_FILENAME:
                     db_path_list.append(path)
 
     if artifact_dirs:
@@ -954,7 +952,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
             f.write(
                 expr.get_script(
                     prefix = 'expr',
-                    db_path = os.path.join('..', DB_FILENAME),
+                    db_path = os.path.join('..', utils.DB_FILENAME),
                     db_relative_to = '__file__',
                 )[1]+'\n',
             )
@@ -1079,7 +1077,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                 f.write(
                     expr.get_script(
                         prefix = 'expr',
-                        db_path = os.path.join('..', '..', DB_FILENAME),
+                        db_path = os.path.join('..', '..', utils.DB_FILENAME),
                         db_relative_to = '__file__',
                     )[1]+'\n',
                 )
@@ -1117,7 +1115,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
         adaptor_cls=adaptor_cls,
     )
 
-    db_path = artifact_dir/DB_FILENAME
+    db_path = artifact_dir/utils.DB_FILENAME
     db.to_path(db_path)
 
     out('#'*80)
