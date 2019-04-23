@@ -28,6 +28,7 @@ import contextlib
 import pickle
 import pprint
 import pickletools
+import re
 
 import exekall._utils as utils
 from exekall._utils import NoValue
@@ -776,6 +777,9 @@ class ExpressionBase(ExprHelpers):
             :class:`ExprVal`.
         :type with_tags: bool
 
+        :param remove_tags: Do not add the specified tags values.
+        :type remove_tags: set(str)
+
         :param qual: If True, return the qualified ID.
         :type qual: bool
 
@@ -800,7 +804,7 @@ class ExpressionBase(ExprHelpers):
         else:
             return id_
 
-    def _get_id(self, with_tags=True, full_qual=True, qual=True, style=None, expr_val=None, marked_expr_val_set=None, hidden_callable_set=None):
+    def _get_id(self, with_tags=True, remove_tags=set(), full_qual=True, qual=True, style=None, expr_val=None, marked_expr_val_set=None, hidden_callable_set=None):
         if hidden_callable_set is None:
             hidden_callable_set = set()
 
@@ -819,6 +823,7 @@ class ExpressionBase(ExprHelpers):
             param_map=param_map,
             expr_val=expr_val,
             with_tags=with_tags,
+            remove_tags=remove_tags,
             marked_expr_val_set=marked_expr_val_set,
             hidden_callable_set=hidden_callable_set,
             full_qual=full_qual,
@@ -826,7 +831,7 @@ class ExpressionBase(ExprHelpers):
             style=style,
         )
 
-    def _get_id_internal(self, param_map, expr_val, with_tags, marked_expr_val_set, hidden_callable_set, full_qual, qual, style):
+    def _get_id_internal(self, param_map, expr_val, with_tags, remove_tags, marked_expr_val_set, hidden_callable_set, full_qual, qual, style):
         separator = ':'
         marker_char = '^'
         get_id_kwargs = dict(
@@ -844,6 +849,7 @@ class ExpressionBase(ExprHelpers):
             (param, param_expr._get_id(
                 **get_id_kwargs,
                 with_tags = with_tags,
+                remove_tags=remove_tags,
                 # Pass None when there is no value available, so we will get
                 # a non-tagged ID when there is no value computed
                 expr_val = param_map.get(param),
@@ -861,7 +867,7 @@ class ExpressionBase(ExprHelpers):
         def get_tags(expr_val):
             if expr_val is not None:
                 if with_tags:
-                    tag = expr_val.format_tags()
+                    tag = expr_val.format_tags(remove_tags)
                 else:
                     tag = ''
                 return tag
@@ -3208,7 +3214,7 @@ class FrozenExprVal(ExprValBase):
     def _make_id_key(**kwargs):
         return tuple(sorted(kwargs.items()))
 
-    def get_id(self, full_qual=True, qual=True, with_tags=True):
+    def get_id(self, full_qual=True, qual=True, with_tags=True, remove_tags=set()):
         """
         Return recorded IDs generated using :meth:`ExprVal.get_id`.
         """
@@ -3218,7 +3224,12 @@ class FrozenExprVal(ExprValBase):
             qual=qual,
             with_tags=with_tags
         )
-        return self.recorded_id_map[key]
+        id_ = self.recorded_id_map[key]
+
+        for tag in remove_tags:
+            id_ = re.sub(r'\[{}=.*?\]'.format(tag), '', id_)
+
+        return id_
 
 class PrunedFrozVal(FrozenExprVal):
     """
@@ -3321,9 +3332,12 @@ class ExprVal(ExprValBase):
         self.expr = expr
         super().__init__(param_map=param_map, value=value, excep=excep)
 
-    def format_tags(self):
+    def format_tags(self, remove_tags=set()):
         """
         Return a formatted string for the tags of that :class:`ExprVal`.
+
+        :param remove_tags: Do not include those tags
+        :type remove_tags: set(str)
         """
         tag_map = {
             # Make sure there are no brackets in tag values, since that
@@ -3335,6 +3349,7 @@ class ExprVal(ExprValBase):
             return ''.join(
                 '[{}={}]'.format(k, v) if k else '[{}]'.format(v)
                 for k, v in sorted(tag_map.items())
+                if k not in remove_tags
             )
         else:
             return ''
