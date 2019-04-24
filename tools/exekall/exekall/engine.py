@@ -3139,7 +3139,7 @@ class FrozenExprVal(ExprValBase):
     def type_names(self):
         return [
             utils.get_name(type_, full_qual=True)
-            for type_ in utils.get_mro(type(value))
+            for type_ in utils.get_mro(type(self.value))
             if type_ is not object
         ]
 
