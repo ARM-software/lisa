@@ -894,7 +894,7 @@ class WaResultsCollector(Loggable):
         return self.CDF(df, threshold, above, below)
 
     def plot_cdf(self, workload='jankbench', metric='frame_total_duration',
-                 threshold=16, tag='.*', kernel='.*', test='.*'):
+                 threshold=16, ncol=5, tag='.*', kernel='.*', test='.*'):
         """
         Display cumulative distribution functions of a certain metric
 
@@ -917,6 +917,9 @@ class WaResultsCollector(Loggable):
                           frame-rendering time in order to see at a glance the
                           rough proportion of frames that were rendered in time.
         :type threshold: int
+
+        :param ncol: Number of columns in the legend, default: 5
+        :type ncol: int
 
         :param tag: regular expression to filter tags that should be plotted
         :type tag: int
@@ -942,25 +945,33 @@ class WaResultsCollector(Loggable):
         fig, axes = plt.subplots()
         axes.axvspan(0, threshold, facecolor='g', alpha=0.1)
 
+        # Pre-compute CDFs to support sorted plotting
+        data = []
+        for keys, df in df.groupby(['test', 'tag', 'kernel']):
+            cdf = self._get_cdf(df['value'], threshold)
+            data.append((keys, df, cdf))
+
         labels = []
         lines = []
-        for keys, df in df.groupby(['test', 'tag', 'kernel']):
-            labels.append("{:16s}: {:32s}".format(keys[2], keys[1]))
+        for (keys, df, cdf) in sorted(data, key=lambda x: x[2].below,
+                                      reverse=True):
             color = next(colors)
-            cdf = self._get_cdf(df['value'], threshold)
-            [units] = df['units'].unique()
-            ax = cdf.df.plot(ax=axes, legend=False, xlim=(0,None), figsize=(16, 6),
-                             title='Total duration CDF ({:.1f}% within {} [{}] threshold)'\
-                             .format(100. * cdf.below, threshold, units),
-                             label=test,
-                             color=to_hex(color))
-            lines.append(ax.lines[-1])
+            cdf.df.plot(legend=False, xlim=(0,None), figsize=(16, 6),
+                        label=test, color=to_hex(color))
+            lines.append(axes.lines[-1])
             axes.axhline(y=cdf.below, linewidth=1,
                          linestyle='--', color=to_hex(color))
+            labels.append("{:16s}: {:32s} ({:4.1f}%)".format(
+                          keys[2], keys[1], 100. * cdf.below))
+
             logger.debug("%-32s: %-32s: %.1f", keys[2], keys[1], 100.*cdf.below)
 
+        [units] = df['units'].unique()
+        axes.set_title('Total duration CDFs (% within {} [{}] threshold)'\
+                     .format(threshold, units))
         axes.grid(True)
-        axes.legend(lines, labels)
+        axes.legend(lines, labels, loc='upper left',
+                    ncol=ncol, bbox_to_anchor=(0, -.15))
         plt.show()
 
     def find_comparisons(self, base_id=None, by='kernel'):
