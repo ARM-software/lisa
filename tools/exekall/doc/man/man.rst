@@ -130,7 +130,8 @@ Execution
 Executing an expression means evaluating each node if it has not already been
 evaluated. If an operator is not reusable, it will always be called when a
 value is requested from it, even if some existing values computed with the same
-parameters exist.
+parameters exist. By default, all operators are reusable, but some types can be
+flagged as non-reusable by the customization module (see :ref:`customize`).
 
 Operators are allowed to be generator functions as well. In that case, the
 engine will iterate over the generator, and will execute the downstream
@@ -272,6 +273,8 @@ why. Most common issues are:
      solved by adding more ``import`` statements, or simply giving that source
      file directly to ``exekall run``.
    * Wrong goal selected using ``--goal``.
+
+.. _customize:
 
 CUSTOMIZING EXEKALL
 +++++++++++++++++++
