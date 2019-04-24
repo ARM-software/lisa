@@ -97,11 +97,19 @@ class ValueDB:
         """
 
         # First pass: find all frozen values corresponding to a given UUID
-        uuid_map = {}
+        uuid_map = collections.defaultdict(set)
         def update_uuid_map(froz_val):
-            uuid_map.setdefault(froz_val.uuid, set()).add(froz_val)
+            uuid_map[froz_val.uuid].add(froz_val)
             return froz_val
         cls._froz_val_dfs(froz_val_seq_list, update_uuid_map)
+
+        # If there is no more than one FrozenExprVal per UUID, we can skip the
+        # rewriting
+        for froz_val_set in uuid_map.values():
+            if len(froz_val_set) > 1:
+                break
+        else:
+            return froz_val_seq_list
 
         # Select one FrozenExprVal for each UUID pair
         def select_froz_val(froz_val_set):
@@ -135,7 +143,7 @@ class ValueDB:
                 return froz_val
             return uuid_map[froz_val.uuid]
 
-        return cls._froz_val_dfs(froz_val_seq_list, rewrite_graph)
+        return cls._froz_val_dfs(froz_val_seq_list, rewrite_graph, rewrite=True)
 
     @classmethod
     def merge(cls, db_list, roots_from=None):
@@ -288,29 +296,47 @@ class ValueDB:
         return uuid_map
 
     @classmethod
-    def _froz_val_dfs(cls, froz_val_seq_list, callback):
-        return [
-            FrozenExprValSeq(
-                froz_val_list=[
-                    cls._do_froz_val_dfs(froz_val, callback)
-                    for froz_val in froz_val_seq
-                ],
-                param_map=OrderedDict(
-                    (param, cls._do_froz_val_dfs(froz_val, callback))
-                    for param, froz_val in froz_val_seq.param_map.items()
+    def _froz_val_dfs(cls, froz_val_seq_list, callback, rewrite=False):
+        if rewrite:
+            def _do_froz_val_dfs(froz_val):
+                updated_froz_val = callback(froz_val)
+                updated_froz_val.param_map = OrderedDict(
+                    (param, _do_froz_val_dfs(param_froz_val))
+                    for param, param_froz_val in updated_froz_val.param_map.items()
                 )
-            )
-            for froz_val_seq in froz_val_seq_list
-        ]
 
-    @classmethod
-    def _do_froz_val_dfs(cls, froz_val, callback):
-        updated_froz_val = callback(froz_val)
-        updated_froz_val.param_map = OrderedDict(
-            (param, cls._do_froz_val_dfs(param_froz_val, callback))
-            for param, param_froz_val in updated_froz_val.param_map.items()
-        )
-        return updated_froz_val
+                return updated_froz_val
+
+            return [
+                FrozenExprValSeq(
+                    froz_val_list=[
+                        _do_froz_val_dfs(froz_val)
+                        for froz_val in froz_val_seq
+                    ],
+                    param_map=OrderedDict(
+                        (param, _do_froz_val_dfs(froz_val))
+                        for param, froz_val in froz_val_seq.param_map.items()
+                    )
+                )
+                for froz_val_seq in froz_val_seq_list
+            ]
+
+        # When we don't need to rewrite the graph, just call the callback so we
+        # avoid creating loads of useless objects
+        else:
+            def _do_froz_val_dfs(froz_val):
+                callback(froz_val)
+                for parent in froz_val.param_map.values():
+                    _do_froz_val_dfs(parent)
+
+            for froz_val_seq in froz_val_seq_list:
+                for froz_val in froz_val_seq:
+                    _do_froz_val_dfs(froz_val)
+
+                for froz_val in froz_val_seq.param_map.values():
+                    _do_froz_val_dfs(froz_val)
+
+            return None
 
     def get_by_uuid(self, uuid):
         """
