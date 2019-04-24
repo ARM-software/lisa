@@ -529,6 +529,25 @@ class ArtifactPath(str, Loggable, HideExekallID):
         # Swap-in the new root and return a new instance
         return type(self)(root, relative)
 
+    @classmethod
+    def join(cls, path1, path2):
+        """
+        Join two paths together, similarly to :func:`os.path.join`.
+
+        If ``path1`` is a :class:`ArtifactPath`, the result will also be one,
+        and the root of ``path1`` will be used as the root of the new path.
+        """
+        if isinstance(path1, cls):
+            joined = cls(
+                root=path1.root,
+                relative=os.path.join(path1.relative, str(path2))
+            )
+        else:
+            joined = os.path.join(str(path1), str(path2))
+
+        return joined
+
+
 def groupby(iterable, key=None):
     # We need to sort before feeding to groupby, or it will fail to establish
     # the groups as expected.

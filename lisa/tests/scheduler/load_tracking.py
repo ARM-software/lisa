@@ -461,7 +461,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             freq_list.sort()
 
             for freq in freq_list:
-                item_dir = os.path.join(res_dir, "{prefix}_{cpu}@{freq}".format(
+                item_dir = ArtifactPath.join(res_dir, "{prefix}_{cpu}@{freq}".format(
                     prefix=InvarianceItem.task_prefix,
                     cpu=cpu,
                     freq=freq,
