@@ -431,22 +431,25 @@ class ValueDB:
         This allows trimming a :class:`ValueDB` to a smaller size by removing
         non-necessary content.
         """
-        def prune(froz_val):
+        def prune(froz_val, do_prune):
             if isinstance(froz_val, PrunedFrozVal):
                 return froz_val
-            elif predicate(froz_val):
+            elif do_prune:
                 return PrunedFrozVal(froz_val)
             else:
                 # Edit the param_map in-place, so we keep it potentially shared
                 # if possible.
                 for param, param_froz_val in list(froz_val.param_map.items()):
-                    froz_val.param_map[param] = prune(param_froz_val)
+                    froz_val.param_map[param] = prune(
+                        param_froz_val,
+                        do_prune=predicate(param_froz_val)
+                    )
 
                 return froz_val
 
         def make_froz_val_seq(froz_val_seq):
             froz_val_list = [
-                prune(froz_val)
+                prune(froz_val, do_prune=False)
                 for froz_val in froz_val_seq
                 # Just remove the root PrunedFrozVal, since they are useless at
                 # this level (i.e. nothing depends on them)
