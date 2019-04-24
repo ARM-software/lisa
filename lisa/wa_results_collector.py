@@ -894,7 +894,8 @@ class WaResultsCollector(Loggable):
         return self.CDF(df, threshold, above, below)
 
     def plot_cdf(self, workload='jankbench', metric='frame_total_duration',
-                 threshold=16, ncol=5, tag='.*', kernel='.*', test='.*'):
+                 threshold=16, top_most=None, ncol=1,
+                 tag='.*', kernel='.*', test='.*'):
         """
         Display cumulative distribution functions of a certain metric
 
@@ -918,7 +919,13 @@ class WaResultsCollector(Loggable):
                           rough proportion of frames that were rendered in time.
         :type threshold: int
 
-        :param ncol: Number of columns in the legend, default: 5
+        :param top_most: Maximum number of CDFs to plot, all available plots
+                         if not specified
+        :type top_most: int
+
+        :param ncol: Number of columns in the legend, default: 1. If more than
+                     one column is requested the legend will be force placed
+                     below the plot to avoid covering the data.
         :type ncol: int
 
         :param tag: regular expression to filter tags that should be plotted
@@ -953,8 +960,10 @@ class WaResultsCollector(Loggable):
 
         labels = []
         lines = []
+        if top_most is None:
+            top_most = len(data)
         for (keys, df, cdf) in sorted(data, key=lambda x: x[2].below,
-                                      reverse=True):
+                                      reverse=True)[:top_most]:
             color = next(colors)
             cdf.df.plot(legend=False, xlim=(0,None), figsize=(16, 6),
                         label=test, color=to_hex(color))
@@ -970,8 +979,12 @@ class WaResultsCollector(Loggable):
         axes.set_title('Total duration CDFs (% within {} [{}] threshold)'\
                      .format(threshold, units))
         axes.grid(True)
-        axes.legend(lines, labels, loc='upper left',
-                    ncol=ncol, bbox_to_anchor=(0, -.15))
+        if ncol < 2:
+            axes.legend(lines, labels, loc='best')
+        else:
+            axes.legend(lines, labels, loc='upper left',
+                        ncol=ncol, bbox_to_anchor=(0, -.15))
+
         plt.show()
 
     def find_comparisons(self, base_id=None, by='kernel'):
