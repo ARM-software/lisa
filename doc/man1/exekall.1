@@ -70,6 +70,7 @@ subcommands:
 usage: exekall run [\-h] [\-s ID_PATTERN] [\-\-list]
                    [\-\-log\-level {debug,info,warn,error,critical}] [\-\-verbose]
                    [\-\-artifact\-root ARTIFACT_ROOT | \-\-artifact\-dir ARTIFACT_DIR]
+                   [\-\-symlink\-artifact\-dir\-to SYMLINK_ARTIFACT_DIR_TO]
                    [\-\-load\-db LOAD_DB] [\-\-load\-type TYPE_PATTERN]
                    [\-\-load\-uuid LOAD_UUID | \-\-replay REPLAY]
                    [\-\-restrict CALLABLE_PATTERN] [\-\-forbid TYPE_PATTERN]
@@ -109,6 +110,8 @@ optional arguments:
   \-\-artifact\-dir ARTIFACT_DIR
                         Folder in which the artifacts will be stored. Defaults to
                         EXEKALL_ARTIFACT_DIR env var.
+  \-\-symlink\-artifact\-dir\-to SYMLINK_ARTIFACT_DIR_TO
+                        Create a symlink pointing at the artifact dir.
   \-\-load\-db LOAD_DB     Reload a database to use some of its objects. The DB and its artifact
                         directory will be merged in the produced DB at the end of the
                         execution, to form a self\-contained artifact directory.
