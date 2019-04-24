@@ -907,18 +907,25 @@ class WaResultsCollector(Loggable):
         under Jankbench, so default parameters are provided to make this easy.
 
         :param workload: Name of workload to display metrics for
+        :type workload: str
+
         :param metric: Name of metric to display
+        :type metric: str
 
         :param threshold: Value to highlight in the plot - the likely use for
                           this is highlighting the maximum acceptable
                           frame-rendering time in order to see at a glance the
                           rough proportion of frames that were rendered in time.
+        :type threshold: int
 
         :param tag: regular expression to filter tags that should be plotted
+        :type tag: int
+
         :param kernel: regular expression to filter kernels that should be plotted
-        :param tag: regular expression to filter tags that should be plotted
+        :type kernel: int
 
-        :param by: List of identifiers to group output as in DataFrame.groupby.
+        :param tests: regular expression to filter tests that should be plotted
+        :type tests: str
         """
         logger = self.get_logger()
 
@@ -933,7 +940,7 @@ class WaResultsCollector(Loggable):
         colors = iter(cm.rainbow(np.linspace(0, 1, test_cnt+1)))
 
         fig, axes = plt.subplots()
-        axes.axvspan(0, threshold, facecolor='g', alpha=0.1);
+        axes.axvspan(0, threshold, facecolor='g', alpha=0.1)
 
         labels = []
         lines = []
