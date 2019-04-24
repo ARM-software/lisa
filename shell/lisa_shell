@@ -25,7 +25,7 @@
 
 # Python binary to use. This allows users to install multiple versions in
 # parallel, and ease testing
-LISA_PYTHON=${LISA_PYTHON:-python3}
+export LISA_PYTHON=${LISA_PYTHON:-python3}
 
 # By default use internal libraries
 export LISA_DEVMODE=${LISA_DEVMODE:-1}
