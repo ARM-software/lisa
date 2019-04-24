@@ -259,6 +259,10 @@ please run ``exekall run YOUR_SOURCES --help``.
         default=os.getenv('EXEKALL_ARTIFACT_DIR'),
         help="""Folder in which the artifacts will be stored. Defaults to EXEKALL_ARTIFACT_DIR env var.""")
 
+    add_argument(run_parser, '--symlink-artifact-dir-to',
+        type=pathlib.Path,
+        help="""Create a symlink pointing at the artifact dir.""")
+
     add_argument(run_parser, '--load-db', action='append',
         default=[],
         help="""Reload a database to use some of its objects. The DB and its artifact directory will be merged in the produced DB at the end of the execution, to form a self-contained artifact directory.""")
@@ -647,6 +651,7 @@ def do_run(args, parser, run_parser, argv):
     allowed_pattern_set = set(args.allow)
     allowed_pattern_set.update(restricted_pattern_set)
     allowed_pattern_set.update(callable_goal_pattern_set)
+    artifact_dir_link = args.symlink_artifact_dir_to
 
     # Setup the artifact_dir so we can create a verbose log in there
     date = datetime.datetime.now().strftime('%Y%m%d_%H:%M:%S')
@@ -665,6 +670,14 @@ def do_run(args, parser, run_parser, argv):
         info_log = None
     else:
         artifact_dir.mkdir(parents=True)
+        if artifact_dir_link:
+            if artifact_dir_link.exists() and not artifact_dir_link.is_symlink():
+                raise ValueError('This is not a symlink and will not be overwritten: {}'.format(
+                    artifact_dir_link))
+            with contextlib.suppress(FileNotFoundError):
+                artifact_dir_link.unlink()
+            artifact_dir_link.symlink_to(artifact_dir, target_is_directory=True)
+
         artifact_dir = artifact_dir.resolve()
         # Update the CLI arguments so the customization module has access to the
         # correct value
