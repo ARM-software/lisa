@@ -444,6 +444,25 @@ collected ones. This can then be compared with another one for regressions:
   without relying on other files/folders being available (locally or over
   HTTP).
 
+Fixing regressions
+------------------
+
+``check-test-fix.py`` tool can be used to check that a fix to a test resolved
+errors or a regression, provided that the test can be re-executed on
+already-collected :class:`lisa.tests.base.TestBundle` instances. It will call
+``exekall run`` in parallel on all the ``exekall``'s
+:class:`exekall.engine.ValueDB` collected by ``bisector run``, and will produce
+a regression table using ``exekall compare`` with ``old`` being the results
+from the report, and ``new`` being the new results.
+
+.. code-block:: sh
+  
+  # The test to check is selected using --select in the same way as for `exekall run`.
+  # hikey960.report.yml.gz is a bisector report generated using `bisector run`
+  # All options coming after the report are passed to `bisector report` to
+  # control what artifacts are downloaded and what TestBundle are used.
+  check-test-fix.py --select 'OneSmallTask:test_task_placement' hikey960.report.yml.gz -oiterations=1-20
+
 When something goes wrong
 +++++++++++++++++++++++++
 

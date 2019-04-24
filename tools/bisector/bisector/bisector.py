@@ -1739,8 +1739,9 @@ class LISATestStep(ShellStep):
             show_pass_rate = BoolParam('always show the pass rate of tests, even when there are failures or errors as well'),
             show_details = ChoiceOrBoolParam(['msg'], 'show details of results. Use "msg" for only a brief message'),
             show_artifact_dirs = BoolParam('show exekall artifact directory for all iterations'),
-            testcase = CommaListParam('show only the test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name'),
-            ignore_testcase = CommaListParam('completely ignore test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
+            testcase = CommaListParam('show only the untagged test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name'),
+            result_uuid = CommaListParam('show only the test results with a UUID in the comma-separated list.'),
+            ignore_testcase = CommaListParam('completely ignore untagged test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
             ignore_non_issue = BoolParam('consider only tests that failed or had an error'),
             ignore_non_error = BoolParam('consider only tests that had an error'),
             ignore_excep = CommaListParam('ignore the given comma-separated list of exceptions class name patterns that caused tests error. This will also match on base classes of the exception.'),
@@ -1910,6 +1911,7 @@ class LISATestStep(ShellStep):
             show_pass_rate = False,
             show_artifact_dirs = False,
             testcase = [],
+            result_uuid = [],
             ignore_testcase = [],
             iterations = [],
             ignore_non_issue = False,
@@ -1941,13 +1943,13 @@ class LISATestStep(ShellStep):
         out = MLString()
 
         considered_testcase_set = set(testcase)
+        considered_uuid_set = set(result_uuid)
         ignored_testcase_set = set(ignore_testcase)
         considered_iteration_set = set(iterations)
 
         # Read the ValueDB from exekall to know the failing tests
         testcase_map = dict()
         filtered_step_res_seq = list()
-        db_list = []
         for step_res_item in step_res_seq:
             i_stack, step_res = step_res_item
             bisect_ret = None
@@ -1964,7 +1966,6 @@ class LISATestStep(ShellStep):
                 ))
                 continue
             else:
-                db_list.append(db)
                 def key(froz_val):
                     return froz_val.get_id(full_qual=True, with_tags=True)
 
@@ -1972,22 +1973,27 @@ class LISATestStep(ShellStep):
                 froz_val_list = sorted(db.get_roots(), key=key)
 
                 for froz_val in froz_val_list:
-                    testcase_id = froz_val.get_id(qual=False, with_tags=True)
+                    untagged_testcase_id = froz_val.get_id(qual=False, with_tags=False)
 
                     # Ignore tests we are not interested in
                     if (
                         (considered_testcase_set and not any(
-                            fnmatch.fnmatch(testcase_id, pattern)
+                            fnmatch.fnmatch(untagged_testcase_id, pattern)
                             for pattern in considered_testcase_set
                         ))
                         or
+                        (considered_uuid_set and
+                            froz_val.uuid not in considered_uuid_set
+                        )
+                        or
                         (ignored_testcase_set and any(
-                            fnmatch.fnmatch(testcase_id, pattern)
+                            fnmatch.fnmatch(untagged_testcase_id, pattern)
                             for pattern in ignored_testcase_set
                         ))
                     ):
                         continue
 
+                    testcase_id = froz_val.get_id(qual=False, with_tags=True)
                     entry = {
                         'testcase_id': testcase_id,
                         'i_stack': i_stack,
@@ -2055,6 +2061,7 @@ class LISATestStep(ShellStep):
                         is_ignored = True
 
                     entry['froz_val'] = froz_val
+                    entry['db'] = db
 
                     # Ignored testcases will not contribute to the number of
                     # iterations
@@ -2066,6 +2073,7 @@ class LISATestStep(ShellStep):
                     elif entry['result'] == 'passed':
                         # Only change from None to GOOD but not from BAD to GOOD
                         bisect_ret = BisectRet.GOOD if bisect_ret is None else bisect_ret
+
                     testcase_map.setdefault(testcase_id, []).append(entry)
 
             any_entries = bisect_ret is not None
@@ -2314,11 +2322,35 @@ class LISATestStep(ShellStep):
 
         # Write-out a merged DB
         if export_db:
-            try:
+
+            entry_list = [
+                entry
+                for entry_list in testcase_map.values()
+                for entry in entry_list
+            ]
+
+            # Prune the DBs so we only keep the root values we selected
+            # previously and all its parents.
+            def get_parents_uuid(froz_val):
+                yield froz_val.uuid
+                for parent_froz_val in froz_val.values():
+                    yield from get_parents_uuid(parent_froz_val)
+
+            allowed_uuids = set(itertools.chain.from_iterable(
+                get_parents_uuid(entry['froz_val'])
+                for entry in entry_list
+            ))
+
+            def prune_predicate(froz_val):
+                return froz_val.uuid not in allowed_uuids
+
+            db_list = [
+                db.prune_by_predicate(prune_predicate)
+                for db in {entry['db'] for entry in entry_list}
+            ]
+
+            with contextlib.suppress(FileNotFoundError):
                 existing_db = ValueDB.from_path(export_db)
-            except FileNotFoundError:
-                pass
-            else:
                 db_list.append(existing_db)
 
             merged_db = ValueDB.merge(db_list)

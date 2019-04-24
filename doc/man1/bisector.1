@@ -353,12 +353,16 @@ Inherits from: shell
             consider only tests that failed or had an error
 
       \-o ignore\-testcase= (comma\-separated list) 
-            completely ignore test cases matching one of the patterns in the
-            comma\-separated list. * can be used to match any part of the name.
+            completely ignore untagged test cases matching one of the patterns
+            in the comma\-separated list. * can be used to match any part of the
+            name.
 
       \-o iterations= (comma\-separated list of integer ranges) 
             comma\-separated list of iterations to consider. Inclusive ranges can
             be specified with <first>\-<last>
+
+      \-o result\-uuid= (comma\-separated list) 
+            show only the test results with a UUID in the comma\-separated list.
 
       \-o show\-artifact\-dirs= (bool) 
             show exekall artifact directory for all iterations
@@ -383,8 +387,9 @@ Inherits from: shell
             tests
 
       \-o testcase= (comma\-separated list) 
-            show only the test cases matching one of the patterns in the comma\-
-            separated list. * can be used to match any part of the name
+            show only the untagged test cases matching one of the patterns in
+            the comma\-separated list. * can be used to match any part of the
+            name
 
       \-o upload\-artifact= (bool) 
             upload the artifact directory to Artifactorial and update the in\-

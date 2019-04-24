@@ -221,14 +221,9 @@ def compute_regressions(old_list, new_list, remove_tags=[], **kwargs):
     new_list = dedup_list(new_list, old_list)
 
     def get_id(froz_val):
-        id_ = froz_val.get_id(qual=False, with_tags=True)
-
         # Remove tags, so that more test will share the same ID. This allows
         # cross-board comparison for example.
-        for tag in remove_tags:
-            id_ = re.sub(r'\[{}=.*?\]'.format(tag), '', id_)
-
-        return id_
+        return froz_val.get_id(qual=False, with_tags=True, remove_tags=remove_tags)
 
     def group_by_testcase(froz_val_list):
         return OrderedDict(

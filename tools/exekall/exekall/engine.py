@@ -28,6 +28,7 @@ import contextlib
 import pickle
 import pprint
 import pickletools
+import re
 
 import exekall._utils as utils
 from exekall._utils import NoValue
@@ -96,11 +97,19 @@ class ValueDB:
         """
 
         # First pass: find all frozen values corresponding to a given UUID
-        uuid_map = {}
+        uuid_map = collections.defaultdict(set)
         def update_uuid_map(froz_val):
-            uuid_map.setdefault(froz_val.uuid, set()).add(froz_val)
+            uuid_map[froz_val.uuid].add(froz_val)
             return froz_val
         cls._froz_val_dfs(froz_val_seq_list, update_uuid_map)
+
+        # If there is no more than one FrozenExprVal per UUID, we can skip the
+        # rewriting
+        for froz_val_set in uuid_map.values():
+            if len(froz_val_set) > 1:
+                break
+        else:
+            return froz_val_seq_list
 
         # Select one FrozenExprVal for each UUID pair
         def select_froz_val(froz_val_set):
@@ -134,7 +143,7 @@ class ValueDB:
                 return froz_val
             return uuid_map[froz_val.uuid]
 
-        return cls._froz_val_dfs(froz_val_seq_list, rewrite_graph)
+        return cls._froz_val_dfs(froz_val_seq_list, rewrite_graph, rewrite=True)
 
     @classmethod
     def merge(cls, db_list, roots_from=None):
@@ -287,29 +296,47 @@ class ValueDB:
         return uuid_map
 
     @classmethod
-    def _froz_val_dfs(cls, froz_val_seq_list, callback):
-        return [
-            FrozenExprValSeq(
-                froz_val_list=[
-                    cls._do_froz_val_dfs(froz_val, callback)
-                    for froz_val in froz_val_seq
-                ],
-                param_map=OrderedDict(
-                    (param, cls._do_froz_val_dfs(froz_val, callback))
-                    for param, froz_val in froz_val_seq.param_map.items()
+    def _froz_val_dfs(cls, froz_val_seq_list, callback, rewrite=False):
+        if rewrite:
+            def _do_froz_val_dfs(froz_val):
+                updated_froz_val = callback(froz_val)
+                updated_froz_val.param_map = OrderedDict(
+                    (param, _do_froz_val_dfs(param_froz_val))
+                    for param, param_froz_val in updated_froz_val.param_map.items()
                 )
-            )
-            for froz_val_seq in froz_val_seq_list
-        ]
 
-    @classmethod
-    def _do_froz_val_dfs(cls, froz_val, callback):
-        updated_froz_val = callback(froz_val)
-        updated_froz_val.param_map = OrderedDict(
-            (param, cls._do_froz_val_dfs(param_froz_val, callback))
-            for param, param_froz_val in updated_froz_val.param_map.items()
-        )
-        return updated_froz_val
+                return updated_froz_val
+
+            return [
+                FrozenExprValSeq(
+                    froz_val_list=[
+                        _do_froz_val_dfs(froz_val)
+                        for froz_val in froz_val_seq
+                    ],
+                    param_map=OrderedDict(
+                        (param, _do_froz_val_dfs(froz_val))
+                        for param, froz_val in froz_val_seq.param_map.items()
+                    )
+                )
+                for froz_val_seq in froz_val_seq_list
+            ]
+
+        # When we don't need to rewrite the graph, just call the callback so we
+        # avoid creating loads of useless objects
+        else:
+            def _do_froz_val_dfs(froz_val):
+                callback(froz_val)
+                for parent in froz_val.param_map.values():
+                    _do_froz_val_dfs(parent)
+
+            for froz_val_seq in froz_val_seq_list:
+                for froz_val in froz_val_seq:
+                    _do_froz_val_dfs(froz_val)
+
+                for froz_val in froz_val_seq.param_map.values():
+                    _do_froz_val_dfs(froz_val)
+
+            return None
 
     def get_by_uuid(self, uuid):
         """
@@ -404,22 +431,25 @@ class ValueDB:
         This allows trimming a :class:`ValueDB` to a smaller size by removing
         non-necessary content.
         """
-        def prune(froz_val):
+        def prune(froz_val, do_prune):
             if isinstance(froz_val, PrunedFrozVal):
                 return froz_val
-            elif predicate(froz_val):
+            elif do_prune:
                 return PrunedFrozVal(froz_val)
             else:
                 # Edit the param_map in-place, so we keep it potentially shared
                 # if possible.
                 for param, param_froz_val in list(froz_val.param_map.items()):
-                    froz_val.param_map[param] = prune(param_froz_val)
+                    froz_val.param_map[param] = prune(
+                        param_froz_val,
+                        do_prune=predicate(param_froz_val)
+                    )
 
                 return froz_val
 
         def make_froz_val_seq(froz_val_seq):
             froz_val_list = [
-                prune(froz_val)
+                prune(froz_val, do_prune=False)
                 for froz_val in froz_val_seq
                 # Just remove the root PrunedFrozVal, since they are useless at
                 # this level (i.e. nothing depends on them)
@@ -776,6 +806,9 @@ class ExpressionBase(ExprHelpers):
             :class:`ExprVal`.
         :type with_tags: bool
 
+        :param remove_tags: Do not add the specified tags values.
+        :type remove_tags: set(str)
+
         :param qual: If True, return the qualified ID.
         :type qual: bool
 
@@ -800,7 +833,7 @@ class ExpressionBase(ExprHelpers):
         else:
             return id_
 
-    def _get_id(self, with_tags=True, full_qual=True, qual=True, style=None, expr_val=None, marked_expr_val_set=None, hidden_callable_set=None):
+    def _get_id(self, with_tags=True, remove_tags=set(), full_qual=True, qual=True, style=None, expr_val=None, marked_expr_val_set=None, hidden_callable_set=None):
         if hidden_callable_set is None:
             hidden_callable_set = set()
 
@@ -819,6 +852,7 @@ class ExpressionBase(ExprHelpers):
             param_map=param_map,
             expr_val=expr_val,
             with_tags=with_tags,
+            remove_tags=remove_tags,
             marked_expr_val_set=marked_expr_val_set,
             hidden_callable_set=hidden_callable_set,
             full_qual=full_qual,
@@ -826,7 +860,7 @@ class ExpressionBase(ExprHelpers):
             style=style,
         )
 
-    def _get_id_internal(self, param_map, expr_val, with_tags, marked_expr_val_set, hidden_callable_set, full_qual, qual, style):
+    def _get_id_internal(self, param_map, expr_val, with_tags, remove_tags, marked_expr_val_set, hidden_callable_set, full_qual, qual, style):
         separator = ':'
         marker_char = '^'
         get_id_kwargs = dict(
@@ -844,6 +878,7 @@ class ExpressionBase(ExprHelpers):
             (param, param_expr._get_id(
                 **get_id_kwargs,
                 with_tags = with_tags,
+                remove_tags=remove_tags,
                 # Pass None when there is no value available, so we will get
                 # a non-tagged ID when there is no value computed
                 expr_val = param_map.get(param),
@@ -861,7 +896,7 @@ class ExpressionBase(ExprHelpers):
         def get_tags(expr_val):
             if expr_val is not None:
                 if with_tags:
-                    tag = expr_val.format_tags()
+                    tag = expr_val.format_tags(remove_tags)
                 else:
                     tag = ''
                 return tag
@@ -3139,7 +3174,7 @@ class FrozenExprVal(ExprValBase):
     def type_names(self):
         return [
             utils.get_name(type_, full_qual=True)
-            for type_ in utils.get_mro(type(value))
+            for type_ in utils.get_mro(type(self.value))
             if type_ is not object
         ]
 
@@ -3208,7 +3243,7 @@ class FrozenExprVal(ExprValBase):
     def _make_id_key(**kwargs):
         return tuple(sorted(kwargs.items()))
 
-    def get_id(self, full_qual=True, qual=True, with_tags=True):
+    def get_id(self, full_qual=True, qual=True, with_tags=True, remove_tags=set()):
         """
         Return recorded IDs generated using :meth:`ExprVal.get_id`.
         """
@@ -3218,7 +3253,12 @@ class FrozenExprVal(ExprValBase):
             qual=qual,
             with_tags=with_tags
         )
-        return self.recorded_id_map[key]
+        id_ = self.recorded_id_map[key]
+
+        for tag in remove_tags:
+            id_ = re.sub(r'\[{}=.*?\]'.format(tag), '', id_)
+
+        return id_
 
 class PrunedFrozVal(FrozenExprVal):
     """
@@ -3321,9 +3361,12 @@ class ExprVal(ExprValBase):
         self.expr = expr
         super().__init__(param_map=param_map, value=value, excep=excep)
 
-    def format_tags(self):
+    def format_tags(self, remove_tags=set()):
         """
         Return a formatted string for the tags of that :class:`ExprVal`.
+
+        :param remove_tags: Do not include those tags
+        :type remove_tags: set(str)
         """
         tag_map = {
             # Make sure there are no brackets in tag values, since that
@@ -3335,6 +3378,7 @@ class ExprVal(ExprValBase):
             return ''.join(
                 '[{}={}]'.format(k, v) if k else '[{}]'.format(v)
                 for k, v in sorted(tag_map.items())
+                if k not in remove_tags
             )
         else:
             return ''
