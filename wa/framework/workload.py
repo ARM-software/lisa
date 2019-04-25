@@ -175,6 +175,7 @@ class ApkWorkload(Workload):
     loading_time = 10
     package_names = []
     supported_versions = []
+    activity = None
     view = None
     clear_data_on_reset = True
 
@@ -266,7 +267,8 @@ class ApkWorkload(Workload):
                                   uninstall=self.uninstall,
                                   exact_abi=self.exact_abi,
                                   prefer_host_package=self.prefer_host_package,
-                                  clear_data_on_reset=self.clear_data_on_reset)
+                                  clear_data_on_reset=self.clear_data_on_reset,
+                                  activity=self.activity)
 
     @once_per_instance
     def initialize(self, context):
@@ -647,13 +649,16 @@ class PackageHandler(object):
 
     @property
     def activity(self):
+        if self._activity:
+            return self._activity
         if self.apk_info is None:
             return None
         return self.apk_info.activity
 
     def __init__(self, owner, install_timeout=300, version=None, variant=None,
                  package_name=None, strict=False, force_install=False, uninstall=False,
-                 exact_abi=False, prefer_host_package=True, clear_data_on_reset=True):
+                 exact_abi=False, prefer_host_package=True, clear_data_on_reset=True,
+                 activity=None):
         self.logger = logging.getLogger('apk')
         self.owner = owner
         self.target = self.owner.target
@@ -667,6 +672,7 @@ class PackageHandler(object):
         self.exact_abi = exact_abi
         self.prefer_host_package = prefer_host_package
         self.clear_data_on_reset = clear_data_on_reset
+        self._activity = activity
         self.supported_abi = self.target.supported_abi
         self.apk_file = None
         self.apk_info = None
@@ -805,11 +811,11 @@ class PackageHandler(object):
         self.apk_version = host_version
 
     def start_activity(self):
-        if not self.apk_info.activity:
+        if not self.activity:
             cmd = 'am start -W {}'.format(self.apk_info.package)
         else:
             cmd = 'am start -W -n {}/{}'.format(self.apk_info.package,
-                                                self.apk_info.activity)
+                                                self.activity)
         output = self.target.execute(cmd)
         if 'Error:' in output:
             # this will dismiss any error dialogs
