@@ -29,7 +29,7 @@ import types
 import numpy as np
 from trappy.stats.Topology import Topology
 from trappy.stats import StatConf
-from trappy.utils import handle_duplicate_index, listify
+from trappy.utils import listify
 
 
 def parse_num(tokens):
@@ -417,7 +417,6 @@ class Parser(object):
         if data_frame.empty:
             raise ValueError("No events found for {}".format(cls.name))
 
-        data_frame = handle_duplicate_index(data_frame)
         new_index = self._agg_df.index.union(data_frame.index)
 
         if hasattr(cls, "pivot") and cls.pivot:
