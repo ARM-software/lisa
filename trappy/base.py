@@ -29,6 +29,7 @@ import warnings
 from resource import getrusage, RUSAGE_SELF
 
 from trappy.exception import TrappyParseError
+from trappy.utils import handle_duplicate_index
 
 def _get_free_memory_kb():
     try:
@@ -264,6 +265,27 @@ class Base(object):
 
             yield data_dict
 
+    def optimize_dataframe(self):
+        """Optimize memory footprint by setting minimal data types required by
+           each column"""
+        for col in self.data_frame.columns:
+            if self.data_frame[col].dtype.kind == 'i':
+                self.data_frame[col].apply(pd.to_numeric, downcast='signed')
+                continue
+            if self.data_frame[col].dtype.kind == 'f':
+                self.data_frame[col].apply(pd.to_numeric, downcast='float')
+                continue
+            if self.data_frame[col].dtype.kind == 'S':
+                # Convert string objects (pointer) to categories, only when we have
+                # a relatively limited number of unique values (50% of the rows)
+                num_unique_values = len(self.data_frame[col].unique())
+                num_total_values = len(self.data_frame[col])
+                if num_unique_values / num_total_values > 0.5:
+                    continue
+                self.data_frame.loc[:,col] = self.data_frame[col].astype('category')
+            else:
+                continue
+
     def create_dataframe(self):
         """Create the final :mod:`pandas.DataFrame`"""
         if not self.time_array:
@@ -278,6 +300,8 @@ class Base(object):
 
         time_idx = pd.Index(self.time_array, name="Time")
         self.data_frame = pd.DataFrame(self.generate_parsed_data(), index=time_idx)
+        self.data_frame = handle_duplicate_index(self.data_frame)
+        self.optimize_dataframe()
 
         self.time_array = []
         self.line_array = []
@@ -307,6 +331,7 @@ class Base(object):
             # same method, aka python's float() and not numpy's
             converters={'Time' : float}
         )
+        self.optimize_dataframe()
 
     def normalize_time(self, basetime):
         """Substract basetime from the Time of the data frame

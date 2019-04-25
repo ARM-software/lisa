@@ -57,7 +57,7 @@ class TestCpuIdle(utils_tests.SetupDirectory):
             162534.219763,
             162534.219853,
             162534.220947,
-            162534.220947
+            162534.220948
         ], name="Time")
 
         exp_states = pd.Series([
