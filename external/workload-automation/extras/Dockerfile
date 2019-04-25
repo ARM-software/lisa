@@ -6,7 +6,7 @@
 #
 #   docker build -t wa .
 #
-# This will create an image called wadocker, which is preconfigured to
+# This will create an image called wa, which is preconfigured to
 # run WA and devlib. Please note that the build process automatically
 # accepts the licenses for the Android SDK, so please be sure that you
 # are willing to accept these prior to building and running the image
@@ -38,7 +38,7 @@
 #
 
 # We want to make sure to base this on a recent ubuntu release
-FROM ubuntu:17.10
+FROM ubuntu:18.10
 
 # Please update the references below to use different versions of
 # devlib, WA or the Android SDK
@@ -47,12 +47,12 @@ ARG WA_REF=v3.1.3
 ARG ANDROID_SDK_URL=https://dl.google.com/android/repository/sdk-tools-linux-3859397.zip
 
 RUN apt-get update
-RUN apt-get install -y python-pip git wget zip openjdk-8-jre-headless vim emacs nano curl sshpass ssh usbutils
-RUN pip install pandas
+RUN apt-get install -y python3 python3-pip git wget zip openjdk-8-jre-headless vim emacs nano curl sshpass ssh usbutils
+RUN pip3 install pandas
 
 # Let's get the two repos we need, and install them
-RUN git clone -v https://github.com/ARM-software/devlib.git /tmp/devlib && cd /tmp/devlib && git checkout $DEVLIB_REF && python setup.py install
-RUN git clone -v https://github.com/ARM-software/workload-automation.git /tmp/wa && cd /tmp/wa && git checkout $WA_REF && python setup.py install
+RUN git clone -v https://github.com/ARM-software/devlib.git /tmp/devlib && cd /tmp/devlib && git checkout $DEVLIB_REF && python3 setup.py install
+RUN git clone -v https://github.com/ARM-software/workload-automation.git /tmp/wa && cd /tmp/wa && git checkout $WA_REF && python3 setup.py install
 
 # Clean-up
 RUN rm -R /tmp/devlib /tmp/wa
