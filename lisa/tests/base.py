@@ -475,8 +475,11 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
 
         return (rta_start, rta_stop)
 
+    # Use LRU cache instead of memoized, to avoid caching the trace forever, in
+    # case the thread is manipulating a large number of TestBundles without
+    # deleting them.
     @property
-    @memoized
+    @functools.lru_cache(maxsize=30, typed=True)
     def trace(self):
         """
         :returns: a :class:`lisa.trace.TraceView`
