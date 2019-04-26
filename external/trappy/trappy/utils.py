@@ -72,6 +72,12 @@ def handle_duplicate_index(data,
 
     """
 
+    # Make sure first that we are sorted by index and then by __line
+    # so that the order of events is preserved after fixing the duplicated
+    # timestamp.
+    if '__line' in data:
+        data.sort_values(['Time', '__line'], inplace=True)
+
     index = data.index
     new_index = index.values
 
