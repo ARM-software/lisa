@@ -38,6 +38,9 @@ set -e
 echo "Starting nosetests ..."
 python3 -m nose -vv
 
+echo "Starting exekall self tests"
+exekall run "$LISA_HOME/tools/exekall/exekall/tests"
+
 echo "Available LISA tests:"
 lisa-test --list
 

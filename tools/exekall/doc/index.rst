@@ -29,6 +29,7 @@ Contents
    man/man
    public_api
    internal_api
+   self_tests
 
 Indices and tables
 ==================

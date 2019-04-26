@@ -559,8 +559,10 @@ def import_file(python_src, module_name=None, is_package=False):
                 name=module_name,
                 # loader is None for namespace packages
                 loader=None,
-                is_package=True
+                is_package=True,
             )
+            # Set __path__ for namespace packages
+            spec.submodule_search_locations = submodule_search_locations
         else:
             spec = importlib.util.spec_from_file_location(module_name, str(python_src),
                 submodule_search_locations=submodule_search_locations)
