@@ -28,8 +28,8 @@ latest_link="$LISA_HOME/$("$LISA_PYTHON" -c 'from lisa.utils import LATEST_LINK;
 cmd=(
 	exekall run "$LISA_HOME/lisa/tests/"				\
 	"${conf_opt[@]}"									\
-	--select-multiple									\
 	--symlink-artifact-dir-to "$latest_link"			\
+	--select-multiple									\
 	"$@"
 )
 
