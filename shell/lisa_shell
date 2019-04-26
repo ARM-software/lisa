@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# Copyright (C) 2015, ARM Limited and contributors.
+# Copyright (C) 2019, ARM Limited and contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License.
@@ -23,26 +23,34 @@
 # Set environment variables
 ################################################################################
 
-# Python binary to use. This allows users to install multiple versions in
-# parallel, and ease testing
+export _DOC_LISA_HOME="Base directory of LISA environment"
+
+export _DOC_LISA_PYTHON="Python binary to use. This allows users to install
+multiple versions in parallel, and ease testing"
 export LISA_PYTHON=${LISA_PYTHON:-python3}
 
-# By default use internal libraries
+export _DOC_LISA_DEVMODE="By default use internal libraries"
 export LISA_DEVMODE=${LISA_DEVMODE:-1}
 
-# By default use Lisa's PS1 and colorscheme for the shell
+export _DOC_LISA_PRESERVE_SHELL="By default use Lisa's PS1 and colorscheme for
+the shell"
 export LISA_PRESERVE_SHELL=${LISA_PRESERVE_SHELL:-0}
 
 # Setup colors
 source "$LISA_HOME/shell/lisa_colors"
 
-# Add some shell utilities to the PATH, with lower priority than system's one
-# in case the user needs a different version of them
+export _DOC_LISA_HOST_ABI="Add some shell utilities to the PATH, with lower
+priority than system's one in case the user needs a different version of them"
 export LISA_HOST_ABI=${LISA_HOST_ABI:-x86_64}
 export PATH=$PATH:$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI:$LISA_HOME/tools
 
+export _DOC_LISA_CONF="Default configuration file for exekall"
 export LISA_CONF=${LISA_CONF:-$LISA_HOME/target_conf.yml}
+
+export _DOC_LISA_RESULT_ROOT="By default, store the results under that folder"
 export LISA_RESULT_ROOT=${LISA_RESULT_ROOT:-$LISA_HOME/results}
+
+export _DOC_EXEKALL_ARTIFACT_ROOT="Default root for exekall's artifacts"
 export EXEKALL_ARTIFACT_ROOT=${EXEKALL_ARTIFACT_ROOT:-$LISA_RESULT_ROOT}
 
 # Add our man pages
@@ -71,16 +79,8 @@ function clear {
 # Generic LISA Shell commands
 ################################################################################
 
-# LISA Shell On-Line HELP
 function lisa-help {
-    clear
-    echo -e "$LISASHELL_HELP"
-    echo "                                                                               "
-    echo "                    .:: LISA Shell - HELP On-Line ::.                          "
-    echo "                                                                               "
-    echo -ne "$LISASHELL_RESET$LISASHELL_GREEN"
-    cat "$LISA_HOME/shell/README.txt"
-    echo -ne "$LISASHELL_DEFAULT"
+    man lisa
 }
 
 function lisa-version {
@@ -105,7 +105,10 @@ EOF
 
 # major.minor version number
 PYTHON_VERSION=$(_lisa-python -c 'import sys; print("{}.{}".format(*sys.version_info))')
+export _DOC_LISA_USE_VENV="1 to make lisa-install use a venv specified in
+LISA_VENV_PATH, 0 otherwise"
 export LISA_USE_VENV=${LISA_USE_VENV:-1}
+export _DOC_LISA_VENV_PATH="Path to venv to be used by lisa-install"
 export LISA_VENV_PATH=${LISA_VENV_PATH:-"$LISA_HOME/.lisa-venv-$PYTHON_VERSION"}
 
 
@@ -262,15 +265,6 @@ function lisa-log-subtree {
 # LISA Notebooks utility functions
 ################################################################################
 
-function _lisa-jupyter-usage {
-    echo "Usage: lisa-jupyter CMD [NETIF [PORT]]"
-    echo " CMD     - Jupyter Notebooks command (deafult: start)"
-    echo "  start  start the jupyter server"
-    echo "   stop  stop the jupyter server"
-    echo " NETIF   - the network interface to start the server on (default: lo)"
-    echo " PORT    - the tcp port for the server (default: 8888)"
-}
-
 function _lisa-jupyter-start {
     # Get IP address for the specified interface
     IPADDR=
@@ -371,7 +365,7 @@ function lisa-jupyter {
         _lisa-jupyter-stop
         ;;
     "help"|*)
-        _lisa-jupyter-usage
+        echo "see 'man lisa'"
         ;;
     esac
     echo
@@ -441,7 +435,7 @@ Welcome to the Linux Integrated System Analysis SHELL!
 
 $(lisa-version)
 
-Type "lisa-help" for on-line help on available commands
+Type "man lisa" for help on available commands
 EOF
 
     # Setup default SHELL text color
@@ -452,6 +446,6 @@ fi
 
 # Show relevant env var
 echo "Environment variables:"
-printenv | grep --color=no -E 'LISA|EXEKALL' | sort
+env-list.py
 
 # vim: set tabstop=4 shiftwidth=4 textwidth=80 expandtab:

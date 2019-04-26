@@ -1,3 +1,5 @@
+.. _wltest-doc:
+
 ******
 Wltest
 ******
