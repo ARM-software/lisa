@@ -201,7 +201,7 @@ class AdaptorBase:
         :param result_map: Dictionary of expressions to the list of their
             values.
         :type result_map: dict(exekall.engine.ComputableExpression,
-            exekall.engine.ExprVal)
+            list(exekall.engine.ExprVal))
         """
         hidden_callable_set = {
             op.callable_
@@ -232,6 +232,17 @@ class AdaptorBase:
                     max_id_len=max_id_len,
                 ))
         return '\n'.join(summary)
+
+    def get_run_exit_code(self, result_map):
+        """
+        Return an integer used as ``exekall run`` exit status.
+
+        :param result_map: Dictionary of expressions to the list of their
+            values.
+        :type result_map: dict(exekall.engine.ComputableExpression,
+            exekall.engine.ExprVal)
+        """
+        return 0
 
     @classmethod
     def get_adaptor_cls(cls, name=None):

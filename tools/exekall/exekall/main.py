@@ -1142,7 +1142,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
     with script_path.open('wt', encoding='utf-8') as f:
         f.write(all_scripts + '\n')
 
-    return 0
+    return adaptor.get_run_exit_code(result_map)
 
 SILENT_EXCEPTIONS = (KeyboardInterrupt, BrokenPipeError)
 GENERIC_ERROR_CODE = 1

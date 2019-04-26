@@ -30,11 +30,11 @@ from lisa.trace import FtraceCollector, FtraceConf
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable
 from lisa.conf import MultiSrcConf
-from lisa.tests.base import TestBundle, ResultBundle
+from lisa.tests.base import TestBundle, ResultBundle, Result
 from lisa.tests.scheduler.load_tracking import InvarianceItem
 from lisa.regression import compute_regressions
 
-from exekall.utils import get_name, get_method_class, add_argument
+from exekall.utils import get_name, get_method_class, add_argument, NoValue, flatten_seq
 from exekall.engine import ExprData, Consumer, PrebuiltOperator
 from exekall.customization import AdaptorBase
 
@@ -367,3 +367,25 @@ comparison. Can be repeated.""")
         tags = {k: v for k, v in tags.items() if v is not None}
 
         return tags
+
+    def get_run_exit_code(self, result_map):
+        expr_val_list = flatten_seq(
+            expr_val_list
+            for expr, expr_val_list in result_map.items()
+        )
+
+        for expr_val in expr_val_list:
+            # An exception happened
+            if expr_val.get_excep():
+                return 20
+
+            val = expr_val.value
+            if isinstance(val, ResultBundle):
+                if val.result is Result.FAILED:
+                    return 10
+        return 0
+
+
+
+
+
