@@ -79,7 +79,9 @@ Test commands
    This is just a wrapper around ``exekall`` that selects all tests modules and
    use positional arguments as ``--select`` patterns. The default configuration
    file (``$LISA_CONF``) will be used if available. This can be extended with
-   user-supplied ``--conf``.
+   user-supplied ``--conf``. If multiple iterations are requested using ``-n``,
+   the :class:`lisa.target.Target` instance will be reused across iterations,
+   to avoid the overhead of setting up the target environment.
 
    Usage: ``lisa-test TEST_PATTERN ... [EXEKALL_OPTIONS ...]``
 
