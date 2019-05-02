@@ -102,6 +102,19 @@ def filter_keys(mapping, remove=None, keep=None):
         )
     }
 
+
+def natural_sort_key(s):
+    """
+    Key suitable for alphanumeric sort, but sorts numbers contained in the
+    string as numbers.
+    """
+    def parse_int(s):
+        try:
+            return int(s)
+        except ValueError:
+            return s
+    return tuple(parse_int(x) for x in re.split(r'(\d+)', s))
+
 sig_exception_lock = threading.Lock()
 def raise_sig_exception(sig, frame):
     """Turn some signals into exceptions that can be caught by user code."""
@@ -1966,13 +1979,9 @@ class LISATestStep(ShellStep):
                 ))
                 continue
             else:
-                def key(froz_val):
-                    return froz_val.get_id(full_qual=True, with_tags=True)
 
                 # Gather all result bundles
-                froz_val_list = sorted(db.get_roots(), key=key)
-
-                for froz_val in froz_val_list:
+                for froz_val in db.get_roots():
                     untagged_testcase_id = froz_val.get_id(qual=False, with_tags=False)
 
                     # Ignore tests we are not interested in
@@ -2169,7 +2178,12 @@ class LISATestStep(ShellStep):
         testcase_stats = dict()
         table_out = MLString()
         dist_out = MLString()
-        for testcase_id, entry_list in sorted(testcase_map.items()):
+
+        def key(k_v):
+            id_, entry_list = k_v
+            return (natural_sort_key(id_), entry_list)
+
+        for testcase_id, entry_list in sorted(testcase_map.items(), key=key):
             # We only count the iterations where the testcase was run
             iteration_n = len(entry_list)
             stats = dict()
