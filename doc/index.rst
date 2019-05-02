@@ -29,7 +29,7 @@ Contents:
 
    overview
    setup
-   lisa_shell
+   lisa_shell/man/man
 
    guides_separator
 

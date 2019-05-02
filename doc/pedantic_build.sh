@@ -64,6 +64,7 @@ echo
 docs=(
     "tools/bisector/doc/man/"
     "tools/exekall/doc/man/"
+    "doc/lisa_shell/man"
 )
 
 for doc in "${docs[@]}"; do
