@@ -1148,7 +1148,7 @@ class ConfigurableMeta(abc.ABCMeta):
         # Update the docstring by using the configuration help
         docstring = inspect.getdoc(new_cls)
         if docstring:
-            new_cls.__doc__ = textwrap.dedent(docstring).format(
+            new_cls.__doc__ = docstring.format(
                 configurable_params=new_cls._get_rst_param_doc()
             )
 
