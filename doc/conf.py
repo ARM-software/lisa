@@ -18,6 +18,8 @@ import re
 import subprocess
 import sys
 import unittest
+import textwrap
+import json
 
 from docutils import nodes
 from sphinx.util.docfields import TypedField
@@ -30,6 +32,7 @@ sys.path.insert(0, os.path.abspath('../'))
 
 # Import our packages after modifying sys.path
 import lisa
+from lisa.utils import LISA_HOME
 from lisa.doc.helpers import (
     autodoc_process_test_method, autodoc_process_analysis_events
 )
@@ -81,6 +84,35 @@ def patched_make_field(self, types, domain, items, env=None):
     return nodes.field('', fieldname, fieldbody)
 
 TypedField.make_field = patched_make_field
+
+
+RTD = (os.getenv('READTHEDOCS') == 'True')
+
+# For ReadTheDocs only: source init_env and get all env var defined by it.
+if RTD:
+    source_env = {
+        **os.environ,
+        # LISA_USE_VENV=0 will avoid re-installing LISA automatically,
+        # which would be useless.
+        'LISA_USE_VENV': '0',
+    }
+    # If LISA_HOME is set, sourcing the script won't work
+    source_env.pop('LISA_HOME', None)
+
+    script = textwrap.dedent(
+        """
+        source init_env >&2 &&
+        python -c 'import os, json; print(json.dumps(dict(os.environ)))'
+        """
+    )
+    out = subprocess.check_output(
+        ['bash', '-c', script],
+        cwd=LISA_HOME,
+        # Reset the environment, including LISA_HOME to allow sourcing without
+        # any issue
+        env=source_env,
+    )
+    os.environ.update(json.loads(out))
 
 # -- General configuration ------------------------------------------------
 
