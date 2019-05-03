@@ -334,7 +334,7 @@ intersphinx_mapping = {
     'python' : ('https://docs.python.org/3', None),
     'pandas' : ('https://pandas.pydata.org/pandas-docs/stable/', None),
     'matplotlib' : ('https://matplotlib.org', None),
-    'numpy': ('http://docs.scipy.org/doc/numpy', None),
+    'numpy': ('https://docs.scipy.org/doc/numpy', None),
     # XXX: Doesn't seem to work, might be due to how devlib doc is generated
     'wa' : ('https://devlib.readthedocs.io/en/latest/', None),
     'trappy' : ('https://pythonhosted.org/TRAPpy', None),
