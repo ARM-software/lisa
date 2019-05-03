@@ -35,7 +35,7 @@ from lisa.analysis.tasks import TasksAnalysis
 from lisa.trace import Trace
 from lisa.wlgen.rta import RTA
 
-from lisa.utils import Serializable, memoized, ArtifactPath
+from lisa.utils import Serializable, memoized, ArtifactPath, non_recursive_property
 from lisa.trace import FtraceCollector, FtraceConf
 
 class TestMetric:
@@ -475,10 +475,12 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
 
         return (rta_start, rta_stop)
 
+    # Guard before the cache, so we don't accidentally start depending on the
+    # LRU cache for functionnal correctness.
+    @non_recursive_property
     # Use LRU cache instead of memoized, to avoid caching the trace forever, in
     # case the thread is manipulating a large number of TestBundles without
     # deleting them.
-    @property
     @functools.lru_cache(maxsize=30, typed=True)
     def trace(self):
         """
