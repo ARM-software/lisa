@@ -1,7 +1,7 @@
 Man page
 ========
 
-DESCRIPTION
+Description
 +++++++++++
 
 ``bisector`` is a ``git bisect run`` [#]_ compatible tool used in LISA. Its goal is
@@ -31,7 +31,7 @@ user-specified command line tool and will use the return code to decide what
 reporting, and additional run behaviors.
 
 
-OPTIONS
+Options
 +++++++
 
 bisector
@@ -99,7 +99,7 @@ bisector edit
 
    bisector edit --help
 
-CONFIGURATION
+Configuration
 +++++++++++++
 
 ``bisector run`` is configured using a YAML [#]_ file specified using ``--steps`` that
@@ -152,7 +152,7 @@ The YAML file is structured as following:
 All step options can also be specified using ``--options/-o``, which will
 override what is described in the YAML steps configuration.
 
-MONITORING
+Monitoring
 ++++++++++
 
 ``bisector run`` allows some live monitoring by exposing a DBus interface. This
@@ -176,7 +176,7 @@ the server is running), and allows querying various information from them.
 Since the query can be directed to a specific PID, the server is only necessary
 for listing.
 
-EXAMPLES
+Examples
 ++++++++
 
 A typical flow of ``bisector`` looks like that:
@@ -237,7 +237,7 @@ A typical flow of ``bisector`` looks like that:
    bisector report bisector.report.yml.gz -oeas_behaviour.iterations=2
 
 
-REFERENCES
+References
 ++++++++++
 
 .. [#] https://git-scm.com/docs/git-bisect#_bisect_run
