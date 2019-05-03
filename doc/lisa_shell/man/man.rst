@@ -9,6 +9,8 @@ Once you have all of the required dependencies installed, you can use the LISA
 shell, which provides a convenient set of commands for easy access to many LISA
 related functions, scripts and environment variables.
 
+For more details, see
+`<https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/>`_
 
 ACTIVATION
 ++++++++++
@@ -34,9 +36,8 @@ Most LISA Shell commands start with ``lisa-``, thus using shell completion it
 is easy to get a list of all the available commands.
 
 Here is the documentation of the simple ones, more complex scripts have
-integrated ``--help`` documentation sections [#]_, or man pages.
-
-.. [#] `<https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/>`_
+integrated ``--help`` documentation, a section in the online documentation, or
+man pages.
 
 Maintenance commands
 --------------------
