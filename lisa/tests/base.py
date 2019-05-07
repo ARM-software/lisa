@@ -465,7 +465,8 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
 
         .. warning::
 
-          Don't call ``self.trace`` in here unless you like infinite recursion.
+          Calling ``self.trace`` here will raise an :exc:`AttributeError`
+          exception, to avoid entering infinite recursion.
         """
         sdf = trace.df_events('sched_switch')
 
