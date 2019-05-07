@@ -29,6 +29,7 @@ cmd=(
 	exekall run "$LISA_HOME/lisa/tests/"				\
 	"${conf_opt[@]}"									\
 	--symlink-artifact-dir-to "$latest_link"			\
+	--share '*.Target'									\
 	--select-multiple									\
 	"$@"
 )

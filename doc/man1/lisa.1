@@ -133,7 +133,9 @@ _
 This is just a wrapper around \fBexekall\fP that selects all tests modules and
 use positional arguments as \fB\-\-select\fP patterns. The default configuration
 file (\fB$LISA_CONF\fP) will be used if available. This can be extended with
-user\-supplied \fB\-\-conf\fP\&.
+user\-supplied \fB\-\-conf\fP\&. If multiple iterations are requested using \fB\-n\fP,
+the \fBlisa.target.Target\fP instance will be reused across iterations,
+to avoid the overhead of setting up the target environment.
 .sp
 Usage: \fBlisa\-test TEST_PATTERN ... [EXEKALL_OPTIONS ...]\fP
 .sp
