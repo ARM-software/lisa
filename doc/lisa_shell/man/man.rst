@@ -2,7 +2,7 @@
 LISA shell
 **********
 
-DESCRIPTION
+Description
 +++++++++++
 
 Once you have all of the required dependencies installed, you can use the LISA
@@ -10,7 +10,7 @@ shell, which provides a convenient set of commands for easy access to many LISA
 related functions, scripts and environment variables.
 
 
-ACTIVATION
+Activation
 ++++++++++
 
 In order to use the shell, source the script:
@@ -27,7 +27,7 @@ In order to use the shell, source the script:
 .. tip:: Run ``man lisa`` to see an overview of the provided LISA commands.
 
 
-COMMANDS
+Commands
 ++++++++
 
 Most LISA Shell commands start with ``lisa-``, thus using shell completion it
@@ -100,7 +100,7 @@ Buildroot commands
 * ``lisa-buildroot-update-kernel-config`` - Update a kernel config to bake a
   buildroot initramfs into the kernel.
 
-ENVIRONMENT VARIABLES
+Environment variables
 +++++++++++++++++++++
 
 The following environment variables are available:

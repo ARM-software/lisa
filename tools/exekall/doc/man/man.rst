@@ -1,13 +1,13 @@
 Man page
 ========
 
-DESCRIPTION
+Description
 +++++++++++
 
 ``exekall`` is a python-based test runner. The expressions it executes are
 discovered from Python PEP 484 parameter and return value annotations.
 
-OPTIONS
+Options
 +++++++
 
 exekall
@@ -49,7 +49,7 @@ exekall merge
    exekall merge --help
 
 
-EXECUTING EXPRESSIONS
+Executing expressions
 +++++++++++++++++++++
 
 Expressions are built by scanning the python source code passed to ``exekall
@@ -72,7 +72,7 @@ The adaptor found in the customization module of the python sources you are
 using can add extra options to ``exekall run``, which are shown in ``--help``
 only when these sources are specified as well. 
 
-EXPRESSION ENGINE
+Expression engine
 +++++++++++++++++
 
 At the core of ``exekall`` is the expression engine. It is in charge of
@@ -141,7 +141,7 @@ chained, leading to a cascade of values for the same expression.
 Once an expression has been executed, all its values will get a UUID that can
 be used to uniquely refer to it, and track where it was used in the logs.
 
-EXPLOITING ARTIFACTS
+Exploiting artifacts
 ++++++++++++++++++++
 
 ``exekall run`` produces an artifact folder. The location can be set using
@@ -194,7 +194,7 @@ comparison method of the adaptor that was used when ``exekall run`` was
 executed. That function is expected to compare the expression values found in
 the databases, by matching values that have the same ID on both databases.
 
-ADDING NEW EXPRESSIONS
+Adding new expressions
 ++++++++++++++++++++++
 
 Since ``exekall run`` will discover expressions based on type annotations of
@@ -276,7 +276,7 @@ why. Most common issues are:
 
 .. _customize:
 
-CUSTOMIZING EXEKALL
+Customizing exekall
 +++++++++++++++++++
 
 The behavior of ``exekall`` can be customized by subclassing
