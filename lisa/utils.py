@@ -34,6 +34,8 @@ import numbers
 import difflib
 import threading
 import itertools
+from weakref import WeakKeyDictionary
+
 import lisa
 
 import ruamel.yaml
@@ -718,5 +720,39 @@ def is_running_sphinx():
     otherwise.
     """
     return 'sphinx' in sys.modules
+
+def non_recursive_property(f):
+    """
+    Create a property that raises an :exc:`AttributeError` if it is re-entered.
+
+    .. note:: This only guards against single-thread accesses, it is not
+        threadsafe.
+    """
+
+    # WeakKeyDictionary ensures that instances will not be held alive just for
+    # the guards. Since there is one guard_map per property, we only need to
+    # index on the instances
+    guard_map = WeakKeyDictionary()
+
+    def _get(self):
+        return guard_map.get(self, False)
+
+    def _set(self, val):
+        guard_map[self] = val
+
+    @functools.wraps(f)
+    def wrapper(self, *args, **kwargs):
+        if _get(self):
+            raise AttributeError('Recursive access to property "{}.{}" while computing its value'.format(
+                type(self), f.__qualname__,
+            ))
+
+        try:
+            _set(self, True)
+            return f(self, *args, **kwargs)
+        finally:
+            _set(self, False)
+
+    return property(wrapper)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
