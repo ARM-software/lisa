@@ -1095,7 +1095,16 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
 
     Event checking can be achieved using a boolean expression on expected
     events.
+
+    :param check: Check that the listed events are present in the
+        ``self.trace`` attribute of the instance on which the decorated
+        method is applied.  If no such attribute is found, no check will be
+        done.
+    :type check: bool
     """
+    def __init__(self, check=True):
+        self.check = check
+
     @abc.abstractmethod
     def check_events(self, event_set):
         """
@@ -1142,7 +1151,7 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
             f = f.__wrapped__
 
         sig = inspect.signature(f)
-        if sig.parameters:
+        if self.check and sig.parameters:
             @wraps(f)
             def wrapper(self, *args, **kwargs):
                 try:
@@ -1196,8 +1205,18 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
 class TraceEventChecker(TraceEventCheckerBase):
     """
     Check for one single event.
+
+    :param event: Name of the event to check for.
+    :type event: str
+
+    :param check: Check that the listed events are present in the
+        ``self.trace`` attribute of the instance on which the decorated
+        method is applied.  If no such attribute is found, no check will be
+        done.
+    :type check: bool
     """
-    def __init__(self, event):
+    def __init__(self, event, check=True):
+        super().__init__(check=check)
         self.event = event
 
     def get_all_events(self):
@@ -1215,7 +1234,8 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
     """
     Base class for associative operators like `and` and `or`
     """
-    def __init__(self, op_str, event_checkers):
+    def __init__(self, op_str, event_checkers, check=True):
+        super().__init__(check=check)
         checker_list = []
         for checker in event_checkers:
             # "unwrap" checkers of the same type, to avoid useless levels of
@@ -1245,7 +1265,7 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
         return events
 
     @classmethod
-    def from_events(cls, events):
+    def from_events(cls, events, **kwargs):
         """
         Build an instance of the class, converting ``str`` to
         ``TraceEventChecker``.
@@ -1253,10 +1273,16 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
         :param events: Sequence of events
         :type events: list(str or TraceEventCheckerBase)
         """
+        def make_event(e):
+            if isinstance(e, TraceEventCheckerBase):
+                return e
+            else:
+                return TraceEventChecker(e)
+
         return cls({
-            e if isinstance(e, TraceEventCheckerBase) else TraceEventChecker(e)
+            make_event(e)
             for e in events
-        })
+        }, **kwargs)
 
     def _str_internal(self, style=None, wrapped=True):
         op_str = ' {} '.format(self.op_str)
@@ -1277,8 +1303,8 @@ class OrTraceEventChecker(AssociativeTraceEventChecker):
     :param event_checkers: Event checkers to check for
     :type event_checkers: list(TraceEventCheckerBase)
     """
-    def __init__(self, event_checkers):
-        super().__init__('or', event_checkers)
+    def __init__(self, event_checkers, **kwargs):
+        super().__init__('or', event_checkers, **kwargs)
 
     def check_events(self, event_set):
         if not self.checkers:
@@ -1305,8 +1331,8 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
     :param event_checkers: Event checkers to check for
     :type event_checkers: list(TraceEventCheckerBase)
     """
-    def __init__(self, event_checkers):
-        super().__init__('and', event_checkers)
+    def __init__(self, event_checkers, **kwargs):
+        super().__init__('and', event_checkers, **kwargs)
 
     def check_events(self, event_set):
         if not self.checkers:
@@ -1334,23 +1360,26 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
         )
         return rst
 
-def requires_events(*events):
+def requires_events(*events, **kwargs):
     """
     Decorator for methods that require some given trace events.
 
     :param events: The list of required events
     :type events: list(str or TraceEventCheckerBase)
 
-    The decorated method must operate on instances that have a
-    ``self.trace`` attribute.
-    """
-    return AndTraceEventChecker.from_events(events)
+    :param check: Check that the listed events are present in the
+        ``self.trace`` attribute of the instance on which the decorated method
+        is applied.  If no such attribute is found, no check will be done.
+    :type check: bool
 
-def requires_one_event_of(*events):
+    """
+    return AndTraceEventChecker.from_events(events, **kwargs)
+
+def requires_one_event_of(*events, **kwargs):
     """
     Same as :func:``used_events`` with logical `OR` semantic.
     """
-    return OrTraceEventChecker.from_events(events)
+    return OrTraceEventChecker.from_events(events, **kwargs)
 
 class MissingTraceEventError(RuntimeError):
     """
