@@ -32,7 +32,7 @@ import copy
 from devlib.trace.dmesg import DmesgCollector
 
 from lisa.analysis.tasks import TasksAnalysis
-from lisa.trace import Trace
+from lisa.trace import Trace, requires_events
 from lisa.wlgen.rta import RTA
 
 from lisa.utils import Serializable, memoized, ArtifactPath, non_recursive_property
@@ -450,6 +450,7 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
       the associated task will be ignored in the noise accounting.
     """
 
+    @requires_events('sched_switch')
     def trace_window(self, trace):
         """
         The time window to consider for this :class:`RTATestBundle`
