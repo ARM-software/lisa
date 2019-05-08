@@ -259,11 +259,17 @@ class InvarianceItem(LoadTrackingBase):
         return rtapp_profile
 
     @classmethod
-    # Not annotated, to prevent exekall from picking it up. See
-    # Invariance.from_target
-    def from_target(cls, target, cpu, freq, freq_list, res_dir=None, ftrace_coll=None):
+    def from_target(cls, target:Target, cpu:int, freq:int, freq_list=None, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'InvarianceItem':
         """
-        .. warning:: `res_dir` is at the end of the parameter list, unlike most
+        :param cpu: CPU to use, or ``None`` to automatically choose an
+            appropriate set of CPUs.
+        :type cpu: int or None
+
+        :param freq: Frequency to run at in kHz. It is only relevant in
+            combination with ``cpu``.
+        :type freq: int or None
+
+        .. warning:: `res_dir` is toward the end of the parameter list, unlike most
             other `from_target` where it is the second one.
         """
         return super().from_target(target, res_dir,
@@ -280,6 +286,7 @@ class InvarianceItem(LoadTrackingBase):
             logger.debug('CPU{} frequency: {}'.format(cpu, target.cpufreq.get_frequency(cpu)))
             cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
 
+        freq_list = freq_list or [freq]
         return cls(res_dir, plat_info, cpu, freq, freq_list)
 
     @requires_events('sched_switch')
