@@ -71,8 +71,16 @@ class ExekallArtifactPath(ArtifactPath, NonReusable):
 class ExekallFtraceCollector(FtraceCollector, HideExekallID):
     @staticmethod
     def _get_consumer_conf(consumer):
+        attr = 'ftrace_conf'
         consumer_cls = get_method_class(consumer)
-        conf = getattr(consumer_cls, 'ftrace_conf', FtraceConf())
+        conf = getattr(consumer_cls, attr, FtraceConf())
+        # This is not strictly speaking forbidden but in the current situation,
+        # there is no legitimate use case where it could happen, and it is very
+        # likely that it comes from a design issue in the class
+        if not conf['events'] and issubclass(consumer_cls, TestBundle):
+            raise ValueError("Empty events list in {}.{}".format(
+                consumer_cls.__qualname__, attr,
+            ))
         return conf
 
     @classmethod
