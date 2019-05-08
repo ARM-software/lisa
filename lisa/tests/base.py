@@ -35,7 +35,10 @@ from lisa.analysis.tasks import TasksAnalysis
 from lisa.trace import Trace, requires_events
 from lisa.wlgen.rta import RTA
 
-from lisa.utils import Serializable, memoized, ArtifactPath, non_recursive_property
+from lisa.utils import (
+    Serializable, memoized, ArtifactPath, non_recursive_property,
+    LayeredMapping
+)
 from lisa.trace import FtraceCollector, FtraceConf
 
 class TestMetric:
@@ -91,7 +94,39 @@ class Result(enum.Enum):
         """Return the name in lower case"""
         return self.name.lower()
 
-class ResultBundle:
+
+class ResultBundleBase:
+    """
+    Base class for all result bundles.
+
+    .. note:: ``__init__`` is not provided as some classes uses properties to
+        provide some of the attributes.
+    """
+
+    def __bool__(self):
+        return self.result is Result.PASSED
+
+    def __str__(self):
+        return self.result.name + ': ' + ', '.join(
+                '{}={}'.format(key, val)
+                for key, val in self.metrics.items())
+
+    def add_metric(self, name, data, units=None):
+        """
+        Lets you append several test :class:`TestMetric` to the bundle.
+
+        :Parameters: :class:`TestMetric` parameters
+        """
+        self.metrics[name] = TestMetric(data, units)
+
+    def display_and_exit(self) -> type(None):
+        print("Test result: {}".format(self))
+        if self:
+            sys.exit(0)
+        else:
+            sys.exit(1)
+
+class ResultBundle(ResultBundleBase):
     """
     Bundle for storing test results
 
@@ -131,28 +166,94 @@ class ResultBundle:
         result = Result.PASSED if cond else Result.FAILED
         return cls(result, *args, **kwargs)
 
-    def __bool__(self):
-        return self.result is Result.PASSED
+class AggregatedResultBundle(ResultBundleBase):
+    """
+    Aggregates many :class:`ResultBundle` into one.
 
-    def __str__(self):
-        return self.result.name + ': ' + ', '.join(
-                '{}={}'.format(key, val)
-                for key, val in self.metrics.items())
+    :param result_bundles: List of :class:`ResultBundle` to aggregate.
+    :type result_bundles: list(ResultBundle)
 
-    def add_metric(self, name, data, units=None):
-        """
-        Lets you append several test :class:`TestMetric` to the bundle.
+    :param name_metric: Metric to use as the "name" of each result bundle.
+        The value of that metric will be used as top-level key in the
+        aggregated metrics. If not provided, the index in the
+        ``result_bundles`` list will be used.
+    :type name_metric: str
 
-        :Parameters: :class:`TestMetric` parameters
-        """
-        self.metrics[name] = TestMetric(data, units)
+    :param result: Optionally, force the ``self.result`` attribute to that
+        value. This is useful when the way of combining the result bundles is
+        not the default one, without having to make a whole new subclass.
+    :type result: Result
 
-    def display_and_exit(self) -> type(None):
-        print("Test result: {}".format(self))
-        if self:
-            sys.exit(0)
+    This is useful for some tests that are naturally decomposed in subtests.
+
+    .. note:: Metrics of aggregated bundles will always be shown, but can be
+        augmented with new metrics using the usual API.
+    """
+    def __init__(self, result_bundles, name_metric=None, result=None):
+        self.result_bundles = result_bundles
+        self.name_metric = name_metric
+        self.extra_metrics = {}
+        self._forced_result = result
+
+    @property
+    def result(self):
+        forced_result = self._forced_result
+        if forced_result is not None:
+            return forced_result
+
+        def predicate(combinator, result):
+            return combinator(
+                res_bundle.result is result
+                for res_bundle in self.result_bundles
+            )
+
+        if predicate(all, Result.UNDECIDED):
+            return Result.UNDECIDED
+        elif predicate(any, Result.FAILED):
+            return Result.FAILED
+        elif predicate(any, Result.PASSED):
+            return Result.PASSED
         else:
-            sys.exit(1)
+            return Result.UNDECIDED
+
+    @result.setter
+    def _(self, result):
+        self._forced_result = result
+
+    @property
+    def metrics(self):
+        def get_name(res_bundle, i):
+            if self.name_metric:
+                return res_bundle.metrics[self.name_metric]
+            else:
+                return str(i)
+
+        names = {
+            res_bundle: get_name(res_bundle, i)
+            for i, res_bundle in enumerate(self.result_bundles)
+        }
+
+        def get_metrics(res_bundle):
+            metrics = copy.copy(res_bundle.metrics)
+            # Since we already show it at the top-level, we can remove it from
+            # the nested level to remove some clutter
+            metrics.pop(self.name_metric, None)
+            return metrics
+
+        base = {
+            names[res_bundle]: get_metrics(res_bundle)
+            for res_bundle in self.result_bundles
+        }
+
+        if 'failed' not in base:
+            base['failed'] = TestMetric([
+                names[res_bundle]
+                for res_bundle in self.result_bundles
+                if res_bundle.result is Result.FAILED
+            ])
+        top = self.extra_metrics
+        return LayeredMapping(base, top)
+
 
 class CannotCreateError(RuntimeError):
     """
