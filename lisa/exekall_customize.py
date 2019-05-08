@@ -284,7 +284,7 @@ comparison. Can be repeated.""")
 
     @staticmethod
     def get_default_type_goal_pattern_set():
-        return {'*.ResultBundle'}
+        return {'*.ResultBundleBase'}
 
     @classmethod
     def reload_db(cls, db, path=None):
