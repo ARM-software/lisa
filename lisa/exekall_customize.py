@@ -30,7 +30,7 @@ from lisa.trace import FtraceCollector, FtraceConf
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable
 from lisa.conf import MultiSrcConf
-from lisa.tests.base import TestBundle, ResultBundle, Result
+from lisa.tests.base import TestBundle, ResultBundleBase, Result
 from lisa.tests.scheduler.load_tracking import InvarianceItem
 from lisa.regression import compute_regressions
 
@@ -396,7 +396,7 @@ comparison. Can be repeated.""")
                 return 20
 
             val = expr_val.value
-            if isinstance(val, ResultBundle):
+            if isinstance(val, ResultBundleBase):
                 if val.result is Result.FAILED:
                     return 10
         return 0
