@@ -84,7 +84,7 @@ def apply_patch_map(patch_map, adaptor):
             )
             prebuilt_op_set.update(new_op_set)
         except KeyError as e:
-            error('Callable "{callable_}" has no parameter "{param}"'.format(
+            error('Callable "{callable_}" has no parameters {param}'.format(
                 callable_=op.name,
                 param=e.args[0]
             ))

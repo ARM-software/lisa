@@ -2301,6 +2301,15 @@ class Operator:
             the parameter. Same as :class:`Operator`'s ``__init__`` parameter.
         :type tags_getter: collections.abc.Callable
         """
+        param_set = list(self.signature.parameters.keys())
+        unknown_param = sorted(
+            param
+            for param in param_value_map.keys()
+            if param not in param_set
+        )
+        if unknown_param:
+            raise KeyError(unknown_param)
+
         prebuilt_op_set = set()
         for param, value_list in param_value_map.items():
             # Get the most derived class that is in common between all
