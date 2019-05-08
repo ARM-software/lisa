@@ -63,36 +63,28 @@ class CpusAnalysis(TraceAnalysisBase):
 # Plotting Methods
 ###############################################################################
 
+    @TraceAnalysisBase.plot_method()
     @df_context_switches.used_events
-    def plot_context_switches(self, **kwargs):
+    def plot_context_switches(self, axis, local_fig):
         """
         Plot histogram of context switches on each CPU.
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-        def plotter(axis, local_fig):
-            ctx_sw_df = self.df_context_switches()
-            ctx_sw_df["context_switch_cnt"].plot.bar(
-                title="Per-CPU Task Context Switches", legend=False, ax=axis)
-            axis.grid()
+        ctx_sw_df = self.df_context_switches()
+        ctx_sw_df["context_switch_cnt"].plot.bar(
+            title="Per-CPU Task Context Switches", legend=False, ax=axis)
+        axis.grid()
 
-        return self.do_plot(plotter, height=8, **kwargs)
-
-    def plot_orig_capacity(self, cpu, **kwargs):
+    @TraceAnalysisBase.plot_method()
+    def plot_orig_capacity(self, cpu, axis, local_fig):
         """
         Plot the orig capacity of a CPU onto a given axis
 
         :param cpu: The CPU
         :type cpu: int
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-        def plotter(axis, local_fig):
-            if "cpu-capacities" in self.trace.plat_info:
-                axis.axhline(self.trace.plat_info["cpu-capacities"][cpu],
-                             color=self.get_next_color(axis),
-                             linestyle='--', label="orig_capacity")
-
-        return self.do_plot(plotter, **kwargs)
+        if "cpu-capacities" in self.trace.plat_info:
+            axis.axhline(self.trace.plat_info["cpu-capacities"][cpu],
+                         color=self.get_next_color(axis),
+                         linestyle='--', label="orig_capacity")
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

@@ -520,15 +520,14 @@ class TasksAnalysis(TraceAnalysisBase):
 # Plotting Methods
 ###############################################################################
 
+    @TraceAnalysisBase.plot_method()
     @requires_events('sched_switch')
-    def plot_task_residency(self, task, **kwargs):
+    def plot_task_residency(self, task, axis, local_fig):
         """
         Plot on which CPUs the task ran on over time
 
         :param task: Task to track
         :type task: int or str
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
 
         pid = self.trace.get_task_pid(task)
@@ -536,40 +535,38 @@ class TasksAnalysis(TraceAnalysisBase):
         sw_df = self.trace.df_events("sched_switch")
         sw_df = sw_df[sw_df.next_pid == pid]
 
-        def plotter(axis, local_fig):
-            if "freq-domains" in self.trace.plat_info:
-                # If we are aware of frequency domains, use one color per domain
-                for domain in self.trace.plat_info["freq-domains"]:
-                    df = sw_df[sw_df["__cpu"].isin(domain)]["__cpu"]
+        if "freq-domains" in self.trace.plat_info:
+            # If we are aware of frequency domains, use one color per domain
+            for domain in self.trace.plat_info["freq-domains"]:
+                df = sw_df[sw_df["__cpu"].isin(domain)]["__cpu"]
 
-                    print(domain)
+                print(domain)
 
-                    if df.empty:
-                        print(df.empty)
-                        # Cycle the colours to stay consistent
-                        self.cycle_colors(axis, 1)
-                    else:
-                        print(df.unique())
-                        df.plot(ax=axis, style='+',
-                                label="Task running in domain {}".format(domain))
-            else:
-                sw_df["__cpu"].plot(ax=axis, style='+')
+                if df.empty:
+                    print(df.empty)
+                    # Cycle the colours to stay consistent
+                    self.cycle_colors(axis, 1)
+                else:
+                    print(df.unique())
+                    df.plot(ax=axis, style='+',
+                            label="Task running in domain {}".format(domain))
+        else:
+            sw_df["__cpu"].plot(ax=axis, style='+')
 
-            plot_overutilized = self.trace.analysis.status.plot_overutilized
-            if self.trace.has_events(plot_overutilized.used_events):
-                plot_overutilized(axis=axis)
+        plot_overutilized = self.trace.analysis.status.plot_overutilized
+        if self.trace.has_events(plot_overutilized.used_events):
+            plot_overutilized(axis=axis)
 
-            # Add an extra CPU lane to make room for the legend
-            axis.set_ylim(-0.95, self.trace.cpus_count - 0.05)
+        # Add an extra CPU lane to make room for the legend
+        axis.set_ylim(-0.95, self.trace.cpus_count - 0.05)
 
-            axis.set_title("CPU residency of task \"{}\"".format(task))
-            axis.set_ylabel('CPUs')
-            axis.grid(True)
-            axis.legend()
-            axis.set_xlim(self.trace.start, self.trace.end)
+        axis.set_title("CPU residency of task \"{}\"".format(task))
+        axis.set_ylabel('CPUs')
+        axis.grid(True)
+        axis.legend()
+        axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, **kwargs)
-
+    @TraceAnalysisBase.plot_method(return_axis=True)
     @df_task_total_residency.used_events
     def plot_task_total_residency(self, task, **kwargs):
         """
@@ -577,8 +574,6 @@ class TasksAnalysis(TraceAnalysisBase):
 
         :param task: The task's name or PID
         :type task: str or int
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         df = self.df_task_total_residency(task)
 
@@ -591,9 +586,10 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return self.do_plot(plotter, height=8, **kwargs)
 
+    @TraceAnalysisBase.plot_method()
     @df_tasks_total_residency.used_events
     def plot_tasks_total_residency(self, tasks=None, ascending=False,
-                                   count=None, **kwargs):
+                                   count=None, axis=None, local_fig=None):
         """
         Plot the stacked total time spent by each task on each CPU
 
@@ -606,21 +602,15 @@ class TasksAnalysis(TraceAnalysisBase):
 
         :param count: Maximum number of tasks to report
         :type count: int
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         df = self.df_tasks_total_residency(tasks, ascending, count)
-
-        def plotter(axis, local_fig):
-            df.T.plot.barh(ax=axis, stacked=True)
-            axis.set_title("Stacked CPU residency of [{}] selected tasks"\
-                           .format(len(df.index)))
-            axis.set_ylabel("CPU")
-            axis.set_xlabel("Runtime (s)")
-            axis.grid(True)
-            axis.legend(loc='upper left',ncol=5, bbox_to_anchor=(0, -.15))
-
-        return self.do_plot(plotter, **kwargs)
+        df.T.plot.barh(ax=axis, stacked=True)
+        axis.set_title("Stacked CPU residency of [{}] selected tasks"\
+                       .format(len(df.index)))
+        axis.set_ylabel("CPU")
+        axis.set_xlabel("Runtime (s)")
+        axis.grid(True)
+        axis.legend(loc='upper left',ncol=5, bbox_to_anchor=(0, -.15))
 
     def _df_discretize_series(self, series, time_delta, name):
         """
@@ -648,8 +638,10 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return fig, axis
 
+    @TraceAnalysisBase.plot_method()
     @requires_events("sched_wakeup")
-    def plot_tasks_wakeups(self, target_cpus=None, time_delta=0.01, **kwargs):
+    def plot_tasks_wakeups(self, target_cpus=None, time_delta=0.01, axis=None,
+            local_fig=None):
         """
         Plot task wakeups over time
 
@@ -659,8 +651,6 @@ class TasksAnalysis(TraceAnalysisBase):
         :param time_delta: The discretization delta for summing up wakeups in a
           given time delta.
         :type time_delta: float
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
 
         df = self.trace.df_events("sched_wakeup")
@@ -670,17 +660,18 @@ class TasksAnalysis(TraceAnalysisBase):
 
         df = self._df_discretize_series(df["target_cpu"], time_delta, "Wakeup count")
 
-        def plotter(axis, local_fig):
-            df.plot(ax=axis, legend=False)
+        df.plot(ax=axis, legend=False)
 
-            axis.set_title("Number of task wakeups within {}s windows".format(time_delta))
-            axis.set_xlim(self.trace.start, self.trace.end)
+        axis.set_title("Number of task wakeups within {}s windows".format(time_delta))
+        axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, **kwargs)
-
+    @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup")
-    def plot_tasks_wakeups_heatmap(self, xbins=100, colormap=None):
+    def plot_tasks_wakeups_heatmap(self, xbins=100, colormap=None, axis=None,
+            local_fig=None):
         """
+        Plot tasks wakeups heatmap
+
         :param xbins: Number of x-axis bins, i.e. in how many slices should
           time be arranged
         :type xbins: int
@@ -700,8 +691,9 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return axis
 
+    @TraceAnalysisBase.plot_method()
     @requires_events("sched_wakeup_new")
-    def plot_tasks_forks(self, target_cpus=None, time_delta=0.01, **kwargs):
+    def plot_tasks_forks(self, target_cpus=None, time_delta=0.01, axis=None, local_fig=None):
         """
         Plot task forks over time
 
@@ -711,8 +703,6 @@ class TasksAnalysis(TraceAnalysisBase):
         :param time_delta: The discretization delta for summing up forks in a
           given time delta.
         :type time_delta: float
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
 
         df = self.trace.df_events("sched_wakeup_new")
@@ -721,17 +711,16 @@ class TasksAnalysis(TraceAnalysisBase):
             df = df[df.target_cpu.isin(target_cpus)]
 
         df = self._df_discretize_series(df["target_cpu"], time_delta, "Forks count")
+        df.plot(ax=axis, legend=False)
 
-        def plotter(axis, local_fig):
-            df.plot(ax=axis, legend=False)
+        axis.set_title("Number of task forks within {}s windows".format(time_delta))
+        axis.set_xlim(self.trace.start, self.trace.end)
 
-            axis.set_title("Number of task forks within {}s windows".format(time_delta))
-            axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, **kwargs)
-
+    @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup_new")
-    def plot_tasks_forks_heatmap(self, xbins=100, colormap=None):
+    def plot_tasks_forks_heatmap(self, xbins=100, colormap=None, axis=None,
+            local_fig=None):
         """
         :param xbins: Number of x-axis bins, i.e. in how many slices should
           time be arranged
@@ -752,10 +741,11 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return axis
 
+    @TraceAnalysisBase.plot_method()
     @df_task_activation.used_events
     def plot_task_activation(self, task, cpu=None, active_value=None,
             sleep_value=None, alpha=None, overlay=False,
-            **kwargs):
+            axis=None, local_fig=None):
         """
         Plot task activations, in a style similar to kernelshark.
 
@@ -770,35 +760,28 @@ class TasksAnalysis(TraceAnalysisBase):
             the plot to blend with existing data.
         :type task: bool
 
-        .. seealso:: :meth:`df_task_activation` and
-            :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
+        .. seealso:: :meth:`df_task_activation`
         """
+        # Adapt the steps height to the existing limits. This allows
+        # re-using an existing axis that already contains some data.
+        min_lim, max_lim = axis.get_ylim()
+        height = abs(max_lim - min_lim)
 
-        def plotter(axis, local_fig):
-            nonlocal active_value, sleep_value
+        if overlay:
+            height /= 4
+            _alpha = alpha if alpha is not None else 0.5
+        else:
+            _alpha = alpha
 
-            # Adapt the steps height to the existing limits. This allows
-            # re-using an existing axis that already contains some data.
-            min_lim, max_lim = axis.get_ylim()
-            height = abs(max_lim - min_lim)
+        active_value = active_value if active_value is not None else height
+        sleep_value = sleep_value if sleep_value is not None else min_lim
 
-            if overlay:
-                height /= 4
-                _alpha = alpha if alpha is not None else 0.5
-            else:
-                _alpha = alpha
-
-            active_value = active_value if active_value is not None else height
-            sleep_value = sleep_value if sleep_value is not None else min_lim
-
-            df = self.df_task_activation(task,
-                cpu=cpu, active_value=active_value, sleep_value=sleep_value,
+        df = self.df_task_activation(task,
+            cpu=cpu, active_value=active_value, sleep_value=sleep_value,
+        )
+        if not df.empty:
+            axis.fill_between(df.index, df['active'], step='post',
+                alpha=_alpha
             )
-            if not df.empty:
-                axis.fill_between(df.index, df['active'], step='post',
-                    alpha=_alpha
-                )
-
-        return self.do_plot(plotter, **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

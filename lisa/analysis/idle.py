@@ -244,8 +244,9 @@ class IdleAnalysis(TraceAnalysisBase):
 # Plotting Methods
 ###############################################################################
 
+    @TraceAnalysisBase.plot_method()
     @df_cpu_idle_state_residency.used_events
-    def plot_cpu_idle_state_residency(self, cpu, pct=False, **kwargs):
+    def plot_cpu_idle_state_residency(self, cpu, axis, local_fig, pct=False):
         """
         Plot the idle state residency of a CPU
 
@@ -254,20 +255,15 @@ class IdleAnalysis(TraceAnalysisBase):
 
         :param pct: Plot residencies in percentage
         :type pct: bool
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         df = self.df_cpu_idle_state_residency(cpu)
-
-        def plotter(axis, local_fig):
-            self._plot_idle_state_residency(df, axis, pct)
-            axis.set_title("CPU{} idle state residency".format(cpu))
+        self._plot_idle_state_residency(df, axis, pct)
+        axis.set_title("CPU{} idle state residency".format(cpu))
 
 
-        return self.do_plot(plotter, **kwargs)
-
+    @TraceAnalysisBase.plot_method()
     @df_cluster_idle_state_residency.used_events
-    def plot_cluster_idle_state_residency(self, cluster, pct=False, **kwargs):
+    def plot_cluster_idle_state_residency(self, cluster, axis, local_fig, pct=False):
         """
         Plot the idle state residency of a cluster
 
@@ -276,18 +272,15 @@ class IdleAnalysis(TraceAnalysisBase):
 
         :param pct: Plot residencies in percentage
         :type pct: bool
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
 
         df = self.df_cluster_idle_state_residency(cluster)
 
-        def plotter(axis, local_fig):
-            self._plot_idle_state_residency(df, axis, pct)
-            axis.set_title("CPUs {} idle state residency".format(cluster))
+        self._plot_idle_state_residency(df, axis, pct)
+        axis.set_title("CPUs {} idle state residency".format(cluster))
 
-        return self.do_plot(plotter, **kwargs)
 
+    @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cluster_idle_state_residency.used_events
     def plot_clusters_idle_state_residency(self, pct=False, **kwargs):
         """
@@ -298,8 +291,6 @@ class IdleAnalysis(TraceAnalysisBase):
 
         .. note:: This assumes clusters == frequency domains, which may
           not hold true...
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         clusters = self.trace.plat_info['freq-domains']
 

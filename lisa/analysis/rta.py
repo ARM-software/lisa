@@ -189,53 +189,41 @@ class PerfAnalysis(AnalysisHelpers):
             **kwargs,
         )
 
-    def plot_perf(self, task, **kwargs):
+    @AnalysisHelpers.plot_method()
+    def plot_perf(self, task, axis, local_fig):
         """
         Plot the performance Index
 
         :param filepath: If no axis is specified, the figure will be saved to
             that path
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-        def plotter(axis, local_fig):
-            axis.set_title('Task [{0:s}] Performance Index'.format(task))
-            data = self.get_df(task)[['PerfIndex',]]
-            data.plot(ax=axis, drawstyle='steps-post')
-            axis.set_ylim(0, 2)
+        axis.set_title('Task [{0:s}] Performance Index'.format(task))
+        data = self.get_df(task)[['PerfIndex',]]
+        data.plot(ax=axis, drawstyle='steps-post')
+        axis.set_ylim(0, 2)
 
-        return self.do_plot(plotter, **kwargs)
 
-    def plot_latency(self, task, **kwargs):
+    @AnalysisHelpers.plot_method()
+    def plot_latency(self, task, axis, local_fig):
         """
         Plot the Latency/Slack and Performance data for the specified task.
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-        def plotter(axis, local_fig):
-            axis.set_title('Task [{0:s}] (start) Latency and (completion) Slack'\
-                    .format(task))
-            data = self.get_df(task)[['Slack', 'WKPLatency']]
-            data.plot(ax=axis, drawstyle='steps-post')
+        axis.set_title('Task [{0:s}] (start) Latency and (completion) Slack'\
+                .format(task))
+        data = self.get_df(task)[['Slack', 'WKPLatency']]
+        data.plot(ax=axis, drawstyle='steps-post')
 
-        return self.do_plot(plotter, **kwargs)
-
-    def plot_slack_histogram(self, task, **kwargs):
+    @AnalysisHelpers.plot_method()
+    def plot_slack_histogram(self, task, axis, local_fig):
         """
-        Plot the Slack Histogram
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
-
+        Plot the slack histogram
         """
-        def plotter(axis, local_fig):
-            data = self.get_df(task)[['PerfIndex',]]
-            data.hist(bins=30, ax=axis, alpha=0.4)
-            pindex_avg = data.mean()[0]
-            pindex_std = data.std()[0]
-            self.get_logger().info('PerfIndex, Task [%s] avg: %.2f, std: %.2f',
-                    task, pindex_avg, pindex_std)
-            axis.axvline(pindex_avg, linestyle='--', linewidth=2)
-
-        return self.do_plot(plotter, **kwargs)
+        data = self.get_df(task)[['PerfIndex',]]
+        data.hist(bins=30, ax=axis, alpha=0.4)
+        pindex_avg = data.mean()[0]
+        pindex_std = data.std()[0]
+        self.get_logger().info('PerfIndex, Task [%s] avg: %.2f, std: %.2f',
+                task, pindex_avg, pindex_std)
+        axis.axvline(pindex_avg, linestyle='--', linewidth=2)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
