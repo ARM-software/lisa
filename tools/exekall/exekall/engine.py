@@ -916,17 +916,21 @@ class ExpressionBase(ExprHelpers):
 
         # Recursively build an ID
         else:
+
             # Make a copy to be able to pop items from it
-            param_id_map = copy.copy(param_id_map)
+            _param_id_map = copy.copy(param_id_map)
 
             # Extract the first parameter to always use the prefix
             # notation, i.e. its value preceding the ID of the current
             # Expression
-            param, (param_id, param_marker) = param_id_map.popitem(last=False)
+            param, (param_id, param_marker) = _param_id_map.popitem(last=False)
 
-            if param_id:
+            # If the first param was not hidden, we handle it with the prefix
+            # notation
+            if param_id and param == utils.take_first(self.param_map.keys()):
                 separator_spacing = ' ' * len(separator)
                 param_str = param_id + separator
+                param_id_map = _param_id_map
             else:
                 separator_spacing = ''
                 param_str = ''
