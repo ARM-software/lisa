@@ -66,16 +66,15 @@ def build_patch_map(sweep_spec_list, param_spec_list, op_set):
 
     patch_map = dict()
     for callable_pattern, param, start, stop, step in sweep_spec_list:
-        number_type = float
         for op in op_set:
             callable_ = op.callable_
             callable_name = utils.get_name(callable_, full_qual=True)
             if not utils.match_name(callable_name, [callable_pattern]):
                 continue
             patch_map.setdefault(op, dict())[param] = [
-                i for i in utils.sweep_number(
+                i for i in utils.sweep_param(
                     callable_, param,
-                    number_type(start), number_type(stop), number_type(step)
+                    start, stop, step
                 )
             ]
     return patch_map
