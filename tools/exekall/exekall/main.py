@@ -71,12 +71,11 @@ def build_patch_map(sweep_spec_list, param_spec_list, op_set):
             callable_name = utils.get_name(callable_, full_qual=True)
             if not utils.match_name(callable_name, [callable_pattern]):
                 continue
-            patch_map.setdefault(op, dict())[param] = [
-                i for i in utils.sweep_param(
+            patch_map.setdefault(op, dict()).setdefault(param, []).extend(
+                utils.sweep_param(
                     callable_, param,
                     start, stop, step
-                )
-            ]
+            ))
     return patch_map
 
 def apply_patch_map(patch_map, adaptor):
