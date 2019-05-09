@@ -122,6 +122,22 @@ class TasksAnalysis(TraceAnalysisBase):
     def __init__(self, trace):
         super(TasksAnalysis, self).__init__(trace)
 
+    @requires_events('sched_switch')
+    def cpus_of_tasks(self, tasks):
+        """
+        Return the list of CPUs where the ``tasks`` executed.
+
+        :param tasks: Task names or PIDs to look for.
+        :type tasks: list(int or str)
+        """
+        trace = self.trace
+        pids = [trace.get_task_pid(task) for task in tasks]
+        df = trace.df_events('sched_switch')[['next_pid', '__cpu']]
+        df = df[df['next_pid'].isin(pids)]
+        cpus = df['__cpu'].unique()
+
+        return sorted(cpus)
+
 ###############################################################################
 # DataFrame Getter Methods
 ###############################################################################
