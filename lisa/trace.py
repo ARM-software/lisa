@@ -1140,15 +1140,22 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         will be combined with the new requirements using an
         :class`AndTraceEventChecker`.
         """
+        def unwrap_down_to(obj):
+            return hasattr(obj, 'used_events')
+
         try:
-            used_events = f.used_events
+            # we want to see through all other kinds of wrappers, down to the
+            # one that matters to us
+            used_events = inspect.unwrap(f, stop=unwrap_down_to).used_events
         except AttributeError:
             checker = self
         else:
             checker = AndTraceEventChecker([self, used_events])
-            # remove a layer of wrapper, since we took its used_events into
-            # account already
-            f = f.__wrapped__
+            # remove a layer of wrapper if the last layer is a similar wrapper
+            # to what we are going to install, since we took its used_events
+            # into account already
+            if unwrap_down_to(f):
+                f = f.__wrapped__
 
         sig = inspect.signature(f)
         if self.check and sig.parameters:
