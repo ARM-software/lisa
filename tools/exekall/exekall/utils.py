@@ -109,9 +109,9 @@ def _get_callable_set(module, visited_obj_set, verbose):
                 callable_pool.add(callable_)
     return callable_pool
 
-def sweep_number(callable_, param, start, stop=None, step=1):
+def sweep_number(callable_, param, start, stop, step=1):
     """
-    Used to generate a stream of numbers to feed to a callable.
+    Used to generate a stream of numbers or strings to feed to a callable.
 
     :param callable_: Callable the numbers will be used by.
     :type callable_: collections.abc.Callable
@@ -121,13 +121,16 @@ def sweep_number(callable_, param, start, stop=None, step=1):
     :type param: str
 
     :param start: Starting value.
-    :type start: float
+    :type start: float or str
 
     :param stop: End value (inclusive)
-    :type stop: float
+    :type stop: float or str
 
     :param step: Increment step.
     :type step: float
+
+    If ``start == stop``, only that value will be yielded, and it can be of any
+    type.
 
     The type used will either be one that is annotated on the callable, or
     the type of the value given as ``start``.
@@ -141,15 +144,14 @@ def sweep_number(callable_, param, start, stop=None, step=1):
     except KeyError:
         type_ = type(start)
 
-    if stop is None:
-        stop = start
-        start = 0
-
-    i = type_(start)
-    step = type_(step)
-    while i <= stop:
-        yield type_(i)
-        i += step
+    if start == stop:
+        yield type_(start)
+    else:
+        i = type_(start)
+        step = type_(step)
+        while i <= stop:
+            yield type_(i)
+            i += step
 
 def get_method_class(function):
     """

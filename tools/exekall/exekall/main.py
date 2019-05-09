@@ -56,11 +56,17 @@ def build_op_set(callable_pool, non_reusable_type_set, allowed_pattern_set, adap
     )
     return filtered_op_set
 
-def build_patch_map(sweep_spec_list, op_set):
+def build_patch_map(sweep_spec_list, param_spec_list, op_set):
+    sweep_spec_list = copy.copy(sweep_spec_list)
+    # Make a sweep spec from a simpler param spec
+    sweep_spec_list.extend(
+        (callable_pattern, param, value, value, 1)
+        for callable_pattern, param, value in param_spec_list
+    )
+
     patch_map = dict()
-    for sweep_spec in sweep_spec_list:
+    for callable_pattern, param, start, stop, step in sweep_spec_list:
         number_type = float
-        callable_pattern, param, start, stop, step = sweep_spec
         for op in op_set:
             callable_ = op.callable_
             callable_name = utils.get_name(callable_, full_qual=True)
@@ -319,6 +325,13 @@ please run ``exekall run YOUR_SOURCES --help``.
     * start value
     * stop value
     * step size.""")
+
+    add_argument(run_parser, '--param', nargs=3, action='append', default=[],
+        metavar=('CALLABLE_PATTERN', 'PARAM', 'VALUE'),
+        help="""Set a function parameter. It needs three fields:
+    * pattern matching qualified name of the callable
+    * name of the parameter
+    * value""")
 
     add_argument(run_parser, '--template-scripts', metavar='SCRIPT_FOLDER',
         help="""Only create the template scripts of the expressions without running them.""")
@@ -715,7 +728,7 @@ def do_run(args, parser, run_parser, argv):
         op_set.update(adaptor.get_prebuilt_op_set())
 
     # Force some parameter values to be provided with a specific callable
-    patch_map = build_patch_map(args.sweep, op_set)
+    patch_map = build_patch_map(args.sweep, args.param, op_set)
     op_set.update(apply_patch_map(patch_map, adaptor))
 
     # Some operators are hidden in IDs since they don't add useful information
