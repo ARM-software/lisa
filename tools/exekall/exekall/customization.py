@@ -147,6 +147,31 @@ class AdaptorBase:
         pass
 
     @staticmethod
+    def register_show_param(parser):
+        """
+        Register CLI parameters for the ``show`` subcommand.
+
+        :param parser: Parser of the ``show`` subcommand to add arguments onto.
+        :type parser: argparse.ArgumentParser
+        """
+        pass
+
+    def show_db(self, db):
+        """
+        Show the content of the database.
+
+        :param db: :class:`exekall.engine.ValueDB` to show.
+        :type db: exekall.engine.ValueDB
+
+        This is called by ``exekall show`` to actually do something useful.
+        """
+
+        root_expr_val_list = sorted(db.get_roots(), key=lambda expr_val: expr_val.uuid)
+        for i, froz_val in enumerate(root_expr_val_list):
+            print('{}) {}\n'.format(i, froz_val.format_structure(full_qual=False)))
+        return 0
+
+    @staticmethod
     def get_default_type_goal_pattern_set():
         """
         Returns a set of patterns that will be used as the default value for
