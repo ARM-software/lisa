@@ -107,9 +107,18 @@ class ResultBundleBase:
         return self.result is Result.PASSED
 
     def __str__(self):
-        return self.result.name + ': ' + ', '.join(
-                '{}={}'.format(key, val)
-                for key, val in self.metrics.items())
+
+        def format_val(val):
+            # Handle recursive mappings, like metrics of AggregatedResultBundle
+            if isinstance(val, Mapping):
+                return '{' + ', '.join(
+                    '{}={}'.format(key, format_val(val))
+                    for key, val in val.items()
+                ) + '}'
+            else:
+                return str(val)
+
+        return self.result.name + ': ' + format_val(self.metrics)
 
     def add_metric(self, name, data, units=None):
         """
