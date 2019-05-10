@@ -92,8 +92,6 @@ class TraceBase(abc.ABC):
         This method only really makes sense for events tracking an on/off state
         (e.g. overutilized, idle)
         """
-        if df.empty:
-            return df
 
         if col_name in df.columns:
             raise RuntimeError("Column {} is already present in the dataframe".
@@ -103,10 +101,12 @@ class TraceBase(abc.ABC):
             df = df.copy()
 
         df[col_name] = df.index
-        df[col_name] = df[col_name].diff().shift(-1)
-        # Fix the last event, which will have a NaN duration
-        # Set duration to trace_end - last_event
-        df.loc[df.index[-1], col_name] = self.end - df.index[-1]
+
+        if not df.empty:
+            df[col_name] = df[col_name].diff().shift(-1)
+            # Fix the last event, which will have a NaN duration
+            # Set duration to trace_end - last_event
+            df.loc[df.index[-1], col_name] = self.end - df.index[-1]
 
         return df
 
