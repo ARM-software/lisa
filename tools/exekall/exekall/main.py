@@ -1161,11 +1161,13 @@ def main(argv=sys.argv[1:]):
         return_code = e.code
     # Catch-all
     except Exception as e:
+        formatted_excep = 'Exception traceback:\n' +  utils.format_exception(e)
         if show_traceback:
-            error(
-                'Exception traceback:\n' +
-                utils.format_exception(e)
-            )
+            error(formatted_excep)
+        else:
+            # Still get the traceback it in debug log
+            debug(formatted_excep)
+
         # Always show the concise message
         error(e)
         return_code = GENERIC_ERROR_CODE
