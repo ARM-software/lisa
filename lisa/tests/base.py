@@ -629,9 +629,9 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
             )
 
             # Make it obvious in the doc where the extra parameters come from
-            merged_doc = inspect.getdoc(cls.test_noisy_tasks.__doc__).splitlines()
+            noise_doc = inspect.getdoc(cls.test_noisy_tasks).splitlines()
             # Replace the one-liner func description
-            merged_doc[1] = textwrap.dedent(
+            noise_doc[1] = textwrap.dedent(
                 """
                 **Added by** :meth:`~{}.{}.{}`:
 
@@ -640,9 +640,10 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
                 too noisy:
                 """.format(cls.__module__, cls.__name__, cls.check_noisy_tasks.__name__)
             )
+            noise_doc = '\n'.join(noise_doc)
 
             wrapper_doc = inspect.getdoc(wrapper) or ''
-            wrapper.__doc__ = wrapper_doc + "\n".join(merged_doc)
+            wrapper.__doc__ = wrapper_doc + "\n".join(noise_doc)
 
             return wrapper
         return decorator
