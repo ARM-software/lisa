@@ -1272,7 +1272,36 @@ class Configurable(abc.ABC, metaclass=ConfigurableMeta):
 
         :raises TypeError: When the wrong type is detected for a parameter.
         """
-        for param, key_desc in cls._get_param_key_desc_map().items():
+        parameters = OrderedDict(inspect.signature(cls.__init__).parameters)
+        # pop `self` param
+        parameters.popitem(last=False)
+        mandatory_args = [
+            name
+            for name, param in parameters.items()
+            if (
+                param.default is inspect.Parameter.empty
+                and param.kind not in (
+                    inspect.Parameter.VAR_POSITIONAL,
+                    inspect.Parameter.VAR_KEYWORD,
+                )
+            )
+
+        ]
+
+        param_key_desc_map = cls._get_param_key_desc_map()
+
+        missing_param = set(mandatory_args) - set(kwargs.keys())
+        if missing_param:
+            missing_key_paths = sorted(
+                key_desc.qualname
+                for param, key_desc in param_key_desc_map.items()
+                if param in missing_param
+            )
+            raise KeyError("Missing mandatory keys: {}".format(
+                ', '.join(missing_key_paths)
+            ))
+
+        for param, key_desc in param_key_desc_map.items():
             if param in kwargs:
                 key_desc.validate_val(kwargs[param])
 

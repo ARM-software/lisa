@@ -313,6 +313,7 @@ class Target(Loggable, HideExekallID, Configurable):
         devlib_platform = devlib_platform_cls(**devlib_platform_kwargs)
         kwargs['devlib_platform'] = devlib_platform
 
+        cls.check_init_param(**kwargs)
         return cls(**kwargs)
 
     @classmethod
