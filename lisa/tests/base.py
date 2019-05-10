@@ -587,6 +587,13 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
 
         return (rta_start, rta_stop)
 
+    @property
+    def trace_path(self):
+        """
+        Path to the ``trace-cmd report`` trace.dat file.
+        """
+        return os.path.join(self.res_dir, self.TRACE_PATH)
+
     # Guard before the cache, so we don't accidentally start depending on the
     # LRU cache for functionnal correctness.
     @non_recursive_property
@@ -604,8 +611,7 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         allows updating the underlying path before it is actually loaded to
         match a different folder structure.
         """
-        path = os.path.join(self.res_dir, self.TRACE_PATH)
-        trace = Trace(path, self.plat_info, events=self.ftrace_conf["events"])
+        trace = Trace(self.trace_path, self.plat_info, events=self.ftrace_conf["events"])
         return trace.get_view(self.trace_window(trace))
 
     @property

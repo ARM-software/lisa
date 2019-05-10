@@ -28,9 +28,9 @@ from collections import OrderedDict, namedtuple
 from lisa.target import Target, TargetConf
 from lisa.trace import FtraceCollector, FtraceConf
 from lisa.platforms.platinfo import PlatformInfo
-from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable
+from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable, get_nested_key
 from lisa.conf import MultiSrcConf
-from lisa.tests.base import TestBundle, ResultBundleBase, Result
+from lisa.tests.base import TestBundle, ResultBundleBase, Result, RTATestBundle
 from lisa.tests.scheduler.load_tracking import InvarianceItem
 from lisa.regression import compute_regressions
 
@@ -281,6 +281,145 @@ comparison. Can be repeated.""")
                     validation_nr=validation_nr,
                     significant='*' if regr.significant and show_non_significant else '',
                 ))
+
+    @staticmethod
+    def _parse_uuid_attr(s):
+        uuid_attr = s.split('.', 1)
+        try:
+            uuid, attr = uuid_attr
+        except ValueError:
+            uuid = s
+            attr = None
+
+        return uuid, attr
+
+    @classmethod
+    def register_show_param(cls, parser):
+        uuid_attr_metavar = 'UUID[.ATTRIBUTE]'
+
+        add_argument(parser, '--show', action='append', default=[],
+            type=cls._parse_uuid_attr,
+            metavar=uuid_attr_metavar,
+            help="""Show the attribute value with given UUID, or one of its attribute.""")
+
+        add_argument(parser, '--show-yaml', action='append', default=[],
+            type=cls._parse_uuid_attr,
+            metavar=uuid_attr_metavar,
+            help="""Show the YAML dump of value with given UUID, or one of its attributes.""")
+
+        add_argument(parser, '--serialize', nargs=2, action='append', default=[],
+            metavar=(uuid_attr_metavar, 'PATH'),
+            help="""Serialize the value of given UUID to PATH.""")
+
+    def show_db(self, db):
+        parse_uuid_attr = self._parse_uuid_attr
+
+        def indent(s):
+            idt = ' ' * 4
+            return idt + s.replace('\n', '\n' + idt)
+
+        def get_uuid(uuid):
+            try:
+                froz_val = db.get_by_uuid(uuid)
+            except KeyError:
+                raise KeyError('UUID={} not found in the database'.format(uuid))
+            else:
+                return froz_val
+
+        def get_attr_key(obj, attr_key):
+            # parse "attr[key1][key2][...]"
+            attr = attr_key.split('[', 1)[0]
+            keys = re.findall(r'\[(.*?)\]', attr_key)
+            if attr:
+                obj = getattr(obj, attr)
+            return get_nested_key(obj, keys)
+
+        def resolve_attr(obj, attr_key):
+            if attr_key is None:
+                return obj
+
+            try:
+                attr_key, remainder = attr_key.split('.', 1)
+            except ValueError:
+                return get_attr_key(obj, attr_key)
+            else:
+                obj = get_attr_key(obj, attr_key)
+                return resolve_attr(obj, remainder)
+
+        args = self.args
+        if not (args.show or args.show_yaml):
+            super().show_db(db)
+
+        attr_map = {}
+        for uuid, attr in args.show:
+            attr_map.setdefault(uuid, set()).add(attr)
+
+        if len(args.show) == 1:
+            show_format = '{val}'
+        else:
+            show_format = 'UUID={uuid} {type}{attr}{eq}{val}'
+
+        serialize_spec_list = args.serialize
+        yaml_show_spec_list = args.show_yaml
+
+        for uuid, attr_set in attr_map.items():
+            attr_list = sorted(attr_set)
+            froz_val = get_uuid(uuid)
+            value = froz_val.value
+            for attr in attr_list:
+                attr_value = resolve_attr(value, attr)
+
+                attr_str = str(attr_value)
+                if '\n' in attr_str:
+                    attr_str = '\n' + indent(attr_str)
+                    eq = ':'
+                else:
+                    eq = '='
+
+                print(show_format.format(
+                    uuid=froz_val.uuid,
+                    type=get_name(type(value)),
+                    attr='.' + attr if attr else '',
+                    val=attr_str,
+                    eq=eq,
+                ))
+
+
+        if len(yaml_show_spec_list) == 1:
+            yaml_show_format = '{yaml}'
+            yaml_indent = lambda x: x
+        else:
+            yaml_show_format = 'UUID={uuid} {type}:\n\n{yaml}'
+            yaml_indent = indent
+
+        for uuid, attr in yaml_show_spec_list:
+            froz_val = get_uuid(uuid)
+            value = froz_val.value
+            value = resolve_attr(value, attr)
+
+            if isinstance(value, Serializable):
+                yaml_str = value.to_yaml()
+            else:
+                yaml_str = Serializable._to_yaml(value)
+
+            print(yaml_show_format.format(
+                uuid=uuid,
+                type=get_name(type(value)),
+                yaml=yaml_indent(yaml_str),
+            ))
+
+        for uuid_attr, path in serialize_spec_list:
+            uuid, attr = parse_uuid_attr(uuid_attr)
+            froz_val = get_uuid(uuid)
+            value = froz_val.value
+            value = resolve_attr(value, attr)
+
+            if isinstance(value, Serializable):
+                value.to_path(path)
+            else:
+                Serializable._to_path(value, path, fmt='yml')
+
+        return 0
 
     @staticmethod
     def get_default_type_goal_pattern_set():

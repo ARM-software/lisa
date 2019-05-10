@@ -21,6 +21,7 @@ from collections.abc import Mapping, MutableMapping, Sequence
 from collections import OrderedDict
 import contextlib
 import inspect
+import io
 import logging
 import logging.config
 import functools
@@ -374,6 +375,18 @@ class Serializable(Loggable):
 
         with open(str(filepath), **kwargs) as fh:
             dumper(instance, fh)
+
+    @classmethod
+    def _to_yaml(cls, data):
+        buff = io.StringIO()
+        cls._yaml.dump(data, buff)
+        return buff.getvalue()
+
+    def to_yaml(self):
+        """
+        Return a YAML string with the serialized object.
+        """
+        return self._to_yaml(self)
 
     @classmethod
     def from_path(cls, filepath, fmt=None):
