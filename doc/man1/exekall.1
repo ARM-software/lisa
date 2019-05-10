@@ -41,7 +41,7 @@ discovered from Python PEP 484 parameter and return value annotations.
 .sp
 .nf
 .ft C
-usage: exekall [\-h] [\-\-debug] {run,merge,compare} ...
+usage: exekall [\-h] [\-\-debug] {run,merge,compare,show} ...
 
 Test runner
 
@@ -51,11 +51,11 @@ PATTERNS
     
 
 optional arguments:
-  \-h, \-\-help           show this help message and exit
-  \-\-debug              Show complete Python backtrace when exekall crashes.
+  \-h, \-\-help            show this help message and exit
+  \-\-debug               Show complete Python backtrace when exekall crashes.
 
 subcommands:
-  {run,merge,compare}
+  {run,merge,compare,show}
 
 .ft P
 .fi
@@ -192,6 +192,34 @@ arguments.
 
 positional arguments:
   db          DBs created using exekall run to compare.
+
+optional arguments:
+  \-h, \-\-help  show this help message and exit
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS exekall show
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+usage: exekall show [\-h] db
+
+Show the content of a ValueDB created by exekall \(ga\(garun\(ga\(ga
+
+Note that the adaptor in the customization module recorded in the database
+is able to add more parameters to \(ga\(gaexekall show\(ga\(ga. In order to get the
+complete set of options, please run \(ga\(gaexekall show DB \-\-help\(ga\(ga.
+
+Options part of a custom group will need to be passed after positional
+arguments.
+    
+
+positional arguments:
+  db          DB created using exekall run to show.
 
 optional arguments:
   \-h, \-\-help  show this help message and exit
