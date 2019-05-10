@@ -604,7 +604,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
                 freq_list.append(item.freq)
                 # Only test util, as it should be more robust
                 res = item.test_task_util_avg()
-                passed &= bool(res)
+                group_passed &= bool(res)
                 name = '{}@{}'.format(cpu, item.freq)
                 metrics[name] = res.metrics
 
