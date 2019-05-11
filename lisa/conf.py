@@ -17,7 +17,7 @@
 
 import abc
 import copy
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, Sequence, Callable
 from collections import OrderedDict
 import difflib
 import inspect
@@ -1373,5 +1373,8 @@ class StrList(TypedList):
 
 class StrIntListDict(TypedDict):
     _type = (str, IntList)
+
+class CallableList(TypedList):
+    _type = Callable
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
