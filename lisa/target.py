@@ -280,6 +280,12 @@ class Target(Loggable, HideExekallID, Configurable):
         .. note:: That will not forward special methods like __str__, since the
             interpreter bypasses __getattr__ when looking them up.
         """
+        # Dunder names lookup is supposed to have succeeded by now, so we avoid
+        # infinite recursion when something tries to probe for '__setstate__'
+        # on an instance with an empty __dict__ (copy, pickle etc)
+        if attr.startswith('__') and attr.endswith('__'):
+            return super().__getattribute__(attr)
+
         return getattr(self.target, attr)
 
     def __dir__(self):
