@@ -77,6 +77,7 @@ usage: exekall run [\-h] [\-s ID_PATTERN] [\-\-list]
                    [\-\-allow CALLABLE_PATTERN]
                    [\-\-goal TYPE_PATTERN | \-\-callable\-goal CALLABLE_PATTERN]
                    [\-\-sweep CALLABLE_PATTERN PARAM START STOP STEP]
+                   [\-\-param CALLABLE_PATTERN PARAM VALUE]
                    [\-\-template\-scripts SCRIPT_FOLDER] [\-\-adaptor ADAPTOR]
                    [\-n N] [\-\-share TYPE_PATTERN] [\-\-random\-order]
                    [\-\-conf CONF] [\-\-inject SERIALIZED_OBJECT_PATH]
@@ -143,6 +144,11 @@ optional arguments:
                             * start value
                             * stop value
                             * step size.
+  \-\-param CALLABLE_PATTERN PARAM VALUE
+                        Set a function parameter. It needs three fields:
+                            * pattern matching qualified name of the callable
+                            * name of the parameter
+                            * value
   \-\-template\-scripts SCRIPT_FOLDER
                         Only create the template scripts of the expressions without running
                         them.

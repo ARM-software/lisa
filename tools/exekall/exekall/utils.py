@@ -109,9 +109,9 @@ def _get_callable_set(module, visited_obj_set, verbose):
                 callable_pool.add(callable_)
     return callable_pool
 
-def sweep_number(callable_, param, start, stop=None, step=1):
+def sweep_param(callable_, param, start, stop, step=1):
     """
-    Used to generate a stream of numbers to feed to a callable.
+    Used to generate a stream of numbers or strings to feed to a callable.
 
     :param callable_: Callable the numbers will be used by.
     :type callable_: collections.abc.Callable
@@ -121,35 +121,45 @@ def sweep_number(callable_, param, start, stop=None, step=1):
     :type param: str
 
     :param start: Starting value.
-    :type start: float
+    :type start: str
 
     :param stop: End value (inclusive)
-    :type stop: float
+    :type stop: str
 
     :param step: Increment step.
-    :type step: float
+    :type step: str
 
-    The type used will either be one that is annotated on the callable, or
-    the type of the value given as ``start``.
+    If ``start == stop``, only that value will be yielded, and it can be of any
+    type.
+
+    The type used will either be one that is annotated on the callable, or the
+    one from the default value if no annotation is available, or float if no
+    default value is found. The value will then be built by passing the string
+    to the type as only parameter.
     """
 
-    step = step if step > 0 else 1
-
-    annot = engine.Operator(callable_).get_prototype()[0]
+    op = engine.Operator(callable_)
+    annot = op.get_prototype()[0]
     try:
         type_ = annot[param]
     except KeyError:
-        type_ = type(start)
+        sig = op.signature
+        default = sig.parameters[param].default
+        if default is not inspect.Parameter.default and default is not None:
+            type_ = type(default)
+        else:
+            type_ = str
 
-    if stop is None:
-        stop = start
-        start = 0
+    if start == stop:
+        yield type_(start)
+    else:
+        i = type_(start)
+        step = type_(step)
+        stop = type_(stop)
+        while i <= stop:
+            yield type_(i)
+            i += step
 
-    i = type_(start)
-    step = type_(step)
-    while i <= stop:
-        yield type_(i)
-        i += step
 
 def get_method_class(function):
     """
