@@ -164,7 +164,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         return top_df
 
     @df_cpus_signals.used_events
-    def plot_cpus_signals(self, cpus=None, filepath=None, axes=None):
+    def plot_cpus_signals(self, cpus=None, **kwargs):
         """
         Plot the CPU-related load-tracking signals
 
@@ -207,10 +207,10 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 axis.set_xlim(self.trace.start, self.trace.end)
                 axis.legend()
 
-        return self.do_plot(plotter, filepath, axes, nrows=len(cpus), sharex=True)
+        return self.do_plot(plotter, nrows=len(cpus), sharex=True, **kwargs)
 
     @df_tasks_signals.used_events
-    def plot_task_signals(self, task, signals=['util', 'load'], filepath=None, axis=None):
+    def plot_task_signals(self, task, signals=['util', 'load'], **kwargs):
         """
         Plot the task-related load-tracking signals
 
@@ -240,10 +240,10 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             axis.grid(True)
             axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
     @df_tasks_signals.used_events
-    def plot_task_required_capacity(self, task, filepath=None, axis=None):
+    def plot_task_required_capacity(self, task, **kwargs):
         """
         Plot the minimum required capacity of a task
 
@@ -276,10 +276,10 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 axis.set_ylabel('Utilization')
                 axis.set_xlabel('Time (s)')
 
-        return self.do_plot(plotter, filepath, axis, height=8)
+        return self.do_plot(plotter, height=8, **kwargs)
 
     @df_tasks_signals.used_events
-    def plot_task_placement(self, task, filepath=None, axis=None):
+    def plot_task_placement(self, task, **kwargs):
         """
         Plot the CPU placement of the task
 
@@ -326,6 +326,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             axis.grid(True)
             axis.legend()
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

@@ -64,7 +64,7 @@ class CpusAnalysis(TraceAnalysisBase):
 ###############################################################################
 
     @df_context_switches.used_events
-    def plot_context_switches(self, filepath=None, axis=None):
+    def plot_context_switches(self, **kwargs):
         """
         Plot histogram of context switches on each CPU.
 
@@ -76,9 +76,9 @@ class CpusAnalysis(TraceAnalysisBase):
                 title="Per-CPU Task Context Switches", legend=False, ax=axis)
             axis.grid()
 
-        return self.do_plot(plotter, filepath, axis, height=8)
+        return self.do_plot(plotter, height=8, **kwargs)
 
-    def plot_orig_capacity(self, cpu, filepath=None, axis=None):
+    def plot_orig_capacity(self, cpu, **kwargs):
         """
         Plot the orig capacity of a CPU onto a given axis
 
@@ -93,6 +93,6 @@ class CpusAnalysis(TraceAnalysisBase):
                              color=self.get_next_color(axis),
                              linestyle='--', label="orig_capacity")
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

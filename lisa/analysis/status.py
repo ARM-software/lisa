@@ -69,7 +69,7 @@ class StatusAnalysis(TraceAnalysisBase):
 ###############################################################################
 
     @df_overutilized.used_events
-    def plot_overutilized(self, filepath=None, axis=None):
+    def plot_overutilized(self, **kwargs):
         """
         Draw the system's overutilized status as colored bands
 
@@ -100,6 +100,6 @@ class StatusAnalysis(TraceAnalysisBase):
                 axis.set_title("System-wide overutilized status")
                 axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

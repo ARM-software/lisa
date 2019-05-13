@@ -134,7 +134,7 @@ class ThermalAnalysis(TraceAnalysisBase):
 ###############################################################################
 
     @df_thermal_zones_temperature.used_events
-    def plot_thermal_zone_temperature(self, thermal_zone_id, filepath=None, axis=None):
+    def plot_thermal_zone_temperature(self, thermal_zone_id, **kwargs):
         """
         Plot temperature of thermal zones (all by default)
 
@@ -161,10 +161,10 @@ class ThermalAnalysis(TraceAnalysisBase):
                 axis.set_ylabel("Temperature (°C.10e3)")
                 axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
     @df_cpufreq_cooling_state.used_events
-    def plot_cpu_cooling_states(self, cpu, filepath=None, axis=None):
+    def plot_cpu_cooling_states(self, cpu, **kwargs):
         """
         Plot the state evolution of a cpufreq cooling device
 
@@ -192,9 +192,9 @@ class ThermalAnalysis(TraceAnalysisBase):
                 axis.grid(axis='y')
                 axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
-    def plot_dev_freq_cooling_states(self, device, filepath=None, axis=None):
+    def plot_dev_freq_cooling_states(self, device, **kwargs):
         """
         Plot the state evolution of a devfreq cooling device
 
@@ -218,7 +218,7 @@ class ThermalAnalysis(TraceAnalysisBase):
                 axis.grid(axis='y')
                 axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
 ###############################################################################
 # Utility Methods

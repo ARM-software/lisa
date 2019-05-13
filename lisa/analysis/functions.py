@@ -35,7 +35,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
     def __init__(self, trace):
         super(FunctionsAnalysis, self).__init__(trace)
 
-    def plot_profiling_stats(self, functions=None, metrics='avg', filepath=None, axes=None):
+    def plot_profiling_stats(self, functions=None, metrics='avg', **kwargs):
         """
         Plot functions profiling metrics for the specified kernel functions.
 
@@ -83,6 +83,6 @@ class FunctionsAnalysis(TraceAnalysisBase):
                 axes.set_ylabel(ylabel)
                 axes.get_xaxis().set_visible(False)
 
-        return self.do_plot(plotter, filepath, axes)
+        return self.do_plot(plotter, **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

@@ -183,7 +183,7 @@ class PerfAnalysis(AnalysisHelpers):
         default_dir = dirnames.pop()
         return self._save_plot(figure, default_dir, filepath, img_format)
 
-    def plot_perf(self, task, filepath=None, axis=None):
+    def plot_perf(self, task, **kwargs):
         """
         Plot the performance Index
 
@@ -198,9 +198,9 @@ class PerfAnalysis(AnalysisHelpers):
             data.plot(ax=axis, drawstyle='steps-post')
             axis.set_ylim(0, 2)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
-    def plot_latency(self, task, filepath=None, axis=None):
+    def plot_latency(self, task, **kwargs):
         """
         Plot the Latency/Slack and Performance data for the specified task.
 
@@ -212,9 +212,9 @@ class PerfAnalysis(AnalysisHelpers):
             data = self.get_df(task)[['Slack', 'WKPLatency']]
             data.plot(ax=axis, drawstyle='steps-post')
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
-    def plot_slack_histogram(self, task, filepath=None, axis=None):
+    def plot_slack_histogram(self, task, **kwargs):
         """
         Plot the Slack Histogram
 
@@ -230,6 +230,6 @@ class PerfAnalysis(AnalysisHelpers):
                     task, pindex_avg, pindex_std)
             axis.axvline(pindex_avg, linestyle='--', linewidth=2)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -460,7 +460,7 @@ class TasksAnalysis(TraceAnalysisBase):
 ###############################################################################
 
     @requires_events('sched_switch')
-    def plot_task_residency(self, task, filepath=None, axis=None):
+    def plot_task_residency(self, task, **kwargs):
         """
         Plot on which CPUs the task ran on over time
 
@@ -507,10 +507,10 @@ class TasksAnalysis(TraceAnalysisBase):
             axis.legend()
             axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
     @df_task_total_residency.used_events
-    def plot_task_total_residency(self, task, filepath=None, axis=None):
+    def plot_task_total_residency(self, task, **kwargs):
         """
         Plot a task's total time spent on each CPU
 
@@ -528,7 +528,7 @@ class TasksAnalysis(TraceAnalysisBase):
             axis.set_ylabel("Runtime (s)")
             axis.grid(True)
 
-        return self.do_plot(plotter, filepath, axis, height=8)
+        return self.do_plot(plotter, height=8, **kwargs)
 
     @df_tasks_total_residency.used_events
     def plot_tasks_total_residency(self, tasks=None, ascending=False,
@@ -588,7 +588,7 @@ class TasksAnalysis(TraceAnalysisBase):
         return fig, axis
 
     @requires_events("sched_wakeup")
-    def plot_tasks_wakeups(self, target_cpus=None, time_delta=0.01, filepath=None, axis=None):
+    def plot_tasks_wakeups(self, target_cpus=None, time_delta=0.01, **kwargs):
         """
         Plot task wakeups over time
 
@@ -615,7 +615,7 @@ class TasksAnalysis(TraceAnalysisBase):
             axis.set_title("Number of task wakeups within {}s windows".format(time_delta))
             axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
     @requires_events("sched_wakeup")
     def plot_tasks_wakeups_heatmap(self, xbins=100, colormap=None, filepath=None):
@@ -642,7 +642,7 @@ class TasksAnalysis(TraceAnalysisBase):
         return axis
 
     @requires_events("sched_wakeup_new")
-    def plot_tasks_forks(self, target_cpus=None, time_delta=0.01, filepath=None, axis=None):
+    def plot_tasks_forks(self, target_cpus=None, time_delta=0.01, **kwargs):
         """
         Plot task forks over time
 
@@ -669,7 +669,7 @@ class TasksAnalysis(TraceAnalysisBase):
             axis.set_title("Number of task forks within {}s windows".format(time_delta))
             axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
     @requires_events("sched_wakeup_new")
     def plot_tasks_forks_heatmap(self, xbins=100, colormap=None, filepath=None):
