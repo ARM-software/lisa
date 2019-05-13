@@ -906,7 +906,7 @@ class CPUMigrationBase(LoadTrackingBase):
     """
 
     @classmethod
-    def _run_rtapp(cls, target, res_dir, profile, ftrace_coll):
+    def _run_rtapp(cls, target, res_dir, profile, ftrace_coll, cgroup=None):
         # Just do some validation on the profile
         for name, task in profile.items():
             for phase in task.phases:
@@ -914,7 +914,7 @@ class CPUMigrationBase(LoadTrackingBase):
                     raise RuntimeError("Each phase must be tied to a single CPU. "
                                        "Task \"{}\" violates this".format(name))
 
-        super()._run_rtapp(target, res_dir, profile, ftrace_coll)
+        super()._run_rtapp(target, res_dir, profile, ftrace_coll, cgroup)
 
     def __init__(self, res_dir, plat_info):
         super().__init__(res_dir, plat_info)

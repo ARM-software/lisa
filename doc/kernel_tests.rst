@@ -265,3 +265,6 @@ Staged tests
 
 Those are tests that have been merged into LISA but whose behaviour are being
 actively evaluated.
+
+.. automodule:: lisa.tests.staging.sched_android
+   :members:
