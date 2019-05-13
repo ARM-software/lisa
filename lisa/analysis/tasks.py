@@ -455,6 +455,51 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return res_df[:count]
 
+    @df_task_states.used_events
+    def df_task_activation(self, task, cpu=None, active_value=1, sleep_value=0):
+        """
+        DataFrame of a task's active time on a given CPU
+
+        :param task: the task to report activations of
+        :type task: int or str
+
+        :param cpu: the CPUs to look at. If ``None``, all CPUs will be used.
+        :type task: int or None
+
+        :param active_value: the value to use in the series when task is
+            active.
+        :type task: float
+
+        :param active_value: the value to use in the series when task is
+            sleeping.
+        :type task: float
+
+        :returns: a :class:`pandas.DataFrame` with:
+
+          * A timestamp as index
+          * A ``active`` column, containing ``active_value`` when the task is
+            not sleeping, ``sleep_value`` otherwise.
+        """
+
+        df = self.df_task_states(task)
+
+        def f(state):
+            if state == TaskState.TASK_ACTIVE:
+                return active_value
+            elif state == TaskState.TASK_INTERRUPTIBLE:
+                return sleep_value
+
+        if cpu is not None:
+            df = df[df['cpu'] == cpu]
+
+        curr_state = df.curr_state
+        active_series = curr_state[
+            (curr_state == TaskState.TASK_ACTIVE) |
+            (curr_state == TaskState.TASK_INTERRUPTIBLE)
+        ].map(f)
+
+        return active_series.to_frame('active')
+
 ###############################################################################
 # Plotting Methods
 ###############################################################################
@@ -694,5 +739,52 @@ class TasksAnalysis(TraceAnalysisBase):
         self.save_plot(fig, filepath)
 
         return axis
+
+    @df_task_activation.used_events
+    def plot_task_activation(self, task, cpu=None, active_value=None,
+            sleep_value=None, alpha=None, overlay=False,
+            **kwargs):
+        """
+        Plot task activations, in a style similar to kernelshark.
+
+        :param task: the task to report activations of
+        :type task: int or str
+
+        :param alpha: transparency level of the plot.
+        :type task: float
+
+        :param overlay: If ``True``, assumes that ``axis`` already contains a
+            plot, so it will adjust automatically the height and transparency of
+            the plot to blend with existing data.
+        :type task: bool
+
+        .. seealso:: :meth:`df_task_activation` and
+            :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
+        """
+
+        def plotter(axis, local_fig):
+            # Adapt the steps height to the existing limits. This allows
+            # re-using an existing axis that already contains some data.
+            min_lim, max_lim = axis.get_ylim()
+            height = abs(max_lim - min_lim)
+
+            if overlay:
+                height /= 4
+                _alpha = alpha if alpha is not None else 0.5
+            else:
+                _alpha = alpha
+
+            active_value = active_value if active_value is not None else height
+            sleep_value = sleep_value if sleep_value is not None else min_lim
+
+            df = self.df_task_activation(task,
+                cpu=cpu, active_value=active_value, sleep_value=sleep_value,
+            )
+            if not df.empty:
+                axis.fill_between(df.index, df['active'], step='post',
+                    alpha=_alpha
+                )
+
+        return self.do_plot(plotter, **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
