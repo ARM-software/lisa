@@ -38,7 +38,7 @@ import devlib
 
 from lisa.utils import Loggable, get_subclasses, ArtifactPath, HideExekallID
 from lisa.conf import (
-    MultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable,
+    SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable,
     StrList, FloatList
 )
 from lisa.target import Target
@@ -122,7 +122,7 @@ class EnergyMeter(Loggable, Configurable):
         """
         pass
 
-class HWMonConf(MultiSrcConf, HideExekallID):
+class HWMonConf(SimpleMultiSrcConf, HideExekallID):
     """
     Configuration class for :class:`HWMon`.
 
@@ -300,7 +300,7 @@ class _DevlibContinuousEnergyMeter(EnergyMeter):
                 channels_nrg[site] = area_under_curve(df[site]['power'])
         return channels_nrg
 
-class AEPConf(MultiSrcConf, HideExekallID):
+class AEPConf(SimpleMultiSrcConf, HideExekallID):
     """
     Configuration class for :class:`AEP`.
 
@@ -343,7 +343,7 @@ class AEP(_DevlibContinuousEnergyMeter):
         logger.info('   %s', str(self._instrument.active_channels))
         logger.debug('Results dir: %s', self._res_dir)
 
-class MonsoonConf(MultiSrcConf, HideExekallID):
+class MonsoonConf(SimpleMultiSrcConf, HideExekallID):
     """
     Configuration class for :class:`Monsoon`.
 
@@ -382,7 +382,7 @@ _acme_install_instructions = '''
 
 '''
 
-class ACMEConf(MultiSrcConf, HideExekallID):
+class ACMEConf(SimpleMultiSrcConf, HideExekallID):
     """
     Configuration class for :class:`ACME`.
 
@@ -593,7 +593,7 @@ class ACME(EnergyMeter):
 
         return EnergyReport(channels_nrg, nrg_file, None)
 
-class Gem5EnergyMeterConf(MultiSrcConf, HideExekallID):
+class Gem5EnergyMeterConf(SimpleMultiSrcConf, HideExekallID):
     """
     Configuration class for :class:`Gem5EnergyMeter`.
 
