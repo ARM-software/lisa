@@ -1466,6 +1466,7 @@ class FtraceCollector(devlib.FtraceCollector, Loggable, Configurable):
 
     def __init__(self, target, events=[], functions=[], buffer_size=10240, autoreport=False, **kwargs):
         kwargs.update(dict(
+            target=target,
             events=events,
             functions=functions,
             buffer_size=buffer_size,
@@ -1473,7 +1474,7 @@ class FtraceCollector(devlib.FtraceCollector, Loggable, Configurable):
         ))
         self.check_init_param(**kwargs)
 
-        super().__init__(target, **kwargs)
+        super().__init__(**kwargs)
         # Ensure we have trace-cmd on the target
         self.target.install_tools(['trace-cmd'])
 
@@ -1490,7 +1491,9 @@ class FtraceCollector(devlib.FtraceCollector, Loggable, Configurable):
         """
         cls.get_logger().info('Ftrace configuration:\n{}'.format(conf))
         kwargs = cls.conf_to_init_kwargs(conf)
-        return cls(target, **kwargs)
+        kwargs['target'] = target
+        cls.check_init_param(**kwargs)
+        return cls(**kwargs)
 
     @classmethod
     def from_user_conf(cls, target, base_conf=None, user_conf=None, merged_src='merged'):
