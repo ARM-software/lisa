@@ -25,7 +25,7 @@ import inspect
 import itertools
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.utils import Loggable, get_subclasses
+from lisa.utils import Loggable
 
 class AnalysisProxy(Loggable):
     """
@@ -39,16 +39,23 @@ class AnalysisProxy(Loggable):
         self.trace = trace
         # Get the list once when the proxy is built, since we know all classes
         # will have had a chance to get registered at that point
-        self._class_map = {
-            cls.name: cls
-            for cls in get_subclasses(TraceAnalysisBase)
-            # Classes without a "name" attribute directly defined in their
-            # scope will not get registered. That allows having unnamed
-            # intermediate base classes that are not meant to be exposed.
-            if 'name' in cls.__dict__
-        }
-
+        self._class_map = TraceAnalysisBase.get_analysis_classes()
         self._instance_map = {}
+
+    @classmethod
+    def get_all_events(cls):
+        """
+        Returns the set of all events used by any of the registered analysis.
+        """
+
+        def predicate(f):
+            return callable(f) and hasattr(f, 'used_events')
+
+        return set(itertools.chain(
+            attr.used_events.get_all_events()
+            for name, attr in inspect.getmembers(cls, predicate=predicate)
+            for cls in TraceAnalysisBase.get_analysis_classes().values()
+        ))
 
     def __dir__(self):
         """Provide better completion support for interactive notebook usage"""

@@ -22,7 +22,7 @@ import mimetypes
 import matplotlib.pyplot as plt
 from cycler import cycler
 
-from lisa.utils import Loggable
+from lisa.utils import Loggable, get_subclasses
 
 # Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
 COLOR_CYCLES = [
@@ -204,5 +204,16 @@ class TraceAnalysisBase(AnalysisHelpers):
         """
         default_dir = self.trace.plots_dir
         return self._save_plot(figure, default_dir, filepath, img_format)
+
+    @classmethod
+    def get_analysis_classes(cls):
+        return {
+            subcls.name: subcls
+            for subcls in get_subclasses(cls)
+            # Classes without a "name" attribute directly defined in their
+            # scope will not get registered. That allows having unnamed
+            # intermediate base classes that are not meant to be exposed.
+            if 'name' in subcls.__dict__
+        }
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
