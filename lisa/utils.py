@@ -757,7 +757,7 @@ def non_recursive_property(f):
     def wrapper(self, *args, **kwargs):
         if _get(self):
             raise AttributeError('Recursive access to property "{}.{}" while computing its value'.format(
-                type(self), f.__qualname__,
+                self.__class__.__qualname__, f.__name__,
             ))
 
         try:
