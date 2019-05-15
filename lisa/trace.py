@@ -282,8 +282,12 @@ class Trace(Loggable, TraceBase):
         self.overutilized_time = 0
         self.overutilized_prc = 0
 
+        # Import here to avoid a circular dependency issue at import time
+        # with lisa.analysis.base
+        from lisa.analysis.proxy import AnalysisProxy
+
         # List of events required by user
-        self.events = self._process_events(events)
+        self.events = self._process_events(events, AnalysisProxy)
 
         # List of events available in the parsed trace
         self.available_events = []
@@ -301,9 +305,6 @@ class Trace(Loggable, TraceBase):
 
         self._parse_trace(self.trace_path, trace_format)
 
-        # Import here to avoid a circular dependency issue at import time
-        # with lisa.analysis.base
-        from lisa.analysis.proxy import AnalysisProxy
         self.analysis = AnalysisProxy(self)
 
     @property
@@ -321,16 +322,17 @@ class Trace(Loggable, TraceBase):
             return count
 
     @staticmethod
-    def _process_events(events):
+    def _process_events(events, proxy_cls):
         """
         Process the `events` parameter of :meth:`Trace.__init__`.
 
         :param events: single event name or list of events names
         :type events: str or list(str)
         """
-        # Parse all events by default
+        # Merge all the events that we expect to see, plus all the ones that
+        # can be useful to any analysis method
         if events is None:
-            events = []
+            events = sorted(proxy_cls.get_all_events())
         elif isinstance(events, str):
             events = [events]
         elif isinstance(events, Sequence):
