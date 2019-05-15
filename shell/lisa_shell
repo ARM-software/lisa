@@ -175,8 +175,10 @@ function _lisa-install-nbextensions {
     which jupyter &>/dev/null || return
     if which node &>/dev/null; then
         echo
-        echo "Enabling ipywidget extensions..."
-        jupyter labextension install @jupyter-widgets/jupyterlab-manager
+        echo "Installing jupyter lab extensions..."
+        jupyter labextension install                    \
+            @jupyter-widgets/jupyterlab-manager         \
+            jupyter-matplotlib                          \
         return
     fi
 
