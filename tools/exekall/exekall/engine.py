@@ -1814,7 +1814,7 @@ class ClassContext:
 
     # Map of all produced types to a set of what operator can create them
     @staticmethod
-    def _build_op_map(op_set, cls_map, forbidden_pattern_set):
+    def _build_op_map(op_set, cls_map):
         # Make sure that the provided PrebuiltOperator will be the only ones used
         # to provide their types
         only_prebuilt_cls = set(itertools.chain.from_iterable(
@@ -1829,15 +1829,12 @@ class ClassContext:
         for op in op_set:
             param_map, produced = op.get_prototype()
             is_prebuilt_op = isinstance(op, PrebuiltOperator)
-            if (
-                (is_prebuilt_op or produced not in only_prebuilt_cls)
-                and not utils.match_base_cls(produced, forbidden_pattern_set)
-            ):
+            if is_prebuilt_op or produced not in only_prebuilt_cls:
                 op_map.setdefault(produced, set()).add(op)
         return op_map
 
     @staticmethod
-    def _restrict_op_map(op_map, cls_map, restricted_pattern_set):
+    def _filter_op_map(op_map, cls_map, restricted_pattern_set, forbidden_pattern_set):
         cls_map = copy.copy(cls_map)
 
         # Restrict the production of some types to a set of operators.
@@ -1858,10 +1855,21 @@ class ClassContext:
                 cls_map[produced] = [produced]
                 return restricted_op_set
             else:
-                return op_set
+                if utils.match_base_cls(produced, forbidden_pattern_set):
+                    return set()
+                else:
+                    return op_set
+
         op_map = {
             produced: apply_restrict(produced, op_set, restricted_op_set, cls_map)
             for produced, op_set in op_map.items()
+        }
+
+        # Remove entries with empty op_set
+        op_map = {
+            produced: op_set
+            for produced, op_set in op_map.items()
+            if op_set
         }
 
         return (op_map, cls_map)
@@ -1892,8 +1900,11 @@ class ClassContext:
         # Build the mapping of compatible classes
         cls_map = cls._build_cls_map(op_set, compat_cls)
         # Build the mapping of classes to producing operators
-        op_map = cls._build_op_map(op_set, cls_map, forbidden_pattern_set)
-        op_map, cls_map = cls._restrict_op_map(op_map, cls_map, restricted_pattern_set)
+        op_map = cls._build_op_map(op_set, cls_map)
+        op_map, cls_map = cls._filter_op_map(op_map, cls_map,
+            restricted_pattern_set,
+            forbidden_pattern_set
+        )
 
         return cls(
             op_map=op_map,
