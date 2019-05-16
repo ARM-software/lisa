@@ -107,7 +107,7 @@ def get_method_class(function):
         return None
     return eval(cls_name, function.__globals__)
 
-def get_name(obj, full_qual=True, qual=True):
+def get_name(obj, full_qual=True, qual=True, pretty=False):
     """
     Get a name for ``obj`` (function or class) that can be used in a generated
     script.
@@ -117,12 +117,30 @@ def get_name(obj, full_qual=True, qual=True):
 
     :param qual: Qualified name of the object
     :type qual: bool
+
+    :param pretty: If ``True``, will show a prettier name for some types,
+        although it is not guarnateed it will actually be a type name. For example,
+        ``type(None)`` will be shown as ``None`` instead of ``NoneType``.
+    :type pretty: bool
     """
     # full_qual enabled implies qual enabled
     _qual = qual or full_qual
     # qual disabled implies full_qual disabled
     full_qual = full_qual and qual
     qual = _qual
+
+    if qual:
+        _get_name = lambda x: x.__qualname__
+    else:
+        _get_name = lambda x: x.__name__
+
+    if pretty:
+        for prettier_obj in {None, NoValue}:
+            if obj == type(prettier_obj):
+                # For these types, qual=False or qual=True makes no difference
+                obj = prettier_obj
+                _get_name = lambda x: str(x)
+                break
 
     # Add the module's name in front of the name to get a fully
     # qualified name
@@ -135,11 +153,6 @@ def get_name(obj, full_qual=True, qual=True):
         )
     else:
         module_name = ''
-
-    if qual:
-        _get_name = lambda x: x.__qualname__
-    else:
-        _get_name = lambda x: x.__name__
 
     # Classmethods appear as bound method of classes. Since each subclass will
     # get a different bound method object, we want to reflect that in the

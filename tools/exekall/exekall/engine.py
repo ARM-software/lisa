@@ -699,7 +699,7 @@ class ExpressionBase(ExprHelpers):
 
     def __repr__(self):
         return '<Expression of {name} at {id}>'.format(
-            name=self.op.get_name(full_qual=True),
+            name=self.op.get_name(full_qual=True, pretty=True),
             id = hex(id(self))
         )
 
@@ -723,11 +723,11 @@ class ExpressionBase(ExprHelpers):
     @staticmethod
     def _format_structure_op_name(op):
         if isinstance(op, ConsumerOperator):
-            return op.get_name(full_qual=True)
+            return op.get_name(full_qual=True, pretty=True)
         elif isinstance(op, PrebuiltOperator):
             return '<provided>'
         else:
-            return op.get_name(full_qual=True)
+            return op.get_name(full_qual=True, pretty=True)
 
     def _format_structure(self, full_qual=True, indent=1):
         indent_str = 4 * ' ' * indent
@@ -735,7 +735,10 @@ class ExpressionBase(ExprHelpers):
         op_name = self._format_structure_op_name(self.op)
         out = '{op_name} ({value_type_name})'.format(
             op_name = op_name,
-            value_type_name = utils.get_name(self.op.value_type, full_qual=full_qual),
+            value_type_name = utils.get_name(self.op.value_type,
+                full_qual=full_qual,
+                pretty=True,
+            ),
         )
         if self.param_map:
             out += ':\n'+ indent_str + ('\n'+indent_str).join(
@@ -769,7 +772,10 @@ class ExpressionBase(ExprHelpers):
             uid=uid,
             op_name=op_name,
             reusable='(reusable)' if self.op.reusable else '(non-reusable)',
-            value_type_name=utils.get_name(self.op.value_type, full_qual=full_qual),
+            value_type_name=utils.get_name(self.op.value_type,
+                full_qual=full_qual,
+                pretty=True,
+            ),
             loc=src_loc,
         )]
         if self.param_map:
@@ -2414,9 +2420,9 @@ class Operator:
         """
         if style == 'rst':
             if self.is_factory_cls_method:
-                qualname = utils.get_name(self.value_type, full_qual=True)
+                qualname = utils.get_name(self.value_type, full_qual=True, pretty=True)
             else:
-                qualname = self.get_name(full_qual=True)
+                qualname = self.get_name(full_qual=True, pretty=True)
             name = self.get_id(full_qual=full_qual, qual=qual, style=None)
 
             if self.is_class:
@@ -2432,9 +2438,10 @@ class Operator:
             # Factory classmethods are replaced by the class name when not
             # asking for a qualified ID
             if not (qual or full_qual) and self.is_factory_cls_method:
-                return utils.get_name(self.value_type, full_qual=full_qual, qual=qual)
+                type_ = self.value_type
             else:
-                return self.get_name(full_qual=full_qual, qual=qual)
+                type_ = None
+            return utils.get_name(type_, full_qual=full_qual, qual=qual, pretty=True)
 
     @property
     def name(self):
@@ -3166,7 +3173,7 @@ class ExprValBase(ExprHelpers):
             params=params,
             joiner=':' + joiner if params else '',
             uuid=self.uuid,
-            type = utils.get_name(type(value), full_qual=full_qual),
+            type = utils.get_name(type(value), full_qual=full_qual, pretty=True),
         )
 
 
