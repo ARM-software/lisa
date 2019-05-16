@@ -61,7 +61,8 @@ class Sysbench(Workload):
 
 
     def run(self, cpus=None, cgroup=None, background=False, as_root=False,
-            test="cpu", max_duration_s=None, max_requests=None, **kwargs):
+            test="cpu", max_duration_s=None, max_requests=None,
+            num_threads=None, **kwargs):
         """
         Execute the workload on the configured target.
 
@@ -86,6 +87,9 @@ class Sysbench(Workload):
         :param: max_requests: Maximum number of event requests
         :type max_requests: int
 
+        :param: num_threads: Number of threads
+        :type num_threads: int
+
         :Keyword arguments: Additionnal arguments required by the specific
           test (run ``sysbench --test=<test> help``). Due to Python limitations,
           use ``_`` instead of ``-`` for argument naming.
@@ -99,6 +103,9 @@ class Sysbench(Workload):
 
         if max_requests is not None:
             command = "{} --max-requests={}".format(command, max_requests)
+
+        if num_threads is not None:
+            command = "{} --num-threads={}".format(command, num_threads)
 
         extra_args = " ".join(["--{}={}".format(arg.replace("_", "-"), value)
                                for arg, value in list(kwargs.items())])
