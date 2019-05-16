@@ -65,6 +65,9 @@ Here are some noteworthy sections:
   [Slides](http://events.linuxfoundation.org/sites/events/files/slides/ELC16_LISA_20160326.pdf)
   and [Video](https://www.youtube.com/watch?v=yXZzzUEngiU)
 
+  Note: the LISA classes referred by the slides are outdated, but all the other
+  concepts and the overall architecture stays the same. 
+
 # License
 
 This project is licensed under Apache-2.0.
