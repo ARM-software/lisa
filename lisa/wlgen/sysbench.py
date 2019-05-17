@@ -16,6 +16,7 @@
 #
 
 import re
+from shlex import quote
 
 from lisa.utils import memoized
 from lisa.wlgen.workload import Workload
@@ -92,21 +93,20 @@ class Sysbench(Workload):
 
         The standard output will be saved into a file in ``self.res_dir``
         """
-        command = "{} --test={}".format(self.sysbench_bin, test)
+        kwargs['test'] = test
 
         if max_duration_s is not None:
-            command = "{} --max-time={}".format(command, max_duration_s)
+            kwargs['max-time'] = max_duration_s
 
         if max_requests is not None:
-            command = "{} --max-requests={}".format(command, max_requests)
+            kwargs['max-requests'] = max_requests
 
-        extra_args = " ".join(["--{}={}".format(arg.replace("_", "-"), value)
-                               for arg, value in list(kwargs.items())])
-        if extra_args:
-            command = "{} {}".format(command, extra_args)
+        arg_list = [self.sysbench_bin] + [
+            quote('--{}={}'.format(arg.replace("_", "-"), value))
+            for arg, value in kwargs.items()
+        ] + ['run']
 
-        self.command = "{} run".format(command)
-
+        self.command = ' '.join(arg_list)
         super().run(cpus, cgroup, background, as_root)
 
         self.output = SysbenchOutput(self.output)
