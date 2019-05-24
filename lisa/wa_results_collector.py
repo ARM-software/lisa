@@ -894,7 +894,8 @@ class WaResultsCollector(Loggable):
         return self.CDF(df, threshold, above, below)
 
     def plot_cdf(self, workload='jankbench', metric='frame_total_duration',
-                 threshold=16, tag='.*', kernel='.*', test='.*'):
+                 threshold=16, top_most=None, ncol=1,
+                 tag='.*', kernel='.*', test='.*'):
         """
         Display cumulative distribution functions of a certain metric
 
@@ -907,18 +908,34 @@ class WaResultsCollector(Loggable):
         under Jankbench, so default parameters are provided to make this easy.
 
         :param workload: Name of workload to display metrics for
+        :type workload: str
+
         :param metric: Name of metric to display
+        :type metric: str
 
         :param threshold: Value to highlight in the plot - the likely use for
                           this is highlighting the maximum acceptable
                           frame-rendering time in order to see at a glance the
                           rough proportion of frames that were rendered in time.
+        :type threshold: int
+
+        :param top_most: Maximum number of CDFs to plot, all available plots
+                         if not specified
+        :type top_most: int
+
+        :param ncol: Number of columns in the legend, default: 1. If more than
+                     one column is requested the legend will be force placed
+                     below the plot to avoid covering the data.
+        :type ncol: int
 
         :param tag: regular expression to filter tags that should be plotted
+        :type tag: int
+
         :param kernel: regular expression to filter kernels that should be plotted
-        :param tag: regular expression to filter tags that should be plotted
+        :type kernel: int
 
-        :param by: List of identifiers to group output as in DataFrame.groupby.
+        :param tests: regular expression to filter tests that should be plotted
+        :type tests: str
         """
         logger = self.get_logger()
 
@@ -933,27 +950,41 @@ class WaResultsCollector(Loggable):
         colors = iter(cm.rainbow(np.linspace(0, 1, test_cnt+1)))
 
         fig, axes = plt.subplots()
-        axes.axvspan(0, threshold, facecolor='g', alpha=0.1);
+        axes.axvspan(0, threshold, facecolor='g', alpha=0.1)
+
+        # Pre-compute CDFs to support sorted plotting
+        data = []
+        for keys, df in df.groupby(['test', 'tag', 'kernel']):
+            cdf = self._get_cdf(df['value'], threshold)
+            data.append((keys, df, cdf))
 
         labels = []
         lines = []
-        for keys, df in df.groupby(['test', 'tag', 'kernel']):
-            labels.append("{:16s}: {:32s}".format(keys[2], keys[1]))
+        if top_most is None:
+            top_most = len(data)
+        for (keys, df, cdf) in sorted(data, key=lambda x: x[2].below,
+                                      reverse=True)[:top_most]:
             color = next(colors)
-            cdf = self._get_cdf(df['value'], threshold)
-            [units] = df['units'].unique()
-            ax = cdf.df.plot(ax=axes, legend=False, xlim=(0,None), figsize=(16, 6),
-                             title='Total duration CDF ({:.1f}% within {} [{}] threshold)'\
-                             .format(100. * cdf.below, threshold, units),
-                             label=test,
-                             color=to_hex(color))
-            lines.append(ax.lines[-1])
+            cdf.df.plot(legend=False, xlim=(0,None), figsize=(16, 6),
+                        label=test, color=to_hex(color))
+            lines.append(axes.lines[-1])
             axes.axhline(y=cdf.below, linewidth=1,
                          linestyle='--', color=to_hex(color))
+            labels.append("{:16s}: {:32s} ({:4.1f}%)".format(
+                          keys[2], keys[1], 100. * cdf.below))
+
             logger.debug("%-32s: %-32s: %.1f", keys[2], keys[1], 100.*cdf.below)
 
+        [units] = df['units'].unique()
+        axes.set_title('Total duration CDFs (% within {} [{}] threshold)'\
+                     .format(threshold, units))
         axes.grid(True)
-        axes.legend(lines, labels)
+        if ncol < 2:
+            axes.legend(lines, labels, loc='best')
+        else:
+            axes.legend(lines, labels, loc='upper left',
+                        ncol=ncol, bbox_to_anchor=(0, -.15))
+
         plt.show()
 
     def find_comparisons(self, base_id=None, by='kernel'):
