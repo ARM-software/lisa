@@ -287,12 +287,16 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
 
     @requires_events('cpu_frequency')
-    def plot_cpu_frequencies(self, cpu, filepath=None, axis=None):
+    def plot_cpu_frequencies(self, cpu, average=True, filepath=None, axis=None):
         """
         Plot frequency for the specified CPU
 
         :param cpu: The CPU for which to plot frequencies
         :type cpus: int
+
+        :param average: If ``True``, add a horizontal line which is the
+            frequency average.
+        :type average: bool
 
         If ``sched_overutilized`` events are available, the plots will also
         show the intervals of time where the system was overutilized.
@@ -316,10 +320,9 @@ class FrequencyAnalysis(TraceAnalysisBase):
             "Average frequency for CPU{} : {:.3f} GHz".format(cpu, avg/1e6))
 
         def plotter(axis, local_fig):
-            df['frequency'].plot(
-                ax=axis, drawstyle='steps-post')
+            df['frequency'].plot(ax=axis, drawstyle='steps-post')
 
-            if avg > 0:
+            if average and avg > 0:
                 axis.axhline(avg, color=self.get_next_color(axis), linestyle='--',
                              label="average")
 

@@ -210,12 +210,15 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         return self.do_plot(plotter, filepath, axes, nrows=len(cpus), sharex=True)
 
     @df_tasks_signals.used_events
-    def plot_task_signals(self, task, filepath=None, axis=None):
+    def plot_task_signals(self, task, signals=['util', 'load'], filepath=None, axis=None):
         """
         Plot the task-related load-tracking signals
 
         :param task: The name or PID of the task
         :type task: str or int
+
+        :param signals: List of signals to plot.
+        :type signals: list(str)
 
         .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
@@ -225,8 +228,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         df = df[df.pid == pid]
 
         def plotter(axis, local_fig):
-            df[['util']].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
-            df[['load']].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
+            for signal in signals:
+                df[[signal]].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
             plot_overutilized = self.trace.analysis.status.plot_overutilized
             if self.trace.has_events(plot_overutilized.used_events):
