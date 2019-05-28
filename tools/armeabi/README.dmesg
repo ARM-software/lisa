@@ -1,0 +1,11 @@
+dmesg built from:
+https://github.com/ARM-software/third-party-source bcc5f35d03c70e67860ddbcc0b737f69d53979d7
+util-linux/20160115_util-linux_v2.52.2.tar.xz
+
+Configured with:
+export CC=arm-linux-gnueabi-gcc
+./autogen.sh
+./configure --host=arm-linux-gnueabi --disable-shared --without-ncurses --prefix=/data/third-party-source/util-linux/ --enable-static-programs=dmesg --without-python 
+
+Built with:
+make LDFLAGS="--static" dmesg && arm-linux-gnueabi-strip dmesg

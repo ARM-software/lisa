@@ -104,7 +104,11 @@ class PerfCollector(TraceCollector):
             self.target.kick_off(command)
 
     def stop(self):
+        self.target.killall('perf', signal='SIGINT',
+                            as_root=self.target.is_rooted)
+        # perf doesn't transmit the signal to its sleep call so handled here:
         self.target.killall('sleep', as_root=self.target.is_rooted)
+        # NB: we hope that no other "important" sleep is on-going
 
     # pylint: disable=arguments-differ
     def get_trace(self, outdir):
