@@ -155,7 +155,7 @@ class Target(object):
     def number_of_cpus(self):
         num_cpus = 0
         corere = re.compile(r'^\s*cpu\d+\s*$')
-        output = self.execute('ls /sys/devices/system/cpu')
+        output = self.execute('ls /sys/devices/system/cpu', as_root=self.is_rooted)
         for entry in output.split():
             if corere.match(entry):
                 num_cpus += 1
@@ -385,6 +385,9 @@ class Target(object):
 
     def execute(self, command, timeout=None, check_exit_code=True,
                 as_root=False, strip_colors=True, will_succeed=False):
+        # Ensure to use deployed command when availables
+        if self.executables_directory:
+            command = "PATH={}:$PATH && {}".format(self.executables_directory, command)
         return self.conn.execute(command, timeout=timeout,
                 check_exit_code=check_exit_code, as_root=as_root,
                 strip_colors=strip_colors, will_succeed=will_succeed)
