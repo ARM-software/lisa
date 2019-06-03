@@ -165,12 +165,17 @@ class ValueDB:
         :class:`PrebuiltOperator` when the original object is also available.
         """
         db_list = list(db_list)
+        if not db_list:
+            return cls([])
+
         adaptor_cls_set = {
             db.adaptor_cls
             for db in db_list
         }
-        if len(adaptor_cls_set) != 1:
+        if len(adaptor_cls_set - {None}) != 1:
             raise ValueError('Cannot merge ValueDB with different adaptor classes: {}'.format(adaptor_cls_set))
+        # If None was used, assume it is compatible with anything
+        adaptor_cls_set.discard(None)
         adaptor_cls = utils.take_first(adaptor_cls_set)
 
         if roots_from is not None:
