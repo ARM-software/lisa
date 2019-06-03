@@ -337,11 +337,11 @@ EXAMPLE:
     # Merge DB before comparison
     print('Merging the new artifacts for comparison ...')
     merged_artifact = cleanup(work_area/'merged_new_exekall_artifacts')
-
-    print('Comparing the results ...')
     merged_artifact_dir = exekall_merge(merged_artifact, new_db_path_deque)
 
+    print('Comparing the results ...')
     out = exekall_compare(ref_db_path, merged_artifact_dir/DB_FILENAME)
+
     print('\n\nRegressions/improvements:')
     print(out)
 
