@@ -29,8 +29,6 @@ from inspect import signature
 import inspect
 import copy
 
-from devlib.trace.dmesg import DmesgCollector
-
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.trace import Trace, requires_events
 from lisa.wlgen.rta import RTA
@@ -39,7 +37,7 @@ from lisa.utils import (
     Serializable, memoized, ArtifactPath, non_recursive_property,
     LayeredMapping
 )
-from lisa.trace import FtraceCollector, FtraceConf
+from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
 
 class TestMetric:
     """

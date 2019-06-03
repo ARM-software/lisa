@@ -1532,4 +1532,17 @@ class FtraceCollector(devlib.FtraceCollector, Loggable, Configurable):
         )
         return cls.from_conf(target, conf)
 
+
+class DmesgCollector(devlib.DmesgCollector):
+    """
+    Wrapper around :class:`devlib.trace.dmesg.DmesgCollector`.
+
+    It installs the ``dmesg`` tool automatically on the target upon creation,
+    so we know what version is being is used.
+    """
+    def __init__(self, target, *args, **kwargs):
+        # Make sure we use the binary that is known to work
+        target.install_tools(['dmesg'])
+        super().__init__(target, *args, **kwargs)
+
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
