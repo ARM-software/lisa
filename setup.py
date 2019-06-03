@@ -110,6 +110,7 @@ setup(
             "ipython",
             "jupyterlab",
             "ipywidgets",
+            "ipympl", # For %matplotlib widget under jupyter lab
         ],
 
         "doc": [
