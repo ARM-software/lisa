@@ -20,7 +20,7 @@ import os.path
 import abc
 
 from lisa.wlgen.rta import RTA, Periodic
-from lisa.tests.base import TestBundle, Result, ResultBundle, RTATestBundle
+from lisa.tests.base import TestBundle, Result, ResultBundle, RTATestBundle, AggregatedResultBundle
 from lisa.trace import Trace, FtraceCollector, FtraceConf, requires_events
 from lisa.target import Target
 from lisa.utils import ArtifactPath
@@ -108,7 +108,8 @@ class SchedTuneBase(TestBundle):
     @abc.abstractmethod
     def _create_test_bundles(cls, target, res_dir, ftrace_coll):
         """
-        Collects and yields a ResultBundle per test item.
+        Collects and yields a :class:`lisa.tests.base.ResultBundle` per test
+        item.
         """
         pass
 
@@ -128,19 +129,6 @@ class SchedTuneBase(TestBundle):
                     item_cls.__name__, boost, prefer_idle))
         return item_cls.from_target(target, boost, prefer_idle, res_dir=item_dir, ftrace_coll=ftrace_coll)
 
-    def _merge_res_bundles(self, res_bundles):
-        """
-        Merge a set of result bundles
-        """
-        overall_bundle = ResultBundle.from_bool(all(res_bundles.values()))
-        for name, bundle in res_bundles.items():
-            overall_bundle.add_metric(name, bundle.metrics)
-
-        overall_bundle.add_metric('failed', [
-            name for name, bundle in res_bundles.items()
-            if bundle.result is Result.FAILED
-        ])
-        return overall_bundle
 
 class SchedTuneFreqItem(SchedTuneItemBase):
     """
@@ -216,6 +204,7 @@ class SchedTuneFreqItem(SchedTuneItemBase):
         res = ResultBundle.from_bool(distance < freq_margin_pct)
         res.add_metric("target freq", target_freq, 'kHz')
         res.add_metric("average freq", avg_freq, 'kHz')
+        res.add_metric("boost", boost, '%')
 
         return res
 
@@ -234,16 +223,15 @@ class SchedTuneFrequencyTest(SchedTuneBase):
             yield cls._create_test_bundle_item(target, res_dir, ftrace_coll,
                     SchedTuneFreqItem, boost, False)
 
-    def test_stune_frequency(self, freq_margin_pct=10) -> ResultBundle:
+    def test_stune_frequency(self, freq_margin_pct=10) -> AggregatedResultBundle:
         """
         .. seealso:: :meth:`SchedTuneFreqItem.test_stune_frequency`
         """
-        res_bundles = {
-                'boost{}'.format(b.boost): b.test_stune_frequency(freq_margin_pct)
-                for b in self.test_bundles
-        }
-        return self._merge_res_bundles(res_bundles)
-
+        item_res_bundles = [
+            item.test_stune_frequency(freq_margin_pct)
+            for item in self.test_bundles
+        ]
+        return AggregatedResultBundle(item_res_bundles, 'boost')
 
 class SchedTunePlacementItem(SchedTuneItemBase):
     """
@@ -292,6 +280,7 @@ class SchedTunePlacementItem(SchedTuneItemBase):
         pct_ko = time_ko * 100 / total_time
         res = ResultBundle.from_bool(pct_ko < bad_cpu_margin_pct)
         res.add_metric("time spent on inappropriate CPUs", pct_ko, '%')
+        res.add_metric("boost", boost, '%')
 
         return res
 
@@ -311,14 +300,14 @@ class SchedTunePlacementTest(SchedTuneBase):
             yield cls._create_test_bundle_item(target, res_dir, ftrace_coll,
                     SchedTunePlacementItem, boost, True)
 
-    def test_stune_task_placement(self, margin_pct=10) -> ResultBundle:
+    def test_stune_task_placement(self, margin_pct=10) -> AggregatedResultBundle:
         """
         .. seealso:: :meth:`SchedTunePlacementItem.test_stune_task_placement`
         """
-        res_bundles = {
-                'boost{}'.format(b.boost): b.test_stune_task_placement(margin_pct)
-                for b in self.test_bundles
-        }
-        return self._merge_res_bundles(res_bundles)
+        item_res_bundles = [
+            item.test_stune_task_placement(margin_pct)
+            for item in self.test_bundles
+        ]
+        return AggregatedResultBundle(item_res_bundles, 'boost')
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
