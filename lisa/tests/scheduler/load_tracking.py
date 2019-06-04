@@ -362,6 +362,7 @@ class InvarianceItem(LoadTrackingBase):
         return bundle
 
     @_test_signal.used_events
+    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_task_util_avg(self, allowed_error_pct=15) -> ResultBundle:
         """
         Test that the mean of the util_avg signal matched the expected value
@@ -382,6 +383,7 @@ class InvarianceItem(LoadTrackingBase):
         return self._test_signal('util', allowed_error_pct)
 
     @_test_signal.used_events
+    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_task_load_avg(self, allowed_error_pct=15) -> ResultBundle:
         """
         Test that the mean of the load_avg signal matched the expected value.
@@ -831,6 +833,7 @@ class PELTTask(LoadTrackingBase):
         return res
 
     @_test_range.used_events
+    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_util_avg_range(self, allowed_error_pct=1.5) -> ResultBundle:
         """
         Test that the util_avg value ranges (min, max) are sane
@@ -840,6 +843,7 @@ class PELTTask(LoadTrackingBase):
         return self._test_range('util', allowed_error_pct)
 
     @_test_range.used_events
+    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_load_avg_range(self, allowed_error_pct=1.5) -> ResultBundle:
         """
         Test that the load_avg value ranges (min, max) are sane
@@ -849,6 +853,7 @@ class PELTTask(LoadTrackingBase):
         return self._test_range('load', allowed_error_pct)
 
     @_test_behaviour.used_events
+    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_util_avg_behaviour(self, error_margin_pct=7, allowed_error_pct=5)\
         -> ResultBundle:
         """
@@ -864,6 +869,7 @@ class PELTTask(LoadTrackingBase):
         return self._test_behaviour('util', error_margin_pct, allowed_error_pct)
 
     @_test_behaviour.used_events
+    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_load_avg_behaviour(self, error_margin_pct=7, allowed_error_pct=5)\
         -> ResultBundle:
         """
@@ -990,6 +996,7 @@ class CPUMigrationBase(LoadTrackingBase):
         return cpu_util
 
     @get_trace_cpu_util.used_events
+    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_util_task_migration(self, allowed_error_pct=5) -> ResultBundle:
         """
         Test that a migrated task properly propagates its utilization at the CPU level
