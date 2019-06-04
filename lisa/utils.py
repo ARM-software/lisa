@@ -17,7 +17,7 @@
 
 import abc
 import copy
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 from collections import OrderedDict
 import contextlib
 import inspect
@@ -754,5 +754,54 @@ def non_recursive_property(f):
             _set(self, False)
 
     return property(wrapper)
+
+class LayeredMapping(MutableMapping):
+    """
+    A layered mutable mapping that allows setting values in a ``top`` layer,
+    while values from ``base`` layer cannot be modified.
+
+    :param base: Base layer that will be read-only
+    :type base: collections.abc.Mapping
+
+    :param top: Top layer that will be read-write and have priority over
+        ``base``.
+    :type base: collections.abc.MutableMapping
+    """
+    def __init__(self, base, top=None):
+        self.base = base
+        self.top = top if top is not None else {}
+
+    @property
+    def _merged(self):
+        merged = dict(self.base)
+        merged.update(self.top)
+        return merged
+
+    def __getitem__(self, key):
+        return self._merged[key]
+
+    def __setitem__(self, key, val):
+        self.top[key] = val
+
+    def __delitem__(self, key):
+        del self.top[key]
+
+    def __iter__(self):
+        return iter(self._merged)
+
+    def __len__(self):
+        return len(self._merged)
+
+    def __str__(self):
+        return str(self._merged)
+
+    def __copy__(self):
+        # Shallow copy of underlying dict, so that they can be modified
+        # independently. Otherwise, any mutation on the LayeredMapping would
+        # impact the original top layer.
+        return LayeredMapping(
+            base=copy.copy(self.base),
+            top=copy.copy(self.top),
+        )
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

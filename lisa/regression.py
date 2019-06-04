@@ -22,7 +22,7 @@ import itertools
 from collections import OrderedDict, namedtuple
 
 from lisa.utils import groupby, memoized
-from lisa.tests.base import Result, ResultBundle
+from lisa.tests.base import Result, ResultBundleBase
 
 import scipy.stats
 
@@ -81,7 +81,7 @@ class RegressionResult:
         :type alpha: float
         """
         def coerce_to_bool(x, res):
-            if isinstance(x, ResultBundle):
+            if isinstance(x, ResultBundleBase):
                 return x.result is res
             # handle other types as well, as long as they can be
             # converted to bool

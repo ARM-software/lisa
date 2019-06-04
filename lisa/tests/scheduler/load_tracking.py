@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import copy
 import os
 from collections import OrderedDict
 import itertools
@@ -30,8 +31,8 @@ from bart.sched.SchedAssert import SchedAssert
 from trappy.stats.Topology import Topology
 
 from lisa.tests.base import (
-    TestMetric, Result, ResultBundle, TestBundle, RTATestBundle,
-    CannotCreateError
+    TestMetric, Result, ResultBundle, AggregatedResultBundle, TestBundle,
+    RTATestBundle, CannotCreateError
 )
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby
@@ -337,8 +338,6 @@ class InvarianceItem(LoadTrackingBase):
         expected_data = {}
         trace_data = {}
 
-        freq_str = '@{}'.format(self.freq) if self.freq is not None else ''
-
         capacity = self.plat_info['cpu-capacities'][self.cpu]
 
         # Scale the capacity linearly according to the frequency
@@ -352,11 +351,12 @@ class InvarianceItem(LoadTrackingBase):
             if not ok:
                 passed = False
 
-            metric_name = 'cpu{}{}'.format(self.cpu, freq_str)
-            expected_data[metric_name] = TestMetric(exp_util)
-            trace_data[metric_name] = TestMetric(signal_mean)
+            expected_data[name] = TestMetric(exp_util)
+            trace_data[name] = TestMetric(signal_mean)
 
+        freq_str = '@{}'.format(self.freq) if self.freq is not None else ''
         bundle = ResultBundle.from_bool(passed)
+        bundle.add_metric("cpu", '{}{}'.format(self.cpu, freq_str))
         bundle.add_metric("Expected signals", expected_data)
         bundle.add_metric("Trace signals", trace_data)
         return bundle
@@ -507,7 +507,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
     # InvarianceItem with the result merged.
 
     @InvarianceItem.test_task_util_avg.used_events
-    def test_task_util_avg(self, allowed_error_pct=15) -> ResultBundle:
+    def test_task_util_avg(self, allowed_error_pct=15) -> AggregatedResultBundle:
         """
         Aggregated version of :meth:`InvarianceItem.test_task_util_avg`
         """
@@ -518,7 +518,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
         return self._test_all_freq(item_test)
 
     @InvarianceItem.test_task_load_avg.used_events
-    def test_task_load_avg(self, allowed_error_pct=15) -> ResultBundle:
+    def test_task_load_avg(self, allowed_error_pct=15) -> AggregatedResultBundle:
         """
         Aggregated version of :meth:`InvarianceItem.test_task_load_avg`
         """
@@ -534,24 +534,14 @@ class Invariance(TestBundle, LoadTrackingHelpers):
 
         :attr:`~lisa.tests.base.Result.UNDECIDED` is ignored.
         """
-        item_res_bundles = {
-            '{}@{}'.format(item.cpu, item.freq): item_test(item)
+        item_res_bundles = [
+            item_test(item)
             for item in self.invariance_items
-        }
-
-        overall_bundle = ResultBundle.from_bool(all(item_res_bundles.values()))
-        for name, bundle in item_res_bundles.items():
-            overall_bundle.add_metric(name, bundle.metrics)
-
-        overall_bundle.add_metric('failed cpu@freq', [
-            name for name, bundle in item_res_bundles.items()
-            if bundle.result is Result.FAILED
-        ])
-
-        return overall_bundle
+        ]
+        return AggregatedResultBundle(item_res_bundles, 'cpu')
 
     @InvarianceItem.test_task_util_avg.used_events
-    def test_cpu_invariance(self) -> ResultBundle:
+    def test_cpu_invariance(self) -> AggregatedResultBundle:
         """
         Check that items using the max freq on each CPU is passing util avg test.
 
@@ -560,8 +550,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
 
         .. seealso:: :class:`InvarianceItem.test_task_util_avg`
         """
-        metrics = {}
-        passed = True
+        res_list = []
         for cpu, item_group in groupby(self.invariance_items, key=lambda x: x.cpu):
             item_group = list(item_group)
             # combine all frequencies of that CPU class, although they should
@@ -577,15 +566,9 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             for item in max_freq_items:
                 # Only test util, as it should be more robust
                 res = item.test_task_util_avg()
-                passed &= bool(res)
-                metrics.setdefault(cpu, []).append(res.metrics)
+                res_list.append(res)
 
-        res = ResultBundle.from_bool(passed)
-        for cpu, submetrics in metrics.items():
-            for submetric in submetrics:
-                res.add_metric(cpu, submetric)
-
-        return res
+        return AggregatedResultBundle(res_list, 'cpu')
 
     @InvarianceItem.test_task_util_avg.used_events
     def test_freq_invariance(self) -> ResultBundle:
@@ -594,35 +577,49 @@ class Invariance(TestBundle, LoadTrackingHelpers):
 
         .. seealso:: :class:`InvarianceItem.test_task_util_avg`
         """
+
         logger = self.get_logger()
-        metrics = {}
-        passed = False
-        for cpu, item_group in groupby(self.invariance_items, key=lambda x: x.cpu):
-            group_passed = True
-            freq_list = []
-            for item in item_group:
-                freq_list.append(item.freq)
-                # Only test util, as it should be more robust
-                res = item.test_task_util_avg()
-                passed &= bool(res)
-                name = '{}@{}'.format(cpu, item.freq)
-                metrics[name] = res.metrics
 
-            logger.info('Util avg invariance {res} for CPU {cpu} at frequencies: {freq_list}'.format(
-                res='passed' if group_passed else 'failed',
+        def make_group_bundle(cpu, item_group):
+            bundle = AggregatedResultBundle(
+                [
+                    # Only test util, as it should be more robust
+                    item.test_task_util_avg()
+                    for item in item_group
+                ],
+                # each item's "cpu" metric also contains the frequency
+                name_metric='cpu',
+            )
+            # At that level, we only report the CPU, since nested bundles cover
+            # different frequencies
+            bundle.add_metric('cpu', cpu)
+
+            logger.info('Util avg invariance {res} for CPU {cpu}'.format(
+                res=bundle.result.lower_name,
                 cpu=cpu,
-                freq_list=freq_list,
             ))
+            return bundle
 
-            # At least one group must pass
-            passed |= group_passed
+        group_result_bundles = [
+            make_group_bundle(cpu, item_group)
+            for cpu, item_group in groupby(self.invariance_items, key=lambda x: x.cpu)
+        ]
 
-        res = ResultBundle.from_bool(passed)
-        for cpu, submetric in metrics.items():
-            res.add_metric(cpu, submetric)
+        # The combination differs from the AggregatedResultBundle default one:
+        # we consider as passed as long as at least one of the group has
+        # passed, instead of forcing all of them to pass.
+        if any(result_bundle.result is Result.PASSED for result_bundle in group_result_bundles):
+            overall_result = Result.PASSED
+        elif all(result_bundle.result is Result.UNDECIDED for result_bundle in group_result_bundles):
+            overall_result = Result.UNDECIDED
+        else:
+            overall_result = Result.FAILED
 
-        return res
-
+        return AggregatedResultBundle(
+            group_result_bundles,
+            name_metric='cpu',
+            result=overall_result
+        )
 
 class PELTTask(LoadTrackingBase):
     """
