@@ -2438,10 +2438,9 @@ class Operator:
             # Factory classmethods are replaced by the class name when not
             # asking for a qualified ID
             if not (qual or full_qual) and self.is_factory_cls_method:
-                type_ = self.value_type
+                return utils.get_name(self.value_type, full_qual=full_qual, qual=qual, pretty=True)
             else:
-                type_ = None
-            return utils.get_name(type_, full_qual=full_qual, qual=qual, pretty=True)
+                return self.get_name(full_qual=full_qual, qual=qual, pretty=True)
 
     @property
     def name(self):
