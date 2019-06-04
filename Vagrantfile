@@ -39,12 +39,13 @@ Vagrant.configure(2) do |config|
     echo 'export LISA_VENV_PATH=$LISA_VENV_PATH' >> /home/vagrant/.bashrc
     echo 'source init_env' >> /home/vagrant/.bashrc
 
-    # Trigger the creation of a venv
-    su vagrant bash -c 'source ./init_env'
+    # Trigger the creation of a venv and check that everything works well
+    if ! su vagrant bash -c 'tools/scripts/travis_tests.sh'; then
+      echo "Self tests FAILED !"
+    else
+      echo "Virtual Machine Installation completed successfully!                "
+    fi
 
-    # We're all done!
-    echo "Virtual Machine Installation completed successfully!                "
-    echo "                                                                    "
     echo "You can now access and use the virtual machine by running:          "
     echo "                                                                    "
     echo "    $ vagrant ssh                                                   "
