@@ -548,7 +548,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @df_tasks_total_residency.used_events
     def plot_tasks_total_residency(self, tasks=None, ascending=False,
-                                   count=None, filepath=None, axis=None):
+                                   count=None, **kwargs):
         """
         Plot the stacked total time spent by each task on each CPU
 
@@ -575,7 +575,7 @@ class TasksAnalysis(TraceAnalysisBase):
             axis.grid(True)
             axis.legend(loc='upper left',ncol=5, bbox_to_anchor=(0, -.15))
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
     def _df_discretize_series(self, series, time_delta, name):
         """
