@@ -175,7 +175,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     @df_latency_wakeup.used_events
     def plot_latencies(self, task, wakeup=True, preempt=True, threshold_ms=1,
-                       filepath=None, axis=None):
+            **kwargs):
         """
         Plot the latencies of a task over time
 
@@ -218,7 +218,7 @@ class LatencyAnalysis(TraceAnalysisBase):
             axis.legend()
             axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
     def _get_cdf(self, data, threshold):
         """
@@ -256,7 +256,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     @_get_latencies_df.used_events
     def plot_latencies_cdf(self, task, wakeup=True, preempt=True,
-                           threshold_ms=1, filepath=None, axis=None):
+            threshold_ms=1, **kwargs):
         """
         Plot the latencies Cumulative Distribution Function of a task
 
@@ -291,11 +291,11 @@ class LatencyAnalysis(TraceAnalysisBase):
             axis.set_ylabel("Latencies below the x value (%)")
             axis.legend()
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
     @_get_latencies_df.used_events
     def plot_latencies_histogram(self, task, wakeup=True, preempt=True,
-                            threshold_ms=1, bins=64, filepath=None, axis=None):
+                            threshold_ms=1, bins=64, **kwargs):
         """
         Plot the latencies histogram of a task
 
@@ -326,10 +326,10 @@ class LatencyAnalysis(TraceAnalysisBase):
             axis.set_xlabel("Latency (s)")
             axis.legend()
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
     @df_latency_wakeup.used_events
-    def plot_latency_bands(self, task, filepath=None, axis=None):
+    def plot_latency_bands(self, task, **kwargs):
         """
         Draw the task wakeup/preemption latencies as colored bands
 
@@ -359,10 +359,10 @@ class LatencyAnalysis(TraceAnalysisBase):
             axis.legend()
             axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
     @df_activations.used_events
-    def plot_activations(self, task, filepath=None, axis=None):
+    def plot_activations(self, task, **kwargs):
         """
         Plot the :meth:`lisa.analysis.latency.LatencyAnalysis.df_activations` of a task
 
@@ -385,10 +385,10 @@ class LatencyAnalysis(TraceAnalysisBase):
 
             axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
     @df_runtimes.used_events
-    def plot_runtimes(self, task, filepath=None, axis=None):
+    def plot_runtimes(self, task, **kwargs):
         """
         Plot the :meth:`lisa.analysis.latency.LatencyAnalysis.df_runtimes` of a task
 
@@ -410,6 +410,6 @@ class LatencyAnalysis(TraceAnalysisBase):
 
             axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

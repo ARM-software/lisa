@@ -152,7 +152,7 @@ class AnalysisHelpers(Loggable):
         default_dir = '.'
         return self._save_plot(figure, default_dir, filepath, img_format)
 
-    def do_plot(self, plotter, filepath, axis, **kwargs):
+    def do_plot(self, plotter, filepath=None, axis=None, **kwargs):
         """
         Simple helper for consistent behavior across methods.
 

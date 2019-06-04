@@ -246,7 +246,7 @@ class IdleAnalysis(TraceAnalysisBase):
 ###############################################################################
 
     @df_cpu_idle_state_residency.used_events
-    def plot_cpu_idle_state_residency(self, cpu, pct=False, filepath=None, axis=None):
+    def plot_cpu_idle_state_residency(self, cpu, pct=False, **kwargs):
         """
         Plot the idle state residency of a CPU
 
@@ -265,11 +265,10 @@ class IdleAnalysis(TraceAnalysisBase):
             axis.set_title("CPU{} idle state residency".format(cpu))
 
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
     @df_cluster_idle_state_residency.used_events
-    def plot_cluster_idle_state_residency(self, cluster, pct=False,
-                                                    filepath=None, axis=None):
+    def plot_cluster_idle_state_residency(self, cluster, pct=False, **kwargs):
         """
         Plot the idle state residency of a cluster
 
@@ -288,10 +287,10 @@ class IdleAnalysis(TraceAnalysisBase):
             self._plot_idle_state_residency(df, axis, pct)
             axis.set_title("CPUs {} idle state residency".format(cluster))
 
-        return self.do_plot(plotter, filepath, axis)
+        return self.do_plot(plotter, **kwargs)
 
     @plot_cluster_idle_state_residency.used_events
-    def plot_clusters_idle_state_residency(self, pct=False, filepath=None, axes=None):
+    def plot_clusters_idle_state_residency(self, pct=False, **kwargs):
         """
         Plot the idle state residency of all clusters
 
@@ -309,7 +308,7 @@ class IdleAnalysis(TraceAnalysisBase):
             for axis, cluster in zip(axes, clusters):
                 self.plot_cluster_idle_state_residency(cluster, pct=pct, axis=axis)
 
-        return self.do_plot(plotter, filepath, axes, nrows=len(clusters), sharex=True)
+        return self.do_plot(plotter, nrows=len(clusters), sharex=True, **kwargs)
 
 ###############################################################################
 # Utility Methods
