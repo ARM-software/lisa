@@ -134,6 +134,10 @@ def get_name(obj, full_qual=True, qual=True, pretty=False):
     else:
         _get_name = lambda x: x.__name__
 
+    if obj is None:
+        pretty = True
+        obj = type(obj)
+
     if pretty:
         for prettier_obj in {None, NoValue}:
             if obj == type(prettier_obj):
@@ -145,12 +149,16 @@ def get_name(obj, full_qual=True, qual=True, pretty=False):
     # Add the module's name in front of the name to get a fully
     # qualified name
     if full_qual:
-        module_name = obj.__module__
-        module_name = (
-            module_name + '.'
-            if module_name != '__main__' and module_name != 'builtins'
-            else ''
-        )
+        try:
+            module_name = obj.__module__
+        except AttributeError:
+            module_name = ''
+        else:
+            module_name = (
+                module_name + '.'
+                if module_name != '__main__' and module_name != 'builtins'
+                else ''
+            )
     else:
         module_name = ''
 
