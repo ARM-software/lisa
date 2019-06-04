@@ -60,15 +60,4 @@ Vagrant.configure(2) do |config|
     echo "    $ vagrant destroy                                               "
     echo "                                                                    "
   SHELL
-
-  # TODO: Run self tests to explode sooner rather than later
-  # config.trigger.after :up do |trigger|
-  #   trigger.info = "Verifying LISA installation"
-  #   trigger.name = "LISA install verification"
-  #   trigger.run_remote = {inline: "
-  #     cd /home/vagrant/lisa
-  #     source init_env
-  #     python3 -m nose
-  #   "}
-  # end
 end
