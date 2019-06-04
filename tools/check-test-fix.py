@@ -318,6 +318,11 @@ EXAMPLE:
             for artifact_dir in extracted_artifacts:
                 schedule_exekall_run(artifact_dir)
 
+        # We know that once all archives has been uncompressed, all exekall run
+        # jobs have been submitted
+        exekall_pool.close()
+        exekall_pool.join()
+
         # Save what was extracted for future reference when we know all the
         # archives have been extracted successfully
         with open(extraction_state_path, 'wb') as f:
@@ -329,19 +334,14 @@ EXAMPLE:
                 f
             )
 
-        # We know that once all archives has been uncompressed, all exekall run
-        # jobs have been submitted
-        exekall_pool.close()
-        exekall_pool.join()
-
     # Merge DB before comparison
     print('Merging the new artifacts for comparison ...')
     merged_artifact = cleanup(work_area/'merged_new_exekall_artifacts')
-
-    print('Comparing the results ...')
     merged_artifact_dir = exekall_merge(merged_artifact, new_db_path_deque)
 
+    print('Comparing the results ...')
     out = exekall_compare(ref_db_path, merged_artifact_dir/DB_FILENAME)
+
     print('\n\nRegressions/improvements:')
     print(out)
 
