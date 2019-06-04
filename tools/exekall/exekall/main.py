@@ -392,6 +392,22 @@ arguments.
     add_argument(compare_parser, 'db', nargs=2,
         help="""DBs created using exekall run to compare.""")
 
+    show_parser = subparsers.add_parser('show',
+    description="""
+Show the content of a ValueDB created by exekall ``run``
+
+Note that the adaptor in the customization module recorded in the database
+is able to add more parameters to ``exekall show``. In order to get the
+complete set of options, please run ``exekall show DB --help``.
+
+Options part of a custom group will need to be passed after positional
+arguments.
+    """,
+    formatter_class=argparse.RawTextHelpFormatter)
+
+    add_argument(show_parser, 'db',
+        help="""DB created using exekall run to show.""")
+
     # Avoid showing help message on the incomplete parser. Instead, we carry on
     # and the help will be displayed after the parser customization of run
     # subcommand has a chance to take place.
@@ -422,7 +438,7 @@ arguments.
 
     # Some subcommands need not parser customization, in which case we more
     # strictly parse the command line
-    if args.subcommand not in ('run', 'compare'):
+    if args.subcommand not in ('run', 'compare', 'show'):
         parser.parse_args(argv)
 
     if args.subcommand == 'run':
@@ -443,6 +459,32 @@ arguments.
             argv=argv,
             db_path_list=args.db,
         )
+    elif args.subcommand == 'show':
+        return do_show(
+            parser=parser,
+            show_parser=show_parser,
+            argv=argv,
+            db_path=args.db,
+        )
+
+def do_show(parser, show_parser, argv, db_path):
+    db = engine.ValueDB.from_path(db_path)
+    adaptor_cls = db.adaptor_cls
+
+    # Add all the CLI arguments of the adaptor before reparsing the
+    # command line.
+    adaptor_group = utils.create_adaptor_parser_group(show_parser, adaptor_cls)
+    adaptor_cls.register_show_param(adaptor_group)
+
+    # Reparse the command line after the adaptor had a chance to add its own
+    # arguments.
+    args = parser.parse_args(argv)
+
+    # Create the adaptor with the args, so it can use it to implement
+    # the show
+    adaptor = adaptor_cls(args)
+
+    return adaptor.show_db(db)
 
 def do_compare(parser, compare_parser, argv, db_path_list):
     assert len(db_path_list) == 2

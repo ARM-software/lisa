@@ -699,7 +699,7 @@ class ExpressionBase(ExprHelpers):
 
     def __repr__(self):
         return '<Expression of {name} at {id}>'.format(
-            name=self.op.get_name(full_qual=True),
+            name=self.op.get_name(full_qual=True, pretty=True),
             id = hex(id(self))
         )
 
@@ -723,11 +723,11 @@ class ExpressionBase(ExprHelpers):
     @staticmethod
     def _format_structure_op_name(op):
         if isinstance(op, ConsumerOperator):
-            return op.get_name(full_qual=True)
+            return op.get_name(full_qual=True, pretty=True)
         elif isinstance(op, PrebuiltOperator):
             return '<provided>'
         else:
-            return op.get_name(full_qual=True)
+            return op.get_name(full_qual=True, pretty=True)
 
     def _format_structure(self, full_qual=True, indent=1):
         indent_str = 4 * ' ' * indent
@@ -735,7 +735,10 @@ class ExpressionBase(ExprHelpers):
         op_name = self._format_structure_op_name(self.op)
         out = '{op_name} ({value_type_name})'.format(
             op_name = op_name,
-            value_type_name = utils.get_name(self.op.value_type, full_qual=full_qual),
+            value_type_name = utils.get_name(self.op.value_type,
+                full_qual=full_qual,
+                pretty=True,
+            ),
         )
         if self.param_map:
             out += ':\n'+ indent_str + ('\n'+indent_str).join(
@@ -769,7 +772,10 @@ class ExpressionBase(ExprHelpers):
             uid=uid,
             op_name=op_name,
             reusable='(reusable)' if self.op.reusable else '(non-reusable)',
-            value_type_name=utils.get_name(self.op.value_type, full_qual=full_qual),
+            value_type_name=utils.get_name(self.op.value_type,
+                full_qual=full_qual,
+                pretty=True,
+            ),
             loc=src_loc,
         )]
         if self.param_map:
@@ -2414,9 +2420,9 @@ class Operator:
         """
         if style == 'rst':
             if self.is_factory_cls_method:
-                qualname = utils.get_name(self.value_type, full_qual=True)
+                qualname = utils.get_name(self.value_type, full_qual=True, pretty=True)
             else:
-                qualname = self.get_name(full_qual=True)
+                qualname = self.get_name(full_qual=True, pretty=True)
             name = self.get_id(full_qual=full_qual, qual=qual, style=None)
 
             if self.is_class:
@@ -2432,9 +2438,10 @@ class Operator:
             # Factory classmethods are replaced by the class name when not
             # asking for a qualified ID
             if not (qual or full_qual) and self.is_factory_cls_method:
-                return utils.get_name(self.value_type, full_qual=full_qual, qual=qual)
+                type_ = self.value_type
             else:
-                return self.get_name(full_qual=full_qual, qual=qual)
+                type_ = None
+            return utils.get_name(type_, full_qual=full_qual, qual=qual, pretty=True)
 
     @property
     def name(self):
@@ -3080,11 +3087,15 @@ class ExprValBase(ExprHelpers):
     :param excep: Exception that was raised while computing the value. If no
         excpetion was raised, :attr:`exekall._utils.NoValue` will be used.
     :type value: Exception
+
+    :param uuid: UUID of the :class:`ExprValBase`
+    :type uuid: str
     """
-    def __init__(self, param_map, value, excep):
+    def __init__(self, param_map, value, excep, uuid):
         self.param_map = param_map
         self.value = value
         self.excep = excep
+        self.uuid = uuid
 
     def get_by_predicate(self, predicate):
         """
@@ -3129,6 +3140,41 @@ class ExprValBase(ExprHelpers):
         else:
             predicate = lambda expr_val: type(expr_val.value) is cls
         return self.get_by_predicate(predicate, **kwargs)
+
+    def format_structure(self, full_qual=True):
+        """
+        Format the value and its parents in a human readable way.
+
+        :param full_qual: If True, use fully qualified IDs.
+        :type full_qual: bool
+        """
+
+        value = self.value
+        if type(value).__str__ is not object.__str__:
+            value_str = str(value)
+        else:
+            value_str = ''
+
+        value_str = value_str if '\n' not in value_str else ''
+
+        idt = ' ' * 4
+        joiner = '\n' + idt
+        params = joiner.join(
+            '{param}: {value}'.format(
+                param=param,
+                value=expr_val.format_structure(full_qual=full_qual)
+            ).replace('\n', joiner)
+            for param, expr_val in self.param_map.items()
+        )
+
+        return '{id} ({type}) UUID={uuid}{value}{joiner}{params}'.format(
+            id=self.get_id(full_qual=full_qual),
+            value=' ({})'.format(value_str) if value_str else '',
+            params=params,
+            joiner=':' + joiner if params else '',
+            uuid=self.uuid,
+            type = utils.get_name(type(value), full_qual=full_qual, pretty=True),
+        )
 
 
 class FrozenExprVal(ExprValBase):
@@ -3188,11 +3234,14 @@ class FrozenExprVal(ExprValBase):
             param_map, value, excep, uuid,
             callable_qualname, callable_name, recorded_id_map,
         ):
-        self.uuid = uuid
         self.callable_qualname = callable_qualname
         self.callable_name = callable_name
         self.recorded_id_map = recorded_id_map
-        super().__init__(param_map=param_map, value=value, excep=excep)
+        super().__init__(
+            param_map=param_map,
+            value=value, excep=excep,
+            uuid=uuid,
+        )
 
         if self.excep is not NoValue:
             self.excep_tb = utils.format_exception(self.excep)
@@ -3386,9 +3435,9 @@ class ExprVal(ExprValBase):
     def __init__(self, expr, param_map,
         value=NoValue, excep=NoValue, uuid=None,
     ):
-        self.uuid = uuid if uuid is not None else utils.create_uuid()
+        uuid = uuid if uuid is not None else utils.create_uuid()
         self.expr = expr
-        super().__init__(param_map=param_map, value=value, excep=excep)
+        super().__init__(param_map=param_map, value=value, excep=excep, uuid=uuid)
 
     def format_tags(self, remove_tags=set()):
         """
