@@ -71,6 +71,14 @@ Here are some noteworthy sections:
    * `Installation <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/setup.html>`__
    * `Kernel tests <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/kernel_tests.html>`__
 
+How to reach us
+===============
+
+Bug reports should be raised against the `GitHub issue tracker <https://github.com/ARM-software/lisa/issues>`__.
+
+We also have an ``#arm-lisa`` IRC channel on ``freenode.net`` that we monitor
+on a best effort basis.
+
 External Links
 ==============
 
