@@ -88,6 +88,9 @@ class ThermalModule(Module):
 
         for entry in target.list_directory(self.thermal_root):
             re_match = re.match('^(thermal_zone|cooling_device)([0-9]+)', entry)
+            if not re_match:
+                self.logger.warning('unknown thermal entry: %s', entry)
+                continue
 
             if re_match.group(1) == 'thermal_zone':
                 self.add_thermal_zone(re_match.group(2))
