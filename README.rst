@@ -102,7 +102,8 @@ Contributions / Pull Requests
 
 Contributions are accepted under Apache-2.0. Only submit contributions
 where you have authored all of the code. If you do this on work time
-make sure your employer is cool with this.
+make sure your employer is cool with this. We also have a `Contributor Guide
+<https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/contributors_guide.html>`__
 
 .. |Travis status| image:: https://travis-ci.org/ARM-software/lisa.svg?branch=master
    :target: https://travis-ci.org/ARM-software/lisa
