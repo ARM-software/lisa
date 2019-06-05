@@ -178,7 +178,7 @@ function _lisa-install-nbextensions {
         echo "Installing jupyter lab extensions..."
         jupyter labextension install                    \
             @jupyter-widgets/jupyterlab-manager         \
-            jupyter-matplotlib                          \
+            jupyter-matplotlib
         return
     fi
 
