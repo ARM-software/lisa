@@ -48,6 +48,7 @@ from devlib.derived.fps import DerivedGfxInfoStats, DerivedSurfaceFlingerStats
 from devlib.trace.ftrace import FtraceCollector
 from devlib.trace.perf import PerfCollector
 from devlib.trace.serial_trace import SerialTraceCollector
+from devlib.trace.dmesg import DmesgCollector
 
 from devlib.host import LocalConnection
 from devlib.utils.android import AdbConnection
