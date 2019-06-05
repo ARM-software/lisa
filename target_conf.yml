@@ -1,12 +1,10 @@
-#
-# A lisa.env.TestEnv can be constructed out of this file using:
-# lisa.env.TestEnv.from_default_conf()
 
+# LISA Target configuration required by devlib to connect to a target.
+#
+# See the doc for available keys:
+# https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/target.html#lisa.target.TargetConf
+#
 
-# target configuration
-#
-# Configuration required by devlib to connect to a target.
-#
 target-conf:
     # Kind of platform
     # - linux   : accessed via SSH connection
