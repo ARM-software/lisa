@@ -3,9 +3,9 @@ Introduction |Travis status| |Documentation Status|
 
 The LISA project provides a toolkit that supports regression testing and
 interactive analysis of Linux kernel behavior. LISA stands for Linux
-Integrated/Interactive System Analysis. LISA’s goal is to help Linux
+Integrated/Interactive System Analysis. LISA's goal is to help Linux
 kernel developers to measure the impact of modifications in core parts
-of the kernel. The focus is on the scheduler (e.g. EAS), power
+of the kernel. The focus is on the scheduler (e.g. EAS), power
 management and thermal frameworks. However LISA is generic and can be
 used for other purposes too.
 
@@ -18,17 +18,17 @@ all been used.
 
 LISA provides features to describe workloads (notably using
 `rt-app <https://github.com/scheduler-tools/rt-app>`__) and run them on
-targets. It can collect trace files from the target OS (e.g. systrace
+targets. It can collect trace files from the target OS (e.g. systrace
 and ftrace traces), parse them via the
 `TRAPpy <https://github.com/ARM-software/trappy>`__ framework. These
 traces can then be parsed and analysed in order to examine detailed
-target behaviour during the workload’s execution.
+target behaviour during the workload's execution.
 
 Some LISA features may require modifying the target OS. For example, in
 order to collect ftrace files the target kernel must have
 CONFIG_DYNAMIC_FTRACE enabled.
 
-There are two “entry points” for running LISA:
+There are two "entry points" for running LISA:
 
 -  Via the `Jupyter/IPython notebook framework <http://jupyter.org/>`__.
    This allows LISA to be used interactively and supports visualisation
@@ -47,10 +47,10 @@ Motivations
 
 The main goals of LISA are:
 
--  Support study of existing behaviours (i.e. *“how does PELT work?”*)
--  Support analysis of new code being developed (i.e. *“what is the
-   impact on existing code?”*)
--  Get insights on what’s not working and possibly chase down why
+-  Support study of existing behaviours (i.e. *"how does PELT work?"*)
+-  Support analysis of new code being developed (i.e. *"what is the
+   impact on existing code?"*)
+-  Get insights on what's not working and possibly chase down why
 -  Share reproducible experiments by means of a **common language**
    that:
 
