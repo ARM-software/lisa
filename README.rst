@@ -9,7 +9,7 @@ of the kernel. The focus is on the scheduler (e.g. EAS), power
 management and thermal frameworks. However LISA is generic and can be
 used for other purposes too.
 
-LISA has a “host”/“target” model. LISA itself runs on a *host* machine,
+LISA has a *host*/*target* model. LISA itself runs on a *host* machine,
 and uses the `devlib <https://github.com/ARM-software/lisa>`__ toolkit
 to interact with the *target* via SSH, ADB or telnet. LISA is flexible
 with regard to the target OS; its only expectation is a Linux
@@ -66,12 +66,10 @@ Documentation
 
 You should find everything on
 `ReadTheDocs <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/>`__.
-Here are some noteworthy sections: \*
-`Installation <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/users_guide.html#installation>`__
-\*
-`Self-tests <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/lisa_tests.html>`__
-\* `Kernel
-tests <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/kernel_tests.html>`__
+Here are some noteworthy sections: 
+
+   * `Installation <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/setup.html>`__
+   * `Kernel tests <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/kernel_tests.html>`__
 
 External Links
 ==============
@@ -89,7 +87,7 @@ License
 This project is licensed under Apache-2.0.
 
 This project includes some third-party code under other open source
-licenses. For more information, see lisa/tools/LICENSE.\*
+licenses. For more information, see ``tools/LICENSE.*``.
 
 Contributions / Pull Requests
 =============================
