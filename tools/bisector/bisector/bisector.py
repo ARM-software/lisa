@@ -4433,7 +4433,7 @@ class DBusSlaveBook:
 
     def __init__(self, bus, name_lost_callback,
             bus_name=DBUS_SERVER_BUS_NAME, path=DBUS_SLAVE_BOOK_PATH,
-            default_notif=('all', True)):
+            default_notif=None):
         self.slaves_map = dict()
         self._desktop_notif = collections.defaultdict(set)
 
@@ -4441,7 +4441,7 @@ class DBusSlaveBook:
         self.bus_name = bus_name
         self.path = path
         self.bus = bus
-        self.default_notif = default_notif
+        self.default_notif = default_notif or ('all', True)
 
         # Will be needed to display desktop notifications
         try:
@@ -4940,7 +4940,10 @@ command line""")
         return do_steps_help(cls_list)
 
     if args.subcommand == 'monitor-server':
-        notif = (args.notif[1], args.notif[0] == 'enable')
+        if args.notif:
+            notif = (args.notif[1], args.notif[0] == 'enable')
+        else:
+            notif = None
         return do_monitor_server(notif)
 
     elif args.subcommand == 'monitor':
