@@ -116,7 +116,7 @@ usage: bisector run [\-h] [\-\-cli\-options CLI_OPTIONS] [\-o OPTION] [\-\-debug
                     [\-\-only ONLY] [\-\-git\-clean] [\-\-inline CLASS NAME]
                     [\-n ITERATIONS] [\-\-timeout TIMEOUT] [\-\-log LOG]
                     [\-\-report REPORT] [\-\-overwrite] [\-\-resume] [\-\-desc DESC]
-                    [\-\-early\-bailout] [\-\-upload\-report] [\-\-no\-dbus]
+                    [\-\-early\-bailout] [\-\-upload\-report] [\-\-dbus | \-\-no\-dbus]
 
 Run the given steps in a loop and record the result in a report file. The
 report file can be inspected using the "report" subcommand. The exit status is
@@ -194,6 +194,8 @@ optional arguments:
                         folder\(aqs URL and ARTIFACTORIAL_TOKEN set to the token.
                         Remember to use the right step option to upload the
                         results as they are computed if desired.
+  \-\-dbus                Try enable DBus API if the necessary dependencies are
+                        installed.
   \-\-no\-dbus             Disable DBus even when pydbus module is available.
 
 .ft P
