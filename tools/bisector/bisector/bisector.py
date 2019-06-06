@@ -66,13 +66,14 @@ import requests
 import ruamel.yaml
 
 # If these modules are not available, DBus features will not be used.
-ENABLE_DBUS = True
 try:
     import pydbus
     import gi.repository
     from gi.repository import GLib
 except ImportError:
-    ENABLE_DBUS = False
+    DBUS_CAN_BE_ENABLED = False
+else:
+    DBUS_CAN_BE_ENABLED = True
 
 
 def mask_signals(unblock=False):
@@ -4052,7 +4053,7 @@ class DBusSlaveManager:
         self.StartMonotonicTs = start_monotonic_ts
         self.LogPath = log_path
 
-    if ENABLE_DBUS:
+    if DBUS_CAN_BE_ENABLED:
         PropertiesChanged = pydbus.generic.signal()
 
     @dbus_property
@@ -4853,7 +4854,11 @@ command line""")
         results as they are computed if desired.
         """)
 
-    run_parser.add_argument('--no-dbus', action='store_true',
+
+    dbus_group = run_parser.add_mutually_exclusive_group()
+    dbus_group.add_argument('--dbus', dest='dbus', action='store_true',
+        help="""Try enable DBus API if the necessary dependencies are installed.""")
+    dbus_group.add_argument('--no-dbus', dest='dbus', action='store_false',
         help="""Disable DBus even when pydbus module is available.""")
 
     # Options for report subcommand
@@ -5010,16 +5015,15 @@ command line""")
         stat_test = BasicStatTest(allowed_bad_percent)
 
     if args.subcommand == 'run':
-        global ENABLE_DBUS
-
         # We do not enable DBus if the modules are not available
-        if not ENABLE_DBUS:
+        if DBUS_CAN_BE_ENABLED:
+            enable_dbus = args.dbus
+        else:
+            enable_dbus = False
             # The user wants DBus, but we can't give it since the modules
             # have not been imported properly
-            if not args.no_dbus:
+            if args.dbus:
                 info('DBus monitoring disabled due to missing dependencies')
-        else:
-            ENABLE_DBUS = not args.no_dbus
 
         overwrite_report = args.overwrite
         inline_step_list = args.inline
@@ -5085,7 +5089,8 @@ command line""")
         info('Report: {report_path}'.format(report_path=report_path))
         info('Log: {log_path}'.format(log_path=log_path))
 
-        if ENABLE_DBUS:
+        if enable_dbus:
+            debug('Enabling DBus interface ...')
             dbus_slave_thread = DBusSlaveThread(
                 properties = dict(
                     desc = desc,
@@ -5100,6 +5105,7 @@ command line""")
             slave_manager = dbus_slave_thread.slave_manager
             service_hub.register_service('notif', StepNotifService(slave_manager))
         else:
+            debug('Not enabling DBus interface.')
             dbus_slave_thread = None
             slave_manager = None
 
