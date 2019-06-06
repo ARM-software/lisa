@@ -34,6 +34,8 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
     RefTime = namedtuple("RefTime", ['kernel', 'user'])
 
+    PhaseWindow = namedtuple("PhaseWindow", ['id', 'start', 'end'])
+
     def _task_filtered(self, df, task=None):
         if not task:
             return df
@@ -195,6 +197,113 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         df = self.trace.df_events('rtapp_loop')
         return self._task_filtered(df, task)
 
+    @df_rtapp_loop.used_events
+    def _get_rtapp_phases(self, event, task):
+        df = self.df_rtapp_loop(task)
+        df = df[df.event == event]
+
+        # Sort START/END phase loop event from newers/older and...
+        if event == 'start':
+            df = df[df.phase_loop == 0]
+        elif event == 'end':
+            df = df.sort_values(by=['phase_loop', 'thread_loop'],
+                                ascending=False)
+        # ... keep only the newest/oldest event
+        df = df.groupby(['__comm', '__pid', 'phase', 'event']).head(1)
+
+        # Reorder the index and keep only required cols
+        df = (df.sort_index()[['__comm', '__pid', 'phase']]
+              .reset_index()
+              .set_index(['__comm', '__pid', 'phase']))
+
+        return df
+
+    @memoized
+    @_get_rtapp_phases.used_events
+    def df_rtapp_phases_start(self, task=None):
+        """
+        Dataframe of phases end times.
+
+        :param task: the (optional) rt-app task to filter for
+        :type task: int or str or :class:`TaskID`
+
+        :returns: a :class:`pandas.DataFrame` with:
+
+          * A  ``__comm`` column: the actual rt-app trace task name
+          * A  ``__pid``  column: the PID of the task
+          * A  ``phase``  column: the phases counter for each ``__pid``:``__comm`` task
+
+        The ``index`` represents the timestamp of a phase end event.
+        """
+        return self._get_rtapp_phases('start', task)
+
+    @memoized
+    @_get_rtapp_phases.used_events
+    def df_rtapp_phases_end(self, task=None):
+        """
+        Dataframe of phases end times.
+
+        :param task: the (optional) rt-app task to filter for
+        :type task: int or str or :class:`TaskID`
+
+        :returns: a :class:`pandas.DataFrame` with:
+
+          * A  ``__comm`` column: the actual rt-app trace task name
+          * A  ``__pid``  column: the PID of the task
+          * A  ``phase``  column: the phases counter for each ``__pid``:``__comm`` task
+
+        The ``index`` represents the timestamp of a phase end event.
+        """
+        return self._get_rtapp_phases('end', task)
+
+    @df_rtapp_phases_start.used_events
+    def _get_task_phase(self, event, task, phase):
+        task = self.trace.get_task_id(task)
+        if event == 'start':
+            df = self.df_rtapp_phases_start(task)
+        elif event == 'end':
+            df = self.df_rtapp_phases_end(task)
+        if phase and phase < 0:
+            phase += len(df)
+        phase += 1 # because of the followig "head().tail()" filter
+        return df.loc[task.comm].head(phase).tail(1).Time.values[0]
+
+    @_get_task_phase.used_events
+    def df_rtapp_phase_start(self, task, phase=0):
+        """
+        Start of the specified phase for a given task.
+
+        A negative phase value can be used to count from the oldest, e.g. -1
+        represents the last phase.
+
+        :param task: the (optional) rt-app task to filter for
+        :type task: int or str or :class:`TaskID`
+
+        :param phase: the ID of the phase start to return (default 0)
+        :type phase: int
+
+        :returns: the requires task's phase start timestamp
+        """
+        return self._get_task_phase('start', task, phase)
+
+    @_get_task_phase.used_events
+    def df_rtapp_phase_end(self, task, phase=-1):
+        """
+        End of the specified phase for a given task.
+
+        A negative phase value can be used to count from the oldest, e.g. -1
+        represents the last phase.
+
+        :param task: the (optional) rt-app task to filter for
+        :type task: int or str or :class:`TaskID`
+
+        :param phase: the ID of the phase end to return (default -1)
+        :type phase: int
+
+        :returns: the requires task's phase end timestamp
+        """
+        return self._get_task_phase('end', task, phase)
+
     @df_rtapp_task.used_events
     def tasks_window(self, task):
         """
@@ -208,6 +317,56 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         end_time = task_df[task_df.event == "end"].index[0]
 
         return (start_time, end_time)
+
+    @df_rtapp_phases_start.used_events
+    def task_phase_window(self, task, phase):
+        """
+        Return the window of a requested task phase.
+
+        For the specified ``task`` it returns a tuple with the (start, end)
+        time of the requested ``phase``. A negative phase number can be used to
+        count phases backward from the last (-1) toward the first.
+
+        :param task: the (optional) rt-app task to filter for
+        :type task: int or str or :class:`TaskID`
+
+        :param phase: The ID of the phase to consider
+        :type phase: int
+
+        :returns: tuple(start_s, end_s)
+        """
+        phase_start = self.df_rtapp_phase_start(task, phase)
+        phase_end = self.df_rtapp_phase_end(task, phase)
+
+        return self.PhaseWindow(phase, phase_start, phase_end)
+
+    @task_phase_window.used_events
+    def task_phase_at(self, task, timestamp):
+        """
+        Return the :class:`PhaseWindow` for the specified task and timestamp.
+
+        :param task: the (optional) rt-app task to filter for
+        :type task: int or str or :class:`TaskID`
+
+        :param timestamp: the timestamp to get the pahse for
+        :type timestamp: int or float
+
+        :returns: the ID of the phase corresponding to the specified timestamp,
+                  None if the specified timestamp does not match a phase
+        """
+        # Last phase is special, compute end time as start + duration
+        last_phase_end = self.df_phases('test_task-0').index[-1]
+        last_phase_end += float(self.df_phases('test_task-0').iloc[-1].values)
+        if timestamp > last_phase_end:
+            return None
+
+        phase_id = len(self.df_phases(task)) - \
+                   len(self.df_phases(task)[timestamp:]) - 1
+        if phase_id < 0:
+            return None
+
+        return self.task_phase_window(task, phase_id)
+
 
     ###########################################################################
     # rtapp_phase events related methods
@@ -284,10 +443,98 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         df = self._get_stats()
         return self._task_filtered(df, task)
 
+    @memoized
+    @df_rtapp_loop.used_events
+    def df_phases(self, task):
+        """
+        Get phases actual start times and durations
+
+        :param task: the (optional) rt-app task to filter for
+        :type task: int or str or :class:`TaskID`
+
+        :returns: A :class:`pandas.DataFrame` with index representing the
+        start time of a phase and these column:
+
+        * ``duration``: the measured phase duration.
+        """
+        # Mark for removal all the events that are not the first 'start'
+        def keep_first_start(raw):
+            if raw.phase_loop:
+                return -1
+            if raw.event == 'end':
+                return -1
+            return 0
+
+        loops_df = self.df_rtapp_loop(task)
+
+        # Keep only the first 'start' and the last 'end' event
+        # Do that by first setting -1 the 'phase_loop' of all entries which are
+        # not the first 'start' event. Then drop the 'event' column so that we
+        # can drop all duplicates thus keeping only the last 'end' even for
+        # each phase.
+        phases_df = loops_df[['event', 'phase', 'phase_loop']].copy()
+        phases_df['phase_loop'] = phases_df.apply(keep_first_start, axis=1)
+        phases_df = phases_df[['phase', 'phase_loop']]
+        phases_df.drop_duplicates(keep='last', inplace=True)
+
+        # Compute deltas and keep only [start..end] intervals, by dropping
+        # instead the [end..start] internals
+        durations = phases_df.index[1:] - phases_df.index[:-1]
+        durations = durations[::2]
+
+        # Drop all 'end' events thus keeping only the first 'start' event
+        phases_df = phases_df[::2][['phase']]
+
+        # Append the duration column
+        phases_df['duration'] = durations
+
+        return phases_df[['duration']]
+
+    @df_phases.used_events
+    def task_phase_windows(self, task):
+        """
+        Iterate throw the phases of the specified task.
+
+        :param task: the (optional) rt-app task to filter for
+        :type task: int or str or :class:`TaskID`
+
+        At each iteration it returns a :class: `namedtuple` reporting:
+
+         * `id` : the iteration ID
+         * `start` : the iteration start time
+         * `end` : the iteration end time
+
+        :return: an series of phases start end end timestamps.
+        """
+        for idx, phase in enumerate(self.df_phases(task).itertuples()):
+            yield self.PhaseWindow(idx, phase.Index,
+                                    phase.Index+phase.duration)
 
 ###############################################################################
 # Plotting Methods
 ###############################################################################
+
+    @AnalysisHelpers.plot_method()
+    def plot_phases(self, task, axis, local_fig):
+        """
+        Draw the task's phases colored bands
+
+        :param task: the (optional) rt-app task to filter for
+        :type task: int or str or :class:`TaskID`
+        """
+        phases_df = self.df_phases(task)
+
+        # Compute phases intervals
+        bands = [(t, t + phases_df['duration'][t]) for t in phases_df.index]
+        for idx, (start, end) in enumerate(bands):
+            color = self.get_next_color(axis)
+            label = 'Phase_{:02d}'.format(idx)
+            axis.axvspan(start, end, alpha=0.1, facecolor=color, label=label)
+        axis.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2,), ncol=8)
+
+        if local_fig:
+            task = self.trace.get_task_id(task)
+            axis.set_title("Task [{}] phases".format(task))
 
     @AnalysisHelpers.plot_method()
     def plot_perf(self, task, axis, local_fig):
