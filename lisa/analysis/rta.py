@@ -21,6 +21,8 @@ import glob
 
 import pandas as pd
 
+from lisa.utils import memoized
+
 from lisa.utils import Loggable
 from lisa.analysis.base import AnalysisHelpers
 
@@ -160,15 +162,28 @@ class PerfAnalysis(AnalysisHelpers):
         """
         return self.perf_data[task]['logfile']
 
-    def get_df(self, task):
+    @memoized
+    def get_df(self, task, start_time=None):
         """
         Return the pandas dataframe with the performance data for the
-        specified task
+        specified task. A start time can be specified as a reference for the
+        first event, for example to align events to a given (see :class:`TraceView`).
 
         :param task: Name of the task that we want the performance dataframe of.
         :type task: str
+
+        :param start_time: The first event time in seconds
+        :type start_time: float
         """
-        return self.perf_data[task]['df']
+        task_df = self.perf_data[task]['df']
+        if not start_time:
+            return task_df
+
+        # Let's keep a copy so that we can still access the original one
+        task_df = task_df.reset_index()
+        task_df['Time'] = task_df['Time'] + start_time
+
+        return task_df.set_index('Time')
 
     def save_plot(self, figure, filepath=None, img_format=None):
         # If all logfiles are located in the same folder, use that folder
