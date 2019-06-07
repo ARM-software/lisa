@@ -223,6 +223,15 @@ class PerfAnalysis(AnalysisHelpers):
         return self.perf_data[task]['logfile']
 
     @memoized
+    def _start_time_from_bundle(self):
+        if not self._bundle:
+            return None
+        trace = getattr(self._bundle, 'trace', None)
+        if not trace:
+            return None
+        return trace.start
+
+    @memoized
     def get_df(self, task, start_time=None):
         """
         Return the pandas dataframe with the performance data for the
@@ -236,6 +245,9 @@ class PerfAnalysis(AnalysisHelpers):
         :type start_time: float
         """
         task_df = self.perf_data[task]['df']
+
+        if start_time is None:
+            start_time = self._start_time_from_bundle()
         if not start_time:
             return task_df
 
