@@ -1,8 +1,8 @@
-#!/usr/bin/python
+#! /usr/bin/env python3
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# Copyright (C) 2015, ARM Limited and contributors.
+# Copyright (C) 2019, Arm Limited and contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License.
@@ -17,156 +17,237 @@
 # limitations under the License.
 #
 
-import sys
-# sys.path.insert(1, "./libs")
-
-from perf_analysis import PerfAnalysis
-from trace import Trace
-
 import os
-import re
+import sys
 import argparse
-import json
+import inspect
+from collections import OrderedDict
+import contextlib
 
-# Configure logging
-import logging
-reload(logging)
-logging.basicConfig(
-    format='%(asctime)-9s %(levelname)-8s: %(message)s',
-    level=logging.DEBUG,
-    # level=logging.INFO,
-    datefmt='%I:%M:%S')
+from lisa.utils import get_short_doc
+from lisa.trace import Trace, MissingTraceEventError
+from lisa.analysis.base import TraceAnalysisBase
+from lisa.platforms.platinfo import PlatformInfo
 
-# Regexp to match the format of a result folder
-TEST_DIR_RE = re.compile(
-        r'([^:]*):([^:]*):([^:]*)'
+def error(msg, ret=1):
+    print(msg, file=sys.stderr)
+    if ret is None:
+        return
+    else:
+        sys.exit(ret)
+
+def make_meth_name(analysis, f):
+    name = f.__name__
+    analysis = get_analysis_nice_name(analysis)
+
+    def remove_prefix(prefix, name):
+        if name.startswith(prefix):
+            return name[len(prefix):]
+        else:
+            return name
+
+    name = remove_prefix('plot_', name)
+    # Remove the analysis name from the method name, which is not common but
+    # happens for some of the methods. This avoids verbose redundancy when
+    # sticking the analysis name in front of it.
+    name = remove_prefix(analysis, name)
+    name = name.replace('_', '-').strip('-')
+
+    return '{}:{}'.format(analysis, name)
+
+def get_analysis_nice_name(name):
+    return name.replace('_', '-')
+
+def get_plots_map():
+    plots_map = {}
+    for name, cls in TraceAnalysisBase.get_analysis_classes().items():
+
+        methods = [
+            meth
+            for meth in cls.get_plot_methods()
+            # Method that need extra arguments are not usable by this
+            # script
+            if not meth_needs_args(meth)
+        ]
+
+        if methods:
+            plots_map[name] = {
+                make_meth_name(name, meth): meth
+                for meth in methods
+            }
+    return plots_map
+
+def meth_needs_args(f):
+    """
+    Returns True when the method needs arguments when being called, as opposed
+    to a function for which all arguments are optional.
+    """
+    sig = inspect.signature(f)
+    parameters = OrderedDict(sig.parameters)
+    # ignore first param ("self") since these are methods
+    parameters.popitem(last=False)
+    return any(
+        # Parameters without default value
+        param.default == inspect.Parameter.empty
+        # and that are not *args or **kwargs
+        and param.kind not in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD
+        )
+        for param in parameters.values()
     )
 
-parser = argparse.ArgumentParser(
-        description='EAS Performance and Trace Plotter')
-parser.add_argument('--results', type=str,
-        default='./results_latest',
-        help='Folder containing experimental results')
-parser.add_argument('--outdir', type=str,
-        default=None,
-        help='A single output folder we want to produce plots for')
-parser.add_argument('--tmin', type=float,
-        default=None,
-        help='Minimum timestamp for all plots')
-parser.add_argument('--tmax', type=float,
-        default=None,
-        help='Maximum timestamp for all plots')
-parser.add_argument('--plots', type=str,
-        default='all',
-        help='List of plots to produce (all,')
-
-args = None
-
-def main():
-    global args
-    args = parser.parse_args()
-
-    # Setup plots to produce
-    if args.plots == 'all':
-        args.plots = 'tasks clusters cpus stune ediff edspace'
-
-    # For each rtapp and each run
-    if args.outdir is not None:
-
-        # Load platform descriptior
-        platform = None
-        plt_file = os.path.join(args.outdir, 'platform.json')
-        if os.path.isfile(plt_file):
-            with open(plt_file, 'r') as ifile:
-                platform = json.load(ifile)
-        logging.info('Platform description:')
-        logging.info('  %s', platform)
-
-        # Plot the specified results folder
-        return plotdir(args.outdir, platform)
-
-    for test_idx in sorted(os.listdir(args.results)):
-
-        match = TEST_DIR_RE.search(test_idx)
-        if match == None:
-            continue
-        wtype = match.group(1)
-        conf_idx = match.group(2)
-        wload_idx = match.group(3)
-
-
-        # Generate performance plots only for RTApp workloads
-        if wtype != 'rtapp':
-            continue
-
-        logging.debug('Processing [%s:%s:%s]...',
-                wtype, conf_idx, wload_idx)
-
-        # For each run of an rt-app workload
-        test_dir = os.path.join(args.results, test_idx)
-
-        # Load platform descriptior
-        platform = None
-        plt_file = os.path.join(test_dir, 'platform.json')
-        if os.path.isfile(plt_file):
-            with open(plt_file, 'r') as ifile:
-                platform = json.load(ifile)
-        logging.info('Platform description:')
-        logging.info('  %s', platform)
-
-        for run_idx in sorted(os.listdir(test_dir)):
-
-            run_dir = os.path.join(test_dir, run_idx)
-            try:
-                run_id = int(run_idx)
-            except ValueError:
-                continue
-
-            logging.info('Generate plots for [%s]...', run_dir)
-            plotdir(run_dir, platform)
-
-def plotdir(run_dir, platform):
-    global args
-    tasks = None
-    pa = None
-
-    # Load RTApp performance data
+@contextlib.contextmanager
+def handle_plot_excep(exit_on_error=True):
     try:
-        pa = PerfAnalysis(run_dir)
+        yield
+    except MissingTraceEventError as e:
+        excep_msg = str(e)
+    except KeyError as e:
+        excep_msg = 'Please specify --platinfo with the "{}" filled in'.format(e.args[1])
+    else:
+        excep_msg = None
 
-        # Get the list of RTApp tasks
-        tasks = pa.tasks()
-        logging.info('Tasks: %s', tasks)
-    except ValueError:
-        pa = None
-        logging.info('No performance data found')
+    if excep_msg:
+        error(excep_msg, -1 if exit_on_error else None)
 
-    # Load Trace Analysis modules
-    trace = Trace(run_dir, platform=platform)
 
-    # Define time ranges for all the temporal plots
-    trace.setXTimeRange(args.tmin, args.tmax)
+def get_analysis_listing(plots_map):
+    return '\n'.join(
+        '* {} analysis:\n  {}\n'.format(
+            get_analysis_nice_name(analysis_name),
+            '\n  '.join(
+                '{name}: {doc}'.format(
+                    name=name,
+                    doc=get_short_doc(meth),
+                )
+                for name, meth in methods.items()
 
-    # Tasks plots
-    if 'tasks' in args.plots:
-        trace.analysis.tasks.plot_tasks(tasks)
-        if pa:
-            for task in tasks:
-                pa.plotPerf(task)
+            ),
+        )
+        for analysis_name, methods in plots_map.items()
+    )
 
-    # Cluster and CPUs plots
-    if 'clusters' in args.plots:
-        trace.analysis.frequency.plot_cluster_frequencies()
-    if 'cpus' in args.plots:
-        trace.analysis.cpus.plot_cpu()
+def main(argv):
+    plots_map = get_plots_map()
+    analysis_nice_name_map = {
+        get_analysis_nice_name(name): name
+        for name in plots_map.keys()
+    }
 
-    # SchedTune plots
-    if 'stune' in args.plots:
-        trace.analysis.eas.plot_sched_tune_conf()
-    if 'ediff' in args.plots:
-        trace.analysis.eas.plot_e_diff_time();
-    if 'edspace' in args.plots:
-        trace.analysis.eas.plot_e_diff_space();
+    parser = argparse.ArgumentParser(description="""
+CLI for LISA analysis plots and reports from traces.
 
-if __name__ == "__main__":
-    main()
+Available plots:
+
+{}
+
+""".format(get_analysis_listing(plots_map)),
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    parser.add_argument('trace',
+        help='trace-cmd trace.dat, or systrace file',
+    )
+
+    parser.add_argument('--plot', nargs=2, action='append',
+        default=[],
+        metavar=('PLOT', 'OUTPUT_PATH'),
+        help='Create the given plot',
+    )
+
+    parser.add_argument('--plot-analysis', nargs=3, action='append',
+        default=[],
+        metavar=('ANALYSIS', 'OUTPUT_FOLDER_PATH', 'FORMAT'),
+        help='Create all the plots of the given analysis',
+    )
+
+    parser.add_argument('--plot-all', nargs=2,
+        metavar=('OUTPUT_FOLDER_PATH', 'FORMAT'),
+        help='Create all the plots in the given folder',
+    )
+
+    parser.add_argument('--best-effort', action='store_true',
+        help='Try to generate as many of the requested plots as possible without early termination.',
+    )
+
+    parser.add_argument('--window', nargs=2, type=float,
+        metavar=('BEGIN', 'END'),
+        help='Only plot data between BEGIN and END times',
+    )
+
+    parser.add_argument('--platinfo',
+        help='Platform information, necessary for some plots',
+    )
+
+    args = parser.parse_args(argv)
+
+    flat_plot_map = {
+        plot_name: (analysis_name, meth)
+        for analysis_name, plot_list in plots_map.items()
+        for plot_name, meth in plot_list.items()
+    }
+
+    if args.platinfo:
+        plat_info = PlatformInfo.from_yaml_map(args.platinfo)
+    else:
+        plat_info = None
+
+    if args.plot_all:
+        folder, fmt = args.plot_all
+        plot_analysis_spec_list = [
+            (get_analysis_nice_name(analysis_name), folder, fmt)
+            for analysis_name in plots_map.keys()
+        ]
+    else:
+        plot_analysis_spec_list = []
+
+    plot_analysis_spec_list.extend(args.plot_analysis)
+
+    plot_spec_list = [
+        (plot_name, os.path.join(folder, '{}.{}'.format(plot_name, fmt)))
+        for analysis_name, folder, fmt in plot_analysis_spec_list
+        for plot_name, meth in plots_map[analysis_nice_name_map[analysis_name]].items()
+    ]
+
+    plot_spec_list.extend(args.plot)
+
+    # Build minimal event list to speed up trace loading time
+    plot_methods = set()
+    for plot_name, file_path in plot_spec_list:
+        try:
+            analysis_name, f = flat_plot_map[plot_name]
+        except KeyError:
+            error('Unknown plot "{}", see --help'.format(plot_name))
+
+        plot_methods.add(f)
+
+    events = set()
+    for f in plot_methods:
+        with contextlib.suppress(AttributeError):
+            events.update(f.used_events.get_all_events())
+
+    events = sorted(events)
+
+    print('Parsing trace events: {}'.format(', '.join(events)))
+
+    trace = Trace(args.trace, plat_info=plat_info, events=events)
+    if args.window:
+        trace = trace.get_view(args.window)
+
+    for plot_name, file_path in plot_spec_list:
+        analysis_name, f = flat_plot_map[plot_name]
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        analysis = getattr(trace.analysis, analysis_name)
+        # Bind the function to the analysis instance to get a bound method
+        meth = f.__get__(analysis, type(analysis))
+
+        with handle_plot_excep(exit_on_error=not args.best_effort):
+            meth(filepath=file_path)
+
+if __name__ == '__main__':
+    ret = main(sys.argv[1:])
+    sys.exit(ret)
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
