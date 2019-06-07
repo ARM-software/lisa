@@ -51,10 +51,10 @@ class AnalysisProxy(Loggable):
         def predicate(f):
             return callable(f) and hasattr(f, 'used_events')
 
-        return set(itertools.chain(
+        return set(itertools.chain.from_iterable(
             attr.used_events.get_all_events()
-            for name, attr in inspect.getmembers(cls, predicate=predicate)
             for cls in TraceAnalysisBase.get_analysis_classes().values()
+            for name, attr in inspect.getmembers(cls, predicate=predicate)
         ))
 
     def __dir__(self):
