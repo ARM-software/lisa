@@ -779,6 +779,8 @@ class TasksAnalysis(TraceAnalysisBase):
         """
 
         def plotter(axis, local_fig):
+            nonlocal active_value, sleep_value
+
             # Adapt the steps height to the existing limits. This allows
             # re-using an existing axis that already contains some data.
             min_lim, max_lim = axis.get_ylim()
