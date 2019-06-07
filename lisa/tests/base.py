@@ -605,13 +605,25 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         """
         :returns: a :class:`lisa.trace.TraceView`
 
+        All events specified in ``ftrace_conf`` are parsed from the trace,
+        so it is suitable for direct use in methods.
+
         Having the trace as a property lets us defer the loading of the actual
         trace to when it is first used. Also, this prevents it from being
         serialized when calling :meth:`lisa.utils.Serializable.to_path` and
         allows updating the underlying path before it is actually loaded to
         match a different folder structure.
         """
-        trace = Trace(self.trace_path, self.plat_info, events=self.ftrace_conf["events"])
+        return self.get_trace(events=self.ftrace_conf["events"])
+
+    def get_trace(self, **kwargs):
+        """
+        :returns: a :class:`lisa.trace.TraceView` cropped to fit the ``rt-app``
+            tasks.
+
+        :Keyword arguments: forwarded to :class:`lisa.trace.Trace`.
+        """
+        trace = Trace(self.trace_path, self.plat_info, **kwargs)
         return trace.get_view(self.trace_window(trace))
 
     @property
