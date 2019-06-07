@@ -40,7 +40,7 @@ class PerfAnalysis(AnalysisHelpers):
     RTA_LOG_PATTERN = 'rt-app-{task}.log'
     "Filename pattern matching RTApp log files"
 
-    def __init__(self, task_log_map):
+    def __init__(self, task_log_map, bundle=None):
         """
         Load peformance data of an rt-app workload
         """
@@ -48,6 +48,15 @@ class PerfAnalysis(AnalysisHelpers):
 
         if not task_log_map:
             raise ValueError('No tasks in the task log mapping')
+
+        # When a bundle is provided, sanity check that all logfiles are in its res_dir
+        if bundle:
+            resdir = getattr(bundle, 'res_dir', None)
+            if not resdir:
+                return None
+            if not all([logfile.startswith(resdir)
+                        for _, logfile in task_log_map.items()]):
+                return None
 
         for task_name, logfile in task_log_map.items():
             logger.debug('rt-app task [{}] logfile: {}'.format(
@@ -61,11 +70,27 @@ class PerfAnalysis(AnalysisHelpers):
             }
             for task_name, logfile in task_log_map.items()
         }
+        self._bundle = bundle
 
     @classmethod
-    def from_log_files(cls, rta_logs):
+    def _log_dir_from_bundle(cls, bundle, default=None):
+        if bundle:
+            rtapp_profile = getattr(bundle, 'rtapp_profile', None)
+            if not rtapp_profile:
+                return None
+            log_dir = getattr(bundle, 'res_dir', None)
+            if log_dir:
+                return log_dir
+        return default
+
+    @classmethod
+    def from_log_files(cls, rta_logs, bundle=None):
         """
         Build a :class:`PerfAnalysis` from a sequence of RTApp log files
+
+        If a :class:`ResultBundle` is provided as the `bundle` parameter, the
+        `bundle`'s `log_dir` is used to ensure the specified log files are from
+        that folder.
 
         :param rta_logs: sequence of path to log files
         :type rta_logs: list(str)
@@ -83,32 +108,54 @@ class PerfAnalysis(AnalysisHelpers):
             find_task_name(logfile): logfile
             for logfile in rta_logs
         }
-        return cls(task_log_map)
+        return cls(task_log_map, bundle)
 
     @classmethod
-    def from_dir(cls, log_dir):
+    def from_dir(cls, log_dir=None, bundle=None):
         """
-        Build a :class:`PerfAnalysis` from a folder path
+        Build a :class:`PerfAnalysis` from a folder path or :class:ResultBundle
+
+        One among the `log_dir` or the `bundle` parameter must be provided.
+        If a :class:`ResultBundle` is provided as the `bundle` parameter, the
+        `bundle`'s `log_dir` is used for log files search.
 
         :param log_dir: Folder containing RTApp log files
         :type log_dir: str
+
+        :param bundle: A :class:ResultBundle containing information on the log folder
+        :type bundle: str
         """
+        log_dir = cls._log_dir_from_bundle(bundle, log_dir)
+        if not log_dir:
+            return None
+
         rta_logs = glob.glob(os.path.join(
             log_dir, cls.RTA_LOG_PATTERN.format(task='*'),
         ))
-        return cls.from_log_files(rta_logs)
+        return cls.from_log_files(rta_logs, bundle)
 
     @classmethod
-    def from_task_names(cls, task_names, log_dir):
+    def from_task_names(cls, task_names, log_dir=None, bundle=None):
         """
-        Build a :class:`PerfAnalysis` from a list of task names
+        Build a :class:`PerfAnalysis` from a list of task names and a log_dir or :class:Result.
+
+        One among the `log_dir` or the `bundle` parameter must be provided.
+        If a :class:`ResultBundle` is provided as the `bundle` parameter, the
+        `bundle`'s `log_dir` is used for log files search.
 
         :param task_names: List of task names to look for
         :type task_names: list(str)
 
         :param log_dir: Folder containing RTApp log files
         :type log_dir: str
+
+        :param bundle: A :class:ResultBundle containing information on the log folder
+        :type bundle: str
         """
+        log_dir = cls._log_dir_from_bundle(bundle, log_dir)
+        if not log_dir:
+            return None
+
         def find_log_file(task_name, log_dir):
             log_file = os.path.join(log_dir, cls.RTA_LOG_PATTERN.format(task_name))
             if not os.path.isfile(log_file):
@@ -121,7 +168,20 @@ class PerfAnalysis(AnalysisHelpers):
             task_name: find_log_file(task, log_dir)
             for task_name in tasks
         }
-        return cls(task_log_map)
+        return cls(task_log_map, bundle)
+
+    @classmethod
+    def from_bundle(cls, bundle):
+        """
+        Build a :class:`PerfAnalysis` from a :class:`ResultBundle`
+
+        A :class:`ResultBundle` obtained from the execution of an
+        :class:`RTApp` workload can be used to get access to the rtapp
+        generated logfile information.
+
+
+        """
+        return cls.from_dir(bundle=bundle)
 
     @staticmethod
     def _parse_df(logfile):
