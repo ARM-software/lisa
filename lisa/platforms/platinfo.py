@@ -58,6 +58,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         LevelKeyDesc('kernel', 'Kernel-related information', (
             KeyDesc('version', '', [KernelVersion]),
             KernelConfigKeyDesc('config', '', [TypedKernelConfig]),
+            KeyDesc('cmdline', 'Content of /proc/cmdline', [str]),
         )),
         KeyDesc('nrg-model', 'Energy model object', [EnergyModel]),
         KeyDesc('cpu-capacities', 'Dictionary of CPU ID to capacity value', [IntIntDict]),
@@ -85,6 +86,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             'kernel': {
                 'version': target.kernel_version,
                 'config': target.config.typed_config,
+                'cmdline': target.read_value('/proc/cmdline'),
             },
             'abi': target.abi,
             'os': target.os,
