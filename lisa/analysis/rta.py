@@ -256,6 +256,77 @@ class PerfAnalysis(AnalysisHelpers):
 
         return self.do_plot(plotter, filepath, axis)
 
+    @memoized
+    def df_phases(self, task, start_time=None):
+        """
+        Get phases actual start times and durations
+
+        :param task: Name of the task that we want the phases dataframe of
+        :type task: def __str__(self):
+
+        :param start_time: The first activation time in seconds
+        :type start_time: float
+
+        :returns: A :class:`pandas.DataFrame` with index representing the
+        start time of a phase and these column:
+
+        * ``Duration``: the measured phase duration.
+        * ``CPeriod``: the configured activation periods for the phase
+        * ``CRun``: the configured activation run time for the phase
+
+        """
+        activation_df = self.get_df(task, start_time)
+        phase_df = activation_df[['CRun', 'CPeriod']].copy()
+
+        # Shift Run and Periods for phase changes detection
+        phase_df['PRun'] = phase_df['CRun'].shift(1)
+        phase_df['PPeriod'] = phase_df['CPeriod'].shift(1)
+
+        # Keep only new phase start events
+        phase_df = phase_df[(phase_df.CRun != phase_df.PRun) |
+                            (phase_df.CPeriod != phase_df.PPeriod)]
+
+        # Compute duration of each phase, last one requires a "special" treatment
+        durations = list(phase_df.index[1:] - phase_df.index[:-1])
+        last_phase_duration = activation_df.index[-1] - phase_df.index[-1] + \
+                              activation_df.iloc[-1].Period / 1e6
+
+        # Compute phase durations
+        phase_df.loc[:,'Duration'] = durations + [last_phase_duration]
+
+        return phase_df[['Duration', 'CPeriod', 'CRun']]
+
+    def plot_phases(self, task, start_time=None, filepath=None, axis=None):
+        """
+        Draw the task's phases colored bands
+
+        :param task: Name of the task that we want the performance dataframe of.
+        :type task: str
+
+        :param start_time: The first event time in seconds
+        :type start_time: float
+
+        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
+        """
+        phases_df = self.df_phases(task, start_time)
+
+        # Compute phases intervals
+        bands = [(t, t + phases_df['Duration'][t]) for t in phases_df.index]
+
+        def plotter(axis, local_fig):
+            for idx, (start, end) in enumerate(bands):
+                color = self.get_next_color(axis)
+                label = 'Phase_{}:{}'.format(int(phases_df.iloc[idx].CRun /1e3),
+                                             int(phases_df.iloc[idx].CPeriod / 1e3))
+                axis.axvspan(start, end, alpha=0.1, facecolor=color, label=label)
+
+            axis.legend()
+
+            if local_fig:
+                axis.set_title("Task [{}] phases".format(task))
+
+        return self.do_plot(plotter, filepath, axis)
+
     def plot_perf(self, task, **kwargs):
         """
         Plot the performance Index
