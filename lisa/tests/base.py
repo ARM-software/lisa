@@ -35,7 +35,7 @@ from lisa.wlgen.rta import RTA
 
 from lisa.utils import (
     Serializable, memoized, ArtifactPath, non_recursive_property,
-    LayeredMapping
+    LayeredMapping, update_wrapper_doc
 )
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
 
@@ -725,8 +725,20 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         function.
         """
         def decorator(func):
+            @update_wrapper_doc(
+                func,
+                added_by=':meth:`lisa.tests.base.RTATestBundle.test_noisy_tasks`',
+                description=textwrap.dedent(
+                """
+                The returned ``ResultBundle.result`` will be changed to
+                :attr:`~lisa.tests.base.Result.UNDECIDED` if the environment was
+                too noisy:
+                {}
+                """).strip().format(
+                    inspect.getdoc(cls.test_noisy_tasks)
+                )
+            )
             @cls.test_noisy_tasks.used_events
-            @functools.wraps(func)
             def wrapper(self, *args,
                         noise_threshold_pct=noise_threshold_pct,
                         noise_threshold_ms=noise_threshold_ms,
@@ -741,42 +753,6 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
                     res.result = Result.UNDECIDED
 
                 return res
-
-            # https://stackoverflow.com/a/33112180
-            # The wrapper has all of `func`'s parameters plus `test_noisy_tasks`',
-            # but since we use `wraps(func)` we'll only get doc/autocompletion for
-            # `func`'s. Expose the extra parameters to the decorated function to
-            # make it more user friendly.
-            func_sig = signature(func)
-            dec_params = signature(cls.check_noisy_tasks).parameters
-
-            # We want the default values of the new parameters for the
-            # *decorated* function to be the values passed to the decorator,
-            # which aren't the default values of the decorator.
-            new_params = [
-                dec_params["noise_threshold_pct"].replace(default=noise_threshold_pct),
-                dec_params["noise_threshold_ms"].replace(default=noise_threshold_ms)
-            ]
-            wrapper.__signature__ = func_sig.replace(
-                parameters=list(func_sig.parameters.values()) + new_params
-            )
-
-            # Make it obvious in the doc where the extra parameters come from
-            noise_doc = inspect.getdoc(cls.test_noisy_tasks).splitlines()
-            # Replace the one-liner func description
-            noise_doc[1] = textwrap.dedent(
-                """
-                **Added by** :meth:`~{}.{}.{}`:
-
-                The returned ``ResultBundle.result`` will be changed to
-                :attr:`~lisa.tests.base.Result.UNDECIDED` if the environment was
-                too noisy:
-                """.format(cls.__module__, cls.__name__, cls.check_noisy_tasks.__name__)
-            )
-            noise_doc = '\n'.join(noise_doc)
-
-            wrapper_doc = inspect.getdoc(wrapper) or ''
-            wrapper.__doc__ = wrapper_doc + "\n".join(noise_doc)
 
             return wrapper
         return decorator
