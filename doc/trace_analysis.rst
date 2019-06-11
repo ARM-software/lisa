@@ -46,7 +46,7 @@ to study specific trace windows.
 
 .. exec::
     from lisa.doc.helpers import get_analysis_list
-    print(get_analysis_list("df_"))
+    print(get_analysis_list("df"))
 
 Plots
 +++++
@@ -58,7 +58,7 @@ they are also saved in the same directory as your ``trace.dat``
 
 .. exec::
     from lisa.doc.helpers import get_analysis_list
-    print(get_analysis_list("plot_"))
+    print(get_analysis_list("plot"))
 
 API
 ===
