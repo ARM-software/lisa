@@ -48,12 +48,11 @@ class FunctionsAnalysis(AnalysisHelpers):
         self._df = pd.concat(list(frames.values()),
                                              keys=list(frames.keys()))
 
-    def save_plot(self, *args, **kwargs):
-        """
-        See :meth:`lisa.analysis.base.AnalysisHelpers.save_plot`
-        """
-        default_dir = os.path.dirname(self.stats_path)
-        return self._save_plot(*args, default_dir=default_dir, **kwargs)
+    def get_default_plot_path(self, **kwargs):
+        return super().get_default_plot_path(
+            default_dir=os.path.dirname(self.stats_path),
+            **kwargs,
+        )
 
     def df_functions_stats(self, functions=None):
         """

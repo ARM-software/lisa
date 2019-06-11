@@ -679,7 +679,7 @@ class TasksAnalysis(TraceAnalysisBase):
         return self.do_plot(plotter, **kwargs)
 
     @requires_events("sched_wakeup")
-    def plot_tasks_wakeups_heatmap(self, xbins=100, colormap=None, filepath=None):
+    def plot_tasks_wakeups_heatmap(self, xbins=100, colormap=None):
         """
         :param xbins: Number of x-axis bins, i.e. in how many slices should
           time be arranged
@@ -697,8 +697,6 @@ class TasksAnalysis(TraceAnalysisBase):
 
         axis.set_title("Tasks wakeups over time")
         axis.set_xlim(self.trace.start, self.trace.end)
-
-        self.save_plot(fig, filepath)
 
         return axis
 
@@ -733,7 +731,7 @@ class TasksAnalysis(TraceAnalysisBase):
         return self.do_plot(plotter, **kwargs)
 
     @requires_events("sched_wakeup_new")
-    def plot_tasks_forks_heatmap(self, xbins=100, colormap=None, filepath=None):
+    def plot_tasks_forks_heatmap(self, xbins=100, colormap=None):
         """
         :param xbins: Number of x-axis bins, i.e. in how many slices should
           time be arranged
@@ -751,8 +749,6 @@ class TasksAnalysis(TraceAnalysisBase):
 
         axis.set_title("Tasks forks over time")
         axis.set_xlim(self.trace.start, self.trace.end)
-
-        self.save_plot(fig, filepath)
 
         return axis
 

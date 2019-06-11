@@ -172,7 +172,7 @@ class PerfAnalysis(AnalysisHelpers):
         """
         return self.perf_data[task]['df']
 
-    def save_plot(self, figure, filepath=None, img_format=None):
+
         # If all logfiles are located in the same folder, use that folder
         # and the default_filename
         dirnames = {
@@ -183,7 +183,11 @@ class PerfAnalysis(AnalysisHelpers):
             raise ValueError('Please specify filepath or axis, since a default folder cannot be inferred from logfiles location')
 
         default_dir = dirnames.pop()
-        return self._save_plot(figure, default_dir, filepath, img_format)
+
+        return super().get_default_plot_path(
+            default_dir=default_dir,
+            **kwargs,
+        )
 
     def plot_perf(self, task, **kwargs):
         """
