@@ -824,4 +824,90 @@ class LayeredMapping(MutableMapping):
             top=copy.copy(self.top),
         )
 
+
+def update_wrapper_doc(func, added_by=None, description=None, remove_params=None):
+    """
+    Equivalent to :func:`functools.wraps` that updates the signature by taking
+    into account the wrapper's extra parameters and the given description. Note
+    that var positional and var keyword arguments (``*args`` and ``**kwargs``)
+    are *not* added to the wrapped function's signature, since they are usually
+    used to transparently forward arguments from the decorator to the decorated
+    function.
+
+    :param added_by: Add some kind of reference to give a sense of where the
+        new behaviour of the wraps function comes from.
+    :type added_by: str or None
+
+    :param description: Extra description output in the docstring.
+    :type description: str or None
+
+    :param remove_params: Set of parameter names to not include in the decorated
+        function signature. This can be used to hide parameters that are only
+        used as part of a decorated/decorator protocol, and not exposed in the
+        final decorated function.
+
+    .. note:: :func:`functools.wraps` is applied by this decorator, which will
+        not work if you applied it yourself.
+    """
+
+    if description:
+        description = '\n{}\n'.format(description)
+
+    remove_params = remove_params if remove_params else set()
+
+    def decorator(f):
+        wrapper_sig = inspect.signature(f)
+        f = functools.wraps(func)(f)
+        f_sig = inspect.signature(f)
+
+        added_params = [
+            desc
+            for name, desc in wrapper_sig.parameters.items()
+            if (
+                name not in f_sig.parameters.keys()
+                # These kinds are usually present in the wrapper to forward
+                # to the wrapped function, so they are not interesting here
+                and not desc.kind in (
+                    inspect.Parameter.VAR_KEYWORD,
+                    inspect.Parameter.VAR_POSITIONAL
+                )
+            )
+        ]
+
+        def merge_param_list(l1, l2):
+            new_list = []
+            # Make sure the new param list has the different kinds of
+            # parameters ordered as it should
+            for kind in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.KEYWORD_ONLY,
+                inspect.Parameter.VAR_KEYWORD,
+            ):
+                new_list.extend(
+                    p
+                    # Take from l1 first, then from l2
+                    for p in itertools.chain(l1, l2)
+                    if p.kind == kind and p.name not in remove_params
+                )
+            return new_list
+
+        f.__signature__ = f_sig.replace(
+            parameters=merge_param_list(f_sig.parameters.values(), added_params),
+        )
+
+        # Replace the one-liner f description
+        extra_doc = "\n\n{added_by}{description}".format(
+            added_by='**Added by** {}:\n'.format(added_by) if added_by else '',
+            description=description if description else '',
+        )
+
+        f_doc = inspect.getdoc(f) or ''
+        f.__doc__ = f_doc + extra_doc
+
+        return f
+    return decorator
+
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
