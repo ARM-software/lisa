@@ -20,6 +20,7 @@ import time
 from wa import Instrument, Parameter
 from wa.framework.exception import ConfigError, InstrumentError
 from wa.framework.instrument import extremely_slow
+from wa.utils.types import identifier
 
 
 class DelayInstrument(Instrument):
@@ -32,7 +33,7 @@ class DelayInstrument(Instrument):
     The delay may be specified as either a fixed period or a temperature
     threshold that must be reached.
 
-    Optionally, if an active cooling solution is available on the device tqgitq
+    Optionally, if an active cooling solution is available on the device to
     speed up temperature drop between runs, it may be controlled using this
     instrument.
 
@@ -222,7 +223,7 @@ class DelayInstrument(Instrument):
         for module in self.active_cooling_modules:
             if self.target.has(module):
                 if not cooling_module:
-                    cooling_module = getattr(self.target, module)
+                    cooling_module = getattr(self.target, identifier(module))
                 else:
                     msg = 'Multiple cooling modules found "{}" "{}".'
                     raise InstrumentError(msg.format(cooling_module.name, module))

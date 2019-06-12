@@ -5,10 +5,12 @@ Convention for Naming revent Files for Revent Workloads
 -------------------------------------------------------------------------------
 
 There is a convention for naming revent files which you should follow if you
-want to record your own revent files. Each revent file must start with the
-device name(case sensitive) then followed by a dot '.' then the stage name
-then '.revent'. All your custom revent files should reside at
-``'~/.workload_automation/dependencies/WORKLOAD NAME/'``. These are the current
+want to record your own revent files. Each revent file must be called (case sensitive)
+``<device name>.<stage>.revent``,
+where ``<device name>`` is the name of your device (as defined by the model
+name of your device which can be retrieved with
+``adb shell getprop ro.product.model`` or by the ``name`` attribute of your
+customized device class), and ``<stage>`` is one of the following currently
 supported stages:
 
         :setup: This stage is where the application is loaded (if present). It is
@@ -26,10 +28,12 @@ Only the run stage is mandatory, the remaining stages will be replayed if a
 recording is present otherwise no actions will be performed for that particular
 stage.
 
-For instance, to add a custom revent files for a device named "mydevice" and
-a workload name "myworkload", you need to add the revent files to the directory
-``/home/$WA_USER_HOME/dependencies/myworkload/revent_files`` creating it if
-necessary. ::
+All your custom revent files should reside at
+``'$WA_USER_DIRECTORY/dependencies/WORKLOAD NAME/'``. So
+typically to add a custom revent files for a device named "mydevice" and a
+workload name "myworkload", you would need to add the revent files to the
+directory ``~/.workload_automation/dependencies/myworkload/revent_files``
+creating the directory structure if necessary. ::
 
     mydevice.setup.revent
     mydevice.run.revent

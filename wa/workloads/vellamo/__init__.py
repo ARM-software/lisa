@@ -66,12 +66,12 @@ class Vellamo(ApkUiautoWorkload):
     ]
 
     def setup(self, context):
-        super(Vellamo, self).setup(context)
         self.gui.uiauto_params['version'] = self.version
         self.gui.uiauto_params['browserToUse'] = self.browser
         self.gui.uiauto_params['metal'] = 'Metal' in self.benchmarks
         self.gui.uiauto_params['browser'] = 'Browser' in self.benchmarks
         self.gui.uiauto_params['multicore'] = 'Multi' in self.benchmarks
+        super(Vellamo, self).setup(context)
 
     def initialize(self, context):
         super(Vellamo, self).initialize(context)

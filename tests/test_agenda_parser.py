@@ -18,7 +18,6 @@
 # pylint: disable=R0201
 import os
 import sys
-import yaml
 from collections import defaultdict
 from unittest import TestCase
 
@@ -31,6 +30,7 @@ os.environ['WA_USER_DIRECTORY'] = os.path.join(DATA_DIR, 'includes')
 from wa.framework.configuration.execution import ConfigManager
 from wa.framework.configuration.parsers import AgendaParser
 from wa.framework.exception import ConfigError
+from wa.utils.serializer import yaml
 from wa.utils.types import reset_all_counters
 
 
@@ -44,8 +44,6 @@ workloads:
       workload_parameters:
           test: 1
 """
-invalid_agenda = yaml.load(invalid_agenda_text)
-invalid_agenda.name = 'invalid1'
 
 duplicate_agenda_text = """
 global:
@@ -58,14 +56,10 @@ workloads:
     - id: "1"
       workload_name: benchmarkpi
 """
-duplicate_agenda = yaml.load(duplicate_agenda_text)
-duplicate_agenda.name = 'invalid2'
 
 short_agenda_text = """
 workloads: [antutu, dhrystone, benchmarkpi]
 """
-short_agenda = yaml.load(short_agenda_text)
-short_agenda.name = 'short'
 
 default_ids_agenda_text = """
 workloads:
@@ -78,8 +72,6 @@ workloads:
           cpus: 1
     - vellamo
 """
-default_ids_agenda = yaml.load(default_ids_agenda_text)
-default_ids_agenda.name = 'default_ids'
 
 sectioned_agenda_text = """
 sections:
@@ -102,8 +94,6 @@ sections:
 workloads:
     - memcpy
 """
-sectioned_agenda = yaml.load(sectioned_agenda_text)
-sectioned_agenda.name = 'sectioned'
 
 dup_sectioned_agenda_text = """
 sections:
@@ -116,8 +106,22 @@ sections:
 workloads:
     - memcpy
 """
-dup_sectioned_agenda = yaml.load(dup_sectioned_agenda_text)
-dup_sectioned_agenda.name = 'dup-sectioned'
+
+yaml_anchors_agenda_text = """
+workloads:
+-   name: dhrystone
+    params: &dhrystone_single_params
+        cleanup_assets: true
+        cpus: 0
+        delay: 3
+        duration: 0
+        mloops: 10
+        threads: 1
+-   name: dhrystone
+    params:
+        <<: *dhrystone_single_params
+        threads: 4
+"""
 
 
 class AgendaTest(TestCase):
@@ -132,6 +136,8 @@ class AgendaTest(TestCase):
         assert_equal(len(self.config.jobs_config.root_node.workload_entries), 4)
 
     def test_duplicate_id(self):
+        duplicate_agenda = yaml.load(duplicate_agenda_text)
+
         try:
             self.parser.load(self.config, duplicate_agenda, 'test')
         except ConfigError as e:
@@ -140,6 +146,8 @@ class AgendaTest(TestCase):
             raise Exception('ConfigError was not raised for an agenda with duplicate ids.')
 
     def test_yaml_missing_field(self):
+        invalid_agenda = yaml.load(invalid_agenda_text)
+
         try:
             self.parser.load(self.config, invalid_agenda, 'test')
         except ConfigError as e:
@@ -148,20 +156,26 @@ class AgendaTest(TestCase):
             raise Exception('ConfigError was not raised for an invalid agenda.')
 
     def test_defaults(self):
+        short_agenda = yaml.load(short_agenda_text)
         self.parser.load(self.config, short_agenda, 'test')
+
         workload_entries = self.config.jobs_config.root_node.workload_entries
         assert_equal(len(workload_entries), 3)
         assert_equal(workload_entries[0].config['workload_name'], 'antutu')
         assert_equal(workload_entries[0].id, 'wk1')
 
     def test_default_id_assignment(self):
+        default_ids_agenda = yaml.load(default_ids_agenda_text)
+
         self.parser.load(self.config, default_ids_agenda, 'test2')
         workload_entries = self.config.jobs_config.root_node.workload_entries
         assert_equal(workload_entries[0].id, 'wk2')
         assert_equal(workload_entries[3].id, 'wk3')
 
     def test_sections(self):
+        sectioned_agenda = yaml.load(sectioned_agenda_text)
         self.parser.load(self.config, sectioned_agenda, 'test')
+
         root_node_workload_entries = self.config.jobs_config.root_node.workload_entries
         leaves = list(self.config.jobs_config.root_node.leaves())
         section1_workload_entries = leaves[0].workload_entries
@@ -171,8 +185,22 @@ class AgendaTest(TestCase):
         assert_true(section1_workload_entries[0].config['workload_parameters']['markers_enabled'])
         assert_equal(section2_workload_entries[0].config['workload_name'], 'antutu')
 
+    def test_yaml_anchors(self):
+        yaml_anchors_agenda = yaml.load(yaml_anchors_agenda_text)
+        self.parser.load(self.config, yaml_anchors_agenda, 'test')
+
+        workload_entries = self.config.jobs_config.root_node.workload_entries
+        assert_equal(len(workload_entries), 2)
+        assert_equal(workload_entries[0].config['workload_name'], 'dhrystone')
+        assert_equal(workload_entries[0].config['workload_parameters']['threads'], 1)
+        assert_equal(workload_entries[0].config['workload_parameters']['delay'], 3)
+        assert_equal(workload_entries[1].config['workload_name'], 'dhrystone')
+        assert_equal(workload_entries[1].config['workload_parameters']['threads'], 4)
+        assert_equal(workload_entries[1].config['workload_parameters']['delay'], 3)
+
     @raises(ConfigError)
     def test_dup_sections(self):
+        dup_sectioned_agenda = yaml.load(dup_sectioned_agenda_text)
         self.parser.load(self.config, dup_sectioned_agenda, 'test')
 
     @raises(ConfigError)

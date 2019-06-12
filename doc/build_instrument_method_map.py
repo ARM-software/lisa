@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#    Copyright 2015-2015 ARM Limited
+#    Copyright 2015-2019 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ OUTPUT_TEMPLATE_FILE =  os.path.join(os.path.dirname(__file__), 'source', 'instr
 
 
 def generate_instrument_method_map(outfile):
-    signal_table = format_simple_table([(k, v) for k, v in SIGNAL_MAP.iteritems()],
+    signal_table = format_simple_table([(k, v) for k, v in SIGNAL_MAP.items()],
                                        headers=['method name', 'signal'], align='<<')
     priority_table = format_simple_table(zip(CallbackPriority.names, CallbackPriority.values),
                                          headers=['decorator', 'priority'],  align='<>')
@@ -37,4 +37,4 @@ def generate_instrument_method_map(outfile):
 
 
 if __name__ == '__main__':
-    generate_instrumentation_method_map(sys.argv[1])
+    generate_instrument_method_map(sys.argv[1])

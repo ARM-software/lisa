@@ -14,9 +14,9 @@ Using revent with workloads
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Some workloads (pretty much all games) rely on recorded revents for their
-execution. ReventWorkloads will require between 1 and 4 revent files be be ran.
-There is one mandatory recording ``run`` for performing the actual execution of
-the workload and the remaining are optional. ``setup`` can be used to perform
+execution. ReventWorkloads require between 1 and 4 revent files to be ran.
+There is one mandatory recording, ``run``, for performing the actual execution of
+the workload and the remaining stages are optional. ``setup`` can be used to perform
 the initial setup (navigating menus, selecting game modes, etc).
 ``extract_results`` can be used to perform any actions after the main stage of
 the workload for example to navigate a results or summary screen of the app. And
@@ -26,17 +26,21 @@ exiting the app.
 Because revents are very device-specific\ [*]_, these files would need to
 be recorded for each device.
 
-The files must be called ``<device name>.(setup|run|extract_results|teardown).revent``
-, where ``<device name>`` is the name of your device (as defined by the ``name``
-attribute of your device's class). WA will look for these files in two
-places: ``<install dir>/wa/workloads/<workload name>/revent_files``
-and ``~/.workload_automation/dependencies/<workload name>``. The first
-location is primarily intended for revent files that come with WA (and if
+The files must be called ``<device name>.(setup|run|extract_results|teardown).revent``,
+where ``<device name>`` is the name of your device (as defined by the model
+name of your device which can be retrieved with
+``adb shell getprop ro.product.model`` or by the ``name`` attribute of your
+customized device class).
+
+WA will look for these files in two places:
+``<installdir>/wa/workloads/<workload name>/revent_files`` and
+``$WA_USER_DIRECTORY/dependencies/<workload name>``. The
+first location is primarily intended for revent files that come with WA (and if
 you did a system-wide install, you'll need sudo to add files there), so it's
-probably easier to use the second location for the files you record. Also,
-if revent files for a workload exist in both locations, the files under
-``~/.workload_automation/dependencies`` will be used in favour of those
-installed with WA.
+probably easier to use the second location for the files you record. Also, if
+revent files for a workload exist in both locations, the files under
+``$WA_USER_DIRECTORY/dependencies`` will be used in favour
+of those installed with WA.
 
 .. [*] It's not just about screen resolution -- the event codes may be different
        even if devices use the same screen.

@@ -98,7 +98,8 @@ params = dict(
         'test': ['nose', 'mock'],
         'mongodb': ['pymongo'],
         'notify': ['notify2'],
-        'doc': ['sphinx'],
+        'doc': ['sphinx', 'sphinx_rtd_theme'],
+        'postgres': ['psycopg2-binary']
     },
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
@@ -112,7 +113,7 @@ params = dict(
 )
 
 all_extras = list(chain(iter(params['extras_require'].values())))
-params['extras_require']['everything'] = all_extras
+params['extras_require']['all'] = all_extras
 
 
 class sdist(orig_sdist):

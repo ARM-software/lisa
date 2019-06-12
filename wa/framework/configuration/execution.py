@@ -24,7 +24,7 @@ from wa.framework.configuration.core import (MetaConfiguration, RunConfiguration
                                              JobGenerator, settings)
 from wa.framework.configuration.parsers import ConfigParser
 from wa.framework.configuration.plugin_cache import PluginCache
-from wa.framework.exception import NotFoundError
+from wa.framework.exception import NotFoundError, ConfigError
 from wa.framework.job import Job
 from wa.utils import log
 from wa.utils.serializer import Podable
@@ -148,6 +148,9 @@ class ConfigManager(object):
 
     def generate_jobs(self, context):
         job_specs = self.jobs_config.generate_job_specs(context.tm)
+        if not job_specs:
+            msg = 'No jobs available for running.'
+            raise ConfigError(msg)
         exec_order = self.run_config.execution_order
         log.indent()
         for spec, i in permute_iterations(job_specs, exec_order):
