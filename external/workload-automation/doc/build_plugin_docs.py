@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#    Copyright 2014-2015 ARM Limited
+#    Copyright 2014-2019 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,12 @@ from wa.utils.doc import (strip_inlined_text, get_rst_from_plugin,
                           get_params_rst, underline, line_break)
 from wa.utils.misc import capitalize
 
-GENERATE_FOR_PACKAGES = ['wa.workloads', 'wa.instruments', 'wa.output_processors']
+GENERATE_FOR_PACKAGES = [
+    'wa.workloads',
+    'wa.instruments',
+    'wa.output_processors',
+]
+
 
 def insert_contents_table(title='', depth=1):
     """
@@ -41,6 +46,7 @@ def insert_contents_table(title='', depth=1):
 
 
 def generate_plugin_documentation(source_dir, outdir, ignore_paths):
+    # pylint: disable=unused-argument
     pluginloader.clear()
     pluginloader.update(packages=GENERATE_FOR_PACKAGES)
     if not os.path.exists(outdir):
@@ -57,7 +63,7 @@ def generate_plugin_documentation(source_dir, outdir, ignore_paths):
             exts = pluginloader.list_plugins(ext_type)
             sorted_exts = iter(sorted(exts, key=lambda x: x.name))
             try:
-                wfh.write(get_rst_from_plugin(sorted_exts.next()))
+                wfh.write(get_rst_from_plugin(next(sorted_exts)))
             except StopIteration:
                 return
             for ext in sorted_exts:
@@ -73,9 +79,11 @@ def generate_target_documentation(outdir):
                            'juno_linux',
                            'juno_android']
 
-    intro = '\nThis is a list of commonly used targets and their device '\
-    'parameters, to see a complete for a complete reference please use the '\
-    'WA :ref:`list command <list-command>`.\n\n\n'
+    intro = (
+        '\nThis is a list of commonly used targets and their device '
+        'parameters, to see a complete for a complete reference please use the'
+        ' WA :ref:`list command <list-command>`.\n\n\n'
+    )
 
     pluginloader.clear()
     pluginloader.update(packages=['wa.framework.target.descriptor'])
@@ -112,7 +120,8 @@ def generate_config_documentation(config, outdir):
     if not os.path.exists(outdir):
         os.mkdir(outdir)
 
-    outfile = os.path.join(outdir, '{}.rst'.format('_'.join(config.name.split())))
+    config_name = '_'.join(config.name.split())
+    outfile = os.path.join(outdir, '{}.rst'.format(config_name))
     with open(outfile, 'w') as wfh:
         wfh.write(get_params_rst(config.config_points))
 

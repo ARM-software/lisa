@@ -51,8 +51,8 @@ RUN apt-get install -y python3 python3-pip git wget zip openjdk-8-jre-headless v
 RUN pip3 install pandas
 
 # Let's get the two repos we need, and install them
-RUN git clone -v https://github.com/ARM-software/devlib.git /tmp/devlib && cd /tmp/devlib && git checkout $DEVLIB_REF && python3 setup.py install
-RUN git clone -v https://github.com/ARM-software/workload-automation.git /tmp/wa && cd /tmp/wa && git checkout $WA_REF && python3 setup.py install
+RUN git clone -v https://github.com/ARM-software/devlib.git /tmp/devlib && cd /tmp/devlib && git checkout $DEVLIB_REF && python3 setup.py install && pip3 install .[full]
+RUN git clone -v https://github.com/ARM-software/workload-automation.git /tmp/wa && cd /tmp/wa && git checkout $WA_REF && python3 setup.py install && pip3 install .[all]
 
 # Clean-up
 RUN rm -R /tmp/devlib /tmp/wa

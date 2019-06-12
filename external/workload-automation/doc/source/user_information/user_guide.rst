@@ -125,7 +125,7 @@ There are multiple options for configuring your device depending on your
 particular use case.
 
 You can either add your configuration to the default configuration file
-``config.yaml``, under the ``$WA_USER_HOME/`` directory or you can specify it in
+``config.yaml``, under the ``$WA_USER_DIRECTORY/`` directory or you can specify it in
 the ``config`` section of your agenda directly.
 
 Alternatively if you are using multiple devices, you may want to create separate

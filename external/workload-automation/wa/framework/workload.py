@@ -257,6 +257,12 @@ class ApkWorkload(Workload):
                 raise ConfigError('Target does not appear to support Android')
 
         super(ApkWorkload, self).__init__(target, **kwargs)
+
+        if self.activity is not None and '.' not in self.activity:
+            # If we're receiving just the activity name, it's taken relative to
+            # the package namespace:
+            self.activity = '.' + self.activity
+
         self.apk = PackageHandler(self,
                                   package_name=self.package_name,
                                   variant=self.variant,
