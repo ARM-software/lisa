@@ -169,12 +169,15 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         'cpu_capacity',
     )
     @df_cpus_signals.used_events
-    def plot_cpus_signals(self, cpus=None, **kwargs):
+    def plot_cpus_signals(self, cpus=None, signals=['util', 'load'], **kwargs):
         """
         Plot the CPU-related load-tracking signals
 
         :param cpus: list of CPUs to be plotted
         :type cpus: list(int)
+
+        :param signals: List of signals to plot.
+        :type signals: list(str)
 
         .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
@@ -189,8 +192,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 axis.set_title('CPU{}'.format(cpu))
                 df = cpus_df[cpus_df["__cpu"] == cpu]
 
-                df[['util']].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
-                df[['load']].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
+                for signal in signals:
+                    df[[signal]].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
                 self.trace.analysis.cpus.plot_orig_capacity(cpu, axis=axis)
 
