@@ -1386,7 +1386,7 @@ def requires_events(*events, **kwargs):
 
 def requires_one_event_of(*events, **kwargs):
     """
-    Same as :func:``used_events`` with logical `OR` semantic.
+    Same as :func:`requires_events` with logical `OR` semantic.
     """
     return OrTraceEventChecker.from_events(events, **kwargs)
 
