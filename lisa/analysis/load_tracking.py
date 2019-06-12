@@ -20,7 +20,8 @@
 import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.trace import requires_one_event_of
+from lisa.analysis.status import StatusAnalysis
+from lisa.trace import requires_one_event_of, may_use_events
 
 
 class LoadTrackingAnalysis(TraceAnalysisBase):
@@ -163,6 +164,10 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         return top_df
 
+    @may_use_events(
+        StatusAnalysis.plot_overutilized.used_events,
+        'cpu_capacity',
+    )
     @df_cpus_signals.used_events
     def plot_cpus_signals(self, cpus=None, **kwargs):
         """
