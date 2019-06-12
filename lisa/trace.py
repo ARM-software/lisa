@@ -1244,9 +1244,10 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
     """
     Base class for associative operators like `and` and `or`
     """
-    def __init__(self, op_str, event_checkers, check=True):
+    def __init__(self, op_str, event_checkers, check=True, prefix_str=''):
         super().__init__(check=check)
         checker_list = []
+        optional_checker_list = []
         for checker in event_checkers:
             # "unwrap" checkers of the same type, to avoid useless levels of
             # nesting. This is valid since the operator is known to be
@@ -1254,8 +1255,14 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
             # that may have different semantics.
             if type(checker) is type(self):
                 checker_list.extend(checker.checkers)
+            # Aggregate them separately to avoid having multiple of them
+            elif isinstance(checker, OptionalTraceEventChecker):
+                optional_checker_list.append(checker)
             else:
                 checker_list.append(checker)
+
+        if optional_checker_list:
+            checker_list.append(OptionalTraceEventChecker(optional_checker_list))
 
         # Avoid having the same event twice at the same level
         def key(checker):
@@ -1267,6 +1274,7 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
 
         self.checkers = checker_list
         self.op_str = op_str
+        self.prefix_str = prefix_str
 
     def get_all_events(self):
         events = set()
@@ -1298,7 +1306,7 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
         op_str = ' {} '.format(self.op_str)
         # Sort for stable output
         checker_list = sorted(self.checkers, key=lambda c: str(c))
-        unwrapped_str = op_str.join(
+        unwrapped_str = self.prefix_str + op_str.join(
             c._str_internal(style=style, wrapped=True)
             for c in checker_list
         )
@@ -1333,6 +1341,20 @@ class OrTraceEventChecker(AssociativeTraceEventChecker):
             raise MissingTraceEventError(
                 cls(failed_checker_set)
             )
+
+class OptionalTraceEventChecker(AssociativeTraceEventChecker):
+    """
+    Do not check anything, but exposes the information that the events may be
+    used if present.
+
+    :param event_checkers: Event checkers that may be used
+    :type event_checkers: list(TraceEventCheckerBase)
+    """
+    def __init__(self, event_checkers, **kwargs):
+        super().__init__(',', event_checkers, prefix_str='optional: ', **kwargs)
+
+    def check_events(self, event_set):
+        return
 
 class AndTraceEventChecker(AssociativeTraceEventChecker):
     """
@@ -1390,6 +1412,13 @@ def requires_one_event_of(*events, **kwargs):
     Same as :func:`requires_events` with logical `OR` semantic.
     """
     return OrTraceEventChecker.from_events(events, **kwargs)
+
+def may_use_events(*events, **kwargs):
+    """
+    Same as :func:`requires_events` but just exposes some events that may be used
+    if presents.
+    """
+    return OptionalTraceEventChecker.from_events(events, **kwargs)
 
 class MissingTraceEventError(RuntimeError):
     """
