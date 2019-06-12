@@ -22,7 +22,7 @@ Vagrant.configure(2) do |config|
 
     cd /home/vagrant/lisa
     # Install required packages
-    ./install_base_ubuntu.sh --install-android-sdk
+    ./install_base_ubuntu.sh --install-android-sdk --install-doc-extras
 
     chown -R vagrant.vagrant /home/vagrant/lisa
 
@@ -39,12 +39,13 @@ Vagrant.configure(2) do |config|
     echo 'export LISA_VENV_PATH=$LISA_VENV_PATH' >> /home/vagrant/.bashrc
     echo 'source init_env' >> /home/vagrant/.bashrc
 
-    # Trigger the creation of a venv
-    su vagrant bash -c 'source ./init_env'
+    # Trigger the creation of a venv and check that everything works well
+    if ! su vagrant bash -c 'tools/scripts/travis_tests.sh'; then
+      echo "Self tests FAILED !"
+    else
+      echo "Virtual Machine Installation completed successfully!                "
+    fi
 
-    # We're all done!
-    echo "Virtual Machine Installation completed successfully!                "
-    echo "                                                                    "
     echo "You can now access and use the virtual machine by running:          "
     echo "                                                                    "
     echo "    $ vagrant ssh                                                   "
@@ -59,15 +60,4 @@ Vagrant.configure(2) do |config|
     echo "    $ vagrant destroy                                               "
     echo "                                                                    "
   SHELL
-
-  # TODO: Run self tests to explode sooner rather than later
-  # config.trigger.after :up do |trigger|
-  #   trigger.info = "Verifying LISA installation"
-  #   trigger.name = "LISA install verification"
-  #   trigger.run_remote = {inline: "
-  #     cd /home/vagrant/lisa
-  #     source init_env
-  #     python3 -m nose
-  #   "}
-  # end
 end
