@@ -51,34 +51,10 @@ class Geekbench(ApkUiautoWorkload):
     http://support.primatelabs.com/kb/geekbench/interpreting-geekbench-scores
     """
     summary_metrics = ['score', 'multicore_score']
-    versions = {
-        '4.3.1': {
-            'package': 'com.primatelabs.geekbench',
-            'activity': '.HomeActivity',
-        },
-        '4.2.0': {
-            'package': 'com.primatelabs.geekbench',
-            'activity': '.HomeActivity',
-        },
-        '4.0.1': {
-            'package': 'com.primatelabs.geekbench',
-            'activity': '.HomeActivity',
-        },
-        # Version 3.4.1 was the final version 3 variant
-        '3.4.1': {
-            'package': 'com.primatelabs.geekbench',
-            'activity': '.HomeActivity',
-        },
-        '3.0.0': {
-            'package': 'com.primatelabs.geekbench3',
-            'activity': '.HomeActivity',
-        },
-        '2': {
-            'package': 'ca.primatelabs.geekbench2',
-            'activity': '.HomeActivity',
-        },
-    }
-    supported_versions = sorted(versions.keys())
+
+    supported_versions = ['4.3.2', '4.3.1', '4.2.0', '4.0.1', '3.4.1', '3.0.0', '2']
+    package_names = ['com.primatelabs.geekbench', 'com.primatelabs.geekbench3', 'ca.primatelabs.geekbench2']
+
     begin_regex = re.compile(r'^\s*D/WebViewClassic.loadDataWithBaseURL\(\s*\d+\s*\)'
                              r'\s*:\s*(?P<content>\<.*)\s*$')
     replace_regex = re.compile(r'<[^>]*>')
@@ -105,14 +81,6 @@ class Geekbench(ApkUiautoWorkload):
     phones_home = True
 
     requires_network = True
-
-    @property
-    def activity(self):
-        return self.versions[self.version]['activity']
-
-    @property
-    def package_names(self):
-        return set(self.versions[v]['package'] for v in self.versions)
 
     def initialize(self, context):
         super(Geekbench, self).initialize(context)

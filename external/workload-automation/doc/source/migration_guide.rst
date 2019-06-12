@@ -16,7 +16,7 @@ Configuration
 Default configuration file change
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Instead of the standard ``config.py`` file located at
-``$WA_USER_HOME/config.py`` WA now uses a ``confg.yaml`` file (at the same
+``$WA_USER_DIRECTORY/config.py`` WA now uses a ``confg.yaml`` file (at the same
 location) which is written in the YAML format instead of python. Additionally
 upon first invocation WA3 will automatically try and detect whether a WA2 config
 file is present and convert it to use the new WA3 format. During this process

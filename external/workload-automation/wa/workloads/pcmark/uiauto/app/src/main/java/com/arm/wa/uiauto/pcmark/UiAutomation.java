@@ -104,14 +104,14 @@ public class UiAutomation extends BaseUiAutomation {
                 installtext.click();;
                 }
                 UiObject installed =
-                    mDevice.findObject(new UiSelector().description("RUN")
+                    mDevice.findObject(new UiSelector().text("RUN")
                         .className("android.view.View"));
-                installed.waitForExists(360000);
+                installed.waitForExists(180000);
                 if (!installed.exists()){
-                    UiObject installedtext =
-                        mDevice.findObject(new UiSelector().text("RUN")
+                    UiObject installeddesc =
+                        mDevice.findObject(new UiSelector().description("RUN")
                             .className("android.view.View"));
-                    installedtext.waitForExists(1000);
+                    installeddesc.waitForExists(1000);
                 }
     }
 
@@ -120,7 +120,7 @@ public class UiAutomation extends BaseUiAutomation {
         UiObject run =
             mDevice.findObject(new UiSelector().resourceId("CONTROL_PCMA_WORK_V2_DEFAULT")
                                                .className("android.view.View")
-                                               .childSelector(new UiSelector().index(1)
+                                               .childSelector(new UiSelector().text("RUN")
                                                .className("android.view.View")));
         if (run.exists()) {
             run.click();
