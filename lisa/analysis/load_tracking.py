@@ -22,6 +22,7 @@ import pandas as pd
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.analysis.status import StatusAnalysis
 from lisa.trace import requires_one_event_of, may_use_events
+from lisa.utils import deprecate
 
 
 class LoadTrackingAnalysis(TraceAnalysisBase):
@@ -95,18 +96,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         raise RuntimeError("Trace is missing one of either events: {}".format(events))
 
-    @requires_one_event_of('sched_load_cfs_rq', 'sched_load_avg_cpu')
-    def df_cpus_signals(self):
-        """
-        Get the load-tracking signals for the CPUs
-
-        :returns: a :class:`pandas.DataFrame` with:
-
-          * A ``util`` column (the average utilization of a CPU at time t)
-          * A ``load`` column (the average load of a CPU at time t)
-        """
-        return self._df_either_event(['sched_load_cfs_rq', 'sched_load_avg_cpu'])
-
     @may_use_events(
         requires_one_event_of('sched_load_cfs_rq', 'sched_load_avg_cpu'),
         'sched_util_est_cpu'
@@ -137,26 +126,18 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         return df[[*common_fields, signal]]
 
-    @requires_one_event_of('sched_load_se', 'sched_load_avg_task')
-    def df_tasks_signals(self):
+    @deprecate(replaced_by=df_cpus_signal, deprecated_in='2.0', removed_in='2.1')
+    @requires_one_event_of('sched_load_cfs_rq', 'sched_load_avg_cpu')
+    def df_cpus_signals(self):
         """
-        Get the load-tracking signals for the tasks
+        Get the load-tracking signals for the CPUs
 
         :returns: a :class:`pandas.DataFrame` with:
 
-          * A ``util`` column (the average utilization of a task at time t)
-          * A ``load`` column (the average load of a task at time t)
-
-          If CPU capacity information is available:
-
-          * A ``required_capacity`` column (the minimum available CPU capacity
-            required to run this task without being CPU-bound)
+          * A ``util`` column (the average utilization of a CPU at time t)
+          * A ``load`` column (the average load of a CPU at time t)
         """
-        df =  self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
-
-        if "cpu-capacities" in self.trace.plat_info:
-            df['required_capacity'] = self.df_tasks_signal('required_capacity')['required_capacity']
-        return df
+        return self._df_either_event(['sched_load_cfs_rq', 'sched_load_avg_cpu'])
 
     @may_use_events(
         requires_one_event_of('sched_load_se', 'sched_load_avg_task'),
@@ -203,6 +184,28 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             df['required_capacity'] = df.util.map(fits_capacity)
 
         return df[[*common_fields, signal]]
+
+    @deprecate(replaced_by=df_tasks_signal, deprecated_in='2.0', removed_in='2.1')
+    @requires_one_event_of('sched_load_se', 'sched_load_avg_task')
+    def df_tasks_signals(self):
+        """
+        Get the load-tracking signals for the tasks
+
+        :returns: a :class:`pandas.DataFrame` with:
+
+          * A ``util`` column (the average utilization of a task at time t)
+          * A ``load`` column (the average load of a task at time t)
+
+          If CPU capacity information is available:
+
+          * A ``required_capacity`` column (the minimum available CPU capacity
+            required to run this task without being CPU-bound)
+        """
+        df =  self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
+
+        if "cpu-capacities" in self.trace.plat_info:
+            df['required_capacity'] = self.df_tasks_signal('required_capacity')['required_capacity']
+        return df
 
     @df_tasks_signal.used_events
     def df_top_big_tasks(self, util_threshold, min_samples=100):
