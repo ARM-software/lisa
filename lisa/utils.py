@@ -468,10 +468,17 @@ class Serializable(Loggable):
        self.__dict__ = dct
 
     def __copy__(self):
-       """Make sure that copying the class still works as usual, without
-       dropping some attributes by defining __copy__
-       """
-       return super().__copy__()
+        """
+        Make sure that copying the class still works as usual, without
+        dropping some attributes by defining __copy__
+        """
+        try:
+            return super().__copy__()
+        except AttributeError:
+            cls = self.__class__
+            new = cls.__new__(cls)
+            new.__dict__.update(self.__dict__)
+            return new
 
 Serializable._init_yaml()
 
