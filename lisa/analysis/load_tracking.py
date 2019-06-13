@@ -65,7 +65,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
     def _df_uniformized_signal(self, event):
         df = self.trace.df_events(event)
 
-        df = df.rename(columns=self._columns_renaming(event))
+        df = df.rename(columns=self._columns_renaming(event), copy=True)
 
         if event == 'sched_load_se':
             df = df[df.path == "(null)"]
@@ -74,7 +74,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             df = df[df.path == "/"]
 
         to_drop = self._columns_to_drop(event)
-        df = df[[col for col in df.columns if col not in to_drop]]
+        df.drop(columns=to_drop, inplace=True)
 
         return df
 
