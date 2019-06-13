@@ -15,4 +15,12 @@
 # limitations under the License.
 #
 
-__version__ = 2.0
+version_tuple = (2, 0)
+
+def format_version(version):
+    return '.'.join(str(part) for part in version)
+
+def parse_version(version):
+     return tuple(int(part) for part in version.split('.'))
+
+__version__ = format_version(version_tuple)
