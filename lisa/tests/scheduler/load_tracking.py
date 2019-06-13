@@ -187,9 +187,9 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
 
         return cls(res_dir, plat_info)
 
-    @LoadTrackingAnalysis.df_tasks_signals.used_events
+    @LoadTrackingAnalysis.df_tasks_signal.used_events
     @requires_events('sched_switch')
-    def get_task_sched_signals(self, trace, cpu, task_name):
+    def get_task_sched_signal(self, trace, cpu, task_name, signal):
         """
         Get a :class:`pandas.DataFrame` with the sched signals for the workload task
 
@@ -199,7 +199,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
         :returns: :class:`pandas.DataFrame` with a column for each signal for
           the workload task
         """
-        df = trace.analysis.load_tracking.df_tasks_signals()
+        df = trace.analysis.load_tracking.df_tasks_signal(signal)
         df = df[df['comm'] == task_name]
         window = self.get_task_window(trace, task_name, cpu)
         df = select_window(df, window)
@@ -303,14 +303,14 @@ class InvarianceItem(LoadTrackingBase):
         # Scale the relative CPU/freq capacity
         return (duty_cycle_pct / 100) * capacity
 
-    @LoadTrackingBase.get_task_sched_signals.used_events
+    @LoadTrackingBase.get_task_sched_signal.used_events
     @get_expected_util_avg.used_events
     def _test_task_signal(self, signal_name, allowed_error_pct,
                           trace, cpu, task_name, capacity):
         # Use utilization signal for both load and util, since they should be
         # proportionnal in the test environment we setup
         exp_signal = self.get_expected_util_avg(trace, cpu, task_name, capacity)
-        signal_df = self.get_task_sched_signals(trace, cpu, task_name)
+        signal_df = self.get_task_sched_signal(trace, cpu, task_name, signal_name)
         signal = signal_df[UTIL_AVG_CONVERGENCE_TIME_S:][signal_name]
 
         signal_mean = area_under_curve(signal) / (signal.index[-1] - signal.index[0])
@@ -689,10 +689,10 @@ class PELTTask(LoadTrackingBase):
         """
         return list(self.rtapp_profile.keys())[0]
 
-    @LoadTrackingBase.get_task_sched_signals.used_events
-    def get_task_sched_signals(self, cpu):
+    @LoadTrackingBase.get_task_sched_signal.used_events
+    def get_task_sched_signal(self, cpu, signal):
         # We only have one task and one trace, simplify this method a bit
-        return super().get_task_sched_signals(self.trace, cpu, self.task_name)
+        return super().get_task_sched_signal(self.trace, cpu, self.task_name, signal)
 
     @requires_events('sched_switch')
     def get_simulated_pelt(self, cpu, signal_name):
@@ -705,7 +705,7 @@ class PELTTask(LoadTrackingBase):
           - :class:`pandas.DataFrame` instance which reports the computed
           PELT values at each PELT sample interval.
         """
-        signal_df = self.get_task_sched_signals(cpu)
+        signal_df = self.get_task_sched_signal(cpu, signal_name)
 
         init_value = pelt.Simulator.estimateInitialPeltValue(
             signal_df[signal_name].iloc[0], signal_df.index[0],
@@ -735,7 +735,7 @@ class PELTTask(LoadTrackingBase):
         assert self.plat_info["cpu-capacities"][cpu] == UTIL_SCALE
 
         peltsim, pelt_task, sim_df = self.get_simulated_pelt(cpu, signal_name)
-        signal_df = self.get_task_sched_signals(cpu)
+        signal_df = self.get_task_sched_signal(cpu, signal_name)
 
         sim_range = peltsim.stableRange(pelt_task)
 
@@ -792,7 +792,7 @@ class PELTTask(LoadTrackingBase):
         # For a 50% 16ms period task that amounts to 5-7% error on TC2.
 
         peltsim, _, sim_df = self.get_simulated_pelt(cpu, signal_name)
-        signal_df = self.get_task_sched_signals(cpu)
+        signal_df = self.get_task_sched_signal(cpu, signal_name)
 
         trace_duty_cycle = self.get_task_duty_cycle_pct(
             self.trace, self.task_name, cpu)
@@ -964,7 +964,7 @@ class CPUMigrationBase(LoadTrackingBase):
 
         return cpu_util
 
-    @LoadTrackingAnalysis.df_cpus_signals.used_events
+    @LoadTrackingAnalysis.df_cpus_signal.used_events
     def get_trace_cpu_util(self):
         """
         Get the per-phase average CPU utilization read from the trace
@@ -973,7 +973,7 @@ class CPUMigrationBase(LoadTrackingBase):
         """
         cpu_util = {cpu : {phase_id : 0 for phase_id in range(self.nr_phases)}
                     for cpu in self.cpus}
-        df = self.trace.analysis.load_tracking.df_cpus_signals()
+        df = self.trace.analysis.load_tracking.df_cpus_signal('util')
 
         phase_start = self.trace.start
 
