@@ -401,6 +401,7 @@ class Target(Loggable, HideExekallID, Configurable):
                             help="Path to a PlatformInfo yaml file.")
 
         parser.add_argument("--log-level",
+                            default='info',
                             choices=('warning', 'info', 'debug'),
                             help="Verbosity level of the logs.")
 
@@ -413,8 +414,7 @@ class Target(Loggable, HideExekallID, Configurable):
         )
 
         args = parser.parse_args(argv)
-        if args.log_level:
-            setup_logging(level=args.log_level.upper())
+        setup_logging(level=args.log_level.upper())
 
         if args.kind == 'android':
             if not (args.host or args.device):
