@@ -19,6 +19,8 @@ import logging
 import os
 from shlex import quote
 
+from shlex import quote
+from datetime import datetime
 from devlib.utils.misc import list_to_mask
 
 from lisa.utils import Loggable, ArtifactPath
@@ -81,7 +83,18 @@ class Workload(Loggable):
         self.name = name
         self.command = None
         self.output = ""
-        self.run_dir = self.target.working_directory
+
+        wlgen_dir = self.target.path.join(target.working_directory,
+                                          "lisa", "wlgen")
+        self.target.execute("mkdir -p {}/lisa/wlgen".format(quote(wlgen_dir)))
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        temp_fmt = "{}_{}_XXXXXX".format(self.name, timestamp)
+        self.run_dir = target.execute("mktemp -d -p {} {}".format(
+                                      quote(wlgen_dir), quote(temp_fmt))).strip()
+
+        logger = self.get_logger()
+        logger.info("Creating target's run_dir: %s", self.run_dir)
 
         res_dir = res_dir if res_dir else target.get_res_dir(
             name='{}-{}'.format(self.__class__.__qualname__, name)
@@ -89,6 +102,14 @@ class Workload(Loggable):
         self.res_dir = res_dir
 
         self.target.install_tools(self.required_tools)
+
+    def wipe_run_dir(self):
+        """
+        Wipe all content from the ``run_dir`` target directory
+        """
+        logger = self.get_logger()
+        logger.info("Wiping run_dir [%s]", self.run_dir)
+        self.target.execute("rm -rf {}".format(quote(self.run_dir)))
 
     def run(self, cpus=None, cgroup=None, background=False, as_root=False, timeout=None):
         """
