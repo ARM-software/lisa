@@ -46,15 +46,18 @@ class RTA(Workload):
 
     sched_policies = ['OTHER', 'FIFO', 'RR', 'DEADLINE']
 
-    def __init__(self, target, name, res_dir=None, json_file=None):
+    default_ftrace = ['main', 'task', 'loop', 'event', 'stats']
+
+    def __init__(self, target, name, res_dir=None, json_file=None,
+                 logstats=False, ftrace=default_ftrace):
         # Don't add code here, use the early/late init methods instead.
         # This lets us factorize some code for the class methods that serve as
         # alternate constructors.
 
-        self._early_init(target, name, res_dir, json_file)
+        self._early_init(target, name, res_dir, json_file, logstats, ftrace)
         self._late_init()
 
-    def _early_init(self, target, name, res_dir, json_file):
+    def _early_init(self, target, name, res_dir, json_file, logstats, ftrace):
         """
         Initialize everything that is not related to the contents of the json file
         """
@@ -65,6 +68,8 @@ class RTA(Workload):
 
         self.local_json = ArtifactPath.join(self.res_dir, json_file)
         self.remote_json = self.target.path.join(self.run_dir, json_file)
+        self.logstats = logstats
+        self.ftrace = ftrace
 
         rta_cmd = self.target.which('rt-app')
         if not rta_cmd:
@@ -105,6 +110,8 @@ class RTA(Workload):
             # TODO: handle background case
             return
 
+        if not self.logstats:
+            return
         logger.debug('Pulling logfiles to [%s]...', self.res_dir)
         for task in self.tasks:
             # RT-app appends some number to the logs, so we can't predict the
@@ -132,7 +139,8 @@ class RTA(Workload):
 
     @classmethod
     def by_profile(cls, target, name, profile, res_dir=None, default_policy=None,
-                   max_duration_s=None, calibration=None):
+                   max_duration_s=None, calibration=None,
+                   logstats=False, ftrace=default_ftrace):
         """
         Create an rt-app workload using :class:`RTATask` instances
 
@@ -151,6 +159,12 @@ class RTA(Workload):
           be an integer value or a CPU string (e.g. "CPU0").
         :type calibration: int or str
 
+        :param logstats: Generate logfiles with stats of each task
+        :type logstats: bool
+
+        :param ftrace: A list of categories to ftrace
+        :type ftrace: list(str)
+
         A simple profile workload would be::
 
             task = Periodic(duty_cycle_pct=5)
@@ -159,7 +173,7 @@ class RTA(Workload):
         """
         logger = cls.get_logger()
         self = cls.__new__(cls)
-        self._early_init(target, name, res_dir, None)
+        self._early_init(target, name, res_dir, None, logstats, ftrace)
 
         # Sanity check for task names rt-app uses pthread_setname_np(3) which
         # limits the task name to 16 characters including the terminal '\0'.
@@ -184,7 +198,8 @@ class RTA(Workload):
             'default_policy': 'SCHED_OTHER',
             'duration': -1 if not max_duration_s else max_duration_s,
             'calibration': calibration,
-            'logdir': self.run_dir,
+            'logstats' : self.logstats,
+            'ftrace': ','.join(self.ftrace),
         }
 
         if max_duration_s:
@@ -286,7 +301,7 @@ class RTA(Workload):
 
     @classmethod
     def by_str(cls, target, name, str_conf, res_dir=None, max_duration_s=None,
-               calibration=None):
+               calibration=None, logstats=False, ftrace=default_ftrace):
         """
         Create an rt-app workload using a pure string description
 
@@ -301,10 +316,16 @@ class RTA(Workload):
         :param calibration: The calibration value to be used by rt-app. This can
           be an integer value or a CPU string (e.g. "CPU0").
         :type calibration: int or str
+
+        :param logstats: Generate logfiles with stats of each task
+        :type logstats: bool
+
+        :param ftrace: A list of categories to ftrace
+        :type ftrace: list(str)
         """
 
         self = cls.__new__(cls)
-        self._early_init(target, name, res_dir, None)
+        self._early_init(target, name, res_dir, None, logstats, ftrace)
 
         calibration = self._process_calibration(calibration)
 

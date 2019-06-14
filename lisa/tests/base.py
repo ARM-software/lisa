@@ -37,7 +37,8 @@ from devlib.trace.dmesg import KernelLogEntry
 from devlib import TargetStableError
 
 from lisa.analysis.tasks import TasksAnalysis
-from lisa.trace import Trace, requires_events, TaskID
+from lisa.trace import requires_events, may_use_events
+from lisa.trace import Trace, TaskID
 from lisa.wlgen.rta import RTA
 from lisa.target import Target
 
@@ -939,6 +940,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     """
 
     @requires_events('sched_switch')
+    @may_use_events(*map((lambda e: 'rtapp_' + e), RTA.default_ftrace))
     def trace_window(self, trace):
         """
         The time window to consider for this :class:`RTATestBundle`
