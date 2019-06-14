@@ -1148,16 +1148,16 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         try:
             # we want to see through all other kinds of wrappers, down to the
             # one that matters to us
-            used_events = inspect.unwrap(f, stop=unwrap_down_to).used_events
+            unwrapped_f = inspect.unwrap(f, stop=unwrap_down_to)
+            used_events = unwrapped_f.used_events
         except AttributeError:
             checker = self
         else:
+            # Update the existing checker inplace to avoid adding an extra
+            # level of wrappers.
             checker = AndTraceEventChecker([self, used_events])
-            # remove a layer of wrapper if the last layer is a similar wrapper
-            # to what we are going to install, since we took its used_events
-            # into account already
-            if unwrap_down_to(f):
-                f = f.__wrapped__
+            unwrapped_f.used_events = checker
+            return f
 
         sig = inspect.signature(f)
         if self.check and sig.parameters:
@@ -1175,6 +1175,7 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
                     checker.check_events(available_events)
 
                 return f(self, *args, **kwargs)
+
         # If the decorated object takes no parameters, we cannot check anything
         else:
             @wraps(f)

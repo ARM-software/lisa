@@ -131,7 +131,7 @@ class AnalysisHelpers(Loggable):
             guessed_format = mime_type.split('/')[1].split('.', 1)[-1].split('+')[0]
             img_format = img_format or guessed_format
 
-        figure.savefig(filepath, format=img_format)
+        figure.savefig(filepath, format=img_format, bbox_inches='tight')
 
     def save_plot(self, figure, filepath=None, img_format=None):
         """
