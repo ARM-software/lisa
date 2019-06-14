@@ -37,7 +37,8 @@ from devlib.trace.dmesg import KernelLogEntry
 from devlib import TargetStableError
 
 from lisa.analysis.tasks import TasksAnalysis
-from lisa.trace import Trace, requires_events, TaskID
+from lisa.trace import requires_events, may_use_events
+from lisa.trace import Trace, TaskID
 from lisa.wlgen.rta import RTA
 from lisa.target import Target
 
@@ -1268,8 +1269,13 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         profile = profile or cls.get_rtapp_profile(target.plat_info)
         cg_cfg = cg_cfg or cls.get_cgroup_configuration(target.plat_info)
 
+        trace_events = [event.replace('rtapp_', '')
+                        for event in ftrace_coll.events
+                        if event.startswith("rtapp_")]
+
         wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.lower()),
-                               profile, res_dir=res_dir)
+                               profile, res_dir=res_dir,
+                               trace_events=trace_events)
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
         as_root = cgroup is not None
 
