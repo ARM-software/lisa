@@ -59,7 +59,7 @@ class TestRTAProfile(RTABase):
     def _do_test(self, profile, exp_phases):
         rtapp = RTA.by_profile(
             self.target, name='test', profile=profile, res_dir=self.res_dir,
-            calibration=None)
+            calibration=None, log_stats=True)
 
         with open(rtapp.local_json) as f:
             conf = json.load(f, object_pairs_hook=OrderedDict)
