@@ -129,7 +129,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
     'sphinx.ext.imgmath',
-    'sphinx.ext.viewcode',
+    #  'sphinx.ext.viewcode',
     'sphinx.ext.inheritance_diagram',
     'sphinxcontrib.plantuml',
 ]
