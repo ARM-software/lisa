@@ -35,6 +35,7 @@ import numbers
 import difflib
 import threading
 import itertools
+import weakref
 from weakref import WeakKeyDictionary
 
 import lisa
@@ -140,18 +141,47 @@ class HideExekallID:
     """
     pass
 
-def memoized(callable_):
+def memoized(f):
     """
-    Decorator to memoize the result of a callable,
-    based on :func:`functools.lru_cache`
-    """
-    # It is important to have one separate call to lru_cache for every call to
-    # memoized, otherwise all uses of the decorator will end up using the same
-    # wrapper and all hells will break loose.
+    Decorator to memoize the result of a callable, based on
+    :func:`functools.lru_cache`
 
-    # maxsize should be a power of two for better speed, see:
-    # https://docs.python.org/3/library/functools.html#functools.lru_cache
-    return functools.lru_cache(maxsize=1024, typed=True)(callable_)
+    .. note:: The first parameter of the callable is cached with a weak
+        reference. This suits well the method use-case, since we don't want the
+        memoization of methods to prevent garbage collection of the instances
+        they are bound to.
+    """
+
+    def apply_lru(f):
+        # maxsize should be a power of two for better speed, see:
+        # https://docs.python.org/3/library/functools.html#functools.lru_cache
+        return functools.lru_cache(maxsize=1024, typed=True)(f)
+
+    # We need at least one positional parameter for the WeakKeyDictionary
+    if inspect.signature(f).parameters:
+        cache_map = WeakKeyDictionary()
+
+        @functools.wraps(f)
+        def wrapper(first, *args, **kwargs):
+            try:
+                partial = cache_map[first]
+            except KeyError:
+                # Only keep a weak reference here for the "partial" closure
+                ref = weakref.ref(first)
+
+                # This partial function does not take "first" as parameter, so
+                # that the lru_cache will not keep a reference on it
+                @apply_lru
+                def partial(*args, **kwargs):
+                    return f(ref(), *args, **kwargs)
+
+                cache_map[first] = partial
+
+            return partial(*args, **kwargs)
+
+        return wrapper
+    else:
+        return apply_lru(f)
 
 def resolve_dotted_name(name):
     """Only resolve names where __qualname__ == __name__, i.e the callable is a
