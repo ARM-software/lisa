@@ -89,7 +89,7 @@ class Workload(Loggable):
 
         self.target.install_tools(self.required_tools)
 
-    def run(self, cpus=None, cgroup=None, background=False, as_root=False):
+    def run(self, cpus=None, cgroup=None, background=False, as_root=False, timeout=None):
         """
         Execute the workload on the configured target.
 
@@ -104,6 +104,11 @@ class Workload(Loggable):
 
         :param as_root: Whether to run the workload as root or not
         :type as_root: bool
+
+        :param timeout: Timeout in seconds for the workload execution.
+        :type timeout: int
+
+        :raise devlib.exception.TimeoutError: When the specified ``timeout`` is hit.
 
         The standard output will be saved into a file in ``self.res_dir``
         """
@@ -131,7 +136,7 @@ class Workload(Loggable):
         if background:
             target.background(_command, as_root=as_root)
         else:
-            self.output = target.execute(_command, as_root=as_root)
+            self.output = target.execute(_command, as_root=as_root, timeout=timeout)
             logger.info("Execution complete")
 
             logfile = os.path.join(self.res_dir, 'output.log')
