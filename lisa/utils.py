@@ -37,11 +37,16 @@ import threading
 import itertools
 import weakref
 from weakref import WeakKeyDictionary
+import urllib.parse
 import warnings
 import textwrap
 
 import ruamel.yaml
 from ruamel.yaml import YAML
+import sphobjinv
+
+import webbrowser
+from IPython.display import IFrame
 
 import lisa
 from lisa.version import version_tuple, parse_version, format_version
@@ -1146,5 +1151,62 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
         return return_obj
 
     return decorator
+
+
+def get_doc_url(obj):
+    """
+    Return an URL to the documentation about the given object.
+    """
+
+    # If it does not have a __qualname__, we are probably more interested in
+    # its class
+    if not hasattr(obj, '__qualname__'):
+        obj = obj.__class__
+
+    obj_name = '{}.{}'.format(
+        inspect.getmodule(obj).__name__,
+        obj.__qualname__
+    )
+
+    return _get_doc_url(obj_name)
+
+
+# Make sure to cache (almost) all the queries with a strong reference over
+# `obj_name` values
+@functools.lru_cache(maxsize=4096)
+def _get_doc_url(obj_name):
+    doc_base_url = 'https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/'
+    # Use the inventory built by RTD
+    inv_url = urllib.parse.urljoin(doc_base_url, 'objects.inv')
+
+    inv = sphobjinv.Inventory(url=inv_url)
+
+    for inv_obj in inv.objects:
+        if inv_obj.name == obj_name:
+            doc_page = inv_obj.uri.replace('$', inv_obj.name)
+            doc_url = urllib.parse.urljoin(doc_base_url, doc_page)
+            return doc_url
+
+    raise ValueError('Could not find the doc of: {}'.format(obj_name))
+
+
+def show_doc(obj, iframe=False):
+    """
+    Show the online LISA documentation about the given object.
+
+    :param obj: Object to show the doc of. It can be anything, including
+        instances.
+    :type obj: object
+
+    :param iframe: If ``True``, uses an IFrame, otherwise opens a web browser.
+    :type iframe: bool
+    """
+    doc_url = get_doc_url(obj)
+
+    if iframe:
+        print(doc_url)
+        return IFrame(src=doc_url, width="100%", height="600em")
+    else:
+        webbrowser.open(doc_url)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
