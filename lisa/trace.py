@@ -535,7 +535,7 @@ class Trace(Loggable, TraceBase):
                  the last time they ran in the current trace
         """
         try:
-            return self._tasks_by_pid.ix[pid].values[0]
+            return self._tasks_by_pid.loc[pid].values[0]
         except KeyError:
             return None
 
