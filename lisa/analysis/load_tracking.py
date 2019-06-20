@@ -82,7 +82,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             df = df[df.path == "/"]
 
         to_drop = self._columns_to_drop(event)
-        df.drop(columns=to_drop, inplace=True)
+        df.drop(columns=to_drop, inplace=True, errors='ignore')
 
         return df
 
