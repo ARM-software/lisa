@@ -747,7 +747,7 @@ class EnergyModel(Serializable, Loggable):
         if not candidates:
             # The system can't provide full throughput to this workload.
             raise EnergyModelCapacityError(
-                "Can't handle workload - total cap = {}".format(
+                "Can't handle workload: total capacity = {}".format(
                     sum(capacities.values())))
 
         # Whittle down to those that give the lowest energy estimate
