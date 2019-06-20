@@ -37,11 +37,15 @@ import threading
 import itertools
 import weakref
 from weakref import WeakKeyDictionary
-
-import lisa
+import warnings
+import textwrap
 
 import ruamel.yaml
 from ruamel.yaml import YAML
+
+import lisa
+from lisa.version import version_tuple, parse_version, format_version
+
 
 # Do not infer the value using __file__, since it will break later on when
 # lisa package is installed in the site-package locations using pip, which
@@ -533,6 +537,9 @@ def setup_logging(filepath='logging.conf', level=logging.INFO):
         raise FileNotFoundError('Logging configuration file not found in: {}'\
                          .format(filepath))
 
+    # Capture the warnings as log entries
+    logging.captureWarnings(True)
+
     # Set the level first, so the config file can override with more details
     logging.getLogger().setLevel(level)
     logging.config.fileConfig(filepath)
@@ -854,7 +861,6 @@ class LayeredMapping(MutableMapping):
             top=copy.copy(self.top),
         )
 
-
 def update_wrapper_doc(func, added_by=None, description=None, remove_params=None):
     """
     Equivalent to :func:`functools.wraps` that updates the signature by taking
@@ -939,5 +945,206 @@ def update_wrapper_doc(func, added_by=None, description=None, remove_params=None
         return f
     return decorator
 
+
+DEPRECATED_MAP = {}
+"""
+Global dictionary of deprecated classes, functions and so on.
+"""
+
+def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
+    """
+    Mark a class, method, function etc as deprecated and update its docstring.
+
+    :param msg: Message to tell more about this deprecation.
+    :type msg: str or None
+
+    :param replaced_by: Other object the deprecated object is replaced by.
+    :type replaced_by: object
+
+    :param deprecated_in: Version in which the object was flagged as deprecated.
+    :type deprecated_in: str
+
+    :param removed_in: Version in which the deprecated object will be removed.
+    :type removed_in: str
+
+    .. note:: In order to decorate all the accessors of properties, apply the
+        decorator once the property is fully built::
+
+            class C:
+                @property
+                def foo(self):
+                    pass
+
+                @foo.setter
+                def foo(self, val):
+                    pass
+
+                # Once all getters/setter/deleters are set, apply the decorator
+                foo = deprecate()(foo)
+    """
+
+    # RestructuredText Sphinx role
+    def getrole(obj):
+        if isinstance(obj, type):
+            return 'class'
+        elif callable(obj):
+            if '<locals>' in obj.__qualname__:
+                return 'code'
+            elif '.' in obj.__qualname__:
+                return 'meth'
+            else:
+                return 'func'
+        else:
+            return 'code'
+
+    def getname(obj, style=None, abbrev=False):
+        if isinstance(obj, (staticmethod, classmethod)):
+            obj = obj.__func__
+        elif isinstance(obj, property):
+            obj = obj.fget
+
+        try:
+            mod = obj.__module__ + '.'
+        except AttributeError:
+            mod = ''
+
+        try:
+            qualname = obj.__qualname__
+        except AttributeError:
+            qualname = str(obj)
+
+        name = mod + qualname
+
+        if style == 'rst':
+            return ':{}:`{}{}{}`'.format(
+                getrole(obj),
+                '~' if abbrev else '',
+                mod, qualname
+            )
+        else:
+            return name
+
+    def get_meth_stacklevel(func_name):
+        # Special methods are usually called from another module, so
+        # make sure the warning filters set on lisa will pick these up.
+        if func_name.startswith('__') and func_name.endswith('__'):
+            return 1
+        else:
+            return 2
+
+    if removed_in:
+        removed_in = parse_version(removed_in)
+    current_version = lisa.version.version_tuple
+
+    def decorator(obj):
+        obj_name = getname(obj)
+
+        if removed_in and current_version >= removed_in:
+            raise DeprecationWarning('{name} was marked as being removed in version {removed_in} but is still present in current version {version}'.format(
+                name=obj_name,
+                removed_in=format_version(removed_in),
+                version=format_version(current_version),
+            ))
+
+        def make_msg(style=None):
+            if replaced_by is not None:
+                replacement_msg = ', use {} instead'.format(
+                    getname(replaced_by, style=style)
+                )
+            else:
+                replacement_msg = ''
+
+            if removed_in:
+                removal_msg = ' and will be removed in version {}'.format(
+                    format_version(removed_in)
+                )
+            else:
+                removal_msg = ''
+
+            return '{name} is deprecated{remove}{replace}{msg}'.format(
+                name=getname(obj, style=style, abbrev=True),
+                replace=replacement_msg,
+                remove=removal_msg,
+                msg=': ' + msg if msg else '',
+            )
+
+        # stacklevel != 1 breaks the filtering for warnings emitted by APIs
+        # called from external modules, like __init_subclass__ that is called
+        # from other modules like abc.py
+        def wrap_func(func, stacklevel=1):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                warnings.warn(make_msg(), DeprecationWarning, stacklevel=stacklevel)
+                return func(*args, **kwargs)
+            return wrapper
+
+        # Make sure we don't accidentally override an existing entry
+        assert obj_name not in DEPRECATED_MAP
+        DEPRECATED_MAP[obj_name] = {
+            'obj': obj,
+            'replaced_by': replaced_by,
+            'msg': msg,
+            'removed_in': removed_in,
+            'deprecated_in': deprecated_in,
+        }
+
+        # For classes, wrap __new__ and update docstring
+        if isinstance(obj, type):
+            # Warn on instance creation
+            obj.__new__ = wrap_func(obj.__new__)
+            # Will show the warning when the class is subclassed
+            # in Python >= 3.6
+            obj.__init_subclass__ = wrap_func(obj.__init_subclass__)
+            return_obj = obj
+            update_doc_of = obj
+
+        elif isinstance(obj, property):
+            # Since we cannot update the property itself, replace it with a new
+            # one that uses a wrapped getter. This should be safe as properties
+            # seems to be immutable, so there is no risk of somebody
+            # monkey-patching the object and us throwing away the extra
+            # attributes.
+            # Note that this will only wrap accessors that are visible at the
+            # time the decorator is applied.
+            obj = property(
+                fget=wrap_func(obj.fget, stacklevel=2),
+                fset=wrap_func(obj.fset, stacklevel=2),
+                fdel=wrap_func(obj.fdel, stacklevel=2),
+            )
+            return_obj = obj
+            update_doc_of = obj
+
+        elif isinstance(obj, (staticmethod, classmethod)):
+            func = obj.__func__
+            stacklevel = get_meth_stacklevel(func.__name__)
+            func = wrap_func(func, stacklevel=stacklevel)
+            # Build a new staticmethod/classmethod with the updated function
+            return_obj = obj.__class__(func)
+            # Updating the __doc__ of the staticmethod/classmethod itself will
+            # have no effect, so update the doc of the underlying function
+            update_doc_of = func
+
+        # For other callables, emit the warning when called
+        else:
+            stacklevel = get_meth_stacklevel(obj.__name__)
+            return_obj = wrap_func(obj, stacklevel=stacklevel)
+            update_doc_of = return_obj
+
+        doc = inspect.getdoc(update_doc_of) or ''
+        update_doc_of.__doc__ = doc + '\n\n' + textwrap.dedent(
+        """
+        .. attention::
+
+            .. deprecated:: {deprecated_in}
+
+            {msg}
+        """.format(
+            deprecated_in=deprecated_in if deprecated_in else '<unknown>',
+            msg=make_msg(style='rst'),
+        )).strip()
+
+        return return_obj
+
+    return decorator
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

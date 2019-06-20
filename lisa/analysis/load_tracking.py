@@ -20,7 +20,9 @@
 import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.trace import requires_one_event_of
+from lisa.analysis.status import StatusAnalysis
+from lisa.trace import requires_one_event_of, may_use_events
+from lisa.utils import deprecate
 
 
 class LoadTrackingAnalysis(TraceAnalysisBase):
@@ -47,6 +49,12 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 "load_avg" : "load"
             }
 
+        if event == 'sched_util_est_task':
+            return {
+                'est_enqueued': 'util_est_enqueued',
+                'est_ewma': 'util_est_ewma',
+            }
+
         return {}
 
     @classmethod
@@ -65,7 +73,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
     def _df_uniformized_signal(self, event):
         df = self.trace.df_events(event)
 
-        df = df.rename(columns=self._columns_renaming(event))
+        df = df.rename(columns=self._columns_renaming(event), copy=True)
 
         if event == 'sched_load_se':
             df = df[df.path == "(null)"]
@@ -74,7 +82,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             df = df[df.path == "/"]
 
         to_drop = self._columns_to_drop(event)
-        df = df[[col for col in df.columns if col not in to_drop]]
+        df.drop(columns=to_drop, inplace=True)
 
         return df
 
@@ -88,6 +96,37 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         raise RuntimeError("Trace is missing one of either events: {}".format(events))
 
+    @may_use_events(
+        requires_one_event_of('sched_load_cfs_rq', 'sched_load_avg_cpu'),
+        'sched_util_est_cpu'
+    )
+    def df_cpus_signal(self, signal):
+        """
+        Get the load-tracking signals for the CPUs
+
+        :returns: a :class:`pandas.DataFrame` with a column of the same name as
+            the specified ``signal``, and additional context columns such as
+            ``cpu``.
+
+        :param signal: Signal name to get. Can be any of:
+            * ``util``
+            * ``load``
+            * ``util_est_enqueued``
+
+        :type signal: str
+        """
+        common_fields = ['cpu']
+
+        if signal in ('util', 'load'):
+            df = self._df_either_event(['sched_load_cfs_rq', 'sched_load_avg_cpu'])
+        elif signal == 'util_est_enqueued':
+            df = self._df_uniformized_signal('sched_util_est_cpu')
+        else:
+            raise ValueError('Signal "{}" not supported'.format(signal))
+
+        return df[[*common_fields, signal]]
+
+    @deprecate(replaced_by=df_cpus_signal, deprecated_in='2.0', removed_in='2.1')
     @requires_one_event_of('sched_load_cfs_rq', 'sched_load_avg_cpu')
     def df_cpus_signals(self):
         """
@@ -100,6 +139,53 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         return self._df_either_event(['sched_load_cfs_rq', 'sched_load_avg_cpu'])
 
+    @may_use_events(
+        requires_one_event_of('sched_load_se', 'sched_load_avg_task'),
+        'sched_util_est_task'
+    )
+    def df_tasks_signal(self, signal):
+        """
+        Get the load-tracking signals for the tasks
+
+        :returns: a :class:`pandas.DataFrame` with a column of the same name as
+            the specified ``signal``, and additional context columns such as
+            ``cpu``.
+
+        :param signal: Signal name to get. Can be any of:
+            * ``util``
+            * ``load``
+            * ``util_est_enqueued``
+            * ``util_est_ewma``
+            * ``required_capacity``
+
+        :type signal: str
+        """
+        if signal in ('util', 'load', 'required_capacity'):
+            df = self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
+            common_fields = ['cpu', 'comm', 'pid']
+
+        elif signal in ('util_est_enqueued', 'util_est_ewma'):
+            df = self._df_uniformized_signal('sched_util_est_task')
+            common_fields = ['cpu', 'pid']
+        else:
+            raise ValueError('Signal "{}" not supported'.format(signal))
+
+        if signal == 'required_capacity':
+            # Add a column which represents the max capacity of the smallest
+            # CPU which can accomodate the task utilization
+            capacities = sorted(self.trace.plat_info["cpu-capacities"].values())
+
+            def fits_capacity(util):
+                for capacity in capacities:
+                    if util <= capacity:
+                        return capacity
+
+                return capacities[-1]
+            df['required_capacity'] = df.util.map(fits_capacity)
+
+        return df[[*common_fields, signal]]
+
+    @deprecate(replaced_by=df_tasks_signal, deprecated_in='2.0', removed_in='2.1')
     @requires_one_event_of('sched_load_se', 'sched_load_avg_task')
     def df_tasks_signals(self):
         """
@@ -118,22 +204,10 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         df =  self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
 
         if "cpu-capacities" in self.trace.plat_info:
-            # Add a column which represents the max capacity of the smallest
-            # CPU which can accomodate the task utilization
-            capacities = sorted(self.trace.plat_info["cpu-capacities"].values())
-
-            def fits_capacity(util):
-                for capacity in capacities:
-                    if util <= capacity:
-                        return capacity
-
-                return capacities[-1]
-
-            df["required_capacity"] = df.util.map(fits_capacity)
-
+            df['required_capacity'] = self.df_tasks_signal('required_capacity')['required_capacity']
         return df
 
-    @df_tasks_signals.used_events
+    @df_tasks_signal.used_events
     def df_top_big_tasks(self, util_threshold, min_samples=100):
         """
         Tasks which had 'utilization' samples bigger than the specified
@@ -151,7 +225,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
           * Task PIDs as index
           * A ``samples`` column (The number of util samples above the threshold)
         """
-        df = self.df_tasks_signals()
+        df = self.df_tasks_signal('util')
 
         # Compute number of samples above threshold
         samples = df[df.util > util_threshold].groupby('pid').count()["util"]
@@ -163,18 +237,24 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         return top_df
 
-    @df_cpus_signals.used_events
-    def plot_cpus_signals(self, cpus=None, **kwargs):
+    @may_use_events(
+        StatusAnalysis.plot_overutilized.used_events,
+        'cpu_capacity',
+    )
+    @df_cpus_signal.used_events
+    def plot_cpus_signals(self, cpus=None, signals=['util', 'load'], **kwargs):
         """
         Plot the CPU-related load-tracking signals
 
         :param cpus: list of CPUs to be plotted
         :type cpus: list(int)
 
+        :param signals: List of signals to plot.
+        :type signals: list(str)
+
         .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         cpus = cpus or list(range(self.trace.cpus_count))
-        cpus_df = self.df_cpus_signals()
 
         def plotter(axes, local_fig):
             for cpu in cpus:
@@ -182,10 +262,11 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
                 # Add CPU utilization
                 axis.set_title('CPU{}'.format(cpu))
-                df = cpus_df[cpus_df["__cpu"] == cpu]
 
-                df[['util']].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
-                df[['load']].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
+                for signal in signals:
+                    df = self.df_cpus_signal(signal)
+                    df = df[df['cpu'] == cpu]
+                    df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
                 self.trace.analysis.cpus.plot_orig_capacity(cpu, axis=axis)
 
@@ -209,7 +290,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         return self.do_plot(plotter, nrows=len(cpus), sharex=True, **kwargs)
 
-    @df_tasks_signals.used_events
+    @df_tasks_signal.used_events
     def plot_task_signals(self, task, signals=['util', 'load'], **kwargs):
         """
         Plot the task-related load-tracking signals
@@ -222,14 +303,13 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-        df = self.df_tasks_signals()
-
         pid = self.trace.get_task_pid(task)
-        df = df[df.pid == pid]
 
         def plotter(axis, local_fig):
             for signal in signals:
-                df[[signal]].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
+                df = self.df_tasks_signal(signal)
+                df = df[df.pid == pid]
+                df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
             plot_overutilized = self.trace.analysis.status.plot_overutilized
             if self.trace.has_events(plot_overutilized.used_events):
@@ -242,7 +322,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         return self.do_plot(plotter, **kwargs)
 
-    @df_tasks_signals.used_events
+    @df_tasks_signal.used_events
     def plot_task_required_capacity(self, task, **kwargs):
         """
         Plot the minimum required capacity of a task
@@ -255,7 +335,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         pid = self.trace.get_task_pid(task)
 
-        df = self.df_tasks_signals()
+        df = self.df_tasks_signal('required_capacity')
         df = df[df.pid == pid]
 
         # Build task names (there could be multiple, during the task lifetime)
@@ -278,7 +358,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         return self.do_plot(plotter, height=8, **kwargs)
 
-    @df_tasks_signals.used_events
+    @df_tasks_signal.used_events
     def plot_task_placement(self, task, **kwargs):
         """
         Plot the CPU placement of the task
@@ -290,7 +370,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
 
         # Get all utilization update events
-        df = self.df_tasks_signals()
+        df = self.df_tasks_signal('required_capacity')
 
         pid = self.trace.get_task_pid(task)
         df = df[df.pid == pid]
