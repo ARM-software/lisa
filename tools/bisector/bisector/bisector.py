@@ -2364,12 +2364,13 @@ class LISATestStep(ShellStep):
                 for db in {entry['db'] for entry in entry_list}
             ]
 
-            with contextlib.suppress(FileNotFoundError):
-                existing_db = ValueDB.from_path(export_db)
-                db_list.append(existing_db)
+            if db_list:
+                with contextlib.suppress(FileNotFoundError):
+                    existing_db = ValueDB.from_path(export_db)
+                    db_list.append(existing_db)
 
-            merged_db = ValueDB.merge(db_list)
-            merged_db.to_path(export_db, optimize=False)
+                merged_db = ValueDB.merge(db_list)
+                merged_db.to_path(export_db, optimize=False)
 
         return out
 
