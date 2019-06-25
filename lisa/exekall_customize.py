@@ -235,8 +235,17 @@ comparison. Can be repeated.""")
         alpha = self.args.alpha / 100
         show_non_significant = self.args.non_significant
 
+        def get_roots(db):
+            return {
+                froz_val
+                for froz_val in db.get_roots()
+                # Filter-out NoValue so it does not get counted as a failure,
+                # since bool(NoValue) is False
+                if froz_val.value is not NoValue
+            }
+
         result_list_old, result_list_new = [
-            db.get_roots()
+            get_roots(db)
             for db in db_list
         ]
 
