@@ -23,7 +23,6 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 import pandas as pd
-import pylab as pl
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
@@ -283,7 +282,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         state_axis.set_xlim(self.trace.start, self.trace.end)
 
         figname = os.path.join(self.trace.plots_dir, '{}{}.png'.format(self.trace.plots_prefix, clk))
-        pl.savefig(figname, bbox_inches='tight')
+        plt.savefig(figname, bbox_inches='tight')
 
 
     @requires_events('cpu_frequency')
