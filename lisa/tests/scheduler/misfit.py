@@ -127,7 +127,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         sdf = sdf[self.trace.start + self.IDLING_DELAY_S * 0.9:]
 
-        for task in self.rtapp_profile.keys():
+        for task in self.rtapp_tasks:
             task_cpu = int(task.strip("{}_".format(self.task_prefix)))
             task_start = sdf[(sdf.next_comm == task) & (sdf["__cpu"] == task_cpu)].index[0]
             last_start = max(last_start, task_start)
@@ -197,7 +197,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         sdf = self.trace.df_events('sched_switch')
         task_state_dfs = {
             task : self.trace.analysis.tasks.df_task_states(task)
-            for task in self.rtapp_profile.keys()
+            for task in self.rtapp_tasks
         }
 
         res = ResultBundle.from_bool(True)
@@ -314,7 +314,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         :type allowed_idle_time_s: int
         """
         task_state_dfs = {}
-        for task in self.rtapp_profile.keys():
+        for task in self.rtapp_tasks:
             # This test is all about throughput: check that every time a task
             # runs on a little it's because bigs are busy
             df = self.trace.analysis.tasks.df_task_states(task)

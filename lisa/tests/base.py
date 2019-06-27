@@ -579,9 +579,9 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         sdf = trace.df_events('sched_switch')
 
         # Find when the first task starts running
-        rta_start = sdf[sdf.next_comm.isin(self.rtapp_profile.keys())].index[0]
+        rta_start = sdf[sdf.next_comm.isin(self.rtapp_tasks)].index[0]
         # Find when the last task stops running
-        rta_stop = sdf[sdf.prev_comm.isin(self.rtapp_profile.keys())].index[-1]
+        rta_stop = sdf[sdf.prev_comm.isin(self.rtapp_tasks)].index[-1]
 
         return (rta_start, rta_stop)
 
@@ -629,6 +629,14 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         return self.get_rtapp_profile(self.plat_info)
 
     @property
+    def rtapp_tasks(self):
+        """
+        Sorted list of rtapp task names, as defined in ``rtapp_profile``
+        attribute.
+        """
+        return sorted(self.rtapp_profile.keys())
+
+    @property
     def cgroup_configuration(self):
         """
         Compute the cgroup configuration based on ``plat_info``
@@ -665,7 +673,7 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         df = self.trace.analysis.tasks.df_tasks_runtime()
 
         # We don't want to account the test tasks
-        ignored_pids = list(map(self.trace.get_task_pid, self.rtapp_profile.keys()))
+        ignored_pids = list(map(self.trace.get_task_pid, self.rtapp_tasks))
 
         def compute_duration_pct(row):
             return row.runtime * 100 / self.trace.time_range
