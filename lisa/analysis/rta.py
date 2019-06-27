@@ -35,6 +35,8 @@ class PerfAnalysis(AnalysisHelpers):
         :class:`lisa.analysis.base.TraceAnalysisBase` since it does not uses traces.
     """
 
+    name = 'rta'
+
     RTA_LOG_PATTERN = 'rt-app-{task}.log'
     "Filename pattern matching RTApp log files"
 
