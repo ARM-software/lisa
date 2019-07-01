@@ -18,6 +18,7 @@
 import os
 import inspect
 import mimetypes
+import abc
 
 import matplotlib.pyplot as plt
 from cycler import cycler
@@ -32,7 +33,7 @@ COLOR_CYCLES = [
 
 plt.rcParams['axes.prop_cycle'] = cycler(color=COLOR_CYCLES)
 
-class AnalysisHelpers(Loggable):
+class AnalysisHelpers(Loggable, abc.ABC):
     """
     Helper methods class for Analysis modules.
 
@@ -41,6 +42,13 @@ class AnalysisHelpers(Loggable):
     Plotting methods *must* return the :class:`matplotlib.axes.Axes` instance
     used by the plotting method. This lets users further modify them.
     """
+
+    @abc.abstractmethod
+    def name():
+        """
+        Name of the analysis class.
+        """
+        pass
 
     @classmethod
     def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, **kwargs):
@@ -121,11 +129,11 @@ class AnalysisHelpers(Loggable):
     def _save_plot(self, figure, default_dir, filepath=None, img_format=None, wrapper_level=2):
         if filepath is None:
             img_format = img_format or 'png'
-            module = self.__module__
+            analysis = self.name
             caller = inspect.stack()[1 + wrapper_level][3]
             filepath = os.path.join(
                 default_dir,
-                "{}.{}.{}".format(module, caller, img_format))
+                "{}.{}.{}".format(analysis, caller, img_format))
         else:
             mime_type = mimetypes.guess_type(filepath, strict=False)[0]
             guessed_format = mime_type.split('/')[1].split('.', 1)[-1].split('+')[0]
