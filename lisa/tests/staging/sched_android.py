@@ -259,8 +259,8 @@ class SchedTunePlacementItem(SchedTuneItemBase):
         their time on CPUs that don't have enough capacity to serve their
         boost.
         """
-        assert len(self.rtapp_profile) == 1
-        task = list(self.rtapp_profile.keys())[0]
+        assert len(self.rtapp_tasks) == 1
+        task = self.rtapp_tasks[0]
         df = self.trace.analysis.tasks.df_task_total_residency(task)
 
         # Find CPUs without enough capacity to meet the boost

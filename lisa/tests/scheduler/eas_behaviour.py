@@ -134,7 +134,7 @@ class EASBehaviour(RTATestBundle):
         :returns: A Pandas DataFrame with a column for each task, showing the
                   CPU that the task was "on" at each moment in time
         """
-        tasks = list(self.rtapp_profile.keys())
+        tasks = self.rtapp_tasks
 
         df = self.trace.ftrace.sched_switch.data_frame[['next_comm', '__cpu']]
         df = df[df['next_comm'].isin(tasks)]
@@ -264,7 +264,7 @@ class EASBehaviour(RTATestBundle):
         task_cpu_df = self._get_task_cpu_df()
         task_utils_df = self._get_expected_task_utils_df(nrg_model)
         task_utils_df.index = [time + self.trace.start for time in task_utils_df.index]
-        tasks = list(self.rtapp_profile.keys())
+        tasks = self.rtapp_tasks
 
         # Create a combined DataFrame with the utilization of a task and the CPU
         # it was running on at each moment. Looks like:

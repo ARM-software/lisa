@@ -686,7 +686,7 @@ class PELTTask(LoadTrackingBase):
         """
         The name of the only task this test uses
         """
-        return list(self.rtapp_profile.keys())[0]
+        return self.rtapp_tasks[0]
 
     @LoadTrackingBase.get_task_sched_signal.used_events
     def get_task_sched_signal(self, cpu, signal):
