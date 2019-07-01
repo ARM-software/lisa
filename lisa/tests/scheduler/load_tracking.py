@@ -22,7 +22,6 @@ import itertools
 from statistics import mean
 
 import matplotlib.pyplot as plt
-import pylab as pl
 
 from bart.common.Utils import select_window, area_under_curve
 from bart.sched import pelt
@@ -805,7 +804,7 @@ class PELTTask(LoadTrackingBase):
                              requested_duty_cycle)
 
         figname = os.path.join(self.res_dir, '{}_behaviour.png'.format(signal_name))
-        pl.savefig(figname, bbox_inches='tight')
+        plt.savefig(figname, bbox_inches='tight')
         plt.close()
 
         # Compare actual PELT signal with the simulated one

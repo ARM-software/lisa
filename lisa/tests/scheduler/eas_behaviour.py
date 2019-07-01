@@ -22,7 +22,6 @@ import abc
 
 import pandas as pd
 import matplotlib.pyplot as plt
-import pylab as pl
 
 from bart.common.Utils import area_under_curve
 from devlib.target import KernelVersion
@@ -196,7 +195,7 @@ class EASBehaviour(RTATestBundle):
                 prev = time
 
         figname = os.path.join(self.res_dir, 'expected_placement.png')
-        pl.savefig(figname, bbox_inches='tight')
+        plt.savefig(figname, bbox_inches='tight')
         plt.close()
 
     def _get_expected_power_df(self, nrg_model, capacity_margin_pct):
