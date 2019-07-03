@@ -23,6 +23,9 @@
 # Set environment variables
 ################################################################################
 
+export _DOC_ANDROID_HOME="Base folder of Android SDK installation"
+export ANDROID_HOME="$LISA_HOME/tools/android-sdk-linux"
+
 export _DOC_LISA_HOME="Base directory of LISA environment"
 
 export _DOC_LISA_PYTHON="Python binary to use. This allows users to install
@@ -42,7 +45,9 @@ source "$LISA_HOME/shell/lisa_colors"
 export _DOC_LISA_HOST_ABI="Add some shell utilities to the PATH, with lower
 priority than system's one in case the user needs a different version of them"
 export LISA_HOST_ABI=${LISA_HOST_ABI:-x86_64}
-export PATH=$PATH:$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI:$LISA_HOME/tools
+
+_LISA_PATH="$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI:$LISA_HOME/tools/:$ANDROID_HOME/tools/:$ANDROID_HOME/platform-tools/"
+export PATH=$PATH:$_LISA_PATH
 
 export _DOC_LISA_CONF="Default configuration file for exekall"
 export LISA_CONF=${LISA_CONF:-$LISA_HOME/target_conf.yml}
@@ -55,6 +60,10 @@ export EXEKALL_ARTIFACT_ROOT=${EXEKALL_ARTIFACT_ROOT:-$LISA_RESULT_ROOT}
 
 # Add our man pages
 export MANPATH="$MANPATH:$LISA_HOME/doc/"
+
+# make sure it is unset if the folder does not exist, as some other tools will
+# not handle that well
+[[ ! -d "$ANDROID_HOME" ]] && unset ANDROID_HOME
 
 ################################################################################
 # Helpers
@@ -381,7 +390,7 @@ function lisa-wltest-series {
     export WA_USER_DIRECTORY="$LISA_HOME/tools/wa_user_directory"
 
     # Check that the environment is properly configured
-    if [[ -z "$ANDROID_HOME" ]]; then
+    if [[ ! -d "$ANDROID_HOME" ]]; then
 cat <<EOF
 
     ERROR: No Android SDK found!

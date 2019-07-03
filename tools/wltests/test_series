@@ -34,13 +34,8 @@ SERIES=${SERIES:-''}
 WA_AGENDA=${WA_AGENDA:-''}
 TEST_CMD=${TEST_CMD:-'echo "Test DONE!"'}
 
-if [ -z "$ANDROID_HOME" ]; then
-	ADB=${ADB:-$(which adb)}
-	FASTBOOT=${FASTBOOT:-$(which fastboot)}
-else
-	ADB=${ADB:-$ANDROID_HOME/platform-tools/adb}
-	FASTBOOT=${FASTBOOT:-$ANDROID_HOME/platform-tools/fastboot}
-fi
+ADB=${ADB:-$(which adb)}
+FASTBOOT=${FASTBOOT:-$(which fastboot)}
 
 EMETER=${EMETER:-'ACME'}
 ACME_IP=${ACME_IP:-'192.168.0.1'}
