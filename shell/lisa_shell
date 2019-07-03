@@ -47,7 +47,7 @@ priority than system's one in case the user needs a different version of them"
 export LISA_HOST_ABI=${LISA_HOST_ABI:-x86_64}
 
 _LISA_PATH="$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI:$LISA_HOME/tools/:$ANDROID_HOME/tools/:$ANDROID_HOME/platform-tools/"
-export PATH=$PATH:$_LISA_PATH
+export PATH=$_LISA_PATH:$PATH
 
 export _DOC_LISA_CONF="Default configuration file for exekall"
 export LISA_CONF=${LISA_CONF:-$LISA_HOME/target_conf.yml}
