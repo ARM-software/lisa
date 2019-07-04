@@ -111,6 +111,7 @@ setup(
             "jupyterlab",
             "ipywidgets",
             "ipympl", # For %matplotlib widget under jupyter lab
+            "sphobjinv", # To open intersphinx inventories
         ],
 
         "doc": [
