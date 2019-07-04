@@ -785,7 +785,7 @@ class Trace(Loggable, TraceBase):
         # frequency events to report
         if len(df) == 0:
             # Register devlib injected events as 'cpu_frequency' events
-            setattr(self.ftrace.cpu_frequency, 'data_frame', devlib_freq)
+            self.ftrace.cpu_frequency.data_frame = devlib_freq
             df = devlib_freq
             self.available_events.append('cpu_frequency')
 
@@ -830,7 +830,7 @@ class Trace(Loggable, TraceBase):
 
                 df.sort_index(inplace=True)
 
-            setattr(self.ftrace.cpu_frequency, 'data_frame', df)
+            self.ftrace.cpu_frequency.data_frame = df
 
 ###############################################################################
 # Utility Methods
