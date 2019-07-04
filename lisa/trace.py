@@ -906,22 +906,6 @@ class Trace(Loggable, TraceBase):
 # Utility Methods
 ###############################################################################
 
-    def integrate_square_wave(self, sq_wave):
-        """
-        Compute the integral of a square wave time series.
-
-        :param sq_wave: square wave assuming only 1.0 and 0.0 values
-        :type sq_wave: :class:`pandas.Series`
-        """
-        sq_wave.iloc[-1] = 0.0
-        # Compact signal to obtain only 1-0-1-0 sequences
-        comp_sig = sq_wave.loc[sq_wave.shift() != sq_wave]
-        # First value for computing the difference must be a 1
-        if comp_sig.iloc[0] == 0.0:
-            return sum(comp_sig.iloc[2::2].index - comp_sig.iloc[1:-1:2].index)
-        else:
-            return sum(comp_sig.iloc[1::2].index - comp_sig.iloc[:-1:2].index)
-
     def _loadFunctionsStats(self, path='trace.stats'):
         """
         Read functions profiling file and build a data frame containing all
