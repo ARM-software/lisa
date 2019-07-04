@@ -18,6 +18,7 @@
 """ Frequency Analysis Module """
 
 import os
+import itertools
 
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
@@ -42,6 +43,50 @@ class FrequencyAnalysis(TraceAnalysisBase):
     def __init__(self, trace):
         super(FrequencyAnalysis, self).__init__(trace)
 
+    @requires_events('cpu_frequency')
+    def _check_freq_domain_coherency(self, cpus=None):
+        """
+        Check that all CPUs of a given frequency domain have the same frequency
+        transitions.
+
+        :param cpus: CPUs to take into account. All other CPUs are ignored.
+            If `None`, all CPUs will be checked.
+        :type cpus: list(int) or None
+        """
+        domains = self.trace.plat_info['freq-domains']
+        if cpus is None:
+            cpus = list(itertools.chain.from_iterable(domains))
+
+        if len(cpus) < 2:
+            return
+
+        df = self.trace.df_events('cpu_frequency')
+
+        for domain in domains:
+            # restrict the domain to what we care. Other CPUs may have garbage
+            # data, but the caller is not going to look at it anyway.
+            domain = set(domain) - set(cpus)
+            if len(domain) < 2:
+                continue
+
+            # Get the frequency column for each CPU in the domain
+            freq_columns = [
+                # drop the index since we only care about the transitions, and
+                # not when they happened
+                df[df['cpu'] == cpu]['frequency'].reset_index(drop=True)
+                for cpu in domain
+            ]
+
+            # Check that all columns are equal. If they are not, that means that
+            # at least one CPU has a frequency transition that is different
+            # from another one in the same domain, which is highly suspicious
+            ref = freq_columns[0]
+            for col in freq_columns:
+                # If the trace started in the middle of a group of transitions,
+                # ignore that transition by shifting and re-test
+                if not (ref.equals(col) or ref[:-1].equals(col.shift()[1:])):
+                    raise ValueError('Frequencies of CPUs in the freq domain {} are not coherent'.format(cpus))
+
     @memoized
     @requires_events('cpu_frequency', 'cpu_idle')
     def _get_frequency_residency(self, cpus):
@@ -60,12 +105,8 @@ class FrequencyAnalysis(TraceAnalysisBase):
         freq_df = self.trace.df_events('cpu_frequency')
         # Assumption: all CPUs in a cluster run at the same frequency, i.e. the
         # frequency is scaled per-cluster not per-CPU. Hence, we can limit the
-        # cluster frequencies data to a single CPU. This assumption is verified
-        # by the Trace module when parsing the trace.
-        if len(cpus) > 1 and not self.trace.freq_coherency:
-            self.get_logger().warning('Cluster frequency is NOT coherent,'
-                              'cannot compute residency!')
-            return None
+        # cluster frequencies data to a single CPU.
+        self._check_freq_domain_coherency(cpus)
 
         cluster_freqs = freq_df[freq_df.cpu == cpus[0]]
 
