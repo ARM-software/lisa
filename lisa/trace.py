@@ -39,7 +39,6 @@ from lisa.platforms.platinfo import PlatformInfo
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, StrList, Configurable
 import devlib
 from devlib.target import KernelVersion
-from trappy.utils import listify, handle_duplicate_index
 
 NON_IDLE_STATE = -1
 
