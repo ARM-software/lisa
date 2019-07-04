@@ -34,7 +34,7 @@ import inspect
 from functools import reduce, wraps
 from collections.abc import Sequence
 
-from lisa.utils import Loggable, HideExekallID, memoized, deduplicate
+from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, StrList, Configurable
 import devlib
@@ -248,6 +248,8 @@ class Trace(Loggable, TraceBase):
 
     :ivar start: The timestamp of the first trace event in the trace
     :ivar end: The timestamp of the last trace event in the trace
+    :ivar time_range: Maximum timespan for all collected events
+    :ivar available_events: List of events available in the parsed trace
     """
 
     def __init__(self,
@@ -266,34 +268,13 @@ class Trace(Loggable, TraceBase):
         # The platform information used to run the experiments
         self.plat_info = plat_info
 
-        # Trace format
-        self.trace_format = trace_format
-
-        # Whether trace timestamps are normalized or not
-        self.normalize_time = normalize_time
-
-        # Dynamically registered TRAPpy events
-        self.trappy_cls = {}
-
-        # Maximum timespan for all collected events
-        self.time_range = 0
-
-        # Time the system was overutilzied
-        self.overutilized_time = 0
-        self.overutilized_prc = 0
-
         # Import here to avoid a circular dependency issue at import time
         # with lisa.analysis.base
         from lisa.analysis.proxy import AnalysisProxy
 
-        # List of events required by user
+        self.normalize_time = normalize_time
+
         self.events = self._process_events(events, AnalysisProxy)
-
-        # List of events available in the parsed trace
-        self.available_events = []
-
-        # Cluster frequency coherency flag
-        self.freq_coherency = True
 
         # Folder containing trace
         self.trace_path = trace_path
@@ -303,7 +284,7 @@ class Trace(Loggable, TraceBase):
 
         self.plots_prefix = plots_prefix
 
-        self._parse_trace(self.trace_path, trace_format)
+        self._parse_trace(self.trace_path, trace_format, normalize_time)
 
         self.analysis = AnalysisProxy(self)
 
@@ -320,6 +301,17 @@ class Trace(Loggable, TraceBase):
             count = max_cpu + 1
             self.get_logger().info("Estimated CPU count from trace: %s", count)
             return count
+
+    @deprecate('Direct access to underlying ftrace object is discouraged as this is now an implementation detail of that class which could change in the future',
+        deprecated_in='2.0',
+        removed_in='2.1'
+    )
+    @property
+    def ftrace(self):
+        """
+        Underlying :class:`trappy.ftrace.FTrace`.
+        """
+        return self._ftrace
 
     @staticmethod
     def _process_events(events, proxy_cls):
@@ -346,7 +338,7 @@ class Trace(Loggable, TraceBase):
 
         return events
 
-    def _parse_trace(self, path, trace_format):
+    def _parse_trace(self, path, trace_format, normalize_time):
         """
         Internal method in charge of performing the actual parsing of the
         trace.
@@ -365,23 +357,21 @@ class Trace(Loggable, TraceBase):
         if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
             logger.debug('Parsing SysTrace format...')
             trace_class = trappy.SysTrace
-            self.trace_format = 'SysTrace'
         elif trace_format.upper() == 'FTRACE':
             logger.debug('Parsing FTrace format...')
             trace_class = trappy.FTrace
-            self.trace_format = 'FTrace'
         else:
             raise ValueError("Unknown trace format {}".format(trace_format))
 
         # Make sure event names are not unicode strings
         self.ftrace = trace_class(path, scope="custom", events=self.events,
-                                  normalize_time=self.normalize_time)
+                                  normalize_time=normalize_time)
 
         # Load Functions profiling data
         has_function_stats = self._loadFunctionsStats(path)
 
         # Check for events available on the parsed trace
-        self._check_available_events()
+        self.available_events = self._check_available_events()
         if not self.available_events:
             if has_function_stats:
                 logger.info('Trace contains only functions stats')
@@ -412,13 +402,15 @@ class Trace(Loggable, TraceBase):
         :type key: str
         """
         logger = self.get_logger()
+        available_events = []
         for val in self.ftrace.get_filters(key):
             obj = getattr(self.ftrace, val)
             if not obj.data_frame.empty:
-                self.available_events.append(val)
-        logger.debug('Events found on trace:')
-        for evt in self.available_events:
+                available_events.append(val)
+        logger.debug('Events found on trace: {}'.format(', '.join(available_events)))
+        for evt in available_events:
             logger.debug(' - %s', evt)
+        return available_events
 
     def _load_tasks_names(self):
         """
@@ -772,13 +764,6 @@ class Trace(Loggable, TraceBase):
         df = getattr(self.ftrace, "sched_overutilized").data_frame
         self.add_events_deltas(df, 'len')
 
-        # Build a stat on trace overutilization
-        self.overutilized_time = df[df.overutilized == 1].len.sum()
-        self.overutilized_prc = 100. * self.overutilized_time / self.time_range
-
-        self.get_logger().debug('Overutilized time: %.6f [s] (%.3f%% of trace time)',
-                        self.overutilized_time, self.overutilized_prc)
-
     def _sanitize_ThermalPowerCpu(self):
         self._sanitize_ThermalPowerCpuGetPower()
         self._sanitize_ThermalPowerCpuLimit()
@@ -807,23 +792,9 @@ class Trace(Loggable, TraceBase):
             self._sanitize_ThermalPowerCpuMask
         )
 
-    def _chunker(self, seq, size):
-        """
-        Given a data frame or a series, generate a sequence of chunks of the
-        given size.
-
-        :param seq: data to be split into chunks
-        :type seq: :class:`pandas.Series` or :class:`pandas.DataFrame`
-
-        :param size: size of each chunk
-        :type size: int
-        """
-        return (seq.iloc[pos:pos + size] for pos in range(0, len(seq), size))
-
     def _sanitize_CpuFrequency(self):
         """
-        Verify that all platform reported clusters are frequency coherent (i.e.
-        frequency scaling is performed at a cluster level).
+        Rename some columns and add fake devlib frequency events
         """
         logger = self.get_logger()
         if not self.has_events('cpu_frequency_devlib') \
@@ -888,19 +859,6 @@ class Trace(Loggable, TraceBase):
                 df.sort_index(inplace=True)
 
             setattr(self.ftrace.cpu_frequency, 'data_frame', df)
-
-        # Frequency Coherency Check
-        for cpus in domains:
-            cluster_df = df[df.cpu.isin(cpus)]
-            for chunk in self._chunker(cluster_df, len(cpus)):
-                f = chunk.iloc[0].frequency
-                if any(chunk.frequency != f):
-                    logger.warning('Cluster Frequency is not coherent! '
-                                      'Failure in [cpu_frequency] events at:')
-                    logger.warning(chunk)
-                    self.freq_coherency = False
-                    return
-        logger.info('Platform clusters verified to be Frequency coherent')
 
 ###############################################################################
 # Utility Methods
