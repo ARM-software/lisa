@@ -27,6 +27,7 @@ import pandas as pd
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.trace import requires_events
+from lisa.datautils import series_integrate
 
 class FrequencyAnalysis(TraceAnalysisBase):
     """
@@ -94,7 +95,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
             freq_active = cluster_freqs.frequency.apply(lambda x: 1 if x == freq else 0)
             active_t = cluster_freqs.active * freq_active
             # Compute total time by integrating the square wave
-            nonidle_time.append(self.trace.integrate_square_wave(active_t))
+            nonidle_time.append(series_integrate(active_t))
 
         time_df["active_time"] = pd.DataFrame(index=available_freqs, data=nonidle_time)
         return time_df
