@@ -48,6 +48,12 @@ class TraceBase(abc.ABC):
     Base class for common functionalities between :class:`Trace` and :class:`TraceView`
     """
 
+    def __init__(self):
+        # Import here to avoid a circular dependency issue at import time
+        # with lisa.analysis.base
+        from lisa.analysis.proxy import AnalysisProxy
+        self.analysis = AnalysisProxy(self)
+
     @abc.abstractmethod
     def get_view(self, window):
         """
@@ -110,6 +116,7 @@ class TraceBase(abc.ABC):
 
         return df
 
+
 class TraceView(Loggable, TraceBase):
     """
     A view on a :class:`Trace`
@@ -149,6 +156,8 @@ class TraceView(Loggable, TraceBase):
         mimics a regular :class:`Trace` using :func:`getattr`.
     """
     def __init__(self, trace, window):
+        super().__init__()
+
         self.base_trace = trace
 
         t_min = window[0]
@@ -181,11 +190,6 @@ class TraceView(Loggable, TraceBase):
         self.end = t_max
         self.time_range = t_max - t_min
 
-        # Import here to avoid a circular dependency issue at import time
-        # with lisa.analysis.base
-        from lisa.analysis.proxy import AnalysisProxy
-        self.analysis = AnalysisProxy(self)
-
     def __getattr__(self, name):
         return getattr(self.base_trace, name)
 
@@ -214,6 +218,7 @@ class TraceView(Loggable, TraceBase):
             end = min(end, window[1])
 
         return self.base_trace.get_view((start, end))
+
 
 class Trace(Loggable, TraceBase):
     """
@@ -262,6 +267,9 @@ class Trace(Loggable, TraceBase):
                  trace_format='FTrace',
                  plots_dir=None,
                  plots_prefix=''):
+
+        super().__init__()
+
         logger = self.get_logger()
 
         if plat_info is None:
@@ -270,13 +278,10 @@ class Trace(Loggable, TraceBase):
         # The platform information used to run the experiments
         self.plat_info = plat_info
 
-        # Import here to avoid a circular dependency issue at import time
-        # with lisa.analysis.base
-        from lisa.analysis.proxy import AnalysisProxy
-
         self.normalize_time = normalize_time
 
-        self.events = self._process_events(events, AnalysisProxy)
+        proxy_cls = type(self.analysis)
+        self.events = self._process_events(events, proxy_cls)
 
         # Path to the trace file
         self.trace_path = trace_path
@@ -287,8 +292,6 @@ class Trace(Loggable, TraceBase):
         self.plots_prefix = plots_prefix
 
         self._parse_trace(self.trace_path, trace_format, normalize_time)
-
-        self.analysis = AnalysisProxy(self)
 
     @property
     @memoized
