@@ -222,7 +222,8 @@ class Trace(Loggable, TraceBase):
     :param trace_path: File containing the trace
     :type trace_path: str
 
-    :param events: events to be parsed (all the events by default)
+    :param events: events to be parsed (all the events used by analysis by
+        default)
     :type events: str or list(str)
 
     :param platform: a dictionary containing information about the target
@@ -232,7 +233,8 @@ class Trace(Loggable, TraceBase):
     :param window: time window to consider when parsing the trace
     :type window: tuple(int, int)
 
-    :param normalize_time: normalize trace time stamps
+    :param normalize_time: Make the first timestamp in the trace 0 instead
+        of the system timestamp that was captured when tracing.
     :type normalize_time: bool
 
     :param trace_format: format of the trace. Possible values are:
@@ -276,7 +278,7 @@ class Trace(Loggable, TraceBase):
 
         self.events = self._process_events(events, AnalysisProxy)
 
-        # Folder containing trace
+        # Path to the trace file
         self.trace_path = trace_path
 
         # By default, use the trace dir to save plots
@@ -343,7 +345,7 @@ class Trace(Loggable, TraceBase):
         Internal method in charge of performing the actual parsing of the
         trace.
 
-        :param path: path to the trace folder (or trace file)
+        :param path: path to the trace file
         :type path: str
 
         :param trace_format: format of the trace. Possible values are:
