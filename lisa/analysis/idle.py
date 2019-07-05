@@ -64,9 +64,7 @@ class IdleAnalysis(TraceAnalysisBase):
             lambda s: 1 if s == -1 else 0
         )
 
-        start_time = 0.0
-        if not self.trace.ftrace.normalized_time:
-            start_time = self.trace.ftrace.basetime
+        start_time = self.trace.start
 
         if cpu_active.empty:
             cpu_active = pd.Series([0], index=[start_time])

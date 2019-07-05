@@ -123,7 +123,7 @@ class LoadTrackingHelpers:
 
         top = Topology()
         top.add_to_level('cpu', [[cpu]])
-        return SchedAssert(trace.ftrace, top, execname=task_name).getDutyCycle(window)
+        return SchedAssert(trace._ftrace, top, execname=task_name).getDutyCycle(window)
 
     @staticmethod
     def get_task_window(trace, task_name, cpu=None):

@@ -206,7 +206,7 @@ class TestTrace(TraceTestCase):
         ]
 
         trace = self.trace
-        trace_end = trace.ftrace.basetime + trace.ftrace.get_duration()
+        trace_end = trace.basetime + trace.time_range
         # Last event should be extended to the trace's end
         expected_time = (events[1] - events[0]) + (trace_end - events[2])
         expected_pct = 100 * expected_time / trace.time_range

@@ -1238,12 +1238,8 @@ class EnergyModel(Serializable, Loggable):
         if not trace.has_events('cpu_idle') or not trace.has_events('cpu_frequency'):
             raise ValueError('Requires cpu_idle and cpu_frequency trace events')
 
-        idle = Parser(trace.ftrace).solve('cpu_idle:state')
-        freqs = Parser(trace.ftrace).solve('cpu_frequency:frequency')
-
-        columns = ['-'.join(str(c) for c in n.cpus)
-                   for n in self.root.iter_nodes()
-                   if n.active_states and n.idle_states]
+        idle = trace.df_events('cpu_idle').pivot(columns='cpu_id')['state']
+        freqs = trace.df_events('cpu_frequency').pivot(columns='cpu')['frequency']
 
         inputs = pd.concat([idle, freqs], axis=1, keys=['idle', 'freq']).ffill()
 

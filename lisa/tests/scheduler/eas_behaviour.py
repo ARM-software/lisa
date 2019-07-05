@@ -136,7 +136,7 @@ class EASBehaviour(RTATestBundle):
         """
         tasks = self.rtapp_tasks
 
-        df = self.trace.ftrace.sched_switch.data_frame[['next_comm', '__cpu']]
+        df = self.trace.df_events('sched_switch')[['next_comm', '__cpu']]
         df = df[df['next_comm'].isin(tasks)]
         df = df.pivot(index=df.index, columns='next_comm').fillna(method='ffill')
         cpu_df = df['__cpu']

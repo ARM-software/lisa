@@ -31,6 +31,7 @@ import operator
 import logging
 import webbrowser
 import inspect
+import shlex
 from functools import reduce, wraps
 from collections.abc import Sequence
 
@@ -162,13 +163,15 @@ class TraceView(Loggable, TraceBase):
         t_min = window[0]
         t_max = window[1]
 
-        trace_classes = [cls for cls in self.base_trace.ftrace.trace_classes
-                         if not cls.data_frame.empty]
+        df_list = [
+            trace.df_events(event)
+            for event in trace.available_events
+        ]
 
         if t_min is not None:
             start = self.base_trace.end
-            for trace_class in trace_classes:
-                df = trace_class.data_frame[t_min:]
+            for df in df_list:
+                df = df[t_min:]
                 if not df.empty:
                     start = min(start, df.index[0])
             t_min = start
@@ -177,8 +180,8 @@ class TraceView(Loggable, TraceBase):
 
         if t_max is not None:
             end = self.base_trace.start
-            for trace_class in trace_classes:
-                df = trace_class.data_frame[:t_max]
+            for df in df_list:
+                df = df[:t_max]
                 if not df.empty:
                     end = max(end, df.index[-1])
             t_max = end
@@ -368,13 +371,15 @@ class Trace(Loggable, TraceBase):
             raise ValueError("Unknown trace format {}".format(trace_format))
 
         # Make sure event names are not unicode strings
-        self.ftrace = trace_class(path, scope="custom", events=self.events,
+        self._ftrace = trace_class(path, scope="custom", events=self.events,
                                   normalize_time=normalize_time)
 
         # Check for events available on the parsed trace
         self.available_events = self._check_available_events()
         if not self.available_events:
             raise ValueError('The trace does not contain useful events')
+
+        self.basetime = self._ftrace.basetime
 
         self._compute_timespan()
         # Index PIDs and Task names
@@ -400,8 +405,8 @@ class Trace(Loggable, TraceBase):
         """
         logger = self.get_logger()
         available_events = []
-        for val in self.ftrace.get_filters(key):
-            obj = getattr(self.ftrace, val)
+        for val in self._ftrace.get_filters(key):
+            obj = getattr(self._ftrace, val)
             if not obj.data_frame.empty:
                 available_events.append(val)
         logger.debug('Events found on trace: {}'.format(', '.join(available_events)))
@@ -454,8 +459,17 @@ class Trace(Loggable, TraceBase):
         """
         Compute time axis range, considering all the parsed events.
         """
-        self.start = 0 if self.ftrace.normalized_time else self.ftrace.basetime
-        self.end = self.start + self.ftrace.get_duration()
+        start = []
+        end = []
+        for event in self.available_events:
+            df = self.df_events(event)
+            start.append(df.index[0])
+            end.append(df.index[-1])
+
+        duration = max(end) - min(start)
+
+        self.start = 0 if self.normalize_time else self.basetime
+        self.end = self.start + duration
         self.time_range = self.end - self.start
 
         self.get_logger().debug('Trace contains events from %s to %s',
@@ -573,11 +587,10 @@ class Trace(Loggable, TraceBase):
         In both cases the native viewer is assumed to be available in the host
         machine.
         """
-        if isinstance(self.ftrace, trappy.FTrace):
-            return os.popen("kernelshark '{}'".format(self.ftrace.trace_path))
-        if isinstance(self.ftrace, trappy.SysTrace):
-            return webbrowser.open(self.ftrace.trace_path)
-        self.get_logger().warning('No trace data available')
+        if isinstance(self._ftrace, trappy.FTrace):
+            return os.popen("kernelshark {}".format(shlex.quote(self.trace_path)))
+        if isinstance(self._ftrace, trappy.SysTrace):
+            return webbrowser.open(self.trace_path)
 
     def df_events(self, event):
         """
@@ -587,12 +600,12 @@ class Trace(Loggable, TraceBase):
         :param event: Trace event name
         :type event: str
         """
-        try:
-            return getattr(self.ftrace, event).data_frame
-        except AttributeError:
-            raise ValueError('Event [{}] not supported. '
-                             'Supported events are: {}'
-                             .format(event, self.available_events))
+
+        if event not in self.available_events:
+            raise ValueError('Event "{}" not supported. Supported events are: {}'.format(
+                event, self.available_events))
+
+        return getattr(self._ftrace, event).data_frame
 
 ###############################################################################
 # Trace Events Sanitize Methods
@@ -731,8 +744,7 @@ class Trace(Loggable, TraceBase):
         if not self.has_events('sched_overutilized'):
             return
 
-        # df = self.df_events('sched_overutilized')
-        df = getattr(self.ftrace, "sched_overutilized").data_frame
+        df = self.df_events('sched_overutilized')
         self.add_events_deltas(df, 'len')
 
     def _sanitize_ThermalPowerCpu(self):
@@ -784,7 +796,7 @@ class Trace(Loggable, TraceBase):
         # frequency events to report
         if len(df) == 0:
             # Register devlib injected events as 'cpu_frequency' events
-            self.ftrace.cpu_frequency.data_frame = devlib_freq
+            self._ftrace.cpu_frequency.data_frame = devlib_freq
             df = devlib_freq
             self.available_events.append('cpu_frequency')
 
@@ -829,7 +841,7 @@ class Trace(Loggable, TraceBase):
 
                 df.sort_index(inplace=True)
 
-            self.ftrace.cpu_frequency.data_frame = df
+            self._ftrace.cpu_frequency.data_frame = df
 
 ###############################################################################
 # Utility Methods
