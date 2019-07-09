@@ -372,17 +372,10 @@ class Trace(Loggable, TraceBase):
         self.ftrace = trace_class(path, scope="custom", events=self.events,
                                   normalize_time=normalize_time)
 
-        # Load Functions profiling data
-        has_function_stats = self._loadFunctionsStats(path)
-
         # Check for events available on the parsed trace
         self.available_events = self._check_available_events()
         if not self.available_events:
-            if has_function_stats:
-                logger.info('Trace contains only functions stats')
-                return
-            raise ValueError('The trace does not contain useful events '
-                             'nor function stats')
+            raise ValueError('The trace does not contain useful events')
 
         self._compute_timespan()
         # Index PIDs and Task names
@@ -587,11 +580,6 @@ class Trace(Loggable, TraceBase):
             return webbrowser.open(self.ftrace.trace_path)
         self.get_logger().warning('No trace data available')
 
-
-###############################################################################
-# DataFrame Getter Methods
-###############################################################################
-
     def df_events(self, event):
         """
         Get a dataframe containing all occurrences of the specified trace event
@@ -606,27 +594,6 @@ class Trace(Loggable, TraceBase):
             raise ValueError('Event [{}] not supported. '
                              'Supported events are: {}'
                              .format(event, self.available_events))
-
-    def df_functions_stats(self, functions=None):
-        """
-        Get a DataFrame of specified kernel functions profile data
-
-        For each profiled function a DataFrame is returned which reports stats
-        on kernel functions execution time. The reported stats are per-CPU and
-        includes: number of times the function has been executed (hits),
-        average execution time (avg), overall execution time (time) and samples
-        variance (s_2).
-        By default returns a DataFrame of all the functions profiled.
-
-        :param functions: the name of the function or a list of function names
-                          to report
-        :type functions: str or list(str)
-        """
-        df = self._functions_stats_df
-        if not functions:
-            return df
-        return df.loc[df.index.get_level_values(1).isin(listify(functions))]
-
 
 ###############################################################################
 # Trace Events Sanitize Methods
@@ -869,39 +836,6 @@ class Trace(Loggable, TraceBase):
 # Utility Methods
 ###############################################################################
 
-    def _loadFunctionsStats(self, path='trace.stats'):
-        """
-        Read functions profiling file and build a data frame containing all
-        relevant data.
-
-        :param path: path to the functions profiling trace file
-        :type path: str
-        """
-        if os.path.isdir(path):
-            path = os.path.join(path, 'trace.stats')
-        if (path.endswith('dat') or
-            path.endswith('txt') or
-            path.endswith('html')):
-            pre, ext = os.path.splitext(path)
-            path = pre + '.stats'
-        if not os.path.isfile(path):
-            return False
-
-        # Opening functions profiling JSON data file
-        self.get_logger().debug('Loading functions profiling data from [%s]...', path)
-        with open(os.path.join(path), 'r') as fh:
-            trace_stats = json.load(fh)
-
-        # Build DataFrame of function stats
-        frames = {}
-        for cpu, data in trace_stats.items():
-            frames[int(cpu)] = pd.DataFrame.from_dict(data, orient='index')
-
-        # Build and keep track of the DataFrame
-        self._functions_stats_df = pd.concat(list(frames.values()),
-                                             keys=list(frames.keys()))
-
-        return len(self._functions_stats_df) > 0
 
     @memoized
     def get_peripheral_clock_effective_rate(self, clk_name):
