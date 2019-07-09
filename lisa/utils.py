@@ -40,13 +40,17 @@ from weakref import WeakKeyDictionary
 import urllib.parse
 import warnings
 import textwrap
+import webbrowser
 
 import ruamel.yaml
 from ruamel.yaml import YAML
-import sphobjinv
 
-import webbrowser
-from IPython.display import IFrame
+# These modules may not be installed as they are only used for notebook usage
+try:
+    import sphobjinv
+    from IPython.display import IFrame
+except ModuleNotFoundError:
+    pass
 
 import lisa
 from lisa.version import version_tuple, parse_version, format_version
