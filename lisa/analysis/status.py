@@ -63,6 +63,19 @@ class StatusAnalysis(TraceAnalysisBase):
         #         .set_index('Time')
         return df[['len', 'overutilized']]
 
+    def get_overutilized_time(self):
+        """
+        Return the time spent in overutilized state.
+        """
+        df = self.trace.analysis.status.df_overutilized()
+        return df[df['overutilized'] == 1]['len'].sum()
+
+    def get_overutilized_pct(self):
+        """
+        The percentage of the time spent in overutilized state.
+        """
+        ou_time = self.get_overutilized_time()
+        return 100 * ou_time / self.trace.time_range
 
 ###############################################################################
 # Plotting Methods

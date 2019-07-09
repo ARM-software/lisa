@@ -17,23 +17,64 @@
 
 """ Functions Analysis Module """
 
-from trappy.utils import listify
+import pandas as pd
+from lisa.analysis.base import AnalysisHelpers
 
-from lisa.analysis.base import TraceAnalysisBase
 
-
-class FunctionsAnalysis(TraceAnalysisBase):
+class FunctionsAnalysis(AnalysisHelpers):
     """
     Support for kernel functions profiling and analysis
 
-    :param trace: input Trace object
-    :type trace: :class:`trace.Trace`
+    :param stats_path: Path to JSON function stats as returned by devlib
+        :meth:`devlib.FtraceCollector.get_stats`
+    :type stats_path: str
     """
 
     name = 'functions'
 
-    def __init__(self, trace):
-        super(FunctionsAnalysis, self).__init__(trace)
+    def __init__(self, stats_path):
+        self.stats_path = stats_path
+
+        # Opening functions profiling JSON data file
+        with open(self.trace_path, 'r') as f:
+            stats = json.load(f)
+
+        # Build DataFrame of function stats
+        frames = {}
+        for cpu, data in stats.items():
+            frames[int(cpu)] = pd.DataFrame.from_dict(data, orient='index')
+
+        # Build and keep track of the DataFrame
+        self._df = pd.concat(list(frames.values()),
+                                             keys=list(frames.keys()))
+
+    def save_plot(self, *args, **kwargs):
+        """
+        See :meth:`lisa.analysis.base.AnalysisHelpers.save_plot`
+        """
+        default_dir = os.path.dirname(self.stats_path)
+        return self._save_plot(*args, default_dir=default_dir, **kwargs)
+
+    def df_functions_stats(self, functions=None):
+        """
+        Get a DataFrame of specified kernel functions profile data
+
+        For each profiled function a DataFrame is returned which reports stats
+        on kernel functions execution time. The reported stats are per-CPU and
+        includes: number of times the function has been executed (hits),
+        average execution time (avg), overall execution time (time) and samples
+        variance (s_2).
+        By default returns a DataFrame of all the functions profiled.
+
+        :param functions: the name of the function or a list of function names
+                          to report
+        :type functions: list(str)
+        """
+        df = self._df
+        if functions:
+            return df.loc[df.index.get_level_values(1).isin(functions)]
+        else:
+            return df
 
     def plot_profiling_stats(self, functions=None, metrics='avg', **kwargs):
         """
@@ -49,16 +90,11 @@ class FunctionsAnalysis(TraceAnalysisBase):
         :param metrics: the metrics to plot
                         avg   - average execution time
                         time  - total execution time
-        :type metrics: str or list(str)
+        :type metrics: list(str)
 
         .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
-        if not hasattr(self.trace, '_functions_stats_df'):
-            self.get_logger().warning('Functions stats data not available')
-            return
-
-        metrics = listify(metrics)
-        df = self.trace.df_functions_stats(functions)
+        df = self.df_functions_stats(functions)
 
         # Check that all the required metrics are acutally availabe
         available_metrics = df.columns.tolist()

@@ -205,11 +205,17 @@ class TestTrace(TraceTestCase):
             82.001337
         ]
 
-        trace_end = self.trace.ftrace.basetime + self.trace.ftrace.get_duration()
+        trace = self.trace
+        trace_end = trace.basetime + trace.time_range
         # Last event should be extended to the trace's end
         expected_time = (events[1] - events[0]) + (trace_end - events[2])
+        expected_pct = 100 * expected_time / trace.time_range
 
-        self.assertAlmostEqual(self.trace.overutilized_time, expected_time)
+        overutilized_time = trace.analysis.status.get_overutilized_time()
+        overutilized_pct = trace.analysis.status.get_overutilized_pct()
+
+        self.assertAlmostEqual(overutilized_time, expected_time)
+        self.assertAlmostEqual(overutilized_pct, expected_pct)
 
     def test_plot_cpu_idle_state_residency(self):
         """
