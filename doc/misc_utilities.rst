@@ -25,6 +25,12 @@ Utilities
 .. automodule:: lisa.utils
    :members:
 
+Dataframe and Series handling utilities
+=======================================
+
+.. automodule:: lisa.datautils
+   :members:
+
 Sphinx documentation
 ====================
 

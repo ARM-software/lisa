@@ -23,6 +23,7 @@ import pandas as pd
 from trappy.utils import handle_duplicate_index
 
 from lisa.utils import memoized
+from lisa.datautils import series_integrate
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
 
@@ -176,7 +177,7 @@ class IdleAnalysis(TraceAnalysisBase):
             )
             idle_t = cpu_idle.is_idle * idle_state
             # Compute total time by integrating the square wave
-            idle_time.append(self.trace.integrate_square_wave(idle_t))
+            idle_time.append(series_integrate(idle_t))
 
         idle_time_df = pd.DataFrame({'time' : idle_time}, index=available_idles)
         idle_time_df.index.name = 'idle_state'
@@ -234,7 +235,7 @@ class IdleAnalysis(TraceAnalysisBase):
             )
             idle_t = cl_idle.is_idle * idle_state
             # Compute total time by integrating the square wave
-            idle_time.append(self.trace.integrate_square_wave(idle_t))
+            idle_time.append(series_integrate(idle_t))
 
         idle_time_df = pd.DataFrame({'time' : idle_time}, index=available_idles)
         idle_time_df.index.name = 'idle_state'

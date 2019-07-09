@@ -20,6 +20,7 @@ import pandas as pd
 from devlib.module.sched import SchedDomain, SchedDomainFlag
 
 from lisa.utils import memoized, ArtifactPath
+from lisa.datautils import df_squash
 from lisa.trace import Trace, FtraceConf, FtraceCollector, requires_events
 from lisa.wlgen.rta import Periodic
 from lisa.tests.base import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
@@ -185,7 +186,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         if state_df.empty:
             return state_df
 
-        return Trace.squash_df(state_df, self.start_time,
+        return df_squash(state_df, self.start_time,
                                state_df.index[-1] + state_df.delta.values[-1], "delta")
 
     @requires_events('sched_switch', TasksAnalysis.df_task_states.used_events)
@@ -251,7 +252,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         for cpu in cpus:
             busy_df = self._get_active_df(cpu)
-            busy_df = Trace.squash_df(busy_df, start, end)
+            busy_df = df_squash(busy_df, start, end)
             busy_df = busy_df[busy_df.state == 0]
 
             if busy_df.empty:
