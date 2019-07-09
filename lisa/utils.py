@@ -870,6 +870,21 @@ class LayeredMapping(MutableMapping):
             top=copy.copy(self.top),
         )
 
+def get_short_doc(obj):
+    """
+    Get the short documentation paragraph at the beginning of docstrings.
+    """
+    docstring = inspect.getdoc(obj)
+    if docstring:
+        docstring = split_paragraphs(docstring)[0]
+        docstring = ' '.join(docstring.splitlines())
+        if not docstring.endswith('.'):
+            docstring += '.'
+    else:
+        docstring = ''
+    return docstring
+
+
 def update_wrapper_doc(func, added_by=None, description=None, remove_params=None):
     """
     Equivalent to :func:`functools.wraps` that updates the signature by taking
@@ -1212,5 +1227,27 @@ def show_doc(obj, iframe=False):
         return IFrame(src=doc_url, width="100%", height="600em")
     else:
         webbrowser.open(doc_url)
+
+
+def split_paragraphs(string):
+    """
+    Split `string` into a list of paragraphs.
+
+    A paragraph is delimited by empty lines, or lines containing only
+    whitespace characters.
+    """
+    para_list = []
+    curr_para = []
+    for line in string.splitlines(keepends=True):
+        if line.strip():
+            curr_para.append(line)
+        else:
+            para_list.append(''.join(curr_para))
+            curr_para = []
+
+    if curr_para:
+        para_list.append(''.join(curr_para))
+
+    return para_list
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
