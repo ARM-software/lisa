@@ -25,6 +25,7 @@ import copy
 from devlib.target import KernelVersion
 
 from lisa.trace import Trace
+from lisa.datautils import df_squash
 from lisa.platforms.platinfo import PlatformInfo
 from .utils import StorageTestCase, ASSET_DIR
 
@@ -132,7 +133,7 @@ class TestTrace(TraceTestCase):
 
     def test_squash_df(self):
         """
-        TestTrace: squash_df() behaves as expected
+        TestTrace: df_squash() behaves as expected
         """
         index = [float(i) for i in range(15, 20)]
         data = [(1, i % 2) for i in range(15, 20)]
@@ -144,7 +145,7 @@ class TestTrace(TraceTestCase):
         # Time delta state
         # 16.5  .5   0
         # 17    .5   1
-        df1 = Trace.squash_df(df, 16.5, 17.5,)
+        df1 = df_squash(df, 16.5, 17.5,)
         head = df1.head(1)
         tail = df1.tail(1)
         self.assertEqual(len(df1.index), 2)
@@ -159,7 +160,7 @@ class TestTrace(TraceTestCase):
         # The df here should be:
         # Time delta state
         # 16.2  .6   0
-        df2 = Trace.squash_df(df, 16.2, 16.8)
+        df2 = df_squash(df, 16.2, 16.8)
         self.assertEqual(len(df2.index), 1)
         self.assertEqual(df2.index[0], 16.2)
         self.assertAlmostEqual(df2['delta'].values[0], 0.6)
@@ -170,7 +171,7 @@ class TestTrace(TraceTestCase):
         # The df here should be:
         # Time delta state
         # 16   1   0
-        df3 = Trace.squash_df(df, 16, 17)
+        df3 = df_squash(df, 16, 17)
         self.assertEqual(len(df3.index), 1)
         self.assertEqual(df3.index[0], 16)
         self.assertAlmostEqual(df3['delta'].values[0], 1)
@@ -180,18 +181,18 @@ class TestTrace(TraceTestCase):
         # The df here should be:
         # Time delta state
         # 19.5  .5  1
-        df4 = Trace.squash_df(df, 19.5, 22)
+        df4 = df_squash(df, 19.5, 22)
         self.assertEqual(len(df4.index), 1)
         self.assertEqual(df4.index[0], 19.5)
         self.assertAlmostEqual(df4['delta'].values[0], 0.5)
         self.assertEqual(df4['state'].values[0], 1)
 
         ## Test slice where there's no past event
-        df5 = Trace.squash_df(df, 10, 30)
+        df5 = df_squash(df, 10, 30)
         self.assertEqual(len(df5.index), 5)
 
         ## Test slice where that should contain nothing
-        df6 = Trace.squash_df(df, 8, 9)
+        df6 = df_squash(df, 8, 9)
         self.assertEqual(len(df6.index), 0)
 
     def test_overutilized_time(self):
