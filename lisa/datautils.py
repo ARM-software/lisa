@@ -224,8 +224,8 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
     """
     Compute the integral of `y` with respect to `x`.
 
-    :return: A scalar `SUM[y * dx]`, where `x` is either the index of `y` or
-        another series.
+    :return: A scalar :math:`\int_{x=A}^{x=B} y \, dx`, where `x` is either the
+        index of `y` or another series.
 
     :param y: Series with the data to integrate.
     :type y: pandas.DataFrame
@@ -341,12 +341,12 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
 
 
 def series_mean(y, x=None, **kwargs):
-    """
+    r"""
     Compute the average of `y` by integrating with respect to `x` and dividing
     by the range of `x`.
 
-    :return: A scalar `SUM[y * dx]/(max(x)-min(x))`, where `x` is either the
-        index of `y` or another series.
+    :return: A scalar :math:`\int_{x=A}^{x=B} \frac{y}{| B - A |} \, dx`,
+        where `x` is either the index of `y` or another series.
 
     :param y: Series with the data to integrate.
     :type y: pandas.DataFrame
