@@ -41,6 +41,7 @@ import urllib.parse
 import warnings
 import textwrap
 import webbrowser
+import mimetypes
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -1249,5 +1250,17 @@ def split_paragraphs(string):
         para_list.append(''.join(curr_para))
 
     return para_list
+
+mimetypes.add_type('text/rst', '.rst')
+def guess_format(path):
+    """
+    Guess the file format from a `path`, using the mime types database.
+    """
+    if path is None:
+        return None
+
+    mime_type = mimetypes.guess_type(path, strict=False)[0]
+    guessed_format = mime_type.split('/')[1].split('.', 1)[-1].split('+')[0]
+    return guessed_format
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
