@@ -1088,7 +1088,7 @@ class OrTraceEventChecker(AssociativeTraceEventChecker):
             try:
                 checker.check_events(event_set)
             except MissingTraceEventError as e:
-                failed_checker_set.add(e.missing_events, available_events=event_set)
+                failed_checker_set.add(e.missing_events)
             else:
                 break
         else:
