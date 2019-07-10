@@ -48,12 +48,11 @@ class FunctionsAnalysis(AnalysisHelpers):
         self._df = pd.concat(list(frames.values()),
                                              keys=list(frames.keys()))
 
-    def save_plot(self, *args, **kwargs):
-        """
-        See :meth:`lisa.analysis.base.AnalysisHelpers.save_plot`
-        """
-        default_dir = os.path.dirname(self.stats_path)
-        return self._save_plot(*args, default_dir=default_dir, **kwargs)
+    def get_default_plot_path(self, **kwargs):
+        return super().get_default_plot_path(
+            default_dir=os.path.dirname(self.stats_path),
+            **kwargs,
+        )
 
     def df_functions_stats(self, functions=None):
         """
@@ -76,7 +75,8 @@ class FunctionsAnalysis(AnalysisHelpers):
         else:
             return df
 
-    def plot_profiling_stats(self, functions=None, metrics='avg', **kwargs):
+    @AnalysisHelpers.plot_method()
+    def plot_profiling_stats(self, functions=None, axis=None, local_fig=None, metrics='avg'):
         """
         Plot functions profiling metrics for the specified kernel functions.
 
@@ -91,8 +91,6 @@ class FunctionsAnalysis(AnalysisHelpers):
                         avg   - average execution time
                         time  - total execution time
         :type metrics: list(str)
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         df = self.df_functions_stats(functions)
 
@@ -104,21 +102,19 @@ class FunctionsAnalysis(AnalysisHelpers):
                             available_metrics)
             raise ValueError(msg)
 
-        def plotter(axes, local_fig):
-            for metric in metrics:
-                if metric.upper() == 'AVG':
-                    title = 'Average Completion Time per CPUs'
-                    ylabel = 'Completion Time [us]'
-                if metric.upper() == 'TIME':
-                    title = 'Total Execution Time per CPUs'
-                    ylabel = 'Execution Time [us]'
-                data = df[metric.lower()].unstack()
-                data.plot(kind='bar',
-                         ax=axes, figsize=(16, 8), legend=True,
-                         title=title, table=True)
-                axes.set_ylabel(ylabel)
-                axes.get_xaxis().set_visible(False)
+        for metric in metrics:
+            if metric.upper() == 'AVG':
+                title = 'Average Completion Time per CPUs'
+                ylabel = 'Completion Time [us]'
+            if metric.upper() == 'TIME':
+                title = 'Total Execution Time per CPUs'
+                ylabel = 'Execution Time [us]'
+            data = df[metric.lower()].unstack()
+            data.plot(kind='bar',
+                     ax=axes, figsize=(16, 8), legend=True,
+                     title=title, table=True)
+            axes.set_ylabel(ylabel)
+            axes.get_xaxis().set_visible(False)
 
-        return self.do_plot(plotter, **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

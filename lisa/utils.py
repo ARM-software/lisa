@@ -41,6 +41,7 @@ import urllib.parse
 import warnings
 import textwrap
 import webbrowser
+import mimetypes
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -870,14 +871,29 @@ class LayeredMapping(MutableMapping):
             top=copy.copy(self.top),
         )
 
-def update_wrapper_doc(func, added_by=None, description=None, remove_params=None):
+def get_short_doc(obj):
+    """
+    Get the short documentation paragraph at the beginning of docstrings.
+    """
+    docstring = inspect.getdoc(obj)
+    if docstring:
+        docstring = split_paragraphs(docstring)[0]
+        docstring = ' '.join(docstring.splitlines())
+        if not docstring.endswith('.'):
+            docstring += '.'
+    else:
+        docstring = ''
+    return docstring
+
+
+def update_wrapper_doc(func, added_by=None, description=None, remove_params=None, include_kwargs=False):
     """
     Equivalent to :func:`functools.wraps` that updates the signature by taking
-    into account the wrapper's extra parameters and the given description. Note
-    that var positional and var keyword arguments (``*args`` and ``**kwargs``)
-    are *not* added to the wrapped function's signature, since they are usually
-    used to transparently forward arguments from the decorator to the decorated
-    function.
+    into account the wrapper's extra *keyword-only* parameters and the given
+    description.
+
+    :param func: callable to decorate
+    :type func: collections.abc.Callable
 
     :param added_by: Add some kind of reference to give a sense of where the
         new behaviour of the wraps function comes from.
@@ -886,10 +902,17 @@ def update_wrapper_doc(func, added_by=None, description=None, remove_params=None
     :param description: Extra description output in the docstring.
     :type description: str or None
 
-    :param remove_params: Set of parameter names to not include in the decorated
-        function signature. This can be used to hide parameters that are only
-        used as part of a decorated/decorator protocol, and not exposed in the
-        final decorated function.
+    :param remove_params: Set of parameter names of ``func`` to not include in
+        the decorated function signature. This can be used to hide parameters
+        that are only used as part of a decorated/decorator protocol, and not
+        exposed in the final decorated function.
+    :type remove_params: list(str) or None
+
+    :param include_kwargs: If `True`, variable keyword parameter (``**kwargs``)
+        of the decorator is kept in the signature. It is usually removed, since
+        it's mostly used to transparently forward arguments to the inner
+        ``func``, but can also serve other purposes.
+    :type include_kwargs: bool
 
     .. note:: :func:`functools.wraps` is applied by this decorator, which will
         not work if you applied it yourself.
@@ -909,37 +932,41 @@ def update_wrapper_doc(func, added_by=None, description=None, remove_params=None
             desc
             for name, desc in wrapper_sig.parameters.items()
             if (
-                name not in f_sig.parameters.keys()
-                # These kinds are usually present in the wrapper to forward
-                # to the wrapped function, so they are not interesting here
-                and not desc.kind in (
-                    inspect.Parameter.VAR_KEYWORD,
-                    inspect.Parameter.VAR_POSITIONAL
+                desc.kind == inspect.Parameter.KEYWORD_ONLY
+                or (
+                    include_kwargs
+                    and desc.kind == inspect.Parameter.VAR_KEYWORD
                 )
             )
         ]
+        added_names = set(desc.name for desc in added_params)
 
-        def merge_param_list(l1, l2):
-            new_list = []
-            # Make sure the new param list has the different kinds of
-            # parameters ordered as it should
-            for kind in (
-                inspect.Parameter.POSITIONAL_ONLY,
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                inspect.Parameter.VAR_POSITIONAL,
-                inspect.Parameter.KEYWORD_ONLY,
-                inspect.Parameter.VAR_KEYWORD,
-            ):
-                new_list.extend(
-                    p
-                    # Take from l1 first, then from l2
-                    for p in itertools.chain(l1, l2)
-                    if p.kind == kind and p.name not in remove_params
+        if include_kwargs:
+            f_var_keyword_params = []
+        else:
+            f_var_keyword_params = [
+                desc
+                for name, desc in f_sig.parameters.items()
+                if (
+                    desc.kind == inspect.Parameter.VAR_KEYWORD
+                    and name not in remove_params
                 )
-            return new_list
+            ]
+
+        f_params = [
+            desc
+            for name, desc in f_sig.parameters.items()
+            if (
+                desc.name not in added_names
+                and desc not in f_var_keyword_params
+                and name not in remove_params
+            )
+        ]
 
         f.__signature__ = f_sig.replace(
-            parameters=merge_param_list(f_sig.parameters.values(), added_params),
+            # added_params are keyword-only, so they need to go before the var
+            # keyword param if there is any
+            parameters=f_params + added_params + f_var_keyword_params,
         )
 
         # Replace the one-liner f description
@@ -1212,5 +1239,39 @@ def show_doc(obj, iframe=False):
         return IFrame(src=doc_url, width="100%", height="600em")
     else:
         webbrowser.open(doc_url)
+
+
+def split_paragraphs(string):
+    """
+    Split `string` into a list of paragraphs.
+
+    A paragraph is delimited by empty lines, or lines containing only
+    whitespace characters.
+    """
+    para_list = []
+    curr_para = []
+    for line in string.splitlines(keepends=True):
+        if line.strip():
+            curr_para.append(line)
+        else:
+            para_list.append(''.join(curr_para))
+            curr_para = []
+
+    if curr_para:
+        para_list.append(''.join(curr_para))
+
+    return para_list
+
+mimetypes.add_type('text/rst', '.rst')
+def guess_format(path):
+    """
+    Guess the file format from a `path`, using the mime types database.
+    """
+    if path is None:
+        return None
+
+    mime_type = mimetypes.guess_type(path, strict=False)[0]
+    guessed_format = mime_type.split('/')[1].split('.', 1)[-1].split('+')[0]
+    return guessed_format
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

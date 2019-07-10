@@ -187,17 +187,34 @@ def autodoc_process_analysis_events(app, what, name, obj, options, lines):
     lines.extend(events_doc.splitlines())
 
 
-def get_analysis_list(prefix):
+def get_analysis_list(meth_type):
     rst_list = []
 
     for subclass in get_subclasses(TraceAnalysisBase):
         class_path = "{}.{}".format(subclass.__module__, subclass.__qualname__)
         analysis = subclass.__module__.split(".")[-1]
-        meth_list = [name for name, member in inspect.getmembers(subclass, callable)
-                     if name.startswith(prefix)]
+        if meth_type == 'plot':
+            meth_list = [
+                f.__name__
+                for f in subclass.get_plot_methods()
+            ]
+        elif meth_type == 'df':
+            meth_list = [
+                name
+                for name, member in inspect.getmembers(subclass, callable)
+                if name.startswith('df_')
+            ]
+        else:
+            raise ValueError()
 
-        rst_list += [":class:`{0}<{1}>`::meth:`~{1}.{2}`".format(analysis, class_path, meth)
-                     for meth in meth_list]
+        rst_list += [
+            ":class:`{analysis_name}<{cls}>`::meth:`~{cls}.{meth}`".format(
+                analysis_name=analysis,
+                cls=class_path,
+                meth=meth,
+            )
+            for meth in meth_list
+        ]
 
     joiner = '\n* '
     return joiner + joiner.join(rst_list)

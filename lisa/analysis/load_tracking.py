@@ -237,6 +237,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         return top_df
 
+    @TraceAnalysisBase.plot_method(return_axis=True)
     @may_use_events(
         StatusAnalysis.plot_overutilized.used_events,
         'cpu_capacity',
@@ -251,8 +252,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         :param signals: List of signals to plot.
         :type signals: list(str)
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         cpus = cpus or list(range(self.trace.cpus_count))
 
@@ -290,8 +289,9 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         return self.do_plot(plotter, nrows=len(cpus), sharex=True, **kwargs)
 
+    @TraceAnalysisBase.plot_method()
     @df_tasks_signal.used_events
-    def plot_task_signals(self, task, signals=['util', 'load'], **kwargs):
+    def plot_task_signals(self, task, axis, local_fig, signals=['util', 'load']):
         """
         Plot the task-related load-tracking signals
 
@@ -300,28 +300,24 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         :param signals: List of signals to plot.
         :type signals: list(str)
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
         pid = self.trace.get_task_pid(task)
 
-        def plotter(axis, local_fig):
-            for signal in signals:
-                df = self.df_tasks_signal(signal)
-                df = df[df.pid == pid]
-                df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
+        for signal in signals:
+            df = self.df_tasks_signal(signal)
+            df = df[df.pid == pid]
+            df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
-            plot_overutilized = self.trace.analysis.status.plot_overutilized
-            if self.trace.has_events(plot_overutilized.used_events):
-                plot_overutilized(axis=axis)
+        plot_overutilized = self.trace.analysis.status.plot_overutilized
+        if self.trace.has_events(plot_overutilized.used_events):
+            plot_overutilized(axis=axis)
 
-            axis.set_title('Load-tracking signals of task "{}"'.format(task))
-            axis.legend()
-            axis.grid(True)
-            axis.set_xlim(self.trace.start, self.trace.end)
+        axis.set_title('Load-tracking signals of task "{}"'.format(task))
+        axis.legend()
+        axis.grid(True)
+        axis.set_xlim(self.trace.start, self.trace.end)
 
-        return self.do_plot(plotter, **kwargs)
-
+    @TraceAnalysisBase.plot_method(return_axis=True)
     @df_tasks_signal.used_events
     def plot_task_required_capacity(self, task, **kwargs):
         """
@@ -329,8 +325,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         :param task: The name or PID of the task
         :type task: str or int
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
 
         pid = self.trace.get_task_pid(task)
@@ -358,15 +352,14 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         return self.do_plot(plotter, height=8, **kwargs)
 
+    @TraceAnalysisBase.plot_method()
     @df_tasks_signal.used_events
-    def plot_task_placement(self, task, **kwargs):
+    def plot_task_placement(self, task, axis, local_fig):
         """
         Plot the CPU placement of the task
 
         :param task: The name or PID of the task
         :type task: str or int
-
-        .. seealso:: :meth:`lisa.analysis.base.AnalysisHelpers.do_plot`
         """
 
         # Get all utilization update events
@@ -387,25 +380,23 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             else:
                 return "CPU capacity > required capacity"
 
-        def plotter(axis, local_fig):
-            df["placement"] = df.apply(
-                lambda row: evaluate_placement(
-                    row["__cpu"],
-                    row["required_capacity"]), axis=1)
+        df["placement"] = df.apply(
+            lambda row: evaluate_placement(
+                row["__cpu"],
+                row["required_capacity"]), axis=1)
 
-            for stat in df["placement"].unique():
-                df[df.placement == stat]["__cpu"].plot(ax=axis, style="+", label=stat)
+        for stat in df["placement"].unique():
+            df[df.placement == stat]["__cpu"].plot(ax=axis, style="+", label=stat)
 
-            plot_overutilized = self.trace.analysis.status.plot_overutilized
-            if self.trace.has_events(plot_overutilized.used_events):
-                plot_overutilized(axis=axis)
+        plot_overutilized = self.trace.analysis.status.plot_overutilized
+        if self.trace.has_events(plot_overutilized.used_events):
+            plot_overutilized(axis=axis)
 
-            axis.set_title("Utilization vs placement of task \"{}\"".format(task))
+        axis.set_title("Utilization vs placement of task \"{}\"".format(task))
 
-            axis.set_xlim(self.trace.start, self.trace.end)
-            axis.grid(True)
-            axis.legend()
+        axis.set_xlim(self.trace.start, self.trace.end)
+        axis.grid(True)
+        axis.legend()
 
-        return self.do_plot(plotter, **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

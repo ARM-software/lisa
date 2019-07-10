@@ -1,0 +1,253 @@
+#! /usr/bin/env python3
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (C) 2019, Arm Limited and contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+import os
+import sys
+import argparse
+import inspect
+from collections import OrderedDict
+import contextlib
+
+from lisa.utils import get_short_doc
+from lisa.trace import Trace, MissingTraceEventError
+from lisa.analysis.base import TraceAnalysisBase
+from lisa.platforms.platinfo import PlatformInfo
+
+def error(msg, ret=1):
+    print(msg, file=sys.stderr)
+    if ret is None:
+        return
+    else:
+        sys.exit(ret)
+
+def make_meth_name(analysis, f):
+    name = f.__name__
+    analysis = get_analysis_nice_name(analysis)
+
+    def remove_prefix(prefix, name):
+        if name.startswith(prefix):
+            return name[len(prefix):]
+        else:
+            return name
+
+    name = remove_prefix('plot_', name)
+    # Remove the analysis name from the method name, which is not common but
+    # happens for some of the methods. This avoids verbose redundancy when
+    # sticking the analysis name in front of it.
+    name = remove_prefix(analysis, name)
+    name = name.replace('_', '-').strip('-')
+
+    return '{}:{}'.format(analysis, name)
+
+def get_analysis_nice_name(name):
+    return name.replace('_', '-')
+
+def get_plots_map():
+    plots_map = {}
+    for name, cls in TraceAnalysisBase.get_analysis_classes().items():
+
+        methods = [
+            meth
+            for meth in cls.get_plot_methods()
+            # Method that need extra arguments are not usable by this
+            # script
+            if not meth_needs_args(meth)
+        ]
+
+        if methods:
+            plots_map[name] = {
+                make_meth_name(name, meth): meth
+                for meth in methods
+            }
+    return plots_map
+
+def meth_needs_args(f):
+    """
+    Returns True when the method needs arguments when being called, as opposed
+    to a function for which all arguments are optional.
+    """
+    sig = inspect.signature(f)
+    parameters = OrderedDict(sig.parameters)
+    # ignore first param ("self") since these are methods
+    parameters.popitem(last=False)
+    return any(
+        # Parameters without default value
+        param.default == inspect.Parameter.empty
+        # and that are not *args or **kwargs
+        and param.kind not in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD
+        )
+        for param in parameters.values()
+    )
+
+@contextlib.contextmanager
+def handle_plot_excep(exit_on_error=True):
+    try:
+        yield
+    except MissingTraceEventError as e:
+        excep_msg = str(e)
+    except KeyError as e:
+        excep_msg = 'Please specify --platinfo with the "{}" filled in'.format(e.args[1])
+    else:
+        excep_msg = None
+
+    if excep_msg:
+        error(excep_msg, -1 if exit_on_error else None)
+
+
+def get_analysis_listing(plots_map):
+    return '\n'.join(
+        '* {} analysis:\n  {}\n'.format(
+            get_analysis_nice_name(analysis_name),
+            '\n  '.join(
+                '{name}: {doc}'.format(
+                    name=name,
+                    doc=get_short_doc(meth),
+                )
+                for name, meth in methods.items()
+
+            ),
+        )
+        for analysis_name, methods in plots_map.items()
+    )
+
+def main(argv):
+    plots_map = get_plots_map()
+    analysis_nice_name_map = {
+        get_analysis_nice_name(name): name
+        for name in plots_map.keys()
+    }
+
+    parser = argparse.ArgumentParser(description="""
+CLI for LISA analysis plots and reports from traces.
+
+Available plots:
+
+{}
+
+""".format(get_analysis_listing(plots_map)),
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    parser.add_argument('trace',
+        help='trace-cmd trace.dat, or systrace file',
+    )
+
+    parser.add_argument('--plot', nargs=2, action='append',
+        default=[],
+        metavar=('PLOT', 'OUTPUT_PATH'),
+        help='Create the given plot',
+    )
+
+    parser.add_argument('--plot-analysis', nargs=3, action='append',
+        default=[],
+        metavar=('ANALYSIS', 'OUTPUT_FOLDER_PATH', 'FORMAT'),
+        help='Create all the plots of the given analysis',
+    )
+
+    parser.add_argument('--plot-all', nargs=2,
+        metavar=('OUTPUT_FOLDER_PATH', 'FORMAT'),
+        help='Create all the plots in the given folder',
+    )
+
+    parser.add_argument('--best-effort', action='store_true',
+        help='Try to generate as many of the requested plots as possible without early termination.',
+    )
+
+    parser.add_argument('--window', nargs=2, type=float,
+        metavar=('BEGIN', 'END'),
+        help='Only plot data between BEGIN and END times',
+    )
+
+    parser.add_argument('--platinfo',
+        help='Platform information, necessary for some plots',
+    )
+
+    args = parser.parse_args(argv)
+
+    flat_plot_map = {
+        plot_name: (analysis_name, meth)
+        for analysis_name, plot_list in plots_map.items()
+        for plot_name, meth in plot_list.items()
+    }
+
+    if args.platinfo:
+        plat_info = PlatformInfo.from_yaml_map(args.platinfo)
+    else:
+        plat_info = None
+
+    if args.plot_all:
+        folder, fmt = args.plot_all
+        plot_analysis_spec_list = [
+            (get_analysis_nice_name(analysis_name), folder, fmt)
+            for analysis_name in plots_map.keys()
+        ]
+    else:
+        plot_analysis_spec_list = []
+
+    plot_analysis_spec_list.extend(args.plot_analysis)
+
+    plot_spec_list = [
+        (plot_name, os.path.join(folder, '{}.{}'.format(plot_name, fmt)))
+        for analysis_name, folder, fmt in plot_analysis_spec_list
+        for plot_name, meth in plots_map[analysis_nice_name_map[analysis_name]].items()
+    ]
+
+    plot_spec_list.extend(args.plot)
+
+    # Build minimal event list to speed up trace loading time
+    plot_methods = set()
+    for plot_name, file_path in plot_spec_list:
+        try:
+            analysis_name, f = flat_plot_map[plot_name]
+        except KeyError:
+            error('Unknown plot "{}", see --help'.format(plot_name))
+
+        plot_methods.add(f)
+
+    events = set()
+    for f in plot_methods:
+        with contextlib.suppress(AttributeError):
+            events.update(f.used_events.get_all_events())
+
+    events = sorted(events)
+
+    print('Parsing trace events: {}'.format(', '.join(events)))
+
+    trace = Trace(args.trace, plat_info=plat_info, events=events)
+    if args.window:
+        trace = trace.get_view(args.window)
+
+    for plot_name, file_path in plot_spec_list:
+        analysis_name, f = flat_plot_map[plot_name]
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        analysis = getattr(trace.analysis, analysis_name)
+        # Bind the function to the analysis instance to get a bound method
+        meth = f.__get__(analysis, type(analysis))
+
+        with handle_plot_excep(exit_on_error=not args.best_effort):
+            meth(filepath=file_path)
+
+if __name__ == '__main__':
+    ret = main(sys.argv[1:])
+    sys.exit(ret)
+
+# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
