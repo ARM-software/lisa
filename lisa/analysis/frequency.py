@@ -244,7 +244,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         return (df['frequency'] * df['delta']).sum() / timespan
 
-    def get_peripheral_clock_effective_rate(self, clk_name):
+    def df_peripheral_clock_effective_rate(self, clk_name):
         logger = self.get_logger()
         if clk_name is None:
             logger.warning('no specified clk_name in computing peripheral clock, returning None')
@@ -294,7 +294,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         :raises: KeyError
         """
-        freq = self.get_peripheral_clock_effective_rate(clk)
+        freq = self.df_peripheral_clock_effective_rate(clk)
         if freq is None or freq.empty:
             self.get_logger().warning('no peripheral clock events found for clock')
             return
