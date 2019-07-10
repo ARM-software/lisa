@@ -25,7 +25,7 @@ from docutils.parsers.rst.directives import flag
 from docutils import nodes
 from docutils.statemachine import ViewList
 
-from lisa.analysis.base import TraceAnalysisBase
+from lisa.analysis.base import AnalysisHelpers
 from lisa.utils import get_subclasses
 
 class RecursiveDirective(Directive):
@@ -190,7 +190,7 @@ def autodoc_process_analysis_events(app, what, name, obj, options, lines):
 def get_analysis_list(meth_type):
     rst_list = []
 
-    for subclass in get_subclasses(TraceAnalysisBase):
+    for subclass in get_subclasses(AnalysisHelpers):
         class_path = "{}.{}".format(subclass.__module__, subclass.__qualname__)
         analysis = subclass.__module__.split(".")[-1]
         if meth_type == 'plot':
