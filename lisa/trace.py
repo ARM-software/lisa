@@ -602,8 +602,10 @@ class Trace(Loggable, TraceBase):
         """
 
         if event not in self.available_events:
-            raise ValueError('Event "{}" not supported. Supported events are: {}'.format(
-                event, self.available_events))
+            raise MissingTraceEventError(
+                TraceEventChecker(event),
+                available_events=self.available_events,
+            )
 
         return getattr(self._ftrace, event).data_frame
 
@@ -1027,7 +1029,7 @@ class TraceEventChecker(TraceEventCheckerBase):
 
     def check_events(self, event_set):
         if self.event not in event_set:
-            raise MissingTraceEventError(self)
+            raise MissingTraceEventError(self, available_events=event_set)
 
     def _str_internal(self, style=None, wrapped=True):
         template = '``{}``' if style == 'rst' else '{}'
@@ -1126,13 +1128,14 @@ class OrTraceEventChecker(AssociativeTraceEventChecker):
             try:
                 checker.check_events(event_set)
             except MissingTraceEventError as e:
-                failed_checker_set.add(e.missing_events)
+                failed_checker_set.add(e.missing_events, available_events=event_set)
             else:
                 break
         else:
             cls = type(self)
             raise MissingTraceEventError(
-                cls(failed_checker_set)
+                cls(failed_checker_set),
+                available_events=event_set,
             )
 
 class OptionalTraceEventChecker(AssociativeTraceEventChecker):
@@ -1173,7 +1176,8 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
         if failed_checker_set:
             cls = type(self)
             raise MissingTraceEventError(
-                cls(failed_checker_set)
+                cls(failed_checker_set),
+                available_events=event_set,
             )
 
     def doc_str(self):
@@ -1213,15 +1217,18 @@ def may_use_events(*events, **kwargs):
     """
     return OptionalTraceEventChecker.from_events(events, **kwargs)
 
-class MissingTraceEventError(RuntimeError):
+class MissingTraceEventError(RuntimeError, ValueError):
     """
     :param missing_events: The missing trace events
     :type missing_events: TraceEventCheckerBase
     """
-    def __init__(self, missing_events):
-        super().__init__(
-            "Trace is missing the following required events: {}".format(missing_events))
+    def __init__(self, missing_events, available_events=None):
+        msg = "Trace is missing the following required events: {}".format(missing_events)
+        if available_events:
+            msg += '. Available events are: {}'.format(
+                ', '.join(available_events))
 
+        super().__init__(msg)
         self.missing_events = missing_events
 
 class FtraceConf(SimpleMultiSrcConf, HideExekallID):
