@@ -101,6 +101,12 @@ Buildroot commands
 * ``lisa-buildroot-update-kernel-config`` - Update a kernel config to bake a
   buildroot initramfs into the kernel.
 
+Misc commands
+-------------
+
+* ``lisa-plot`` - Generate various plots from a ``trace.dat`` file.
+  See ``lisa-plot -h`` for available plots.
+
 Environment variables
 +++++++++++++++++++++
 
