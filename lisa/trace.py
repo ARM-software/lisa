@@ -788,13 +788,12 @@ class Trace(Loggable, TraceBase):
         devlib_freq.rename(columns={'cpu_id':'cpu'}, inplace=True)
         devlib_freq.rename(columns={'state':'frequency'}, inplace=True)
 
-        df = self.df_events('cpu_frequency')
         domains = self.plat_info['freq-domains']
 
         # devlib always introduces fake cpu_frequency events, in case the
         # OS has not generated cpu_frequency envets there are the only
         # frequency events to report
-        if len(df) == 0:
+        if not self.has_events('cpu_frequency'):
             # Register devlib injected events as 'cpu_frequency' events
             self._ftrace.cpu_frequency.data_frame = devlib_freq
             df = devlib_freq
@@ -803,6 +802,7 @@ class Trace(Loggable, TraceBase):
         # make sure fake cpu_frequency events are never interleaved with
         # OS generated events
         else:
+            df = self.df_events('cpu_frequency')
             if not devlib_freq.empty:
 
                 # Frequencies injection is done in a per-cluster based.
