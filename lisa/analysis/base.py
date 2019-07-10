@@ -28,6 +28,7 @@ import contextlib
 import numpy
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from cycler import cycler
 
 from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format
@@ -59,7 +60,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         pass
 
     @classmethod
-    def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, **kwargs):
+    def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, interactive=True, **kwargs):
         """
         Common helper for setting up a matplotlib plot
 
@@ -75,17 +76,29 @@ class AnalysisHelpers(Loggable, abc.ABC):
         :param nrows: Number of plots in a single column
         :type nrows: int
 
+        :param interactive: If ``True``, use the pyplot API of matplotlib,
+            which integrates well with notebooks. However, it can lead to
+            memory leaks in scripts generating lots of plots, in which case it
+            is better to use the non-interactive API.
+        :type interactive: bool
+
         :Keywords arguments: Extra arguments to pass to
-          :obj:`matplotlib.pyplot.subplots`
+          :obj:`matplotlib.figure.Figure.subplots`
 
         :returns: tuple(matplotlib.figure.Figure, matplotlib.axes.Axes (or an
           array of, if ``nrows`` > 1))
         """
-        figure, axes = plt.subplots(
-            ncols=ncols, nrows=nrows, figsize=(width, height * nrows), **kwargs
-        )
+        if interactive:
+            figure, axes = plt.subplots(
+                ncols=ncols, nrows=nrows, figsize=(width, height * nrows),
+                **kwargs
+            )
+        else:
+            figure = Figure(figsize=(width, height * nrows))
+            axes = figure.subplots(ncols=ncols, nrows=nrows, **kwargs)
+
         # Needed for multirow plots to not overlap with each other
-        plt.tight_layout(h_pad=3.5)
+        figure.set_tight_layout(dict(h_pad=3.5))
         return figure, axes
 
     @classmethod
