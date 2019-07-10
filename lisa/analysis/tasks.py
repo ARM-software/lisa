@@ -239,7 +239,7 @@ class TasksAnalysis(TraceAnalysisBase):
         wk_df = self.trace.df_events('sched_wakeup')
         sw_df = self.trace.df_events('sched_switch')
 
-        if "sched_wakeup_new" in self.trace.events:
+        if self.trace.has_events('sched_wakeup_new'):
             wkn_df = self.trace.df_events('sched_wakeup_new')
             wk_df = pd.concat([wk_df, wkn_df])
 
