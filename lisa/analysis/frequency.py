@@ -497,7 +497,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cpu_frequency_transitions.used_events
-    def plot_domain_frequency_transitions(self, pct=False, filepath=None, **kwargs):
+    def plot_domain_frequency_transitions(self, pct=False, **kwargs):
         """
         Plot frequency transitions count for all frequency domains
 
@@ -508,13 +508,18 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         def plotter(axes, local_fig):
             for domain, axis in zip(domains, axes):
-                self.plot_cpu_frequency_transitions(domain[0], filepath, pct, axis)
+                self.plot_cpu_frequency_transitions(
+                    cpu=domain[0],
+                    pct=pct,
+                    axis=axis,
+                    always_save=False,
+                )
 
                 title = axis.get_title()
                 axis.set_title(title.replace("CPU{}".format(domain[0]),
                                                     "CPUs {}".format(domain)))
 
 
-        return self.do_plot(plotter, nrows=len(domains), filepath=filepath, **kwargs)
+        return self.do_plot(plotter, nrows=len(domains), **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
