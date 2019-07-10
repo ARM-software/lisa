@@ -20,6 +20,7 @@ import sys
 import unittest
 import textwrap
 import json
+import functools
 
 from docutils import nodes
 from sphinx.util.docfields import TypedField
@@ -34,7 +35,8 @@ sys.path.insert(0, os.path.abspath('../'))
 import lisa
 from lisa.utils import LISA_HOME
 from lisa.doc.helpers import (
-    autodoc_process_test_method, autodoc_process_analysis_events
+    autodoc_process_test_method, autodoc_process_analysis_events,
+    autodoc_process_analysis_plots, DocPlotConf,
 )
 
 # This ugly hack is required because by default TestCase.__module__ is
@@ -389,8 +391,18 @@ autodoc_default_options = {
 }
 autodoc_inherit_docstrings = True
 
+
 def setup(app):
+
+    plot_conf_path = os.path.join(LISA_HOME, 'doc', 'plot_conf.yml')
+    plot_conf = DocPlotConf.from_yaml_map(plot_conf_path)
+    autodoc_process_analysis_plots_handler = functools.partial(
+        autodoc_process_analysis_plots,
+        plot_conf=plot_conf,
+    )
+
     app.connect('autodoc-process-docstring', autodoc_process_test_method)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
+    app.connect('autodoc-process-docstring', autodoc_process_analysis_plots_handler)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab:

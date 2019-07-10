@@ -1,0 +1,117 @@
+# 
+# Documentation's example plot settings
+#
+# A "default" key allows setting default values for each entry. All the
+# settings defined there can be overriden for specific methods.
+#
+# Each entry needs the following keys:
+#   trace: a trace *object* (use !call or !var tags provided by lisa.utils.Serializable)
+#   kwargs [optional]: keyword arguments to pass to the plot function. This may
+#       be mandatory for some plot functions that need a task or cpu name for
+#       example. Bear in mind that YAML is "typed", so 0 is not the same as "0"
+#   hide [optional]: Do not produce an example plot, in case no trace with
+#   necessary events is available for example.
+
+
+doc-plot-conf:
+    plots:
+        # Default values for the other entries
+        default:
+            trace: &trace0 !call:lisa.trace.Trace
+                trace_path: !env:interpolate $LISA_HOME/doc/traces/trace.dat
+                plat_info: !call:lisa.platforms.platinfo.PlatformInfo.from_yaml_map
+                    path: !env:interpolate $LISA_HOME/doc/traces/plat_info.yml
+
+        TasksAnalysis.plot_task_residency:
+            kwargs:
+                task: &task big_0
+
+        TasksAnalysis.plot_task_total_residency:
+            kwargs:
+                task: *task
+
+        TasksAnalysis.plot_task_activation:
+            kwargs:
+                task: *task
+
+        LoadTrackingAnalysis.plot_task_signals: 
+            kwargs:
+                task: *task
+
+        LoadTrackingAnalysis.plot_task_required_capacity: 
+            kwargs:
+                task: *task
+
+        LoadTrackingAnalysis.plot_task_placement: 
+            kwargs:
+                task: *task
+
+        LatencyAnalysis.plot_latencies:
+            kwargs:
+                task: *task
+
+        LatencyAnalysis.plot_latencies_cdf:
+            kwargs:
+                task: *task
+
+        LatencyAnalysis.plot_latencies_histogram:
+            kwargs:
+                task: *task
+
+        LatencyAnalysis.plot_latency_bands:
+            kwargs:
+                task: *task
+
+        LatencyAnalysis.plot_activations:
+            kwargs:
+                task: *task
+
+        LatencyAnalysis.plot_runtimes:
+            kwargs:
+                task: *task
+
+        IdleAnalysis.plot_cpu_idle_state_residency:
+            kwargs:
+                cpu: &cpu 0
+
+        IdleAnalysis.plot_cluster_idle_state_residency:
+            kwargs:
+                cluster: &cluster [0, 3, 4, 5]
+
+        FrequencyAnalysis.plot_cpu_frequencies:
+            kwargs:
+                cpu: *cpu
+
+        FrequencyAnalysis.plot_cpu_frequency_transitions:
+            kwargs:
+                cpu: *cpu
+
+        FrequencyAnalysis.plot_cpu_frequency_residency:
+            kwargs:
+                cpu: *cpu
+
+        CpusAnalysis.plot_orig_capacity:
+            kwargs:
+                cpu: *cpu
+
+        ##########################
+        # HIDDEN PLOTS
+        ##########################
+
+        # Missing necessary events in trace.dat
+        FrequencyAnalysis.plot_peripheral_clock:
+            hide: True
+
+        # Missing necessary events in trace.dat
+        ThermalAnalysis.plot_thermal_zone_temperature:
+            hide: True
+
+        # Missing necessary events in trace.dat
+        ThermalAnalysis.plot_cpu_cooling_states:
+            hide: True
+
+        # Missing necessary events in trace.dat
+        ThermalAnalysis.plot_dev_freq_cooling_states:
+            hide: True
+
+
