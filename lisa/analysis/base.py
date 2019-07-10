@@ -343,7 +343,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
                 def resolve_formatter(fmt):
                     format_map = {
-                        'rst': cls._get_rst,
+                        'rst': cls._get_rst_content,
                         'html': cls._get_html,
                     }
                     try:
@@ -490,5 +490,42 @@ class TraceAnalysisBase(AnalysisHelpers):
             # intermediate base classes that are not meant to be exposed.
             if 'name' in subcls.__dict__
         }
+
+    @classmethod
+    def call_on_trace(cls, meth, trace, meth_kwargs):
+        """
+        Call a method of a subclass on a given trace.
+
+        :param meth: Function (method) defined on a subclass.
+        :type meth: collections.abc.Callable
+
+        :param trace: Trace object to use
+        :type trace: lisa.trace.Trace
+
+        :param meth_kwargs: Dictionary of keyword arguments to pass to ``meth``
+        :type meth_kwargs: dict
+
+        It will create an instance of the right analysis, bind the function to
+        it and call the resulting bound method with ``meth_kwargs`` extra
+        keyword arguments.
+        """
+        for subcls in cls.get_analysis_classes().values():
+            for name, f in inspect.getmembers(subcls):
+                if f is meth:
+                    break
+            else:
+                continue
+            break
+        else:
+            raise ValueError('{} is not a method of any subclasses of {}'.format(
+                meth.__qualname__,
+                cls.__qualname__,
+            ))
+
+        # Create an analysis instance and bind the method to it
+        analysis = subcls(trace=trace)
+        meth = meth.__get__(analysis, type(analysis))
+
+        return meth(**meth_kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
