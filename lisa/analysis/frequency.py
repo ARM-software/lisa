@@ -456,7 +456,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cpu_frequency_residency.used_events
-    def plot_domain_frequency_residency(self, pct=False, filepath=None, **kwargs):
+    def plot_domain_frequency_residency(self, pct=False, **kwargs):
         """
         Plot the frequency residency for all frequency domains.
 
@@ -469,14 +469,17 @@ class FrequencyAnalysis(TraceAnalysisBase):
             for idx, domain in enumerate(domains):
                 local_axes = axes[2 * idx : 2 * (idx + 1)]
 
-                self.plot_cpu_frequency_residency(domain[0], filepath, pct,
-                                                                    local_axes)
+                self.plot_cpu_frequency_residency(domain[0],
+                    pct=pct,
+                    axis=local_axes,
+                    always_save=False,
+                )
                 for axis in local_axes:
                     title = axis.get_title()
                     axis.set_title(title.replace(
                         "CPU{}".format(domain[0]), "CPUs {}".format(domain)))
 
-        return self.do_plot(plotter, nrows=2*len(domains), sharex=True, filepath=filepath, **kwargs)
+        return self.do_plot(plotter, nrows=2*len(domains), sharex=True, **kwargs)
 
     @TraceAnalysisBase.plot_method()
     @df_cpu_frequency_transitions.used_events
