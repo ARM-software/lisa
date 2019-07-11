@@ -35,9 +35,6 @@ class LatencyAnalysis(TraceAnalysisBase):
     LATENCY_THRESHOLD_ZONE_COLOR=COLOR_CYCLES[2]
     LATENCY_THRESHOLD_COLOR=COLOR_CYCLES[3]
 
-    def __init__(self, trace):
-        super(LatencyAnalysis, self).__init__(trace)
-
 ###############################################################################
 # DataFrame Getter Methods
 ###############################################################################

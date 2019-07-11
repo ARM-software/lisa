@@ -41,9 +41,6 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     name = 'frequency'
 
-    def __init__(self, trace):
-        super(FrequencyAnalysis, self).__init__(trace)
-
     @requires_events('cpu_frequency')
     def _check_freq_domain_coherency(self, cpus=None):
         """

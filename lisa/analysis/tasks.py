@@ -119,9 +119,6 @@ class TasksAnalysis(TraceAnalysisBase):
 
     name = 'tasks'
 
-    def __init__(self, trace):
-        super(TasksAnalysis, self).__init__(trace)
-
     @requires_events('sched_switch')
     def cpus_of_tasks(self, tasks):
         """

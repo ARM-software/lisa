@@ -38,9 +38,6 @@ class IdleAnalysis(TraceAnalysisBase):
 
     name = 'idle'
 
-    def __init__(self, trace):
-        super(IdleAnalysis, self).__init__(trace)
-
 ###############################################################################
 # DataFrame Getter Methods
 ###############################################################################

@@ -35,9 +35,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     name = 'load_tracking'
 
-    def __init__(self, trace):
-        super().__init__(trace)
-
     @classmethod
     def _columns_renaming(cls, event):
         """
