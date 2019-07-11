@@ -353,7 +353,7 @@ class Serializable(Loggable):
     @classmethod
     def _yaml_env_var_constructor(cls, loader, suffix, node):
         """
-        Provide a !include tag in YAML that can be used to include the content
+        Provide a !env tag in YAML that can be used to include the content
         of an environment variable, and converting it to a Python type:
 
         !env:int MY_ENV_VAR
