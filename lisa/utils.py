@@ -354,22 +354,33 @@ class Serializable(Loggable):
     def _yaml_env_var_constructor(cls, loader, suffix, node):
         """
         Provide a !env tag in YAML that can be used to include the content
-        of an environment variable, and converting it to a Python type:
+        of an environment variable, and converting it to a Python type::
 
-        !env:int MY_ENV_VAR
+            !env:int MY_ENV_VAR
+
+        If `interpolate` is used as type, the value will be interpolated using
+        :func:`os.path.expandvars` and the resulting string returned::
+
+            !env:interpolate /foo/$MY_ENV_VAR/bar
         """
-        varname = loader.construct_scalar(node)
-        assert isinstance(varname, str)
+        string = loader.construct_scalar(node)
+        assert isinstance(string, str)
 
-        type_ = loader.find_python_name(suffix, node.start_mark)
-        assert callable(type_)
-        try:
-            value = os.environ[varname]
-        except KeyError:
-            cls._warn_missing_env(varname)
-            return None
+        type_ = suffix
+        if type_ == 'interpolate':
+            return os.path.expandvars(string)
         else:
-            return type_(value)
+            varname = string
+
+            type_ = loader.find_python_name(type_, node.start_mark)
+            assert callable(type_)
+            try:
+                value = os.environ[varname]
+            except KeyError:
+                cls._warn_missing_env(varname)
+                return None
+            else:
+                return type_(value)
 
     @classmethod
     # memoize to avoid displaying the same message twice
