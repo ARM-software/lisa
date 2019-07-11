@@ -241,123 +241,104 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         return (df['frequency'] * df['delta']).sum() / timespan
 
+    @requires_events('clock_set_rate', 'clock_enable', 'clock_disable')
     def df_peripheral_clock_effective_rate(self, clk_name):
-        logger = self.get_logger()
-        if clk_name is None:
-            logger.warning('no specified clk_name in computing peripheral clock, returning None')
-            return
-        if not self.trace.has_events('clock_set_rate'):
-            logger.warning('Events [clock_set_rate] not found, returning None!')
-            return
         rate_df = self.trace.df_events('clock_set_rate')
         enable_df = self.trace.df_events('clock_enable')
         disable_df = self.trace.df_events('clock_disable')
-        pd.set_option('display.expand_frame_repr', False)
 
         freq = rate_df[rate_df.clk_name == clk_name]
-        if not enable_df.empty:
-            enables = enable_df[enable_df.clk_name == clk_name]
-        if not disable_df.empty:
-            disables = disable_df[disable_df.clk_name == clk_name]
+        enables = enable_df[enable_df.clk_name == clk_name]
+        disables = disable_df[disable_df.clk_name == clk_name]
 
         freq = pd.concat([freq, enables, disables], sort=False).sort_index()
-        if freq.empty:
-            logger.warning('No events for clock ' + clk_name + ' found in trace')
-            return
-
         freq['start'] = freq.index
         freq['len'] = (freq.start - freq.start.shift()).fillna(0).shift(-1)
         # The last value will be NaN, fix to be appropriate length
         freq.loc[freq.index[-1], 'len'] = self.trace.end - freq.index[-1]
 
-        freq = freq.fillna(method='ffill')
-        freq['effective_rate'] = np.where(freq['state'] == 0, 0,
-                                          np.where(freq['state'] == 1, freq['rate'], float('nan')))
+        freq.ffill(inplace=True)
+        freq['effective_rate'] = np.where(
+            freq['state'] == 0, 0,
+            np.where(freq['state'] == 1, freq['rate'], float('nan'))
+        )
         return freq
 
 ###############################################################################
 # Plotting Methods
 ###############################################################################
 
-    def plot_peripheral_clock(self, clk, title='Peripheral Frequency'):
+    @TraceAnalysisBase.plot_method(return_axis=True)
+    @df_peripheral_clock_effective_rate.used_events
+    def plot_peripheral_clock(self, clk, **kwargs):
         """
-        Produce graph plotting the frequency of a particular peripheral clock
-
-        :param title: The title for the chart
-        :type  title: str
+        Plot the frequency of a particular peripheral clock
 
         :param clk: The clk name to chart
-        :type  clk: str
-
-        :raises: KeyError
+        :type clk: str
         """
-        freq = self.df_peripheral_clock_effective_rate(clk)
-        if freq is None or freq.empty:
-            self.get_logger().warning('no peripheral clock events found for clock')
-            return
 
-        fig = plt.figure(figsize=(16,8))
-        gs = gridspec.GridSpec(2, 1, height_ratios=[8, 1])
-        freq_axis = plt.subplot(gs[0])
-        state_axis = plt.subplot(gs[1])
-        plt.suptitle(title, y=.97, fontsize=16, horizontalalignment='center')
+        logger = self.get_logger()
+        start = self.trace.start
+        end = self.trace.end
 
+        def plotter(axis, local_fig):
+            freq_axis, state_axis = axis
+            fig.suptitle('Peripheral frequency', y=.97, fontsize=16, horizontalalignment='center')
 
-        # Plot frequency information (set rate)
-        freq_axis.set_title("Clock frequency for " + clk)
-        set_rate = freq['rate'].dropna()
+            # Plot frequency information (set rate)
+            freq_axis.set_title("Clock frequency for " + clk)
+            set_rate = freq['rate'].dropna()
 
-        rate_axis_lib = 0
-        if len(set_rate) > 0:
-            rate_axis_lib = set_rate.max()
-            set_rate.plot(style=['b--'], ax=freq_axis, drawstyle='steps-post', alpha=0.4, label="clock_set_rate value")
-            freq_axis.hlines(set_rate.iloc[-1], set_rate.index[-1], self.trace.end, linestyle='--', color='b', alpha=0.4)
-        else:
-            self.get_logger().warning('No clock_set_rate events to plot')
+            rate_axis_lib = 0
+            if len(set_rate) > 0:
+                rate_axis_lib = set_rate.max()
+                set_rate.plot(style=['b--'], ax=freq_axis, drawstyle='steps-post', alpha=0.4, label="clock_set_rate value")
+                freq_axis.hlines(set_rate.iloc[-1], set_rate.index[-1], end, linestyle='--', color='b', alpha=0.4)
+            else:
+                logger.warning('No clock_set_rate events to plot')
 
-        # Plot frequency information (effective rate)
-        eff_rate = freq['effective_rate'].dropna()
-        if len(eff_rate) > 0 and eff_rate.max() > 0:
-            rate_axis_lib = max(rate_axis_lib, eff_rate.max())
-            eff_rate.plot(style=['b-'], ax=freq_axis, drawstyle='steps-post', alpha=1.0, label="Effective rate (with on/off)")
-            freq_axis.hlines(eff_rate.iloc[-1], eff_rate.index[-1], self.trace.end, linestyle='-', color='b', alpha=1.0)
-        else:
-            self.get_logger().warning('No effective frequency events to plot')
+            # Plot frequency information (effective rate)
+            eff_rate = freq['effective_rate'].dropna()
+            if len(eff_rate) > 0 and eff_rate.max() > 0:
+                rate_axis_lib = max(rate_axis_lib, eff_rate.max())
+                eff_rate.plot(style=['b-'], ax=freq_axis, drawstyle='steps-post', alpha=1.0, label="Effective rate (with on/off)")
+                freq_axis.hlines(eff_rate.iloc[-1], eff_rate.index[-1], end, linestyle='-', color='b', alpha=1.0)
+            else:
+                logger.warning('No effective frequency events to plot')
 
-        freq_axis.set_ylim(0, rate_axis_lib * 1.1)
-        freq_axis.set_xlim(self.trace.start, self.trace.end)
-        freq_axis.set_xlabel('')
-        freq_axis.grid(True)
-        freq_axis.legend()
-        def mhz(x, pos):
-            return '%1.2f MHz' % (x*1e-6)
-        freq_axis.get_yaxis().set_major_formatter(FuncFormatter(mhz))
+            freq_axis.set_ylim(0, rate_axis_lib * 1.1)
+            freq_axis.set_xlim(start, end)
+            freq_axis.set_xlabel('')
+            freq_axis.grid(True)
+            freq_axis.legend()
+            def mhz(x, pos):
+                return '{:1.2f} MHz'.format(x*1e-6)
+            freq_axis.get_yaxis().set_major_formatter(FuncFormatter(mhz))
 
-        on = freq[freq.state == 1]
-        state_axis.hlines([0] * len(on),
-                          on['start'], on['start'] + on['len'],
-                          linewidth = 10.0, label='clock on', color='green')
-        off = freq[freq.state == 0]
-        state_axis.hlines([0] * len(off),
-                          off['start'], off['start'] + off['len'],
-                          linewidth = 10.0, label='clock off', color='red')
+            on = freq[freq.state == 1]
+            state_axis.hlines([0] * len(on),
+                              on['start'], on['start'] + on['len'],
+                              linewidth = 10.0, label='clock on', color='green')
+            off = freq[freq.state == 0]
+            state_axis.hlines([0] * len(off),
+                              off['start'], off['start'] + off['len'],
+                              linewidth = 10.0, label='clock off', color='red')
 
 
-        # Plot time period that the clock state was unknown from the trace
-        indeterminate = pd.concat([on, off]).sort_index()
-        if indeterminate.empty:
-            indet_range_max = self.trace.end
-        else:
-            indet_range_max = indeterminate.index[0]
-        state_axis.hlines(0, 0, indet_range_max, linewidth = 1.0, label='indeterminate clock state', linestyle='--')
-        state_axis.legend(bbox_to_anchor=(0., 1.02, 1., 0.102), loc=3, ncol=3, mode='expand')
-        state_axis.set_yticks([])
-        state_axis.set_xlabel('seconds')
-        state_axis.set_xlim(self.trace.start, self.trace.end)
+            # Plot time period that the clock state was unknown from the trace
+            indeterminate = pd.concat([on, off]).sort_index()
+            if indeterminate.empty:
+                indet_range_max = end
+            else:
+                indet_range_max = indeterminate.index[0]
+            state_axis.hlines(0, 0, indet_range_max, linewidth = 1.0, label='indeterminate clock state', linestyle='--')
+            state_axis.legend(bbox_to_anchor=(0., 1.02, 1., 0.102), loc=3, ncol=3, mode='expand')
+            state_axis.set_yticks([])
+            state_axis.set_xlabel('seconds')
+            state_axis.set_xlim(start, end)
 
-        figname = os.path.join(self.trace.plots_dir, '{}{}.png'.format(self.trace.plots_prefix, clk))
-        plt.savefig(figname, bbox_inches='tight')
-
+        return self.do_plot(plotter, height=8, nrows=2, **kwargs)
 
     @TraceAnalysisBase.plot_method()
     @requires_events('cpu_frequency')

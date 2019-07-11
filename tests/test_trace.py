@@ -305,7 +305,7 @@ class TestTrace(TraceTestCase):
         """Test parsing sched_load_avg_task events from EAS1.2"""
         self._test_tasks_dfs('sched_load_avg')
 
-    def test_getPeripheralClockInfo(self):
+    def df_peripheral_clock_effective_rate(self):
         """
         TestTrace: getPeripheralClockInfo() returns proper effective rate info.
         """
