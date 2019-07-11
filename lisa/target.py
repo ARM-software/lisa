@@ -38,7 +38,7 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
 from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath
-from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrList, Configurable
+from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrList, CallableList, Configurable
 
 from lisa.platforms.platinfo import PlatformInfo
 
@@ -121,6 +121,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('keyfile', 'SSH private key file', [str, None]),
         KeyDesc('workdir', 'Remote target workdir', [str]),
         KeyDesc('tools', 'List of tools to install on the target', [StrList]),
+        KeyDesc('setup', 'List of functions to setup the target', [CallableList]),
         LevelKeyDesc('devlib', 'devlib configuration', (
             # Using textual name of the Platform allows this YAML configuration
             # to not use any python-specific YAML tags, so TargetConf files can
@@ -280,6 +281,12 @@ class Target(Loggable, HideExekallID, Configurable):
         .. note:: That will not forward special methods like __str__, since the
             interpreter bypasses __getattr__ when looking them up.
         """
+        # Dunder names lookup is supposed to have succeeded by now, so we avoid
+        # infinite recursion when something tries to probe for '__setstate__'
+        # on an instance with an empty __dict__ (copy, pickle etc)
+        if attr.startswith('__') and attr.endswith('__'):
+            return super().__getattribute__(attr)
+
         return getattr(self.target, attr)
 
     def __dir__(self):
@@ -290,7 +297,7 @@ class Target(Loggable, HideExekallID, Configurable):
         return sorted(attrs)
 
     @classmethod
-    def from_conf(cls, conf:TargetConf, res_dir:ArtifactPath=None, plat_info:PlatformInfo=None) -> 'Target':
+    def from_conf(cls, conf, res_dir=None, plat_info=None):
         cls.get_logger().info('Target configuration:\n{}'.format(conf))
         kwargs = cls.conf_to_init_kwargs(conf)
         kwargs['res_dir'] = res_dir
@@ -315,6 +322,23 @@ class Target(Loggable, HideExekallID, Configurable):
 
         cls.check_init_param(**kwargs)
         return cls(**kwargs)
+
+    @classmethod
+    def from_conf_setup(cls, conf:TargetConf, res_dir:ArtifactPath=None, plat_info:PlatformInfo=None) -> 'Target':
+        target = cls.from_conf(conf=conf, res_dir=res_dir, plat_info=plat_info)
+        setup_list = conf.get('setup')
+        if not setup_list:
+            yield target
+        else:
+            for setup in setup_list:
+                # Make shallow copies of the target so that exekall does not
+                # reuse already computed values for downstream expressions. The
+                # state of the target is preserved across iterations of the
+                # loop, since we make a copy of the previous iteration's
+                # target.
+                target = copy.copy(target)
+                with setup(target):
+                    yield target
 
     @classmethod
     def from_default_conf(cls):
