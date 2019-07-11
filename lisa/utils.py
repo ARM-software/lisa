@@ -236,8 +236,51 @@ class Serializable(Loggable):
     """
     A helper class for YAML serialization/deserialization
 
-    Not to be used on its own - instead, your class should inherit from this
-    class to gain serialization superpowers.
+    The following YAML tags are supported on top of what YAML provides out of
+    the box:
+
+        * ``!call``: call a Python callable with a mapping of arguments:
+
+            .. code-block:: yaml
+
+                # will execute:
+                # package.module.Class(arg1='foo', arg2='bar', arg3=42)
+                # NB: there is no space after "call:"
+                !call:package.module.Class
+                    arg1: foo
+                    arg2: bar
+                    arg3: 42
+
+        * ``!include``: include the content of another YAML file. Environment
+          variables are expanded in the given path:
+
+            .. code-block:: yaml
+
+                !include /foo/$ENV_VAR/bar.yml
+
+        * ``!env``: take the value of an environment variable, and convert
+          it to a Python type:
+
+            .. code-block:: yaml
+
+                !env:int MY_ENV_VAR
+
+            If `interpolate` is used as type, the value will be interpolated
+            using :func:`os.path.expandvars` and the resulting string
+            returned:
+
+                .. code-block:: yaml
+
+                    !env:interpolate /foo/$MY_ENV_VAR/bar
+
+        * ``!var``: reference a module-level variable:
+
+            .. code-block:: yaml
+
+                !var package.module.var
+
+    .. note:: Not to be used on its own - instead, your class should inherit
+        from this class to gain serialization superpowers.
     """
     serialized_whitelist = []
     serialized_blacklist = []
@@ -300,16 +343,6 @@ class Serializable(Loggable):
 
     @classmethod
     def _yaml_call_constructor(cls, loader, suffix, node):
-        """
-        Provide a !call tag in YAML that can be used to call a Python
-        callable with a mapping of arguments:
-        # There is no space after "call:"
-        !call:package.module.Class
-            arg1: foo
-            arg2: bar
-            arg3: 42
-        will execute: package.module.Class(arg1='foo', arg2='bar', arg3=42)
-        """
         # Restrict to keyword arguments to have improve stability of
         # configuration files.
         kwargs = loader.construct_mapping(node, deep=True)
@@ -332,12 +365,6 @@ class Serializable(Loggable):
 
     @classmethod
     def _yaml_include_constructor(cls, loader, node):
-        """
-        Provide a !include tag in YAML that can be used to include the content of
-        another YAML file. Environment variables are expanded in the given path.
-
-        !include /foo/$ENV_VAR/bar.yml
-        """
         path = loader.construct_scalar(node)
         assert isinstance(path, str)
         path = os.path.expandvars(path)
@@ -352,17 +379,6 @@ class Serializable(Loggable):
 
     @classmethod
     def _yaml_env_var_constructor(cls, loader, suffix, node):
-        """
-        Provide a !env tag in YAML that can be used to include the content
-        of an environment variable, and converting it to a Python type::
-
-            !env:int MY_ENV_VAR
-
-        If `interpolate` is used as type, the value will be interpolated using
-        :func:`os.path.expandvars` and the resulting string returned::
-
-            !env:interpolate /foo/$MY_ENV_VAR/bar
-        """
         string = loader.construct_scalar(node)
         assert isinstance(string, str)
 
@@ -390,12 +406,6 @@ class Serializable(Loggable):
 
     @classmethod
     def _yaml_var_constructor(cls, loader, node):
-        """
-        Provide a !var tag in YAML that can be used to reference a module-level
-        variable:
-
-        !var package.module.var
-        """
         varname = loader.construct_scalar(node)
         assert isinstance(varname, str)
         return loader.find_python_name(varname, node.start_mark)
