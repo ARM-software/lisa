@@ -1,0 +1,28 @@
+#!/bin/bash
+set -eu
+
+KERNEL_SRC=`realpath "$1"`
+MODULE_SRC=`realpath "$2"`
+INSTALL_MOD_PATH=${3:-`dirname "$0"`}
+
+export INSTALL_MOD_PATH=`realpath "$INSTALL_MOD_PATH"`
+export ARCH=${ARCH:-arm64}
+
+case "$ARCH" in
+
+	arm64)
+		export CROSS_COMPILE=${CROSS_COMPILE:-aarch64-linux-gnu-}
+		;;
+	arm)
+		export CROSS_COMPILE=${CROSS_COMPILE:-arm-linux-gnueabi-}
+		;;
+	x86|x86_64)
+		;;
+	*)
+		echo "ERROR: Unknown ARCH=$ARCH"
+		exit 1
+		;;
+esac
+
+make -C "$KERNEL_SRC" M="$MODULE_SRC" modules
+make -C "$KERNEL_SRC" M="$MODULE_SRC" modules_install
