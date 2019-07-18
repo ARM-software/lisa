@@ -115,7 +115,7 @@ static int sched_tp_init(void)
 	return 0;
 }
 
-void sched_tp_finish(void)
+static void sched_tp_finish(void)
 {
 	unregister_trace_pelt_cfs_tp(sched_pelt_cfs, NULL);
 	unregister_trace_pelt_rt_tp(sched_pelt_rt, NULL);
