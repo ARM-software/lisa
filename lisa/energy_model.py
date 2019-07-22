@@ -22,7 +22,7 @@ import operator
 import warnings
 import re
 
-from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses
+from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses, deprecate
 
 import pandas as pd
 import numpy as np
@@ -805,11 +805,27 @@ class EnergyModel(Serializable, Loggable):
         .. seealso:: :meth:`LinuxEnergyModel.from_target`
            and :meth:`LegacyEnergyModel.from_target`
         """
-        logger = cls.get_logger('EMReader')
+        logger = cls.get_logger('from_target')
 
         subcls = cls._find_subcls(target)
         logger.info('Attempting to load EM using {}'.format(subcls.__name__))
         return subcls.from_target(target)
+
+    @deprecate(replaced_by='lisa.energy_model.LinuxEnergyModel.from_target', deprecated_in='2.0', removed_in='2.1')
+    @staticmethod
+    def from_debugfsEM_target(*args, **kwargs):
+        """
+        See :meth:`LinuxEnergyModel.from_target`
+        """
+        return LinuxEnergyModel.from_target(*args, **kwargs)
+
+    @deprecate(replaced_by='lisa.energy_model.LegacyEnergyModel.from_target', deprecated_in='2.0', removed_in='2.1')
+    @staticmethod
+    def from_sd_target(*args, **kwargs):
+        """
+        See :meth:`LegacyEnergyModel.from_target`
+        """
+        return LegacyEnergyModel.from_target(*args, **kwargs)
 
     def estimate_from_trace(self, trace):
         """
