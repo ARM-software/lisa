@@ -345,7 +345,7 @@ class RTA(Workload):
                                  profile={'task1': calib_task},
                                  calibration="CPU{}".format(cpu),
                                  res_dir=res_dir)
-            rta.run(as_root=True)
+            rta.run()
 
             for line in rta.output.split('\n'):
                 pload_match = re.search(pload_regexp, line)
