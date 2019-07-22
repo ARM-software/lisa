@@ -22,7 +22,7 @@ import operator
 import warnings
 import re
 
-from lisa.utils import Loggable, Serializable, memoized, groupby
+from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses
 
 import pandas as pd
 import numpy as np
@@ -339,6 +339,12 @@ class EnergyModel(Serializable, Loggable):
         workloads). For workloads that change over time, a series of
         ``cpu_utils`` items would be needed to describe the utilization, with a
         distinct estimation for each item in the series.
+    """
+
+    _PROBE_ORDER = None
+    """
+    Order in which subclasses are tried when auto-detecting the kind of energy
+    model to load from a target.
     """
 
     capacity_scale = 1024
@@ -758,108 +764,162 @@ class EnergyModel(Serializable, Loggable):
         return ret
 
     @classmethod
-    def _find_core_groups(cls, target):
+    def probe_target(cls, target):
         """
-        Read the core_siblings masks for each CPU from sysfs
+        Check if an :class:`EnergyModel` can be loaded from the target.
 
-        :param target: Devlib Target object to read masks from
-        :returns: A list of tuples of ints, representing the partition of core
-                  siblings
+        :param target: Target to look at.
+        :type target: devlib.target.Target
         """
-        cpus = list(range(target.number_of_cpus))
-
-        topology_base = '/sys/devices/system/cpu/'
-
-        # We only care about core_siblings, but let's check *_siblings, so we
-        # can throw an error if a CPU's thread_siblings isn't just itself, or if
-        # there's a topology level we don't understand.
-
-        # Since we might have to read a lot of files, read everything we need in
-        # one go to avoid taking too long.
-        mask_glob = topology_base + 'cpu**/topology/*_siblings'
-        file_values = read_multiple_oneline_files(target, [mask_glob])
-
-        regex = re.compile(
-            topology_base + r'cpu([0-9]+)/topology/([a-z]+)_siblings')
-
-        ret = set()
-
-        for path, mask_str in file_values.items():
-            match = regex.match(path)
-            cpu = int(match.groups()[0])
-            level = match.groups()[1]
-            # mask_to_list returns the values in descending order, so we'll sort
-            # them ascending. This isn't strictly necessary but it's nicer.
-            siblings = tuple(sorted(mask_to_list(int(mask_str, 16))))
-
-            if level == 'thread':
-                if siblings != (cpu,):
-                    # SMT systems aren't supported
-                    raise RuntimeError('CPU{} thread_siblings is {}. '
-                                       'expected {}'.format(cpu, siblings, [cpu]))
-                continue
-            if level != 'core':
-                # The only other levels we should expect to find are 'book' and
-                # 'shelf', which are not used by architectures we support.
-                raise RuntimeError(
-                    'Unrecognised topology level "{}"'.format(level))
-
-            ret.add(siblings)
-
-        # Sort core groups so that the lowest-numbered cores are first
-        # Again, not strictly necessary, just more pleasant.
-        return sorted(ret, key=lambda x: x[0])
-
-    def _simple_em_root(target, pd_attr, cpu_to_pd):
-        # pd_attr is a dict tree like this
-        # {
-        #   "pd0": {
-        #       "capacity": [236, 301, 367, 406, 446 ],
-        #       "frequency": [ 450000, 575000, 700000, 775000, 850000 ],
-        #       "power": [ 42, 58, 79, 97, 119 ]
-        #   },
-        #   "pd1": {
-        #       "capacity": [ 418, 581, 744, 884, 1024 ],
-        #       "frequency": [ 450000, 625000, 800000, 950000, 1100000 ],
-        #       "power": [ 160, 239, 343, 454, 583 ]
-        #   }
-        # }
-        def simple_read_idle_states(cpu, target):
-            # idle states are not supported in the simple model
-            # record 0 power for them all, but name them according to target
-            names = [s.name for s in target.cpuidle.get_states(cpu)]
-            return OrderedDict((name, 0) for name in names)
-
-        def simple_read_active_states(pd):
-            cstates = list(zip(pd['capacity'], pd['power']))
-            active_states = [ActiveState(c, p) for c, p in cstates]
-            return OrderedDict(zip(pd['frequency'], active_states))
-
-        cpu_nodes = []
-        for cpu in range(target.number_of_cpus):
-            pd = pd_attr[cpu_to_pd[cpu]]
-            node = EnergyModelNode(
-                cpu=cpu,
-                active_states=simple_read_active_states(pd),
-                idle_states=simple_read_idle_states(cpu, target))
-            cpu_nodes.append(node)
-
-        return EnergyModelRoot(children=cpu_nodes)
-
-    def _simple_pd_root(target):
-        # We don't have a way to read the idle power domains from sysfs (the
-        # kernel isn't even aware of them) so we'll just have to assume each CPU
-        # is its own power domain and all idle states are independent of each
-        # other.
-        cpu_pds = []
-        for cpu in range(target.number_of_cpus):
-            names = [s.name for s in target.cpuidle.get_states(cpu)]
-            cpu_pds.append(PowerDomain(cpu=cpu, idle_states=names))
-        return PowerDomain(children=cpu_pds, idle_states=[])
+        try:
+            cls._find_subcls(target)
+        except TargetStableError:
+            return False
+        else:
+            return True
 
     @classmethod
-    def from_debugfsEM_target(cls, target,
-            directory='/sys/kernel/debug/energy_model'):
+    def _find_subcls(cls, target):
+        subcls_list = sorted(
+            get_subclasses(cls, only_leaves=True),
+            key=lambda cls: cls._PROBE_ORDER
+        )
+
+        for subcls in subcls_list:
+            if subcls.probe_target(target):
+                return subcls
+
+        raise TargetStableError('Unable to probe for energy model on target.')
+
+    @classmethod
+    def from_target(cls, target):
+        """
+        Create an instance of (a subclass of) :class:``EnergyModel`` by reading
+        a target filesystem.
+
+        :param target: Target object to read filesystem from. Must have
+                       cpufreq and cpuidle modules enabled.
+        :type target: devlib.target.Target
+        :returns: A instance of a subclass of :class:`EnergyModel`.
+
+        .. seealso:: :meth:`LinuxEnergyModel.from_target`
+           and :meth:`LegacyEnergyModel.from_target`
+        """
+        logger = cls.get_logger('EMReader')
+
+        subcls = cls._find_subcls(target)
+        logger.info('Attempting to load EM using {}'.format(subcls.__name__))
+        return subcls.from_target(target)
+
+    def estimate_from_trace(self, trace):
+        """
+        Estimate the energy consumption of the system by looking at a trace
+
+        Usese the EAS energy model data, and the idle and DVFS conditions
+        reported in the trace, to estimate the energy usage of the system at
+        every given moment.
+
+        Takes into account knowledge of power domains - where cpuidle makes
+        impossible claims about idle states (e.g. a CPU in 'cluster sleep' while
+        its cluster siblings are running), the states will be minimised.
+
+        The accuracy of this is otherwise totally dependent on the accuracy of
+        the EAS energy model and the kernel's information. This does not take
+        into account cost of idle state of DVFS transitions, nor any other
+        conditions that are invisible to the kernel. The effect any power
+        decisions that the platform makes independently of the kernel cannot be
+        seen in this data. Examples of this _might_ include firmware thermal
+        management invisibly restricting CPU frequencies, or secure-world
+        software with real-time constraints preventing deep CPU idle states.
+
+        :param trace: The trace
+        :type trace: lisa.trace.Trace
+
+        :returns: A DataFrame with a column for each node in the energy model,
+                  labelled with the CPU members of the node joined by  '-'s.
+                  Shows the energy use by each node at each given moment.
+                  If you don't care about those details, call ``.sum(axis=1)`` on
+                  the returned DataFrame to get a Series that shows overall
+                  estimated power usage over time.
+        """
+        if not trace.has_events('cpu_idle') or not trace.has_events('cpu_frequency'):
+            raise ValueError('Requires cpu_idle and cpu_frequency trace events')
+
+        idle = trace.df_events('cpu_idle').pivot(columns='cpu_id')['state']
+        freqs = trace.df_events('cpu_frequency').pivot(columns='cpu')['frequency']
+
+        inputs = pd.concat([idle, freqs], axis=1, keys=['idle', 'freq']).ffill()
+
+        # Drop stuff at the beginning where we don't have the inputs
+        # (e.g. where we have had our first cpu_idle event but no cpu_frequency)
+        inputs = inputs.dropna()
+        # Convert to int wholesale so we can do things like use the values in
+        # the inputs DataFrame as list indexes. The only reason we had floats
+        # was to make room for NaN, but we've just dropped all the NaNs, so
+        # that's fine.
+        inputs = inputs.astype(int)
+        # Drop consecutive duplicates (optimisation)
+        inputs = inputs[(inputs.shift() != inputs).any(axis=1)]
+
+        memo_cache = {}
+
+        def f(input_row):
+            # The code in this module is slow. Try not to call it too much.
+            memo_key = tuple(input_row)
+            if memo_key in memo_cache:
+                return memo_cache[memo_key]
+
+            # cpuidle doesn't understand shared resources so it will claim to
+            # put a CPU into e.g. 'cluster sleep' while its cluster siblings are
+            # active. Rectify those false claims.
+            cpus_active = input_row['idle'] == -1
+            deepest_possible = self._deepest_idle_idxs(cpus_active)
+            idle_idxs = [min(i, j) for i, j in zip(deepest_possible,
+                                                        input_row['idle'])]
+
+            # Convert indexes to state names
+            idle_states = [n.idle_state_by_idx(max(i, 0))
+                           for n, i in zip(self.cpu_nodes, idle_idxs)]
+
+            # We don't use tracked load, we just treat a CPU as active or idle,
+            # so set util to 0 or 100%.
+            utils = cpus_active * self.capacity_scale
+
+            nrg = self.estimate_from_cpu_util(cpu_utils=utils,
+                                              idle_states=idle_states,
+                                              freqs=input_row['freq'])
+
+            # nrg is a dict mapping CPU group tuples to energy values.
+            # Unfortunately tuples don't play nicely as pandas column labels
+            # because parts of its API treat that as nested indexing
+            # (i.e. df[(0, 1)] sometimes means df[0][1]). So we'll give them
+            # awkward names.
+
+            nrg = {'-'.join(str(c) for c in k): v for k, v in iter(nrg.items())}
+
+            ret = pd.Series(nrg)
+            memo_cache[memo_key] = ret
+            return ret
+
+        return inputs.apply(f, axis=1)
+
+
+class LinuxEnergyModel(EnergyModel):
+    """
+    Mainline Linux kernel energy model, available since linux 5.0 .
+
+    The energy model information is stored in debugfs.
+    """
+
+    _PROBE_ORDER = 1
+
+    @staticmethod
+    def probe_target(target):
+        directory = '/sys/kernel/debug/energy_model'
+        return target.file_exists(directory)
+
+    @classmethod
+    def from_target(cls, target, directory='/sys/kernel/debug/energy_model'):
         """
         Create an EnergyModel by reading a target filesystem on a device with
         the new Simplified Energy Model present in debugfs.
@@ -922,16 +982,82 @@ class EnergyModel(Serializable, Loggable):
                    root_power_domain=root_pd,
                    freq_domains=perf_domains)
 
+    @staticmethod
+    def _simple_em_root(target, pd_attr, cpu_to_pd):
+        # pd_attr is a dict tree like this
+        # {
+        #   "pd0": {
+        #       "capacity": [236, 301, 367, 406, 446 ],
+        #       "frequency": [ 450000, 575000, 700000, 775000, 850000 ],
+        #       "power": [ 42, 58, 79, 97, 119 ]
+        #   },
+        #   "pd1": {
+        #       "capacity": [ 418, 581, 744, 884, 1024 ],
+        #       "frequency": [ 450000, 625000, 800000, 950000, 1100000 ],
+        #       "power": [ 160, 239, 343, 454, 583 ]
+        #   }
+        # }
+        def simple_read_idle_states(cpu, target):
+            # idle states are not supported in the simple model
+            # record 0 power for them all, but name them according to target
+            names = [s.name for s in target.cpuidle.get_states(cpu)]
+            return OrderedDict((name, 0) for name in names)
+
+        def simple_read_active_states(pd):
+            cstates = list(zip(pd['capacity'], pd['power']))
+            active_states = [ActiveState(c, p) for c, p in cstates]
+            return OrderedDict(zip(pd['frequency'], active_states))
+
+        cpu_nodes = []
+        for cpu in range(target.number_of_cpus):
+            pd = pd_attr[cpu_to_pd[cpu]]
+            node = EnergyModelNode(
+                cpu=cpu,
+                active_states=simple_read_active_states(pd),
+                idle_states=simple_read_idle_states(cpu, target))
+            cpu_nodes.append(node)
+
+        return EnergyModelRoot(children=cpu_nodes)
+
+    @staticmethod
+    def _simple_pd_root(target):
+        # We don't have a way to read the idle power domains from sysfs (the
+        # kernel isn't even aware of them) so we'll just have to assume each CPU
+        # is its own power domain and all idle states are independent of each
+        # other.
+        cpu_pds = []
+        for cpu in range(target.number_of_cpus):
+            names = [s.name for s in target.cpuidle.get_states(cpu)]
+            cpu_pds.append(PowerDomain(cpu=cpu, idle_states=names))
+        return PowerDomain(children=cpu_pds, idle_states=[])
+
+
+class LegacyEnergyModel(EnergyModel):
+    """
+    Legacy energy model used on Android kernels prior 4.19.
+
+    The energy model information is stored in sysfs and contains detailed
+    information about idle states.
+    """
+
+    _PROBE_ORDER = 2
+
+    @staticmethod
+    def probe_target(target):
+        filename = '/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}'
+        cpu = target.list_online_cpus()[0]
+        f = filename.format(cpu, 0, 0, 'cap_states')
+        return target.file_exists(f)
+
     @classmethod
-    def from_sd_target(cls, target, filename=
+    def from_target(cls, target, filename=
             '/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}'):
         """
         Create an EnergyModel by reading a target filesystem
 
-        This uses the sysctl added by EAS pathces to exposes the cap_states and
+        This uses the sysctl added by EAS patches to exposes the cap_states and
         idle_states fields for each sched_group. This feature depends on
-        CONFIG_SCHED_DEBUG, and is not upstream in mainline Linux (as of v4.11),
-        so this method is only tested with Android kernels.
+        CONFIG_SCHED_DEBUG, and is not upstream in mainline Linux.
 
         The kernel doesn't have an power domain data, so this method assumes
         that all CPUs are totally independent wrt. idle states - the EnergyModel
@@ -1069,155 +1195,57 @@ class EnergyModel(Serializable, Loggable):
                    root_power_domain=root_pd,
                    freq_domains=freq_domains)
 
-    @classmethod
-    def from_target(cls, target):
+    def _find_core_groups(cls, target):
         """
-        Create an EnergyModel by reading a target filesystem
+        Read the core_siblings masks for each CPU from sysfs
 
-        If present, load an EM provided via dt using from_sd_target, since these
-        devices make the full EM available via the sched domain in sysfs. If
-        there is no EM at this location, attempt to load the simplified EM
-        made available via dedicated sysfs files.
-
-        :param target: Devlib target object to read filesystem from. Must have
-                       cpufreq and cpuidle modules enabled.
-        :returns: Constructed EnergyModel object based on the parameters
-                  reported by the target.
+        :param target: Devlib Target object to read masks from
+        :returns: A list of tuples of ints, representing the partition of core
+                  siblings
         """
-        logger = cls.get_logger('EMReader')
+        cpus = list(range(target.number_of_cpus))
 
-        # To add a new EM reader type, the following is required:
-        # 1. Create an inline function to test for EM presence which takes a
-        #    target as the first parameter. Any exceptions raised here will
-        #    be caught in the loader loop.
-        # 2. Create a function which returns an EnergyModel as a member of this
-        #    class, also with a target as the first parameter.
-        # 3. Add an entry to the em_loaders dict where 'check' contains the
-        #    inline function and 'load' contains the class member function
-        # 4. If you need any additional data, add it to the em_loaders dict - any
-        #    additional keys will be passed to both 'check' and 'load' functions
-        #    as named parameters.
+        topology_base = '/sys/devices/system/cpu/'
 
-        class SDEMLoader:
-            @staticmethod
-            def check(target):
-                filename = '/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}'
-                cpu = target.list_online_cpus()[0]
-                f = filename.format(cpu, 0, 0, 'cap_states')
-                return target.file_exists(f)
+        # We only care about core_siblings, but let's check *_siblings, so we
+        # can throw an error if a CPU's thread_siblings isn't just itself, or if
+        # there's a topology level we don't understand.
 
-            load = cls.from_sd_target
+        # Since we might have to read a lot of files, read everything we need in
+        # one go to avoid taking too long.
+        mask_glob = topology_base + 'cpu**/topology/*_siblings'
+        file_values = read_multiple_oneline_files(target, [mask_glob])
 
-        class DebugfsEMLoader:
-            @staticmethod
-            def check(target):
-                directory = '/sys/kernel/debug/energy_model'
+        regex = re.compile(
+            topology_base + r'cpu([0-9]+)/topology/([a-z]+)_siblings')
 
-                return target.file_exists(directory)
+        ret = set()
 
-            load = cls.from_debugfsEM_target
+        for path, mask_str in file_values.items():
+            match = regex.match(path)
+            cpu = int(match.groups()[0])
+            level = match.groups()[1]
+            # mask_to_list returns the values in descending order, so we'll sort
+            # them ascending. This isn't strictly necessary but it's nicer.
+            siblings = tuple(sorted(mask_to_list(int(mask_str, 16))))
 
-        for loader_cls in (SDEMLoader, DebugfsEMLoader):
-            try:
-                em_present = loader_cls.check(target)
-            except Exception:
-                em_present = False
-            if em_present:
-                logger.info('Attempting to load EM using {}'.format(loader_cls.load.__name__))
-                return loader_cls.load(target)
+            if level == 'thread':
+                if siblings != (cpu,):
+                    # SMT systems aren't supported
+                    raise RuntimeError('CPU{} thread_siblings is {}. '
+                                       'expected {}'.format(cpu, siblings, [cpu]))
+                continue
+            if level != 'core':
+                # The only other levels we should expect to find are 'book' and
+                # 'shelf', which are not used by architectures we support.
+                raise RuntimeError(
+                    'Unrecognised topology level "{}"'.format(level))
 
-        raise TargetStableError('Unable to probe for energy model on target.')
+            ret.add(siblings)
 
-    def estimate_from_trace(self, trace):
-        """
-        Estimate the energy consumption of the system by looking at a trace
+        # Sort core groups so that the lowest-numbered cores are first
+        # Again, not strictly necessary, just more pleasant.
+        return sorted(ret, key=lambda x: x[0])
 
-        Usese the EAS energy model data, and the idle and DVFS conditions
-        reported in the trace, to estimate the energy usage of the system at
-        every given moment.
-
-        Takes into account knowledge of power domains - where cpuidle makes
-        impossible claims about idle states (e.g. a CPU in 'cluster sleep' while
-        its cluster siblings are running), the states will be minimised.
-
-        The accuracy of this is otherwise totally dependent on the accuracy of
-        the EAS energy model and the kernel's information. This does not take
-        into account cost of idle state of DVFS transitions, nor any other
-        conditions that are invisible to the kernel. The effect any power
-        decisions that the platform makes independently of the kernel cannot be
-        seen in this data. Examples of this _might_ include firmware thermal
-        management invisibly restricting CPU frequencies, or secure-world
-        software with real-time constraints preventing deep CPU idle states.
-
-        :param trace: The trace
-        :type trace: lisa.trace.Trace
-
-        :returns: A DataFrame with a column for each node in the energy model,
-                  labelled with the CPU members of the node joined by  '-'s.
-                  Shows the energy use by each node at each given moment.
-                  If you don't care about those details, call ``.sum(axis=1)`` on
-                  the returned DataFrame to get a Series that shows overall
-                  estimated power usage over time.
-        """
-        if not trace.has_events('cpu_idle') or not trace.has_events('cpu_frequency'):
-            raise ValueError('Requires cpu_idle and cpu_frequency trace events')
-
-        idle = trace.df_events('cpu_idle').pivot(columns='cpu_id')['state']
-        freqs = trace.df_events('cpu_frequency').pivot(columns='cpu')['frequency']
-
-        inputs = pd.concat([idle, freqs], axis=1, keys=['idle', 'freq']).ffill()
-
-        # Drop stuff at the beginning where we don't have the inputs
-        # (e.g. where we have had our first cpu_idle event but no cpu_frequency)
-        inputs = inputs.dropna()
-        # Convert to int wholesale so we can do things like use the values in
-        # the inputs DataFrame as list indexes. The only reason we had floats
-        # was to make room for NaN, but we've just dropped all the NaNs, so
-        # that's fine.
-        inputs = inputs.astype(int)
-        # Drop consecutive duplicates (optimisation)
-        inputs = inputs[(inputs.shift() != inputs).any(axis=1)]
-
-        memo_cache = {}
-
-        def f(input_row):
-            # The code in this module is slow. Try not to call it too much.
-            memo_key = tuple(input_row)
-            if memo_key in memo_cache:
-                return memo_cache[memo_key]
-
-            # cpuidle doesn't understand shared resources so it will claim to
-            # put a CPU into e.g. 'cluster sleep' while its cluster siblings are
-            # active. Rectify those false claims.
-            cpus_active = input_row['idle'] == -1
-            deepest_possible = self._deepest_idle_idxs(cpus_active)
-            idle_idxs = [min(i, j) for i, j in zip(deepest_possible,
-                                                        input_row['idle'])]
-
-            # Convert indexes to state names
-            idle_states = [n.idle_state_by_idx(max(i, 0))
-                           for n, i in zip(self.cpu_nodes, idle_idxs)]
-
-            # We don't use tracked load, we just treat a CPU as active or idle,
-            # so set util to 0 or 100%.
-            utils = cpus_active * self.capacity_scale
-
-            nrg = self.estimate_from_cpu_util(cpu_utils=utils,
-                                              idle_states=idle_states,
-                                              freqs=input_row['freq'])
-
-            # nrg is a dict mapping CPU group tuples to energy values.
-            # Unfortunately tuples don't play nicely as pandas column labels
-            # because parts of its API treat that as nested indexing
-            # (i.e. df[(0, 1)] sometimes means df[0][1]). So we'll give them
-            # awkward names.
-
-            nrg = {'-'.join(str(c) for c in k): v for k, v in iter(nrg.items())}
-
-            ret = pd.Series(nrg)
-            memo_cache[memo_key] = ret
-            return ret
-
-        return inputs.apply(f, axis=1)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
