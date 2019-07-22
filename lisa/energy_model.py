@@ -73,7 +73,7 @@ def read_multiple_oneline_files(target, glob_patterns):
     if len(contents) != len(paths):
         raise RuntimeError('File count mismatch while reading multiple files')
 
-    return dict(list(zip(paths, contents)))
+    return dict(zip(paths, contents))
 
 class EnergyModelCapacityError(Exception):
     """Used by :meth:`EnergyModel.get_optimal_placements`"""
@@ -181,7 +181,7 @@ class EnergyModelNode(_CpuTree):
 
         def is_monotonic(l, decreasing=False):
             op = operator.ge if decreasing else operator.le
-            return all(op(a, b) for a, b in list(zip(l, l[1:])))
+            return all(op(a, b) for a, b in zip(l, l[1:]))
 
         if active_states:
             # Sanity check for active_states's frequencies
@@ -729,7 +729,7 @@ class EnergyModel(Serializable, Loggable):
         candidates = {}
         excluded = []
         for cpus in product(self.cpus, repeat=len(tasks)):
-            placement = {task: cpu for task, cpu in list(zip(tasks, cpus))}
+            placement = {task: cpu for task, cpu in zip(tasks, cpus)}
 
             util = [0 for _ in self.cpus]
             for task, cpu in list(placement.items()):
@@ -1158,7 +1158,7 @@ class LegacyEnergyModel(EnergyModel):
                           for c, p in map(lambda x: (x[0],x[-1]), grouper(cap_states_strs, em_member_count))]
 
             freqs = target.cpufreq.list_frequencies(cpu)
-            return OrderedDict(list(zip(sorted(freqs), cap_states)))
+            return OrderedDict(zip(sorted(freqs), cap_states))
 
         def read_idle_states(cpu, domain_level):
             idle_states_path = sge_path(cpu, domain_level, 0, 'idle_states')
@@ -1168,7 +1168,7 @@ class LegacyEnergyModel(EnergyModel):
             names = [s.name for s in target.cpuidle.get_states(cpu)]
             # idle_states is a list of power values in increasing order of
             # idle-depth/decreasing order of power.
-            return OrderedDict(list(zip(names, [int(p) for p in idle_states_strs])))
+            return OrderedDict(zip(names, [int(p) for p in idle_states_strs]))
 
         # Read the CPU-level data from sched_domain level 0
         cpus = list(range(target.number_of_cpus))
