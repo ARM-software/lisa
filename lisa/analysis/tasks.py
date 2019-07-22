@@ -119,9 +119,6 @@ class TasksAnalysis(TraceAnalysisBase):
 
     name = 'tasks'
 
-    def __init__(self, trace):
-        super(TasksAnalysis, self).__init__(trace)
-
     @requires_events('sched_switch')
     def cpus_of_tasks(self, tasks):
         """
@@ -540,14 +537,10 @@ class TasksAnalysis(TraceAnalysisBase):
             for domain in self.trace.plat_info["freq-domains"]:
                 df = sw_df[sw_df["__cpu"].isin(domain)]["__cpu"]
 
-                print(domain)
-
                 if df.empty:
-                    print(df.empty)
                     # Cycle the colours to stay consistent
                     self.cycle_colors(axis, 1)
                 else:
-                    print(df.unique())
                     df.plot(ax=axis, style='+',
                             label="Task running in domain {}".format(domain))
         else:
@@ -626,14 +619,18 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return pd.DataFrame(data=data, index=index, columns=[name])
 
-    def _plot_cpu_heatmap(self, x, y,  xbins, colorbar_label, **kwargs):
+    def _plot_cpu_heatmap(self, x, y,  xbins, colorbar_label, cmap, **kwargs):
         """
         Plot some data in a heatmap-style 2d histogram
         """
         nr_cpus = self.trace.cpus_count
-        fig, axis = self.setup_plot(height=min(4, nr_cpus // 2), width=20)
+        fig, axis = self.setup_plot(
+            height=min(4, nr_cpus // 2),
+            width=20,
+            **kwargs
+        )
 
-        _, _, _, img = axis.hist2d(x, y, bins=[xbins, nr_cpus], **kwargs)
+        _, _, _, img = axis.hist2d(x, y, bins=[xbins, nr_cpus])
         fig.colorbar(img, label=colorbar_label)
 
         return fig, axis
@@ -668,7 +665,7 @@ class TasksAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup")
     def plot_tasks_wakeups_heatmap(self, xbins=100, colormap=None, axis=None,
-            local_fig=None):
+            local_fig=None, **kwargs):
         """
         Plot tasks wakeups heatmap
 
@@ -684,7 +681,10 @@ class TasksAnalysis(TraceAnalysisBase):
         df = self.trace.df_events("sched_wakeup")
 
         fig, axis = self._plot_cpu_heatmap(
-            df.index, df.target_cpu, xbins, "Number of wakeups", cmap=colormap)
+            df.index, df.target_cpu, xbins, "Number of wakeups",
+            cmap=colormap,
+            **kwargs,
+        )
 
         axis.set_title("Tasks wakeups over time")
         axis.set_xlim(self.trace.start, self.trace.end)
@@ -720,7 +720,7 @@ class TasksAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup_new")
     def plot_tasks_forks_heatmap(self, xbins=100, colormap=None, axis=None,
-            local_fig=None):
+            local_fig=None, **kwargs):
         """
         :param xbins: Number of x-axis bins, i.e. in how many slices should
           time be arranged
@@ -734,7 +734,10 @@ class TasksAnalysis(TraceAnalysisBase):
         df = self.trace.df_events("sched_wakeup_new")
 
         fig, axis = self._plot_cpu_heatmap(
-            df.index, df.target_cpu, xbins, "Number of forks", cmap=colormap)
+            df.index, df.target_cpu, xbins, "Number of forks",
+            cmap=colormap,
+            **kwargs
+        )
 
         axis.set_title("Tasks forks over time")
         axis.set_xlim(self.trace.start, self.trace.end)

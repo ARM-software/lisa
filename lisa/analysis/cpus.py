@@ -31,10 +31,6 @@ class CpusAnalysis(TraceAnalysisBase):
 
     name = 'cpus'
 
-    def __init__(self, trace):
-        super(CpusAnalysis, self).__init__(trace)
-
-
 ###############################################################################
 # DataFrame Getter Methods
 ###############################################################################

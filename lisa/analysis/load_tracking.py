@@ -35,9 +35,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     name = 'load_tracking'
 
-    def __init__(self, trace):
-        super().__init__(trace)
-
     @classmethod
     def _columns_renaming(cls, event):
         """
@@ -382,11 +379,11 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         df["placement"] = df.apply(
             lambda row: evaluate_placement(
-                row["__cpu"],
+                row["cpu"],
                 row["required_capacity"]), axis=1)
 
         for stat in df["placement"].unique():
-            df[df.placement == stat]["__cpu"].plot(ax=axis, style="+", label=stat)
+            df[df.placement == stat]["cpu"].plot(ax=axis, style="+", label=stat)
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
         if self.trace.has_events(plot_overutilized.used_events):
