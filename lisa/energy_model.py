@@ -797,8 +797,7 @@ class EnergyModel(Serializable, Loggable):
         Create an instance of (a subclass of) :class:``EnergyModel`` by reading
         a target filesystem.
 
-        :param target: Target object to read filesystem from. Must have
-                       cpufreq and cpuidle modules enabled.
+        :param target: Target object to read filesystem from.
         :type target: devlib.target.Target
         :returns: A instance of a subclass of :class:`EnergyModel`.
 
@@ -919,6 +918,13 @@ class EnergyModel(Serializable, Loggable):
 
         return inputs.apply(f, axis=1)
 
+    @classmethod
+    def _get_idle_states_name(cls, target, cpu):
+        if 'cpuidle' in target.modules:
+            return [s.name for s in target.cpuidle.get_states(cpu)]
+        else:
+            return ['placeholder-idle-state']
+
 
 class LinuxEnergyModel(EnergyModel):
     """
@@ -953,14 +959,10 @@ class LinuxEnergyModel(EnergyModel):
         levels.
 
         :param target: :class:`devlib.target.Target` object to read filesystem
-                       from. Must have cpufreq and cpuidle modules enabled.
+                       from.
         :returns: Constructed EnergyModel object based on the parameters
                   reported by the target.
         """
-
-        if 'cpuidle' not in target.modules:
-            raise TargetStableError('Requires cpuidle devlib module. Please ensure "cpuidle" is listed in your target/test modules')
-
         sysfs = '/sys/devices/system/cpu/cpu{}/cpu_capacity'
         pd_attr = defaultdict(dict)
         cpu_to_pd = {}
@@ -998,8 +1000,8 @@ class LinuxEnergyModel(EnergyModel):
                    root_power_domain=root_pd,
                    freq_domains=perf_domains)
 
-    @staticmethod
-    def _simple_em_root(target, pd_attr, cpu_to_pd):
+    @classmethod
+    def _simple_em_root(cls, target, pd_attr, cpu_to_pd):
         """
         ``pd_attr`` is a dict tree like this ::
 
@@ -1019,7 +1021,7 @@ class LinuxEnergyModel(EnergyModel):
         def simple_read_idle_states(cpu, target):
             # idle states are not supported in the simple model
             # record 0 power for them all, but name them according to target
-            names = [s.name for s in target.cpuidle.get_states(cpu)]
+            names = cls._get_idle_states_name(target, cpu)
             return OrderedDict((name, 0) for name in names)
 
         def simple_read_active_states(pd):
@@ -1038,15 +1040,15 @@ class LinuxEnergyModel(EnergyModel):
 
         return EnergyModelRoot(children=cpu_nodes)
 
-    @staticmethod
-    def _simple_pd_root(target):
+    @classmethod
+    def _simple_pd_root(cls, target):
         # We don't have a way to read the idle power domains from sysfs (the
         # kernel isn't even aware of them) so we'll just have to assume each CPU
         # is its own power domain and all idle states are independent of each
         # other.
         cpu_pds = []
         for cpu in range(target.number_of_cpus):
-            names = [s.name for s in target.cpuidle.get_states(cpu)]
+            names = cls._get_idle_states_name(target, cpu)
             cpu_pds.append(PowerDomain(cpu=cpu, idle_states=names))
         return PowerDomain(children=cpu_pds, idle_states=[])
 
@@ -1094,9 +1096,9 @@ class LegacyEnergyModel(EnergyModel):
         if 'cpufreq' not in target.modules:
             raise TargetStableError('Requires cpufreq devlib module. Please ensure '
                                '"cpufreq" is listed in your target/test modules')
+
         if 'cpuidle' not in target.modules:
-            raise TargetStableError('Requires cpuidle devlib module. Please ensure '
-                               '"cpuidle" is listed in your target/test modules')
+            cls.get_logger().warning('Idle states detection requires cpuidle devlib module. Please ensure "cpuidle" is listed in your target/test modules')
 
         def sge_path(cpu, domain, group, field):
             return filename.format(cpu, domain, group, field)
@@ -1165,7 +1167,7 @@ class LegacyEnergyModel(EnergyModel):
             idle_states_strs = read_sge_file(idle_states_path).split()
 
             # get_states should return the state names in increasing depth order
-            names = [s.name for s in target.cpuidle.get_states(cpu)]
+            names = cls._get_idle_states_name(target, cpu)
             # idle_states is a list of power values in increasing order of
             # idle-depth/decreasing order of power.
             return OrderedDict(zip(names, [int(p) for p in idle_states_strs]))
@@ -1205,7 +1207,7 @@ class LegacyEnergyModel(EnergyModel):
         # own power domain and all idle states are independent of each other.
         cpu_pds = []
         for cpu in cpus:
-            names = [s.name for s in target.cpuidle.get_states(cpu)]
+            names = cls._get_idle_states_name(target, cpu)
             cpu_pds.append(PowerDomain(cpu=cpu, idle_states=names))
 
         root_pd=PowerDomain(children=cpu_pds, idle_states=[])
