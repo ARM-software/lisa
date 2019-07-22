@@ -22,7 +22,7 @@ import operator
 import warnings
 import re
 
-from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses, deprecate
+from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses, deprecate, grouper
 
 import pandas as pd
 import numpy as np
@@ -30,15 +30,6 @@ import numpy as np
 from devlib.utils.misc import mask_to_list, ranges_to_list
 from devlib.exception import TargetStableError
 from trappy.stats.grammar import Parser
-
-#TODO: This should be moved into a utility library somewhere if its useful elsewhere
-from itertools import zip_longest
-def grouper(iterable, n, fillvalue=None):
-    """Collect data into fixed-length chunks or blocks"""
-    # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
-    # Since the same iterator is used, it will yield a new item every time zip call next() on it
-    args = [iter(iterable)] * n
-    return zip_longest(*args, fillvalue=fillvalue)
 
 """Classes for modeling and estimating energy usage of CPU systems"""
 
