@@ -1000,19 +1000,22 @@ class LinuxEnergyModel(EnergyModel):
 
     @staticmethod
     def _simple_em_root(target, pd_attr, cpu_to_pd):
-        # pd_attr is a dict tree like this
-        # {
-        #   "pd0": {
-        #       "capacity": [236, 301, 367, 406, 446 ],
-        #       "frequency": [ 450000, 575000, 700000, 775000, 850000 ],
-        #       "power": [ 42, 58, 79, 97, 119 ]
-        #   },
-        #   "pd1": {
-        #       "capacity": [ 418, 581, 744, 884, 1024 ],
-        #       "frequency": [ 450000, 625000, 800000, 950000, 1100000 ],
-        #       "power": [ 160, 239, 343, 454, 583 ]
-        #   }
-        # }
+        """
+        ``pd_attr`` is a dict tree like this ::
+
+            {
+                "pd0": {
+                    "capacity": [236, 301, 367, 406, 446 ],
+                    "frequency": [ 450000, 575000, 700000, 775000, 850000 ],
+                    "power": [ 42, 58, 79, 97, 119 ]
+                },
+                "pd1": {
+                    "capacity": [ 418, 581, 744, 884, 1024 ],
+                    "frequency": [ 450000, 625000, 800000, 950000, 1100000 ],
+                    "power": [ 160, 239, 343, 454, 583 ]
+                }
+            }
+        """
         def simple_read_idle_states(cpu, target):
             # idle states are not supported in the simple model
             # record 0 power for them all, but name them according to target
