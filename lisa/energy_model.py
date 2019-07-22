@@ -923,74 +923,6 @@ class EnergyModel(Serializable, Loggable):
                    freq_domains=perf_domains)
 
     @classmethod
-    def from_sysfsEM_target(cls, target,
-            directory='/sys/devices/system/cpu/energy_model'):
-        """
-        Create an EnergyModel by reading a target filesystem on a device with
-        the new Simplified Energy Model present in sysfs.
-
-        The patches exposing the Energy Model in sysfs have been abandonned
-        and this way of loading it is now deprecated.
-
-        :param target: Devlib target object to read filesystem from. Must have
-                       cpufreq and cpuidle modules enabled.
-        :returns: Constructed EnergyModel object based on the parameters
-                  reported by the target.
-        """
-        warnings.warn('The Energy Model in sysfs is DEPRECATED. Please use debugfs instead.',
-                      DeprecationWarning)
-
-        if 'cpuidle' not in target.modules:
-            raise TargetStableError('Requires cpuidle devlib module. Please ensure '
-                               '"cpuidle" is listed in your target/test modules')
-
-        # Simplified EM on-disk format (for each frequency domain):
-        #    /sys/devices/system/cpu/energy_model/<frequency_domain>/..
-        #        ../capacity
-        #           contains a space-separated list of capacities in increasing order
-        #        ../cpus
-        #           cpulist-formatted representation of the cpus in the frequency domain
-        #        ../frequency
-        #           space-separated list of frequencies in corresponding order to capacities
-        #        ../power
-        #           space-separated list of power consumption in corresponding order to capacities
-        # taken together, the contents of capacity, frequency and power give you the required
-        # tuple for ActiveStates.
-        # hence, domain should be supplied as a glob, and fields should be
-        #   capacity, cpus, frequency, power
-
-        sysfs_em = target.read_tree_values(directory, depth=3)
-
-        if not sysfs_em:
-            raise TargetStableError('Simplified Energy Model not exposed '
-                              'at {} in sysfs.'.format(directory))
-
-        cpu_to_fdom = {}
-        for fd, fields in sysfs_em.items():
-            cpus = ranges_to_list(fields["cpus"])
-            for cpu in cpus:
-                cpu_to_fdom[cpu] = fd
-            sysfs_em[fd]['cpus'] = cpus
-            sysfs_em[fd]['frequency'] = list(map(int, sysfs_em[fd]['frequency'].split(' ')))
-            sysfs_em[fd]['power'] =  list(map(int, sysfs_em[fd]['power'].split(' ')))
-
-            # Compute the capacity of the CPUs at each OPP with a linerar
-            # mapping to the frequencies
-            sysfs = '/sys/devices/system/cpu/cpu{}/cpu_capacity'
-            cap = target.read_value(sysfs.format(cpus[0]), int)
-            max_freq = max(sysfs_em[fd]['frequency'])
-            caps = [f * cap / max_freq for f in sysfs_em[fd]['frequency']]
-            sysfs_em[fd]['capacity'] = caps
-
-        root_em = cls._simple_em_root(target, sysfs_em, cpu_to_fdom)
-        root_pd = cls._simple_pd_root(target)
-        freq_domains = [sysfs_em[fdom]['cpus'] for fdom in sysfs_em]
-
-        return cls(root_node=root_em,
-                   root_power_domain=root_pd,
-                   freq_domains=freq_domains)
-
-    @classmethod
     def from_sd_target(cls, target, filename=
             '/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}'):
         """
@@ -1176,14 +1108,6 @@ class EnergyModel(Serializable, Loggable):
 
             load = cls.from_sd_target
 
-        class SysfsEMLoader:
-            @staticmethod
-            def check(target):
-                directory = '/sys/devices/system/cpu/energy_model'
-                return target.directory_exists(directory)
-
-            load = cls.from_sysfsEM_target
-
         class DebugfsEMLoader:
             @staticmethod
             def check(target):
@@ -1193,7 +1117,7 @@ class EnergyModel(Serializable, Loggable):
 
             load = cls.from_debugfsEM_target
 
-        for loader_cls in (SDEMLoader, SysfsEMLoader, DebugfsEMLoader):
+        for loader_cls in (SDEMLoader, DebugfsEMLoader):
             try:
                 em_present = loader_cls.check(target)
             except Exception:
