@@ -469,8 +469,16 @@ class RTATestBundleMeta(abc.ABCMeta):
     default set of events is always enough to run all defined methods, without
     duplicating that information.
 
-    .. note:: An existing ``ftrace_conf`` attribute is used, with extra
-        detected events merged-in.
+    The ``ftrace_conf`` attribute is typically built by merging these sources:
+
+        * Existing ``ftrace_conf`` class attribute on the
+          :class:`RTATestBundle` subclass
+
+        * Events required by methods using :func:`lisa.trace.requires_events`
+          decorator.
+
+        * :class:`lisa.trace.FtraceConf` specified by the user and passed to
+          :meth:`lisa.trace.FtraceConf.from_user_conf`
     """
 
     def __new__(metacls, name, bases, dct, **kwargs):
