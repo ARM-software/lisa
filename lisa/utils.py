@@ -1295,4 +1295,20 @@ def guess_format(path):
     guessed_format = mime_type.split('/')[1].split('.', 1)[-1].split('+')[0]
     return guessed_format
 
+@contextlib.contextmanager
+def nullcontext(enter_result=None):
+    """
+    Backport of Python 3.7 ``contextlib.nullcontext``
+
+    This context manager does nothing, so it can be used as a default
+    placeholder for code that needs to select at runtime what context manager
+    to use.
+
+    :param enter_result: Object that will be bound to the target of the with
+        statement, or `None` if nothing is specified.
+    :type enter_result: object
+    """
+    yield enter_result
+
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
