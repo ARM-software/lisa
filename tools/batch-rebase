@@ -349,7 +349,13 @@ def rerere_autocommit(repo):
         try:
             git(['cherry-pick', '--continue'])
         except subprocess.CalledProcessError:
-            continue
+            # If there is no cherry-pick in progress, just exit the loop
+            try:
+                git(['show-ref', '--verify', '--quiet', 'ORIG_HEAD'])
+            except subprocess.CalledProcessError:
+                break
+            else:
+                continue
         else:
             break
 
