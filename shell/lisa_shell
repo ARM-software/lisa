@@ -284,9 +284,8 @@ function _lisa-jupyter-start {
 
     if [[ -z "$IPADDR" ]]; then
         echo
-        echo "could not determine IP address of $NETIF"
+        echo "could not determine IP address of $NETIF, see man lisa"
         echo
-	_lisa-jupyter-usage
         return 1
     fi
 
@@ -312,10 +311,9 @@ function _lisa-jupyter-start {
     if netstat -nlt | grep $PORT &>/dev/null; then
         echo
         echo "ERROR: required port [$PORT] already in use"
-        echo "       try again with a different PORT option"
+        echo "       try again with a different PORT option, see man lisa"
         echo
-	_lisa-jupyter-usage
-	return 1
+        return 1
     fi
 
     # Start the server bound to the specified interface
