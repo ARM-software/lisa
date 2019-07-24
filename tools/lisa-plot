@@ -237,7 +237,9 @@ Available plots:
 
     for plot_name, file_path in plot_spec_list:
         analysis_name, f = flat_plot_map[plot_name]
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        dirname = os.path.dirname(file_path)
+        if dirname:
+            os.makedirs(file_path, exist_ok=True)
 
         analysis = getattr(trace.analysis, analysis_name)
         # Bind the function to the analysis instance to get a bound method
