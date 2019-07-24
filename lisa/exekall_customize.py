@@ -426,7 +426,7 @@ comparison. Can be repeated.""")
             if isinstance(value, Serializable):
                 value.to_path(path)
             else:
-                Serializable._to_path(value, path, fmt='yml')
+                Serializable._to_path(value, path, fmt='yaml')
 
         return 0
 
@@ -548,8 +548,3 @@ comparison. Can be repeated.""")
                 if val.result is Result.FAILED:
                     return 10
         return 0
-
-
-
-
-
