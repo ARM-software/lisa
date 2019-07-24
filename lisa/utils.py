@@ -644,6 +644,17 @@ def groupby(iterable, key=None):
     iterable = sorted(iterable, key=key)
     return itertools.groupby(iterable, key=key)
 
+
+def grouper(iterable, n, fillvalue=None):
+    """
+    Collect data into fixed-length chunks or blocks
+    """
+    # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
+    # Since the same iterator is used, it will yield a new item every time zip
+    # call next() on it
+    args = [iter(iterable)] * n
+    return itertools.zip_longest(*args, fillvalue=fillvalue)
+
 def group_by_value(mapping, key_sort=lambda x: x):
     """
     Group a mapping by its values
