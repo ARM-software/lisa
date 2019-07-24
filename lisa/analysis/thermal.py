@@ -22,6 +22,7 @@ from devlib.utils.misc import list_to_mask, mask_to_list
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.trace import requires_events
+from lisa.datautils import df_refit_index
 
 
 class ThermalAnalysis(TraceAnalysisBase):
@@ -142,9 +143,12 @@ class ThermalAnalysis(TraceAnalysisBase):
         :param thermal_zone_id: ID of the zone
         :type thermal_zone_id: int
         """
+        start = self.trace.start
+        end = self.trace.end
 
         df = self.df_thermal_zones_temperature()
         df = df[df.id == thermal_zone_id]
+        df = df_refit_index(df, start, end)
 
         tz_name = df.thermal_zone.unique()[0]
 
@@ -157,7 +161,7 @@ class ThermalAnalysis(TraceAnalysisBase):
             axis.grid(True)
             axis.set_title("Temperature evolution")
             axis.set_ylabel("Temperature (°C.10e3)")
-            axis.set_xlim(self.trace.start, self.trace.end)
+            axis.set_xlim(start, end)
 
     @TraceAnalysisBase.plot_method()
     @df_cpufreq_cooling_state.used_events
@@ -170,8 +174,11 @@ class ThermalAnalysis(TraceAnalysisBase):
           belongs to the cluster.
         :type cpu: int
         """
+        start = self.trace.start
+        end = self.trace.end
 
         df = self.df_cpufreq_cooling_state([cpu])
+        df = df_refit_index(df, start, end)
         cdev_name = "CPUs {}".format(mask_to_list(df.cpus.unique()[0]))
 
         df.cdev_state.plot(drawstyle="steps-post", ax=axis,
@@ -184,7 +191,7 @@ class ThermalAnalysis(TraceAnalysisBase):
             axis.set_title("cpufreq cooling devices status")
             axis.yaxis.set_major_locator(MaxNLocator(integer=True))
             axis.grid(axis='y')
-            axis.set_xlim(self.trace.start, self.trace.end)
+            axis.set_xlim(start, end)
 
     @TraceAnalysisBase.plot_method()
     def plot_dev_freq_cooling_states(self, device, axis, local_fig):
@@ -194,7 +201,11 @@ class ThermalAnalysis(TraceAnalysisBase):
         :param device: The devfreq devices to consider
         :type device: str
         """
+        start = self.trace.start
+        end = self.trace.end
+
         df = self.df_devfreq_cooling_state([device])
+        df = df_refit_index(df, start, end)
 
         df.cdev_state.plot(drawstyle="steps-post", ax=axis,
                            label="Device \"{}\"".format(device))
@@ -206,7 +217,7 @@ class ThermalAnalysis(TraceAnalysisBase):
             axis.set_title("devfreq cooling devices status")
             axis.yaxis.set_major_locator(MaxNLocator(integer=True))
             axis.grid(axis='y')
-            axis.set_xlim(self.trace.start, self.trace.end)
+            axis.set_xlim(start, end)
 
 ###############################################################################
 # Utility Methods
