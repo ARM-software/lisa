@@ -700,13 +700,16 @@ class Target(Loggable, HideExekallID, Configurable):
         """
         # This assumes that freq domains are tied to "idle domains"
         # We'll have to change this if this assumption no longer holds true
-        for domain in self.target.cpufreq.iter_domains():
-            self.target.cpuidle.disable_all(domain[0])
+
+        logger = self.get_logger()
+        logger.info('Disabling idle states for all domains')
 
         try:
+            for domain in self.target.cpufreq.iter_domains():
+                self.target.cpuidle.disable_all(domain[0])
             yield
-
         finally:
+            logger.info('Re-enabling idle states for all domains')
             for domain in self.target.cpufreq.iter_domains():
                 self.target.cpuidle.enable_all(domain[0])
 
