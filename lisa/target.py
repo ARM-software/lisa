@@ -676,6 +676,10 @@ class Target(Loggable, HideExekallID, Configurable):
                               'Not freezing userspace')
             cm = nullcontext
 
+        elif not self.is_rooted:
+            logger.warning('Target is not rooted, userspace freezing is disabled.')
+            cm = nullcontext
+
         else:
             exclude = self.CRITICAL_TASKS[self.target.os]
 
