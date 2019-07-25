@@ -113,7 +113,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         :type signal: str
         """
-        common_fields = ['cpu']
 
         if signal in ('util', 'load'):
             df = self._df_either_event(['sched_load_cfs_rq', 'sched_load_avg_cpu'])
@@ -122,7 +121,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         else:
             raise ValueError('Signal "{}" not supported'.format(signal))
 
-        return df[[*common_fields, signal]]
+        return df[['cpu', signal]]
 
     @deprecate(replaced_by=df_cpus_signal, deprecated_in='2.0', removed_in='2.1')
     @requires_one_event_of('sched_load_cfs_rq', 'sched_load_avg_cpu')
@@ -160,11 +159,9 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         if signal in ('util', 'load', 'required_capacity'):
             df = self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
-            common_fields = ['cpu', 'comm', 'pid']
 
         elif signal in ('util_est_enqueued', 'util_est_ewma'):
             df = self._df_uniformized_signal('sched_util_est_task')
-            common_fields = ['cpu', 'pid']
         else:
             raise ValueError('Signal "{}" not supported'.format(signal))
 
@@ -181,7 +178,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 return capacities[-1]
             df['required_capacity'] = df.util.map(fits_capacity)
 
-        return df[[*common_fields, signal]]
+        return df[['cpu', 'comm', 'pid', signal]]
 
     @deprecate(replaced_by=df_tasks_signal, deprecated_in='2.0', removed_in='2.1')
     @requires_one_event_of('sched_load_se', 'sched_load_avg_task')
