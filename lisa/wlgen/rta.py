@@ -672,8 +672,11 @@ class Periodic(Pulse):
     :param period_ms: the period used to define the load in milliseconds.
     :param delay_s: the delay in seconds before starting the periodic phase.
 
-    :param sched: the scheduler configuration for this task.
-    :type sched: dict
+    :param priority: the priority for this task.
+    :type priority: int or None
+
+    :param sched_policy: the scheduler policy for this task.
+    :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run.
                 .. note:: if not specified, it can run on all CPUs
