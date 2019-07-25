@@ -135,6 +135,12 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return sorted(cpus)
 
+    def _get_task_pid_name(self, pid):
+        """
+        Get the last name the given PID had.
+        """
+        return self.trace.get_task_pid_names(pid)[-1]
+
 ###############################################################################
 # DataFrame Getter Methods
 ###############################################################################
@@ -153,7 +159,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         wakeups = df.groupby('pid').count()["comm"]
         df = pd.DataFrame(wakeups).rename(columns={"comm" : "wakeups"})
-        df["comm"] = df.index.map(self.trace.get_task_by_pid)
+        df["comm"] = df.index.map(self._get_task_pid_name)
 
         return df
 
@@ -208,7 +214,7 @@ class TasksAnalysis(TraceAnalysisBase):
             columns={'next_pid': 'pid', 'next_prio': 'prio'}, inplace=True)
 
         rt_tasks.set_index('pid', inplace=True)
-        rt_tasks['comm'] = rt_tasks.index.map(self.trace.get_task_by_pid)
+        rt_tasks['comm'] = rt_tasks.index.map(self._get_task_pid_name)
 
         return rt_tasks
 
@@ -402,7 +408,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         df.index.name = "pid"
         df.sort_values(by="runtime", ascending=False, inplace=True)
-        df.insert(0, "comm", df.index.map(self.trace.get_task_by_pid))
+        df.insert(0, "comm", df.index.map(self._get_task_pid_name))
 
         return df
 
@@ -456,7 +462,7 @@ class TasksAnalysis(TraceAnalysisBase):
         res_df = pd.DataFrame()
 
         for pid in [self.trace.get_task_pid(task) for task in tasks]:
-            task = self.trace.get_task_by_pid(pid)
+            task = self._get_task_pid_name(pid)
             mapping = {'runtime': '{}:[{}]'.format(pid, task)}
             _df = self.trace.analysis.tasks.df_task_total_residency(pid).T.rename(index=mapping)
             res_df = res_df.append(_df)

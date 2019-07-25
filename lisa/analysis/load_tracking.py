@@ -228,7 +228,9 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         samples = samples.sort_values(ascending=False)
 
         top_df = pd.DataFrame(samples).rename(columns={"util" : "samples"})
-        top_df["comm"] = top_df.index.map(self.trace.get_task_by_pid)
+        def get_name(pid):
+            return self.trace.get_task_pid_names(pid)[-1]
+        top_df["comm"] = top_df.index.map(get_name)
 
         return top_df
 
@@ -338,7 +340,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         df = df_refit_index(df, start, end)
 
         # Build task names (there could be multiple, during the task lifetime)
-        task_name = 'Task ({}:{})'.format(pid, self.trace.get_task_by_pid(pid))
+        task_name = 'Task ({}:{})'.format(pid, self.trace.get_task_pid_names(pid))
 
         def plotter(axis, local_fig):
             df["required_capacity"].plot(
