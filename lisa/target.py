@@ -667,17 +667,15 @@ class Target(Loggable, HideExekallID, Configurable):
         """
         logger = self.get_logger()
         if 'cgroups' not in self.target.modules:
-            raise RuntimeError(
-                'Failed to freeze userspace. Ensure "cgroups" devlib module is loaded.')
+            raise RuntimeError('Could not freeze userspace: "cgroups" devlib module is necessary')
 
         controllers = [s.name for s in self.target.cgroups.list_subsystems()]
         if 'freezer' not in controllers:
-            logger.warning('No freezer cgroup controller on target. '
-                              'Not freezing userspace')
+            logger.warning('Could not freeze userspace: freezer cgroup controller not available on the target')
             cm = nullcontext
 
         elif not self.is_rooted:
-            logger.warning('Target is not rooted, userspace freezing is disabled.')
+            logger.warning('Could not freeze userspace: target is not rooted')
             cm = nullcontext
 
         else:
