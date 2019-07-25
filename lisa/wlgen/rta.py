@@ -329,23 +329,36 @@ class RTA(Workload):
         logger = cls.get_logger()
 
         # Create calibration task
-        max_rtprio = int(target.execute('ulimit -Hr').split('\r')[0])
-        logger.debug('Max RT prio: %d', max_rtprio)
+        if target.is_rooted:
+            max_rtprio = int(target.execute('ulimit -Hr').split('\r')[0])
+            logger.debug('Max RT prio: %d', max_rtprio)
 
-        if max_rtprio > 10:
-            max_rtprio = 10
+            priority = max_rtprio if max_rtprio <= 10 else 10
+            sched_policy = 'FIFO'
+        else:
+            logger.warning('Will use default scheduler class instead of RT since the target is not rooted')
+            priority = None
+            sched_policy = None
 
         for cpu in target.list_online_cpus():
             logger.info('CPU%d calibration...', cpu)
 
             # RT-app will run a calibration for us, so we just need to
             # run a dummy task and read the output
-            calib_task = Periodic(duty_cycle_pct=100, duration_s=0.001, period_ms=1)
+            calib_task = Periodic(
+                duty_cycle_pct=100,
+                duration_s=0.001,
+                period_ms=1,
+                priority=priority,
+                sched_policy=sched_policy,
+            )
             rta = cls.by_profile(target, name="rta_calib_cpu{}".format(cpu),
                                  profile={'task1': calib_task},
                                  calibration="CPU{}".format(cpu),
                                  res_dir=res_dir)
-            rta.run(as_root=True)
+
+            with target.freeze_userspace():
+                rta.run(as_root=True)
 
             for line in rta.output.split('\n'):
                 pload_match = re.search(pload_regexp, line)
