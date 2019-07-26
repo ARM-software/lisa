@@ -24,7 +24,7 @@ import copy
 
 from devlib.target import KernelVersion
 
-from lisa.trace import Trace
+from lisa.trace import Trace, TaskID
 from lisa.datautils import df_squash
 from lisa.platforms.platinfo import PlatformInfo
 from .utils import StorageTestCase, ASSET_DIR
@@ -83,26 +83,50 @@ class TraceTestCase(StorageTestCase):
 class TestTrace(TraceTestCase):
     """Smoke tests for LISA's Trace class"""
 
-    def test_get_task_by_name(self):
-        """TestTrace: get_task_by_name() returns the list of PIDs for all tasks with the specified name"""
-        for name, pids in [('watchdog/0', [12]),
-                           ('sh', [1642, 1702, 1717, 1718]),
-                           ('NOT_A_TASK', [])]:
-            self.assertEqual(self.trace.get_task_by_name(name), pids)
+    def test_get_task_id(self):
+        for name, pid in [
+            ('watchdog/0', 12),
+            ('jbd2/sda2-8', 1383)
+        ]:
+            task_id = TaskID(pid=pid, comm=name)
+            task_id2 = TaskID(pid=pid, comm=None)
+            task_id3 = TaskID(pid=None, comm=name)
 
-    def test_get_task_by_pid(self):
-        """TestTrace: get_task_by_pid() returns the name of the task with the specified PID"""
-        for pid, names in [(15, 'watchdog/1'),
-                           (1639, 'sshd'),
-                           (987654321, None)]:
-            self.assertEqual(self.trace.get_task_by_pid(pid), names)
+            task_id_tuple = TaskID(pid=None, comm=name)
+
+            for x in (pid, name, task_id, task_id2, task_id3, task_id_tuple):
+                self.assertEqual(self.trace.get_task_id(x), task_id)
+
+        with self.assertRaises(ValueError):
+            for x in ('sh', 'sshd', 1639, 1642, 1702, 1717, 1718):
+                self.trace.get_task_id(x)
+
+    def test_get_task_name_pids(self):
+        for name, pids in [
+            ('watchdog/0', [12]),
+            ('sh', [1642, 1702, 1717, 1718]),
+        ]:
+            self.assertEqual(self.trace.get_task_name_pids(name), pids)
+
+        with self.assertRaises(KeyError):
+            self.trace.get_task_name_pids('NOT_A_TASK')
+
+    def test_get_task_pid_names(self):
+        for pid, names in [
+                (15, ['watchdog/1']),
+                (1639, ['sshd']),
+            ]:
+            self.assertEqual(self.trace.get_task_pid_names(pid), names)
+
+        with self.assertRaises(KeyError):
+            self.trace.get_task_pid_names(987654321)
 
     def test_get_tasks(self):
         """TestTrace: get_tasks() returns a dictionary mapping PIDs to a single task name"""
         tasks_dict = self.trace.get_tasks()
-        for pid, name in [(1, 'init'),
-                          (9, 'rcu_sched'),
-                          (1383, 'jbd2/sda2-8')]:
+        for pid, name in [(1, ['init']),
+                          (9, ['rcu_sched']),
+                          (1383, ['jbd2/sda2-8'])]:
             self.assertEqual(tasks_dict[pid], name)
 
     def test_setTaskName(self):
@@ -113,9 +137,9 @@ class TestTrace(TraceTestCase):
         """
         trace = self.make_trace(in_data)
 
-        self.assertEqual(trace.get_task_by_pid(1234), 'father')
-        self.assertEqual(trace.get_task_by_pid(5678), 'child')
-        self.assertEqual(trace.get_task_by_name('father'), [1234])
+        self.assertEqual(trace.get_task_pid_names(1234), ['father'])
+        self.assertEqual(trace.get_task_pid_names(5678), ['child'])
+        self.assertEqual(trace.get_task_name_pids('father'), [1234])
 
     def test_time_range(self):
         """
