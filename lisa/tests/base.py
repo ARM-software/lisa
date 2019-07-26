@@ -30,13 +30,14 @@ import inspect
 import copy
 
 from lisa.analysis.tasks import TasksAnalysis
-from lisa.trace import Trace, requires_events
+from lisa.trace import Trace, requires_events, TaskID
 from lisa.wlgen.rta import RTA
 
 from lisa.utils import (
     Serializable, memoized, ArtifactPath, non_recursive_property,
     LayeredMapping, update_wrapper_doc
 )
+from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
 
 class TestMetric:
@@ -553,7 +554,8 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
 
     NOISE_ACCOUNTING_THRESHOLDS = {
         # Idle task - ignore completely
-        0 : 100,
+        # note: since it has multiple comms, we need to ignore them
+        TaskID(pid=0, comm=None) : 100,
         # Feeble boards like Juno/TC2 spend a while in sugov
         r"^sugov:\d+$" : 5,
         # The mailbox controller (MHU), now threaded, creates work that sometimes
@@ -684,33 +686,38 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         df = self.trace.analysis.tasks.df_tasks_runtime()
 
         # We don't want to account the test tasks
-        ignored_pids = list(map(self.trace.get_task_pid, self.rtapp_tasks))
+        ignored_ids = list(map(self.trace.get_task_id, self.rtapp_tasks))
 
         def compute_duration_pct(row):
             return row.runtime * 100 / self.trace.time_range
 
         df["runtime_pct"] = df.apply(compute_duration_pct, axis=1)
+        df['pid'] = df.index
 
         # Figure out which PIDs to exclude from the thresholds
         for key, threshold in self.NOISE_ACCOUNTING_THRESHOLDS.items():
             # Find out which task(s) this threshold is about
-            if isinstance(key, int):
-                pids = [key]
-            elif isinstance(key, str):
+            if isinstance(key, str):
                 comms = [comm for comm in df.comm.values if re.match(key, comm)]
-                pids = df[df.comm.isin(comms)].index.values
+                task_ids = [self.trace.get_task_id(comm) for comm in comms]
             else:
-                pids = []
+                # Use update=False to let None fields propagate, as they are
+                # used to indicate a "dont care" value
+                task_ids = [self.trace.get_task_id(key, update=False)]
 
             # For those tasks, check the threshold
-            ignored_pids += [pid for pid in pids if df.loc[pid].runtime_pct <= threshold]
+            ignored_ids.extend(
+                task_id
+                for task_id in task_ids
+                if df_filter_task_ids(df, [task_id]).iloc[0].runtime_pct <= threshold
+            )
 
-        log_pids = ["{} ({})".format(pid, df.loc[pid].comm) for pid in ignored_pids]
-        self.get_logger().info(
-            "Ignored PIDs for noise contribution: %s", ", ".join(log_pids))
+        self.get_logger().info("Ignored PIDs for noise contribution: {}".format(
+            ", ".join(map(str, ignored_ids))
+        ))
 
         # Filter out unwanted tasks (rt-app tasks + thresholds)
-        df_noise = df[~df.index.isin(ignored_pids)]
+        df_noise = df_filter_task_ids(df, ignored_ids, invert=True)
 
         if df_noise.empty:
             return ResultBundle.from_bool(True)

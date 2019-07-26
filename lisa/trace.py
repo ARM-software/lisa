@@ -618,7 +618,7 @@ class Trace(Loggable, TraceBase):
         combinations, instead of raising an exception.
 
         :param task: Either the task name, the task PID, or a tuple ``(pid, comm)``
-        :type task: int or str or tuple(int, str) or TaskID
+        :type task: int or str or tuple(int, str)
 
         :param update: If a partially-filled :class:`TaskID` is passed (one of
             the fields set to ``None``), returns a complete :class`TaskID`
@@ -671,7 +671,7 @@ class Trace(Loggable, TraceBase):
         Helper that resolves a task PID or name to a :class:`TaskID`.
 
         :param task: Either the task name, the task PID, or a tuple ``(pid, comm)``
-        :type task: int or str or tuple(int, str) or TaskID
+        :type task: int or str or tuple(int, str)
 
         :param update: If a partially-filled :class:`TaskID` is passed (one of
             the fields set to ``None``), returns a complete :class`TaskID`
@@ -695,7 +695,7 @@ class Trace(Loggable, TraceBase):
         Helper that takes either a name or a PID and always returns a PID
 
         :param task: Either the task name or the task PID
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
         """
         return self.get_task_id(task).pid
 

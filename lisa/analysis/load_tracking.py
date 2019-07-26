@@ -23,7 +23,7 @@ from lisa.analysis.base import TraceAnalysisBase
 from lisa.analysis.status import StatusAnalysis
 from lisa.trace import requires_one_event_of, may_use_events
 from lisa.utils import deprecate
-from lisa.datautils import df_refit_index
+from lisa.datautils import df_refit_index, df_filter_task_ids
 
 
 class LoadTrackingAnalysis(TraceAnalysisBase):
@@ -296,19 +296,19 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         Plot the task-related load-tracking signals
 
-        :param task: The name or PID of the task
-        :type task: str or int
+        :param task: The name or PID of the task, or a tuple ``(pid, comm)``
+        :type task: str or int or tuple
 
         :param signals: List of signals to plot.
         :type signals: list(str)
         """
-        pid = self.trace.get_task_pid(task)
+        task_id = self.trace.get_task_id(task, update=False)
         start = self.trace.start
         end = self.trace.end
 
         for signal in signals:
             df = self.df_tasks_signal(signal)
-            df = df[df.pid == pid]
+            df = df_filter_task_ids(df, [task_id])
             df = df_refit_index(df, start, end)
             df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
@@ -327,20 +327,19 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         Plot the minimum required capacity of a task
 
-        :param task: The name or PID of the task
-        :type task: str or int
+        :param task: The name or PID of the task, or a tuple ``(pid, comm)``
+        :type task: str or int or tuple
         """
-
-        pid = self.trace.get_task_pid(task)
         start = self.trace.start
         end = self.trace.end
 
+        task_ids = self.trace.get_task_ids(task)
         df = self.df_tasks_signal('required_capacity')
-        df = df[df.pid == pid]
+        df = df_filter_task_ids(df, task_ids)
         df = df_refit_index(df, start, end)
 
         # Build task names (there could be multiple, during the task lifetime)
-        task_name = 'Task ({}:{})'.format(pid, self.trace.get_task_pid_names(pid))
+        task_name = 'Task ({})'.format(', '.join(map(str, task_ids)))
 
         def plotter(axis, local_fig):
             df["required_capacity"].plot(
@@ -365,15 +364,15 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         Plot the CPU placement of the task
 
-        :param task: The name or PID of the task
-        :type task: str or int
+        :param task: The name or PID of the task, or a tuple ``(pid, comm)``
+        :type task: str or int or tuple
         """
 
         # Get all utilization update events
         df = self.df_tasks_signal('required_capacity')
 
-        pid = self.trace.get_task_pid(task)
-        df = df[df.pid == pid]
+        task_id = self.trace.get_task_id(task, update=False)
+        df = df_filter_task_ids(df, [task_id])
 
         cpu_capacities = self.trace.plat_info["cpu-capacities"]
 

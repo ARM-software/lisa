@@ -16,12 +16,14 @@
 #
 
 from enum import Enum
+import itertools
 
 import numpy as np
 import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
+from lisa.datautils import df_filter_task_ids
 from lisa.trace import requires_events
 
 class StateInt(int):
@@ -124,13 +126,14 @@ class TasksAnalysis(TraceAnalysisBase):
         """
         Return the list of CPUs where the ``tasks`` executed.
 
-        :param tasks: Task names or PIDs to look for.
-        :type tasks: list(int or str)
+        :param tasks: Task names or PIDs or ``(pid, comm)`` to look for.
+        :type tasks: list(int or str or tuple(int, str))
         """
         trace = self.trace
-        pids = [trace.get_task_pid(task) for task in tasks]
-        df = trace.df_events('sched_switch')[['next_pid', '__cpu']]
-        df = df[df['next_pid'].isin(pids)]
+        df = trace.df_events('sched_switch')[['next_pid', 'next_comm', '__cpu']]
+
+        task_ids = [trace.get_task_id(task, update=False) for task in tasks]
+        df = df_filter_task_ids(df, task_ids, pid_col='next_pid', comm_col='next_comm')
         cpus = df['__cpu'].unique()
 
         return sorted(cpus)
@@ -246,17 +249,23 @@ class TasksAnalysis(TraceAnalysisBase):
             wkn_df = self.trace.df_events('sched_wakeup_new')
             wk_df = pd.concat([wk_df, wkn_df])
 
-        wk_df = wk_df[wk_df.success == 1][["pid", "target_cpu", "__cpu"]]
+        wk_df = wk_df[wk_df.success == 1][["pid", "comm", "target_cpu", "__cpu"]]
         wk_df["curr_state"] = TaskState.TASK_WAKING
 
-        prev_sw_df = sw_df[["__cpu", "prev_pid", "prev_state"]].copy()
-        next_sw_df = sw_df[["__cpu", "next_pid"]].copy()
+        prev_sw_df = sw_df[["__cpu", "prev_pid", "prev_state", "prev_comm"]].copy()
+        next_sw_df = sw_df[["__cpu", "next_pid", "next_comm"]].copy()
 
-        prev_sw_df.rename(columns={"prev_pid" : "pid", "prev_state" : "curr_state"},
-                          inplace=True)
+        prev_sw_df.rename(
+            columns={
+                "prev_pid": "pid",
+                "prev_state" : "curr_state",
+                "prev_comm": "comm",
+            },
+            inplace=True
+        )
 
         next_sw_df["curr_state"] = TaskState.TASK_ACTIVE
-        next_sw_df.rename(columns={'next_pid' : 'pid'}, inplace=True)
+        next_sw_df.rename(columns={'next_pid': 'pid', 'next_comm': 'comm'}, inplace=True)
 
         all_sw_df = prev_sw_df.append(next_sw_df, sort=False)
 
@@ -316,8 +325,8 @@ class TasksAnalysis(TraceAnalysisBase):
         """
         DataFrame of task's state updates events
 
-        :param task: The task's name or PID
-        :type task: int or str
+        :param task: The task's name or PID or tuple ``(pid, comm)``
+        :type task: int or str or tuple(int, str)
 
         :param stringify: Include stringifed :class:`TaskState` columns
         :type stringify: bool
@@ -332,11 +341,11 @@ class TasksAnalysis(TraceAnalysisBase):
           * A ``delta`` column (the duration for which the task will remain in
             this state)
         """
-        pid = self.trace.get_task_pid(task)
+        task_id = self.trace.get_task_id(task, update=False)
         df = self.df_tasks_states()
 
-        df = df[df.pid == pid].copy()
-        df.drop("pid", axis=1, inplace=True)
+        df = df_filter_task_ids(df, [task_id])
+        df = df.drop(columns=["pid", "comm"])
 
         if stringify:
             self.stringify_df_task_states(df, ["curr_state", "next_state"], inplace=True)
@@ -418,7 +427,7 @@ class TasksAnalysis(TraceAnalysisBase):
         DataFrame of a task's execution time on each CPU
 
         :param task: the task to report runtimes for
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
 
         :returns: a :class:`pandas.DataFrame` with:
 
@@ -448,7 +457,7 @@ class TasksAnalysis(TraceAnalysisBase):
         DataFrame of tasks execution time on each CPU
 
         :param tasks: List of tasks to report, all trace tasks by default
-        :type tasks: list(int or str)
+        :type tasks: list(int or str or tuple(int, str))
 
         :param ascending: Set True to order plot by ascending task runtime
                           False by default
@@ -461,10 +470,14 @@ class TasksAnalysis(TraceAnalysisBase):
             tasks = list(self.trace.get_tasks().keys())
         res_df = pd.DataFrame()
 
-        for pid in [self.trace.get_task_pid(task) for task in tasks]:
-            task = self._get_task_pid_name(pid)
-            mapping = {'runtime': '{}:[{}]'.format(pid, task)}
-            _df = self.trace.analysis.tasks.df_task_total_residency(pid).T.rename(index=mapping)
+        task_ids = itertools.chain.from_iterable(
+            self.trace.get_task_ids(task)
+            for task in tasks
+        )
+
+        for task_id in task_ids:
+            mapping = {'runtime': str(task_id)}
+            _df = self.trace.analysis.tasks.df_task_total_residency(task_id).T.rename(index=mapping)
             res_df = res_df.append(_df)
 
         res_df['Total'] = res_df.iloc[:, :].sum(axis=1)
@@ -480,7 +493,7 @@ class TasksAnalysis(TraceAnalysisBase):
         DataFrame of a task's active time on a given CPU
 
         :param task: the task to report activations of
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
 
         :param cpu: the CPUs to look at. If ``None``, all CPUs will be used.
         :type task: int or None
@@ -530,13 +543,13 @@ class TasksAnalysis(TraceAnalysisBase):
         Plot on which CPUs the task ran on over time
 
         :param task: Task to track
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
         """
 
-        pid = self.trace.get_task_pid(task)
+        task_id = self.trace.get_task_id(task, update=False)
 
         sw_df = self.trace.df_events("sched_switch")
-        sw_df = sw_df[sw_df.next_pid == pid]
+        sw_df = df_filter_task_ids(sw_df, [task_id], pid_col='next_pid', comm_col='next_comm')
 
         if "freq-domains" in self.trace.plat_info:
             # If we are aware of frequency domains, use one color per domain
@@ -571,8 +584,8 @@ class TasksAnalysis(TraceAnalysisBase):
         """
         Plot a task's total time spent on each CPU
 
-        :param task: The task's name or PID
-        :type task: str or int
+        :param task: The task's name or PID or tuple ``(pid, comm)``
+        :type task: str or int or tuple(int, str)
         """
         df = self.df_task_total_residency(task)
 
@@ -593,7 +606,7 @@ class TasksAnalysis(TraceAnalysisBase):
         Plot the stacked total time spent by each task on each CPU
 
         :param tasks: List of tasks to plot, all trace tasks by default
-        :type tasks: list(int or str)
+        :type tasks: list(int or str or tuple(int, str))
 
         :param ascending: Set True to order plot by ascending task runtime,
                           False by default
@@ -759,7 +772,7 @@ class TasksAnalysis(TraceAnalysisBase):
         Plot task activations, in a style similar to kernelshark.
 
         :param task: the task to report activations of
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
 
         :param alpha: transparency level of the plot.
         :type task: float

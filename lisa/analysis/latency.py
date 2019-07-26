@@ -45,7 +45,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         DataFrame of a task's wakeup latencies
 
         :param task: The task's name or PID
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
 
         :returns: a :class:`pandas.DataFrame` with:
 
@@ -66,7 +66,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         DataFrame of a task's preemption latencies
 
         :param task: The task's name or PID
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
 
         :returns: a :class:`pandas.DataFrame` with:
 
@@ -86,7 +86,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         DataFrame of a task's activations
 
         :param task: The task's name or PID
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
 
         :returns: a :class:`pandas.DataFrame` with:
 
@@ -106,7 +106,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         DataFrame of task's runtime each time the task blocks
 
         :param task: The task's name or PID
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
 
         :returns: a :class:`pandas.DataFrame` with:
 
@@ -178,7 +178,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         Plot the latencies of a task over time
 
         :param task: The task's name or PID
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
 
         :param wakeup: Whether to plot wakeup latencies
         :type wakeup: bool
@@ -256,7 +256,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         Plot the latencies Cumulative Distribution Function of a task
 
         :param task: The task's name or PID
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
 
         :param wakeup: Whether to plot wakeup latencies
         :type wakeup: bool
@@ -292,7 +292,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         Plot the latencies histogram of a task
 
         :param task: The task's name or PID
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
 
         :param wakeup: Whether to plot wakeup latencies
         :type wakeup: bool
@@ -323,7 +323,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         Draw the task wakeup/preemption latencies as colored bands
 
         :param task: The task's name or PID
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
         """
 
         wkl_df = self.df_latency_wakeup(task)
@@ -352,7 +352,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         Plot the :meth:`lisa.analysis.latency.LatencyAnalysis.df_activations` of a task
 
         :param task: The task's name or PID
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
         """
 
         wkp_df = self.df_activations(task)
@@ -374,7 +374,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         Plot the :meth:`lisa.analysis.latency.LatencyAnalysis.df_runtimes` of a task
 
         :param task: The task's name or PID
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
         """
         df = self.df_runtimes(task)
 
