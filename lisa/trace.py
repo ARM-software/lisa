@@ -41,8 +41,6 @@ from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, StrList, Con
 import devlib
 from devlib.target import KernelVersion
 
-NON_IDLE_STATE = -1
-
 class TraceBase(abc.ABC):
     """
     Base class for common functionalities between :class:`Trace` and :class:`TraceView`
