@@ -478,7 +478,7 @@ class RTATestBundleMeta(abc.ABCMeta):
           decorator.
 
         * :class:`lisa.trace.FtraceConf` specified by the user and passed to
-          :meth:`lisa.trace.FtraceConf.from_user_conf`
+          :meth:`lisa.trace.FtraceCollector.from_user_conf`
     """
 
     def __new__(metacls, name, bases, dct, **kwargs):
