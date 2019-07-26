@@ -1116,8 +1116,13 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
 
         def make_msg(style=None):
             if replaced_by is not None:
-                replacement_msg = ', use {} instead'.format(
-                    getname(replaced_by, style=style)
+                try:
+                    doc_url = ' (see: {})'.format(get_doc_url(replaced_by))
+                except Exception:
+                    doc_url = ''
+
+                replacement_msg = ', use {} instead{}'.format(
+                    getname(replaced_by, style=style), doc_url,
                 )
             else:
                 replacement_msg = ''
