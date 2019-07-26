@@ -208,7 +208,7 @@ class LatencyAnalysis(TraceAnalysisBase):
                 df.plot(ax=axis, style='+', label="Preemption")
 
 
-        axis.set_title("Latencies of task \"{}\"".format(task))
+        axis.set_title('Latencies of task "{}"'.format(task))
         axis.set_ylabel("Latency (s)")
         axis.legend()
         axis.set_xlim(self.trace.start, self.trace.end)
@@ -278,7 +278,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         axis.axvspan(0, threshold_s, facecolor=self.LATENCY_THRESHOLD_ZONE_COLOR,
                      alpha=0.5, label="{}ms threshold zone".format(threshold_ms));
 
-        axis.set_title("Latencies CDF of task \"{}\"".format(task))
+        axis.set_title('Latencies CDF of task "{}"'.format(task))
         axis.set_xlabel("Latency (s)")
         axis.set_ylabel("Latencies below the x value (%)")
         axis.legend()
@@ -311,7 +311,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         axis.axvspan(0, threshold_s, facecolor=self.LATENCY_THRESHOLD_ZONE_COLOR, alpha=0.5,
                      label="{}ms threshold zone".format(threshold_ms));
 
-        axis.set_title("Latencies histogram of task \"{}\"".format(task))
+        axis.set_title('Latencies histogram of task "{}"'.format(task))
         axis.set_xlabel("Latency (s)")
         axis.legend()
 
@@ -363,7 +363,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
-        axis.set_title("Activation intervals of task \"{}\"".format(task))
+        axis.set_title('Activation intervals of task "{}"'.format(task))
 
         axis.set_xlim(self.trace.start, self.trace.end)
 
@@ -384,7 +384,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
-        axis.set_title("Per-activation runtimes of task \"{}\"".format(task))
+        axis.set_title('Per-activation runtimes of task "{}"'.format(task))
 
         axis.set_xlim(self.trace.start, self.trace.end)
 
