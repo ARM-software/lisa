@@ -19,12 +19,10 @@
 
 import abc
 import copy
-import numpy as np
+import numbers
 import os
 import os.path
-import pandas as pd
 import sys
-import trappy
 import json
 import warnings
 import operator
@@ -34,12 +32,40 @@ import inspect
 import shlex
 from functools import reduce, wraps
 from collections.abc import Sequence
+from collections import namedtuple
+
+import numpy as np
+import pandas as pd
+
+import trappy
+import devlib
+from devlib.target import KernelVersion
 
 from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, StrList, Configurable
-import devlib
-from devlib.target import KernelVersion
+
+class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
+    """
+    Unique identifier of a logical task in a :class:`Trace`.
+
+    :param pid: PID of the task. ``None`` indicates the PID is not important.
+    :type pid: int
+
+    :param comm: Name of the task. ``None`` indicates the name is not important.
+        This is useful to describe tasks like PID0, which can have multiple
+        names associated.
+    :type comm: str
+    """
+
+    # Prevent creation of a __dict__. This allows a more compact representation
+    __slots__ = []
+
+    def __str__(self):
+        if self != (None, None):
+            return '{}:{}'.format(self.pid, self.comm)
+        else:
+            str(self.comm if self.comm is not None else self.pid)
 
 class TraceBase(abc.ABC):
     """
@@ -585,6 +611,84 @@ class Trace(Loggable, TraceBase):
 
         return name_list[-1]
 
+    def get_task_ids(self, task, update=True):
+        """
+        Similar to :meth:`get_task_id` but returns a list with all the
+        combinations, instead of raising an exception.
+
+        :param task: Either the task name, the task PID, or a tuple ``(pid, comm)``
+        :type task: int or str or tuple(int, str) or TaskID
+
+        :param update: If a partially-filled :class:`TaskID` is passed (one of
+            the fields set to ``None``), returns a complete :class`TaskID`
+            instead of leaving the ``None`` fields.
+        :type update: bool
+        """
+
+        def comm_to_pid(comm):
+            try:
+                pid_list = self._task_name_map[comm]
+            except IndexError:
+                raise ValueError('trace does not have any task named "{}"'.format(comm))
+
+            return pid_list
+
+        def pid_to_comm(pid):
+            try:
+                comm_list = self._task_pid_map[pid]
+            except IndexError:
+                raise ValueError('trace does not have any task PID {}'.format(pid))
+
+            return comm_list
+
+
+        if isinstance(task, str):
+            task_ids = [
+                TaskID(pid=pid, comm=task)
+                for pid in comm_to_pid(task)
+            ]
+        elif isinstance(task, numbers.Number):
+            task_ids = [
+                TaskID(pid=task, comm=comm)
+                for comm in pid_to_comm(task)
+            ]
+        else:
+            pid, comm = task
+            if pid is None and comm is None:
+                raise ValueError('TaskID needs to have at least one of PID or comm specified')
+
+            if update:
+                non_none = pid if comm is None else comm
+                task_ids = self.get_task_ids(non_none)
+            else:
+                task_ids = [TaskID(pid=pid, comm=comm)]
+
+        return task_ids
+
+    def get_task_id(self, task, update=True):
+        """
+        Helper that resolves a task PID or name to a :class:`TaskID`.
+
+        :param task: Either the task name, the task PID, or a tuple ``(pid, comm)``
+        :type task: int or str or tuple(int, str) or TaskID
+
+        :param update: If a partially-filled :class:`TaskID` is passed (one of
+            the fields set to ``None``), returns a complete :class`TaskID`
+            instead of leaving the ``None`` fields.
+        :type update: bool
+
+        :raises ValueError: If there the input matches multiple tasks in the trace.
+            See :meth:`get_task_ids` to get all the ambiguous alternatives
+            instead of an exception.
+        """
+        task_ids = self.get_task_ids(task, update=update)
+        if len(task_ids) > 1:
+            raise ValueError('More than one TaskID matching: {}'.format(task_ids))
+
+        return task_ids[0]
+
+
+    @deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=get_task_id)
     def get_task_pid(self, task):
         """
         Helper that takes either a name or a PID and always returns a PID
@@ -592,22 +696,7 @@ class Trace(Loggable, TraceBase):
         :param task: Either the task name or the task PID
         :type task: int or str
         """
-        if isinstance(task, str):
-            try:
-                pid_list = self._task_name_map[task]
-            except IndexError:
-                raise ValueError('trace does not have any task named "{}"'.format(task))
-
-            if len(pid_list) > 1:
-                raise RuntimeError('More than one PID found for task "{}": {}'.format(
-                    task, pid_list,
-                ))
-
-            pid = pid_list[0]
-        else:
-            pid = task
-
-        return pid
+        return self.get_task_id(task).pid
 
     def get_tasks(self):
         """
