@@ -37,7 +37,7 @@ from devlib import Platform
 from devlib.platform.gem5 import Gem5SimulationPlatform
 
 from lisa.wlgen.rta import RTA
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrList, Configurable
 
 from lisa.platforms.platinfo import PlatformInfo
@@ -667,28 +667,31 @@ class Target(Loggable, HideExekallID, Configurable):
         """
         logger = self.get_logger()
         if 'cgroups' not in self.target.modules:
-            raise RuntimeError(
-                'Failed to freeze userspace. Ensure "cgroups" module is listed '
-                'among modules in target/test configuration')
+            raise RuntimeError('Could not freeze userspace: "cgroups" devlib module is necessary')
 
         controllers = [s.name for s in self.target.cgroups.list_subsystems()]
         if 'freezer' not in controllers:
-            logger.warning('No freezer cgroup controller on target. '
-                              'Not freezing userspace')
-            yield
-            return
+            logger.warning('Could not freeze userspace: freezer cgroup controller not available on the target')
+            cm = nullcontext
 
-        exclude = self.CRITICAL_TASKS[self.target.os]
-        logger.info('Freezing all tasks except: %s', ','.join(exclude))
-        self.target.cgroups.freeze(exclude)
+        elif not self.is_rooted:
+            logger.warning('Could not freeze userspace: target is not rooted')
+            cm = nullcontext
 
-        try:
-            yield
+        else:
+            exclude = self.CRITICAL_TASKS[self.target.os]
 
-        finally:
-            logger.info('Un-freezing userspace tasks')
-            self.target.cgroups.freeze(thaw=True)
+            @contextlib.contextmanager
+            def cm():
+                logger.info('Freezing all tasks except: %s', ','.join(exclude))
+                try:
+                    yield self.target.cgroups.freeze(exclude)
+                finally:
+                    logger.info('Un-freezing userspace tasks')
+                    self.target.cgroups.freeze(thaw=True)
 
+        with cm() as x:
+            yield x
 
     @contextlib.contextmanager
     def disable_idle_states(self):
@@ -697,13 +700,16 @@ class Target(Loggable, HideExekallID, Configurable):
         """
         # This assumes that freq domains are tied to "idle domains"
         # We'll have to change this if this assumption no longer holds true
-        for domain in self.target.cpufreq.iter_domains():
-            self.target.cpuidle.disable_all(domain[0])
+
+        logger = self.get_logger()
+        logger.info('Disabling idle states for all domains')
 
         try:
+            for domain in self.target.cpufreq.iter_domains():
+                self.target.cpuidle.disable_all(domain[0])
             yield
-
         finally:
+            logger.info('Re-enabling idle states for all domains')
             for domain in self.target.cpufreq.iter_domains():
                 self.target.cpuidle.enable_all(domain[0])
 
