@@ -350,7 +350,18 @@ class Target(Loggable, HideExekallID, Configurable):
         return cls.from_conf(conf=conf, plat_info=plat_info)
 
     @classmethod
-    def from_cli(cls, argv=None) -> 'Target':
+    def from_cli(cls, *args, **kwargs) -> 'Target':
+        """
+        Same as :meth:`from_custom_cli` without the custom parameters
+        capabilities.
+
+        :return: A connected :class:`Target`
+        """
+        args, target = cls.from_custom_cli(*args, **kwargs)
+        return target
+
+    @classmethod
+    def from_custom_cli(cls, argv=None, params=None) -> 'Target':
         """
         Create a Target from command line arguments.
 
@@ -358,9 +369,15 @@ class Target(Loggable, HideExekallID, Configurable):
           this is ``None``.
         :type argv: list(str)
 
-        Trying to use this in a script that expects extra arguments is bound
-        to be confusing (help message woes, argument clashes...), so for now
-        this should only be used in scripts that only expect Target args.
+        :param params: Dictionary of custom parameters to add to the parser. It
+            is in the form of
+            ``{param_name: {dict of ArgumentParser.add_argument() options}}``.
+        :type params: dict(str, dict)
+
+        :return: A tuple ``(args, target)``
+
+        .. note:: This method should not be relied upon to implement long-term
+            scripts, it's more designed for quick scripting.
         """
         parser = argparse.ArgumentParser(
             formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -416,10 +433,16 @@ class Target(Loggable, HideExekallID, Configurable):
         parser.add_argument("--res-dir", "-o",
                             help="Result directory of the created Target. If no directory is specified, a default location under $LISA_HOME will be used.")
 
+        params = params or {}
+        for param, settings in params.items():
+            parser.add_argument('--{}'.format(param), **settings)
+        custom_params = {k.replace('-', '_') for k in params.keys()}
+
         # Options that are not a key in TargetConf must be listed here
-        not_target_conf_opt = (
+        not_target_conf_opt = {
             'platform_info', 'log_level', 'res_dir', 'target_conf',
-        )
+        }
+        not_target_conf_opt.update(custom_params)
 
         args = parser.parse_args(argv)
         setup_logging(level=args.log_level.upper())
@@ -440,7 +463,14 @@ class Target(Loggable, HideExekallID, Configurable):
                 {k : v for k, v in vars(args).items()
                  if v is not None and k not in not_target_conf_opt})
 
-        return cls.from_conf(conf=target_conf, plat_info=platform_info, res_dir=args.res_dir)
+        custom_args = {
+            param: value
+            for param, value in vars(args).items()
+            if param in custom_params
+        }
+        custom_args = argparse.Namespace(**custom_args)
+
+        return custom_args, cls.from_conf(conf=target_conf, plat_info=platform_info, res_dir=args.res_dir)
 
     def _init_target(self, kind, name, workdir, device, host,
             port, username, password, keyfile,
