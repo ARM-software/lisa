@@ -121,6 +121,10 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('keyfile', 'SSH private key file', [str, None]),
         KeyDesc('workdir', 'Remote target workdir', [str]),
         KeyDesc('tools', 'List of tools to install on the target', [StrList]),
+        LevelKeyDesc('wait-boot', 'Wait for the target to finish booting', (
+                KeyDesc('enable', 'Enable the boot check', [bool]),
+                KeyDesc('timeout', 'Timeout of the boot check', [int]),
+        )),
         LevelKeyDesc('devlib', 'devlib configuration', (
             # Using textual name of the Platform allows this YAML configuration
             # to not use any python-specific YAML tags, so TargetConf files can
@@ -197,13 +201,15 @@ class Target(Loggable, HideExekallID, Configurable):
 
     CONF_CLASS = TargetConf
     INIT_KWARGS_KEY_MAP = {
-        'devlib_excluded_modules': ['devlib', 'excluded-modules']
+        'devlib_excluded_modules': ['devlib', 'excluded-modules'],
+        'wait_boot': ['wait-boot', 'enable'],
+        'wait_boot_timeout': ['wait-boot', 'timeout'],
     }
 
     def __init__(self, kind, name='<noname>', tools=[], res_dir=None,
         plat_info=None, workdir=None, device=None, host=None, port=None,
         username='root', password=None, keyfile=None, devlib_platform=None,
-        devlib_excluded_modules=[]
+        devlib_excluded_modules=[], wait_boot=True, wait_boot_timeout=10,
     ):
 
         super().__init__()
@@ -255,6 +261,8 @@ class Target(Loggable, HideExekallID, Configurable):
                 keyfile=keyfile,
                 devlib_platform=devlib_platform,
                 devlib_excluded_modules=devlib_excluded_modules,
+                wait_boot=wait_boot,
+                wait_boot_timeout=wait_boot_timeout,
             )
 
         # Initialize binary tools to deploy
@@ -436,7 +444,9 @@ class Target(Loggable, HideExekallID, Configurable):
 
     def _init_target(self, kind, name, workdir, device, host,
             port, username, password, keyfile,
-            devlib_platform, devlib_excluded_modules):
+            devlib_platform, devlib_excluded_modules,
+            wait_boot, wait_boot_timeout,
+    ):
         """
         Initialize the Target
         """
@@ -532,7 +542,10 @@ class Target(Loggable, HideExekallID, Configurable):
             load_default_modules = False,
             connection_settings = conn_settings,
             working_directory = workdir,
+            connect=False,
         )
+
+        target.connect(check_boot_completed=wait_boot, timeout=wait_boot_timeout)
 
         logger.debug('Checking target connection...')
         logger.debug('Target info:')
