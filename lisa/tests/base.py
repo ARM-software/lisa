@@ -638,7 +638,7 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
 
     @classmethod
     def _filepath(cls, res_dir):
-        return os.path.join(res_dir, "{}.yaml".format(cls.__qualname__))
+        return ArtifactPath.join(res_dir, "{}.yaml".format(cls.__qualname__))
 
     @classmethod
     def from_dir(cls, res_dir, update_res_dir=True):
@@ -808,7 +808,7 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         """
         Path to the ``trace-cmd report`` trace.dat file.
         """
-        return os.path.join(self.res_dir, self.TRACE_PATH)
+        return ArtifactPath.join(self.res_dir, self.TRACE_PATH)
 
     # Guard before the cache, so we don't accidentally start depending on the
     # LRU cache for functionnal correctness.
@@ -1058,8 +1058,8 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.lower()),
                                profile, res_dir=res_dir)
 
-        trace_path = os.path.join(res_dir, cls.TRACE_PATH)
-        dmesg_path = os.path.join(res_dir, cls.DMESG_PATH)
+        trace_path = ArtifactPath.join(res_dir, cls.TRACE_PATH)
+        dmesg_path = ArtifactPath.join(res_dir, cls.DMESG_PATH)
         ftrace_coll = ftrace_coll or FtraceCollector.from_conf(target, cls.ftrace_conf)
         dmesg_coll = DmesgCollector(target)
 

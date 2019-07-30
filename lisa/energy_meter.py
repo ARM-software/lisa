@@ -475,7 +475,7 @@ class ACME(EnergyMeter):
             ch_id = self._channels[channel]
 
             # Setup CSV file to collect samples for this channel
-            csv_file = os.path.join(self._res_dir, 'samples_{}.csv'.format(channel))
+            csv_file = ArtifactPath.join(self._res_dir, 'samples_{}.csv'.format(channel))
 
             # Start a dedicated iio-capture instance for this channel
             self._iio[ch_id] = Popen(['stdbuf', '-i0', '-o0', '-e0',
@@ -570,10 +570,8 @@ class ACME(EnergyMeter):
             logger.debug(self._str(channel))
             logger.debug(nrg)
 
-            # Save CSV samples file to out_dir
-            os.system('mv {} {}'.format(
-                os.path.join(self._res_dir, 'samples_{}.csv'.format(channel)),
-                out_dir))
+            src = os.path.join(self._res_dir, 'samples_{}.csv'.format(channel))
+            shutil.move(src, out_dir)
 
             # Add channel's energy to return results
             channels_nrg['{}'.format(channel)] = nrg['energy']

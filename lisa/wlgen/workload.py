@@ -20,7 +20,7 @@ import os
 
 from devlib.utils.misc import list_to_mask
 
-from lisa.utils import Loggable
+from lisa.utils import Loggable, ArtifactPath
 
 class Workload(Loggable):
     """
@@ -139,7 +139,7 @@ class Workload(Loggable):
             self.output = target.execute(_command, as_root=as_root, timeout=timeout)
             logger.info("Execution complete")
 
-            logfile = os.path.join(self.res_dir, 'output.log')
+            logfile = ArtifactPath.join(self.res_dir, 'output.log')
             logger.debug('Saving stdout to %s...', logfile)
 
             with open(logfile, 'w') as ofile:

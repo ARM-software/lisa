@@ -60,7 +60,7 @@ class UserspaceSanity(TestBundle):
                                   (1 if len(freqs) % 2 else 0)]
 
                 for freq in freqs:
-                    sysbench_res_dir = os.path.join(res_dir, 'CPU{}@{}'.format(cpu, freq))
+                    sysbench_res_dir = ArtifactPath.join(res_dir, 'CPU{}@{}'.format(cpu, freq))
                     os.makedirs(sysbench_res_dir)
                     sysbench = Sysbench(target, "sysbench", sysbench_res_dir)
 
