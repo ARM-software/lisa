@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 
 from lisa.tests.base import Result, ResultBundle, TestBundle
 from lisa.wlgen.sysbench import Sysbench
@@ -47,7 +48,6 @@ class UserspaceSanity(TestBundle):
         governor
         """
         cpu_work = {}
-        sysbench = Sysbench(target, "sysbench", res_dir)
 
         with target.cpufreq.use_governor("userspace"):
             for domain in target.cpufreq.iter_domains():
@@ -60,6 +60,10 @@ class UserspaceSanity(TestBundle):
                                   (1 if len(freqs) % 2 else 0)]
 
                 for freq in freqs:
+                    sysbench_res_dir = os.path.join(res_dir, 'CPU{}@{}'.format(cpu, freq))
+                    os.makedirs(sysbench_res_dir)
+                    sysbench = Sysbench(target, "sysbench", sysbench_res_dir)
+
                     target.cpufreq.set_frequency(cpu, freq)
                     sysbench.run(cpus=[cpu], max_duration_s=1)
                     cpu_work[cpu][freq] = sysbench.output.nr_events
