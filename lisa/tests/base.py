@@ -664,9 +664,9 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         super().to_path(self._filepath(res_dir))
 
 
-class RTATestBundleMeta(TestBundleMeta):
+class FtraceTestBundleMeta(TestBundleMeta):
     """
-    Metaclass of :class:`RTATestBundle`.
+    Metaclass of :class:`FtraceTestBundle`.
 
     This metaclass ensures that each class will get its own copy of
     ``ftrace_conf`` attribute, and that the events specified in that
@@ -729,7 +729,7 @@ class RTATestBundleMeta(TestBundleMeta):
         return new_cls
 
 
-class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
+class FtraceTestBundle(TestBundle, metaclass=FtraceTestBundleMeta):
     """
     Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
 
@@ -738,7 +738,7 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
     workload is being run. By default, the required events are extracted from
     decorated test methods.
 
-    .. seealso: :class:`lisa.tests.base.RTATestBundleMeta` for default
+    .. seealso: :class:`lisa.tests.base.FtraceTestBundleMeta` for default
         ``ftrace_conf`` content.
     """
 
@@ -746,6 +746,49 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
     """
     Path to the ``trace-cmd`` trace.dat file in the result directory.
     """
+
+    @property
+    def trace_path(self):
+        """
+        Path to the ``trace-cmd report`` trace.dat file.
+        """
+        return ArtifactPath.join(self.res_dir, self.TRACE_PATH)
+
+    # Guard before the cache, so we don't accidentally start depending on the
+    # LRU cache for functionnal correctness.
+    @non_recursive_property
+    @memoized
+    def trace(self):
+        """
+        :returns: a :class:`lisa.trace.TraceView`
+
+        All events specified in ``ftrace_conf`` are parsed from the trace,
+        so it is suitable for direct use in methods.
+
+        Having the trace as a property lets us defer the loading of the actual
+        trace to when it is first used. Also, this prevents it from being
+        serialized when calling :meth:`lisa.utils.Serializable.to_path` and
+        allows updating the underlying path before it is actually loaded to
+        match a different folder structure.
+        """
+        return self.get_trace(events=self.ftrace_conf["events"])
+
+    def get_trace(self, **kwargs):
+        """
+        :returns: a :class:`lisa.trace.Trace` collected in the standard location.
+
+        :Keyword arguments: forwarded to :class:`lisa.trace.Trace`.
+        """
+        return Trace(self.trace_path, self.plat_info, **kwargs)
+
+class RTATestBundle(FtraceTestBundle):
+    """
+    Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
+
+    .. seealso: :class:`lisa.tests.base.FtraceTestBundleMeta` for default
+        ``ftrace_conf`` content.
+    """
+
     DMESG_PATH = 'dmesg.log'
     """
     Path to the dmesg log in the result directory.
@@ -804,42 +847,6 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         return (rta_start, rta_stop)
 
     @property
-    def trace_path(self):
-        """
-        Path to the ``trace-cmd report`` trace.dat file.
-        """
-        return ArtifactPath.join(self.res_dir, self.TRACE_PATH)
-
-    # Guard before the cache, so we don't accidentally start depending on the
-    # LRU cache for functionnal correctness.
-    @non_recursive_property
-    @memoized
-    def trace(self):
-        """
-        :returns: a :class:`lisa.trace.TraceView`
-
-        All events specified in ``ftrace_conf`` are parsed from the trace,
-        so it is suitable for direct use in methods.
-
-        Having the trace as a property lets us defer the loading of the actual
-        trace to when it is first used. Also, this prevents it from being
-        serialized when calling :meth:`lisa.utils.Serializable.to_path` and
-        allows updating the underlying path before it is actually loaded to
-        match a different folder structure.
-        """
-        return self.get_trace(events=self.ftrace_conf["events"])
-
-    def get_trace(self, **kwargs):
-        """
-        :returns: a :class:`lisa.trace.TraceView` cropped to fit the ``rt-app``
-            tasks.
-
-        :Keyword arguments: forwarded to :class:`lisa.trace.Trace`.
-        """
-        trace = Trace(self.trace_path, self.plat_info, **kwargs)
-        return trace.get_view(self.trace_window(trace))
-
-    @property
     def rtapp_profile(self):
         """
         Compute the RTapp profile based on ``plat_info``.
@@ -860,6 +867,16 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         Compute the cgroup configuration based on ``plat_info``
         """
         return self.get_cgroup_configuration(self.plat_info)
+
+    def get_trace(self, **kwargs):
+        """
+        :returns: a :class:`lisa.trace.TraceView` cropped to fit the ``rt-app``
+            tasks.
+
+        :Keyword arguments: forwarded to :class:`lisa.trace.Trace`.
+        """
+        trace = Trace(self.trace_path, self.plat_info, **kwargs)
+        return trace.get_view(self.trace_window(trace))
 
     @TasksAnalysis.df_tasks_runtime.used_events
     def test_noisy_tasks(self, noise_threshold_pct=None, noise_threshold_ms=None):
