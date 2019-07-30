@@ -1207,6 +1207,7 @@ class LegacyEnergyModel(EnergyModel):
                    root_power_domain=root_pd,
                    freq_domains=freq_domains)
 
+    @classmethod
     def _find_core_groups(cls, target):
         """
         Read the core_siblings masks for each CPU from sysfs
