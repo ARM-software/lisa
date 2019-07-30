@@ -240,17 +240,23 @@ class InvarianceItem(LoadTrackingBase):
 
     @property
     def rtapp_profile(self):
-        return self.get_rtapp_profile(self.plat_info, cpu=self.cpu)
+        return self.get_rtapp_profile(self.plat_info, cpu=self.cpu, freq=self.freq)
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info, cpu):
+    def get_rtapp_profile(cls, plat_info, cpu, freq):
         """
         Get a specification for a rt-app workload with the specificied duty
         cycle, pinned to the given CPU.
         """
+        freq_capa = cls._get_freq_capa(cpu, freq, plat_info)
+        duty_cycle_pct = freq_capa/UTIL_SCALE * 100
+        # Use half of the capacity at that OPP, so we are sure that the
+        # task will fit even at the lowest OPP
+        duty_cycle_pct //= 2
+
         rtapp_profile = {}
         rtapp_profile["{}_cpu{}".format(cls.task_prefix, cpu)] = Periodic(
-            duty_cycle_pct=10,
+            duty_cycle_pct=duty_cycle_pct,
             duration_s=2,
             period_ms=cls.TASK_PERIOD_MS,
             cpus=[cpu],
@@ -278,7 +284,7 @@ class InvarianceItem(LoadTrackingBase):
     @classmethod
     def _from_target(cls, target, res_dir, cpu, freq, freq_list, ftrace_coll):
         plat_info = target.plat_info
-        rtapp_profile = cls.get_rtapp_profile(plat_info, cpu)
+        rtapp_profile = cls.get_rtapp_profile(plat_info, cpu, freq)
         logger = cls.get_logger()
 
         with target.cpufreq.use_governor(**cls.cpufreq_conf):
@@ -331,17 +337,22 @@ class InvarianceItem(LoadTrackingBase):
 
         return ok, exp_signal, signal_mean
 
+    @staticmethod
+    def _get_freq_capa(cpu, freq, plat_info):
+        capacity = plat_info['cpu-capacities'][cpu]
+        # Scale the capacity linearly according to the frequency
+        max_freq = max(plat_info['freqs'][cpu])
+        capacity *= freq / max_freq
+
+        return capacity
+
     @_test_task_signal.used_events
     def _test_signal(self, signal_name, allowed_error_pct):
         passed = True
         expected_data = {}
         trace_data = {}
 
-        capacity = self.plat_info['cpu-capacities'][self.cpu]
-
-        # Scale the capacity linearly according to the frequency
-        max_freq = max(self.plat_info['freqs'][self.cpu])
-        capacity *= (self.freq / max_freq)
+        capacity = self._get_freq_capa(self.cpu, self.freq, self.plat_info)
 
         for name, task in self.rtapp_profile.items():
             ok, exp_util, signal_mean = self._test_task_signal(
@@ -463,6 +474,8 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             # If we have loads of frequencies just test a cross-section so it
             # doesn't take all day
             freq_list = all_freqs[::len(all_freqs) // 8 + (1 if len(all_freqs) % 2 else 0)]
+            # Make sure the last one is the max freq
+            freq_list[-1] = all_freqs[-1]
 
             # Make sure we have increasing frequency order, to make the logs easier
             # to navigate
