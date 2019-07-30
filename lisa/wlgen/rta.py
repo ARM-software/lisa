@@ -420,7 +420,7 @@ class Phase(Loggable):
     :type period_ms: int
 
     :param duty_cycle_pct: the generated load in [%].
-    :type duty_cycle_pct: int
+    :type duty_cycle_pct: numbers.Number
 
     :param cpus: the CPUs on which task execution is restricted during this phase.
     :type cpus: list(int)
@@ -482,7 +482,9 @@ class Phase(Loggable):
                 cloops = duration // period
 
             sleep_time = period * (100 - self.duty_cycle_pct) // 100
-            running_time = period - sleep_time
+            # rtapp fails to handle floating values correctly
+            # https://github.com/scheduler-tools/rt-app/issues/82
+            running_time = int(period - sleep_time)
 
             logger.info(' | duration %.6f [s] (%d loops)',
                              duration/1e6, cloops)
