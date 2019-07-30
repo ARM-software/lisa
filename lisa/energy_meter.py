@@ -37,13 +37,12 @@ import pandas as pd
 import devlib
 
 from lisa.utils import Loggable, get_subclasses, ArtifactPath, HideExekallID
+from lisa.datautils import series_integrate
 from lisa.conf import (
     SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable,
     StrList, FloatList
 )
 from lisa.target import Target
-
-from bart.common.Utils import area_under_curve
 
 # Default energy measurements for each board
 EnergyReport = namedtuple('EnergyReport',
@@ -297,7 +296,7 @@ class _DevlibContinuousEnergyMeter(EnergyMeter):
         channels_nrg = {}
         for site, measure in df:
             if measure == 'power':
-                channels_nrg[site] = area_under_curve(df[site]['power'])
+                channels_nrg[site] = series_integrate(df[site]['power'], method='trapz')
         return channels_nrg
 
 class AEPConf(SimpleMultiSrcConf, HideExekallID):

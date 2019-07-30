@@ -33,7 +33,6 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_hex
 
-from bart.common.Utils import area_under_curve
 from devlib.target import KernelVersion
 from trappy.utils import handle_duplicate_index
 
@@ -43,6 +42,7 @@ from lisa.platforms.platinfo import PlatformInfo
 from lisa.trace import Trace
 from lisa.git import find_shortest_symref
 from lisa.utils import Loggable, memoized
+from lisa.datautils import series_integrate, series_mean
 
 class WaResultsCollector(Loggable):
     """
@@ -434,7 +434,7 @@ class WaResultsCollector(Loggable):
                 df = df[df.cpu == cluster[0]]
                 metrics.append(('freq_transition_count_{}'.format(name), len(df), None))
 
-                active_time = area_under_curve(trace.getClusterActiveSignal(cluster))
+                active_time = series_integrate(trace.getClusterActiveSignal(cluster))
                 metrics.append(('active_time_cluster_{}'.format(name),
                                 active_time, 'seconds'))
 
@@ -458,7 +458,7 @@ class WaResultsCollector(Loggable):
             df = trace.df_events(event)
             util_sum = (handle_duplicate_index(df)[row_filter]
                         .pivot(columns='cpu')[column].ffill().sum(axis=1))
-            avg_util_sum = area_under_curve(util_sum) / (util_sum.index[-1] - util_sum.index[0])
+            avg_util_sum = series_mean(util_sum)
             metrics.append(('avg_util_sum', avg_util_sum, None))
 
         if trace.has_events('thermal_temperature'):
@@ -471,8 +471,7 @@ class WaResultsCollector(Loggable):
                 if len(zone_df == 1): # Avoid division by 0
                     avg_tmp = zone_df['temp'].iloc[0]
                 else:
-                    avg_tmp = (area_under_curve(zone_df['temp'])
-                               / (zone_df.index[-1] - zone_df.index[0]))
+                    avg_tmp = series_mean(zone_df['temp'])
 
                 metrics.append(('tz_{}_avg_temp'.format(zone),
                                 avg_tmp,
