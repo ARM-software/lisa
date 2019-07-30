@@ -474,6 +474,8 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             # If we have loads of frequencies just test a cross-section so it
             # doesn't take all day
             freq_list = all_freqs[::len(all_freqs) // 8 + (1 if len(all_freqs) % 2 else 0)]
+            # Make sure the last one is the max freq
+            freq_list[-1] = all_freqs[-1]
 
             # Make sure we have increasing frequency order, to make the logs easier
             # to navigate
