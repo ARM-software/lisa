@@ -470,10 +470,19 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
             data = data[toplevel_key]
         return cls.from_map(data, add_default_src=add_default_src)
 
-    def to_yaml_map(self, path):
+    @property
+    def as_yaml_map(self):
+        """
+        Give a mapping suitable for storing in a YAML configuration file.
+
+        .. seealso:: :meth:`to_yaml_map` and :meth:`from_yaml_map`
+        """
         data = self.to_map()
         mapping = {self.STRUCTURE.name: data}
-        return self._to_path(mapping, path, fmt='yaml')
+        return mapping
+
+    def to_yaml_map(self, path):
+        return self._to_path(self.as_yaml_map, path, fmt='yaml')
 
     # Only used with Python >= 3.6, but since that is just a sanity check it
     # should be okay
