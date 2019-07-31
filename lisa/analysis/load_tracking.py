@@ -23,6 +23,7 @@ from lisa.analysis.base import TraceAnalysisBase
 from lisa.analysis.status import StatusAnalysis
 from lisa.trace import requires_one_event_of, may_use_events
 from lisa.utils import deprecate
+from lisa.datautils import df_refit_index
 
 
 class LoadTrackingAnalysis(TraceAnalysisBase):
@@ -251,6 +252,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :type signals: list(str)
         """
         cpus = cpus or list(range(self.trace.cpus_count))
+        start = self.trace.start
+        end = self.trace.end
 
         def plotter(axes, local_fig):
             for cpu in cpus:
@@ -262,6 +265,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 for signal in signals:
                     df = self.df_cpus_signal(signal)
                     df = df[df['cpu'] == cpu]
+                    df = df_refit_index(df, start, end)
                     df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
                 self.trace.analysis.cpus.plot_orig_capacity(cpu, axis=axis)
@@ -272,6 +276,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                     df = df[df["__cpu"] == cpu]
                     if len(df):
                         data = df[['capacity', 'tip_capacity']]
+                        data = df_refit_index(data, start, end)
                         data.plot(ax=axis, style=['m', '--y'],
                                   drawstyle='steps-post')
 
@@ -281,7 +286,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                     plot_overutilized(axis=axis)
 
                 axis.set_ylim(0, 1100)
-                axis.set_xlim(self.trace.start, self.trace.end)
+                axis.set_xlim(start, end)
                 axis.legend()
 
         return self.do_plot(plotter, nrows=len(cpus), sharex=True, **kwargs)
@@ -299,10 +304,13 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :type signals: list(str)
         """
         pid = self.trace.get_task_pid(task)
+        start = self.trace.start
+        end = self.trace.end
 
         for signal in signals:
             df = self.df_tasks_signal(signal)
             df = df[df.pid == pid]
+            df = df_refit_index(df, start, end)
             df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
@@ -312,7 +320,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         axis.set_title('Load-tracking signals of task "{}"'.format(task))
         axis.legend()
         axis.grid(True)
-        axis.set_xlim(self.trace.start, self.trace.end)
+        axis.set_xlim(start, end)
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_tasks_signal.used_events
@@ -325,9 +333,12 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
 
         pid = self.trace.get_task_pid(task)
+        start = self.trace.start
+        end = self.trace.end
 
         df = self.df_tasks_signal('required_capacity')
         df = df[df.pid == pid]
+        df = df_refit_index(df, start, end)
 
         # Build task names (there could be multiple, during the task lifetime)
         task_name = 'Task ({}:{})'.format(pid, self.trace.get_task_by_pid(pid))
@@ -343,7 +354,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             if local_fig:
                 axis.set_title(task_name)
                 axis.set_ylim(0, 1100)
-                axis.set_xlim(self.trace.start, self.trace.end)
+                axis.set_xlim(start, end)
                 axis.set_ylabel('Utilization')
                 axis.set_xlabel('Time (s)')
 

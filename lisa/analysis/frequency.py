@@ -29,7 +29,7 @@ import numpy as np
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.trace import requires_events
-from lisa.datautils import series_integrate
+from lisa.datautils import series_integrate, df_refit_index
 
 class FrequencyAnalysis(TraceAnalysisBase):
     """
@@ -286,6 +286,9 @@ class FrequencyAnalysis(TraceAnalysisBase):
             freq_axis, state_axis = axis
             fig.suptitle('Peripheral frequency', y=.97, fontsize=16, horizontalalignment='center')
 
+            freq = self.df_peripheral_clock_effective_rate(clk)
+            freq = df_refit_index(freq, start, end)
+
             # Plot frequency information (set rate)
             freq_axis.set_title("Clock frequency for " + clk)
             set_rate = freq['rate'].dropna()
@@ -372,6 +375,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         logger.info(
             "Average frequency for CPU{} : {:.3f} GHz".format(cpu, avg/1e6))
 
+        df = df_refit_index(df, self.trace.start, self.trace.end)
         df['frequency'].plot(ax=axis, drawstyle='steps-post')
 
         if average and avg > 0:

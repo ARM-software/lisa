@@ -24,6 +24,56 @@ import pandas as pd
 import scipy.integrate
 import scipy.signal
 
+
+def series_refit_index(series, start=None, end=None, method='pre'):
+    """
+    Slice a series using :func:`series_window` and ensure we have a value at
+    exactly the specified boundaries.
+
+    :param df: Series to act on
+    :type df: pandas.Series
+
+    :param start: First index value to find in the returned series.
+    :type start: object
+
+    :param end: Last index value to find in the returned series.
+    :type end: object
+
+    :param method: Windowing method used to select the first and last values of
+        the series using :func:`series_window`. Defaults to ``pre``, which is
+        suitable for signals where all the value changes have a corresponding
+        row without any fixed sample-rate constraints. If they have been
+        downsampled, ``nearest`` might be a better choice.).
+    """
+
+    return _data_refit_index(series, start, end, method=method)
+
+def df_refit_index(df, start=None, end=None, method='pre'):
+    """
+    Same as :func:`series_refit_index` but acting on :class:`pandas.DataFrame`
+    """
+    return _data_refit_index(df, start, end, method=method)
+
+def _data_refit_index(data, start, end, method):
+    if data.empty:
+        return data
+
+    data = _data_window(data, (start, end), method=method, clip_window=True)
+    index = data.index.to_series()
+
+    if start is not None:
+        index.iloc[0] = start
+
+    if end is not None:
+        index.iloc[-1] = end
+
+    # Shallow copy is enough, we only want to replace the index and not the
+    # actual data
+    data = data.copy(deep=False)
+    data.index = index
+    return data
+
+
 def df_squash(df, start, end, column='delta'):
     """
     Slice a dataframe of deltas in [start:end] and ensure we have
@@ -363,7 +413,7 @@ def series_mean(y, x=None, **kwargs):
     return integral / (x.max() - x.min())
 
 
-def series_window(series, window, method='inclusive'):
+def series_window(series, window, method='inclusive', clip_window=False):
     """
     Select a portion of a :class:`pandas.Series`
 
@@ -374,8 +424,9 @@ def series_window(series, window, method='inclusive'):
         region to select.
     :type window: tuple(object)
 
-    :param end: value of index at the end of the cropped series.
-    :type end: object
+    :param clip_window: Clip the requested window to the bounds of the index,
+        otherwise raise exceptions if the window is too large.
+    :type clip_window: bool
 
     :param method: Choose how edges are handled:
 
@@ -383,15 +434,33 @@ def series_window(series, window, method='inclusive'):
         * `exclusive`: When no exact match is found, only index values within
             the range are selected
         * `nearest`: When no exact match is found, take the nearest index value.
+        * `pre`: When no exact match is found, take the previous index value.
+        * `post`: When no exact match is found, take the next index value.
 
     .. note:: The index of `series` must be monotonic and without duplicates.
     """
+    return _data_window(series, window, method, clip_window)
+
+def _data_window(data, window, method='inclusive', clip_window=False):
+    """
+    ``data`` can either be a :class:`pandas.DataFrame` or :class:`pandas.Series`
+    """
+
+    index = data.index
+    if clip_window:
+        index_series = index.to_series()
+        index_bounds = (index_series.iloc[0], index_series.iloc[-1])
+        start, end = window
+        window = (
+            start if start >= index_bounds[0] else index_bounds[0],
+            end if end <= index_bounds[-1] else index_bounds[-1]
+        )
 
     if method == 'inclusive':
         # Default slicing behaviour of pandas' Float64Index is to be inclusive,
         # so we can use that knowledge to enable a fast path for common needs.
-        if isinstance(series.index, pd.Float64Index):
-            return series[slice(*window)]
+        if isinstance(data.index, pd.Float64Index):
+            return data[slice(*window)]
 
         method = ('ffill', 'bfill')
 
@@ -401,16 +470,28 @@ def series_window(series, window, method='inclusive'):
     elif method == 'nearest':
         method = ('nearest', 'nearest')
 
+    elif method == 'pre':
+        method = ('ffill', 'ffill')
+
+    elif method == 'post':
+        method = ('bfill', 'bfill')
+
     else:
         raise ValueError('Slicing method not supported: {}'.format(method))
 
-    index = series.index
     window = [
-        index.get_loc(x, method=method)
+        index.get_loc(x, method=method) if x is not None else None
         for x, method in zip(window, method)
     ]
 
-    return series.iloc[slice(*window)]
+    return data.iloc[slice(*window)]
+
+
+def df_window(df, window, method='inclusive', clip_window=False):
+    """
+    Same as :func:`series_window` but acting on a :class:`pandas.DataFrame`
+    """
+    return _data_window(df, window, method, clip_window)
 
 
 def series_align_signal(ref, to_align, max_shift=None):
