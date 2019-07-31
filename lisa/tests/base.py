@@ -556,6 +556,9 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         0 : 100,
         # Feeble boards like Juno/TC2 spend a while in sugov
         r"^sugov:\d+$" : 5,
+        # The mailbox controller (MHU), now threaded, creates work that sometimes
+        # exceeds the 1% threshold.
+        r"^irq/\d+-mhu_link$": 1.5
     }
     """
     PID/comm specific tuning for :meth:`test_noisy_tasks`
