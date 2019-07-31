@@ -23,13 +23,13 @@ import abc
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from bart.common.Utils import area_under_curve
 from devlib.target import KernelVersion
 
 from lisa.wlgen.rta import Periodic, Ramp, Step
 from lisa.analysis.rta import PerfAnalysis
 from lisa.tests.base import ResultBundle, CannotCreateError, RTATestBundle
 from lisa.utils import ArtifactPath
+from lisa.datautils import series_integrate
 from lisa.energy_model import EnergyModel
 from lisa.trace import requires_events
 from lisa.target import Target
@@ -316,8 +316,8 @@ class EASBehaviour(RTATestBundle):
         exp_power = self._get_expected_power_df(nrg_model, capacity_margin_pct)
         est_power = self._get_estimated_power_df(nrg_model)
 
-        exp_energy = area_under_curve(exp_power.sum(axis=1), method='rect')
-        est_energy = area_under_curve(est_power.sum(axis=1), method='rect')
+        exp_energy = series_integrate(exp_power.sum(axis=1), method='rect')
+        est_energy = series_integrate(est_power.sum(axis=1), method='rect')
 
         msg = 'Estimated {} bogo-Joules to run workload, expected {}'.format(
             est_energy, exp_energy)

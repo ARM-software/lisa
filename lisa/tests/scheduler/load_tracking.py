@@ -23,7 +23,6 @@ from statistics import mean
 
 import matplotlib.pyplot as plt
 
-from bart.common.Utils import select_window, area_under_curve
 from bart.sched import pelt
 from bart.sched.SchedAssert import SchedAssert
 
@@ -35,6 +34,7 @@ from lisa.tests.base import (
 )
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby
+from lisa.datautils import series_integrate, series_mean
 from lisa.wlgen.rta import Periodic, RTATask
 from lisa.trace import FtraceConf, FtraceCollector, requires_events
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
@@ -318,7 +318,7 @@ class InvarianceItem(LoadTrackingBase):
         signal_df = self.get_task_sched_signal(trace, cpu, task_name, signal_name)
         signal = signal_df[UTIL_AVG_CONVERGENCE_TIME_S:][signal_name]
 
-        signal_mean = area_under_curve(signal) / (signal.index[-1] - signal.index[0])
+        signal_mean = series_mean(signal)
 
         # Since load is now CPU invariant in recent kernel versions, we don't
         # rescale it back. To match the old behavior, that line is
@@ -1001,7 +1001,7 @@ class CPUMigrationBase(LoadTrackingBase):
 
             for cpu in self.cpus:
                 util = phase_df[phase_df.cpu == cpu].util
-                cpu_util[cpu][phase] = area_under_curve(util) / (phase_duration)
+                cpu_util[cpu][phase] = series_integrate(util) / (phase_duration)
 
             phase_start += self.phases_durations[phase]
 
