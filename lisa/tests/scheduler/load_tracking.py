@@ -34,7 +34,7 @@ from lisa.tests.base import (
 )
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby
-from lisa.datautils import series_integrate, series_mean
+from lisa.datautils import series_integrate, series_mean, df_window
 from lisa.wlgen.rta import Periodic, RTATask
 from lisa.trace import FtraceConf, FtraceCollector, requires_events
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
@@ -201,7 +201,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
         df = trace.analysis.load_tracking.df_tasks_signal(signal)
         df = df[df['comm'] == task_name]
         window = self.get_task_window(trace, task_name, cpu)
-        df = select_window(df, window)
+        df = df_window(df, window, method='exclusive')
 
         # Normalize the signal with the detected task execution start
         df.index -= window[0]
