@@ -374,6 +374,10 @@ class Trace(Loggable, TraceBase):
         self._ftrace = trace_class(path, scope="custom", events=self.events,
                                   normalize_time=normalize_time)
 
+        # trappy sometimes decides to be "clever" and overrules the path to be
+        # used, even though it was specifically asked for a given file path
+        assert path == self._ftrace.trace_path
+
         # Check for events available on the parsed trace
         self.available_events = self._check_available_events()
         if not self.available_events:
