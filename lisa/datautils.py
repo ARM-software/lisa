@@ -173,6 +173,27 @@ def df_squash(df, start, end, column='delta'):
 
     return res_df
 
+def df_filter(df, filter_columns):
+    """
+    Filter the content of a dataframe.
+
+    :param df: DataFrame to filter
+    :type df: pandas.DataFrame
+
+    :param filter_columns: Dict of `{"column": value)` that rows has to match
+        to be selected.
+    :type filter_columns: dict(str, object)
+    """
+    key = functools.reduce(
+        operator.and_,
+        (
+            df[col] == val
+            for col, val in filter_columns.items()
+        )
+    )
+
+    return df[key]
+
 def df_merge(df_list, drop_columns=None, drop_inplace=False, filter_columns=None):
     """
     Merge a list of :class:`pandas.DataFrame`, keeping the index sorted.
@@ -195,18 +216,8 @@ def df_merge(df_list, drop_columns=None, drop_inplace=False, filter_columns=None
     drop_columns = drop_columns if drop_columns else []
 
     if filter_columns:
-        def filter_df(df):
-            key = functools.reduce(
-                operator.and_,
-                (
-                    df[col] == val
-                    for col, val in filter_columns.items()
-                )
-            )
-            return df[key]
-
         df_list = [
-            filter_df(df)
+            df_filter(df, filter_columns)
             for df in df_list
         ]
 
