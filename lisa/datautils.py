@@ -448,12 +448,10 @@ def _data_window(data, window, method='inclusive', clip_window=False):
 
     index = data.index
     if clip_window:
-        index_series = index.to_series()
-        index_bounds = (index_series.iloc[0], index_series.iloc[-1])
         start, end = window
         window = (
-            start if start >= index_bounds[0] else index_bounds[0],
-            end if end <= index_bounds[-1] else index_bounds[-1]
+            start if start >= index[0] else index[0],
+            end if end <= index[-1] else index[-1]
         )
 
     if method == 'inclusive':
