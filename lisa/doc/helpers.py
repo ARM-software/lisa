@@ -19,14 +19,20 @@ import io
 import contextlib
 import subprocess
 import inspect
+import itertools
+import logging
+from collections.abc import Mapping
 
 from docutils.parsers.rst import Directive, directives
 from docutils.parsers.rst.directives import flag
 from docutils import nodes
 from docutils.statemachine import ViewList
 
-from lisa.analysis.base import TraceAnalysisBase
+import lisa.analysis
+from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
 from lisa.utils import get_subclasses
+from lisa.trace import MissingTraceEventError
+from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, KeyDesc, LevelKeyDesc
 
 class RecursiveDirective(Directive):
     """
@@ -187,10 +193,56 @@ def autodoc_process_analysis_events(app, what, name, obj, options, lines):
     lines.extend(events_doc.splitlines())
 
 
+class DocPlotConf(SimpleMultiSrcConf):
+    """
+    Analysis plot method arguments configuration for the documentation.
+
+    {generated_help}
+    """
+    STRUCTURE = TopLevelKeyDesc('doc-plot-conf', 'Plot methods configuration', (
+        KeyDesc('plots', 'Mapping of function qualnames to their settings', [Mapping]),
+    ))
+
+
+def autodoc_process_analysis_plots(app, what, name, obj, options, lines, plot_conf):
+    if what != 'method':
+        return
+
+    plot_methods = set(itertools.chain.from_iterable(
+        subclass.get_plot_methods()
+        for subclass in get_subclasses(TraceAnalysisBase)
+    ))
+
+    if obj not in plot_methods:
+        return
+
+    plot_conf = plot_conf['plots']
+
+    default_spec = plot_conf.get('default', {})
+    spec = plot_conf.get(obj.__qualname__, {})
+    spec = {**default_spec, **spec}
+    kwargs = spec.get('kwargs', {})
+    trace = spec['trace']
+
+    if spec.get('hide'):
+        return
+
+    print('Generating plot for {}'.format(obj.__qualname__))
+    rst_figure = TraceAnalysisBase.call_on_trace(obj, trace, {
+        'output': 'rst',
+        'always_save': False,
+        # avoid memory leaks
+        'interactive': False,
+        **kwargs
+    })
+    rst_figure = '\n:Example plot:\n\n{}'.format(rst_figure)
+    lines.extend(rst_figure.splitlines())
+
+
 def get_analysis_list(meth_type):
     rst_list = []
 
-    for subclass in get_subclasses(TraceAnalysisBase):
+    for subclass in get_subclasses(AnalysisHelpers):
         class_path = "{}.{}".format(subclass.__module__, subclass.__qualname__)
         analysis = subclass.__module__.split(".")[-1]
         if meth_type == 'plot':

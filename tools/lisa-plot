@@ -183,7 +183,7 @@ Available plots:
     args = parser.parse_args(argv)
 
     flat_plot_map = {
-        plot_name: (analysis_name, meth)
+        plot_name: meth
         for analysis_name, plot_list in plots_map.items()
         for plot_name, meth in plot_list.items()
     }
@@ -216,7 +216,7 @@ Available plots:
     plot_methods = set()
     for plot_name, file_path in plot_spec_list:
         try:
-            analysis_name, f = flat_plot_map[plot_name]
+            f = flat_plot_map[plot_name]
         except KeyError:
             error('Unknown plot "{}", see --help'.format(plot_name))
 
@@ -236,17 +236,17 @@ Available plots:
         trace = trace.get_view(args.window)
 
     for plot_name, file_path in plot_spec_list:
-        analysis_name, f = flat_plot_map[plot_name]
+        f = flat_plot_map[plot_name]
         dirname = os.path.dirname(file_path)
         if dirname:
             os.makedirs(file_path, exist_ok=True)
 
-        analysis = getattr(trace.analysis, analysis_name)
-        # Bind the function to the analysis instance to get a bound method
-        meth = f.__get__(analysis, type(analysis))
-
         with handle_plot_excep(exit_on_error=not args.best_effort):
-            meth(filepath=file_path)
+            TraceAnalysisBase.call_on_trace(f, trace,
+                {
+                    'filepath': file_path,
+                }
+            )
 
 if __name__ == '__main__':
     ret = main(sys.argv[1:])
