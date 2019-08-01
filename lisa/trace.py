@@ -45,6 +45,7 @@ from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, StrList, Configurable
 
+
 class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
     """
     Unique identifier of a logical task in a :class:`Trace`.

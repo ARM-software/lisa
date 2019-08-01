@@ -23,7 +23,7 @@ import sys
 from collections import OrderedDict
 
 from lisa.wlgen.workload import Workload
-from lisa.utils import Loggable
+from lisa.utils import Loggable, TASK_COMM_MAX_LEN
 
 class RTA(Workload):
     """
@@ -163,7 +163,7 @@ class RTA(Workload):
         # limits the task name to 16 characters including the terminal '\0'.
         too_long_tids = sorted((
             tid for tid in profile.keys()
-            if len(tid) > 15
+            if len(tid) > TASK_COMM_MAX_LEN
         ))
         if too_long_tids:
             raise ValueError(

@@ -24,6 +24,8 @@ import pandas as pd
 import scipy.integrate
 import scipy.signal
 
+from lisa.utils import TASK_COMM_MAX_LEN
+
 
 def series_refit_index(series, start=None, end=None, method='pre'):
     """
@@ -562,7 +564,7 @@ def series_align_signal(ref, to_align, max_shift=None):
     # Compensate the shift
     return ref, to_align.shift(-shift)
 
-def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=False, comm_max_len=16):
+def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=False, comm_max_len=TASK_COMM_MAX_LEN):
     """
     Filter a dataframe using a list of :class:`lisa.trace.TaskID`
 
