@@ -63,7 +63,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         for domain in domains:
             # restrict the domain to what we care. Other CPUs may have garbage
             # data, but the caller is not going to look at it anyway.
-            domain = set(domain) - set(cpus)
+            domain = set(domain) & set(cpus)
             if len(domain) < 2:
                 continue
 
