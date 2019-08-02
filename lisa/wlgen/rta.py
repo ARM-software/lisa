@@ -21,6 +21,7 @@ import os
 import re
 import sys
 from collections import OrderedDict
+import copy
 
 from lisa.wlgen.workload import Workload
 from lisa.utils import Loggable
@@ -527,16 +528,23 @@ class RTATask(object):
         self.priority = priority
         self.phases = []
 
-    def __add__(self, next_phases):
-        if next_phases.delay_s:
+    def __add__(self, task):
+        # Do not modify the original object which might still be used for other
+        # purposes
+        new = copy.deepcopy(self)
+        # Piggy back on the __iadd__ implementation
+        new += task
+        return new
+
+    def __iadd__(self, task):
+        if task.delay_s:
             # This won't work, because rt-app's "delay" field is per-task and
             # not per-phase. We might be able to implement it by adding a
             # "sleep" event here, but let's not bother unless such a need
             # arises.
             raise ValueError("Can't compose rt-app tasks "
                              "when the second has nonzero 'delay_s'")
-
-        self.phases.extend(next_phases.phases)
+        self.phases.extend(task.phases)
         return self
 
 class Ramp(RTATask):
