@@ -21,6 +21,7 @@ import os
 import re
 import sys
 from collections import OrderedDict
+import copy
 
 from lisa.wlgen.workload import Workload
 from lisa.utils import Loggable
@@ -506,6 +507,9 @@ class RTATask(object):
     """
     Base class for conveniently constructing params to :meth:`RTA.by_profile`
 
+    :param sched_policy: the scheduler policy for this task.
+    :type sched_policy: str or None
+
     This class represents an rt-app task which may contain multiple :class:`Phase`.
     It implements ``__add__`` so that using ``+`` on two tasks concatenates their
     phases. For example ``Ramp() + Periodic()`` would yield an ``RTATask`` that
@@ -527,16 +531,23 @@ class RTATask(object):
         self.priority = priority
         self.phases = []
 
-    def __add__(self, next_phases):
-        if next_phases.delay_s:
+    def __add__(self, task):
+        # Do not modify the original object which might still be used for other
+        # purposes
+        new = copy.deepcopy(self)
+        # Piggy back on the __iadd__ implementation
+        new += task
+        return new
+
+    def __iadd__(self, task):
+        if task.delay_s:
             # This won't work, because rt-app's "delay" field is per-task and
             # not per-phase. We might be able to implement it by adding a
             # "sleep" event here, but let's not bother unless such a need
             # arises.
             raise ValueError("Can't compose rt-app tasks "
                              "when the second has nonzero 'delay_s'")
-
-        self.phases.extend(next_phases.phases)
+        self.phases.extend(task.phases)
         return self
 
 class Ramp(RTATask):
@@ -556,8 +567,8 @@ class Ramp(RTATask):
     :param loops: number of time to repeat the ramp, with the specified delay in
                   between.
 
-    :param sched_policy: the scheduler configuration for this task.
-    :type sched_policy: dict
+    :param sched_policy: the scheduler policy for this task.
+    :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run.
                 .. note:: if not specified, it can run on all CPUs
@@ -607,8 +618,8 @@ class Step(Ramp):
     :param loops: number of time to repeat the step, with the specified delay in
                   between.
 
-    :param sched: the scheduler configuration for this task.
-    :type sched: dict
+    :param sched_policy: the scheduler policy for this task.
+    :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run.
                 .. note:: if not specified, it can run on all CPUs
@@ -646,8 +657,8 @@ class Pulse(RTATask):
     :param loops: number of time to repeat the pulse, with the specified delay
                   in between.
 
-    :param sched: the scheduler configuration for this task.
-    :type sched: dict
+    :param sched_policy: the scheduler policy for this task.
+    :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run
                 .. note:: if not specified, it can run on all CPUs
@@ -716,8 +727,8 @@ class RunAndSync(RTATask):
 
     :param delay_s: the delay in seconds before starting.
 
-    :param sched: the scheduler configuration for this task.
-    :type sched: dict
+    :param sched_policy: the scheduler policy for this task.
+    :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run.
                 .. note:: if not specified, it can run on all CPUs
