@@ -507,6 +507,9 @@ class RTATask(object):
     """
     Base class for conveniently constructing params to :meth:`RTA.by_profile`
 
+    :param sched_policy: the scheduler policy for this task.
+    :type sched_policy: str or None
+
     This class represents an rt-app task which may contain multiple :class:`Phase`.
     It implements ``__add__`` so that using ``+`` on two tasks concatenates their
     phases. For example ``Ramp() + Periodic()`` would yield an ``RTATask`` that
@@ -564,8 +567,8 @@ class Ramp(RTATask):
     :param loops: number of time to repeat the ramp, with the specified delay in
                   between.
 
-    :param sched_policy: the scheduler configuration for this task.
-    :type sched_policy: dict
+    :param sched_policy: the scheduler policy for this task.
+    :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run.
                 .. note:: if not specified, it can run on all CPUs
@@ -615,8 +618,8 @@ class Step(Ramp):
     :param loops: number of time to repeat the step, with the specified delay in
                   between.
 
-    :param sched: the scheduler configuration for this task.
-    :type sched: dict
+    :param sched_policy: the scheduler policy for this task.
+    :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run.
                 .. note:: if not specified, it can run on all CPUs
@@ -654,8 +657,8 @@ class Pulse(RTATask):
     :param loops: number of time to repeat the pulse, with the specified delay
                   in between.
 
-    :param sched: the scheduler configuration for this task.
-    :type sched: dict
+    :param sched_policy: the scheduler policy for this task.
+    :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run
                 .. note:: if not specified, it can run on all CPUs
@@ -724,8 +727,8 @@ class RunAndSync(RTATask):
 
     :param delay_s: the delay in seconds before starting.
 
-    :param sched: the scheduler configuration for this task.
-    :type sched: dict
+    :param sched_policy: the scheduler policy for this task.
+    :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run.
                 .. note:: if not specified, it can run on all CPUs
