@@ -36,8 +36,9 @@ from devlib.utils.misc import which
 from devlib import Platform
 from devlib.platform.gem5 import Gem5SimulationPlatform
 
+import lisa.assets
 from lisa.wlgen.rta import RTA
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, ASSETS_PATH, setup_logging, ArtifactPath, nullcontext
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrList, Configurable
 
 from lisa.platforms.platinfo import PlatformInfo
@@ -704,10 +705,9 @@ class Target(Loggable, HideExekallID, Configurable):
 
         tools_to_install = set()
         for tool in tools:
-            binary = '{}/tools/scripts/{}'.format(LISA_HOME, tool)
+            binary = os.path.join(ASSETS_PATH, 'binaries', self.abi, tool)
             if not os.path.isfile(binary):
-                binary = '{}/tools/{}/{}'\
-                         .format(LISA_HOME, self.target.abi, tool)
+                binary = os.path.join(ASSETS_PATH, 'binaries', 'scripts', tool)
             tools_to_install.add(binary)
 
         # TODO: compute the checksum of the tool + install location and keep
