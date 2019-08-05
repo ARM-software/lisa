@@ -103,6 +103,7 @@ setup(
         "numpy",
         "scipy",
         "ruamel.yaml >= 0.15.81",
+        "docutils", # For the HTML output of analysis plots
 
         # Jupyter doesn't like >= 6.0
         "tornado < 6.0",
