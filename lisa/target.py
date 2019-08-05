@@ -692,7 +692,12 @@ class Target(Loggable, HideExekallID, Configurable):
             cm = nullcontext
 
         else:
-            exclude = self.CRITICAL_TASKS[self.target.os]
+            exclude = copy.copy(self.CRITICAL_TASKS[self.target.os])
+
+            # Do not freeze the process in charge of de-freezing, otherwise we
+            # will freeze to death and a machine hard reboot will be required
+            if isinstance(self.target, devlib.LocalLinuxTarget):
+                exclude.append(str(os.getpid()))
 
             @contextlib.contextmanager
             def cm():
