@@ -240,9 +240,9 @@ class AnalysisHelpers(Loggable, abc.ABC):
         It allows for automatic plot setup and HTML and reStructuredText output.
         """
 
-        def decorator(f):
+        def decorator(func):
             @update_wrapper_doc(
-                f,
+                func,
                 added_by=':meth:`{}.{}.plot_method`'.format(
                     AnalysisHelpers.__module__,
                     AnalysisHelpers.__qualname__,
@@ -286,6 +286,11 @@ class AnalysisHelpers(Loggable, abc.ABC):
             )
             def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=True, **kwargs):
 
+                # Bind the function to the instance, so we avoid having "self"
+                # showing up in the signature, which breaks parameter
+                # formatting code.
+                f = func.__get__(self, type(self))
+
                 def is_f_param(param):
                     """
                     Return True if the parameter is for `f`, False if it is
@@ -321,10 +326,11 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         plot_name=f.__name__,
                     )
 
+
                 # Allow returning an axis directly, or just update a given axis
                 if return_axis:
                     # In that case, the function takes all the kwargs
-                    axis = f(self, *args, **kwargs, axis=axis)
+                    axis = f(*args, **kwargs, axis=axis)
                 else:
                     if local_fig:
                         setup_plot_kwargs = {
@@ -334,7 +340,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         }
                         fig, axis = self.setup_plot(**setup_plot_kwargs)
 
-                    f(self, *args, axis=axis, local_fig=local_fig, **f_kwargs)
+                    f(*args, axis=axis, local_fig=local_fig, **f_kwargs)
 
                 if isinstance(axis, numpy.ndarray):
                     fig = axis[0].get_figure()
