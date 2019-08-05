@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-from setuptools import setup
+from setuptools import setup, find_namespace_packages
 
 import importlib
 import distutils.cmd
@@ -70,13 +70,22 @@ with open("lisa/version.py") as f:
     exec(f.read(), version_globals)
     lisa_version = version_globals['__version__']
 
+
+packages = find_namespace_packages(include=['lisa*'])
+package_data = {
+    package: '*'
+    for package in packages
+    if package.startswith('lisa.assets.')
+}
+package_data['lisa.assets'] = '*'
+
 setup(
     name='LISA',
     version=lisa_version,
     author='Arm Ltd',
     # TODO: figure out which email to put here
     # author_email=
-    packages=['lisa'],
+    packages=packages,
     url='https://github.com/ARM-software/lisa',
     project_urls={
         "Bug Tracker": "https://github.com/ARM-software/lisa/issues",
@@ -125,6 +134,7 @@ setup(
         ],
     },
 
+    package_data=package_data,
     classifiers=[
         "Programming Language :: Python :: 3 :: Only",
         # This is not a standard classifier, as there is nothing defined for
