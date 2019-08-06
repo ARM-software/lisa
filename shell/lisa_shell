@@ -46,8 +46,15 @@ export _DOC_LISA_HOST_ABI="Add some shell utilities to the PATH, with lower
 priority than system's one in case the user needs a different version of them"
 export LISA_HOST_ABI=${LISA_HOST_ABI:-x86_64}
 
+export _DOC_LISA_USE_SYSTEM_BIN="Use the system binaries if 1, will use the ones shipped with LISA if 0"
+export LISA_USE_SYSTEM_BIN=${LISA_USE_SYSTEM_BIN:-0}
+
 _LISA_PATH="$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI:$LISA_HOME/tools/:$ANDROID_HOME/tools/:$ANDROID_HOME/platform-tools/"
-export PATH=$_LISA_PATH:$PATH
+if [[ "$LISA_USE_SYSTEM_BIN" == 1 ]]; then
+    export PATH=$PATH:$_LISA_PATH
+else
+    export PATH=$_LISA_PATH:$PATH
+fi
 
 export _DOC_LISA_CONF="Default configuration file for exekall"
 export LISA_CONF=${LISA_CONF:-$LISA_HOME/target_conf.yml}
