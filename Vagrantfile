@@ -22,7 +22,7 @@ Vagrant.configure(2) do |config|
 
     cd /home/vagrant/lisa
     # Install required packages
-    ./install_base_ubuntu.sh --install-android-sdk --install-doc-extras
+    ./install_base.sh --install-all
 
     chown -R vagrant.vagrant /home/vagrant/lisa
 
