@@ -145,3 +145,9 @@ Function profiling
 
 .. automodule:: lisa.analysis.functions
    :members:
+
+Interactive notebook helper
++++++++++++++++++++++++++++
+
+.. automodule:: lisa.analysis.notebook
+   :members:
