@@ -210,7 +210,7 @@ Run expressions
 
 Note that the adaptor in the customization module is able to add more
 parameters to ``exekall run``. In order to get the complete set of options,
-please run ``exekall run YOUR_SOURCES --help``.
+please run ``exekall run YOUR_SOURCES_OR_MODULES --help``.
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
@@ -219,8 +219,8 @@ please run ``exekall run YOUR_SOURCES --help``.
     # sources, and importing the modules will therefore fail with unknown files
     # error.
     add_argument(run_parser, 'python_files', nargs='+',
-        metavar='PYTHON_SRC',
-        help="""Python modules files. If passed a folder, all contained files recursively are selected. By default, the current directory is selected.""")
+        metavar='PYTHON_MODULES',
+        help="""Python modules files or module names. If passed a folder, all contained files recursively are selected. By default, the current directory is selected.""")
 
 
     add_argument(run_parser, '-s', '--select', action='append',
@@ -636,7 +636,7 @@ def do_run(args, parser, run_parser, argv):
         # This might fail, since some adaptor options may introduce "fake"
         # positional arguments, since these options are not registered yet.
         with contextlib.suppress(ValueError):
-            module_set.update(utils.import_paths([path]))
+            module_set.update(utils.import_modules([path]))
 
     # Look for a customization submodule in one of the parent packages of the
     # modules we specified on the command line.
@@ -659,7 +659,7 @@ def do_run(args, parser, run_parser, argv):
     args = parser.parse_args(argv)
 
     # Re-import now that we are sure to have the correct list of sources
-    module_set.update(utils.import_paths(args.python_files))
+    module_set.update(utils.import_modules(args.python_files))
 
     verbose = args.verbose
 
