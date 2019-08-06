@@ -223,7 +223,9 @@ for arg in "$@"; do
         handled=1
         ;;&
 
-    "--install-android-tools" | "--install-all")
+    # TODO: remove --install-android-sdk, since it is only temporarily there to
+    # give some time to migrate CI scripts
+    "--install-android-sdk" | "--install-android-tools" | "--install-all")
         install_functions+=(
             install_android_sdk_manager # Needed by install_android_build_tools
             install_android_tools
