@@ -204,10 +204,23 @@ function _lisa-install-nbextensions {
     echo "again if you want to enable ipywidgets support."
 }
 
+# Check that some prerequisites are available on the system, since they
+# cannot be installed using pip in a venv
+function _lisa-install-system-check {
+    _lisa-python-package-check () {
+        local package=$1
+        local ubuntu_package=$2
+        if ! _lisa-python -c "import $package" &>/dev/null; then
+            echo "Missing $package Python package, it is provided by $ubuntu_package apt-get package on Ubuntu"
+        fi
+    }
+
+    _lisa-python-package-check tkinter python3-tkinter
+    _lisa-python-package-check ensurepip python3-venv
+}
+
 function lisa-install {
-    # Check that some prerequisites are available on the system, since they
-    # cannot be installed using pip in a venv
-    _lisa-python "$LISA_HOME/setup.py" systemcheck
+    _lisa-install-system-check
 
     _lisa-venv-create &&
     _lisa-upgrade-pip || return 1
