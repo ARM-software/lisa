@@ -1,4 +1,4 @@
-# 
+#
 # Documentation's example plot settings
 #
 # A "default" key allows setting default values for each entry. All the
@@ -34,15 +34,15 @@ doc-plot-conf:
             kwargs:
                 task: *task
 
-        LoadTrackingAnalysis.plot_task_signals: 
+        LoadTrackingAnalysis.plot_task_signals:
             kwargs:
                 task: *task
 
-        LoadTrackingAnalysis.plot_task_required_capacity: 
+        LoadTrackingAnalysis.plot_task_required_capacity:
             kwargs:
                 task: *task
 
-        LoadTrackingAnalysis.plot_task_placement: 
+        LoadTrackingAnalysis.plot_task_placement:
             kwargs:
                 task: *task
 
@@ -94,6 +94,14 @@ doc-plot-conf:
             kwargs:
                 cpu: *cpu
 
+
+        NotebookAnalysis.plot_event_field:
+            kwargs:
+                event: cpu_frequency
+                field: frequency
+                filter_columns:
+                    cpu: *cpu
+
         ##########################
         # HIDDEN PLOTS
         ##########################
@@ -113,5 +121,3 @@ doc-plot-conf:
         # Missing necessary events in trace.dat
         ThermalAnalysis.plot_dev_freq_cooling_states:
             hide: True
-
-
