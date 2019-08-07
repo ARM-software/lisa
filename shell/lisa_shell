@@ -42,8 +42,7 @@ export LISA_PRESERVE_SHELL=${LISA_PRESERVE_SHELL:-0}
 # Setup colors
 source "$LISA_HOME/shell/lisa_colors"
 
-export _DOC_LISA_HOST_ABI="Add some shell utilities to the PATH, with lower
-priority than system's one in case the user needs a different version of them"
+export _DOC_LISA_HOST_ABI="Add some shell utilities to the PATH based on the host ABI. Priority is determined by LISA_USE_SYSTEM_BIN"
 export LISA_HOST_ABI=${LISA_HOST_ABI:-x86_64}
 
 export _DOC_LISA_USE_SYSTEM_BIN="Use the system binaries if 1, will use the ones shipped with LISA if 0"
