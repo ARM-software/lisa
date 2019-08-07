@@ -150,6 +150,10 @@ Available plots:
         help='trace-cmd trace.dat, or systrace file',
     )
 
+    parser.add_argument('--normalize-time', action='store_true',
+        help='Normalize the time in the plot, i.e. start at 0 instead of uptime timestamp',
+    )
+
     parser.add_argument('--plot', nargs=2, action='append',
         default=[],
         metavar=('PLOT', 'OUTPUT_PATH'),
@@ -231,7 +235,7 @@ Available plots:
 
     print('Parsing trace events: {}'.format(', '.join(events)))
 
-    trace = Trace(args.trace, plat_info=plat_info, events=events)
+    trace = Trace(args.trace, plat_info=plat_info, events=events, normalize_time=args.normalize_time)
     if args.window:
         trace = trace.get_view(args.window)
 
