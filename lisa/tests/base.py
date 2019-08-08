@@ -24,6 +24,7 @@ import sys
 import textwrap
 import re
 
+from collections import OrderedDict
 from collections.abc import Mapping
 from inspect import signature
 import inspect
@@ -269,7 +270,95 @@ class CannotCreateError(RuntimeError):
     """
     pass
 
-class TestBundle(Serializable, abc.ABC):
+
+class TestBundleMeta(abc.ABCMeta):
+    """
+    Metaclass of :class:`TestBundle`.
+
+    If ``_from_target`` is defined in the class but ``from_target`` is not, a
+    stub is created and the annotation of ``_from_target`` is copied to the
+    stub. The annotation is then removed from ``_from_target`` so that it is
+    not picked up by exekall.
+
+    The signature of ``from_target`` is the result of merging
+    ``super().from_target`` parameters with the ones defined in
+    ``_from_target``.
+    """
+    def __new__(metacls, cls_name, bases, dct, **kwargs):
+        new_cls = super().__new__(metacls, cls_name, bases, dct, **kwargs)
+
+        # If that class defines _from_target but not from_target, we create a
+        # stub from_target and move the annotations of _from_target to
+        # from_target
+        if '_from_target' in dct and 'from_target' not in dct:
+            assert isinstance(dct['_from_target'], classmethod)
+            _from_target = new_cls._from_target
+
+            # Sanity check on _from_target signature
+            for name, param in signature(_from_target).parameters.items():
+                if name != 'target' and param.kind is not inspect.Parameter.KEYWORD_ONLY:
+                    raise TypeError('Non keyword parameters "{}" are not allowed in {} signature'.format(
+                        _from_target.__qualname__, name))
+
+            # Make a stub that we can freely update
+            def from_target(cls, *args, **kwargs):
+                return super(new_cls, cls).from_target(*args, **kwargs)
+
+            # Prepare the signature of the stub so that update_wrapper_doc()
+            # starts with the right parameter list.
+            from_target.__signature__ = signature(_from_target.__func__)
+
+            # Apply update_wrapper_doc() in the opposite order than usual:
+            # here, the keyword-only parameters are coming from the wrapped
+            # function instead of the wrapper.
+            from_target = update_wrapper_doc(
+                new_cls.from_target.__func__,
+            )(from_target)
+
+            # Stich the relevant docstrings
+            func = new_cls.from_target.__func__
+            from_target_doc = inspect.cleandoc(func.__doc__ or '')
+            _from_target_doc = inspect.cleandoc(_from_target.__doc__ or '')
+            if _from_target_doc:
+                doc = '{}\n\n(**above inherited from** :meth:`{}.{}`)\n\n{}\n'.format(
+                    from_target_doc,
+                    func.__module__, func.__qualname__,
+                    _from_target_doc,
+                )
+            else:
+                doc = from_target_doc
+
+            # Re-wrap after update_wrapper_doc(), to get the right annotations
+            from_target = functools.wraps(_from_target.__func__)(from_target)
+            from_target.__doc__ = doc
+
+            # Hide the fact that we wrapped the function, so exekall does not
+            # get confused
+            del from_target.__wrapped__
+
+            # Fixup the names, so it is not displayed as `_from_target`
+            from_target.__name__ = 'from_target'
+            from_target.__qualname__ = new_cls.__qualname__ + '.' + from_target.__name__
+
+            # Make sure the annotation points to an actual class object if it
+            # was set, as most of the time they will be strings for factories.
+            # Since the wrapper's __globals__ (read-only) attribute is not
+            # going to contain the necessary keys to resolve that string, we
+            # take care of it here.
+            annotations = from_target.__annotations__
+            # Only update the annotation if there was one.
+            if 'return' in annotations:
+                assert annotations['return'] == cls_name
+                annotations['return'] = new_cls
+
+            # De-annotate the _from_target function so it is not picked up by exekall
+            del _from_target.__func__.__annotations__
+
+            new_cls.from_target = classmethod(from_target)
+
+        return new_cls
+
+class TestBundle(Serializable, abc.ABC, metaclass=TestBundleMeta):
     """
     A LISA test bundle.
 
@@ -298,6 +387,7 @@ class TestBundle(Serializable, abc.ABC):
 
       * :meth:`from_target` will collect whatever artifacts are required
         from a given target, and will then return a :class:`TestBundle`.
+        Note that a default implementation is provided out of ``_from_target``.
       * :meth:`from_dir` will use whatever artifacts are available in a
         given directory (which should have been created by an earlier call
         to :meth:`from_target` and then :meth:`to_dir`), and will then return
@@ -320,7 +410,7 @@ class TestBundle(Serializable, abc.ABC):
                 self.shell_output = shell_output
 
             @classmethod
-            def _from_target(cls, target, plat_info, res_dir):
+            def _from_target(cls, target, *, plat_info, res_dir):
                 output = target.execute('echo $((21+21))').split()
                 return cls(res_dir, plat_info, output)
 
@@ -335,7 +425,7 @@ class TestBundle(Serializable, abc.ABC):
     **Usage example**::
 
         # Creating a Bundle from a live target
-        bundle = TestBundle.from_target(target, plat_info, "/my/res/dir")
+        bundle = TestBundle.from_target(target, plat_info=plat_info, res_dir="/my/res/dir")
         # Running some test on the bundle
         res_bundle = bundle.test_foo()
 
@@ -369,9 +459,17 @@ class TestBundle(Serializable, abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def _from_target(cls, target, res_dir):
+    def _from_target(cls, target, *, res_dir):
         """
         Internals of the target factory method.
+
+        .. note:: This must be a classmethod, and all parameters except
+            ``target`` must be keyword-only, i.e. appearing after `args*` or a
+            lonely `*`::
+
+                @classmethod
+                def _from_target(cls, target, *, foo=33, bar):
+                    ...
         """
         pass
 
@@ -402,14 +500,21 @@ class TestBundle(Serializable, abc.ABC):
             return False
 
     @classmethod
-    def from_target(cls, target, res_dir=None, **kwargs):
+    def from_target(cls, target:Target, *, res_dir:ArtifactPath=None, **kwargs):
         """
         Factory method to create a bundle using a live target
 
-        This is mostly boiler-plate code around :meth:`_from_target`,
-        which lets us introduce common functionalities for daughter classes.
-        Unless you know what you are doing, you should not override this method,
-        but the internal :meth:`_from_target` instead.
+        :param target: Target to connect to.
+        :type target: lisa.target.Target
+
+        :param res_dir: Host result directory holding artifacts.
+        :type res_dir: str or lisa.utils.ArtifactPath
+
+        This is mostly boiler-plate code around
+        :meth:`~lisa.tests.base.TestBundle._from_target`, which lets us
+        introduce common functionalities for daughter classes. Unless you know
+        what you are doing, you should not override this method, but the
+        internal :meth:`lisa.tests.base.TestBundle._from_target` instead.
         """
         cls.check_from_target(target)
 
@@ -418,7 +523,7 @@ class TestBundle(Serializable, abc.ABC):
             symlink=True,
         )
 
-        bundle = cls._from_target(target, res_dir, **kwargs)
+        bundle = cls._from_target(target, res_dir=res_dir, **kwargs)
 
         # We've created the bundle from the target, and have all of
         # the information we need to execute the test code. However,
@@ -459,7 +564,7 @@ class TestBundle(Serializable, abc.ABC):
         super().to_path(self._filepath(res_dir))
 
 
-class RTATestBundleMeta(abc.ABCMeta):
+class RTATestBundleMeta(TestBundleMeta):
     """
     Metaclass of :class:`RTATestBundle`.
 
@@ -869,7 +974,7 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         return trace_path
 
     @classmethod
-    def _from_target(cls, target, res_dir, ftrace_coll=None):
+    def _from_target(cls, target, *, res_dir, ftrace_coll=None):
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
         cgroup_config = cls.get_cgroup_configuration(plat_info)
