@@ -33,6 +33,7 @@ import copy
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.trace import Trace, requires_events, TaskID
 from lisa.wlgen.rta import RTA
+from lisa.target import Target
 
 from lisa.utils import (
     Serializable, memoized, ArtifactPath, non_recursive_property,
@@ -974,7 +975,13 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         return trace_path
 
     @classmethod
-    def _from_target(cls, target, *, res_dir, ftrace_coll=None):
+    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'RTATestBundle':
+        """
+        Factory method to create a bundle using a live target
+
+        This will execute the rt-app workload described in
+        :meth:`~lisa.tests.base.RTATestBundle.get_rtapp_profile`
+        """
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
         cgroup_config = cls.get_cgroup_configuration(plat_info)

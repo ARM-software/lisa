@@ -60,16 +60,7 @@ class SchedTuneItemBase(RTATestBundle):
     @classmethod
     # Not annotated, to prevent exekall from picking it up. See
     # SchedTuneBase.from_target
-    def from_target(cls, target, boost, prefer_idle, res_dir=None, ftrace_coll=None):
-        """
-        .. warning:: `res_dir` is at the end of the parameter list, unlike most
-            other `from_target` where it is the second one.
-        """
-        return super().from_target(target, res_dir, boost=boost,
-                prefer_idle=prefer_idle, ftrace_coll=ftrace_coll)
-
-    @classmethod
-    def _from_target(cls, target, res_dir, boost, prefer_idle, ftrace_coll=None):
+    def _from_target(cls, target, *, res_dir, boost, prefer_idle, ftrace_coll=None):
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
         cgroup_config = cls.get_cgroup_configuration(plat_info, boost, prefer_idle)
@@ -91,15 +82,11 @@ class SchedTuneBase(TestBundle):
         self.test_bundles = test_bundles
 
     @classmethod
-    def from_target(cls, target:Target, res_dir:ArtifactPath=None,
+    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None,
             ftrace_coll:FtraceCollector=None) -> 'SchedTuneBase':
         """
         Creates a SchedTuneBase bundle from the target.
         """
-        return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
-
-    @classmethod
-    def _from_target(cls, target, res_dir, ftrace_coll):
         return cls(res_dir, target.plat_info,
             list(cls._create_test_bundles(target, res_dir, ftrace_coll))
         )
@@ -127,7 +114,12 @@ class SchedTuneBase(TestBundle):
         logger = cls.get_logger()
         logger.info('Running {} with boost={}, prefer_idle={}'.format(
                     item_cls.__name__, boost, prefer_idle))
-        return item_cls.from_target(target, boost, prefer_idle, res_dir=item_dir, ftrace_coll=ftrace_coll)
+        return item_cls.from_target(target,
+            boost=boost,
+            prefer_idle=prefer_idle,
+            res_dir=item_dir,
+            ftrace_coll=ftrace_coll
+        )
 
 
 class SchedTuneFreqItem(SchedTuneItemBase):

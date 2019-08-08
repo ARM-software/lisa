@@ -65,7 +65,13 @@ class EASBehaviour(RTATestBundle):
             raise CannotCreateError("Energy model not available")
 
     @classmethod
-    def _from_target(cls, target, res_dir, ftrace_coll=None):
+    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'EASBehaviour':
+        """
+        Factory method to create a bundle using a live target
+
+        This will execute the rt-app workload described in
+        :meth:`lisa.tests.base.RTATestBundle.get_rtapp_profile`
+        """
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
 
@@ -76,16 +82,6 @@ class EASBehaviour(RTATestBundle):
                 cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
 
         return cls(res_dir, plat_info)
-
-    @classmethod
-    def from_target(cls, target:Target, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'EASBehaviour':
-        """
-        Factory method to create a bundle using a live target
-
-        This will execute the rt-app workload described in
-        :meth:`lisa.tests.base.RTATestBundle.get_rtapp_profile`
-        """
-        return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
 
     def _get_expected_task_utils_df(self, nrg_model):
         """
