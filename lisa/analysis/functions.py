@@ -16,6 +16,8 @@
 #
 
 """ Functions Analysis Module """
+import json
+import os
 
 import pandas as pd
 from lisa.analysis.base import AnalysisHelpers
@@ -36,7 +38,7 @@ class FunctionsAnalysis(AnalysisHelpers):
         self.stats_path = stats_path
 
         # Opening functions profiling JSON data file
-        with open(self.trace_path, 'r') as f:
+        with open(self.stats_path, 'r') as f:
             stats = json.load(f)
 
         # Build DataFrame of function stats
@@ -111,10 +113,10 @@ class FunctionsAnalysis(AnalysisHelpers):
                 ylabel = 'Execution Time [us]'
             data = df[metric.lower()].unstack()
             data.plot(kind='bar',
-                     ax=axes, figsize=(16, 8), legend=True,
+                     ax=axis, figsize=(16, 8), legend=True,
                      title=title, table=True)
-            axes.set_ylabel(ylabel)
-            axes.get_xaxis().set_visible(False)
+            axis.set_ylabel(ylabel)
+            axis.get_xaxis().set_visible(False)
 
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

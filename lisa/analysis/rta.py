@@ -118,8 +118,8 @@ class PerfAnalysis(AnalysisHelpers):
             return log_file
 
         task_log_map = {
-            task_name: find_log_file(task, log_dir)
-            for task_name in tasks
+            task_name: find_log_file(task_name, log_dir)
+            for task_name in tasks_names
         }
         return cls(task_log_map)
 
@@ -172,7 +172,7 @@ class PerfAnalysis(AnalysisHelpers):
         """
         return self.perf_data[task]['df']
 
-
+    def get_default_plot_path(self, **kwargs):
         # If all logfiles are located in the same folder, use that folder
         # and the default_filename
         dirnames = {

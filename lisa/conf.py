@@ -1214,8 +1214,6 @@ class ConfigurableMeta(abc.ABCMeta):
             for param, key_desc
             in cls._get_param_key_desc_map().items()
         )
-        return out
-
 
 class Configurable(abc.ABC, metaclass=ConfigurableMeta):
     """

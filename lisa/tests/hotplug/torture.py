@@ -55,7 +55,7 @@ class HotplugBase(TestBundle):
 
         """
         if len(sequence) != nr_operations:
-            raise CPUHPSequenceError('{} operations requested, but got {}'.fromat(
+            raise CPUHPSequenceError('{} operations requested, but got {}'.format(
                 nr_operations, len(sequence)
             ))
 

@@ -620,8 +620,7 @@ class Trace(Loggable, TraceBase):
         available and the platform is big.LITTLE.
         """
         if not self.has_events('cpu_capacity') \
-           or 'nrg-model' not in self.plat_info \
-           or not self.has_big_little:
+           or 'nrg-model' not in self.plat_info:
             return
 
         df = self.df_events('cpu_capacity')
@@ -703,8 +702,7 @@ class Trace(Loggable, TraceBase):
         """
         logger = self.get_logger()
         if not self.has_events('sched_energy_diff') \
-           or 'nrg-model' not in self.plat_info \
-           or not self.has_big_little:
+           or 'nrg-model' not in self.plat_info:
             return
         nrg_model = self.plat_info['nrg-model']
         em_lcluster = nrg_model['little']['cluster']
