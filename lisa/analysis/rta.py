@@ -193,9 +193,6 @@ class PerfAnalysis(AnalysisHelpers):
     def plot_perf(self, task, axis, local_fig):
         """
         Plot the performance Index
-
-        :param filepath: If no axis is specified, the figure will be saved to
-            that path
         """
         axis.set_title('Task [{0:s}] Performance Index'.format(task))
         data = self.get_df(task)[['PerfIndex',]]
