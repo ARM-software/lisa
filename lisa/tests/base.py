@@ -417,7 +417,7 @@ class TestBundle(Serializable, abc.ABC):
             symlink=True,
         )
 
-        bundle = cls._from_target(target, res_dir, **kwargs)
+        bundle = cls._from_target(target=target, res_dir=res_dir, **kwargs)
 
         # We've created the bundle from the target, and have all of
         # the information we need to execute the test code. However,
