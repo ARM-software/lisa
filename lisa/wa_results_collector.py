@@ -603,10 +603,6 @@ class WaResultsCollector(Loggable):
 
     @property
     def workloads(self):
-        return self.results_df['kernel'].unique()
-
-    @property
-    def workloads(self):
         return self.results_df['workload'].unique()
 
     @property
@@ -657,7 +653,7 @@ class WaResultsCollector(Loggable):
 
         units = df['units'].unique()
         if len(units) > 1:
-            raise RuntimError('Found different units for workload "{}" metric "{}": {}'
+            raise RuntimeError('Found different units for workload "{}" metric "{}": {}'
                               .format(workload, metric, units))
 
         return df

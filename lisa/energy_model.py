@@ -193,7 +193,7 @@ class EnergyModelNode(_CpuTree):
             # This is needed for idle_state_by_idx to work.
             if not isinstance(idle_states, OrderedDict):
                 f = 'idle_states is {}, must be collections.OrderedDict'
-                raise ValueError(f.format(type(self.idle_states)))
+                raise ValueError(f.format(type(idle_states)))
 
             # Sanity check for idle_states powers
             power_vals = list(idle_states.values())
@@ -232,8 +232,7 @@ class EnergyModelRoot(EnergyModelNode):
     """
     def __init__(self, active_states=None, idle_states=None,
                  cpu=None, children=None, name=None):
-        return super(EnergyModelRoot, self).__init__(
-            active_states, idle_states, cpu, children, name)
+        super().__init__(active_states, idle_states, cpu, children, name)
 
 class PowerDomain(_CpuTree):
     """Describes the power domain hierarchy for an EnergyModel.
