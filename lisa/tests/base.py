@@ -54,10 +54,11 @@ class TestMetric:
 
     def __str__(self):
         if isinstance(self.data, Mapping):
-            return '{{{}}}'.format(', '.join(
-                ["{}={}".format(name, data) for name, data in self.data.items()]))
+            result = '{{{}}}'.format(', '.join(
+                "{}={}".format(name, data) for name, data in self.data.items()))
+        else:
+            result = str(self.data)
 
-        result = str(self.data)
         if self.units:
             result += ' ' + self.units
 
