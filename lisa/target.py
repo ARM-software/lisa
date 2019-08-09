@@ -350,7 +350,18 @@ class Target(Loggable, HideExekallID, Configurable):
         return cls.from_conf(conf=conf, plat_info=plat_info)
 
     @classmethod
-    def from_cli(cls, argv=None) -> 'Target':
+    def from_cli(cls, *args, **kwargs) -> 'Target':
+        """
+        Same as :meth:`from_custom_cli` without the custom parameters
+        capabilities.
+
+        :return: A connected :class:`Target`
+        """
+        args, target = cls.from_custom_cli(*args, **kwargs)
+        return target
+
+    @classmethod
+    def from_custom_cli(cls, argv=None, params=None) -> 'Target':
         """
         Create a Target from command line arguments.
 
@@ -358,9 +369,15 @@ class Target(Loggable, HideExekallID, Configurable):
           this is ``None``.
         :type argv: list(str)
 
-        Trying to use this in a script that expects extra arguments is bound
-        to be confusing (help message woes, argument clashes...), so for now
-        this should only be used in scripts that only expect Target args.
+        :param params: Dictionary of custom parameters to add to the parser. It
+            is in the form of
+            ``{param_name: {dict of ArgumentParser.add_argument() options}}``.
+        :type params: dict(str, dict)
+
+        :return: A tuple ``(args, target)``
+
+        .. note:: This method should not be relied upon to implement long-term
+            scripts, it's more designed for quick scripting.
         """
         parser = argparse.ArgumentParser(
             formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -371,28 +388,26 @@ class Target(Loggable, HideExekallID, Configurable):
 
                 EXAMPLES
 
-                --target-conf can point to a YAML target configuration file
+                --conf can point to a YAML target configuration file
                 with all the necessary connection information:
-                $ {script} --target-conf my_target.yml
+                $ {script} --conf my_target.yml
 
                 Alternatively, --kind must be set along the relevant credentials:
                 $ {script} --kind linux --host 192.0.2.1 --username root --password root
 
-                In both cases, --platform-info can point to a PlatformInfo YAML
-                file.
+                In both cases, --conf can also contain a PlatformInfo YAML description.
 
                 """.format(
                     script=os.path.basename(sys.argv[0])
                 )))
 
+        parser.add_argument("--conf", '-c',
+            help="Path to a TargetConf and PlatformInfo yaml file. Other options will override what is specified in the file."
+        )
 
-        kind_group = parser.add_mutually_exclusive_group(required=True)
-        kind_group.add_argument("--kind", "-k",
+        parser.add_argument("--kind", "-k",
             choices=["android", "linux", "host"],
             help="The kind of target to connect to.")
-
-        kind_group.add_argument("--target-conf", "-t",
-                            help="Path to a TargetConf yaml file. Superseeds other target connection related options.")
 
         device_group = parser.add_mutually_exclusive_group()
         device_group.add_argument("--device", "-d",
@@ -405,9 +420,6 @@ class Target(Loggable, HideExekallID, Configurable):
         parser.add_argument("--password", "-p",
                             help="Login password. Only applies to Linux kind.")
 
-        parser.add_argument("--platform-info", "-pi",
-                            help="Path to a PlatformInfo yaml file.")
-
         parser.add_argument("--log-level",
                             default='info',
                             choices=('warning', 'info', 'debug'),
@@ -416,31 +428,63 @@ class Target(Loggable, HideExekallID, Configurable):
         parser.add_argument("--res-dir", "-o",
                             help="Result directory of the created Target. If no directory is specified, a default location under $LISA_HOME will be used.")
 
+        params = params or {}
+        for param, settings in params.items():
+            parser.add_argument('--{}'.format(param), **settings)
+        custom_params = {k.replace('-', '_') for k in params.keys()}
+
         # Options that are not a key in TargetConf must be listed here
-        not_target_conf_opt = (
-            'platform_info', 'log_level', 'res_dir', 'target_conf',
-        )
+        not_target_conf_opt = {
+            'platform_info', 'log_level', 'res_dir', 'conf',
+        }
+        not_target_conf_opt.update(custom_params)
 
         args = parser.parse_args(argv)
         setup_logging(level=args.log_level.upper())
 
+        target_conf = TargetConf()
+        platform_info = None
+
+        if args.conf:
+            # Tentatively load a PlatformInfo from the conf file
+            with contextlib.suppress(KeyError):
+                platform_info = PlatformInfo.from_yaml_map(args.conf)
+
+            # Load the TargetConf from the file, and update it with command
+            # line arguments
+            try:
+                conf = TargetConf.from_yaml_map(args.conf)
+            except KeyError:
+                pass
+            else:
+                target_conf.add_src(args.conf, conf)
+
+        target_conf.add_src('command-line', {
+            k: v for k, v in vars(args).items()
+            if v is not None and k not in not_target_conf_opt
+        })
+
+        # Some sanity check to get better error messages
+        if not target_conf:
+            parser.error('--conf with target configuration or any of the connection options is required')
+
         if args.kind == 'android':
-            if not (args.host or args.device):
+            if ('host' not in target_conf) and ('device' not in target_conf):
                 parser.error('--host or --device must be specified')
+
         if args.kind == 'linux':
             for required in ['host', 'username', 'password']:
-                if getattr(args, required) is None:
+                if required not in target_conf:
                     parser.error('--{} must be specified'.format(required))
 
-        platform_info = PlatformInfo.from_yaml_map(args.platform_info) if args.platform_info else None
-        if args.target_conf:
-            target_conf = TargetConf.from_yaml_map(args.target_conf)
-        else:
-            target_conf = TargetConf(
-                {k : v for k, v in vars(args).items()
-                 if v is not None and k not in not_target_conf_opt})
+        custom_args = {
+            param: value
+            for param, value in vars(args).items()
+            if param in custom_params
+        }
+        custom_args = argparse.Namespace(**custom_args)
 
-        return cls.from_conf(conf=target_conf, plat_info=platform_info, res_dir=args.res_dir)
+        return custom_args, cls.from_conf(conf=target_conf, plat_info=platform_info, res_dir=args.res_dir)
 
     def _init_target(self, kind, name, workdir, device, host,
             port, username, password, keyfile,
