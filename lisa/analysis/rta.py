@@ -179,8 +179,8 @@ class PerfAnalysis(AnalysisHelpers):
             os.path.realpath(os.path.dirname(perf_data['logfile']))
             for perf_data in self.perf_data.values()
         }
-        if not filepath and len(dirnames) != 1:
-            raise ValueError('Please specify filepath or axis, since a default folder cannot be inferred from logfiles location')
+        if len(dirnames) != 1:
+            raise ValueError('A default folder cannot be inferred from logfiles location unambiguously: {}'.format(dirnames))
 
         default_dir = dirnames.pop()
 
