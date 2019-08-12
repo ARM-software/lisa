@@ -38,7 +38,7 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 
 import lisa.assets
 from lisa.wlgen.rta import RTA
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, ASSETS_PATH, setup_logging, ArtifactPath, nullcontext
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, ASSETS_PATH, setup_logging, ArtifactPath, nullcontext, ExekallTaggable
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrList, Configurable
 
 from lisa.platforms.platinfo import PlatformInfo
@@ -146,7 +146,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         }
     }
 
-class Target(Loggable, HideExekallID, Configurable):
+class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     """
     Wrap :class:`devlib.target.Target` to provide additional features on top of
     it.
@@ -775,6 +775,9 @@ class Target(Loggable, HideExekallID, Configurable):
             for domain in self.target.cpufreq.iter_domains():
                 self.target.cpuidle.enable_all(domain[0])
 
+
+    def get_tags(self):
+        return {'board': self.name}
 
 class Gem5SimulationPlatformWrapper(Gem5SimulationPlatform):
     def __init__(self, system, simulator, **kwargs):

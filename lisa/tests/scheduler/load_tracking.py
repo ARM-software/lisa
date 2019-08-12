@@ -33,7 +33,7 @@ from lisa.tests.base import (
     RTATestBundle, CannotCreateError
 )
 from lisa.target import Target
-from lisa.utils import ArtifactPath, groupby
+from lisa.utils import ArtifactPath, groupby, ExekallTaggable
 from lisa.datautils import series_integrate, series_mean, df_window
 from lisa.wlgen.rta import Periodic, RTATask
 from lisa.trace import FtraceConf, FtraceCollector, requires_events
@@ -216,7 +216,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
         delta = target * allowed_delta_pct / 100
         return target - delta <= value <= target + delta
 
-class InvarianceItem(LoadTrackingBase):
+class InvarianceItem(LoadTrackingBase, ExekallTaggable):
     """
     Basic check for CPU and frequency invariant load and utilization tracking
 
@@ -241,6 +241,9 @@ class InvarianceItem(LoadTrackingBase):
     @property
     def rtapp_profile(self):
         return self.get_rtapp_profile(self.plat_info, cpu=self.cpu, freq=self.freq)
+
+    def get_tags(self):
+        return {'cpu': '{}@{}'.format(self.cpu, self.freq)}
 
     @classmethod
     def get_rtapp_profile(cls, plat_info, cpu, freq):

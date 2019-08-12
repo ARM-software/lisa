@@ -37,7 +37,7 @@ from lisa.target import Target
 
 from lisa.utils import (
     Serializable, memoized, ArtifactPath, non_recursive_property,
-    LayeredMapping, update_wrapper_doc
+    LayeredMapping, update_wrapper_doc, ExekallTaggable,
 )
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
@@ -359,7 +359,7 @@ class TestBundleMeta(abc.ABCMeta):
 
         return new_cls
 
-class TestBundle(Serializable, abc.ABC, metaclass=TestBundleMeta):
+class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMeta):
     """
     A LISA test bundle.
 
@@ -457,6 +457,12 @@ class TestBundle(Serializable, abc.ABC, metaclass=TestBundleMeta):
         # See exekall_customization.LISAAdaptor.load_db
         self.res_dir = res_dir
         self.plat_info = plat_info
+
+    def get_tags(self):
+        try:
+            return {'board': self.plat_info['name']}
+        except KeyError:
+            return {}
 
     @classmethod
     @abc.abstractmethod
