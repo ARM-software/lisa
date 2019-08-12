@@ -168,7 +168,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
     """
 
     @classmethod
-    def _from_target(cls, target, res_dir, ftrace_coll):
+    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'LoadTrackingBase':
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
 
@@ -265,7 +265,7 @@ class InvarianceItem(LoadTrackingBase):
         return rtapp_profile
 
     @classmethod
-    def from_target(cls, target:Target, cpu:int, freq:int, freq_list=None, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'InvarianceItem':
+    def _from_target(cls, target:Target, *, cpu:int, freq:int, freq_list=None, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'InvarianceItem':
         """
         :param cpu: CPU to use, or ``None`` to automatically choose an
             appropriate set of CPUs.
@@ -274,15 +274,7 @@ class InvarianceItem(LoadTrackingBase):
         :param freq: Frequency to run at in kHz. It is only relevant in
             combination with ``cpu``.
         :type freq: int or None
-
-        .. warning:: `res_dir` is toward the end of the parameter list, unlike most
-            other `from_target` where it is the second one.
         """
-        return super().from_target(target, res_dir,
-            cpu=cpu, freq=freq, freq_list=freq_list, ftrace_coll=ftrace_coll)
-
-    @classmethod
-    def _from_target(cls, target, res_dir, cpu, freq, freq_list, ftrace_coll):
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info, cpu, freq)
         logger = cls.get_logger()
@@ -491,7 +483,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
 
                 logger.info('Running experiment for CPU {}@{}'.format(cpu, freq))
                 yield InvarianceItem.from_target(
-                    target, cpu, freq, all_freqs, res_dir=item_dir,
+                    target, cpu=cpu, freq=freq, freq_list=all_freqs, res_dir=item_dir,
                     ftrace_coll=ftrace_coll,
                 )
 
@@ -499,11 +491,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
         yield from self.invariance_items
 
     @classmethod
-    def from_target(cls, target:Target, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'Invariance':
-        return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
-
-    @classmethod
-    def _from_target(cls, target, res_dir, ftrace_coll):
+    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'Invariance':
         return cls(res_dir, target.plat_info,
             list(cls._build_invariance_items(target, res_dir, ftrace_coll))
         )
@@ -669,15 +657,6 @@ class PELTTask(LoadTrackingBase):
     """
     The task period must be n*1.024 due to :class:`bart.pelt.Simulator` restrictions
     """
-
-    @classmethod
-    def from_target(cls, target:Target, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'PELTTask':
-        """
-        Factory method to create a bundle using a live target
-
-        This will execute the rt-app workload described in :meth:`get_rtapp_profile`
-        """
-        return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):
@@ -945,12 +924,6 @@ class CPUMigrationBase(LoadTrackingBase):
 
         self.phases_durations = [phase.duration_s
                                  for phase in self.reference_task.phases]
-    @classmethod
-    def from_target(cls, target:Target, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'CPUMigrationBase':
-        """
-        Factory method to create a bundle using a live target
-        """
-        return super().from_target(target=target, res_dir=res_dir, ftrace_coll=ftrace_coll)
 
     @classmethod
     def check_from_target(cls, target):

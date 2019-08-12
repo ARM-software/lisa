@@ -66,16 +66,6 @@ class MisfitMigrationBase(RTATestBundle):
         HZ = plat_info['kernel']['config']['CONFIG_HZ']
         return ((HZ * plat_info['cpus-count']) // 10) * (1. / HZ)
 
-    @classmethod
-    def from_target(cls, target:Target, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'MisfitMigrationBase':
-        """
-        Factory method to create a bundle using a live target
-
-        This will execute the rt-app workload described in
-        :meth:`~lisa.tests.base.RTATestBundle.get_rtapp_profile`
-        """
-        return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
-
 class StaggeredFinishes(MisfitMigrationBase):
     """
     One 100% task per CPU, with staggered completion times.

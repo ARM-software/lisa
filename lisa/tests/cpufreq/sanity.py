@@ -35,7 +35,17 @@ class UserspaceSanity(TestBundle):
         self.cpu_work = cpu_work
 
     @classmethod
-    def _from_target(cls, target, res_dir, freq_count_limit):
+    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None,
+                     freq_count_limit=5) -> 'UserspaceSanity':
+        """
+        Factory method to create a bundle using a live target
+
+        :param freq_count_limit: The maximum amount of frequencies to test
+        :type freq_count_limit: int
+
+        This will run Sysbench at different frequencies using the userspace
+        governor
+        """
         cpu_work = {}
         sysbench = Sysbench(target, "sysbench", res_dir)
 
@@ -55,20 +65,6 @@ class UserspaceSanity(TestBundle):
                     cpu_work[cpu][freq] = sysbench.output.nr_events
 
         return cls(res_dir, target.plat_info, cpu_work)
-
-    @classmethod
-    def from_target(cls, target:Target, res_dir:ArtifactPath=None,
-                     freq_count_limit=5) -> 'UserspaceSanity':
-        """
-        Factory method to create a bundle using a live target
-
-        :param freq_count_limit: The maximum amount of frequencies to test
-        :type freq_count_limit: int
-
-        This will run Sysbench at different frequencies using the userspace
-        governor
-        """
-        return super().from_target(target, res_dir, freq_count_limit=freq_count_limit)
 
     def test_performance_sanity(self) -> ResultBundle:
         """
