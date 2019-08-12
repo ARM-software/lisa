@@ -179,8 +179,8 @@ class PerfAnalysis(AnalysisHelpers):
             os.path.realpath(os.path.dirname(perf_data['logfile']))
             for perf_data in self.perf_data.values()
         }
-        if not filepath and len(dirnames) != 1:
-            raise ValueError('Please specify filepath or axis, since a default folder cannot be inferred from logfiles location')
+        if len(dirnames) != 1:
+            raise ValueError('A default folder cannot be inferred from logfiles location unambiguously: {}'.format(dirnames))
 
         default_dir = dirnames.pop()
 
@@ -193,9 +193,6 @@ class PerfAnalysis(AnalysisHelpers):
     def plot_perf(self, task, axis, local_fig):
         """
         Plot the performance Index
-
-        :param filepath: If no axis is specified, the figure will be saved to
-            that path
         """
         axis.set_title('Task [{0:s}] Performance Index'.format(task))
         data = self.get_df(task)[['PerfIndex',]]
@@ -214,16 +211,56 @@ class PerfAnalysis(AnalysisHelpers):
         data.plot(ax=axis, drawstyle='steps-post')
 
     @AnalysisHelpers.plot_method()
-    def plot_slack_histogram(self, task, axis, local_fig):
+    def plot_slack_histogram(self, task, axis, local_fig, bins=30):
         """
-        Plot the slack histogram
+        Plot the slack histogram.
+
+        :param task: rt-app task name to plot
+        :type task: str
+
+        :param bins: number of bins for the histogram.
+        :type bins: int
+
+        .. seealso:: :meth:`plot_perf_index_histogram`
         """
-        data = self.get_df(task)[['PerfIndex',]]
-        data.hist(bins=30, ax=axis, alpha=0.4)
-        pindex_avg = data.mean()[0]
-        pindex_std = data.std()[0]
-        self.get_logger().info('PerfIndex, Task [%s] avg: %.2f, std: %.2f',
-                task, pindex_avg, pindex_std)
-        axis.axvline(pindex_avg, linestyle='--', linewidth=2)
+        ylabel = 'slack of "{}"'.format(task)
+        series = self.get_df(task)['Slack']
+        series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel)
+        axis.axvline(series.mean(), linestyle='--', linewidth=2, label='mean')
+        axis.legend()
+
+        if local_fig:
+            axis.set_title(ylabel)
+
+    @AnalysisHelpers.plot_method()
+    def plot_perf_index_histogram(self, task, axis, local_fig, bins=30):
+        r"""
+        Plot the perf index histogram.
+
+        :param task: rt-app task name to plot
+        :type task: str
+
+        :param bins: number of bins for the histogram.
+        :type bins: int
+
+        The perf index is defined as:
+
+        .. math::
+
+            perfIndex = \frac{slack}{period - runtime}
+
+        """
+        ylabel = 'perf index of "{}"'.format(task)
+        series = self.get_df(task)['PerfIndex']
+        mean = series.mean()
+        self.get_logger().info('perf index of task "{}": avg={:.2f} std={:.2f}'.format(
+            task, mean, series.std()))
+
+        series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel)
+        axis.axvline(mean, linestyle='--', linewidth=2, label='mean')
+        axis.legend()
+
+        if local_fig:
+            axis.set_title(ylabel)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
