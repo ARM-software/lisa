@@ -38,7 +38,7 @@ The following tests are available. They can be used as:
 .. run-command::
   :capture-stderr:
   
-  exekall run $LISA_HOME/lisa/tests --rst-list --inject-empty-target-conf
+  exekall run lisa.tests --rst-list --inject-empty-target-conf
 
 Running tests
 =============

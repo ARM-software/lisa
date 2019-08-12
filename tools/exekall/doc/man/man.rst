@@ -26,9 +26,9 @@ exekall run
    :ignore-error:
    :literal:
 
-   # Give the python sources to exekall to get the LISA options in addition to
+   # Give the python module to exekall to get the LISA options in addition to
    # the generic ones.
-   exekall run "$LISA_HOME/lisa/tests/" --help
+   exekall run lisa.tests --help
 
 exekall compare
 ---------------
@@ -67,9 +67,9 @@ achieved in several ways:
 
    * ``--select``/``-s`` with a pattern matching an expression ID. Pattern
      prefixed with **!** can be used to exclude some expressions.
-   * Pointing ``exekall run`` at a subset of python source files. Only files
-     (directly or indirectly) imported from these python modules will be
-     scanned for callables.
+   * Pointing ``exekall run`` at a subset of python source files, or to module
+     names. Only files (directly or indirectly) imported from these python
+     modules will be scanned for callables.
 
 Once the expressions are selected, multiple iterations of it can be executed
 using ``-n``. ``--share TYPE_PATTERN`` can be used to share part of the expression

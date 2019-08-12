@@ -16,51 +16,11 @@
 # limitations under the License.
 #
 
-from setuptools import setup
+from setuptools import setup, find_namespace_packages
 
 import importlib
 import distutils.cmd
 import distutils.log
-
-class SystemCheckCommand(distutils.cmd.Command):
-    """A custom command to check some prerequisites on the system."""
-
-    description = 'check some requirements on the system, that cannot be satisfied by installing Python packages in a venv'
-    user_options = [
-        # The format is (long option, short option, description).
-    ]
-
-    def initialize_options(self):
-        """Set default values for options."""
-        pass
-
-    def finalize_options(self):
-        """Post-process options."""
-        pass
-
-    def run(self):
-        """Run command."""
-        self.check_system_install()
-
-    def check_system_install(self):
-        missing_pkg_msg = '\n\nThe following packages need to be installed using your Linux distribution package manager. On ubuntu, the following packages are needed:\n    apt-get install {}\n\n'
-        distro_pkg_list = list()
-        def check_pkg(python_pkg, distro_pkg):
-            try:
-                importlib.import_module(python_pkg)
-            except ImportError:
-                distro_pkg_list.append(distro_pkg)
-
-        # Some packages are not always present by default on Debian-based
-        # systems, even if there are part of the Python standard library
-        check_pkg('tkinter', 'python3-tk')
-        check_pkg('ensurepip', 'python3-venv')
-
-        if distro_pkg_list:
-            self.announce(
-                missing_pkg_msg.format(' '.join(distro_pkg_list)),
-                level=distutils.log.INFO
-            )
 
 with open('README.rst', 'r') as fh:
     long_description = fh.read()
@@ -70,13 +30,22 @@ with open("lisa/version.py") as f:
     exec(f.read(), version_globals)
     lisa_version = version_globals['__version__']
 
+
+packages = find_namespace_packages(include=['lisa*'])
+package_data = {
+    package: '*'
+    for package in packages
+    if package.startswith('lisa.assets.')
+}
+package_data['lisa.assets'] = '*'
+
 setup(
     name='LISA',
     version=lisa_version,
     author='Arm Ltd',
     # TODO: figure out which email to put here
     # author_email=
-    packages=['lisa'],
+    packages=packages,
     url='https://github.com/ARM-software/lisa',
     project_urls={
         "Bug Tracker": "https://github.com/ARM-software/lisa/issues",
@@ -94,6 +63,7 @@ setup(
         "numpy",
         "scipy",
         "ruamel.yaml >= 0.15.81",
+        "docutils", # For the HTML output of analysis plots
 
         # Jupyter doesn't like >= 6.0
         "tornado < 6.0",
@@ -125,6 +95,7 @@ setup(
         ],
     },
 
+    package_data=package_data,
     classifiers=[
         "Programming Language :: Python :: 3 :: Only",
         # This is not a standard classifier, as there is nothing defined for
@@ -138,11 +109,6 @@ setup(
         "Topic :: Software Development :: Testing",
         "Intended Audience :: Developers",
     ],
-
-    # Add extra subcommands to setup.py
-    cmdclass={
-        'systemcheck': SystemCheckCommand,
-    }
 )
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

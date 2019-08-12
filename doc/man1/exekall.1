@@ -81,19 +81,19 @@ usage: exekall run [\-h] [\-s ID_PATTERN] [\-\-list]
                    [\-\-template\-scripts SCRIPT_FOLDER] [\-\-adaptor ADAPTOR]
                    [\-n N] [\-\-share TYPE_PATTERN] [\-\-random\-order]
                    [\-\-conf CONF] [\-\-inject SERIALIZED_OBJECT_PATH]
-                   PYTHON_SRC [PYTHON_SRC ...]
+                   PYTHON_MODULES [PYTHON_MODULES ...]
 
 Run expressions
 
 Note that the adaptor in the customization module is able to add more
 parameters to \(ga\(gaexekall run\(ga\(ga. In order to get the complete set of options,
-please run \(ga\(gaexekall run YOUR_SOURCES \-\-help\(ga\(ga.
+please run \(ga\(gaexekall run YOUR_SOURCES_OR_MODULES \-\-help\(ga\(ga.
     
 
 positional arguments:
-  PYTHON_SRC            Python modules files. If passed a folder, all contained files
-                        recursively are selected. By default, the current directory is
-                        selected.
+  PYTHON_MODULES        Python modules files or module names. If passed a folder, all
+                        contained files recursively are selected. By default, the current
+                        directory is selected.
 
 optional arguments:
   \-h, \-\-help            show this help message and exit
@@ -273,9 +273,9 @@ achieved in several ways:
 \fB\-\-select\fP/\fB\-s\fP with a pattern matching an expression ID. Pattern
 prefixed with \fB!\fP can be used to exclude some expressions.
 .IP \(bu 2
-Pointing \fBexekall run\fP at a subset of python source files. Only files
-(directly or indirectly) imported from these python modules will be
-scanned for callables.
+Pointing \fBexekall run\fP at a subset of python source files, or to module
+names. Only files (directly or indirectly) imported from these python
+modules will be scanned for callables.
 .UNINDENT
 .UNINDENT
 .UNINDENT

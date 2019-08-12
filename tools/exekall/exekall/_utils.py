@@ -500,25 +500,55 @@ def find_customization_module_set(module_set):
 
     return customization_module_set
 
-def import_paths(paths):
+def import_modules(paths_or_names):
     """
     Import the modules in the given list of paths.
 
     If a folder is passed, all Python sources are recursively imported.
     """
-    def import_it(path):
+    def import_it(path_or_name):
         # Recursively import all modules when passed folders
-        if path.is_dir():
-            for python_src in glob.iglob(str(path/'**'/'*.py'), recursive=True):
-                yield import_file(python_src)
-        # If passed a file, just import it directly
+        if path_or_name.is_dir():
+            yield from import_folder(path_or_name)
+        # If passed a file, a symlink or something like that
+        elif path_or_name.exists():
+            yield import_file(path_or_name)
+        # Otherwise, assume it is just a module name
         else:
-            yield import_file(path)
+            yield from import_name_recursively(path_or_name)
 
     return set(itertools.chain.from_iterable(
         import_it(pathlib.Path(path))
-        for path in paths
+        for path in paths_or_names
     ))
+
+def import_name_recursively(name):
+    """
+    Import a module by its name.
+
+    :param name: Full name of the module.
+    :type name: str
+
+    If it's a package, import all submodules recursively.
+    """
+
+    mod = importlib.import_module(str(name))
+    try:
+        paths = mod.__path__
+    # This is a plain module
+    except AttributeError:
+        yield mod
+    # This is a package, so we import all the submodules recursively
+    else:
+        for path in paths:
+            yield from import_folder(pathlib.Path(path))
+
+def import_folder(path):
+    """
+    Import all modules contained in the given folder, recurisvely.
+    """
+    for python_src in glob.iglob(str(path/'**'/'*.py'), recursive=True):
+        yield import_file(python_src)
 
 def import_file(python_src, module_name=None, is_package=False):
     """

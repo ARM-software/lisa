@@ -22,7 +22,7 @@ Vagrant.configure(2) do |config|
 
     cd /home/vagrant/lisa
     # Install required packages
-    ./install_base_ubuntu.sh --install-android-sdk --install-doc-extras
+    ./install_base.sh --install-all
 
     chown -R vagrant.vagrant /home/vagrant/lisa
 
@@ -40,7 +40,7 @@ Vagrant.configure(2) do |config|
     echo 'source init_env' >> /home/vagrant/.bashrc
 
     # Trigger the creation of a venv and check that everything works well
-    if ! su vagrant bash -c 'tools/scripts/travis_tests.sh'; then
+    if ! su vagrant bash -c 'tools/travis_tests.sh'; then
       echo "Self tests FAILED !"
     else
       echo "Virtual Machine Installation completed successfully!                "
