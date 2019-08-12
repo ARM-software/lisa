@@ -1340,4 +1340,19 @@ def nullcontext(enter_result=None):
     yield enter_result
 
 
+class ExekallTaggable:
+    """
+    Allows tagging the objects produced in exekall expressions ID.
+
+    .. seealso:: :ref:`exekall expression ID<exekall-expression-id>`
+    """
+
+    @abc.abstractmethod
+    def get_tags(self):
+        """
+        :return: Dictionary of tags and tag values
+        :rtype: dict(str, object)
+        """
+        return {}
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

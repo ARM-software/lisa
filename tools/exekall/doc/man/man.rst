@@ -79,7 +79,7 @@ implicitly to keep consistent expressions.
 
 The adaptor found in the customization module of the python sources you are
 using can add extra options to ``exekall run``, which are shown in ``--help``
-only when these sources are specified as well. 
+only when these sources are specified as well.
 
 Expression engine
 +++++++++++++++++
@@ -87,7 +87,10 @@ Expression engine
 At the core of ``exekall`` is the expression engine. It is in charge of
 building sensible sequences of calls out of python-level annotations (see PEP
 484), and then executing them. An expression is a graph where each node has
-named *parameters* that point to other nodes. 
+named *parameters* that point to other nodes.
+
+
+.. _exekall-expression-id:
 
 Expression ID
 -------------
@@ -101,7 +104,7 @@ Each expression has an associated ID that is derived from its structure. The rul
       (name of a Python callable), followed by a
       parenthesis-enclosed list of parameters ID, excluding the first
       parameter. The code :code:`f(p1=g(), p2=h(k()))` has the ID
-      ``g:f(p2=k:h)``. 
+      ``g:f(p2=k:h)``.
    3. Expression values can have named tags attached to them. When displaying
       the ID of such a value, the tag would be inserted right after the
       operator name, inside brackets. The value returned by ``g`` tagged with a
@@ -181,7 +184,7 @@ expression itself. Having that level allows merging artifact folders together
 and avoids conflict in case two different expressions share the same ID.
 
 Inside that folder, the following files can be found:
-   
+
    * **STRUCTURE** which contains the structure of the expression. Each
      operator is described by its callable name, its return type, and its
      parameters. Parameters are recursively defined the same way. An **svg** or
@@ -194,7 +197,7 @@ Inside that folder, the following files can be found:
      gives the option to the user to not re-execute some part of the code, but
      load a serialized value instead.
    * Artifact folders allocated by some operators.
-   
+
 exekall compare
 ---------------
 
@@ -295,4 +298,3 @@ modules that are explicitly passed to ``exekall run``.  This allows adding
 extra options to ``exekall run`` and ``compare``, tag values in IDs, change the
 set of callables that will be hidden from the ID and define what type is
 considered to provide reusable values by the engine among other things.
-
