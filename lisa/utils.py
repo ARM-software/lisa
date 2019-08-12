@@ -68,6 +68,13 @@ The detected location of your LISA installation
 RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
 
+TASK_COMM_MAX_LEN = 16 - 1
+"""
+Value of ``TASK_COMM_LEN - 1`` macro in the kernel, to account for ``\0``
+terminator.
+"""
+
+
 class Loggable:
     """
     A simple class for uniformly named loggers
