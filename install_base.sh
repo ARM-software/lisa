@@ -96,12 +96,12 @@ install_nodejs_snap() {
     if ! which snap >/dev/null 2>&1; then
         echo 'Snap not installed on that system, not installing nodejs'
         return 1
-    elif snap list >/dev/null 2>&1; then
+    elif ! snap list >/dev/null 2>&1; then
         echo 'Snap not usable on that system, not installing nodejs'
         return 1
     else
         echo "Installing snap nodejs package ..."
-        snap install node --classic --channel=8
+        sudo snap install node --classic --channel=8
     fi
 }
 
@@ -263,6 +263,7 @@ for arg in "$@"; do
         # NodeJS v8+ is required, Ubuntu 16.04 LTS supports only an older version.
         # As a special case we can install it as a snap package
         if test_os_release NAME Ubuntu && test_os_release VERSION_ID 16.04; then
+            apt_packages+=(snapd)
             install_functions+=(install_nodejs_snap)
         else
             apt_packages+=(nodejs npm)
