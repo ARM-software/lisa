@@ -116,7 +116,7 @@ install_pacman() {
     sudo pacman -Sy --needed --noconfirm "${pacman_packages[@]}"
 }
 
-set -eu
+set -u
 
 # APT-based distributions like Ubuntu or Debian
 apt_packages=(
@@ -309,10 +309,15 @@ ret=0
 for _func in "${ordered_functions[@]}"; do
     for func in "${install_functions[@]}"; do
         if [[ $func == $_func ]]; then
-           # If one hook returns non-zero, we keep going but return an overall failure
-           # code
-            $func || ret=$?
-            echo
+            # If one hook returns non-zero, we keep going but return an overall failure
+            # code
+            $func; _ret=$?
+            if [[ $_ret != 0 ]]; then
+                ret=$_ret
+                echo "Stage $func failed with exit code $ret" >&2
+            else
+                echo "Stage $func succeeded" >&2
+            fi
         fi
     done
 done
