@@ -232,10 +232,13 @@ function lisa-install {
         # This set of requirements will install all the shipped dependencies
         # in editable mode
         local requirements='devmode_requirements.txt'
+        local extra_requirements='devmode_extra_requirements.txt'
+
     else
         # This one will install the packages that are developed here, but will
         # take the external dependencies from PyPI
         local requirements='requirements.txt'
+        local extra_requirements='extra_requirements.txt'
     fi
 
     echo
@@ -254,6 +257,13 @@ function lisa-install {
         echo "Installing requirements from $custom_requirements ..."
         echo
         _lisa-python -m pip install -r "$custom_requirements" "$@"
+    fi
+
+    if [[ -e "$extra_requirements" ]]; then
+        echo
+        echo "Installing extra requirements from $extra_requirements ..."
+        echo
+        _lisa-python -m pip install -r "$extra_requirements" "$@"
     fi
 
     # Make sure the shell has taken into account the new content of directories

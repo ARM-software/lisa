@@ -116,7 +116,21 @@ install_pacman() {
     sudo pacman -Sy --needed --noconfirm "${pacman_packages[@]}"
 }
 
-set -u
+register_pip_extra_requirements() {
+    local requirements="$LISA_HOME/extra_requirements.txt"
+    local devmode_requirements="$LISA_HOME/devmode_extra_requirements.txt"
+
+    echo "Registering extra Python pip requirements in $requirements:"
+    local content=$(printf "%s\n" "${pip_extra_requirements[@]}")
+    printf "%s\n\n" "$content" | tee "$requirements"
+
+    # All the requirements containing "./" are prefixed with "-e " to install
+    # them in editable mode
+    printf "%s\n\n" "$(printf "%s" "$content" | sed '/.\//s/^/-e /')" > "$devmode_requirements"
+}
+
+# Extra Python pip requirements, to be installed by lisa-install
+pip_extra_requirements=()
 
 # APT-based distributions like Ubuntu or Debian
 apt_packages=(
@@ -167,8 +181,9 @@ case $(uname -m) in
 esac
 
 # Array of functions to call in order
-install_functions=()
-
+install_functions=(
+    register_pip_extra_requirements
+)
 
 # Detection based on the package-manager, so that it works on derivatives of
 # distributions we expect. Matching on distro name would prevent that.
@@ -268,6 +283,7 @@ for arg in "$@"; do
         )
         # plantuml can be installed from the AUR
         pacman_packages+=(gobject-introspection)
+        pip_extra_requirements+=(./tools/bisector[dbus])
         handled=1;
         ;;&
 
@@ -299,6 +315,8 @@ ordered_functions=(
     install_android_sdk_manager # Needed by install_android_build_tools
     install_android_tools
     install_android_platform_tools
+
+    register_pip_extra_requirements
 )
 
 # Remove duplicates in the list
