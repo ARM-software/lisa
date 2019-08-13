@@ -96,12 +96,12 @@ install_nodejs_snap() {
     if ! which snap >/dev/null 2>&1; then
         echo 'Snap not installed on that system, not installing nodejs'
         return 1
-    elif snap list >/dev/null 2>&1; then
+    elif ! snap list >/dev/null 2>&1; then
         echo 'Snap not usable on that system, not installing nodejs'
         return 1
     else
         echo "Installing snap nodejs package ..."
-        snap install node --classic --channel=8
+        sudo snap install node --classic --channel=8
     fi
 }
 
@@ -116,7 +116,21 @@ install_pacman() {
     sudo pacman -Sy --needed --noconfirm "${pacman_packages[@]}"
 }
 
-set -eu
+register_pip_extra_requirements() {
+    local requirements="$LISA_HOME/extra_requirements.txt"
+    local devmode_requirements="$LISA_HOME/devmode_extra_requirements.txt"
+
+    echo "Registering extra Python pip requirements in $requirements:"
+    local content=$(printf "%s\n" "${pip_extra_requirements[@]}")
+    printf "%s\n\n" "$content" | tee "$requirements"
+
+    # All the requirements containing "./" are prefixed with "-e " to install
+    # them in editable mode
+    printf "%s\n\n" "$(printf "%s" "$content" | sed '/.\//s/^/-e /')" > "$devmode_requirements"
+}
+
+# Extra Python pip requirements, to be installed by lisa-install
+pip_extra_requirements=()
 
 # APT-based distributions like Ubuntu or Debian
 apt_packages=(
@@ -135,10 +149,6 @@ apt_packages=(
     python3-venv
     python3-setuptools
     python3-tk
-    gobject-introspection
-    libcairo2-dev
-    libgirepository1.0-dev
-    gir1.2-gtk-3.0
 )
 
 # pacman-based distributions like Archlinux or its derivatives
@@ -152,7 +162,6 @@ pacman_packages=(
     python
     python-pip
     python-setuptools
-    gobject-introspection
 
     # These packages can be installed from AUR
     # kernelshark
@@ -172,8 +181,9 @@ case $(uname -m) in
 esac
 
 # Array of functions to call in order
-install_functions=()
-
+install_functions=(
+    register_pip_extra_requirements
+)
 
 # Detection based on the package-manager, so that it works on derivatives of
 # distributions we expect. Matching on distro name would prevent that.
@@ -197,7 +207,7 @@ if [[ ! -z "$package_manager" ]] && ! test_os_release NAME "$expected_distro"; t
 fi
 
 usage() {
-    echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools] [--install-android-platform-tools] [--install-doc-extras] [--install-nodejs] [--install-all]"
+    echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools] [--install-android-platform-tools] [--install-doc-extras] [--install-nodejs] [--install-bisector-dbus] [--install-all]"
     cat << EOF
 
 Install distribution packages and other bits that don't fit in the Python
@@ -253,11 +263,28 @@ for arg in "$@"; do
         # NodeJS v8+ is required, Ubuntu 16.04 LTS supports only an older version.
         # As a special case we can install it as a snap package
         if test_os_release NAME Ubuntu && test_os_release VERSION_ID 16.04; then
+            apt_packages+=(snapd)
             install_functions+=(install_nodejs_snap)
         else
             apt_packages+=(nodejs npm)
             pacman_packages+=(nodejs npm)
         fi
+        handled=1;
+        ;;&
+
+    "--install-bisector-dbus" | "--install-all")
+        apt_packages+=(
+            gobject-introspection
+            # Some of that seems to only be needed on some version of Ubuntu.
+            # GTK/Glib does not shine on packaging side, so ere on the side of
+            # caution and install all the things that seem to avoid issues ...
+            libcairo2-dev
+            libgirepository1.0-dev
+            gir1.2-gtk-3.0
+        )
+        # plantuml can be installed from the AUR
+        pacman_packages+=(gobject-introspection)
+        pip_extra_requirements+=(./tools/bisector[dbus])
         handled=1;
         ;;&
 
@@ -289,6 +316,8 @@ ordered_functions=(
     install_android_sdk_manager # Needed by install_android_build_tools
     install_android_tools
     install_android_platform_tools
+
+    register_pip_extra_requirements
 )
 
 # Remove duplicates in the list
@@ -299,10 +328,15 @@ ret=0
 for _func in "${ordered_functions[@]}"; do
     for func in "${install_functions[@]}"; do
         if [[ $func == $_func ]]; then
-           # If one hook returns non-zero, we keep going but return an overall failure
-           # code
-            $func || ret=$?
-            echo
+            # If one hook returns non-zero, we keep going but return an overall failure
+            # code
+            $func; _ret=$?
+            if [[ $_ret != 0 ]]; then
+                ret=$_ret
+                echo "Stage $func failed with exit code $ret" >&2
+            else
+                echo "Stage $func succeeded" >&2
+            fi
         fi
     done
 done

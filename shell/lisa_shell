@@ -231,12 +231,25 @@ function lisa-install {
     if [[ "$LISA_DEVMODE" == 1 ]]; then
         # This set of requirements will install all the shipped dependencies
         # in editable mode
-        local requirements='devmode_requirements.txt'
+        local requirements=(
+            devmode_requirements.txt
+            devmode_extra_requirements.txt
+        )
     else
         # This one will install the packages that are developed here, but will
         # take the external dependencies from PyPI
-        local requirements='requirements.txt'
+        local requirements=(
+            requirements.txt
+            extra_requirements.txt
+        )
     fi
+    requirements+=(custom_requirements.txt)
+
+    pip_options=()
+    for f in "${requirements[@]}"; do
+        f="$LISA_HOME/$f"
+        [[ -e "$f" ]] && pip_options+=(-r "$f")
+    done
 
     echo
     echo "Installing LISA packages ..."
@@ -246,15 +259,7 @@ function lisa-install {
     # system's site-packages location. This ensures we use up to date packages,
     # and that the installation process will give the same result on all
     # machines at a given point in time.
-    (cd "$LISA_HOME" && _lisa-python -m pip install --no-cache-dir -r "$LISA_HOME/$requirements" "$@")
-
-    local custom_requirements="$LISA_HOME/custom_requirements.txt"
-    if [[ -e "$custom_requirements" ]]; then
-        echo
-        echo "Installing requirements from $custom_requirements ..."
-        echo
-        _lisa-python -m pip install -r "$custom_requirements" "$@"
-    fi
+    (cd "$LISA_HOME" && _lisa-python -m pip install --no-cache-dir "${pip_options[@]}" "$@")
 
     # Make sure the shell has taken into account the new content of directories
     # listed in $PATH.

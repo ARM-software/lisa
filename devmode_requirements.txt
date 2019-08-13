@@ -15,4 +15,4 @@
 -e ./external/workload-automation/
 -e ./[notebook,doc,test]
 
--e ./tools/bisector[dbus]
+-e ./tools/bisector

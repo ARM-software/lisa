@@ -13,3 +13,5 @@ server.url
 /tools/wa_user_directory/dependencies
 /src/buildroot
 _build
+custom_requirements.txt
+extra_requirements.txt
