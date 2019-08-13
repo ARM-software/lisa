@@ -36,7 +36,7 @@ Vagrant.configure(2) do |config|
     do
         echo unset $LC  >> /home/vagrant/.bashrc
     done
-    echo 'export LISA_VENV_PATH=$LISA_VENV_PATH' >> /home/vagrant/.bashrc
+    echo "export LISA_VENV_PATH=$LISA_VENV_PATH" >> /home/vagrant/.bashrc
     echo 'source init_env' >> /home/vagrant/.bashrc
 
     # Trigger the creation of a venv and check that everything works well
