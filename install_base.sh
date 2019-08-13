@@ -135,10 +135,6 @@ apt_packages=(
     python3-venv
     python3-setuptools
     python3-tk
-    gobject-introspection
-    libcairo2-dev
-    libgirepository1.0-dev
-    gir1.2-gtk-3.0
 )
 
 # pacman-based distributions like Archlinux or its derivatives
@@ -152,7 +148,6 @@ pacman_packages=(
     python
     python-pip
     python-setuptools
-    gobject-introspection
 
     # These packages can be installed from AUR
     # kernelshark
@@ -197,7 +192,7 @@ if [[ ! -z "$package_manager" ]] && ! test_os_release NAME "$expected_distro"; t
 fi
 
 usage() {
-    echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools] [--install-android-platform-tools] [--install-doc-extras] [--install-nodejs] [--install-all]"
+    echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools] [--install-android-platform-tools] [--install-doc-extras] [--install-nodejs] [--install-bisector-dbus] [--install-all]"
     cat << EOF
 
 Install distribution packages and other bits that don't fit in the Python
@@ -258,6 +253,21 @@ for arg in "$@"; do
             apt_packages+=(nodejs npm)
             pacman_packages+=(nodejs npm)
         fi
+        handled=1;
+        ;;&
+
+    "--install-bisector-dbus" | "--install-all")
+        apt_packages+=(
+            gobject-introspection
+            # Some of that seems to only be needed on some version of Ubuntu.
+            # GTK/Glib does not shine on packaging side, so ere on the side of
+            # caution and install all the things that seem to avoid issues ...
+            libcairo2-dev
+            libgirepository1.0-dev
+            gir1.2-gtk-3.0
+        )
+        # plantuml can be installed from the AUR
+        pacman_packages+=(gobject-introspection)
         handled=1;
         ;;&
 
