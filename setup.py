@@ -33,11 +33,11 @@ with open("lisa/version.py") as f:
 
 packages = find_namespace_packages(include=['lisa*'])
 package_data = {
-    package: '*'
+    package: ['*']
     for package in packages
     if package.startswith('lisa.assets.')
 }
-package_data['lisa.assets'] = '*'
+package_data['lisa.assets'] = ['*']
 
 setup(
     name='LISA',
