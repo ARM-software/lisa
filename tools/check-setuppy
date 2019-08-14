@@ -37,7 +37,7 @@ def main():
     default_commit_file = os.path.join(
         (
                  os.getenv('LISA_VENV_PATH')
-            if   os.getenv('LISA_USE_VENV')
+            if   int(os.getenv('LISA_USE_VENV', '0'))
             else os.getenv('LISA_HOME')
         ),
         '.lisa-install-commit'
