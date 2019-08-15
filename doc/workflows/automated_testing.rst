@@ -50,7 +50,7 @@ to list available tests.
 .. code-block:: sh
 
   # Select and run all tests starting with PELTTask but not containing "load"
-  exekall run lisa,tests --conf target_conf.yml -s 'PELTTask*' -s '!*load*'
+  exekall run lisa.tests --conf target_conf.yml -s 'PELTTask*' -s '!*load*'
 
 ``--artifact-dir`` can be used to set the location at which ``exekall`` will
 store its artifacts. By default, it will be stored in a sub directory of
@@ -214,7 +214,7 @@ Later on, the processing methods can be run from the data collected:
 
 .. code-block:: sh
 
-  exekall run lisa,tests --load-db artifacts/VALUE_DB.pickle.xz --load-type '*TestBundle'
+  exekall run lisa.tests --load-db artifacts/VALUE_DB.pickle.xz --load-type '*TestBundle'
 
 
 .. tip:: ``--load-db`` can also be used to re-process data from regular
