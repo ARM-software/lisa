@@ -467,7 +467,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         })
 
         # Some sanity check to get better error messages
-        if not target_conf:
+        if 'kind' not in target_conf:
             parser.error('--conf with target configuration or any of the connection options is required')
 
         if args.kind == 'android':
