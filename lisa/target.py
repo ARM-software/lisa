@@ -351,18 +351,19 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         return cls.from_conf(conf=conf, plat_info=plat_info)
 
     @classmethod
-    def from_cli(cls, *args, **kwargs) -> 'Target':
+    # Keep the signature without *args and **kwargs so that it's usable by exekall
+    def from_cli(cls, argv=None, params=None) -> 'Target':
         """
         Same as :meth:`from_custom_cli` without the custom parameters
         capabilities.
 
         :return: A connected :class:`Target`
         """
-        args, target = cls.from_custom_cli(*args, **kwargs)
+        args, target = cls.from_custom_cli(argv=argv, params=params)
         return target
 
     @classmethod
-    def from_custom_cli(cls, argv=None, params=None) -> 'Target':
+    def from_custom_cli(cls, argv=None, params=None):
         """
         Create a Target from command line arguments.
 
@@ -466,7 +467,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         })
 
         # Some sanity check to get better error messages
-        if not target_conf:
+        if 'kind' not in target_conf:
             parser.error('--conf with target configuration or any of the connection options is required')
 
         if args.kind == 'android':
