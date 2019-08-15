@@ -23,6 +23,7 @@ import abc
 import sys
 import textwrap
 import re
+from datetime import datetime
 
 from collections import OrderedDict
 from collections.abc import Mapping
@@ -145,6 +146,10 @@ class ResultBundle(ResultBundleBase):
       It will also be used as the truth-value of a ResultBundle.
     :type result: :class:`Result`
 
+    :param utc_datetime: UTC time at which the result was collected, or
+        ``None`` to record the current datetime.
+    :type utc_datetime: datetime.datetime
+
     :class:`TestMetric` can be added to an instance of this class. This can
     make it easier for users of your tests to understand why a certain test
     passed or failed. For instance::
@@ -165,9 +170,10 @@ class ResultBundle(ResultBundleBase):
         >>> print(res_bundle)
         FAILED: current time=11
     """
-    def __init__(self, result):
+    def __init__(self, result, utc_datetime=None):
         self.result = result
         self.metrics = {}
+        self.utc_datetime = utc_datetime or datetime.utcnow()
 
     @classmethod
     def from_bool(cls, cond, *args, **kwargs):
@@ -205,6 +211,16 @@ class AggregatedResultBundle(ResultBundleBase):
         self.name_metric = name_metric
         self.extra_metrics = {}
         self._forced_result = result
+
+    @property
+    def utc_datetime(self):
+        """
+        Use the earliest ``utc_datetime`` among the aggregated bundles.
+        """
+        return min(
+            result_bundle.utc_datetime
+            for result_bundle in self.result_bundles
+        )
 
     @property
     def result(self):
