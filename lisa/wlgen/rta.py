@@ -491,11 +491,11 @@ class Phase(Loggable):
 
             logger.info(' | duration %.6f [s] (%d loops)',
                              duration/1e6, cloops)
-            logger.info(' |  period   %6d [us], duty_cycle %3d %%',
+            logger.info(' | period    %7d [us], duty_cycle %3d %%',
                              period, self.duty_cycle_pct)
-            logger.info(' |  run_time %6d [us], sleep_time %6d [us]',
+            logger.info(' | run_time  %7d [us], sleep_time %6d [us]',
                              running_time, sleep_time)
-
+            
             phase['loop'] = cloops
             phase['run'] = running_time
             phase['timer'] = {'ref': task_name, 'period': period}
