@@ -24,9 +24,9 @@ later inspection.
 Running tests
 +++++++++++++
 
-``exekall run`` subcommand starts a test session. It needs to be pointed at
-some Python sources containing the definition of stages for each test and some
-initial spark like ``--conf`` or ``--load-db``.
+``exekall run`` subcommand starts a test session. It needs to be pointed at some
+Python sources (or module name) containing the definition of stages for each
+test and some initial spark like ``--conf`` or ``--load-db``.
 
 ``--conf`` will usually be used with a YAML configuration file in the format
 specified by :class:`~lisa.target.TargetConf`.
@@ -35,7 +35,8 @@ specified by :class:`~lisa.target.TargetConf`.
 
   exekall run lisa.tests --conf target_conf.yml
 
-When pointed at folders, ``exekall`` will recursively look for Python files.
+When pointed at folders (or packages), ``exekall`` will recursively look for
+Python files.
 
 A subset of the tests can be selected using ``-s PATTERN``. The pattern is a
 globbing-style pattern, where ``*`` stands as a wildcard. If the pattern starts
