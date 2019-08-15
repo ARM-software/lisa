@@ -130,13 +130,13 @@ The output of ``exekall compare`` looks like that:
 
 ::
 
-  testcase                                                             old%   new%  delta%       pvalue fix_iter# 
+  testcase                                                             old%   new%  delta%       pvalue fix_iter#
   ----------------------------------------------------------------------------------------------------------------
-  PELTTask:test_load_avg_behaviour                                     2.9%   0.0%   -2.9%     4.58e-04           
-  PELTTask:test_load_avg_range                                         0.0%   7.1%    7.1%     1.08e-10        54 
-  PELTTask:test_util_avg_behaviour                                     2.4%   0.0%   -2.4%     1.70e-03           
-  PELTTask:test_util_avg_range                                         0.0%   7.1%    7.1%     1.08e-10        54 
-  TwoBigTasks:test_slack                                               4.7%   1.6%   -3.1%     1.25e-02           
+  PELTTask:test_load_avg_behaviour                                     2.9%   0.0%   -2.9%     4.58e-04
+  PELTTask:test_load_avg_range                                         0.0%   7.1%    7.1%     1.08e-10        54
+  PELTTask:test_util_avg_behaviour                                     2.4%   0.0%   -2.4%     1.70e-03
+  PELTTask:test_util_avg_range                                         0.0%   7.1%    7.1%     1.08e-10        54
+  TwoBigTasks:test_slack                                               4.7%   1.6%   -3.1%     1.25e-02
 
 The columns have the following meaning:
 
@@ -253,7 +253,7 @@ bisector
 ========
 
 ``bisector`` allows setting up the steps of a test iteration, repeating
-them an infinite number of times (by default). 
+them an infinite number of times (by default).
 
 .. seealso:: :ref:`bisector main documentation<bisector-doc>`
 
@@ -482,7 +482,7 @@ a regression table using ``exekall compare`` with ``old`` being the results
 from the report, and ``new`` being the new results.
 
 .. code-block:: sh
-  
+
   # The test to check is selected using --select in the same way as for `exekall run`.
   # hikey960.report.yml.gz is a bisector report generated using `bisector run`
   # All options coming after the report are passed to `bisector report` to
