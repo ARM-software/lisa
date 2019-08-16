@@ -154,7 +154,7 @@ def is_test(method):
     # Tests are methods with an annotated return type, with at least
     # one base class with a name containing 'result'
     try:
-        ret_type = method.__annotations__['return']
+        ret_type = inspect.signature(method).return_annotation
         base_cls_list = inspect.getmro(ret_type)
     except (AttributeError, KeyError):
         return False

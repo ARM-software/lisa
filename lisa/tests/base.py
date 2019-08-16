@@ -23,12 +23,14 @@ import abc
 import sys
 import textwrap
 import re
-
-from collections import OrderedDict
-from collections.abc import Mapping
-from inspect import signature
 import inspect
 import copy
+import contextlib
+
+from datetime import datetime
+from collections import OrderedDict, ChainMap
+from collections.abc import Mapping
+from inspect import signature
 
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.trace import Trace, requires_events, TaskID
@@ -145,6 +147,15 @@ class ResultBundle(ResultBundleBase):
       It will also be used as the truth-value of a ResultBundle.
     :type result: :class:`Result`
 
+    :param utc_datetime: UTC time at which the result was collected, or
+        ``None`` to record the current datetime.
+    :type utc_datetime: datetime.datetime
+
+    :param context: Contextual information to attach to the bundle.
+        Keep the content small, as size of :class:`ResultBundle` instances
+        matters a lot for storing long test sessions results.
+    :type context: dict(str, object)
+
     :class:`TestMetric` can be added to an instance of this class. This can
     make it easier for users of your tests to understand why a certain test
     passed or failed. For instance::
@@ -165,9 +176,11 @@ class ResultBundle(ResultBundleBase):
         >>> print(res_bundle)
         FAILED: current time=11
     """
-    def __init__(self, result):
+    def __init__(self, result, utc_datetime=None, context=None):
         self.result = result
         self.metrics = {}
+        self.utc_datetime = utc_datetime or datetime.utcnow()
+        self.context = context if context is not None else {}
 
     @classmethod
     def from_bool(cls, cond, *args, **kwargs):
@@ -195,16 +208,45 @@ class AggregatedResultBundle(ResultBundleBase):
         not the default one, without having to make a whole new subclass.
     :type result: Result
 
+    :param context: Contextual information to attach to the bundle.
+        Keep the content small, as size of :class:`ResultBundle` instances
+        matters a lot for storing long test sessions results.
+    :type context: dict(str, object)
+
     This is useful for some tests that are naturally decomposed in subtests.
 
     .. note:: Metrics of aggregated bundles will always be shown, but can be
         augmented with new metrics using the usual API.
     """
-    def __init__(self, result_bundles, name_metric=None, result=None):
+    def __init__(self, result_bundles, name_metric=None, result=None, context=None):
         self.result_bundles = result_bundles
         self.name_metric = name_metric
         self.extra_metrics = {}
+        self.extra_context = context if context is not None else {}
         self._forced_result = result
+
+    @property
+    def utc_datetime(self):
+        """
+        Use the earliest ``utc_datetime`` among the aggregated bundles.
+        """
+        return min(
+            result_bundle.utc_datetime
+            for result_bundle in self.result_bundles
+        )
+
+    @property
+    def context(self):
+        """
+        Merge the context of all the aggregated bundles, with priority given to
+        last in the list.
+        """
+        base = ChainMap(
+            result_bundle.context
+            for result_bundle in self.result_bundles
+        )
+
+        return LayeredMapping(base, self.extra_context)
 
     @property
     def result(self):
@@ -277,6 +319,9 @@ class TestBundleMeta(abc.ABCMeta):
     """
     Metaclass of :class:`TestBundle`.
 
+    Method with a return annotation of :class:`ResultBundleBase` are wrapped to
+    update the ``context`` attribute of a returned :class:`ResultBundleBase`.
+
     If ``_from_target`` is defined in the class but ``from_target`` is not, a
     stub is created and the annotation of ``_from_target`` is copied to the
     stub. The annotation is then removed from ``_from_target`` so that it is
@@ -286,8 +331,55 @@ class TestBundleMeta(abc.ABCMeta):
     ``super().from_target`` parameters with the ones defined in
     ``_from_target``.
     """
+    @staticmethod
+    def test_method(func):
+        """
+        Decorator to intercept returned :class:`ResultBundle` and attach some contextual information.
+        """
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            res = func(self, *args, **kwargs)
+            if isinstance(res, ResultBundleBase):
+                plat_info = self.plat_info
+                # Map context keys to PlatformInfo nested keys
+                keys = {
+                    'board-name': ['name'],
+                    'kernel-version': ['kernel', 'version']
+                }
+                context = {}
+                for context_key, plat_info_key in keys.items():
+                    try:
+                        val = plat_info.get_nested_key(plat_info_key)
+                    except KeyError:
+                        continue
+                    else:
+                        context[context_key] = val
+
+                # Only update what is strictly necessary here, so that
+                # AggregatedResultBundle ends up with a minimal context state.
+                res_context = res.context
+                for key, val in context.items():
+                    if key not in res_context:
+                        res_context[key] = val
+
+            return res
+
+        return wrapper
+
     def __new__(metacls, cls_name, bases, dct, **kwargs):
         new_cls = super().__new__(metacls, cls_name, bases, dct, **kwargs)
+
+        # Wrap the test methods to add contextual information
+        for name, f in dct.items():
+            try:
+                sig = signature(f)
+            except TypeError:
+                continue
+
+            if issubclass(sig.return_annotation, ResultBundleBase):
+                f = metacls.test_method(f)
+                setattr(new_cls, name, f)
+
 
         # If that class defines _from_target but not from_target, we create a
         # stub from_target and move the annotations of _from_target to

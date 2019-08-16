@@ -987,6 +987,19 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         else:
             return copy.deepcopy(val)
 
+    def get_nested_key(self, key, *args, **kwargs):
+        """
+        Same as :meth:`get_key` but works on a list of keys to access nested mappings.
+
+        :param key: List of nested keys.
+        :type key: list(str)
+        """
+        val = self
+        for k in key:
+            val = val.get_key(k, *args, **kwargs)
+
+        return val
+
     def get_src_map(self, key):
         """
         Get a mapping of all sources for the given ``key``, in priority order
