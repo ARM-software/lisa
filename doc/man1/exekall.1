@@ -67,19 +67,19 @@ subcommands:
 .sp
 .nf
 .ft C
-usage: exekall run [\-h] [\-s ID_PATTERN] [\-\-list]
-                   [\-\-log\-level {debug,info,warn,error,critical}] [\-\-verbose]
-                   [\-\-artifact\-root ARTIFACT_ROOT | \-\-artifact\-dir ARTIFACT_DIR]
-                   [\-\-symlink\-artifact\-dir\-to SYMLINK_ARTIFACT_DIR_TO]
-                   [\-\-load\-db LOAD_DB] [\-\-load\-type TYPE_PATTERN]
-                   [\-\-load\-uuid LOAD_UUID | \-\-replay REPLAY]
-                   [\-\-restrict CALLABLE_PATTERN] [\-\-forbid TYPE_PATTERN]
-                   [\-\-allow CALLABLE_PATTERN]
-                   [\-\-goal TYPE_PATTERN | \-\-callable\-goal CALLABLE_PATTERN]
-                   [\-\-sweep CALLABLE_PATTERN PARAM START STOP STEP]
+usage: exekall run [\-h] [\-s ID_PATTERN] [\-\-list] [\-n N] [\-\-load\-db LOAD_DB]
+                   [\-\-load\-type TYPE_PATTERN] [\-\-replay REPLAY]
+                   [\-\-artifact\-dir ARTIFACT_DIR] [\-\-verbose]
+                   [\-\-log\-level {debug,info,warn,error,critical}]
                    [\-\-param CALLABLE_PATTERN PARAM VALUE]
+                   [\-\-sweep CALLABLE_PATTERN PARAM START STOP STEP]
+                   [\-\-share TYPE_PATTERN] [\-\-random\-order]
+                   [\-\-artifact\-root ARTIFACT_ROOT]
+                   [\-\-symlink\-artifact\-dir\-to SYMLINK_ARTIFACT_DIR_TO]
+                   [\-\-load\-uuid LOAD_UUID] [\-\-restrict CALLABLE_PATTERN]
+                   [\-\-forbid TYPE_PATTERN] [\-\-allow CALLABLE_PATTERN]
+                   [\-\-goal TYPE_PATTERN | \-\-callable\-goal CALLABLE_PATTERN]
                    [\-\-template\-scripts SCRIPT_FOLDER] [\-\-adaptor ADAPTOR]
-                   [\-n N] [\-\-share TYPE_PATTERN] [\-\-random\-order]
                    [\-\-conf CONF] [\-\-inject SERIALIZED_OBJECT_PATH]
                    PYTHON_MODULES [PYTHON_MODULES ...]
 
@@ -99,30 +99,50 @@ optional arguments:
   \-h, \-\-help            show this help message and exit
   \-s ID_PATTERN, \-\-select ID_PATTERN
                         Only run the expressions with an ID matching any of the supplied
-                        filters.
+                        pattern. A pattern starting with "!" can be used to exclude IDs
+                        matching it.
   \-\-list                List the expressions that will be run without running them.
-  \-\-log\-level {debug,info,warn,error,critical}
-                        Change the default log level of the standard logging module.
-  \-\-verbose, \-v         More verbose output. Can be repeated for even more verbosity. This
-                        only impacts exekall output, \-\-log\-level for more global settings.
-  \-\-artifact\-root ARTIFACT_ROOT
-                        Root folder under which the artifact folders will be created. Defaults
-                        to EXEKALL_ARTIFACT_ROOT env var.
-  \-\-artifact\-dir ARTIFACT_DIR
-                        Folder in which the artifacts will be stored. Defaults to
-                        EXEKALL_ARTIFACT_DIR env var.
-  \-\-symlink\-artifact\-dir\-to SYMLINK_ARTIFACT_DIR_TO
-                        Create a symlink pointing at the artifact dir.
+  \-n N                  Run the tests for a number of iterations.
   \-\-load\-db LOAD_DB     Reload a database to use some of its objects. The DB and its artifact
                         directory will be merged in the produced DB at the end of the
                         execution, to form a self\-contained artifact directory.
   \-\-load\-type TYPE_PATTERN
                         Load the (indirect) instances of the given class from the database
                         instead of the root objects.
-  \-\-load\-uuid LOAD_UUID
-                        Load the given UUID from the database.
   \-\-replay REPLAY       Replay the execution of the given UUID, loading as much prerequisite
                         from the DB as possible.
+  \-\-artifact\-dir ARTIFACT_DIR
+                        Folder in which the artifacts will be stored. Defaults to
+                        EXEKALL_ARTIFACT_DIR env var.
+  \-\-artifact\-root ARTIFACT_ROOT
+                        Root folder under which the artifact folders will be created. Defaults
+                        to EXEKALL_ARTIFACT_ROOT env var.
+  \-\-load\-uuid LOAD_UUID
+                        Load the given UUID from the database.
+
+advanced arguments:
+  Options not needed for every\-day use
+
+  \-\-verbose, \-v         More verbose output. Can be repeated for even more verbosity. This
+                        only impacts exekall output, \-\-log\-level for more global settings.
+  \-\-log\-level {debug,info,warn,error,critical}
+                        Change the default log level of the standard logging module.
+  \-\-param CALLABLE_PATTERN PARAM VALUE
+                        Set a function parameter. It needs three fields:
+                            * pattern matching qualified name of the callable
+                            * name of the parameter
+                            * value
+  \-\-sweep CALLABLE_PATTERN PARAM START STOP STEP
+                        Parametric sweep on a function parameter. It needs five fields:
+                            * pattern matching qualified name of the callable
+                            * name of the parameter
+                            * start value
+                            * stop value
+                            * step size.
+  \-\-share TYPE_PATTERN  Class name pattern to share between multiple iterations.
+  \-\-random\-order        Run the expressions in a random order, instead of sorting by name.
+  \-\-symlink\-artifact\-dir\-to SYMLINK_ARTIFACT_DIR_TO
+                        Create a symlink pointing at the artifact dir.
   \-\-restrict CALLABLE_PATTERN
                         Callable names patterns. Types produced by these callables will only
                         be produced by these (other callables will be excluded).
@@ -137,36 +157,11 @@ optional arguments:
   \-\-callable\-goal CALLABLE_PATTERN
                         Compute expressions ending with a callable which name is matching this
                         pattern.
-  \-\-sweep CALLABLE_PATTERN PARAM START STOP STEP
-                        Parametric sweep on a function parameter. It needs five fields:
-                            * pattern matching qualified name of the callable
-                            * name of the parameter
-                            * start value
-                            * stop value
-                            * step size.
-  \-\-param CALLABLE_PATTERN PARAM VALUE
-                        Set a function parameter. It needs three fields:
-                            * pattern matching qualified name of the callable
-                            * name of the parameter
-                            * value
   \-\-template\-scripts SCRIPT_FOLDER
                         Only create the template scripts of the expressions without running
                         them.
   \-\-adaptor ADAPTOR     Adaptor to use from the customization module, if there is more than
                         one to choose from.
-  \-n N                  Run the tests for a number of iterations.
-  \-\-share TYPE_PATTERN  Class name pattern to share between multiple iterations.
-  \-\-random\-order        Run the expressions in a random order, instead of sorting by name.
-
-LISA:
-  LISA custom options.
-  Can only be specified *after* positional parameters.
-
-  \-\-conf CONF           LISA configuration file. If multiple configurations of a given type
-                        are found, they are merged (last one can override keys in previous
-                        ones)
-  \-\-inject SERIALIZED_OBJECT_PATH
-                        Serialized object to inject when building expressions
 
 .ft P
 .fi

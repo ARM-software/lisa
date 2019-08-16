@@ -156,7 +156,7 @@ def is_test(method):
     try:
         ret_type = inspect.signature(method).return_annotation
         base_cls_list = inspect.getmro(ret_type)
-    except (AttributeError, KeyError):
+    except (ValueError, AttributeError, KeyError):
         return False
     else:
         return any(
