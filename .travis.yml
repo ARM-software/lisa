@@ -23,9 +23,10 @@ sudo: required
 # Use "generic" language to avoid having a virtualenv created for Python by default
 language: generic
 
-# Ubuntu Xenial 16.04 (latest version we can have on Travis)
+# Ubuntu Bionic 18.04, as it is the first version with Python > 3.5, which is
+# needed for recent version of matplotlib. Building the doc will not work with older versions.
 # https://docs.travis-ci.com/user/reference/overview/
-dist: xenial
+dist: bionic
 
 install:
   - cd "$TRAVIS_BUILD_DIR"
