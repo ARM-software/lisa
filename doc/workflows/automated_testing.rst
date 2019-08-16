@@ -24,9 +24,9 @@ later inspection.
 Running tests
 +++++++++++++
 
-``exekall run`` subcommand starts a test session. It needs to be pointed at
-some Python sources containing the definition of stages for each test and some
-initial spark like ``--conf`` or ``--load-db``.
+``exekall run`` subcommand starts a test session. It needs to be pointed at some
+Python sources (or module name) containing the definition of stages for each
+test and some initial spark like ``--conf`` or ``--load-db``.
 
 ``--conf`` will usually be used with a YAML configuration file in the format
 specified by :class:`~lisa.target.TargetConf`.
@@ -35,7 +35,8 @@ specified by :class:`~lisa.target.TargetConf`.
 
   exekall run lisa.tests --conf target_conf.yml
 
-When pointed at folders, ``exekall`` will recursively look for Python files.
+When pointed at folders (or packages), ``exekall`` will recursively look for
+Python files.
 
 A subset of the tests can be selected using ``-s PATTERN``. The pattern is a
 globbing-style pattern, where ``*`` stands as a wildcard. If the pattern starts
@@ -49,7 +50,7 @@ to list available tests.
 .. code-block:: sh
 
   # Select and run all tests starting with PELTTask but not containing "load"
-  exekall run lisa,tests --conf target_conf.yml -s 'PELTTask*' -s '!*load*'
+  exekall run lisa.tests --conf target_conf.yml -s 'PELTTask*' -s '!*load*'
 
 ``--artifact-dir`` can be used to set the location at which ``exekall`` will
 store its artifacts. By default, it will be stored in a sub directory of
@@ -129,13 +130,13 @@ The output of ``exekall compare`` looks like that:
 
 ::
 
-  testcase                                                             old%   new%  delta%       pvalue fix_iter# 
+  testcase                                                             old%   new%  delta%       pvalue fix_iter#
   ----------------------------------------------------------------------------------------------------------------
-  PELTTask:test_load_avg_behaviour                                     2.9%   0.0%   -2.9%     4.58e-04           
-  PELTTask:test_load_avg_range                                         0.0%   7.1%    7.1%     1.08e-10        54 
-  PELTTask:test_util_avg_behaviour                                     2.4%   0.0%   -2.4%     1.70e-03           
-  PELTTask:test_util_avg_range                                         0.0%   7.1%    7.1%     1.08e-10        54 
-  TwoBigTasks:test_slack                                               4.7%   1.6%   -3.1%     1.25e-02           
+  PELTTask:test_load_avg_behaviour                                     2.9%   0.0%   -2.9%     4.58e-04
+  PELTTask:test_load_avg_range                                         0.0%   7.1%    7.1%     1.08e-10        54
+  PELTTask:test_util_avg_behaviour                                     2.4%   0.0%   -2.4%     1.70e-03
+  PELTTask:test_util_avg_range                                         0.0%   7.1%    7.1%     1.08e-10        54
+  TwoBigTasks:test_slack                                               4.7%   1.6%   -3.1%     1.25e-02
 
 The columns have the following meaning:
 
@@ -213,7 +214,7 @@ Later on, the processing methods can be run from the data collected:
 
 .. code-block:: sh
 
-  exekall run lisa,tests --load-db artifacts/VALUE_DB.pickle.xz --load-type '*TestBundle'
+  exekall run lisa.tests --load-db artifacts/VALUE_DB.pickle.xz --load-type '*TestBundle'
 
 
 .. tip:: ``--load-db`` can also be used to re-process data from regular
@@ -252,7 +253,7 @@ bisector
 ========
 
 ``bisector`` allows setting up the steps of a test iteration, repeating
-them an infinite number of times (by default). 
+them an infinite number of times (by default).
 
 .. seealso:: :ref:`bisector main documentation<bisector-doc>`
 
@@ -481,7 +482,7 @@ a regression table using ``exekall compare`` with ``old`` being the results
 from the report, and ``new`` being the new results.
 
 .. code-block:: sh
-  
+
   # The test to check is selected using --select in the same way as for `exekall run`.
   # hikey960.report.yml.gz is a bisector report generated using `bisector run`
   # All options coming after the report are passed to `bisector report` to
