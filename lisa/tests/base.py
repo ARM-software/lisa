@@ -39,7 +39,7 @@ from lisa.target import Target
 
 from lisa.utils import (
     Serializable, memoized, ArtifactPath, non_recursive_property,
-    LayeredMapping, update_wrapper_doc, ExekallTaggable,
+    update_wrapper_doc, ExekallTaggable,
 )
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
@@ -241,12 +241,14 @@ class AggregatedResultBundle(ResultBundleBase):
         Merge the context of all the aggregated bundles, with priority given to
         last in the list.
         """
-        base = ChainMap(
+        bases = [
             result_bundle.context
             for result_bundle in self.result_bundles
-        )
+        ]
+        # All writes will be done in that layer
+        bases.append(self.extra_context)
 
-        return LayeredMapping(base, self.extra_context)
+        return ChainMap(*bases)
 
     @property
     def result(self):
@@ -305,7 +307,7 @@ class AggregatedResultBundle(ResultBundleBase):
                 if res_bundle.result is Result.FAILED
             ])
         top = self.extra_metrics
-        return LayeredMapping(base, top)
+        return ChainMap(base, top)
 
 
 class CannotCreateError(RuntimeError):
