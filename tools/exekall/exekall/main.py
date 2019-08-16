@@ -225,7 +225,7 @@ please run ``exekall run YOUR_SOURCES_OR_MODULES --help``.
     add_argument(run_parser, '-s', '--select', action='append',
         metavar='ID_PATTERN',
         default=[],
-        help="""Only run the expressions with an ID matching any of the supplied filters.""")
+        help="""Only run the expressions with an ID matching any of the supplied pattern. A pattern starting with "!" can be used to exclude IDs matching it.""")
 
     # Same as --select, but allows multiple patterns without needing to
     # repeat the option. This is mostly available to support wrapper
