@@ -29,7 +29,7 @@ IGNORE_PATTERN="devlib|bart|wa|docutils.parsers|gi.repository"
 
 make SPHINXOPTS='-n --no-color' html 2>doc_build.log
 log=$(cat doc_build.log)
-warns=$(cat doc_build.log | grep WARNING --color=always | grep -E -w -v "$IGNORE_PATTERN")
+warns=$(cat doc_build.log | grep -E '(WARNING|Exception occurred)' --color=always | grep -E -w -v "$IGNORE_PATTERN")
 ignored_warns=$(cat doc_build.log | grep WARNING | grep --color=always -E -w "$IGNORE_PATTERN")
 
 echo
