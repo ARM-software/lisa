@@ -241,12 +241,12 @@ class AggregatedResultBundle(ResultBundleBase):
         Merge the context of all the aggregated bundles, with priority given to
         last in the list.
         """
-        bases = [
+        # All writes will be done in that first layer
+        bases = [self.extra_context]
+        bases.extend(
             result_bundle.context
             for result_bundle in self.result_bundles
-        ]
-        # All writes will be done in that layer
-        bases.append(self.extra_context)
+        )
 
         return ChainMap(*bases)
 
@@ -307,7 +307,7 @@ class AggregatedResultBundle(ResultBundleBase):
                 if res_bundle.result is Result.FAILED
             ])
         top = self.extra_metrics
-        return ChainMap(base, top)
+        return ChainMap(top, base)
 
 
 class CannotCreateError(RuntimeError):
