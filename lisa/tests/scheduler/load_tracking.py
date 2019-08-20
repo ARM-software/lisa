@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import abc
 import copy
 import os
 from collections import OrderedDict
@@ -908,6 +909,13 @@ class CPUMigrationBase(LoadTrackingBase):
     period, so it's important to set it to a known validate value in that class.
     """
 
+    @abc.abstractmethod
+    def get_nr_required_cpu(cls, plat_info):
+        """
+        The number of CPUs of same capacity involved in the test
+        """
+        pass
+
     @classmethod
     def _run_rtapp(cls, target, res_dir, profile, ftrace_coll, cgroup=None):
         # Just do some validation on the profile
@@ -919,20 +927,16 @@ class CPUMigrationBase(LoadTrackingBase):
 
         super()._run_rtapp(target, res_dir, profile, ftrace_coll, cgroup)
 
-    def __init__(self, res_dir, plat_info):
-        super().__init__(res_dir, plat_info)
-
-        self.cpus = set()
-
-        self.reference_task = list(self.rtapp_profile.values())[0]
-        self.nr_phases = len(self.reference_task.phases)
-
-        for task in self.rtapp_profile.values():
-            for phase in task.phases:
-                self.cpus.update(phase.cpus)
-
-        self.phases_durations = [phase.duration_s
-                                 for phase in self.reference_task.phases]
+    @property
+    def cpus(self):
+        """
+        All CPUs used by RTapp workload.
+        """
+        return set(itertools.chain.from_iterable(
+            phase.cpus
+            for task in self.rtapp_profile.values()
+            for phase in task.phases
+        ))
 
     @classmethod
     def check_from_target(cls, target):
@@ -943,20 +947,42 @@ class CPUMigrationBase(LoadTrackingBase):
         except KeyError as e:
             raise CannotCreateError(str(e))
 
+        # Check that there are enough CPUs of the same capacity
+        cls.get_migration_cpus(target.plat_info)
+
+    @classmethod
+    def get_migration_cpus(cls, plat_info):
+        """
+        :returns: N CPUs of same capacity, with N set by :meth:`get_nr_required_cpu`.
+        """
+        # Iterate over descending CPU capacity groups
+        nr_required_cpu = cls.get_nr_required_cpu(plat_info)
+        for cpus in reversed(plat_info["capacity-classes"]):
+            if len(cpus) >= nr_required_cpu:
+                return cpus[:nr_required_cpu]
+
+        raise CannotCreateError(
+            "This workload requires {} CPUs of identical capacity".format(
+                nr_required_cpu))
+
     def get_expected_cpu_util(self):
         """
         Get the per-phase average CPU utilization expected from the rtapp profile
 
         :returns: A dict of the shape {cpu : {phase_id : expected_util}}
         """
-        cpu_util = {cpu : {phase_id : 0 for phase_id in range(self.nr_phases)}
-                    for cpu in self.cpus}
-
+        cpu_util = {}
         for task in self.rtapp_profile.values():
             for phase_id, phase in enumerate(task.phases):
-                cpu_util[phase.cpus[0]][phase_id] += UTIL_SCALE * (phase.duty_cycle_pct / 100)
+                cpu = phase.cpus[0]
+                cpu_util.setdefault(cpu, {}).setdefault(phase_id, 0)
+                cpu_util[cpu][phase_id] += UTIL_SCALE * (phase.duty_cycle_pct / 100)
 
         return cpu_util
+
+    @property
+    def reference_task(self):
+        return list(self.rtapp_profile.values())[0]
 
     @LoadTrackingAnalysis.df_cpus_signal.used_events
     def get_trace_cpu_util(self):
@@ -965,18 +991,16 @@ class CPUMigrationBase(LoadTrackingBase):
 
         :returns: A dict of the shape {cpu : {phase_id : trace_util}}
         """
-        cpu_util = {cpu : {phase_id : 0 for phase_id in range(self.nr_phases)}
-                    for cpu in self.cpus}
         df = self.trace.analysis.load_tracking.df_cpus_signal('util')
-
         phase_start = self.trace.start
+        cpu_util = {}
 
-        for phase in range(self.nr_phases):
+        for i, phase in enumerate(self.reference_task.phases):
             # Start looking at signals once they should've converged
             start = phase_start + UTIL_AVG_CONVERGENCE_TIME_S
             # Trim the end a bit, otherwise we could have one or two events
             # from the next phase
-            end = phase_start + self.phases_durations[phase] * .9
+            end = phase_start + phase.duration_s * .9
             phase_df = df[start:end]
 
             for cpu in self.cpus:
@@ -989,9 +1013,9 @@ class CPUMigrationBase(LoadTrackingBase):
                 # lower the contribution of the sleep-time util, since it links
                 # with a straight line the point when task goes to sleep with
                 # the wakeup util point.
-                cpu_util[cpu][phase] = series_mean(util, method='trapz')
+                cpu_util.setdefault(cpu, {})[i] = series_mean(util, method='trapz')
 
-            phase_start += self.phases_durations[phase]
+            phase_start += phase.duration_s
 
         return cpu_util
 
@@ -1021,18 +1045,18 @@ class CPUMigrationBase(LoadTrackingBase):
             trace_metrics[cpu_str] = TestMetric({})
             deltas[cpu_str] = TestMetric({})
 
-            for phase in range(self.nr_phases):
+            for i, phase in enumerate(self.reference_task.phases):
                 if not self.is_almost_equal(
-                        trace_cpu_util[cpu][phase],
-                        expected_cpu_util[cpu][phase],
+                        trace_cpu_util[cpu][i],
+                        expected_cpu_util[cpu][i],
                         allowed_error_pct):
                     passed = False
 
                 # Just some verbose metric collection...
-                phase_str = "phase{}".format(phase)
+                phase_str = "phase{}".format(i)
 
-                expected = expected_cpu_util[cpu][phase]
-                trace = trace_cpu_util[cpu][phase]
+                expected = expected_cpu_util[cpu][i]
+                trace = trace_cpu_util[cpu][i]
                 delta = 100 * (trace - expected) / expected
 
                 expected_metrics[cpu_str].data[phase_str] = TestMetric(expected)
@@ -1051,32 +1075,9 @@ class OneTaskCPUMigration(CPUMigrationBase):
     Some tasks on two big CPUs, one of them migrates in its second phase.
     """
 
-    NR_REQUIRED_CPUS = 2
-    """
-    The number of CPUs of same capacity involved in the test
-    """
-
     @classmethod
-    def get_migration_cpus(cls, plat_info):
-        """
-        :returns: :attr:`NR_REQUIRED_CPUS` CPUs of same capacity.
-        """
-        # Iterate over descending CPU capacity groups
-        for cpus in reversed(plat_info["capacity-classes"]):
-            if len(cpus) >= cls.NR_REQUIRED_CPUS:
-                return cpus[:cls.NR_REQUIRED_CPUS]
-
-        return []
-
-    @classmethod
-    def check_from_target(cls, target):
-        super().check_from_target(target)
-
-        cpus = cls.get_migration_cpus(target.plat_info)
-        if not len(cpus) == cls.NR_REQUIRED_CPUS:
-            raise CannotCreateError(
-                "This workload requires {} CPUs of identical capacity".format(
-                    cls.NR_REQUIRED_CPUS))
+    def get_nr_required_cpu(cls, plat_info):
+        return 2
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):
@@ -1087,51 +1088,65 @@ class OneTaskCPUMigration(CPUMigrationBase):
             # An empty RTATask just to sum phases up
             profile[task] = RTATask()
 
-        for i in range(2):
+        common_phase_settings = dict(
+            duration_s=cls.PHASE_DURATION_S,
+            period_ms=cls.TASK_PERIOD_MS,
+        )
+
+        for cpu in cpus:
             # A task that will migrate to another CPU
             profile["migrating"] += Periodic(
-                duty_cycle_pct=cls.unscaled_utilization(plat_info, cpus[i], 20),
-                duration_s=cls.PHASE_DURATION_S, period_ms=cls.TASK_PERIOD_MS,
-                cpus=[cpus[i]])
+                duty_cycle_pct=cls.unscaled_utilization(plat_info, cpu, 20),
+                cpus=[cpu], **common_phase_settings)
 
             # Just some tasks that won't move to get some background utilization
             profile["static0"] += Periodic(
                 duty_cycle_pct=cls.unscaled_utilization(plat_info, cpus[0], 30),
-                duration_s=cls.PHASE_DURATION_S, period_ms=cls.TASK_PERIOD_MS,
-                cpus=[cpus[0]])
+                cpus=[cpus[0]], **common_phase_settings)
 
             profile["static1"] += Periodic(
                 duty_cycle_pct=cls.unscaled_utilization(plat_info, cpus[1], 20),
-                duration_s=cls.PHASE_DURATION_S, period_ms=cls.TASK_PERIOD_MS,
-                cpus=[cpus[1]])
+                cpus=[cpus[1]], **common_phase_settings)
 
         return profile
 
-class TwoTasksCPUMigration(OneTaskCPUMigration):
+class NTasksCPUMigrationBase(CPUMigrationBase):
     """
-    Two tasks on two big CPUs, swap their CPU in the second phase
+    N tasks on N CPUs, with all the migration permutations.
     """
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):
-        profile = {}
         cpus = cls.get_migration_cpus(plat_info)
+        make_name = lambda i: 'migrating{}'.format(i)
 
-        for task in ["migrating0", "migrating1"]:
-            # An empty RTATask just to sum phases up
-            profile[task] = RTATask()
+        nr_tasks = len(cpus)
+        profile = {
+            make_name(i): RTATask()
+            for i in range(nr_tasks)
+        }
 
-        for i in range(2):
-            # A task that will migrate from CPU A to CPU B
-            profile["migrating0"] += Periodic(
-                duty_cycle_pct=20, duration_s=cls.PHASE_DURATION_S,
-                period_ms=cls.TASK_PERIOD_MS, cpus=[cpus[i]])
-
-            # A task that will migrate from CPU B to CPU A
-            profile["migrating1"] += Periodic(
-                duty_cycle_pct=20, duration_s=cls.PHASE_DURATION_S,
-                period_ms=cls.TASK_PERIOD_MS, cpus=[cpus[1 - i]])
+        # Define one task per CPU, and create all the possible migrations by
+        # shuffling around these tasks
+        for cpus_combi in itertools.permutations(cpus, r=nr_tasks):
+            for i, cpu in enumerate(cpus_combi):
+                profile[make_name(i)] += Periodic(
+                    duty_cycle_pct=cls.unscaled_utilization(plat_info, cpu, 50),
+                    duration_s=cls.PHASE_DURATION_S,
+                    period_ms=cls.TASK_PERIOD_MS,
+                    cpus=[cpu],
+                )
 
         return profile
+
+
+class TwoTasksCPUMigration(NTasksCPUMigrationBase):
+    """
+    Two tasks on two big CPUs, swap their CPU in the second phase
+    """
+    @classmethod
+    def get_nr_required_cpu(cls, plat_info):
+        return 2
+
 
  # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
