@@ -672,8 +672,9 @@ class Pulse(RTATask):
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')
 
-        if end_pct not in list(range(0, 101)) or start_pct not in list(range(0, 101)):
+        if not (0 <= start_pct <= 100 and 0 <= end_pct <= 100):
             raise ValueError('end_pct and start_pct must be in [0..100] range')
+
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')
 
