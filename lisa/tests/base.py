@@ -39,7 +39,7 @@ from lisa.target import Target
 
 from lisa.utils import (
     Serializable, memoized, ArtifactPath, non_recursive_property,
-    update_wrapper_doc, ExekallTaggable,
+    update_wrapper_doc, ExekallTaggable, annotations_from_signature,
 )
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
@@ -441,11 +441,21 @@ class TestBundleMeta(abc.ABCMeta):
             # Since the wrapper's __globals__ (read-only) attribute is not
             # going to contain the necessary keys to resolve that string, we
             # take care of it here.
-            annotations = from_target.__annotations__
+
             # Only update the annotation if there was one.
-            if 'return' in annotations:
-                assert annotations['return'] == cls_name
-                annotations['return'] = new_cls
+            if 'return' in from_target.__annotations__:
+                # from_target.__signature__.return_annotation is set to the
+                # return annotation of from_target by update_wrapper_doc at
+                # this point, so look at __annotations__ instead.
+                assert from_target.__annotations__['return'] == cls_name
+
+                # since we set the signature manually, we also need to update
+                # the annotations in it
+                sig = from_target.__signature__
+                from_target.__signature__ = sig.replace(return_annotation=new_cls)
+
+            # Keep the annotations and the signature in sync
+            from_target.__annotations__ = annotations_from_signature(from_target.__signature__)
 
             # De-annotate the _from_target function so it is not picked up by exekall
             del _from_target.__func__.__annotations__

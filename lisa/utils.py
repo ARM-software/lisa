@@ -1307,4 +1307,19 @@ class ExekallTaggable:
         """
         return {}
 
+def annotations_from_signature(sig):
+    """
+    Build a PEP484 ``__annotations__`` dictionary from a :class:`inspect.Signature`.
+    """
+    annotations = {
+        name: param_spec.annotation
+        for name, param_spec in sig.parameters.items()
+        if param_spec.annotation != inspect.Parameter.empty
+    }
+
+    if sig.return_annotation != inspect.Signature.empty:
+        annotations['return'] = sig.return_annotation
+
+    return annotations
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
