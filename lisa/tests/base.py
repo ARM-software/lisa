@@ -640,7 +640,7 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
 
     @classmethod
     def _filepath(cls, res_dir):
-        return os.path.join(res_dir, "{}.yaml".format(cls.__qualname__))
+        return ArtifactPath.join(res_dir, "{}.yaml".format(cls.__qualname__))
 
     @classmethod
     def from_dir(cls, res_dir, update_res_dir=True):
@@ -666,9 +666,9 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         super().to_path(self._filepath(res_dir))
 
 
-class RTATestBundleMeta(TestBundleMeta):
+class FtraceTestBundleMeta(TestBundleMeta):
     """
-    Metaclass of :class:`RTATestBundle`.
+    Metaclass of :class:`FtraceTestBundle`.
 
     This metaclass ensures that each class will get its own copy of
     ``ftrace_conf`` attribute, and that the events specified in that
@@ -731,7 +731,7 @@ class RTATestBundleMeta(TestBundleMeta):
         return new_cls
 
 
-class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
+class FtraceTestBundle(TestBundle, metaclass=FtraceTestBundleMeta):
     """
     Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
 
@@ -740,7 +740,7 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
     workload is being run. By default, the required events are extracted from
     decorated test methods.
 
-    .. seealso: :class:`lisa.tests.base.RTATestBundleMeta` for default
+    .. seealso: :class:`lisa.tests.base.FtraceTestBundleMeta` for default
         ``ftrace_conf`` content.
     """
 
@@ -748,6 +748,49 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
     """
     Path to the ``trace-cmd`` trace.dat file in the result directory.
     """
+
+    @property
+    def trace_path(self):
+        """
+        Path to the ``trace-cmd report`` trace.dat file.
+        """
+        return ArtifactPath.join(self.res_dir, self.TRACE_PATH)
+
+    # Guard before the cache, so we don't accidentally start depending on the
+    # LRU cache for functionnal correctness.
+    @non_recursive_property
+    @memoized
+    def trace(self):
+        """
+        :returns: a :class:`lisa.trace.TraceView`
+
+        All events specified in ``ftrace_conf`` are parsed from the trace,
+        so it is suitable for direct use in methods.
+
+        Having the trace as a property lets us defer the loading of the actual
+        trace to when it is first used. Also, this prevents it from being
+        serialized when calling :meth:`lisa.utils.Serializable.to_path` and
+        allows updating the underlying path before it is actually loaded to
+        match a different folder structure.
+        """
+        return self.get_trace(events=self.ftrace_conf["events"])
+
+    def get_trace(self, **kwargs):
+        """
+        :returns: a :class:`lisa.trace.Trace` collected in the standard location.
+
+        :Keyword arguments: forwarded to :class:`lisa.trace.Trace`.
+        """
+        return Trace(self.trace_path, self.plat_info, **kwargs)
+
+class RTATestBundle(FtraceTestBundle):
+    """
+    Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
+
+    .. seealso: :class:`lisa.tests.base.FtraceTestBundleMeta` for default
+        ``ftrace_conf`` content.
+    """
+
     DMESG_PATH = 'dmesg.log'
     """
     Path to the dmesg log in the result directory.
@@ -806,42 +849,6 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         return (rta_start, rta_stop)
 
     @property
-    def trace_path(self):
-        """
-        Path to the ``trace-cmd report`` trace.dat file.
-        """
-        return os.path.join(self.res_dir, self.TRACE_PATH)
-
-    # Guard before the cache, so we don't accidentally start depending on the
-    # LRU cache for functionnal correctness.
-    @non_recursive_property
-    @memoized
-    def trace(self):
-        """
-        :returns: a :class:`lisa.trace.TraceView`
-
-        All events specified in ``ftrace_conf`` are parsed from the trace,
-        so it is suitable for direct use in methods.
-
-        Having the trace as a property lets us defer the loading of the actual
-        trace to when it is first used. Also, this prevents it from being
-        serialized when calling :meth:`lisa.utils.Serializable.to_path` and
-        allows updating the underlying path before it is actually loaded to
-        match a different folder structure.
-        """
-        return self.get_trace(events=self.ftrace_conf["events"])
-
-    def get_trace(self, **kwargs):
-        """
-        :returns: a :class:`lisa.trace.TraceView` cropped to fit the ``rt-app``
-            tasks.
-
-        :Keyword arguments: forwarded to :class:`lisa.trace.Trace`.
-        """
-        trace = Trace(self.trace_path, self.plat_info, **kwargs)
-        return trace.get_view(self.trace_window(trace))
-
-    @property
     def rtapp_profile(self):
         """
         Compute the RTapp profile based on ``plat_info``.
@@ -862,6 +869,16 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         Compute the cgroup configuration based on ``plat_info``
         """
         return self.get_cgroup_configuration(self.plat_info)
+
+    def get_trace(self, **kwargs):
+        """
+        :returns: a :class:`lisa.trace.TraceView` cropped to fit the ``rt-app``
+            tasks.
+
+        :Keyword arguments: forwarded to :class:`lisa.trace.Trace`.
+        """
+        trace = Trace(self.trace_path, self.plat_info, **kwargs)
+        return trace.get_view(self.trace_window(trace))
 
     @TasksAnalysis.df_tasks_runtime.used_events
     def test_noisy_tasks(self, noise_threshold_pct=None, noise_threshold_ms=None):
@@ -1060,8 +1077,8 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.lower()),
                                profile, res_dir=res_dir)
 
-        trace_path = os.path.join(res_dir, cls.TRACE_PATH)
-        dmesg_path = os.path.join(res_dir, cls.DMESG_PATH)
+        trace_path = ArtifactPath.join(res_dir, cls.TRACE_PATH)
+        dmesg_path = ArtifactPath.join(res_dir, cls.DMESG_PATH)
         ftrace_coll = ftrace_coll or FtraceCollector.from_conf(target, cls.ftrace_conf)
         dmesg_coll = DmesgCollector(target)
 

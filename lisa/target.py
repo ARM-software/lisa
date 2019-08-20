@@ -275,7 +275,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         # initialized. Expensive computations are deferred so they will only be
         # computed when actually needed.
 
-        rta_calib_res_dir = os.path.join(self._res_dir, 'rta_calib')
+        rta_calib_res_dir = ArtifactPath.join(self._res_dir, 'rta_calib')
         os.makedirs(rta_calib_res_dir)
         self.plat_info.add_target_src(self, rta_calib_res_dir, fallback=True)
 

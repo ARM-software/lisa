@@ -190,7 +190,7 @@ class EASBehaviour(RTATestBundle):
 
                 prev = time
 
-        figname = os.path.join(self.res_dir, 'expected_placement.png')
+        figname = ArtifactPath.join(self.res_dir, 'expected_placement.png')
         plt.savefig(figname, bbox_inches='tight')
         plt.close()
 

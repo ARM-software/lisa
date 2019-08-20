@@ -798,7 +798,7 @@ class PELTTask(LoadTrackingBase):
         self._plot_behaviour(axes[1], sim_df.pelt_value, "Expected signal",
                              requested_duty_cycle)
 
-        figname = os.path.join(self.res_dir, '{}_behaviour.png'.format(signal_name))
+        figname = ArtifactPath.join(self.res_dir, '{}_behaviour.png'.format(signal_name))
         plt.savefig(figname, bbox_inches='tight')
         plt.close()
 
