@@ -1102,8 +1102,14 @@ class RTATestBundle(FtraceTestBundle):
         dmesg_coll.get_trace(dmesg_path)
         return trace_path
 
+
+class SimpleRTATestBundle(RTATestBundle):
+    """
+    Subclass of :class:`RTATestBundle` providing a default :meth:`_form_target`.
+    """
+
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'RTATestBundle':
+    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'SimpleRTATestBundle':
         """
         Factory method to create a bundle using a live target
 

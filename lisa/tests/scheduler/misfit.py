@@ -23,12 +23,12 @@ from lisa.utils import memoized, ArtifactPath
 from lisa.datautils import df_squash
 from lisa.trace import Trace, FtraceConf, FtraceCollector, requires_events
 from lisa.wlgen.rta import Periodic
-from lisa.tests.base import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
+from lisa.tests.base import SimpleRTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
 from lisa.target import Target
 from lisa.analysis.tasks import TasksAnalysis, TaskState
 from lisa.analysis.idle import IdleAnalysis
 
-class MisfitMigrationBase(RTATestBundle):
+class MisfitMigrationBase(SimpleRTATestBundle):
     """
     Abstract class for Misfit behavioural testing
 
@@ -285,7 +285,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
     @TasksAnalysis.df_task_states.used_events
     @_test_cpus_busy.used_events
-    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
+    @SimpleRTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_throughput(self, allowed_idle_time_s=None) -> ResultBundle:
         """
         Test that big CPUs are not idle when there are misfit tasks to upmigrate
