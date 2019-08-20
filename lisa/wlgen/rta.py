@@ -22,6 +22,7 @@ import re
 import sys
 from collections import OrderedDict
 import copy
+import uuid
 
 from lisa.wlgen.workload import Workload
 from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN
@@ -63,7 +64,8 @@ class RTA(Workload):
             json_file = '{}.json'.format(self.name)
 
         self.local_json = ArtifactPath.join(self.res_dir, json_file)
-        self.remote_json = self.target.path.join(self.run_dir, json_file)
+        remote_json_file = '{}_{}'.format(uuid.uuid4(), json_file)
+        self.remote_json = self.target.path.join(self.run_dir, remote_json_file)
 
         rta_cmd = self.target.which('rt-app')
         if not rta_cmd:
