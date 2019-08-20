@@ -35,7 +35,7 @@ class UserspaceSanityItem(TestBundle):
         self.work = work
 
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath, cpu, freq, switch_governor=True,) -> 'UserspaceSanityItem':
+    def _from_target(cls, target:Target, *, res_dir:ArtifactPath, cpu, freq, switch_governor=True) -> 'UserspaceSanityItem':
         """
         Create a :class:`UserspaceSanityItem` from a live :class:`lisa.target.Target`.
 
