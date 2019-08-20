@@ -1149,4 +1149,23 @@ class TwoTasksCPUMigration(NTasksCPUMigrationBase):
         return 2
 
 
+class NTasksCPUMigration(NTasksCPUMigrationBase):
+    """
+    N tasks on N CPUs, and try all permutations of tasks and CPUs.
+    """
+
+    @classmethod
+    def get_nr_required_cpu(cls, plat_info):
+        """
+        Select the maximum number of CPUs the tests can handle.
+        """
+        return max(len(cpus) for cpus in plat_info["capacity-classes"])
+
+    def test_util_task_migration(self, allowed_error_pct=8) -> ResultBundle:
+        """
+        Relax the margins compared to the super-class version.
+        """
+        return super().test_util_task_migration(
+            allowed_error_pct=allowed_error_pct,
+        )
  # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
