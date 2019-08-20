@@ -39,6 +39,7 @@ from lisa.wlgen.rta import Periodic, RTATask
 from lisa.trace import FtraceConf, FtraceCollector, requires_events
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 
+
 UTIL_SCALE = 1024
 """
 PELT utilization values scale
@@ -312,7 +313,6 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         exp_signal = self.get_expected_util_avg(trace, cpu, task_name, capacity)
         signal_df = self.get_task_sched_signal(trace, cpu, task_name, signal_name)
         signal = signal_df[UTIL_AVG_CONVERGENCE_TIME_S:][signal_name]
-
         signal_mean = series_mean(signal)
 
         # Since load is now CPU invariant in recent kernel versions, we don't
@@ -902,6 +902,12 @@ class CPUMigrationBase(LoadTrackingBase):
     The duration of a single phase
     """
 
+    TASK_PERIOD_MS = 16
+    """
+    The average value of the runqueue PELT signals is very dependent on the task
+    period, so it's important to set it to a known validate value in that class.
+    """
+
     @classmethod
     def _run_rtapp(cls, target, res_dir, profile, ftrace_coll, cgroup=None):
         # Just do some validation on the profile
@@ -971,13 +977,19 @@ class CPUMigrationBase(LoadTrackingBase):
             # Trim the end a bit, otherwise we could have one or two events
             # from the next phase
             end = phase_start + self.phases_durations[phase] * .9
-
             phase_df = df[start:end]
-            phase_duration = end - start
 
             for cpu in self.cpus:
                 util = phase_df[phase_df.cpu == cpu].util
-                cpu_util[cpu][phase] = series_integrate(util) / (phase_duration)
+                # The runqueue util signal's average does not match the duty
+                # cycle of the task, since it "decays instantly" at next task
+                # wakeup, but stays at its previous value when the task sleeps.
+                # This means that rq PELT signal average is higher than the
+                # idealized PELT signal. Using trapz integration allows to
+                # lower the contribution of the sleep-time util, since it links
+                # with a straight line the point when task goes to sleep with
+                # the wakeup util point.
+                cpu_util[cpu][phase] = series_mean(util, method='trapz')
 
             phase_start += self.phases_durations[phase]
 
