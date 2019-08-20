@@ -19,11 +19,9 @@
 
 import shlex
 import argparse
-import os
 import subprocess
 import sys
-from collections import OrderedDict
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 import tempfile
 from pathlib import Path
 import datetime
@@ -31,6 +29,7 @@ import shutil
 import functools
 import textwrap
 import logging
+import contextlib
 
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrList
 
@@ -239,8 +238,11 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             info('Please commit all files before running batch-rebase resume')
             return (True, persistent_refs)
 
-        # Finish cherry picking the topic with the conflict
-        git(['cherry-pick', '--continue'])
+        # Finish cherry picking the topic with the conflict.
+        # If the commit was the last in the topic, this will fail as the `git
+        # commit` issued by the user finished the cherry-picking session.
+        with contextlib.suppress(subprocess.CalledProcessError):
+            git(['cherry-pick', '--continue'])
 
         tag_name = add_tag(resume_topic)
         persistent_refs.add(tag_name)
