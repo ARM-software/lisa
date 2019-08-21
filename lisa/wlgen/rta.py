@@ -562,6 +562,9 @@ class RTATask(object):
         self.phases.extend(task.phases)
         return self
 
+def default_get_utils(idx, load):
+    return 0, 1024
+
 class Ramp(RTATask):
     """
     Configure a ramp load.
@@ -586,20 +589,15 @@ class Ramp(RTATask):
                 .. note:: if not specified, it can run on all CPUs
     :type cpus: list(int)
     
-    :param util_mins: when called with the index and load of a phase, 
-                       sets the util_min value for that phase.
-    :type util_mins: callable
-    
-    :param util_maxs: when called with the index and load of a phase, 
-                       sets the util_max value for that phase.
-    :type util_maxs: callable
+    :param get_utils: when called with the index and load of a phase, 
+                      returns (util_min, util_max)
+    :type get_utils: callable
     """
 
     def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
                  period_ms=100, delay_s=0, loops=1, sched_policy=None,
                  priority=None, cpus=None, 
-                 util_mins = lambda idx, load: 0,
-                 util_maxs = lambda idx, load: 1024):
+                 get_utils=default_get_utils):
         super(Ramp, self).__init__(delay_s, loops, sched_policy, priority)
 
         if not (0 <= start_pct <= 100 and 0 <= end_pct <= 100):
@@ -616,19 +614,18 @@ class Ramp(RTATask):
 
         # Clamp values for previous phases.
         # These values are remembered so the clamp values are not set on the start
-        #   of every phase
+        # of every phase
         # The initial values should probably be set on the first phase,
-        #   this protects against retaining a clamp from a previous loop.
+        # this protects against retaining a clamp from a previous loop.
         util_min = None
         util_max = None
 
         phases = []
         for idx, load in enumerate(steps):
             # If clamp values are unchanged, don't bother setting them again
-            new_util_min = util_mins(idx, load)
+            new_util_min, new_util_max  = get_utils(idx, load)
             if new_util_min == util_min:
                 new_util_min = None
-            new_util_max = util_maxs(idx, load)
             if new_util_max == util_max:
                 new_util_max = None
                 
@@ -641,9 +638,9 @@ class Ramp(RTATask):
                               util_min=new_util_min, 
                               util_max=new_util_max)
                 
-            if new_util_min != None:
+            if new_util_min is not None:
                 util_min = new_util_min
-            if new_util_max != None:
+            if new_util_max is not None:
                 util_max = new_util_max
         
             phases.append(phase)
@@ -673,23 +670,18 @@ class Step(Ramp):
                 .. note:: if not specified, it can run on all CPUs
     :type cpus: list(int)
     
-    :param util_mins: when called with the index and load of a phase, 
-                       sets the util_min value for that phase.
-    :type util_mins: callable
-    
-    :param util_maxs: when called with the index and load of a phase, 
-                       sets the util_max value for that phase.
-    :type util_maxs: callable
+    :param get_utils: when called with the index and load of a phase, 
+                      returns (util_min, util_max)
+    :type get_utils: callable
     """
 
     def __init__(self, start_pct=0, end_pct=100, time_s=1, period_ms=100,
                  delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None, 
-                 util_mins = lambda idx, load: 0,
-                 util_maxs = lambda idx, load: 1024):
+                 get_utils=default_get_utils):
         delta_pct = abs(end_pct - start_pct)
         super(Step, self).__init__(start_pct, end_pct, delta_pct, time_s,
                                    period_ms, delay_s, loops, sched_policy,
-                                   priority, cpus, util_mins, util_maxs)
+                                   priority, cpus, get_utils)
 
 class Pulse(RTATask):
     """
@@ -726,15 +718,14 @@ class Pulse(RTATask):
                        sets the util_min value for that phase.
     :type util_mins: callable
     
-    :param util_maxs: when called with the index and load of a phase, 
-                       sets the util_max value for that phase.
-    :type util_maxs: callable
+    :param get_utils: when called with the index and load of a phase, 
+                      returns (util_min, util_max)
+    :type get_utils: callable
     """
 
     def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
                  delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None, 
-                 util_mins = lambda idx, load: 0,
-                 util_maxs = lambda idx, load: 1024):
+                 get_utils=default_get_utils):
         super(Pulse, self).__init__(delay_s, loops, sched_policy, priority)
 
         if end_pct >= start_pct:
@@ -759,10 +750,9 @@ class Pulse(RTATask):
                 continue
                 
             # If clamp values are unchanged, don't bother setting them again
-            new_util_min = util_mins(idx, load)
+            new_util_min, new_util_max = get_utils(idx, load)
             if new_util_min == util_min:
                 new_util_min = None
-            new_util_max = util_maxs(idx, load)
             if new_util_max == util_max:
                 new_util_max = None
                 
@@ -798,23 +788,17 @@ class Periodic(Pulse):
     :param cpus: the list of CPUs on which task can run.
                 .. note:: if not specified, it can run on all CPUs
     :type cpus: list(int)
-    :param util_mins: when called with the index and load of a phase, 
-                       sets the util_min value for that phase.
-    :type util_mins: callable
-    
-    :param util_maxs: when called with the index and load of a phase, 
-                       sets the util_max value for that phase.
-    :type util_maxs: callable
+    :param get_utils: when called with the index and load of a phase, 
+                      returns (util_min, util_max)
+    :type get_utils: callable
     """
 
     def __init__(self, duty_cycle_pct=50, duration_s=1, period_ms=100,
-                 delay_s=0, sched_policy=None, priority=None, cpus=None, 
-                 util_mins = lambda idx, load: 0,
-                 util_maxs = lambda idx, load: 1024):
+                 delay_s=0, sched_policy=None, priority=None, cpus=None,
+                 get_utils=default_get_utils):
         super(Periodic, self).__init__(duty_cycle_pct, 0, duration_s,
                                        period_ms, delay_s, 1, sched_policy,
-                                       priority, cpus, util_mins, 
-                                       util_maxs)
+                                       priority, cpus, get_utils)
 
 class RunAndSync(RTATask):
     """
