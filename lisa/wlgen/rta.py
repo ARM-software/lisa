@@ -578,7 +578,7 @@ class Ramp(RTATask):
     def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
                  period_ms=100, delay_s=0, loops=1, sched_policy=None,
                  priority=None, cpus=None):
-        super(Ramp, self).__init__(delay_s, loops, sched_policy, priority)
+        super().__init__(delay_s, loops, sched_policy, priority)
 
         if not (0 <= start_pct <= 100 and 0 <= end_pct <= 100):
             raise ValueError('start_pct and end_pct must be in [0..100] range')
@@ -629,7 +629,7 @@ class Step(Ramp):
     def __init__(self, start_pct=0, end_pct=100, time_s=1, period_ms=100,
                  delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None):
         delta_pct = abs(end_pct - start_pct)
-        super(Step, self).__init__(start_pct, end_pct, delta_pct, time_s,
+        super().__init__(start_pct, end_pct, delta_pct, time_s,
                                    period_ms, delay_s, loops, sched_policy,
                                    priority, cpus)
 
@@ -667,7 +667,7 @@ class Pulse(RTATask):
 
     def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
                  delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None):
-        super(Pulse, self).__init__(delay_s, loops, sched_policy, priority)
+        super().__init__(delay_s, loops, sched_policy, priority)
 
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')
@@ -712,7 +712,7 @@ class Periodic(Pulse):
 
     def __init__(self, duty_cycle_pct=50, duration_s=1, period_ms=100,
                  delay_s=0, sched_policy=None, priority=None, cpus=None):
-        super(Periodic, self).__init__(duty_cycle_pct, 0, duration_s,
+        super().__init__(duty_cycle_pct, 0, duration_s,
                                        period_ms, delay_s, 1, sched_policy,
                                        priority, cpus)
 
@@ -738,7 +738,7 @@ class RunAndSync(RTATask):
     """
     def __init__(self, barrier, time_s=1, delay_s=0, loops=1, sched_policy=None,
                  priority=None, cpus=None):
-        super(RunAndSync, self).__init__(delay_s, loops, sched_policy, priority)
+        super().__init__(delay_s, loops, sched_policy, priority)
 
         # This should translate into a phase containing a 'run' event and a
         # 'barrier' event

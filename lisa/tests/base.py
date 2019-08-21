@@ -551,7 +551,7 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         class DummyTestBundle(TestBundle):
 
             def __init__(self, res_dir, plat_info, shell_output):
-                super(DummyTestBundle, self).__init__(res_dir, plat_info)
+                super().__init__(res_dir, plat_info)
 
                 self.shell_output = shell_output
 
