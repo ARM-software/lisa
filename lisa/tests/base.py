@@ -544,6 +544,10 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
 
     **Implementation example**::
 
+        from lisa.target import Target
+        from lisa.platforms.platinfo import PlatformInfo
+        from lisa.utils import ArtifactPath
+
         class DummyTestBundle(TestBundle):
 
             def __init__(self, res_dir, plat_info, shell_output):
@@ -552,9 +556,9 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
                 self.shell_output = shell_output
 
             @classmethod
-            def _from_target(cls, target, *, plat_info, res_dir):
+            def _from_target(cls, target:Target, *, res_dir:ArtifactPath) -> 'DummyTestBundle':
                 output = target.execute('echo $((21+21))').split()
-                return cls(res_dir, plat_info, output)
+                return cls(res_dir, target.plat_info, output)
 
             def test_output(self) -> ResultBundle:
                 return ResultBundle.from_bool(
