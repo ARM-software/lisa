@@ -50,7 +50,8 @@ from ruamel.yaml import YAML
 try:
     import sphobjinv
     from IPython.display import IFrame
-except ModuleNotFoundError:
+# ModuleNotFoundError does not exist in Python < 3.6
+except ImportError:
     pass
 
 import lisa
