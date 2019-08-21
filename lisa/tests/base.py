@@ -378,7 +378,8 @@ class TestBundleMeta(abc.ABCMeta):
             except TypeError:
                 continue
 
-            if issubclass(sig.return_annotation, ResultBundleBase):
+            annotation = sig.return_annotation
+            if isinstance(annotation, type) and issubclass(annotation, ResultBundleBase):
                 f = metacls.test_method(f)
                 setattr(new_cls, name, f)
 
