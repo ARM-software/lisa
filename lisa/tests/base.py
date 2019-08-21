@@ -378,7 +378,8 @@ class TestBundleMeta(abc.ABCMeta):
             except TypeError:
                 continue
 
-            if issubclass(sig.return_annotation, ResultBundleBase):
+            annotation = sig.return_annotation
+            if isinstance(annotation, type) and issubclass(annotation, ResultBundleBase):
                 f = metacls.test_method(f)
                 setattr(new_cls, name, f)
 
@@ -396,20 +397,69 @@ class TestBundleMeta(abc.ABCMeta):
                     raise TypeError('Non keyword parameters "{}" are not allowed in {} signature'.format(
                         _from_target.__qualname__, name))
 
+            def get_keyword_only_names(f):
+                return {
+                    param.name
+                    for param in signature(f).parameters.values()
+                    if param.kind is inspect.Parameter.KEYWORD_ONLY
+                }
+
+            try:
+                missing_params = (
+                    get_keyword_only_names(super(bases[0], new_cls)._from_target)
+                    - get_keyword_only_names(_from_target)
+                )
+            except AttributeError:
+                pass
+            else:
+                if missing_params:
+                    raise TypeError('{}._from_target() must at least implement all the parameters of {}._from_target(). Missing parameters: {}'.format(
+                        new_cls.__qualname__,
+                        bases[0].__qualname__,
+                        ', '.join(sorted(missing_params))
+
+                    ))
+
+            def merge_signatures(sig1, sig2):
+                parameters = list(sig1.parameters.values())
+                sig1_param_names = {param.name for param in parameters}
+                parameters.extend(
+                    param
+                    for param in sig2.parameters.values()
+                    if (
+                        param.kind is inspect.Parameter.KEYWORD_ONLY
+                        and not param.name in sig1_param_names
+                    )
+                )
+                parameters = [
+                    param
+                    for param in parameters
+                    if param.kind not in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL)
+                ]
+                return sig1.replace(
+                    parameters=parameters,
+                    return_annotation=sig2.return_annotation
+                )
+
             # Make a stub that we can freely update
+            @functools.wraps(_from_target.__func__)
             def from_target(cls, *args, **kwargs):
                 return super(new_cls, cls).from_target(*args, **kwargs)
 
-            # Prepare the signature of the stub so that update_wrapper_doc()
-            # starts with the right parameter list.
-            from_target.__signature__ = signature(_from_target.__func__)
+            # Hide the fact that we wrapped the function, so exekall does not
+            # get confused
+            del from_target.__wrapped__
 
-            # Apply update_wrapper_doc() in the opposite order than usual:
-            # here, the keyword-only parameters are coming from the wrapped
-            # function instead of the wrapper.
-            from_target = update_wrapper_doc(
-                new_cls.from_target.__func__,
-            )(from_target)
+            # Fixup the names, so it is not displayed as `_from_target`
+            from_target.__name__ = 'from_target'
+            from_target.__qualname__ = new_cls.__qualname__ + '.' + from_target.__name__
+
+            # Merge the signatures to get the base signature of super().from_target,
+            # and add the keyword-only and return annotation of _from_target.
+            from_target.__signature__ = merge_signatures(
+                signature(new_cls.from_target.__func__),
+                signature(_from_target.__func__),
+            )
 
             # Stich the relevant docstrings
             func = new_cls.from_target.__func__
@@ -424,17 +474,7 @@ class TestBundleMeta(abc.ABCMeta):
             else:
                 doc = from_target_doc
 
-            # Re-wrap after update_wrapper_doc(), to get the right annotations
-            from_target = functools.wraps(_from_target.__func__)(from_target)
             from_target.__doc__ = doc
-
-            # Hide the fact that we wrapped the function, so exekall does not
-            # get confused
-            del from_target.__wrapped__
-
-            # Fixup the names, so it is not displayed as `_from_target`
-            from_target.__name__ = 'from_target'
-            from_target.__qualname__ = new_cls.__qualname__ + '.' + from_target.__name__
 
             # Make sure the annotation points to an actual class object if it
             # was set, as most of the time they will be strings for factories.
@@ -444,14 +484,10 @@ class TestBundleMeta(abc.ABCMeta):
 
             # Only update the annotation if there was one.
             if 'return' in from_target.__annotations__:
-                # from_target.__signature__.return_annotation is set to the
-                # return annotation of from_target by update_wrapper_doc at
-                # this point, so look at __annotations__ instead.
-                assert from_target.__annotations__['return'] == cls_name
-
                 # since we set the signature manually, we also need to update
                 # the annotations in it
                 sig = from_target.__signature__
+                assert sig.return_annotation == cls_name
                 from_target.__signature__ = sig.replace(return_annotation=new_cls)
 
             # Keep the annotations and the signature in sync
