@@ -397,6 +397,29 @@ class TestBundleMeta(abc.ABCMeta):
                     raise TypeError('Non keyword parameters "{}" are not allowed in {} signature'.format(
                         _from_target.__qualname__, name))
 
+            def get_keyword_only_names(f):
+                return {
+                    param.name
+                    for param in signature(f).parameters.values()
+                    if param.kind is inspect.Parameter.KEYWORD_ONLY
+                }
+
+            try:
+                missing_params = (
+                    get_keyword_only_names(super(bases[0], new_cls)._from_target)
+                    - get_keyword_only_names(_from_target)
+                )
+            except AttributeError:
+                pass
+            else:
+                if missing_params:
+                    raise TypeError('{}._from_target() must at least implement all the parameters of {}._from_target(). Missing parameters: {}'.format(
+                        new_cls.__qualname__,
+                        bases[0].__qualname__,
+                        ', '.join(sorted(missing_params))
+
+                    ))
+
             def merge_signatures(sig1, sig2):
                 parameters = list(sig1.parameters.values())
                 sig1_param_names = {param.name for param in parameters}
