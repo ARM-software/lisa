@@ -718,10 +718,11 @@ class FtraceTestBundleMeta(TestBundleMeta):
 
     This metaclass ensures that each class will get its own copy of
     ``ftrace_conf`` attribute, and that the events specified in that
-    configuration are a superset of what is needed by methods using the
-    decorator :func:`lisa.trace.requires_events`. This makes sure that the
+    configuration are a superset of what is needed by methods using the family
+    of decorators :func:`lisa.trace.requires_events`. This makes sure that the
     default set of events is always enough to run all defined methods, without
-    duplicating that information.
+    duplicating that information. That means that trace events are "inherited"
+    at the same time as the methods that need them.
 
     The ``ftrace_conf`` attribute is typically built by merging these sources:
 
@@ -729,7 +730,7 @@ class FtraceTestBundleMeta(TestBundleMeta):
           :class:`RTATestBundle` subclass
 
         * Events required by methods using :func:`lisa.trace.requires_events`
-          decorator.
+          decorator (and equivalents).
 
         * :class:`lisa.trace.FtraceConf` specified by the user and passed to
           :meth:`lisa.trace.FtraceCollector.from_user_conf`
