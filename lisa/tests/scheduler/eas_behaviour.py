@@ -323,6 +323,9 @@ class EASBehaviour(RTATestBundle):
         res = ResultBundle.from_bool(passed)
         res.add_metric("estimated energy", est_energy, 'bogo-joules')
         res.add_metric("energy threshold", threshold, 'bogo-joules')
+
+        res.plat_info = self.plat_info
+
         return res
 
     def test_slack(self, negative_slack_allowed_pct=15) -> ResultBundle:

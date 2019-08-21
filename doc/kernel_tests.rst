@@ -37,7 +37,7 @@ The following tests are available. They can be used as:
 
 .. run-command::
   :capture-stderr:
-  
+
   exekall run lisa.tests --rst-list --inject-empty-target-conf
 
 Running tests
@@ -75,7 +75,7 @@ Writing tests
 Concepts
 ++++++++
 
-Writing scheduler tests can be difficult, especially when you're
+Writing scheduler tests can be tricky, especially when you're
 trying to make them work without relying on custom tracepoints (which is
 what you should aim for). Sometimes, a good chunk of the test code will be
 about trying to get the target in an expected initial state, or preventing some
@@ -86,16 +86,8 @@ of the issues. As such, your tests should be designed to:
 a. minimize the amount of non test-related noise (e.g. freezer)
 b. withstand events we can't control (use error margins, averages...)
 
-Where to start
-++++++++++++++
-
 The main class of the kernel tests is :class:`~lisa.tests.base.TestBundle`.
 Have a look at its documentation for implementation and usage examples.
-
-.. tip::
-
-   A simple test implementation worth looking at is
-   :class:`~lisa.tests.scheduler.sanity.CapacitySanity`.
 
 The relationship between the test classes has been condensed into this diagram,
 although you'll find more details in the API documentation of these classes.
@@ -171,6 +163,23 @@ is :class:`~lisa.wlgen.rta.RTA`, as it facilitates the creation and
 execution of `rt-app <https://github.com/scheduler-tools/rt-app>`_ workloads.
 It is very useful for scheduler-related tests, as it makes it easy to create
 tasks with a pre-determined utilization.
+
+Example
++++++++
+
+Here is a commented example of an ``rt-app``-based test, showcasing the APIs
+that are commonly used to write such tests.
+
+It can be executed using:
+
+.. code-block:: sh
+
+    exekall run lisa.test_example --conf $LISA_CONF
+
+.. literalinclude:: test_example.py
+   :language: python
+   :pyobject: ExampleTestBundle
+   :linenos:
 
 API
 ===
