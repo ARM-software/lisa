@@ -1070,6 +1070,34 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
         removed_in = parse_version(removed_in)
     current_version = lisa.version.version_tuple
 
+    def make_msg(deprecated_obj, style=None, show_doc_url=True):
+        if replaced_by is not None:
+            doc_url = ''
+            if show_doc_url:
+                with contextlib.suppress(Exception):
+                    doc_url = ' (see: {})'.format(get_doc_url(replaced_by))
+
+            replacement_msg = ', use {} instead{}'.format(
+                getname(replaced_by, style=style), doc_url,
+            )
+        else:
+            replacement_msg = ''
+
+        if removed_in:
+            removal_msg = ' and will be removed in version {}'.format(
+                format_version(removed_in)
+            )
+        else:
+            removal_msg = ''
+
+        return '{name} is deprecated{remove}{replace}{msg}'.format(
+            name=getname(deprecated_obj, style=style, abbrev=True),
+            replace=replacement_msg,
+            remove=removal_msg,
+            msg=': ' + msg if msg else '',
+        )
+
+
     def decorator(obj):
         obj_name = getname(obj)
 
@@ -1080,40 +1108,13 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
                 version=format_version(current_version),
             ))
 
-        def make_msg(style=None):
-            if replaced_by is not None:
-                try:
-                    doc_url = ' (see: {})'.format(get_doc_url(replaced_by))
-                except Exception:
-                    doc_url = ''
-
-                replacement_msg = ', use {} instead{}'.format(
-                    getname(replaced_by, style=style), doc_url,
-                )
-            else:
-                replacement_msg = ''
-
-            if removed_in:
-                removal_msg = ' and will be removed in version {}'.format(
-                    format_version(removed_in)
-                )
-            else:
-                removal_msg = ''
-
-            return '{name} is deprecated{remove}{replace}{msg}'.format(
-                name=getname(obj, style=style, abbrev=True),
-                replace=replacement_msg,
-                remove=removal_msg,
-                msg=': ' + msg if msg else '',
-            )
-
         # stacklevel != 1 breaks the filtering for warnings emitted by APIs
         # called from external modules, like __init_subclass__ that is called
         # from other modules like abc.py
         def wrap_func(func, stacklevel=1):
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
-                warnings.warn(make_msg(), DeprecationWarning, stacklevel=stacklevel)
+                warnings.warn(make_msg(obj), DeprecationWarning, stacklevel=stacklevel)
                 return func(*args, **kwargs)
             return wrapper
 
@@ -1179,7 +1180,9 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
             {msg}
         """.format(
             deprecated_in=deprecated_in if deprecated_in else '<unknown>',
-            msg=make_msg(style='rst'),
+            # The documentation already creates references to the replacement,
+            # so we can avoid downloading the inventory for nothing.
+            msg=make_msg(obj, style='rst', show_doc_url=False),
         )).strip()
 
         return return_obj
@@ -1322,5 +1325,6 @@ def annotations_from_signature(sig):
         annotations['return'] = sig.return_annotation
 
     return annotations
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
