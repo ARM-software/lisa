@@ -635,12 +635,12 @@ def do_run(args, parser, run_parser, argv):
     for path in args.python_files:
         # This might fail, since some adaptor options may introduce "fake"
         # positional arguments, since these options are not registered yet.
-        with contextlib.suppress(ValueError):
+        with contextlib.suppress(ValueError, ImportError):
             module_set.update(utils.import_modules([path]))
 
     # Look for a customization submodule in one of the parent packages of the
     # modules we specified on the command line.
-    module_set.update(utils.find_customization_module_set(module_set))
+    utils.find_customization_module_set(module_set)
 
     adaptor_name = args.adaptor
     adaptor_cls = AdaptorBase.get_adaptor_cls(adaptor_name)
@@ -659,7 +659,9 @@ def do_run(args, parser, run_parser, argv):
     args = parser.parse_args(argv)
 
     # Re-import now that we are sure to have the correct list of sources
-    module_set.update(utils.import_modules(args.python_files))
+    module_set = utils.import_modules(args.python_files)
+    # Make sure the module in which adaptor_cls is defined is used
+    module_set.add(inspect.getmodule(adaptor_cls))
 
     verbose = args.verbose
 
