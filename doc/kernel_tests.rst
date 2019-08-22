@@ -176,6 +176,11 @@ It can be executed using:
 
     exekall run lisa.test_example --conf $LISA_CONF
 
+.. exec::
+    # Check that links inside 'test_example.py' are not broken.
+    from lisa.doc.helpers import check_dead_links
+    check_dead_links('test_example.py')
+
 .. literalinclude:: test_example.py
    :language: python
    :pyobject: ExampleTestBundle
