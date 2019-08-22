@@ -1129,7 +1129,7 @@ class RTATestBundle(FtraceTestBundle):
         return '/' + cg.name
 
     @classmethod
-    def run_rtapp(cls, target, res_dir, profile, ftrace_coll=None, cg_cfg=None):
+    def run_rtapp(cls, target, res_dir, profile=None, ftrace_coll=None, cg_cfg=None):
         """
         Run the given RTA profile on the target, and collect an ftrace trace.
 
@@ -1140,7 +1140,9 @@ class RTATestBundle(FtraceTestBundle):
         :type res_dir: str or lisa.utils.ArtifactPath
 
         :param profile: ``rt-app`` profile, as a dictionary of
-            ``dict(task_name, RTATask)``.
+            ``dict(task_name, RTATask)``. If ``None``,
+            :meth:`~lisa.tests.base.RTATestBundle.get_rtapp_profile` is called
+            with ``target.plat_info``.
         :type profile: dict(str, lisa.wlgen.rta.RTATask)
 
         :param ftrace_coll: Ftrace collector to use to record the trace. This
@@ -1148,18 +1150,22 @@ class RTATestBundle(FtraceTestBundle):
             based on the ``ftrace_conf`` class attribute.
         :type ftrace_coll: lisa.trace.FtraceCollector
 
-        :param cg_cfg: CGroup configuration dictionary. See the return value of
-            :meth:`get_cgroup_configuration`.
+        :param cg_cfg: CGroup configuration dictionary. If ``None``,
+            :meth:`lisa.tests.base.RTATestBundle.get_cgroup_configuration` is
+            called with ``target.plat_info``.
         :type cg_cfg: dict
         """
-        wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.lower()),
-                               profile, res_dir=res_dir)
 
         trace_path = ArtifactPath.join(res_dir, cls.TRACE_PATH)
         dmesg_path = ArtifactPath.join(res_dir, cls.DMESG_PATH)
         ftrace_coll = ftrace_coll or FtraceCollector.from_conf(target, cls.ftrace_conf)
         dmesg_coll = DmesgCollector(target)
 
+        profile = profile or cls.get_rtapp_profile(target.plat_info)
+        cg_cfg = cg_cfg or cls.get_cgroup_configuration(target.plat_info)
+
+        wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.lower()),
+                               profile, res_dir=res_dir)
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
         as_root = cgroup is not None
 
@@ -1179,18 +1185,15 @@ class RTATestBundle(FtraceTestBundle):
         return cls.run_rtapp(*args, **kwargs)
 
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'RTATestBundle':
+    def _from_target(cls, target:Target, *, res_dir:ArtifactPath, ftrace_coll:FtraceCollector=None) -> 'RTATestBundle':
         """
         Factory method to create a bundle using a live target
 
         This will execute the rt-app workload described in
         :meth:`~lisa.tests.base.RTATestBundle.get_rtapp_profile`
         """
+        cls.run_rtapp(target, res_dir, ftrace_coll=ftrace_coll)
         plat_info = target.plat_info
-        rtapp_profile = cls.get_rtapp_profile(plat_info)
-        cgroup_config = cls.get_cgroup_configuration(plat_info)
-        cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll, cgroup_config)
-
         return cls(res_dir, plat_info)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
