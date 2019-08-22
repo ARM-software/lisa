@@ -3232,10 +3232,12 @@ class FrozenExprVal(ExprValBase):
     def __init__(self,
             param_map, value, excep, uuid,
             callable_qualname, callable_name, recorded_id_map,
+            tags,
         ):
         self.callable_qualname = callable_qualname
         self.callable_name = callable_name
         self.recorded_id_map = recorded_id_map
+        self.tags = tags
         super().__init__(
             param_map=param_map,
             value=value, excep=excep,
@@ -3308,6 +3310,7 @@ class FrozenExprVal(ExprValBase):
             callable_name=callable_name,
             recorded_id_map=recorded_id_map,
             param_map=param_map,
+            tags=expr_val.get_tags()
         )
 
         return froz_val
@@ -3336,6 +3339,9 @@ class FrozenExprVal(ExprValBase):
             id_ = re.sub(r'\[{}=.*?\]'.format(tag), '', id_)
 
         return id_
+
+    def get_tags(self):
+        return self.tags
 
 class PrunedFrozVal(FrozenExprVal):
     """
@@ -3438,6 +3444,17 @@ class ExprVal(ExprValBase):
         self.expr = expr
         super().__init__(param_map=param_map, value=value, excep=excep, uuid=uuid)
 
+    def get_tags(self):
+        """
+        Return a dictionary of the tags.
+        """
+        return {
+            # Make sure there are no brackets in tag values, since that
+            # would break all regex parsing done on IDs.
+            k: str(v).replace('[', '').replace(']', '')
+            for k, v in self.expr.op.tags_getter(self.value).items()
+        }
+
     def format_tags(self, remove_tags=set()):
         """
         Return a formatted string for the tags of that :class:`ExprVal`.
@@ -3445,12 +3462,7 @@ class ExprVal(ExprValBase):
         :param remove_tags: Do not include those tags
         :type remove_tags: set(str)
         """
-        tag_map = {
-            # Make sure there are no brackets in tag values, since that
-            # would break all regex parsing done on IDs.
-            k: str(v).replace('[', '').replace(']', '')
-            for k, v in self.expr.op.tags_getter(self.value).items()
-        }
+        tag_map = self.get_tags()
         if tag_map:
             return ''.join(
                 '[{}={}]'.format(k, v) if k else '[{}]'.format(v)
@@ -3535,4 +3547,3 @@ class ExprData(dict):
     def __init__(self):
         super().__init__()
         self.uuid = utils.create_uuid()
-
