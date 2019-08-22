@@ -64,7 +64,7 @@ class SchedTuneItemBase(RTATestBundle):
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
         cgroup_config = cls.get_cgroup_configuration(plat_info, boost, prefer_idle)
-        cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll, cgroup_config)
+        cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll, cgroup_config)
 
         return cls(res_dir, plat_info, boost, prefer_idle)
 

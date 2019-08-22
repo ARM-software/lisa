@@ -1129,7 +1129,29 @@ class RTATestBundle(FtraceTestBundle):
         return '/' + cg.name
 
     @classmethod
-    def _run_rtapp(cls, target, res_dir, profile, ftrace_coll=None, cg_cfg=None):
+    def run_rtapp(cls, target, res_dir, profile, ftrace_coll=None, cg_cfg=None):
+        """
+        Run the given RTA profile on the target, and collect an ftrace trace.
+
+        :param target: target to execute the workload on.
+        :type target: lisa.target.Target
+
+        :param res_dir: Artifact folder where the artifacts will be stored.
+        :type res_dir: str or lisa.utils.ArtifactPath
+
+        :param profile: ``rt-app`` profile, as a dictionary of
+            ``dict(task_name, RTATask)``.
+        :type profile: dict(str, lisa.wlgen.rta.RTATask)
+
+        :param ftrace_coll: Ftrace collector to use to record the trace. This
+            allows recording extra events compared to the default one, which is
+            based on the ``ftrace_conf`` class attribute.
+        :type ftrace_coll: lisa.trace.FtraceCollector
+
+        :param cg_cfg: CGroup configuration dictionary. See the return value of
+            :meth:`get_cgroup_configuration`.
+        :type cg_cfg: dict
+        """
         wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.lower()),
                                profile, res_dir=res_dir)
 
@@ -1148,6 +1170,14 @@ class RTATestBundle(FtraceTestBundle):
         dmesg_coll.get_trace(dmesg_path)
         return trace_path
 
+    # Keep compat with existing code
+    @classmethod
+    def _run_rtapp(cls, *args, **kwargs):
+        """
+        Has been renamed to :meth:`~lisa.tests.base.RTATestBundle.run_rtapp`, as it really is part of the public API.
+        """
+        return cls.run_rtapp(*args, **kwargs)
+
     @classmethod
     def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'RTATestBundle':
         """
@@ -1159,7 +1189,7 @@ class RTATestBundle(FtraceTestBundle):
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
         cgroup_config = cls.get_cgroup_configuration(plat_info)
-        cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll, cgroup_config)
+        cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll, cgroup_config)
 
         return cls(res_dir, plat_info)
 

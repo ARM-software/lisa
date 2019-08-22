@@ -79,7 +79,7 @@ class EASBehaviour(RTATestBundle):
         # so make sure this is what's being used
         with target.disable_idle_states():
             with target.cpufreq.use_governor("schedutil"):
-                cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
+                cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
 
         return cls(res_dir, plat_info)
 
