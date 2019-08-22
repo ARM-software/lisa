@@ -916,14 +916,23 @@ class RTATestBundle(FtraceTestBundle):
         """
         return self.get_cgroup_configuration(self.plat_info)
 
-    def get_trace(self, **kwargs):
+    @non_recursive_property
+    @memoized
+    def trace(self):
         """
         :returns: a :class:`lisa.trace.TraceView` cropped to fit the ``rt-app``
             tasks.
 
-        :Keyword arguments: forwarded to :class:`lisa.trace.Trace`.
+        All events specified in ``ftrace_conf`` are parsed from the trace,
+        so it is suitable for direct use in methods.
+
+        Having the trace as a property lets us defer the loading of the actual
+        trace to when it is first used. Also, this prevents it from being
+        serialized when calling :meth:`lisa.utils.Serializable.to_path` and
+        allows updating the underlying path before it is actually loaded to
+        match a different folder structure.
         """
-        trace = Trace(self.trace_path, self.plat_info, **kwargs)
+        trace = self.get_trace(events=self.ftrace_conf["events"])
         return trace.get_view(self.trace_window(trace))
 
     @TasksAnalysis.df_tasks_runtime.used_events
