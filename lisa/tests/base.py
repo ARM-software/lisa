@@ -1111,7 +1111,7 @@ class RTATestBundle(FtraceTestBundle):
           }
 
         """
-        return None
+        return {}
 
     @classmethod
     def _target_configure_cgroup(cls, target, cfg):
