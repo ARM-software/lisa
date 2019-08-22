@@ -272,6 +272,9 @@ class Serializable(Loggable):
 
                 !include /foo/$ENV_VAR/bar.yml
 
+          Relative paths are treated as relative to the file in which the
+          ``!include`` tag appears.
+
         * ``!env``: take the value of an environment variable, and convert
           it to a Python type:
 
