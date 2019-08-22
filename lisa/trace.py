@@ -63,10 +63,10 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
     __slots__ = []
 
     def __str__(self):
-        if self != (None, None):
+        if self.pid is not None and self.comm is not None:
             return '{}:{}'.format(self.pid, self.comm)
         else:
-            str(self.comm if self.comm is not None else self.pid)
+            return str(self.comm if self.comm is not None else self.pid)
 
 class TraceBase(abc.ABC):
     """
