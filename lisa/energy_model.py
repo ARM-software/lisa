@@ -77,7 +77,7 @@ class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
     :param power: Power usage at frequency
     """
     def __new__(cls, capacity=None, power=None):
-        return super(ActiveState, cls).__new__(cls, capacity, power)
+        return super().__new__(cls, capacity, power)
 
 class _CpuTree(Loggable):
     """Internal class. Abstract representation of a CPU topology.
@@ -167,7 +167,7 @@ class EnergyModelNode(_CpuTree):
     """
     def __init__(self, active_states, idle_states,
                  cpu=None, children=None, name=None):
-        super(EnergyModelNode, self).__init__(cpu, children)
+        super().__init__(cpu, children)
         logger = self.get_logger()
 
         def is_monotonic(l, decreasing=False):
@@ -266,7 +266,7 @@ class PowerDomain(_CpuTree):
     def __init__(self, idle_states, cpu=None, children=None):
         if idle_states is None:
             raise ValueError('idle_states cannot be None (but may be empty)')
-        super(PowerDomain, self).__init__(cpu, children)
+        super().__init__(cpu, children)
         self.idle_states = idle_states
 
 class EnergyModel(Serializable, Loggable):

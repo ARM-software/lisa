@@ -184,7 +184,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
         # behaviour of the signal on running/not-running tasks.
         with target.disable_idle_states():
             with target.cpufreq.use_governor(**cls.cpufreq_conf):
-                cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
+                cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
 
         return cls(res_dir, plat_info)
 
@@ -287,7 +287,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         with target.cpufreq.use_governor(**cls.cpufreq_conf):
             target.cpufreq.set_frequency(cpu, freq)
             logger.debug('CPU{} frequency: {}'.format(cpu, target.cpufreq.get_frequency(cpu)))
-            cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
+            cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
 
         freq_list = freq_list or [freq]
         return cls(res_dir, plat_info, cpu, freq, freq_list)
@@ -917,7 +917,7 @@ class CPUMigrationBase(LoadTrackingBase):
         pass
 
     @classmethod
-    def _run_rtapp(cls, target, res_dir, profile, ftrace_coll, cgroup=None):
+    def run_rtapp(cls, target, res_dir, profile, ftrace_coll, cgroup=None):
         # Just do some validation on the profile
         for name, task in profile.items():
             for phase in task.phases:
@@ -925,7 +925,7 @@ class CPUMigrationBase(LoadTrackingBase):
                     raise RuntimeError("Each phase must be tied to a single CPU. "
                                        "Task \"{}\" violates this".format(name))
 
-        super()._run_rtapp(target, res_dir, profile, ftrace_coll, cgroup)
+        super().run_rtapp(target, res_dir, profile, ftrace_coll, cgroup)
 
     @property
     def cpus(self):

@@ -79,7 +79,7 @@ class EASBehaviour(RTATestBundle):
         # so make sure this is what's being used
         with target.disable_idle_states():
             with target.cpufreq.use_governor("schedutil"):
-                cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
+                cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
 
         return cls(res_dir, plat_info)
 
@@ -323,6 +323,9 @@ class EASBehaviour(RTATestBundle):
         res = ResultBundle.from_bool(passed)
         res.add_metric("estimated energy", est_energy, 'bogo-joules')
         res.add_metric("energy threshold", threshold, 'bogo-joules')
+
+        res.plat_info = self.plat_info
+
         return res
 
     def test_slack(self, negative_slack_allowed_pct=15) -> ResultBundle:
