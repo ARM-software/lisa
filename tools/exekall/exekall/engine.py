@@ -3357,6 +3357,7 @@ class PrunedFrozVal(FrozenExprVal):
             callable_qualname=froz_val.callable_qualname,
             callable_name=froz_val.callable_name,
             recorded_id_map=copy.copy(froz_val.recorded_id_map),
+            tags=froz_val.get_tags(),
         )
 
 class FrozenExprValSeq(collections.abc.Sequence):
