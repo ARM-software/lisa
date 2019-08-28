@@ -38,7 +38,6 @@ from trappy.utils import handle_duplicate_index
 
 from IPython.display import display
 
-from lisa.platforms.platinfo import PlatformInfo
 from lisa.trace import Trace
 from lisa.git import find_shortest_symref
 from lisa.utils import Loggable, memoized
@@ -96,6 +95,7 @@ class WaResultsCollector(Loggable):
 
     :param platform: Optional LISA platform description. If provided, used to
                      enrich extra metrics gleaned from trace analysis.
+    :type platform: :class:`PlatformInfo`
 
     :param kernel_repo_path: Optional path to kernel repository. WA3 reports the
                      SHA1 of the kernel that workloads were run against. If this
@@ -403,10 +403,8 @@ class WaResultsCollector(Loggable):
         metrics = []
         events = ['irq_handler_entry', 'cpu_frequency', 'nohz_kick', 'sched_switch',
                   'sched_load_cfs_rq', 'sched_load_avg_task', 'thermal_temperature']
-        plat_info = PlatformInfo({
-            'kernel': {'version': KernelVersion(target_info['kernel_release'])},
-        })
-        trace = Trace(trace_path, plat_info, events, self.platform)
+
+        trace = Trace(trace_path, plat_info=self.platform, events=events)
 
         metrics.append(('cpu_wakeup_count', len(trace.analysis.cpus.df_cpu_wakeups()), None))
 
