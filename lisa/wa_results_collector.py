@@ -38,7 +38,6 @@ from trappy.utils import handle_duplicate_index
 
 from IPython.display import display
 
-from lisa.platforms.platinfo import PlatformInfo
 from lisa.trace import Trace
 from lisa.git import find_shortest_symref
 from lisa.utils import Loggable, memoized
@@ -96,6 +95,7 @@ class WaResultsCollector(Loggable):
 
     :param platform: Optional LISA platform description. If provided, used to
                      enrich extra metrics gleaned from trace analysis.
+    :type platform: :class:`PlatformInfo`
 
     :param kernel_repo_path: Optional path to kernel repository. WA3 reports the
                      SHA1 of the kernel that workloads were run against. If this
@@ -402,47 +402,46 @@ class WaResultsCollector(Loggable):
 
         metrics = []
         events = ['irq_handler_entry', 'cpu_frequency', 'nohz_kick', 'sched_switch',
-                  'sched_load_cfs_rq', 'sched_load_avg_task', 'thermal_temperature']
-        plat_info = PlatformInfo({
-            'kernel': {'version': KernelVersion(target_info['kernel_release'])},
-        })
-        trace = Trace(trace_path, plat_info, events, self.platform)
+                  'sched_load_cfs_rq', 'sched_load_avg_task', 'thermal_temperature',
+                  'cpu_idle']
 
-        metrics.append(('cpu_wakeup_count', len(trace.analysis.cpus.df_cpu_wakeups()), None))
+        trace = Trace(trace_path, plat_info=self.platform, events=events)
+
+        metrics.append(('cpu_wakeup_count', len(trace.analysis.idle.df_cpus_wakeups()), None))
 
         # Helper to get area under curve of multiple CPU active signals
         def get_cpu_time(trace, cpus):
-            df = pd.DataFrame([trace.get_cpu_active_signal(cpu) for cpu in cpus])
+            df = pd.DataFrame([trace.analysis.idle.signal_cpu_active(cpu) for cpu in cpus])
             return df.sum(axis=1).sum(axis=0)
 
-        clusters = trace.platform.get('clusters')
-        if clusters:
-            for cluster in list(clusters.values()):
-                name = '-'.join(str(c) for c in cluster)
 
-                df = trace.analysis.frequency.df_cluster_frequency_residency(cluster)
-                if df is None or df.empty:
-                    logger.warning("Can't get cluster freq residency from %s",
-                                      trace.trace_path)
-                else:
-                    df = df.reset_index()
-                    avg_freq = (df.frequency * df.time).sum() / df.time.sum()
-                    metric = 'avg_freq_cluster_{}'.format(name)
-                    metrics.append((metric, avg_freq, 'MHz'))
+        domains = trace.plat_info['freq-domains'] if 'freq-domains' in trace.plat_info else []
+        for domain in domains:
+            name = '-'.join(str(c) for c in domain)
 
-                df = trace.df_events('cpu_frequency')
-                df = df[df.cpu == cluster[0]]
-                metrics.append(('freq_transition_count_{}'.format(name), len(df), None))
+            df = trace.analysis.frequency.df_domain_frequency_residency(domain)
+            if df is None or df.empty:
+                logger.warning("Can't get cluster freq residency from %s",
+                                  trace.trace_path)
+            else:
+                df = df.reset_index()
+                avg_freq = (df.frequency * df.time).sum() / df.time.sum()
+                metric = 'avg_freq_cluster_{}'.format(name)
+                metrics.append((metric, avg_freq, 'MHz'))
 
-                active_time = series_integrate(trace.getClusterActiveSignal(cluster))
-                metrics.append(('active_time_cluster_{}'.format(name),
-                                active_time, 'seconds'))
+            df = trace.df_events('cpu_frequency')
+            df = df[df.cpu == domain[0]]
+            metrics.append(('freq_transition_count_{}'.format(name), len(df), None))
 
-                metrics.append(('cpu_time_cluster_{}'.format(name),
-                                get_cpu_time(trace, cluster), 'cpu-seconds'))
+            active_time = series_integrate(trace.analysis.idle.signal_cluster_active(domain))
+            metrics.append(('active_time_cluster_{}'.format(name),
+                            active_time, 'seconds'))
+
+            metrics.append(('cpu_time_cluster_{}'.format(name),
+                            get_cpu_time(trace, domain), 'cpu-seconds'))
 
         metrics.append(('cpu_time_total',
-                        get_cpu_time(trace, list(range(trace.plat_info['cpus-count']))),
+                        get_cpu_time(trace, list(range(trace.cpus_count))),
                         'cpu-seconds'))
 
         event = None
