@@ -415,7 +415,7 @@ class WaResultsCollector(Loggable):
             return df.sum(axis=1).sum(axis=0)
 
 
-        domains = trace.plat_info['freq-domains'] if 'freq-domains' in trace.plat_info else []
+        domains = trace.plat_info.get('freq-domains', [])
         for domain in domains:
             name = '-'.join(str(c) for c in domain)
 
