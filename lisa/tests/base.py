@@ -26,6 +26,7 @@ import re
 import inspect
 import copy
 import contextlib
+import itertools
 
 from datetime import datetime
 from collections import OrderedDict, ChainMap
@@ -909,10 +910,44 @@ class RTATestBundle(FtraceTestBundle):
     @property
     def rtapp_tasks(self):
         """
-        Sorted list of rtapp task names, as defined in ``rtapp_profile``
-        attribute.
+        The rtapp task names as found from the trace in this bundle.
+
+        :return: the list of actual trace task names
         """
-        return sorted(self.rtapp_profile.keys())
+        return sorted(itertools.chain.from_iterable(self.rtapp_tasks_map.values()))
+
+    @property
+    @requires_events('sched_switch')
+    @memoized
+    def rtapp_tasks_map(self):
+        """
+        Mapping of task names as specified in the rtapp profile to list of task
+        names found in the trace.
+
+        If the task forked, the list will contain more than one item.
+        """
+        trace = self.get_trace(events=['sched_switch'])
+
+        prefix_regexps = {
+            prefix: re.compile(r"^{}(-[0-9]+)*$".format(re.escape(prefix)))
+            for prefix in self.rtapp_profile.keys()
+        }
+
+        comms = list(itertools.chain.from_iterable(trace.get_tasks().values()))
+        task_map = {
+        	prefix: [
+        		comm
+         		for comm in comms
+        		if re.match(regexp, comm)
+        	]
+        	for prefix, regexp in prefix_regexps.items()
+        }
+
+        missing = set(self.rtapp_profile.keys()) - task_map.keys()
+        if missing:
+        	 raise RuntimeError("Missing tasks matching the following rt-app profile names: {}"
+                                .format(', '.join(missing)))
+        return task_map
 
     @property
     def cgroup_configuration(self):
