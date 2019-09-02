@@ -95,7 +95,7 @@ class WaResultsCollector(Loggable):
 
     :param platform: Optional LISA platform description. If provided, used to
                      enrich extra metrics gleaned from trace analysis.
-    :type platform: :class:`PlatformInfo`
+    :type platform: lisa.platforms.platinfo.PlatformInfo
 
     :param kernel_repo_path: Optional path to kernel repository. WA3 reports the
                      SHA1 of the kernel that workloads were run against. If this
