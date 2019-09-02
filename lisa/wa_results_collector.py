@@ -93,9 +93,9 @@ class WaResultsCollector(Loggable):
                      output directories
     :type base_dir: str
 
-    :param platform: Optional LISA platform description. If provided, used to
+    :param plat_info: Optional LISA platform description. If provided, used to
                      enrich extra metrics gleaned from trace analysis.
-    :type platform: lisa.platforms.platinfo.PlatformInfo
+    :type plat_info: lisa.platforms.platinfo.PlatformInfo
 
     :param kernel_repo_path: Optional path to kernel repository. WA3 reports the
                      SHA1 of the kernel that workloads were run against. If this
@@ -123,7 +123,7 @@ class WaResultsCollector(Loggable):
     """
     RE_WLTEST_DIR = re.compile(r"wa\.(?P<sha1>\w+)_(?P<name>.+)")
 
-    def __init__(self, base_dir=None, wa_dirs=".*", platform=None,
+    def __init__(self, base_dir=None, wa_dirs=".*", plat_info=None,
                  kernel_repo_path=None, parse_traces=True,
                  use_cached_trace_metrics=True, display_charts=True):
 
@@ -147,7 +147,7 @@ class WaResultsCollector(Loggable):
 
         wa_dirs = [os.path.expanduser(p) for p in wa_dirs]
 
-        self.platform = platform
+        self.plat_info = plat_info
         self.parse_traces = parse_traces
         if not self.parse_traces:
             logger.warning("Trace parsing disabled")
@@ -405,7 +405,7 @@ class WaResultsCollector(Loggable):
                   'sched_load_cfs_rq', 'sched_load_avg_task', 'thermal_temperature',
                   'cpu_idle']
 
-        trace = Trace(trace_path, plat_info=self.platform, events=events)
+        trace = Trace(trace_path, plat_info=self.plat_info, events=events)
 
         metrics.append(('cpu_wakeup_count', len(trace.analysis.idle.df_cpus_wakeups()), None))
 
