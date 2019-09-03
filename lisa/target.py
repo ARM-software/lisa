@@ -717,6 +717,19 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             self.target.install(tool)
             self._installed_tools.add(tool)
 
+    def execute(self, cmd, *args, force_local='C', **kwargs):
+        """
+        Call :meth:`devlib.Target.execute` with all the arguments forwarded.
+
+        :param force_local: Prefix the command with ``LC_ALL=<force_local>`` so that
+            the commands execute with a known local, that can be expected to be
+            the same in all environments.
+        :type force_local: str or None
+        """
+        if force_local:
+            cmd = 'LC_ALL={} {}'.format(shlex.quote(force_local), cmd)
+
+        return self.target.execute(cmd, *args, **kwargs)
 
     @contextlib.contextmanager
     def freeze_userspace(self):
