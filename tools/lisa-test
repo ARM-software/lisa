@@ -35,7 +35,7 @@ cmd=(
 )
 
 # Show the command before running, so --help makes more sense
-echo "${cmd[@]}"
+printf '%q ' "${cmd[@]}"
 echo
 
 exec "${cmd[@]}"
