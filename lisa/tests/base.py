@@ -678,6 +678,10 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
             symlink=True,
         )
 
+        # Make sure that all the relevant dmesg warnings will fire when running
+        # things on the target, even if we already hit some warn_once warnings.
+        target.write_value('/sys/kernel/debug/clear_warn_once', '1', verify=False)
+
         bundle = cls._from_target(target, res_dir=res_dir, **kwargs)
 
         # We've created the bundle from the target, and have all of
