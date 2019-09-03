@@ -2289,6 +2289,15 @@ class Operator:
             # easily.
             self.annotations['return'] = self.resolved_callable.__self__
 
+        # make sure we got some usable type annotations that only consist
+        # in classes, rather than things coming from the typing module
+        param_map, value_type = self.get_prototype()
+        if not all(
+            isinstance(annot, type)
+            for annot in {value_type, *param_map.values()}
+        ):
+            raise ValueError('Annotations must be classes')
+
     @property
     def callable_globals(self):
         """
