@@ -768,14 +768,24 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         logger.info('Disabling idle states for all domains')
 
         try:
-            for domain in self.target.cpufreq.iter_domains():
-                self.target.cpuidle.disable_all(domain[0])
-            yield
-        finally:
-            logger.info('Re-enabling idle states for all domains')
-            for domain in self.target.cpufreq.iter_domains():
-                self.target.cpuidle.enable_all(domain[0])
+            cpuidle = self.target.cpuidle
+        except AttributeError:
+            logger.warning('Could not disable idle states, cpuidle devlib module is not loaded')
+            cm = nullcontext
+        else:
+            @contextlib.contextmanager
+            def cm():
+                try:
+                    for domain in self.target.cpufreq.iter_domains():
+                        cpuidle.disable_all(domain[0])
+                    yield
+                finally:
+                    logger.info('Re-enabling idle states for all domains')
+                    for domain in self.target.cpufreq.iter_domains():
+                        cpuidle.enable_all(domain[0])
 
+        with cm() as x:
+            yield x
 
     def get_tags(self):
         return {'board': self.name}
