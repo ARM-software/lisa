@@ -33,6 +33,8 @@ from collections import OrderedDict, ChainMap
 from collections.abc import Mapping
 from inspect import signature
 
+from devlib.trace.dmesg import KernelLogEntry
+
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.trace import Trace, requires_events, TaskID
 from lisa.wlgen.rta import RTA
@@ -676,6 +678,10 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
             symlink=True,
         )
 
+        # Make sure that all the relevant dmesg warnings will fire when running
+        # things on the target, even if we already hit some warn_once warnings.
+        target.write_value('/sys/kernel/debug/clear_warn_once', '1', verify=False)
+
         bundle = cls._from_target(target, res_dir=res_dir, **kwargs)
 
         # We've created the bundle from the target, and have all of
@@ -835,17 +841,74 @@ class FtraceTestBundle(TestBundle, metaclass=FtraceTestBundleMeta):
         """
         return Trace(self.trace_path, self.plat_info, **kwargs)
 
-class RTATestBundle(FtraceTestBundle):
+class DmesgTestBundle(TestBundle):
     """
-    Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
-
-    .. seealso: :class:`lisa.tests.base.FtraceTestBundleMeta` for default
-        ``ftrace_conf`` content.
+    Abstract Base Class for TestBundles based on dmesg output.
     """
 
     DMESG_PATH = 'dmesg.log'
     """
     Path to the dmesg log in the result directory.
+    """
+
+    @property
+    def dmesg_path(self):
+        """
+        Path to the dmesg output log file
+        """
+        return ArtifactPath.join(self.res_dir, self.DMESG_PATH)
+
+    @property
+    def dmesg_entries(self):
+        """
+        List of parsed dmesg output entries
+        :class:`devlib.trace.dmesg.KernelLogEntry`.
+        """
+        with open(self.dmesg_path) as f:
+            return [
+                KernelLogEntry.from_str(line)
+                for line in f.read().splitlines()
+                if line.strip()
+            ]
+
+    def test_dmesg(self, level='warn', facility=None) -> ResultBundle:
+        """
+        Basic test on kernel dmesg output.
+
+        :param level: Any dmesg entr with a level more critical than (and
+            including) that will make the test fail.
+        :type level: str
+
+        :param facility: Only select entries emitted by the given dmesg
+            facility like `kern`. Note that not all versions of `dmesg` are
+            able to print it, so specifying it may lead to no entry being
+            inspected at all. If ``None``, the facility is ignored.
+        type facility: str or None
+        """
+        levels = DmesgCollector.LOG_LEVELS
+        # Consider as an issue all levels more critical than `level`
+        issue_levels = levels[:levels.index(level) + 1]
+        issues = [
+            entry
+            for entry in self.dmesg_entries
+            if (
+                (entry.facility == facility if facility else True)
+                and entry.level in issue_levels
+            )
+        ]
+
+        res = ResultBundle.from_bool(not issues)
+        multiline = len(issues) > 1
+        res.add_metric('dmesg output', ('\n' if multiline else '') + '\n'.join(str(entry) for entry in issues))
+        return res
+
+
+class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
+    """
+    Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
+
+    .. seealso: :class:`lisa.tests.base.FtraceTestBundleMeta` for default
+        ``ftrace_conf`` content.
     """
 
     TASK_PERIOD_MS = 16
@@ -1207,6 +1270,12 @@ class RTATestBundle(FtraceTestBundle):
                                profile, res_dir=res_dir)
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
         as_root = cgroup is not None
+
+        # Pre-hit the calibration information, in case this is a lazy value.
+        # This avoids polluting the trace and the dmesg output with the
+        # calibration tasks. Since we know that rt-app will always need it for
+        # anything useful, it's reasonable to do it here.
+        target.plat_info['rtapp']['calib']
 
         with dmesg_coll, ftrace_coll, target.freeze_userspace():
             wload.run(cgroup=cgroup, as_root=as_root)
