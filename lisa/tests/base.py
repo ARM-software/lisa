@@ -1267,6 +1267,12 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
         as_root = cgroup is not None
 
+        # Pre-hit the calibration information, in case this is a lazy value.
+        # This avoids polluting the trace and the dmesg output with the
+        # calibration tasks. Since we know that rt-app will always need it for
+        # anything useful, it's reasonable to do it here.
+        target.plat_info['rtapp']['calib']
+
         with dmesg_coll, ftrace_coll, target.freeze_userspace():
             wload.run(cgroup=cgroup, as_root=as_root)
 
