@@ -2015,16 +2015,19 @@ class ClassContext:
 
         op_stack = new_op_stack
 
-        param_map, produced = op.get_prototype()
-        if param_map:
-            param_list, cls_list = zip(*param_map.items())
+        param_cls_map = op.get_prototype()[0]
+        if param_cls_map:
+            param_list, cls_list = zip(*param_cls_map.items())
         # When no parameter is needed
         else:
             yield Expression(op, OrderedDict())
             return
 
         # Build all the possible combinations of types suitable as parameters
-        cls_combis = [cls_map.get(cls, list()) for cls in cls_list]
+        cls_combis = [
+            cls_map.get(cls, [None])
+            for cls in cls_list
+        ]
 
         # Only keep the classes for "self" on which the method can be applied
         if op.is_method:
@@ -2048,72 +2051,112 @@ class ClassContext:
                 # If the method with the same name would resolve to "op", then
                 # we keep this class as a candidate for "self", otherwise we
                 # discard it
-                if keep_cls(cls)
+                if cls is None or keep_cls(cls)
             ]
 
-        # Check that some produced classes are available for every parameter
-        ignored_indices = set()
-        for param, wanted_cls, available_cls in zip(param_list, cls_list, cls_combis):
-            if not available_cls:
-                # If that was an optional parameter, just ignore it without
-                # throwing an exception since it has a default value
-                if param in op.optional_param:
-                    ignored_indices.add(param_list.index(param))
-                else:
-                    if non_produced_handler == 'ignore':
-                        return
-                    elif callable(non_produced_handler):
-                        non_produced_handler(wanted_cls.__qualname__, op.name, param,
-                            tuple(op.resolved_callable for op in op_stack)
-                        )
-                        return
-                    elif non_produced_handler == 'raise':
-                        raise NoOperatorError('No operator can produce instances of {cls} needed for {op} (parameter "{param}" along path {path})'.format(
-                            cls = wanted_cls.__qualname__,
-                            op = op.name,
-                            param = param,
-                            path = ' -> '.join(
-                                op.name for op in op_stack
-                            )
-                        ))
-                    else:
-                        raise ValueError('Invalid non_produced_handler')
-
-        param_list = utils.remove_indices(param_list, ignored_indices)
-        cls_combis = utils.remove_indices(cls_combis, ignored_indices)
-
-        param_list_len = len(param_list)
+        param_map_list = []
 
         # For all possible combinations of types
         for cls_combi in itertools.product(*cls_combis):
             cls_combi = list(cls_combi)
 
+            try:
+                op_combis = [
+                    op_map[cls] if cls is not None else {None}
+                    for cls in cls_combi
+                ]
             # Some classes may not be produced, but another combination
             # containing a subclass of it may actually be produced so we can
             # just ignore that one.
-            op_combis = [
-                op_map[cls] for cls in cls_combi
-                if cls in op_map
-            ]
+            except KeyError:
+                continue
 
-            # Build all the possible combinations of operators returning these
+            # For all the possible combinations of operators returning these
             # types
             for op_combi in itertools.product(*op_combis):
                 op_combi = list(op_combi)
 
-                # Get all the possible ways of calling these operators
-                param_combis = itertools.product(*(cls._build_expr(
-                        param_op, op_map, cls_map,
-                        op_stack, non_produced_handler, cycle_handler,
-                    ) for param_op in op_combi
-                ))
+                # Build all the expressions that can produce a value for each
+                # parameter
+                expr_combis = []
+                for param, param_op in zip(param_list, op_combi):
+                    optional = param in op.optional_param
 
-                for param_combi in param_combis:
-                    param_map = OrderedDict(zip(param_list, param_combi))
+                    if param_op is None:
+                        expr_list = []
+                    else:
+                        expr_list = list(cls._build_expr(
+                            param_op, op_map, cls_map,
+                            op_stack,
+                            non_produced_handler if not optional else 'ignore',
+                            cycle_handler if not optional else 'ignore',
+                        ))
+                    # Use a None placeholder for the cases where we could
+                    # not build any expression.
+                    # We really don't want to add an empty expr_list to
+                    # expr_combis, since that would kill all the otherwise
+                    # possible expressions. The empty list is the "0" of the
+                    # cartesian product:
+                    # [] == list(itertools.product(..., [], ...))
+                    expr_list = expr_list if expr_list else [None]
+                    expr_combis.append(expr_list)
 
-                    # If all parameters can be built, carry on
-                    if len(param_map) == param_list_len:
-                        yield Expression(op, param_map)
+                # For all the possible combinations of expressions producing a
+                # value for the parameters
+                for expr_combi in itertools.product(*expr_combis):
+                    param_map_list.append(OrderedDict(zip(param_list, expr_combi)))
+
+        # Select the expressions to be run (handling parameters with default values)
+        # and log errors for expressions that we cannot build
+        for param in param_list:
+            optional = param in op.optional_param
+            # If we are never able to create a value for that optional
+            # parameter, just ignore it by removing it from all the
+            # param_map as it has a default value.
+            if optional and all(
+                param_map[param] is None
+                for param_map in param_map_list
+            ):
+                for param_map in param_map_list:
+                    del param_map[param]
+            # Otherwise, we just get rid of the expressions that would use
+            # the default value.
+            # If the parameter is not optional, we cannot do anything if there
+            # is no expression to generate it, so we also get rid of these
+            # expressions.
+            else:
+                param_map_list = [
+                    param_map
+                    for param_map in param_map_list
+                    if param_map[param] is not None
+                ]
+
+                # If we just made the list empty because of removing some
+                # expressions, we have an issue that needs to be logged
+                if not param_map_list:
+                    wanted_cls = param_cls_map[param]
+
+                    if non_produced_handler == 'ignore':
+                        pass
+                    elif callable(non_produced_handler):
+                        non_produced_handler(wanted_cls.__qualname__, op.name, param,
+                            tuple(op.resolved_callable for op in op_stack)
+                        )
+                    elif non_produced_handler == 'raise':
+                        raise NoOperatorError('No operator can produce instances of {cls} needed for {op} (parameter "{param}" along path {path})'.format(
+                            cls=wanted_cls.__qualname__,
+                            op=op.name,
+                            param=param,
+                            path=' -> '.join(op.name for op in op_stack)
+                        ))
+                    else:
+                        raise ValueError('Invalid non_produced_handler')
+
+                    continue
+
+        for param_map in param_map_list:
+            yield Expression(op, param_map)
+
 
 class Expression(ExpressionBase):
     """
