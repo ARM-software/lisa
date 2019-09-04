@@ -1975,8 +1975,8 @@ class ClassContext:
 
         # Dummy placeholders that will get fixed up later right before
         # execution
-        op_map[Consumer] = [ConsumerOperator()]
-        op_map[ExprData] = [ExprDataOperator()]
+        op_map[Consumer] = {ConsumerOperator()}
+        op_map[ExprData] = {ExprDataOperator()}
         cls_map[ExprData] = [ExprData]
         cls_map[Consumer] = [Consumer]
 
