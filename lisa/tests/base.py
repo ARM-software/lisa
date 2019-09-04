@@ -44,9 +44,14 @@ from lisa.target import Target
 from lisa.utils import (
     Serializable, memoized, ArtifactPath, non_recursive_property,
     update_wrapper_doc, ExekallTaggable, annotations_from_signature,
+    HideExekallID,
 )
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
+from lisa.conf import (
+    SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc,
+    StrList,
+)
 
 class TestMetric:
     """
@@ -843,6 +848,24 @@ class FtraceTestBundle(TestBundle, metaclass=FtraceTestBundleMeta):
         """
         return Trace(self.trace_path, self.plat_info, **kwargs)
 
+
+class DmesgIgnoredPatterns(StrList, HideExekallID):
+    pass
+
+class DmesgTestConf(SimpleMultiSrcConf):
+    """
+    Configuration class for :meth:`lisa.tests.base.DmesgTestBundle.test_dmesg`.
+
+    {generated_help}
+    """
+    STRUCTURE = TopLevelKeyDesc('dmesg-test-conf', 'Dmesg test configuration', (
+        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries content to be ignored', [DmesgIgnoredPatterns]),
+    ))
+
+    def get_ignored_patterns(self) -> DmesgIgnorePatterns:
+        return self.get('ignored-patterns', [])
+
+
 class DmesgTestBundle(TestBundle):
     """
     Abstract Base Class for TestBundles based on dmesg output.
@@ -873,7 +896,7 @@ class DmesgTestBundle(TestBundle):
                 if line.strip()
             ]
 
-    def test_dmesg(self, level='warn', facility=None) -> ResultBundle:
+    def test_dmesg(self, level='warn', facility=None, ignored_patterns:DmesgIgnoredPatterns=[]) -> ResultBundle:
         """
         Basic test on kernel dmesg output.
 
@@ -886,16 +909,30 @@ class DmesgTestBundle(TestBundle):
             able to print it, so specifying it may lead to no entry being
             inspected at all. If ``None``, the facility is ignored.
         :type facility: str or None
+
+        :param ignored_patterns: List of regexes to ignore some messages.
+        :type ignored_patterns: list or None
         """
         levels = DmesgCollector.LOG_LEVELS
         # Consider as an issue all levels more critical than `level`
         issue_levels = levels[:levels.index(level) + 1]
+
+        logger = self.get_logger()
+        if ignored_patterns:
+            logger.info('Will ignore patterns in dmesg output: {}'.format(ignored_patterns))
+
+        ignored_regex = [
+            re.compile(pattern)
+            for pattern in ignored_patterns
+        ]
+
         issues = [
             entry
             for entry in self.dmesg_entries
             if (
                 (entry.facility == facility if facility else True)
-                and entry.level in issue_levels
+                and (entry.level in issue_levels)
+                and not any(regex.match(entry.msg) for regex in ignored_regex)
             )
         ]
 
