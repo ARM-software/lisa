@@ -2224,6 +2224,13 @@ class UnboundMethod:
     def __hash__(self):
         return hash(self.__wrapped__) ^ hash(self.cls)
 
+    def __repr__(self):
+        return '<UnboundMethod of {cls}.{meth} at {id}>'.format(
+            cls=self.cls.__qualname__,
+            meth=self.__wrapped__.__name__,
+            id=hex(id(self))
+        )
+
 class Operator:
     """
     Wrap a callable.
