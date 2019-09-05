@@ -2060,16 +2060,10 @@ class ClassContext:
         for cls_combi in itertools.product(*cls_combis):
             cls_combi = list(cls_combi)
 
-            try:
-                op_combis = [
-                    op_map[cls] if cls is not None else {None}
-                    for cls in cls_combi
-                ]
-            # Some classes may not be produced, but another combination
-            # containing a subclass of it may actually be produced so we can
-            # just ignore that one.
-            except KeyError:
-                continue
+            op_combis = [
+                op_map[cls] if cls is not None else {None}
+                for cls in cls_combi
+            ]
 
             # For all the possible combinations of operators returning these
             # types
