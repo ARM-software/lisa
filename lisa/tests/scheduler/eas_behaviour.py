@@ -102,9 +102,14 @@ class EASBehaviour(RTATestBundle):
             else:
                 transitions[time][task] = util
 
+        task_maps = self.rtapp_tasks_map
+
         # First we'll build a dict D {time: {task_name: util}} where D[t][n] is
         # the expected utilization of task n from time t.
         for task, params in self.rtapp_profile.items():
+            task_list = tasks_map[task]
+            assert len(task_list) == 1
+            task = task_list[0]
             # time = self.get_start_time(experiment) + params.get('delay', 0)
             time = params.delay_s
             add_transition(time, task, 0)

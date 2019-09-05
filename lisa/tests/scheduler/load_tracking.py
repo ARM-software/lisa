@@ -350,7 +350,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
 
         capacity = self._get_freq_capa(self.cpu, self.freq, self.plat_info)
 
-        for name, task in self.rtapp_profile.items():
+        for name in self.rtapp_tasks:
             ok, exp_util, signal_mean = self._test_task_signal(
                 signal_name, allowed_error_pct, self.trace, self.cpu, name, capacity)
 
