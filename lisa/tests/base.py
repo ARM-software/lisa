@@ -996,19 +996,19 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             for prefix in self.rtapp_profile.keys()
         }
 
-        comms = list(itertools.chain.from_iterable(trace.get_tasks().values()))
+        comms = set(itertools.chain.from_iterable(trace.get_tasks().values()))
         task_map = {
-        	prefix: [
-        		comm
-         		for comm in comms
-        		if re.match(regexp, comm)
-        	]
-        	for prefix, regexp in prefix_regexps.items()
+            prefix: sorted(
+                comm
+                for comm in comms
+                if re.match(regexp, comm)
+            )
+            for prefix, regexp in prefix_regexps.items()
         }
 
         missing = set(self.rtapp_profile.keys()) - task_map.keys()
         if missing:
-        	 raise RuntimeError("Missing tasks matching the following rt-app profile names: {}"
+            raise RuntimeError("Missing tasks matching the following rt-app profile names: {}"
                                 .format(', '.join(missing)))
         return task_map
 
