@@ -34,6 +34,7 @@ from collections.abc import Mapping
 from inspect import signature
 
 from devlib.trace.dmesg import KernelLogEntry
+from devlib import TargetStableError
 
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.trace import Trace, requires_events, TaskID
@@ -680,7 +681,8 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
 
         # Make sure that all the relevant dmesg warnings will fire when running
         # things on the target, even if we already hit some warn_once warnings.
-        target.write_value('/sys/kernel/debug/clear_warn_once', '1', verify=False)
+        with contextlib.suppress(TargetStableError):
+            target.write_value('/sys/kernel/debug/clear_warn_once', '1', verify=False)
 
         bundle = cls._from_target(target, res_dir=res_dir, **kwargs)
 
