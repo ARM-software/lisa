@@ -102,7 +102,7 @@ class EASBehaviour(RTATestBundle):
             else:
                 transitions[time][task] = util
 
-        task_maps = self.rtapp_tasks_map
+        tasks_map = self.rtapp_tasks_map
 
         # First we'll build a dict D {time: {task_name: util}} where D[t][n] is
         # the expected utilization of task n from time t.
