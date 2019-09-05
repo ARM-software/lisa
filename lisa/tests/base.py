@@ -883,7 +883,7 @@ class DmesgTestBundle(TestBundle):
             facility like `kern`. Note that not all versions of `dmesg` are
             able to print it, so specifying it may lead to no entry being
             inspected at all. If ``None``, the facility is ignored.
-        type facility: str or None
+        :type facility: str or None
         """
         levels = DmesgCollector.LOG_LEVELS
         # Consider as an issue all levels more critical than `level`
