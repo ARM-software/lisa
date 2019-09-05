@@ -30,7 +30,7 @@ dist: bionic
 
 install:
   - cd "$TRAVIS_BUILD_DIR"
-  - sudo ./install_base_ubuntu.sh --install-doc-extras
+  - sudo ./install_base.sh --install-all
   - echo "$(python3 --version)"
 
 script:
