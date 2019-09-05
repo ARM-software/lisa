@@ -25,7 +25,6 @@ from statistics import mean
 import matplotlib.pyplot as plt
 
 from bart.sched import pelt
-from bart.sched.SchedAssert import SchedAssert
 
 from trappy.stats.Topology import Topology
 
@@ -121,11 +120,11 @@ class LoadTrackingHelpers:
 
     @classmethod
     def get_task_duty_cycle_pct(cls, trace, task_name, cpu):
-        window = cls.get_task_window(trace, task_name, cpu)
 
-        top = Topology()
-        top.add_to_level('cpu', [[cpu]])
-        return SchedAssert(trace._ftrace, top, execname=task_name).getDutyCycle(window)
+        df = trace.analysis.tasks.df_task_total_residency(task_name)
+        run_time = df['runtime'][cpu]
+
+        return (run_time * 100) / trace.time_range
 
     @staticmethod
     def get_task_window(trace, task_name, cpu=None):
