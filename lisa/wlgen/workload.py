@@ -17,6 +17,7 @@
 
 import logging
 import os
+from shlex import quote
 
 from devlib.utils.misc import list_to_mask
 
@@ -56,7 +57,7 @@ class Workload(Loggable):
                 self.command = "echo"
 
             def run(self, cpus=None, cgroup=None, background=False, as_root=False, value=42):
-                self.command = "{} {}".format(self.command, value)
+                self.command = "{} {}".format(self.command, shlex.quote(value))
                 super().run(cpus, cgroup, background, as_root)
 
     **Usage example**::
@@ -125,7 +126,7 @@ class Workload(Loggable):
                 raise RuntimeError("Could not find 'taskset' executable on the target")
 
             cpumask = list_to_mask(cpus)
-            taskset_cmd = '{} 0x{:x}'.format(taskset_bin, cpumask)
+            taskset_cmd = '{} {}'.format(quote(taskset_bin), quote('0x{:x}'.format(cpumask)))
             _command = '{} {}'.format(taskset_cmd, _command)
 
         if cgroup:
