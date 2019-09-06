@@ -70,9 +70,20 @@ class KeyDescBase(abc.ABC):
         key:
         <parent qualname>/<name>
         """
+        return '/'.join(self.path)
+
+    @property
+    def path(self):
+        """
+        Path in the config file from the root to that key.
+
+        .. note:: This includes the top-level key name, which must be removed
+            before it's fed to :meth:`MultiSrcConf.get_nested_key`.
+        """
+        curr = [self.name]
         if self.parent is None:
-            return self.name
-        return '/'.join((self.parent.qualname, self.name))
+            return curr
+        return self.parent.path + curr
 
     @abc.abstractmethod
     def get_help(self, style=None):
