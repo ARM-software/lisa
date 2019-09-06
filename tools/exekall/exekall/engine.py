@@ -2074,7 +2074,7 @@ class ClassContext:
                 # parameter
                 expr_combis = []
                 for param, param_op in zip(param_list, op_combi):
-                    optional = param in op.optional_param
+                    optional = param in op.optional_params
 
                     if param_op is None:
                         expr_list = []
@@ -2103,7 +2103,7 @@ class ClassContext:
         # Select the expressions to be run (handling parameters with default values)
         # and log errors for expressions that we cannot build
         for param in param_list:
-            optional = param in op.optional_param
+            optional = param in op.optional_params
             # If we are never able to create a value for that optional
             # parameter, just ignore it by removing it from all the
             # param_map as it has a default value.
@@ -2309,7 +2309,7 @@ class Operator:
             )
         }
 
-        self.optional_param = {
+        self.optional_params = {
             param
             for param, param_spec in self.signature.parameters.items()
             # Parameters with a default value and and an annotation are
@@ -2423,7 +2423,7 @@ class Operator:
             ))
 
             # Make sure the parameter is not optional anymore
-            self.optional_param.discard(param)
+            self.optional_params.discard(param)
             self.ignored_param.discard(param)
 
         return prebuilt_op_set
