@@ -2690,7 +2690,13 @@ class Operator:
         else:
             # When we have a method, we fill the annotations of the 1st
             # parameter with the name of the class it is defined in
-            if self.is_method and first_param is not NoValue:
+            if (
+                self.is_method
+                and first_param is not NoValue
+                # If there is a valid annotation already, we don't want to mess
+                # with it
+                and first_param not in annotations
+            ):
                 if isinstance(self.callable_, UnboundMethod):
                     cls_name = self.callable_.cls.__qualname__
                 else:
