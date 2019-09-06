@@ -122,18 +122,32 @@ class KeyDesc(KeyDescBase):
     :type classinfo: collections.abc.Sequence
 
     :param newtype: If specified, a type with the given name will be created
-        for that key. It will be exposed as an attribute of the
-        parent :class:`MultiSrcConf`. A getter will also be created on the parent
+        for that key with that name. Otherwise, a camel-case name derived from
+        the key name will be used: ``toplevel-key/sublevel/mykey`` will give a
+        type named `SublevelMykey`. This class will be exposed as an attribute
+        of the parent :class:`MultiSrcConf` (which is why the toplevel key is
+        omitted from its name). A getter will also be created on the parent
         configuration class, so that the typed key is exposed to ``exekall``.
         If the key is not present in the configuration object, the getter will
         return ``None``.
-    :type newtype: str
+    :type newtype: str or None
     """
     def __init__(self, name, help, classinfo, newtype=None):
         super().__init__(name=name, help=help)
         # isinstance's style classinfo
         self.classinfo = tuple(classinfo)
-        self.newtype = newtype
+        self._newtype = newtype
+
+    @property
+    def newtype(self):
+        if self._newtype:
+            return self._newtype
+        else:
+            compos = itertools.chain.from_iterable(
+                x.split('-')
+                for x in self.path[1:]
+            )
+            return ''.join(x.title() for x in compos)
 
     def validate_val(self, val):
         """
@@ -466,7 +480,7 @@ class MultiSrcConfMeta(abc.ABCMeta):
 
             for key_desc in flatten(new_cls.STRUCTURE):
                 newtype_name = key_desc.newtype
-                if isinstance(key_desc, KeyDesc) and newtype_name:
+                if isinstance(key_desc, KeyDesc):
 
                     # We need a helper to make sure "key_desc" is bound to the
                     # right object, otherwise it will be referred by name only
