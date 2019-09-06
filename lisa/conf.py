@@ -27,7 +27,7 @@ import logging
 
 from lisa.utils import (
     Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
-    is_running_sphinx, get_cls_name
+    is_running_sphinx, get_cls_name, HideExekallID,
 )
 
 class DeferredValue:
@@ -120,11 +120,20 @@ class KeyDesc(KeyDescBase):
         case, `None` is allowed in that sequence of types, even though it is
         not strictly speaking a type.
     :type classinfo: collections.abc.Sequence
+
+    :param newtype: If specified, a type with the given name will be created
+        for that key. It will be exposed as an attribute of the
+        parent :class:`MultiSrcConf`. A getter will also be created on the parent
+        configuration class, so that the typed key is exposed to ``exekall``.
+        If the key is not present in the configuration object, the getter will
+        return ``None``.
+    :type newtype: str
     """
-    def __init__(self, name, help, classinfo):
+    def __init__(self, name, help, classinfo, newtype=None):
         super().__init__(name=name, help=help)
         # isinstance's style classinfo
         self.classinfo = tuple(classinfo)
+        self.newtype = newtype
 
     def validate_val(self, val):
         """
@@ -242,8 +251,8 @@ class DerivedKeyDesc(KeyDesc):
     :type compute: collections.abc.Callable
     """
 
-    def __init__(self, name, help, classinfo, base_key_paths, compute):
-        super().__init__(name=name, help=help, classinfo=classinfo)
+    def __init__(self, name, help, classinfo, base_key_paths, compute, newtype=None):
+        super().__init__(name=name, help=help, classinfo=classinfo, newtype=newtype)
         self._base_key_paths = base_key_paths
         self._compute = compute
 
@@ -426,6 +435,9 @@ class MultiSrcConfMeta(abc.ABCMeta):
     template with the ``{generated_help}`` placeholder replaced by a snippet of
     ResStructuredText containing the list of allowed keys.
 
+    It will also create the types specified using ``newtype`` in the
+    :class:`KeyDesc`, along with a getter to expose it to ``exekall``.
+
     .. note:: Since the dosctring is interpreted as a template, "{" and "}"
         characters must be doubled to appear in the final output.
     """
@@ -439,6 +451,71 @@ class MultiSrcConfMeta(abc.ABCMeta):
                 style = 'rst' if is_running_sphinx() else None
                 generated_help = '\n' + new_cls.get_help(style=style)
                 new_cls.__doc__ = doc.format(generated_help=generated_help)
+
+
+        # Create the types for the keys that specify it, along with the getters
+        # to expose the values to exekall
+        if hasattr(new_cls, 'STRUCTURE') and isinstance(new_cls.STRUCTURE, TopLevelKeyDesc):
+
+            def flatten(structure):
+                for key_desc in structure.values():
+                    if isinstance(key_desc, LevelKeyDesc):
+                        yield from flatten(key_desc)
+                    else:
+                        yield key_desc
+
+            for key_desc in flatten(new_cls.STRUCTURE):
+                newtype_name = key_desc.newtype
+                if isinstance(key_desc, KeyDesc) and newtype_name:
+
+                    # We need a helper to make sure "key_desc" is bound to the
+                    # right object, otherwise it will be referred by name only
+                    # and will always have the value during the last iteration
+                    # of the loop
+                    def make_metacls(key_desc):
+                        # Implement __instancecheck__ on the metaclass allows
+                        # isinstance(x, Newtype) to be true for any instance of any
+                        # type given in KeyDesc.__init__(classinfo=...)
+                        class NewtypeMeta(type):
+                            def __instancecheck__(cls, x):
+                                classinfo = tuple(
+                                    c if c is not None else type(None)
+                                    for c in key_desc.classinfo
+                                )
+                                return isinstance(x, classinfo)
+
+                        return NewtypeMeta
+
+                    # Inherit from HideExekallID, since we don't want it to be
+                    # shown in the exekall IDs.
+                    class Newtype(HideExekallID, metaclass=make_metacls(key_desc)):
+                        pass
+
+                    Newtype.__name__ = newtype_name
+                    Newtype.__qualname__ = '{}.{}'.format(new_cls.__qualname__, newtype_name)
+                    Newtype.__module__ = new_cls.__module__
+                    setattr(new_cls, newtype_name, Newtype)
+
+                    def make_getter(cls, type_, key_desc):
+                        def getter(self:cls) -> type_:
+                            try:
+                                return self.get_nested_key(key_desc.path[1:])
+                            # We cannot afford to raise here, as the
+                            # configuration instance might not hold a value for
+                            # that key, but we still need to pass something to
+                            # the user function.
+                            except KeyError:
+                                return None
+
+                        getter_name = '_get_typed_key_{}'.format(type_.__name__)
+                        getter.__name__ = getter_name
+                        getter.__qualname__ = '{}.{}'.format(cls.__qualname__, getter_name)
+                        getter.__module__ = cls.__module__
+                        return getter
+
+                    newtype_getter = make_getter(new_cls, Newtype, key_desc)
+                    setattr(new_cls, newtype_getter.__name__, newtype_getter)
+
         return new_cls
 
 class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
