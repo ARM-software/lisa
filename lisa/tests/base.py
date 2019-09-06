@@ -44,7 +44,6 @@ from lisa.target import Target
 from lisa.utils import (
     Serializable, memoized, ArtifactPath, non_recursive_property,
     update_wrapper_doc, ExekallTaggable, annotations_from_signature,
-    HideExekallID,
 )
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
@@ -849,9 +848,6 @@ class FtraceTestBundle(TestBundle, metaclass=FtraceTestBundleMeta):
         return Trace(self.trace_path, self.plat_info, **kwargs)
 
 
-class DmesgIgnoredPatterns(StrList, HideExekallID):
-    pass
-
 class DmesgTestConf(SimpleMultiSrcConf):
     """
     Configuration class for :meth:`lisa.tests.base.DmesgTestBundle.test_dmesg`.
@@ -859,11 +855,8 @@ class DmesgTestConf(SimpleMultiSrcConf):
     {generated_help}
     """
     STRUCTURE = TopLevelKeyDesc('dmesg-test-conf', 'Dmesg test configuration', (
-        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries content to be ignored', [DmesgIgnoredPatterns]),
+        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries content to be ignored', [StrList], newtype='IgnoredPatterns'),
     ))
-
-    def get_ignored_patterns(self) -> DmesgIgnorePatterns:
-        return self.get('ignored-patterns', [])
 
 
 class DmesgTestBundle(TestBundle):
@@ -896,7 +889,7 @@ class DmesgTestBundle(TestBundle):
                 if line.strip()
             ]
 
-    def test_dmesg(self, level='warn', facility=None, ignored_patterns:DmesgIgnoredPatterns=[]) -> ResultBundle:
+    def test_dmesg(self, level='warn', facility=None, ignored_patterns:DmesgTestConf.IgnoredPatterns=None) -> ResultBundle:
         """
         Basic test on kernel dmesg output.
 
@@ -918,13 +911,15 @@ class DmesgTestBundle(TestBundle):
         issue_levels = levels[:levels.index(level) + 1]
 
         logger = self.get_logger()
+
         if ignored_patterns:
             logger.info('Will ignore patterns in dmesg output: {}'.format(ignored_patterns))
-
-        ignored_regex = [
-            re.compile(pattern)
-            for pattern in ignored_patterns
-        ]
+            ignored_regex = [
+                re.compile(pattern)
+                for pattern in ignored_patterns
+            ]
+        else:
+            ignored_regex = []
 
         issues = [
             entry
