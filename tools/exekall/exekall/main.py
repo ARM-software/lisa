@@ -160,7 +160,7 @@ def load_from_db(db, adaptor, non_reusable_type_set, pattern_list, uuid_list, uu
             froz_val_list = list(group)
 
             type_ = utils.get_common_base(
-                type(froz_val.value)
+                froz_val.type_
                 for froz_val in froz_val_list
             )
 

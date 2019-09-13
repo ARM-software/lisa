@@ -29,6 +29,8 @@ import pickle
 import pprint
 import pickletools
 import re
+import importlib
+import sys
 
 import exekall._utils as utils
 from exekall._utils import NoValue
@@ -516,7 +518,7 @@ class ValueDB:
         if include_subclasses:
             predicate = lambda froz_val: isinstance(froz_val.value, cls)
         else:
-            predicate = lambda froz_val: type(froz_val.value) is cls
+            predicate = lambda froz_val: froz_val.type_ is cls
         return self.get_by_predicate(predicate, **kwargs)
 
     def get_by_id(self, id_pattern, qual=False, full_qual=False, **kwargs):
@@ -1794,6 +1796,14 @@ class ClassContext:
         subclasses.
     :type cls_map: dict(type, list(type))
     """
+
+    COMPAT_CLS = issubclass
+    """
+    Callable defining the compatibility relation between two classes. It will
+    be called on two classes and shall return ``True`` if the classes are
+    compatible, ``False`` otherwise.
+    """
+
     def __init__(self, op_map, cls_map):
         self.op_map = op_map
         self.cls_map = cls_map
@@ -1886,7 +1896,7 @@ class ClassContext:
         return (op_map, cls_map)
 
     @classmethod
-    def from_op_set(cls, op_set, forbidden_pattern_set=set(), restricted_pattern_set=set(), compat_cls=issubclass):
+    def from_op_set(cls, op_set, forbidden_pattern_set=set(), restricted_pattern_set=set(), compat_cls=COMPAT_CLS):
         """
         Build an :class:`ClassContext` out of a set of :class:`Operator`.
 
@@ -2398,7 +2408,7 @@ class Operator:
             else:
                 # If there was an annotation, make sure the type we computed is
                 # compatible with what the annotation specifies.
-                assert issubclass(value_type, param_annot)
+                assert ClassContext.COMPAT_CLS(value_type, param_annot)
 
             # We do not inherit from value_type, since it may not always work,
             # e.g. subclassing bool is forbidden. Therefore, it is purely used
@@ -3309,10 +3319,94 @@ class FrozenExprVal(ExprValBase):
             self.excep_tb = None
 
     @property
+    def callable_(self):
+        """
+        Callable that produced the value.
+
+        If it cannot be found, an :exc:`AttributeError` is raised.
+        """
+        assert self.callable_qualname.endswith(self.callable_name)
+        # This could also include the class name
+        mod_name = self.callable_qualname[:-len(self.callable_name)]
+        mod_name = mod_name.rstrip('.')
+
+        # Given a.b.c, try in order and stop at first import:
+        # a.b.c
+        # a.b
+        # a
+        for mod_path in reversed(list(utils.powerset(mod_name.split('.')))):
+            mod_name = '.'.join(mod_path)
+
+            # Exception raised changed in 3.7:
+            # https://docs.python.org/3/library/importlib.html#importlib.util.find_spec
+            if sys.version_info >= (3, 7):
+                try:
+                    mod = importlib.import_module(mod_name)
+                except ModuleNotFoundError:
+                    continue
+            else:
+                try:
+                    mod = importlib.import_module(mod_name)
+                # More or less the equivalent of ModuleNotFoundError
+                except ImportError as e:
+                    if e.path is None:
+                        continue
+                    else:
+                        raise
+
+            break
+        # No "break" statement was executed
+        else:
+            return AttributeError('Producer of {} not found'.format(self))
+
+        qualname = self.callable_qualname[len(mod_name):].lstrip('.')
+        attr = mod
+        for name in qualname.split('.'):
+            attr = getattr(attr, name)
+        return attr
+
+    @property
+    @functools.lru_cache(maxsize=None)
+    def type_(self):
+        """
+        Type of the ``value``, as reported by the return annotation of the
+        callable that produced it.
+
+        If the callable cannot be found, the actual value type is used. If the
+        value type is compatible with the return annotation of the callable
+        (i.e. is a subclass), the value type is returned as well.
+        """
+        value_type = type(self.value)
+        try:
+            callable_ = self.callable_
+        # If we cannot import the module or if the name has disappeared, we
+        # have no choice
+        except (ImportError, AttributeError) as e:
+            return value_type
+
+        # Use Operator to properly resolve the annotations
+        op = Operator(callable_)
+        return_type = op.value_type
+
+        if return_type != inspect.Signature.empty:
+            # If the function actually returned an instance of what it claimed
+            # to return from its annotation, we take the actual type of the
+            # value
+            if ClassContext.COMPAT_CLS(value_type, return_type):
+                return value_type
+            # Otherwise, the type is probably a "phantom" type that is actually
+            # never instantiated, but is used to give an existence at the type
+            # level to some assumptions or some meaning attached to the value.
+            else:
+                return return_type
+        else:
+            return value_type
+
+    @property
     def type_names(self):
         return [
             utils.get_name(type_, full_qual=True)
-            for type_ in utils.get_mro(type(self.value))
+            for type_ in utils.get_mro(self.type_)
             if type_ is not object
         ]
 
