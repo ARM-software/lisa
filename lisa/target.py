@@ -544,7 +544,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         logger.info('%s %s target connection settings:', kind, name)
         for key, val in conn_settings.items():
-            logger.info('%10s : %s', key, val)
+            logger.info('    %s: %s', key, val)
 
         ########################################################################
         # Devlib Platform configuration
