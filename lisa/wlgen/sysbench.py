@@ -87,9 +87,9 @@ class Sysbench(Workload):
         :param: max_requests: Maximum number of event requests
         :type max_requests: int
 
-        :Keyword arguments: Additionnal arguments required by the specific
-          test (run ``sysbench --test=<test> help``). Due to Python limitations,
-          use ``_`` instead of ``-`` for argument naming.
+        :Variable keyword arguments: Forwarded on sysbench command line. Run
+            ``sysbench --test=<test> help`` for available parameters. Character
+            ``_`` in parameter names is replaced by ``-``.
 
         The standard output will be saved into a file in ``self.res_dir``
         """

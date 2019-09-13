@@ -839,7 +839,7 @@ class FtraceTestBundle(TestBundle, metaclass=FtraceTestBundleMeta):
         """
         :returns: a :class:`lisa.trace.Trace` collected in the standard location.
 
-        :Keyword arguments: forwarded to :class:`lisa.trace.Trace`.
+        :Variable keyword arguments: Forwarded to :class:`lisa.trace.Trace`.
         """
         return Trace(self.trace_path, self.plat_info, **kwargs)
 

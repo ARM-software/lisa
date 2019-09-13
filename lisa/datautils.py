@@ -418,7 +418,7 @@ def series_mean(y, x=None, **kwargs):
         used. Note that `y` and `x` are expected to have the same index.
     :type y: pandas.DataFrame or None
 
-    :keyword arguments: Passed to :func:`series_integrate`.
+    :Variable keyword arguments: Forwarded to :func:`series_integrate`.
     """
     x = _resolve_x(y, x)
     integral = series_integrate(y, x, **kwargs)

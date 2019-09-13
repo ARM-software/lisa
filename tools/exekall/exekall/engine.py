@@ -486,9 +486,8 @@ class ValueDB:
         """
         Get all :class:`FrozenExprVal` contained in this database.
 
-        :param kwargs: Keyword arguments forwarded to
+        :Variable keyword arguments: Forwarded to
             :meth:`ValueDB.get_by_predicate`
-        :type kwargs: dict
         """
         return self.get_by_predicate(lambda froz_val: True, **kwargs)
 
@@ -504,9 +503,8 @@ class ValueDB:
             ``isinstance``, otherwise an exact type check is done using ``is``.
         :type include_subclasses: bool
 
-        :param kwargs: Keyword arguments forwarded to
+        :Variable keyword arguments: Forwarded to
             :meth:`ValueDB.get_by_predicate`
-        :type kwargs: dict
 
         .. note:: If a subexpressions had a :class:`exekall._utils.NoValue`
             value, it will not be selected as type matching is done on the
@@ -534,9 +532,8 @@ class ValueDB:
             qualified ID.
         :type full_qual: bool
 
-        :param kwargs: Keyword arguments forwarded to
+        :Variable keyword arguments: Forwarded to
             :meth:`ValueDB.get_by_predicate`
-        :type kwargs: dict
         """
         def predicate(froz_val):
             return utils.match_name(
@@ -986,8 +983,7 @@ class ExpressionBase(ExprHelpers):
         """
         Return a script equivalent to that :class:`ExpressionBase`.
 
-        :param kwargs: Keyword arguments forwarded to :meth:`get_all_script`.
-        :type kwargs: dict
+        :Variable keyword arguments: Forwarded to :meth:`get_all_script`.
         """
         return self.get_all_script([self], *args, **kwargs)
 
@@ -1501,8 +1497,7 @@ class ComputableExpression(ExpressionBase):
         """
         Build an instance from an :class:`ExpressionBase`
 
-        :param kwargs: Keyword arguments forwarded to ``__init__``
-        :type kwargs: dict
+        :Variable keyword arguments: Forwarded to ``__init__``
         """
         param_map = OrderedDict(
             (param, cls.from_expr(param_expr))
@@ -1594,9 +1589,7 @@ class ComputableExpression(ExpressionBase):
         :param expr_list: List of expressions to execute
         :type expr_list: list(ExpressionBase)
 
-        :param kwargs: Keyword arguments forwarded to
-            :meth:`execute`.
-        :type kwargs: dict
+        :Variable keyword arguments: Forwarded to :meth:`execute`.
 
         .. seealso: :meth:`execute` and
             :meth:`from_expr_list`.
@@ -2721,9 +2714,7 @@ class PrebuiltOperator(Operator):
     :param id_: ID of the operator.
     :type id_: str or None
 
-    :param kwargs: Keyword arguments forwarded to :class:`Operator`
-        constructor.
-    :type kwargs: dict
+    :Variable keyword arguments: Forwarded to :class:`Operator` constructor.
     """
     def __init__(self, obj_type, obj_list, id_=None, **kwargs):
         obj_list_ = list()
@@ -3398,9 +3389,8 @@ class FrozenExprValSeq(collections.abc.Sequence):
         """
         Build a :class:`FrozenExprValSeq` from an :class:`ExprValSeq`.
 
-        :param kwargs: Keyword arguments forwarded to
+        :Variable keyword arguments: Forwarded to
             :meth:`FrozenExprVal.from_expr_val`.
-        :type kwargs: dict
         """
         return cls(
             froz_val_list=[
@@ -3423,10 +3413,7 @@ class FrozenExprValSeq(collections.abc.Sequence):
             :class:`ExprVal` from.
         :type expr_list: list(ComputableExpression)
 
-        :param kwargs: Keyword arguments forwarded to
-            :meth:`from_expr_val_seq`.
-        :type kwargs: dict
-
+        :Variable keyword arguments: Forwarded to :meth:`from_expr_val_seq`.
         """
         expr_val_seq_list = utils.flatten_seq(expr.expr_val_seq_list for expr in expr_list)
         return [

@@ -917,7 +917,7 @@ def call_process(cmd, *args, merge_stderr=True, **kwargs):
     :param cmd: name of the command to run
     :param args: command line arguments passed to the command
     :param merge_stderr: merge stderr with stdout.
-    :param kwargs: parameters passed to :func:`subprocess.check_output`
+    :Variable keyword arguments: Forwarded to :func:`subprocess.check_output`
     """
     cmd = tuple(str(arg) for arg in cmd)
     if merge_stderr:
