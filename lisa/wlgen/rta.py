@@ -92,7 +92,7 @@ class RTA(Workload):
                     tasks_names = list(desc["tasks"].keys())
 
         self.calibration = calibration
-        self.tasks = tasks_names
+        self.tasks = sorted(tasks_names)
 
         # Move configuration file to target
         self.target.push(self.local_json, self.remote_json)
