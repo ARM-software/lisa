@@ -286,7 +286,8 @@ class Meabo(Workload):
                                    int(match.group('duration')), units="ns")
 
     def finalize(self, context):
-        self._uninstall_executable()
+        if self.uninstall:
+            self._uninstall_executable()
 
     def _build_command(self):
         self.command = self.target_exe

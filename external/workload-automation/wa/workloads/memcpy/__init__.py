@@ -86,4 +86,5 @@ class Memcpy(Workload):
 
     @once
     def finalize(self, context):
-        self.target.uninstall('memcpy')
+        if self.uninstall:
+            self.target.uninstall('memcpy')

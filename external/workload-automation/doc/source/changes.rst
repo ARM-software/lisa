@@ -3,6 +3,93 @@ What's New in Workload Automation
 =================================
 
 *************
+Version 3.1.4
+*************
+
+.. warning:: This is the last release that supports Python 2. Subsequent versions
+             will be support Python 3.5+ only.
+
+New Features:
+==============
+
+Framework:
+----------
+    - ``ApkWorkload``: Allow specifying A maximum and minimum version of an APK
+      instead of requiring a specific version.
+    - ``TestPackageHandler``: Added to support running android applications that
+      are invoked via ``am instrument``.
+    - Directories can now be added as ``Artifacts``.
+
+Workloads:
+----------
+    - ``aitutu``: Executes the Aitutu Image Speed/Accuracy and Object
+      Speed/Accuracy tests.
+    - ``uibench``: Run a configurable activity of the UIBench workload suite.
+    - ``uibenchjanktests``: Run an automated and instrument version of the
+      UIBench JankTests.
+    - ``motionmark``: Run a browser graphical benchmark.
+
+Other:
+------
+    - Added ``requirements.txt`` as a reference for known working package versions.
+
+Fixes/Improvements
+==================
+
+Framework:
+----------
+    - ``JobOuput``:  Added an ``augmentation`` attribute to allow listing of
+      enabled augmentations for individual jobs.
+    - Better error handling for misconfiguration job selection.
+    - All ``Workload`` classes now have an ``uninstall`` parameter to control whether
+      any binaries installed to the target should be uninstalled again once the
+      run has completed.
+    - The ``cleanup_assets`` parameter is now more consistently utilized across
+      workloads.
+    - ``ApkWorkload``: Added an ``activity`` attribute to allow for overriding the
+      automatically detected version from the APK.
+    - ``ApkWorkload`` Added support for providing an implicit activity path.
+    - Fixed retrieving job level artifacts from a database backend.
+
+Output Processors:
+------------------
+    - ``SysfsExtractor``: Ensure that the extracted directories are added as
+      ``Artifacts``.
+    - ``InterruptStatsInstrument``: Ensure that the output files are added as
+      ``Artifacts``.
+    - ``Postgres``: Fix missing ``system_id`` field from ``TargetInfo``.
+    - ``Postgres``: Support uploading directory ``Artifacts``.
+    - ``Postgres``: Bump the schema version to v1.3.
+
+Workloads:
+----------
+    - ``geekbench``: Improved apk version handling.
+    - ``geekbench``: Now supports apk version 4.3.2.
+
+Other:
+------
+    - ``Dockerfile``: Now installs all optional extras for use with WA.
+    - Fixed support for YAML anchors.
+    - Fixed building of documentation with Python 3.
+    - Changed shorthand of installing all of WA extras to `all` as per
+      the documentation.
+    - Upgraded the Dockerfile to use Ubuntu 18.10 and Python 3.
+    - Restricted maxium versions of ``numpy`` and ``pandas`` for Python 2.7.
+
+
+*************
+Version 3.1.3
+*************
+
+Fixes/Improvements
+==================
+
+Other:
+------
+    - Security update for PyYAML to attempt prevention of arbitrary code execution
+      during parsing.
+
+*************
 Version 3.1.2
 *************
 

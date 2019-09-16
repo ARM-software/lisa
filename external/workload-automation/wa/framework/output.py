@@ -23,6 +23,8 @@ except ImportError:
 import logging
 import os
 import shutil
+import tarfile
+import tempfile
 from collections import OrderedDict, defaultdict
 from copy import copy, deepcopy
 from datetime import datetime
@@ -145,9 +147,10 @@ class Output(object):
         if not os.path.exists(path):
             msg = 'Attempting to add non-existing artifact: {}'
             raise HostError(msg.format(path))
+        is_dir = os.path.isdir(path)
         path = os.path.relpath(path, self.basepath)
 
-        self.result.add_artifact(name, path, kind, description, classifiers)
+        self.result.add_artifact(name, path, kind, description, classifiers, is_dir)
 
     def add_event(self, message):
         self.result.add_event(message)
@@ -385,9 +388,10 @@ class Result(Podable):
         logger.debug('Adding metric: {}'.format(metric))
         self.metrics.append(metric)
 
-    def add_artifact(self, name, path, kind, description=None, classifiers=None):
+    def add_artifact(self, name, path, kind, description=None, classifiers=None,
+                     is_dir=False):
         artifact = Artifact(name, path, kind, description=description,
-                            classifiers=classifiers)
+                            classifiers=classifiers, is_dir=is_dir)
         logger.debug('Adding artifact: {}'.format(artifact))
         self.artifacts.append(artifact)
 
@@ -523,7 +527,7 @@ class Artifact(Podable):
 
     """
 
-    _pod_serialization_version = 1
+    _pod_serialization_version = 2
 
     @staticmethod
     def from_pod(pod):
@@ -532,9 +536,11 @@ class Artifact(Podable):
         pod['kind'] = ArtifactType(pod['kind'])
         instance = Artifact(**pod)
         instance._pod_version = pod_version  # pylint: disable =protected-access
+        instance.is_dir = pod.pop('is_dir')
         return instance
 
-    def __init__(self, name, path, kind, description=None, classifiers=None):
+    def __init__(self, name, path, kind, description=None, classifiers=None,
+                 is_dir=False):
         """"
         :param name: Name that uniquely identifies this artifact.
         :param path: The *relative* path of the artifact. Depending on the
@@ -550,7 +556,6 @@ class Artifact(Podable):
         :param classifiers: A set of key-value pairs to further classify this
                             metric beyond current iteration (e.g. this can be
                             used to identify sub-tests).
-
         """
         super(Artifact, self).__init__()
         self.name = name
@@ -562,11 +567,13 @@ class Artifact(Podable):
             raise ValueError(msg.format(kind, ARTIFACT_TYPES))
         self.description = description
         self.classifiers = classifiers or {}
+        self.is_dir = is_dir
 
     def to_pod(self):
         pod = super(Artifact, self).to_pod()
         pod.update(self.__dict__)
         pod['kind'] = str(self.kind)
+        pod['is_dir'] = self.is_dir
         return pod
 
     @staticmethod
@@ -574,11 +581,17 @@ class Artifact(Podable):
         pod['_pod_version'] = pod.get('_pod_version', 1)
         return pod
 
+    @staticmethod
+    def _pod_upgrade_v2(pod):
+        pod['is_dir'] = pod.get('is_dir', False)
+        return pod
+
     def __str__(self):
         return self.path
 
     def __repr__(self):
-        return '{} ({}): {}'.format(self.name, self.kind, self.path)
+        ft = 'dir' if self.is_dir else 'file'
+        return '{} ({}) ({}): {}'.format(self.name, ft, self.kind, self.path)
 
 
 class Metric(Podable):
@@ -811,6 +824,19 @@ class DatabaseOutput(Output):
 
     def get_artifact_path(self, name):
         artifact = self.get_artifact(name)
+        if artifact.is_dir:
+            return self._read_dir_artifact(artifact)
+        else:
+            return self._read_file_artifact(artifact)
+
+    def _read_dir_artifact(self, artifact):
+        artifact_path = tempfile.mkdtemp(prefix='wa_')
+        with tarfile.open(fileobj=self.conn.lobject(int(artifact.path), mode='b'), mode='r|gz') as tar_file:
+            tar_file.extractall(artifact_path)
+        self.conn.commit()
+        return artifact_path
+
+    def _read_file_artifact(self, artifact):
         artifact = StringIO(self.conn.lobject(int(artifact.path)).read())
         self.conn.commit()
         return artifact
@@ -899,13 +925,15 @@ class DatabaseOutput(Output):
 
     def _get_artifacts(self):
         columns = ['artifacts.name', 'artifacts.description', 'artifacts.kind',
-                   ('largeobjects.lo_oid', 'path'), 'artifacts.oid',
+                   ('largeobjects.lo_oid', 'path'), 'artifacts.oid', 'artifacts.is_dir',
                    'artifacts._pod_version', 'artifacts._pod_serialization_version']
         tables = ['largeobjects', 'artifacts']
         joins = [('classifiers', 'classifiers.artifact_oid = artifacts.oid')]
         conditions = ['artifacts.{}_oid = \'{}\''.format(self.kind, self.oid),
-                      'artifacts.large_object_uuid = largeobjects.oid',
-                      'artifacts.job_oid IS NULL']
+                      'artifacts.large_object_uuid = largeobjects.oid']
+        # If retrieving run level artifacts we want those that don't also belong to a job
+        if self.kind == 'run':
+            conditions.append('artifacts.job_oid IS NULL')
         pod = self._read_db(columns, tables, conditions, joins)
         for artifact in pod:
             artifact['path'] = str(artifact['path'])
@@ -920,8 +948,9 @@ class DatabaseOutput(Output):
 
 def kernel_config_from_db(raw):
     kernel_config = {}
-    for k, v in zip(raw[0], raw[1]):
-        kernel_config[k] = v
+    if raw:
+        for k, v in zip(raw[0], raw[1]):
+            kernel_config[k] = v
     return kernel_config
 
 
@@ -955,9 +984,10 @@ class RunDatabaseOutput(DatabaseOutput, RunOutputCommon):
 
     @property
     def _db_targetfile(self):
-        columns = ['os', 'is_rooted', 'target', 'abi', 'cpus', 'os_version',
+        columns = ['os', 'is_rooted', 'target', 'modules', 'abi', 'cpus', 'os_version',
                    'hostid', 'hostname', 'kernel_version', 'kernel_release',
-                   'kernel_sha1', 'kernel_config', 'sched_features',
+                   'kernel_sha1', 'kernel_config', 'sched_features', 'page_size_kb',
+                   'system_id', 'screen_resolution', 'prop', 'android_id',
                    '_pod_version', '_pod_serialization_version']
         tables = ['targets']
         conditions = ['targets.run_oid = \'{}\''.format(self.oid)]

@@ -199,7 +199,6 @@ def create_iterable_adapter(array_columns, explicit_iterate=False):
                     array_string = "{" + array_string + "}"
                     final_string = final_string + array_string + ","
                 final_string = final_string.strip(",")
-                final_string = "{" + final_string + "}"
             else:
                 # Simply return each item in the array
                 if explicit_iterate:
@@ -208,8 +207,7 @@ def create_iterable_adapter(array_columns, explicit_iterate=False):
                 else:
                     for item in param:
                         final_string = final_string + str(item) + ","
-                final_string = "{" + final_string + "}"
-        return AsIs("'{}'".format(final_string))
+        return AsIs("'{{{}}}'".format(final_string))
     return adapt_iterable
 
 
@@ -245,10 +243,10 @@ def get_schema(schemafilepath):
 def get_database_schema_version(conn):
     with conn.cursor() as cursor:
         cursor.execute('''SELECT
-                                  DatabaseMeta.schema_major,
-                                  DatabaseMeta.schema_minor
-                               FROM
-                                  DatabaseMeta;''')
+                              DatabaseMeta.schema_major,
+                              DatabaseMeta.schema_minor
+                          FROM
+                              DatabaseMeta;''')
         schema_major, schema_minor = cursor.fetchone()
     return (schema_major, schema_minor)
 
