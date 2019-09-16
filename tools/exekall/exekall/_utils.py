@@ -741,7 +741,7 @@ def get_froz_val_set_set(db, uuid_seq=None, type_pattern_seq=None):
         return froz_val.uuid in uuid_seq
 
     def type_pattern_predicate(froz_val):
-        return match_base_cls(type(froz_val.value), type_pattern_seq)
+        return match_base_cls(froz_val.type_, type_pattern_seq)
 
     if type_pattern_seq and not uuid_seq:
         predicate = type_pattern_predicate
@@ -934,3 +934,12 @@ def add_argument(parser, *args, help, **kwargs):
 def create_adaptor_parser_group(parser, adaptor_cls):
     description = '{} custom options.\nCan only be specified *after* positional parameters.'.format(adaptor_cls.name)
     return parser.add_argument_group(adaptor_cls.name, description)
+
+
+def powerset(iterable):
+    """
+    Powerset of the given iterable ::
+        powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)
+    """
+    s = list(iterable)
+    return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s)+1))

@@ -29,6 +29,8 @@ import pickle
 import pprint
 import pickletools
 import re
+import importlib
+import sys
 
 import exekall._utils as utils
 from exekall._utils import NoValue
@@ -514,7 +516,7 @@ class ValueDB:
         if include_subclasses:
             predicate = lambda froz_val: isinstance(froz_val.value, cls)
         else:
-            predicate = lambda froz_val: type(froz_val.value) is cls
+            predicate = lambda froz_val: froz_val.type_ is cls
         return self.get_by_predicate(predicate, **kwargs)
 
     def get_by_id(self, id_pattern, qual=False, full_qual=False, **kwargs):
@@ -1787,6 +1789,14 @@ class ClassContext:
         subclasses.
     :type cls_map: dict(type, list(type))
     """
+
+    COMPAT_CLS = issubclass
+    """
+    Callable defining the compatibility relation between two classes. It will
+    be called on two classes and shall return ``True`` if the classes are
+    compatible, ``False`` otherwise.
+    """
+
     def __init__(self, op_map, cls_map):
         self.op_map = op_map
         self.cls_map = cls_map
@@ -1879,7 +1889,7 @@ class ClassContext:
         return (op_map, cls_map)
 
     @classmethod
-    def from_op_set(cls, op_set, forbidden_pattern_set=set(), restricted_pattern_set=set(), compat_cls=issubclass):
+    def from_op_set(cls, op_set, forbidden_pattern_set=set(), restricted_pattern_set=set(), compat_cls=COMPAT_CLS):
         """
         Build an :class:`ClassContext` out of a set of :class:`Operator`.
 
@@ -1968,8 +1978,8 @@ class ClassContext:
 
         # Dummy placeholders that will get fixed up later right before
         # execution
-        op_map[Consumer] = [ConsumerOperator()]
-        op_map[ExprData] = [ExprDataOperator()]
+        op_map[Consumer] = {ConsumerOperator()}
+        op_map[ExprData] = {ExprDataOperator()}
         cls_map[ExprData] = [ExprData]
         cls_map[Consumer] = [Consumer]
 
@@ -2008,16 +2018,19 @@ class ClassContext:
 
         op_stack = new_op_stack
 
-        param_map, produced = op.get_prototype()
-        if param_map:
-            param_list, cls_list = zip(*param_map.items())
+        param_cls_map = op.get_prototype()[0]
+        if param_cls_map:
+            param_list, cls_list = zip(*param_cls_map.items())
         # When no parameter is needed
         else:
             yield Expression(op, OrderedDict())
             return
 
         # Build all the possible combinations of types suitable as parameters
-        cls_combis = [cls_map.get(cls, list()) for cls in cls_list]
+        cls_combis = [
+            cls_map.get(cls, [None])
+            for cls in cls_list
+        ]
 
         # Only keep the classes for "self" on which the method can be applied
         if op.is_method:
@@ -2041,72 +2054,106 @@ class ClassContext:
                 # If the method with the same name would resolve to "op", then
                 # we keep this class as a candidate for "self", otherwise we
                 # discard it
-                if keep_cls(cls)
+                if cls is None or keep_cls(cls)
             ]
 
-        # Check that some produced classes are available for every parameter
-        ignored_indices = set()
-        for param, wanted_cls, available_cls in zip(param_list, cls_list, cls_combis):
-            if not available_cls:
-                # If that was an optional parameter, just ignore it without
-                # throwing an exception since it has a default value
-                if param in op.optional_param:
-                    ignored_indices.add(param_list.index(param))
-                else:
-                    if non_produced_handler == 'ignore':
-                        return
-                    elif callable(non_produced_handler):
-                        non_produced_handler(wanted_cls.__qualname__, op.name, param,
-                            tuple(op.resolved_callable for op in op_stack)
-                        )
-                        return
-                    elif non_produced_handler == 'raise':
-                        raise NoOperatorError('No operator can produce instances of {cls} needed for {op} (parameter "{param}" along path {path})'.format(
-                            cls = wanted_cls.__qualname__,
-                            op = op.name,
-                            param = param,
-                            path = ' -> '.join(
-                                op.name for op in op_stack
-                            )
-                        ))
-                    else:
-                        raise ValueError('Invalid non_produced_handler')
-
-        param_list = utils.remove_indices(param_list, ignored_indices)
-        cls_combis = utils.remove_indices(cls_combis, ignored_indices)
-
-        param_list_len = len(param_list)
+        param_map_list = []
 
         # For all possible combinations of types
         for cls_combi in itertools.product(*cls_combis):
             cls_combi = list(cls_combi)
 
-            # Some classes may not be produced, but another combination
-            # containing a subclass of it may actually be produced so we can
-            # just ignore that one.
             op_combis = [
-                op_map[cls] for cls in cls_combi
-                if cls in op_map
+                op_map[cls] if cls is not None else {None}
+                for cls in cls_combi
             ]
 
-            # Build all the possible combinations of operators returning these
+            # For all the possible combinations of operators returning these
             # types
             for op_combi in itertools.product(*op_combis):
                 op_combi = list(op_combi)
 
-                # Get all the possible ways of calling these operators
-                param_combis = itertools.product(*(cls._build_expr(
-                        param_op, op_map, cls_map,
-                        op_stack, non_produced_handler, cycle_handler,
-                    ) for param_op in op_combi
-                ))
+                # Build all the expressions that can produce a value for each
+                # parameter
+                expr_combis = []
+                for param, param_op in zip(param_list, op_combi):
+                    optional = param in op.optional_params
 
-                for param_combi in param_combis:
-                    param_map = OrderedDict(zip(param_list, param_combi))
+                    if param_op is None:
+                        expr_list = []
+                    else:
+                        expr_list = list(cls._build_expr(
+                            param_op, op_map, cls_map,
+                            op_stack,
+                            non_produced_handler if not optional else 'ignore',
+                            cycle_handler if not optional else 'ignore',
+                        ))
+                    # Use a None placeholder for the cases where we could
+                    # not build any expression.
+                    # We really don't want to add an empty expr_list to
+                    # expr_combis, since that would kill all the otherwise
+                    # possible expressions. The empty list is the "0" of the
+                    # cartesian product:
+                    # [] == list(itertools.product(..., [], ...))
+                    expr_list = expr_list if expr_list else [None]
+                    expr_combis.append(expr_list)
 
-                    # If all parameters can be built, carry on
-                    if len(param_map) == param_list_len:
-                        yield Expression(op, param_map)
+                # For all the possible combinations of expressions producing a
+                # value for the parameters
+                for expr_combi in itertools.product(*expr_combis):
+                    param_map_list.append(OrderedDict(zip(param_list, expr_combi)))
+
+        # Select the expressions to be run (handling parameters with default values)
+        # and log errors for expressions that we cannot build
+        for param in param_list:
+            optional = param in op.optional_params
+            # If we are never able to create a value for that optional
+            # parameter, just ignore it by removing it from all the
+            # param_map as it has a default value.
+            if optional and all(
+                param_map[param] is None
+                for param_map in param_map_list
+            ):
+                for param_map in param_map_list:
+                    del param_map[param]
+            # Otherwise, we just get rid of the expressions that would use
+            # the default value.
+            # If the parameter is not optional, we cannot do anything if there
+            # is no expression to generate it, so we also get rid of these
+            # expressions.
+            else:
+                param_map_list = [
+                    param_map
+                    for param_map in param_map_list
+                    if param_map[param] is not None
+                ]
+
+                # If we just made the list empty because of removing some
+                # expressions, we have an issue that needs to be logged
+                if not param_map_list:
+                    wanted_cls = param_cls_map[param]
+
+                    if non_produced_handler == 'ignore':
+                        pass
+                    elif callable(non_produced_handler):
+                        non_produced_handler(wanted_cls.__qualname__, op.name, param,
+                            tuple(op.resolved_callable for op in op_stack)
+                        )
+                    elif non_produced_handler == 'raise':
+                        raise NoOperatorError('No operator can produce instances of {cls} needed for {op} (parameter "{param}" along path {path})'.format(
+                            cls=wanted_cls.__qualname__,
+                            op=op.name,
+                            param=param,
+                            path=' -> '.join(op.name for op in op_stack)
+                        ))
+                    else:
+                        raise ValueError('Invalid non_produced_handler')
+
+                    continue
+
+        for param_map in param_map_list:
+            yield Expression(op, param_map)
+
 
 class Expression(ExpressionBase):
     """
@@ -2217,6 +2264,13 @@ class UnboundMethod:
     def __hash__(self):
         return hash(self.__wrapped__) ^ hash(self.cls)
 
+    def __repr__(self):
+        return '<UnboundMethod of {cls}.{meth} at {id}>'.format(
+            cls=self.cls.__qualname__,
+            meth=self.__wrapped__.__name__,
+            id=hex(id(self))
+        )
+
 class Operator:
     """
     Wrap a callable.
@@ -2258,7 +2312,7 @@ class Operator:
             )
         }
 
-        self.optional_param = {
+        self.optional_params = {
             param
             for param, param_spec in self.signature.parameters.items()
             # Parameters with a default value and and an annotation are
@@ -2347,7 +2401,7 @@ class Operator:
             else:
                 # If there was an annotation, make sure the type we computed is
                 # compatible with what the annotation specifies.
-                assert issubclass(value_type, param_annot)
+                assert ClassContext.COMPAT_CLS(value_type, param_annot)
 
             # We do not inherit from value_type, since it may not always work,
             # e.g. subclassing bool is forbidden. Therefore, it is purely used
@@ -2372,7 +2426,7 @@ class Operator:
             ))
 
             # Make sure the parameter is not optional anymore
-            self.optional_param.discard(param)
+            self.optional_params.discard(param)
             self.ignored_param.discard(param)
 
         return prebuilt_op_set
@@ -2639,7 +2693,13 @@ class Operator:
         else:
             # When we have a method, we fill the annotations of the 1st
             # parameter with the name of the class it is defined in
-            if self.is_method and first_param is not NoValue:
+            if (
+                self.is_method
+                and first_param is not NoValue
+                # If there is a valid annotation already, we don't want to mess
+                # with it
+                and first_param not in annotations
+            ):
                 if isinstance(self.callable_, UnboundMethod):
                     cls_name = self.callable_.cls.__qualname__
                 else:
@@ -3250,10 +3310,94 @@ class FrozenExprVal(ExprValBase):
             self.excep_tb = None
 
     @property
+    def callable_(self):
+        """
+        Callable that produced the value.
+
+        If it cannot be found, an :exc:`AttributeError` is raised.
+        """
+        assert self.callable_qualname.endswith(self.callable_name)
+        # This could also include the class name
+        mod_name = self.callable_qualname[:-len(self.callable_name)]
+        mod_name = mod_name.rstrip('.')
+
+        # Given a.b.c, try in order and stop at first import:
+        # a.b.c
+        # a.b
+        # a
+        for mod_path in reversed(list(utils.powerset(mod_name.split('.')))):
+            mod_name = '.'.join(mod_path)
+
+            # Exception raised changed in 3.7:
+            # https://docs.python.org/3/library/importlib.html#importlib.util.find_spec
+            if sys.version_info >= (3, 7):
+                try:
+                    mod = importlib.import_module(mod_name)
+                except ModuleNotFoundError:
+                    continue
+            else:
+                try:
+                    mod = importlib.import_module(mod_name)
+                # More or less the equivalent of ModuleNotFoundError
+                except ImportError as e:
+                    if e.path is None:
+                        continue
+                    else:
+                        raise
+
+            break
+        # No "break" statement was executed
+        else:
+            return AttributeError('Producer of {} not found'.format(self))
+
+        qualname = self.callable_qualname[len(mod_name):].lstrip('.')
+        attr = mod
+        for name in qualname.split('.'):
+            attr = getattr(attr, name)
+        return attr
+
+    @property
+    @functools.lru_cache(maxsize=None)
+    def type_(self):
+        """
+        Type of the ``value``, as reported by the return annotation of the
+        callable that produced it.
+
+        If the callable cannot be found, the actual value type is used. If the
+        value type is compatible with the return annotation of the callable
+        (i.e. is a subclass), the value type is returned as well.
+        """
+        value_type = type(self.value)
+        try:
+            callable_ = self.callable_
+        # If we cannot import the module or if the name has disappeared, we
+        # have no choice
+        except (ImportError, AttributeError) as e:
+            return value_type
+
+        # Use Operator to properly resolve the annotations
+        op = Operator(callable_)
+        return_type = op.value_type
+
+        if return_type != inspect.Signature.empty:
+            # If the function actually returned an instance of what it claimed
+            # to return from its annotation, we take the actual type of the
+            # value
+            if ClassContext.COMPAT_CLS(value_type, return_type):
+                return value_type
+            # Otherwise, the type is probably a "phantom" type that is actually
+            # never instantiated, but is used to give an existence at the type
+            # level to some assumptions or some meaning attached to the value.
+            else:
+                return return_type
+        else:
+            return value_type
+
+    @property
     def type_names(self):
         return [
             utils.get_name(type_, full_qual=True)
-            for type_ in utils.get_mro(type(self.value))
+            for type_ in utils.get_mro(self.type_)
             if type_ is not object
         ]
 
