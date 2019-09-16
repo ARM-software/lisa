@@ -855,7 +855,7 @@ class DmesgTestConf(SimpleMultiSrcConf):
     {generated_help}
     """
     STRUCTURE = TopLevelKeyDesc('dmesg-test-conf', 'Dmesg test configuration', (
-        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries content to be ignored', [StrList], newtype='IgnoredPatterns'),
+        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries content to be whitelisted', [StrList]),
     ))
 
 
