@@ -42,13 +42,19 @@ FROM ubuntu:18.10
 
 # Please update the references below to use different versions of
 # devlib, WA or the Android SDK
-ARG DEVLIB_REF=v1.1.1
-ARG WA_REF=v3.1.3
+ARG DEVLIB_REF=v1.1.2
+ARG WA_REF=v3.1.4
 ARG ANDROID_SDK_URL=https://dl.google.com/android/repository/sdk-tools-linux-3859397.zip
 
 RUN apt-get update
-RUN apt-get install -y python3 python3-pip git wget zip openjdk-8-jre-headless vim emacs nano curl sshpass ssh usbutils
+RUN apt-get install -y python3 python3-pip git wget zip openjdk-8-jre-headless vim emacs nano curl sshpass ssh usbutils locales
 RUN pip3 install pandas
+
+# Ensure we're using utf-8 as our default encoding
+RUN locale-gen en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
 
 # Let's get the two repos we need, and install them
 RUN git clone -v https://github.com/ARM-software/devlib.git /tmp/devlib && cd /tmp/devlib && git checkout $DEVLIB_REF && python3 setup.py install && pip3 install .[full]

@@ -156,5 +156,5 @@ class Openssl(Workload):
 
     @once
     def finalize(self, context):
-        if not self.use_system_binary:
+        if not self.use_system_binary and self.uninstall:
             self.target.uninstall('openssl')

@@ -92,9 +92,18 @@ class TargetManager(object):
     @memoized
     def get_target_info(self):
         info = get_target_info_from_cache(self.target.system_id)
+
         if info is None:
             info = get_target_info(self.target)
             cache_target_info(info)
+        else:
+            # If module configuration has changed form when the target info
+            # was previously cached, it is possible additional info will be
+            # available, so should re-generate the cache.
+            if set(info.modules) != set(self.target.modules):
+                info = get_target_info(self.target)
+                cache_target_info(info, overwrite=True)
+
         return info
 
     def reboot(self, context, hard=False):

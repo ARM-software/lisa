@@ -34,7 +34,7 @@ fi
 
 # Copy base class library from wa dist
 libs_dir=app/libs
-base_class=`python -c "import os, wa; print os.path.join(os.path.dirname(wa.__file__), 'framework', 'uiauto', 'uiauto.aar')"`
+base_class=`python3 -c "import os, wa; print(os.path.join(os.path.dirname(wa.__file__), 'framework', 'uiauto', 'uiauto.aar'))"`
 mkdir -p $libs_dir
 cp $base_class $libs_dir
 

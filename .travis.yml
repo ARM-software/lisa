@@ -17,7 +17,6 @@ language: python
 
 python:
     - "3.6"
-    - "2.7"
 
 install:
     - pip install nose
@@ -45,10 +44,3 @@ env:
         - TEST="$PROCESS_CMD && $SHOW_CMD && $LIST_CMD && $CREATE_CMD"
 script:
     - echo $TEST && eval $TEST
-
-matrix:
-    exclude:
-        - python: "2.7"
-          env: TEST=$PYLINT
-        - python: "2.7"
-          env: TEST=$PEP8

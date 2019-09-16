@@ -170,9 +170,9 @@ def list_or_caseless_string(value):
 def list_or(type_):
     """
     Generator for "list or" types. These take either a single value or a list
-    values and return a list of the specfied ``type_`` performing the
+    values and return a list of the specified ``type_`` performing the
     conversion on the value (if a single value is specified) or each of the
-    elemented of the specified list.
+    elements of the specified list.
 
     """
     list_type = list_of(type_)
@@ -206,6 +206,13 @@ def regex(value):
         return value
     else:
         return re.compile(value)
+
+
+def version_tuple(v):
+    """
+    Converts a version string into a tuple of ints that can be used for natural comparison.
+    """
+    return tuple(map(int, (v.split("."))))
 
 
 __counters = defaultdict(int)
@@ -281,7 +288,7 @@ class prioritylist(object):
 
         - ``new_element`` the element to be inserted in the prioritylist
         - ``priority`` is the priority of the element which specifies its
-        order withing the List
+        order within the List
         """
         self._add_element(new_element, priority)
 

@@ -23,6 +23,7 @@ from collections import defaultdict
 from wa import ApkUiautoWorkload, Parameter
 from wa.framework.exception import ConfigError, WorkloadError
 from wa.utils.misc import capitalize
+from wa.utils.types import version_tuple
 
 
 class Geekbench(ApkUiautoWorkload):
@@ -101,7 +102,7 @@ class Geekbench(ApkUiautoWorkload):
     def update_output(self, context):
         super(Geekbench, self).update_output(context)
         if not self.disable_update_result:
-            major_version = versiontuple(self.version)[0]
+            major_version = version_tuple(self.version)[0]
             update_method = getattr(self, 'update_result_{}'.format(major_version))
             update_method(context)
 
@@ -356,8 +357,8 @@ class GeekbenchCorproate(Geekbench):  # pylint: disable=too-many-ancestors
     name = "geekbench-corporate"
     is_corporate = True
     requires_network = False
-    supported_versions = ['4.1.0', '5.0.0']
-    package_names = ['com.primatelabs.geekbench4.corporate']
+    supported_versions = ['4.1.0', '4.3.4', '5.0.0']
+    package_names = ['com.primatelabs.geekbench4.corporate', 'com.primatelabs.geekbench5.corporate']
     activity = 'com.primatelabs.geekbench.HomeActivity'
 
     parameters = [
@@ -367,7 +368,3 @@ class GeekbenchCorproate(Geekbench):  # pylint: disable=too-many-ancestors
 
 def namemify(basename, i):
     return basename + (' {}'.format(i) if i else '')
-
-
-def versiontuple(v):
-    return tuple(map(int, (v.split("."))))
