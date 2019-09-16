@@ -107,7 +107,7 @@ class SystraceCollector(TraceCollector):
         self._tmpfile = NamedTemporaryFile()
 
         # pylint: disable=attribute-defined-outside-init
-        self.systrace_cmd = '{} -o {} -e {}'.format(
+        self.systrace_cmd = 'python2 -u {} -o {} -e {}'.format(
             self.systrace_binary,
             self._tmpfile.name,
             self.target.adb_name
@@ -137,9 +137,11 @@ class SystraceCollector(TraceCollector):
         self._systrace_process = subprocess.Popen(
             self.systrace_cmd,
             stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
             shell=True,
             universal_newlines=True
         )
+        self._systrace_process.stdout.read(1)
 
     def stop(self):
         if not self._systrace_process:

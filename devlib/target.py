@@ -29,6 +29,7 @@ import threading
 import xml.dom.minidom
 import copy
 from collections import namedtuple, defaultdict
+from contextlib import contextmanager
 from pipes import quote
 from past.builtins import long
 from past.types import basestring
@@ -51,6 +52,7 @@ from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor
 from devlib.utils.misc import memoized, isiterable, convert_new_lines
 from devlib.utils.misc import commonprefix, merge_lists
 from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list
+from devlib.utils.misc import batch_contextmanager
 from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string, bytes_regex
 
 
@@ -69,7 +71,6 @@ GOOGLE_DNS_SERVER_ADDRESS = '8.8.8.8'
 
 
 installed_package_info = namedtuple('installed_package_info', 'apk_path package')
-
 
 class Target(object):
 
@@ -107,21 +108,18 @@ class Target(object):
 
     @property
     def connected_as_root(self):
-        if self._connected_as_root is None:
-            result = self.execute('id')
-            self._connected_as_root = 'uid=0(' in result
-        return self._connected_as_root
+        return self.conn and self.conn.connected_as_root
 
     @property
-    @memoized
     def is_rooted(self):
-        if self.connected_as_root:
-            return True
-        try:
-            self.execute('ls /', timeout=5, as_root=True)
-            return True
-        except (TargetStableError, TimeoutError):
-            return False
+        if self._is_rooted is None:
+            try:
+                self.execute('ls /', timeout=5, as_root=True)
+                self._is_rooted = True
+            except (TargetStableError, TimeoutError):
+                self._is_rooted = False
+
+        return self._is_rooted or self.connected_as_root
 
     @property
     @memoized
@@ -213,7 +211,7 @@ class Target(object):
                  conn_cls=None,
                  is_container=False
                  ):
-        self._connected_as_root = None
+        self._is_rooted = None
         self.connection_settings = connection_settings or {}
         # Set self.platform: either it's given directly (by platform argument)
         # or it's given in the connection_settings argument
@@ -322,7 +320,7 @@ class Target(object):
             timeout = max(timeout - reset_delay, 10)
         if self.has('boot'):
             self.boot()  # pylint: disable=no-member
-        self._connected_as_root = None
+        self.conn.connected_as_root = None
         if connect:
             self.connect(timeout=timeout)
 
@@ -384,10 +382,19 @@ class Target(object):
     # execution
 
     def execute(self, command, timeout=None, check_exit_code=True,
-                as_root=False, strip_colors=True, will_succeed=False):
+                as_root=False, strip_colors=True, will_succeed=False,
+                force_locale='C'):
+
+        # Force the locale if necessary for more predictable output
+        if force_locale:
+            # Use an explicit export so that the command is allowed to be any
+            # shell statement, rather than just a command invocation
+            command = 'export LC_ALL={} && {}'.format(quote(force_locale), command)
+
         # Ensure to use deployed command when availables
         if self.executables_directory:
-            command = "PATH={}:$PATH && {}".format(self.executables_directory, command)
+            command = "export PATH={}:$PATH && {}".format(quote(self.executables_directory), command)
+
         return self.conn.execute(command, timeout=timeout,
                 check_exit_code=check_exit_code, as_root=as_root,
                 strip_colors=strip_colors, will_succeed=will_succeed)
@@ -481,6 +488,18 @@ class Target(object):
     def read_bool(self, path):
         return self.read_value(path, kind=boolean)
 
+    @contextmanager
+    def revertable_write_value(self, path, value, verify=True):
+        orig_value = self.read_value(path)
+        try:
+            self.write_value(path, value, verify)
+            yield
+        finally:
+            self.write_value(path, orig_value, verify)
+
+    def batch_revertable_write_value(self, kwargs_list):
+        return batch_contextmanager(self.revertable_write_value, kwargs_list)
+
     def write_value(self, path, value, verify=True):
         value = str(value)
         self.execute('echo {} > {}'.format(quote(value), quote(path)), check_exit_code=False, as_root=True)
@@ -496,7 +515,7 @@ class Target(object):
         except (DevlibTransientError, subprocess.CalledProcessError):
             # on some targets "reboot" doesn't return gracefully
             pass
-        self._connected_as_root = None
+        self.conn.connected_as_root = None
 
     def check_responsive(self, explode=True):
         try:
@@ -622,12 +641,12 @@ class Target(object):
 
     which = get_installed
 
-    def install_if_needed(self, host_path, search_system_binaries=True):
+    def install_if_needed(self, host_path, search_system_binaries=True, timeout=None):
 
         binary_path = self.get_installed(os.path.split(host_path)[1],
                                          search_system_binaries=search_system_binaries)
         if not binary_path:
-            binary_path = self.install(host_path)
+            binary_path = self.install(host_path, timeout=timeout)
         return binary_path
 
     def is_installed(self, name):
@@ -1006,7 +1025,7 @@ class LinuxTarget(Target):
     def install(self, filepath, timeout=None, with_name=None):  # pylint: disable=W0221
         destpath = self.path.join(self.executables_directory,
                                   with_name and with_name or self.path.basename(filepath))
-        self.push(filepath, destpath)
+        self.push(filepath, destpath, timeout=timeout)
         self.execute('chmod a+x {}'.format(quote(destpath)), timeout=timeout)
         self._installed_binaries[self.path.basename(destpath)] = destpath
         return destpath
@@ -1168,7 +1187,7 @@ class AndroidTarget(Target):
         except (DevlibTransientError, subprocess.CalledProcessError):
             # on some targets "reboot" doesn't return gracefully
             pass
-        self._connected_as_root = None
+        self.conn.connected_as_root = None
 
     def wait_boot_complete(self, timeout=10):
         start = time.time()
@@ -1230,7 +1249,7 @@ class AndroidTarget(Target):
         if ext == '.apk':
             return self.install_apk(filepath, timeout)
         else:
-            return self.install_executable(filepath, with_name)
+            return self.install_executable(filepath, with_name, timeout)
 
     def uninstall(self, name):
         if self.package_is_installed(name):
@@ -1393,7 +1412,14 @@ class AndroidTarget(Target):
             if self.get_sdk_version() >= 23:
                 flags.append('-g')  # Grant all runtime permissions
             self.logger.debug("Replace APK = {}, ADB flags = '{}'".format(replace, ' '.join(flags)))
-            return adb_command(self.adb_name, "install {} {}".format(' '.join(flags), quote(filepath)), timeout=timeout)
+            if isinstance(self.conn, AdbConnection):
+                return adb_command(self.adb_name, "install {} {}".format(' '.join(flags), quote(filepath)), timeout=timeout)
+            else:
+                dev_path = self.get_workpath(filepath.rsplit(os.path.sep, 1)[-1])
+                self.push(quote(filepath), dev_path, timeout=timeout)
+                result = self.execute("pm install {} {}".format(' '.join(flags), quote(dev_path)), timeout=timeout)
+                self.remove(dev_path)
+                return result
         else:
             raise TargetStableError('Can\'t install {}: unsupported format.'.format(filepath))
 
@@ -1440,21 +1466,25 @@ class AndroidTarget(Target):
                   '-n com.android.providers.media/.MediaScannerReceiver'
         self.execute(command.format(quote('file://'+dirpath)), as_root=as_root)
 
-    def install_executable(self, filepath, with_name=None):
+    def install_executable(self, filepath, with_name=None, timeout=None):
         self._ensure_executables_directory_is_writable()
         executable_name = with_name or os.path.basename(filepath)
         on_device_file = self.path.join(self.working_directory, executable_name)
         on_device_executable = self.path.join(self.executables_directory, executable_name)
-        self.push(filepath, on_device_file)
+        self.push(filepath, on_device_file, timeout=timeout)
         if on_device_file != on_device_executable:
-            self.execute('cp {} {}'.format(quote(on_device_file), quote(on_device_executable)), as_root=self.needs_su)
+            self.execute('cp {} {}'.format(quote(on_device_file), quote(on_device_executable)),
+                         as_root=self.needs_su, timeout=timeout)
             self.remove(on_device_file, as_root=self.needs_su)
         self.execute("chmod 0777 {}".format(quote(on_device_executable)), as_root=self.needs_su)
         self._installed_binaries[executable_name] = on_device_executable
         return on_device_executable
 
     def uninstall_package(self, package):
-        adb_command(self.adb_name, "uninstall {}".format(quote(package)), timeout=30)
+        if isinstance(self.conn, AdbConnection):
+            adb_command(self.adb_name, "uninstall {}".format(quote(package)), timeout=30)
+        else:
+            self.execute("pm uninstall {}".format(quote(package)), timeout=30)
 
     def uninstall_executable(self, executable_name):
         on_device_executable = self.path.join(self.executables_directory, executable_name)
@@ -1464,34 +1494,47 @@ class AndroidTarget(Target):
     def dump_logcat(self, filepath, filter=None, append=False, timeout=30):  # pylint: disable=redefined-builtin
         op = '>>' if append else '>'
         filtstr = ' -s {}'.format(quote(filter)) if filter else ''
-        command = 'logcat -d{} {} {}'.format(filtstr, op, quote(filepath))
-        adb_command(self.adb_name, command, timeout=timeout)
+        if isinstance(self.conn, AdbConnection):
+            command = 'logcat -d{} {} {}'.format(filtstr, op, quote(filepath))
+            adb_command(self.adb_name, command, timeout=timeout)
+        else:
+            dev_path = self.get_workpath('logcat')
+            command = 'logcat -d{} {} {}'.format(filtstr, op, quote(dev_path))
+            self.execute(command, timeout=timeout)
+            self.pull(dev_path, filepath)
+            self.remove(dev_path)
 
     def clear_logcat(self):
         with self.clear_logcat_lock:
-            adb_command(self.adb_name, 'logcat -c', timeout=30)
+            if isinstance(self.conn, AdbConnection):
+                adb_command(self.adb_name, 'logcat -c', timeout=30)
+            else:
+                self.execute('logcat -c', timeout=30)
 
     def get_logcat_monitor(self, regexps=None):
         return LogcatMonitor(self, regexps)
 
     def adb_kill_server(self, timeout=30):
+        if not isinstance(self.conn, AdbConnection):
+            raise TargetStableError('Cannot issues adb command without adb connection')
         adb_command(self.adb_name, 'kill-server', timeout)
 
     def adb_wait_for_device(self, timeout=30):
+        if not isinstance(self.conn, AdbConnection):
+            raise TargetStableError('Cannot issues adb command without adb connection')
         adb_command(self.adb_name, 'wait-for-device', timeout)
 
     def adb_reboot_bootloader(self, timeout=30):
+        if not isinstance(self.conn, AdbConnection):
+            raise TargetStableError('Cannot issues adb command without adb connection')
         adb_command(self.adb_name, 'reboot-bootloader', timeout)
 
     def adb_root(self, enable=True, force=False):
-        if enable:
-            if self._connected_as_root and not force:
-                return
-            adb_command(self.adb_name, 'root', timeout=30)
-            self._connected_as_root = True
+        if not isinstance(self.conn, AdbConnection):
+            raise TargetStableError('Cannot enable adb root without adb connection')
+        if enable and self.connected_as_root and not force:
             return
-        adb_command(self.adb_name, 'unroot', timeout=30)
-        self._connected_as_root = False
+        self.conn.adb_root(enable=enable)
 
     def is_screen_on(self):
         output = self.execute('dumpsys power')
@@ -2009,6 +2052,9 @@ class KernelConfig(object):
 
     This class does not provide a Mapping API and only return string values.
     """
+    @staticmethod
+    def get_config_name(name):
+        return TypedKernelConfig.get_config_name(name)
 
     def __init__(self, text):
         # Expose typed_config as a non-private attribute, so that user code
@@ -2017,7 +2063,9 @@ class KernelConfig(object):
         # Expose the original text for backward compatibility
         self.text = text
 
-    get_config_name = TypedKernelConfig.get_config_name
+    def __bool__(self):
+        return bool(self.typed_config)
+
     not_set_regex = TypedKernelConfig.not_set_regex
 
     def iteritems(self):

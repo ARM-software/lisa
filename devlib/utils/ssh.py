@@ -158,6 +158,18 @@ class SshConnection(object):
     def name(self):
         return self.host
 
+    @property
+    def connected_as_root(self):
+        if self._connected_as_root is None:
+            # Execute directly to prevent deadlocking of connection
+            result = self._execute_and_wait_for_prompt('id', as_root=False)
+            self._connected_as_root = 'uid=0(' in result
+        return self._connected_as_root
+
+    @connected_as_root.setter
+    def connected_as_root(self, state):
+        self._connected_as_root = state
+
     # pylint: disable=unused-argument,super-init-not-called
     def __init__(self,
                  host,
@@ -172,6 +184,7 @@ class SshConnection(object):
                  platform=None,
                  sudo_cmd="sudo -- sh -c {}"
                  ):
+        self._connected_as_root = None
         self.host = host
         self.username = username
         self.password = password
@@ -232,7 +245,7 @@ class SshConnection(object):
         try:
             port_string = '-p {}'.format(self.port) if self.port else ''
             keyfile_string = '-i {}'.format(self.keyfile) if self.keyfile else ''
-            if as_root:
+            if as_root and not self.connected_as_root:
                 command = self.sudo_cmd.format(command)
             command = '{} {} {} {}@{} {}'.format(ssh, keyfile_string, port_string, self.username, self.host, command)
             logger.debug(command)
@@ -261,7 +274,7 @@ class SshConnection(object):
 
     def _execute_and_wait_for_prompt(self, command, timeout=None, as_root=False, strip_colors=True, log=True):
         self.conn.prompt(0.1)  # clear an existing prompt if there is one.
-        if self.username == 'root':
+        if as_root and self.connected_as_root:
             # As we're already root, there is no need to use sudo.
             as_root = False
         if as_root:

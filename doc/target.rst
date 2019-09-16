@@ -232,7 +232,7 @@ Target
    :param timeout: timeout (in seconds) for the transfer; if the transfer does
        not  complete within this period, an exception will be raised.
 
-.. method:: Target.execute(command [, timeout [, check_exit_code [, as_root [, strip_colors [, will_succeed]]]]])
+.. method:: Target.execute(command [, timeout [, check_exit_code [, as_root [, strip_colors [, will_succeed [, force_locale]]]]]])
 
    Execute the specified command on the target device and return its output.
 
@@ -252,6 +252,9 @@ Target
        will make the method always raise an instance of a subclass of
        :class:`DevlibTransientError` when the command fails, instead of a
        :class:`DevlibStableError`.
+   :param force_locale: Prepend ``LC_ALL=<force_locale>`` in front of the
+      command to get predictable output that can be more safely parsed.
+      If ``None``, no locale is prepended.
 
 .. method:: Target.background(command [, stdout [, stderr [, as_root]]])
 
@@ -345,6 +348,18 @@ Target
        it is written to make sure it has been written successfully. This due to
        some sysfs entries silently failing to set the written value without
        returning an error code.
+
+.. method:: Target.revertable_write_value(path, value [, verify])
+
+   Same as :meth:`Target.write_value`, but as a context manager that will write
+   back the previous value on exit.
+
+.. method:: Target.batch_revertable_write_value(kwargs_list)
+
+   Calls :meth:`Target.revertable_write_value` with all the keyword arguments
+   dictionary given in the list. This is a convenience method to update
+   multiple files at once, leaving them in their original state on exit. If one
+   write fails, all the already-performed writes will be reverted as well.
 
 .. method:: Target.read_tree_values(path, depth=1, dictcls=dict, [, tar [, decode_unicode [, strip_null_char ]]]):
 
