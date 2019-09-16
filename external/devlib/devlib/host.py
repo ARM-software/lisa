@@ -38,9 +38,21 @@ class LocalConnection(object):
 
     name = 'local'
 
+    @property
+    def connected_as_root(self):
+        if self._connected_as_root is None:
+            result = self.execute('id', as_root=False)
+            self._connected_as_root = 'uid=0(' in result
+        return self._connected_as_root
+
+    @connected_as_root.setter
+    def connected_as_root(self, state):
+        self._connected_as_root = state
+
     # pylint: disable=unused-argument
     def __init__(self, platform=None, keep_password=True, unrooted=False,
                  password=None, timeout=None):
+        self._connected_as_root = None
         self.logger = logging.getLogger('local_connection')
         self.keep_password = keep_password
         self.unrooted = unrooted
@@ -67,7 +79,7 @@ class LocalConnection(object):
     def execute(self, command, timeout=None, check_exit_code=True,
                 as_root=False, strip_colors=True, will_succeed=False):
         self.logger.debug(command)
-        if as_root:
+        if as_root and not self.connected_as_root:
             if self.unrooted:
                 raise TargetStableError('unrooted')
             password = self._get_password()
@@ -84,7 +96,7 @@ class LocalConnection(object):
                 raise TargetStableError(message)
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
-        if as_root:
+        if as_root and not self.connected_as_root:
             if self.unrooted:
                 raise TargetStableError('unrooted')
             password = self._get_password()

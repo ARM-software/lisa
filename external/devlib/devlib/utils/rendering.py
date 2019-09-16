@@ -147,32 +147,44 @@ class SurfaceFlingerFrameCollector(FrameCollector):
         return text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
 
     def _process_raw_file(self, fh):
+        found = False
         text = fh.read().replace('\r\n', '\n').replace('\r', '\n')
         for line in text.split('\n'):
             line = line.strip()
-            if line:
-                self._process_trace_line(line)
+            if not line:
+                continue
+            if 'SurfaceFlinger appears to be unresponsive, dumping anyways' in line:
+                self.unresponsive_count += 1
+                continue
+            parts = line.split()
+            # We only want numerical data, ignore textual data.
+            try:
+                parts = list(map(int, parts))
+            except ValueError:
+                continue
+            found = True
+            self._process_trace_parts(parts)
+        if not found:
+            logger.warning('Could not find expected SurfaceFlinger output.')
 
-    def _process_trace_line(self, line):
-        parts = line.split()
+    def _process_trace_parts(self, parts):
         if len(parts) == 3:
-            frame = SurfaceFlingerFrame(*list(map(int, parts)))
+            frame = SurfaceFlingerFrame(*parts)
             if not frame.frame_ready_time:
                 return # "null" frame
             if frame.frame_ready_time <= self.last_ready_time:
                 return  # duplicate frame
             if (frame.frame_ready_time - frame.desired_present_time) > self.drop_threshold:
-                logger.debug('Dropping bogus frame {}.'.format(line))
+                logger.debug('Dropping bogus frame {}.'.format(' '.join(map(str, parts))))
                 return  # bogus data
             self.last_ready_time = frame.frame_ready_time
             self.frames.append(frame)
         elif len(parts) == 1:
-            self.refresh_period = int(parts[0])
+            self.refresh_period = parts[0]
             self.drop_threshold = self.refresh_period * 1000
-        elif 'SurfaceFlinger appears to be unresponsive, dumping anyways' in line:
-            self.unresponsive_count += 1
         else:
-            logger.warning('Unexpected SurfaceFlinger dump output: {}'.format(line))
+            msg = 'Unexpected SurfaceFlinger dump output: {}'.format(' '.join(map(str, parts)))
+            logger.warning(msg)
 
 
 def read_gfxinfo_columns(target):

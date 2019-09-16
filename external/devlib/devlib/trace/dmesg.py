@@ -98,6 +98,19 @@ class KernelLogEntry(object):
             msg=msg.strip(),
         )
 
+    @classmethod
+    def from_dmesg_output(cls, dmesg_out):
+        """
+        Return a generator of :class:`KernelLogEntry` for each line of the
+        output of dmesg command.
+
+        .. note:: The same restrictions on the dmesg output format as for
+            :meth:`from_str` apply.
+        """
+        for line in dmesg_out.splitlines():
+            if line.strip():
+                yield cls.from_str(line)
+
     def __str__(self):
         facility = self.facility + ': ' if self.facility else ''
         return '{facility}{level}: [{timestamp}] {msg}'.format(
@@ -156,17 +169,7 @@ class DmesgCollector(TraceCollector):
 
     @property
     def entries(self):
-        return self._parse_entries(self.dmesg_out)
-
-    @classmethod
-    def _parse_entries(cls, dmesg_out):
-        if not dmesg_out:
-            return []
-        else:
-            return [
-                KernelLogEntry.from_str(line)
-                for line in dmesg_out.splitlines()
-            ]
+        return KernelLogEntry.from_dmesg_output(self.dmesg_out)
 
     def reset(self):
         self.dmesg_out = None
@@ -195,4 +198,3 @@ class DmesgCollector(TraceCollector):
     def get_trace(self, outfile):
         with open(outfile, 'wt') as f:
             f.write(self.dmesg_out + '\n')
-

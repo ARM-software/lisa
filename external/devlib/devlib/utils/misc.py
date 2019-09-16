@@ -19,11 +19,13 @@ Miscellaneous functions that don't fit anywhere else.
 
 """
 from __future__ import division
+from contextlib import contextmanager
 from functools import partial, reduce
 from itertools import groupby
 from operator import itemgetter
 
 import ctypes
+import functools
 import logging
 import os
 import pkgutil
@@ -37,6 +39,11 @@ import threading
 import wrapt
 import warnings
 
+
+try:
+    from contextlib import ExitStack
+except AttributeError:
+    from contextlib2 import ExitStack
 
 from past.builtins import basestring
 
@@ -695,3 +702,19 @@ def memoized(wrapped, instance, args, kwargs):  # pylint: disable=unused-argumen
         return __memo_cache[id_string]
 
     return memoize_wrapper(*args, **kwargs)
+
+@contextmanager
+def batch_contextmanager(f, kwargs_list):
+    """
+    Return a context manager that will call the ``f`` callable with the keyword
+    arguments dict in the given list, in one go.
+
+    :param f: Callable expected to return a context manager.
+
+    :param kwargs_list: list of kwargs dictionaries to be used to call ``f``.
+    :type kwargs_list: list(dict)
+    """
+    with ExitStack() as stack:
+        for kwargs in kwargs_list:
+            stack.enter_context(f(**kwargs))
+        yield
