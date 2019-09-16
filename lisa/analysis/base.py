@@ -277,9 +277,8 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     document, or ``rst`` for a reStructuredText output.
                 :type output: str or None
 
-                :param kwargs: keyword arguments forwarded to
+                :Variable keyword arguments: Forwarded to
                     :meth:`~lisa.analysis.base.AnalysisHelpers.setup_plot`
-                :type kwargs: dict
                 """),
                 remove_params=['local_fig'],
                 include_kwargs=True,

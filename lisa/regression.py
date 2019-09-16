@@ -253,7 +253,8 @@ def compute_regressions(old_list, new_list, remove_tags=[], **kwargs):
         different "board" tag for example.
     :type remove_tags: list(str)
 
-    :param kwargs: extra :meth:`RegressionResult.from_result_list` parameters
+    :Variable keyword arguments: Forwarded to
+        :meth:`RegressionResult.from_result_list`.
     """
 
     def dedup_list(froz_val_list, excluded_froz_val_list):
