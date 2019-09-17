@@ -621,7 +621,7 @@ class Trace(Loggable, TraceBase):
         :type task: int or str or tuple(int, str)
 
         :param update: If a partially-filled :class:`TaskID` is passed (one of
-            the fields set to ``None``), returns a complete :class`TaskID`
+            the fields set to ``None``), returns a complete :class:`TaskID`
             instead of leaving the ``None`` fields.
         :type update: bool
         """
@@ -674,7 +674,7 @@ class Trace(Loggable, TraceBase):
         :type task: int or str or tuple(int, str)
 
         :param update: If a partially-filled :class:`TaskID` is passed (one of
-            the fields set to ``None``), returns a complete :class`TaskID`
+            the fields set to ``None``), returns a complete :class:`TaskID`
             instead of leaving the ``None`` fields.
         :type update: bool
 
