@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import re
 import abc
 import copy
 from collections.abc import Mapping, MutableMapping, Sequence
@@ -988,7 +989,7 @@ DEPRECATED_MAP = {}
 Global dictionary of deprecated classes, functions and so on.
 """
 
-def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
+def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, parameter=None):
     """
     Mark a class, method, function etc as deprecated and update its docstring.
 
@@ -1003,6 +1004,12 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
 
     :param removed_in: Version in which the deprecated object will be removed.
     :type removed_in: str
+
+    :param parameter: If not ``None``, the deprecation will only apply to the
+        usage of the given parameter. The relevant ``:param:`` block in the
+        docstring will be updated, and the deprecation warning will be emitted
+        anytime a caller gives a value to that parameter (default or not).
+    :type parameter: str or None
 
     .. note:: In order to decorate all the accessors of properties, apply the
         decorator once the property is fully built::
@@ -1073,7 +1080,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
         removed_in = parse_version(removed_in)
     current_version = lisa.version.version_tuple
 
-    def make_msg(deprecated_obj, style=None, show_doc_url=True):
+    def make_msg(deprecated_obj, parameter=None, style=None, show_doc_url=True):
         if replaced_by is not None:
             doc_url = ''
             if show_doc_url:
@@ -1093,8 +1100,14 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
         else:
             removal_msg = ''
 
+        name = getname(deprecated_obj, style=style, abbrev=True)
+        if parameter:
+            if style == 'rst':
+                parameter = '``{}``'.format(parameter)
+            name = '{} parameter of {}'.format(parameter, name)
+
         return '{name} is deprecated{remove}{replace}{msg}'.format(
-            name=getname(deprecated_obj, style=style, abbrev=True),
+            name=name,
             replace=replacement_msg,
             remove=removal_msg,
             msg=': ' + msg if msg else '',
@@ -1114,22 +1127,33 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
         # stacklevel != 1 breaks the filtering for warnings emitted by APIs
         # called from external modules, like __init_subclass__ that is called
         # from other modules like abc.py
-        def wrap_func(func, stacklevel=1):
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                warnings.warn(make_msg(obj), DeprecationWarning, stacklevel=stacklevel)
-                return func(*args, **kwargs)
-            return wrapper
+        if parameter:
+            def wrap_func(func, stacklevel=1):
+                sig = inspect.signature(func)
+                @functools.wraps(func)
+                def wrapper(*args, **kwargs):
+                    kwargs = sig.bind(*args, **kwargs).arguments
+                    if parameter in kwargs:
+                        warnings.warn(make_msg(obj, parameter), DeprecationWarning, stacklevel=stacklevel)
+                    return func(**kwargs)
+                return wrapper
+        else:
+            def wrap_func(func, stacklevel=1):
+                @functools.wraps(func)
+                def wrapper(*args, **kwargs):
+                    warnings.warn(make_msg(obj), DeprecationWarning, stacklevel=stacklevel)
+                    return func(*args, **kwargs)
+                return wrapper
 
-        # Make sure we don't accidentally override an existing entry
-        assert obj_name not in DEPRECATED_MAP
-        DEPRECATED_MAP[obj_name] = {
-            'obj': obj,
-            'replaced_by': replaced_by,
-            'msg': msg,
-            'removed_in': removed_in,
-            'deprecated_in': deprecated_in,
-        }
+            # Make sure we don't accidentally override an existing entry
+            assert obj_name not in DEPRECATED_MAP
+            DEPRECATED_MAP[obj_name] = {
+                'obj': obj,
+                'replaced_by': replaced_by,
+                'msg': msg,
+                'removed_in': removed_in,
+                'deprecated_in': deprecated_in,
+            }
 
         # For classes, wrap __new__ and update docstring
         if isinstance(obj, type):
@@ -1173,8 +1197,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
             return_obj = wrap_func(obj, stacklevel=stacklevel)
             update_doc_of = return_obj
 
-        doc = inspect.getdoc(update_doc_of) or ''
-        update_doc_of.__doc__ = doc + '\n\n' + textwrap.dedent(
+        extra_doc = textwrap.dedent(
         """
         .. attention::
 
@@ -1185,9 +1208,41 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
             deprecated_in=deprecated_in if deprecated_in else '<unknown>',
             # The documentation already creates references to the replacement,
             # so we can avoid downloading the inventory for nothing.
-            msg=make_msg(obj, style='rst', show_doc_url=False),
+            msg=make_msg(obj, parameter, style='rst', show_doc_url=False),
         )).strip()
+        doc = inspect.getdoc(update_doc_of) or ''
 
+        # Update the description of the parameter in the right spot in the docstring
+        if parameter:
+
+            # Split into chunks of restructured text at boundaries such as
+            # ":param foo: ..." or ":type foo: ..."
+            blocks = []
+            curr_block = []
+            for line in doc.splitlines(keepends=True):
+                if re.match(r'\s*:', line):
+                    curr_block = []
+                    blocks.append(curr_block)
+
+                curr_block.append(line)
+
+            # Add the extra bits in the right block and join lines of the block
+            def update_block(block):
+                if re.match(':param\s+{}'.format(re.escape(parameter)), block[0]):
+                    if len(block) > 1:
+                        indentation = re.match(r'^(\s*)', block[-1]).group(0)
+                    else:
+                        indentation = ' ' * 4
+                    block.append('\n' + textwrap.indent(extra_doc, indentation) + '\n')
+                return ''.join(block)
+
+            doc = ''.join(map(update_block, blocks))
+
+        # Otherwise just append the extra bits at the end of the docstring
+        else:
+            doc += '\n\n' + extra_doc
+
+        update_doc_of.__doc__ = doc
         return return_obj
 
     return decorator
