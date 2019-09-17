@@ -33,7 +33,7 @@ from wa.framework.target.descriptor import (TargetDescriptor, TargetDescription,
                                             create_target_description, add_description_for_target)
 from wa.framework.workload import (Workload, ApkWorkload, ApkUiautoWorkload,
                                    ApkReventWorkload, UIWorkload, UiautoWorkload,
-                                   ReventWorkload)
+                                   PackageHandler, ReventWorkload, TestPackageHandler)
 
 
 from wa.framework.version import get_wa_version, get_wa_version_with_commit

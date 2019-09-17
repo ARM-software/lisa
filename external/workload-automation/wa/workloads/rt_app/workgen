@@ -9,12 +9,12 @@ import re
 
 def check_unikid_json(infile, outfile, verbose=0):
     if not os.path.exists(infile):
-        print "WARN: %s does not exist", infile
+        print("WARN: %s does not exist", infile)
 
     try:
         fi = open(infile, "r")
     except IOError:
-        print "WARN: Unable to open %s", infile
+        print("WARN: Unable to open %s", infile)
         sys.exit(2)
 
     lines = fi.readlines()
@@ -23,7 +23,7 @@ def check_unikid_json(infile, outfile, verbose=0):
     try:
         fo = open(outfile, "w+")
     except IOError:
-        print "WARN: Unable to open %s", f
+        print("WARN: Unable to open %s", f)
         sys.exit(2)
 
     curid = 1
@@ -58,7 +58,7 @@ def check_unikid_json(infile, outfile, verbose=0):
                 newkey_id = key_id + str(curid)
 
             if verbose:
-                print "level ", refcount, " : key ", key_id, " changed into ", newkey_id
+                print("level ", refcount, " : key ", key_id, " changed into ", newkey_id)
 
             myline = myline.replace(key_id, newkey_id, 1)
             key_id = newkey_id
@@ -72,12 +72,12 @@ def check_unikid_json(infile, outfile, verbose=0):
 
 def check_suspend_json(infile, outfile, verbose=0):
     if not os.path.exists(infile):
-        print "WARN: %s does not exist", infile
+        print("WARN: %s does not exist", infile)
 
     try:
         fi = open(infile, "r")
     except IOError:
-        print "WARN: Unable to open %s", infile
+        print("WARN: Unable to open %s", infile)
         sys.exit(2)
 
     lines = fi.readlines()
@@ -86,7 +86,7 @@ def check_suspend_json(infile, outfile, verbose=0):
     try:
         fo = open(outfile, "w+")
     except IOError:
-        print "WARN: Unable to open %s", f
+        print("WARN: Unable to open %s", f)
         sys.exit(2)
 
 
@@ -123,7 +123,7 @@ def check_suspend_json(infile, outfile, verbose=0):
            exception == 1:
 
             if verbose:
-                print "value ", curid, " added to suspend key"
+                print("value ", curid, " added to suspend key")
 
             if "," in myline:
                 myline = myline.replace(",", " : " + "\"" + curid + "\",", 1)
@@ -142,7 +142,7 @@ def remove_trailing_commas(outfile):
     try:
         f = open(outfile, 'r+')
     except IOError:
-        print "WARN: Unable to open %s", f
+        print("WARN: Unable to open %s", f)
         sys.exit(2)
 
     lines = f.read()
@@ -180,7 +180,7 @@ def remove_all_comments(outfile):
     try:
         f = open(outfile, 'r+')
     except IOError:
-        print "WARN: Unable to open %s", f
+        print("WARN: Unable to open %s", f)
         sys.exit(2)
 
     lines = f.read()
@@ -210,7 +210,7 @@ if __name__ == '__main__':
     try:
         opts, args = getopt.getopt(sys.argv[1:], "o:avd")
     except getopt.GetoptError as err:
-        print str(err) # will print something like "option -a not recognized"
+        print(str(err)) # will print something like "option -a not recognized"
         sys.exit(2)
 
     for o, a in opts:

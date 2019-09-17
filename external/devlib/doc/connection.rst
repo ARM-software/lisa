@@ -100,7 +100,7 @@ class that implements the following methods.
 Connection Types
 ----------------
 
-.. class:: AdbConnection(device=None, timeout=None)
+.. class:: AdbConnection(device=None, timeout=None, adb_server=None, adb_as_root=False)
 
     A connection to an android device via ``adb`` (Android Debug Bridge).
     ``adb`` is part of the Android SDK (though stand-alone versions are also
@@ -113,10 +113,13 @@ Connection Types
     :param timeout: Connection timeout in seconds. If a connection to the device
                     is not established within this period, :class:`HostError`
                     is raised.
+    :param adb_server: Allows specifying the address of the adb server to use.
+    :param adb_as_root: Specify whether the adb server should be restarted in root mode.
 
 
 .. class:: SshConnection(host, username, password=None, keyfile=None, port=None,\
-                         timeout=None, password_prompt=None)
+                         timeout=None, password_prompt=None, \
+                         sudo_cmd="sudo -- sh -c {}")
 
     A connection to a device on the network over SSH.
 
@@ -141,6 +144,7 @@ Connection Types
     :param password_prompt: A string with the password prompt used by
                             ``sshpass``. Set this if your version of ``sshpass``
                             uses something other than ``"[sudo] password"``.
+    :param sudo_cmd: Specify the format of the command used to grant sudo access.
 
 
 .. class:: TelnetConnection(host, username, password=None, port=None,\

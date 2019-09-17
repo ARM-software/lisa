@@ -43,6 +43,8 @@ class Speedometer(UiautoWorkload):
                   ''')
     ]
 
+    requires_network = True
+
     def __init__(self, target, **kwargs):
         super(Speedometer, self).__init__(target, **kwargs)
         self.gui.timeout = 1500

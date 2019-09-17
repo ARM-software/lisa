@@ -1,4 +1,4 @@
---!VERSION!1.2!ENDVERSION!
+--!VERSION!1.4!ENDVERSION!
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "lo";
 
@@ -78,6 +78,7 @@ CREATE TABLE Targets (
     oid uuid NOT NULL,
     run_oid uuid NOT NULL references Runs(oid),
     target text,
+    modules text[],
     cpus text[],
     os text,
     os_version jsonb,
@@ -96,6 +97,7 @@ CREATE TABLE Targets (
     android_id text,
     _pod_version int,
     _pod_serialization_version int,
+    system_id text,
     PRIMARY KEY (oid)
 );
 
@@ -164,6 +166,7 @@ CREATE TABLE Artifacts (
     kind text,
     _pod_version int,
     _pod_serialization_version int,
+    is_dir boolean,
     PRIMARY KEY (oid)
 );
 

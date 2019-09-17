@@ -1,4 +1,4 @@
-#    Copyright 2014-2018 ARM Limited
+#    Copyright 2014-2019 ARM Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,22 @@
 #
 import logging
 import os
+import threading
 import time
+
+try:
+    from shlex import quote
+except ImportError:
+    from pipes import quote
 
 from devlib.utils.android import ApkInfo
 
 from wa.framework.plugin import TargetedPlugin, Parameter
 from wa.framework.resource import (ApkFile, ReventFile,
-                                   File, loose_version_matching)
+                                   File, loose_version_matching,
+                                   range_version_matching)
 from wa.framework.exception import WorkloadError, ConfigError
-from wa.utils.types import ParameterDict, list_or_string
+from wa.utils.types import ParameterDict, list_or_string, version_tuple
 from wa.utils.revent import ReventRecorder
 from wa.utils.exec_control import once_per_instance
 
@@ -42,9 +49,15 @@ class Workload(TargetedPlugin):
                   aliases=['clean_up'],
                   default=True,
                   description="""
-                  If ``True``, if assets are deployed as part of the workload they
-                  will be removed again from the device as part of finalize.
-                  """)
+                  If ``True``, assets that are deployed or created as part of the
+                  workload will be removed again from the device.
+                  """),
+        Parameter('uninstall', kind=bool,
+                  default=True,
+                  description="""
+                  If ``True``, executables that are installed to the device
+                  as part of the workload will be uninstalled again.
+                  """),
     ]
 
     # Set this to True to mark that this workload poses a risk of exposing
@@ -200,6 +213,16 @@ class ApkWorkload(Workload):
                   description="""
                   The version of the package to be used.
                   """),
+        Parameter('max_version', kind=str,
+                  default=None,
+                  description="""
+                  The maximum version of the package to be used.
+                  """),
+        Parameter('min_version', kind=str,
+                  default=None,
+                  description="""
+                  The minimum version of the package to be used.
+                  """),
         Parameter('variant', kind=str,
                   default=None,
                   description="""
@@ -219,6 +242,7 @@ class ApkWorkload(Workload):
                   """),
         Parameter('uninstall', kind=bool,
                   default=False,
+                  override=True,
                   description="""
                   If ``True``, will uninstall workload\'s APK as part of teardown.'
                   """),
@@ -274,7 +298,15 @@ class ApkWorkload(Workload):
                                   exact_abi=self.exact_abi,
                                   prefer_host_package=self.prefer_host_package,
                                   clear_data_on_reset=self.clear_data_on_reset,
-                                  activity=self.activity)
+                                  activity=self.activity,
+                                  min_version=self.min_version,
+                                  max_version=self.max_version)
+
+    def validate(self):
+        if self.min_version and self.max_version:
+            if version_tuple(self.min_version) > version_tuple(self.max_version):
+                msg = 'Cannot specify min version ({}) greater than max version ({})'
+                raise ConfigError(msg.format(self.min_version, self.max_version))
 
     @once_per_instance
     def initialize(self, context):
@@ -345,7 +377,8 @@ class ApkUIWorkload(ApkWorkload):
     @once_per_instance
     def finalize(self, context):
         super(ApkUIWorkload, self).finalize(context)
-        self.gui.remove()
+        if self.cleanup_assets:
+            self.gui.remove()
 
 
 class ApkUiautoWorkload(ApkUIWorkload):
@@ -383,7 +416,6 @@ class ApkReventWorkload(ApkUIWorkload):
 
     def __init__(self, target, **kwargs):
         super(ApkReventWorkload, self).__init__(target, **kwargs)
-        self.apk = PackageHandler(self)
         self.gui = ReventGUI(self, target,
                              self.setup_timeout,
                              self.run_timeout,
@@ -425,7 +457,8 @@ class UIWorkload(Workload):
     @once_per_instance
     def finalize(self, context):
         super(UIWorkload, self).finalize(context)
-        self.gui.remove()
+        if self.cleanup_assets:
+            self.gui.remove()
 
 
 class UiautoWorkload(UIWorkload):
@@ -621,12 +654,12 @@ class ReventGUI(object):
         if self.revent_teardown_file:
             self.revent_recorder.replay(self.on_target_teardown_revent,
                                         timeout=self.teardown_timeout)
+
+    def remove(self):
         self.target.remove(self.on_target_setup_revent)
         self.target.remove(self.on_target_run_revent)
         self.target.remove(self.on_target_extract_results_revent)
         self.target.remove(self.on_target_teardown_revent)
-
-    def remove(self):
         self.revent_recorder.remove()
 
     def _check_revent_files(self):
@@ -661,15 +694,18 @@ class PackageHandler(object):
             return None
         return self.apk_info.activity
 
+    # pylint: disable=too-many-locals
     def __init__(self, owner, install_timeout=300, version=None, variant=None,
                  package_name=None, strict=False, force_install=False, uninstall=False,
                  exact_abi=False, prefer_host_package=True, clear_data_on_reset=True,
-                 activity=None):
+                 activity=None, min_version=None, max_version=None):
         self.logger = logging.getLogger('apk')
         self.owner = owner
         self.target = self.owner.target
         self.install_timeout = install_timeout
         self.version = version
+        self.min_version = min_version
+        self.max_version = max_version
         self.variant = variant
         self.package_name = package_name
         self.strict = strict
@@ -736,7 +772,9 @@ class PackageHandler(object):
                                                          version=self.version,
                                                          package=self.package_name,
                                                          exact_abi=self.exact_abi,
-                                                         supported_abi=self.supported_abi),
+                                                         supported_abi=self.supported_abi,
+                                                         min_version=self.min_version,
+                                                         max_version=self.max_version),
                                                  strict=self.strict)
         else:
             available_packages = []
@@ -746,48 +784,57 @@ class PackageHandler(object):
                                                         version=self.version,
                                                         package=package,
                                                         exact_abi=self.exact_abi,
-                                                        supported_abi=self.supported_abi),
+                                                        supported_abi=self.supported_abi,
+                                                        min_version=self.min_version,
+                                                        max_version=self.max_version),
                                                 strict=self.strict)
                 if apk_file:
                     available_packages.append(apk_file)
             if len(available_packages) == 1:
                 self.apk_file = available_packages[0]
             elif len(available_packages) > 1:
-                msg = 'Multiple matching packages found for "{}" on host: {}'
-                self.error_msg = msg.format(self.owner, available_packages)
+                self.error_msg = self._get_package_error_msg('host')
 
     def resolve_package_from_target(self):  # pylint: disable=too-many-branches
         self.logger.debug('Resolving package on target')
+        found_package = None
         if self.package_name:
             if not self.target.package_is_installed(self.package_name):
                 return
+            else:
+                installed_versions = [self.package_name]
         else:
             installed_versions = []
             for package in self.owner.package_names:
                 if self.target.package_is_installed(package):
                     installed_versions.append(package)
 
-            if self.version:
-                matching_packages = []
-                for package in installed_versions:
-                    package_version = self.target.get_package_version(package)
+        if self.version or self.min_version or self.max_version:
+            matching_packages = []
+            for package in installed_versions:
+                package_version = self.target.get_package_version(package)
+                if self.version:
                     for v in list_or_string(self.version):
                         if loose_version_matching(v, package_version):
                             matching_packages.append(package)
-                if len(matching_packages) == 1:
-                    self.package_name = matching_packages[0]
-                elif len(matching_packages) > 1:
-                    msg = 'Multiple matches for version "{}" found on device.'
-                    self.error_msg = msg.format(self.version)
-            else:
-                if len(installed_versions) == 1:
-                    self.package_name = installed_versions[0]
-                elif len(installed_versions) > 1:
-                    self.error_msg = 'Package version not set and multiple versions found on device.'
+                else:
+                    if range_version_matching(package_version, self.min_version,
+                                              self.max_version):
+                        matching_packages.append(package)
 
-        if self.package_name:
+            if len(matching_packages) == 1:
+                found_package = matching_packages[0]
+            elif len(matching_packages) > 1:
+                self.error_msg = self._get_package_error_msg('device')
+        else:
+            if len(installed_versions) == 1:
+                found_package = installed_versions[0]
+            elif len(installed_versions) > 1:
+                self.error_msg = 'Package version not set and multiple versions found on device.'
+        if found_package:
             self.logger.debug('Found matching package on target; Pulling to host.')
-            self.apk_file = self.pull_apk(self.package_name)
+            self.apk_file = self.pull_apk(found_package)
+            self.package_name = found_package
 
     def initialize_package(self, context):
         installed_version = self.target.get_package_version(self.apk_info.package)
@@ -865,3 +912,76 @@ class PackageHandler(object):
         self.target.execute('am force-stop {}'.format(self.apk_info.package))
         if self.uninstall:
             self.target.uninstall_package(self.apk_info.package)
+
+    def _get_package_error_msg(self, location):
+        if self.version:
+            msg = 'Multiple matches for "{version}" found on {location}.'
+        elif self.min_version and self.max_version:
+            msg = 'Multiple matches between versions "{min_version}" and "{max_version}" found on {location}.'
+        elif self.max_version:
+            msg = 'Multiple matches less than or equal to "{max_version}" found on {location}.'
+        elif self.min_version:
+            msg = 'Multiple matches greater or equal to "{min_version}" found on {location}.'
+        else:
+            msg = ''
+        return msg.format(version=self.version, min_version=self.min_version,
+                          max_version=self.max_version, location=location)
+
+
+class TestPackageHandler(PackageHandler):
+    """Class wrapping an APK used through ``am instrument``.
+    """
+    def __init__(self, owner, instrument_args=None, raw_output=False,
+                 instrument_wait=True, no_hidden_api_checks=False,
+                 *args, **kwargs):
+        if instrument_args is None:
+            instrument_args = {}
+        super(TestPackageHandler, self).__init__(owner, *args, **kwargs)
+        self.raw = raw_output
+        self.args = instrument_args
+        self.wait = instrument_wait
+        self.no_checks = no_hidden_api_checks
+
+        self.cmd = ''
+        self.instrument_thread = None
+        self._instrument_output = None
+
+    def setup(self, context):
+        self.initialize_package(context)
+
+        words = ['am', 'instrument']
+        if self.raw:
+            words.append('-r')
+        if self.wait:
+            words.append('-w')
+        if self.no_checks:
+            words.append('--no-hidden-api-checks')
+        for k, v in self.args.items():
+            words.extend(['-e', str(k), str(v)])
+
+        words.append(str(self.apk_info.package))
+        if self.apk_info.activity:
+            words[-1] += '/{}'.format(self.apk_info.activity)
+
+        self.cmd = ' '.join(quote(x) for x in words)
+        self.instrument_thread = threading.Thread(target=self._start_instrument)
+
+    def start_activity(self):
+        self.instrument_thread.start()
+
+    def wait_instrument_over(self):
+        self.instrument_thread.join()
+        if 'Error:' in self._instrument_output:
+            cmd = 'am force-stop {}'.format(self.apk_info.package)
+            self.target.execute(cmd)
+            raise WorkloadError(self._instrument_output)
+
+    def _start_instrument(self):
+        self._instrument_output = self.target.execute(self.cmd)
+        self.logger.debug(self._instrument_output)
+
+    @property
+    def instrument_output(self):
+        if self.instrument_thread.is_alive():
+            self.instrument_thread.join()  # writes self._instrument_output
+        return self._instrument_output

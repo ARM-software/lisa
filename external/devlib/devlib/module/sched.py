@@ -241,7 +241,7 @@ class SchedProcFSData(SchedProcFSNode):
         return False
 
     def __init__(self, target, path=None):
-        if not path:
+        if path is None:
             path = self.sched_domain_root
 
         procfs = target.read_tree_values(path, depth=self._read_depth)
@@ -259,7 +259,21 @@ class SchedModule(Module):
         logger = logging.getLogger(SchedModule.name)
         SchedDomainFlag.check_version(target, logger)
 
-        return SchedProcFSData.available(target)
+        # It makes sense to load this module if at least one of those
+        # functionalities is enabled
+        schedproc = SchedProcFSData.available(target)
+        debug = SchedModule.target_has_debug(target)
+        dmips = any([target.file_exists(SchedModule.cpu_dmips_capacity_path(target, cpu))
+                     for cpu in target.list_online_cpus()])
+
+        logger.info("Scheduler sched_domain procfs entries %s",
+                    "found" if schedproc else "not found")
+        logger.info("Detected kernel compiled with SCHED_DEBUG=%s",
+                    "y" if debug else "n")
+        logger.info("CPU capacity sysfs entries %s",
+                    "found" if dmips else "not found")
+
+        return schedproc or debug or dmips
 
     def get_kernel_attributes(self, matching=None, check_exit_code=True):
         """
@@ -313,12 +327,16 @@ class SchedModule(Module):
         path = '/proc/sys/kernel/sched_' + attr
         self.target.write_value(path, value, verify)
 
+    @classmethod
+    def target_has_debug(cls, target):
+        if target.config.get('SCHED_DEBUG') != 'y':
+            return False
+        return target.file_exists('/sys/kernel/debug/sched_features')
+
     @property
     @memoized
     def has_debug(self):
-        if self.target.config.get('SCHED_DEBUG') != 'y':
-            return False;
-        return self.target.file_exists('/sys/kernel/debug/sched_features')
+        return self.target_has_debug(self.target)
 
     def get_features(self):
         """
@@ -393,9 +411,18 @@ class SchedModule(Module):
         :returns: Whether energy model data is available for 'cpu'
         """
         if not sd:
-            sd = SchedProcFSData(self.target, cpu)
+            sd = self.get_cpu_sd_info(cpu)
 
         return sd.procfs["domain0"].get("group0", {}).get("energy", {}).get("cap_states") != None
+
+    @classmethod
+    def cpu_dmips_capacity_path(cls, target, cpu):
+        """
+        :returns: The target sysfs path where the dmips capacity data should be
+        """
+        return target.path.join(
+            cls.cpu_sysfs_root,
+            'cpu{}/cpu_capacity'.format(cpu))
 
     @memoized
     def has_dmips_capacity(self, cpu):
@@ -403,7 +430,7 @@ class SchedModule(Module):
         :returns: Whether dmips capacity data is available for 'cpu'
         """
         return self.target.file_exists(
-            self.target.path.join(self.cpu_sysfs_root, 'cpu{}/cpu_capacity'.format(cpu))
+            self.cpu_dmips_capacity_path(self.target, cpu)
         )
 
     @memoized
@@ -412,10 +439,13 @@ class SchedModule(Module):
         :returns: The maximum capacity value exposed by the EAS energy model
         """
         if not sd:
-            sd = SchedProcFSData(self.target, cpu)
+            sd = self.get_cpu_sd_info(cpu)
 
         cap_states = sd.domains[0].groups[0].energy.cap_states
-        return int(cap_states.split('\t')[-2])
+        cap_states_list = cap_states.split('\t')
+        num_cap_states = sd.domains[0].groups[0].energy.nr_cap_states
+        max_cap_index = -1 * int(len(cap_states_list) / num_cap_states)
+        return int(cap_states_list[max_cap_index])
 
     @memoized
     def get_dmips_capacity(self, cpu):
@@ -423,11 +453,7 @@ class SchedModule(Module):
         :returns: The capacity value generated from the capacity-dmips-mhz DT entry
         """
         return self.target.read_value(
-            self.target.path.join(
-                self.cpu_sysfs_root,
-                'cpu{}/cpu_capacity'.format(cpu)
-            ),
-            int
+            self.cpu_dmips_capacity_path(self.target, cpu), int
         )
 
     def get_capacities(self, default=None):

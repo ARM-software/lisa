@@ -12,8 +12,9 @@ Installation
 .. module:: wa
 
 This page describes the 3 methods of installing Workload Automation 3. The first
-option is to use :ref:`pip` which
-will install the latest release of WA, the latest development version from :ref:`github <github>` or via a :ref:`dockerfile`.
+option is to use :ref:`pip` which will install the latest release of WA, the
+latest development version from :ref:`github <github>` or via a
+:ref:`dockerfile`.
 
 
 Prerequisites
@@ -97,8 +98,8 @@ similar distributions, this may be done with APT::
           If you do run  into this issue after already installing some packages,
           you can resolve it by running ::
 
-                  sudo chmod -R a+r /usr/local/lib/python2.7/dist-packagessudo
-                  find /usr/local/lib/python2.7/dist-packages -type d -exec chmod a+x {} \;
+                  sudo chmod -R a+r /usr/local/lib/python2.7/dist-packages
+                  sudo find /usr/local/lib/python2.7/dist-packages -type d -exec chmod a+x {} \;
 
           (The paths above will work for Ubuntu; they may need to be adjusted
           for other distros).
@@ -171,9 +172,11 @@ install them upfront (e.g. if you're planning to use WA to an environment that
 may not always have Internet access).
 
   * nose
-  * PyDAQmx
-  * pymongo
-  * jinja2
+  * mock
+  * daqpower
+  * sphinx
+  * sphinx_rtd_theme
+  * psycopg2-binary
 
 
 
@@ -204,6 +207,13 @@ Alternatively, you can also install the latest development version from GitHub
           installed alongside WA. If you wish to use pip please also manually
           install the latest version of
           `devlib <https://github.com/ARM-software/devlib>`_.
+
+.. note:: Please note that while a `requirements.txt` is included, this is
+          designed to be a reference of known working packages rather to than to
+          be used as part of a standard installation. The version restrictions
+          in place as part of `setup.py` should automatically ensure the correct
+          packages are install however if encountering issues please try
+          updating/downgrading to the package versions list within.
 
 
 If the above succeeds, try ::
