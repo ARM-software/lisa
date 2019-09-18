@@ -16,8 +16,8 @@
 #
 
 from unittest import TestCase
-from .utils import nullcontext
 
+from lisa.utils import nullcontext
 from lisa.trace import TraceEventChecker, AndTraceEventChecker, OrTraceEventChecker, MissingTraceEventError
 
 """ A test suite for event checking infrastructure."""
