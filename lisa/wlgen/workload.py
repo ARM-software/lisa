@@ -105,11 +105,24 @@ class Workload(Loggable):
 
     def wipe_run_dir(self):
         """
-        Wipe all content from the ``run_dir`` target directory
+        Wipe all content from the ``run_dir`` target directory.
+
+        .. note :: This function should only be called directly in interactive
+            sessions. For other purposes, use :class:`Workload` instances as a
+            context manager.
         """
         logger = self.get_logger()
         logger.info("Wiping run_dir [%s]", self.run_dir)
         self.target.execute("rm -rf {}".format(quote(self.run_dir)))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Wipe the run directory on the target.
+        """
+        self.wipe_run_dir()
 
     def run(self, cpus=None, cgroup=None, background=False, as_root=False, timeout=None):
         """
