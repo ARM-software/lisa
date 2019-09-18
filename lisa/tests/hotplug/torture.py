@@ -204,8 +204,9 @@ class HotplugBase(TestBundle):
         Test that all CPUs came back online after the hotplug operations
         """
         res = ResultBundle.from_bool(self.hotpluggable_cpus == self.live_cpus)
-        res.add_metric("hotpluggable CPUs", self.hotpluggable_cpus)
-        res.add_metric("Online CPUs", self.live_cpus)
+        dead_cpus = sorted(set(self.hotpluggable_cpus) - set(self.live_cpus))
+        res.add_metric("dead CPUs", dead_cpus)
+        res.add_metric("number of dead CPUs", len(dead_cpus))
         return res
 
 class HotplugTorture(HotplugBase):
