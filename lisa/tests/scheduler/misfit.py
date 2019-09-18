@@ -118,9 +118,15 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         sdf = sdf[self.trace.start + self.IDLING_DELAY_S * 0.9:]
 
-        for task in self.rtapp_tasks:
-            task_cpu = int(task.strip("{}_".format(self.task_prefix)))
-            task_start = sdf[(sdf.next_comm == task) & (sdf["__cpu"] == task_cpu)].index[0]
+        # Find out when all tasks started executing on their designated CPU
+        for task, profile in self.rtapp_profile.items():
+            task_cpu = profile.phases[0].cpus[0]
+
+            names = self.rtapp_tasks_map[task]
+            assert len(names) == 1
+            name = names[0]
+
+            task_start = sdf[(sdf.next_comm == name) & (sdf["__cpu"] == task_cpu)].index[0]
             last_start = max(last_start, task_start)
 
         self.start_time = last_start
