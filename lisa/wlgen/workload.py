@@ -111,6 +111,37 @@ class Workload(Loggable):
         logger.info("Wiping run_dir [%s]", self.run_dir)
         self.target.execute("rm -rf {}".format(quote(self.run_dir)))
 
+    def wrap_command(self, cpus=None, cgroup=None):
+        """
+        Wrap the workload's command with taskset and cgroup constraints
+
+        :param cpus: CPUs on which to restrict the workload execution (taskset)
+        :type cpus: list(int)
+
+        :param cgroup: cgroup in which to run the workload
+        :type cgroup: str
+
+        :returns: The command augmented with relevant taskset/cgroup invocations
+        """
+        command = self.command
+
+        if not command:
+            raise RuntimeError("Workload does not specify any command to execute")
+
+        if cpus:
+            taskset_bin = self.target.which('taskset')
+            if not taskset_bin:
+                raise RuntimeError("Could not find 'taskset' executable on the target")
+
+            cpumask = list_to_mask(cpus)
+            taskset_cmd = '{} {}'.format(quote(taskset_bin), quote('0x{:x}'.format(cpumask)))
+            command = '{} {}'.format(taskset_cmd, command)
+
+        if cgroup:
+            command = self.target.cgroups.run_into_cmd(cgroup, command)
+
+        return command
+
     def run(self, cpus=None, cgroup=None, background=False, as_root=False, timeout=None):
         """
         Execute the workload on the configured target.
@@ -135,30 +166,15 @@ class Workload(Loggable):
         The standard output will be saved into a file in ``self.res_dir``
         """
         logger = self.get_logger()
-        if not self.command:
-            raise RuntimeError("Workload does not specify any command to execute")
-
-        _command = self.command
         target = self.target
+        command = self.wrap_command(cpus, cgroup)
 
-        if cpus:
-            taskset_bin = target.which('taskset')
-            if not taskset_bin:
-                raise RuntimeError("Could not find 'taskset' executable on the target")
-
-            cpumask = list_to_mask(cpus)
-            taskset_cmd = '{} {}'.format(quote(taskset_bin), quote('0x{:x}'.format(cpumask)))
-            _command = '{} {}'.format(taskset_cmd, _command)
-
-        if cgroup:
-            _command = target.cgroups.run_into_cmd(cgroup, _command)
-
-        logger.info("Execution start: %s", _command)
+        logger.info("Execution start: %s", command)
 
         if background:
-            target.background(_command, as_root=as_root)
+            target.background(command, as_root=as_root)
         else:
-            self.output = target.execute(_command, as_root=as_root, timeout=timeout)
+            self.output = target.execute(command, as_root=as_root, timeout=timeout)
             logger.info("Execution complete")
 
             logfile = ArtifactPath.join(self.res_dir, 'output.log')
