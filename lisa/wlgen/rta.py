@@ -185,6 +185,11 @@ class RTA(Workload):
             'duration': -1 if not max_duration_s else max_duration_s,
             'calibration': calibration,
             'logdir': self.run_dir,
+            # TODO: this can only be enabled when rt-app is running as root.
+            # unfortunately, that's currently decided when calling
+            # run(as_root=True), at which point we already generated and pushed
+            # the JSON
+            'lock_pages': False,
         }
 
         if max_duration_s:
