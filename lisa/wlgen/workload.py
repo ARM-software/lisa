@@ -52,7 +52,7 @@ class Workload(Loggable):
     **Implementation example**::
 
         class Printer(Workload):
-            def __init__(self, target, name, res_dir=None):
+            def __init__(self, target, name=None, res_dir=None):
                 super().__init__(target, name, res_dir)
                 self.command = "echo"
 
@@ -76,9 +76,9 @@ class Workload(Loggable):
     :meth:`lisa.target.Target.install_tools`.
     """
 
-    def __init__(self, target, name, res_dir=None):
+    def __init__(self, target, name=None, res_dir=None):
         self.target = target
-        self.name = name
+        self.name = name or self.__class__.__qualname__
         self.command = None
         self.output = ""
 
@@ -95,7 +95,7 @@ class Workload(Loggable):
         logger.info("Creating target's run_dir: %s", self.run_dir)
 
         res_dir = res_dir if res_dir else target.get_res_dir(
-            name='{}-{}'.format(self.__class__.__qualname__, name)
+            name=name, append_time=True
         )
         self.res_dir = res_dir
 

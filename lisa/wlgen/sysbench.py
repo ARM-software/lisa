@@ -51,7 +51,7 @@ class Sysbench(Workload):
 
     required_tools = Workload.required_tools + ['sysbench']
 
-    def __init__(self, target, name, res_dir=None):
+    def __init__(self, target, name=None, res_dir=None):
         super().__init__(target, name, res_dir)
 
         sysbench_bin = self.target.which('sysbench')

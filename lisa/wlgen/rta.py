@@ -46,7 +46,7 @@ class RTA(Workload):
 
     sched_policies = ['OTHER', 'FIFO', 'RR', 'DEADLINE']
 
-    def __init__(self, target, name, res_dir=None, json_file=None):
+    def __init__(self, target, name=None, res_dir=None, json_file=None):
         # Don't add code here, use the early/late init methods instead.
         # This lets us factorize some code for the class methods that serve as
         # alternate constructors.
