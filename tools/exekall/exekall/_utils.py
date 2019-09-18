@@ -500,29 +500,29 @@ def find_customization_module_set(module_set):
 
     return customization_module_set
 
-def import_modules(paths_or_names):
+def import_modules(paths_or_names, best_effort=False):
     """
     Import the modules in the given list of paths.
 
     If a folder is passed, all Python sources are recursively imported.
     """
-    def import_it(path_or_name):
+    def import_it(path_or_name, best_effort):
         # Recursively import all modules when passed folders
         if path_or_name.is_dir():
-            yield from import_folder(path_or_name)
+            yield from import_folder(path_or_name, best_effort)
         # If passed a file, a symlink or something like that
         elif path_or_name.exists():
-            yield import_file(path_or_name)
+            yield import_file(path_or_name, best_effort)
         # Otherwise, assume it is just a module name
         else:
-            yield from import_name_recursively(path_or_name)
+            yield from import_name_recursively(path_or_name, best_effort)
 
     return set(itertools.chain.from_iterable(
-        import_it(pathlib.Path(path))
+        import_it(pathlib.Path(path), best_effort)
         for path in paths_or_names
     ))
 
-def import_name_recursively(name):
+def import_name_recursively(name, best_effort=False):
     """
     Import a module by its name.
 
@@ -532,7 +532,13 @@ def import_name_recursively(name):
     If it's a package, import all submodules recursively.
     """
 
-    mod = importlib.import_module(str(name))
+    try:
+        mod = importlib.import_module(str(name))
+    except ImportError:
+        if best_effort:
+            return
+        else:
+            raise
     try:
         paths = mod.__path__
     # This is a plain module
@@ -541,14 +547,20 @@ def import_name_recursively(name):
     # This is a package, so we import all the submodules recursively
     else:
         for path in paths:
-            yield from import_folder(pathlib.Path(path))
+            yield from import_folder(pathlib.Path(path), best_effort)
 
-def import_folder(path):
+def import_folder(path, best_effort=False):
     """
     Import all modules contained in the given folder, recurisvely.
     """
     for python_src in glob.iglob(str(path/'**'/'*.py'), recursive=True):
-        yield import_file(python_src)
+        try:
+            yield import_file(python_src)
+        except ImportError:
+            if best_effort:
+                continue
+            else:
+                raise
 
 def import_file(python_src, module_name=None, is_package=False):
     """
@@ -624,11 +636,22 @@ def import_file(python_src, module_name=None, is_package=False):
                 ))
 
         module = importlib.util.module_from_spec(spec)
-        # Register module before executing it so relative imports will work
-        sys.modules[module_name] = module
-        # Nothing to execute in a namespace package
         if not is_namespace_package:
-            spec.loader.exec_module(module)
+            try:
+                # Register module before executing it so relative imports will
+                # work
+                sys.modules[module_name] = module
+                # Nothing to execute in a namespace package
+                spec.loader.exec_module(module)
+            # If the module cannot be imported cleanly regardless of the reason,
+            # make sure we remove it from sys.modules since it's broken. Future
+            # attempt to import it should raise again, rather than returning the
+            # broken module
+            except BaseException:
+                with contextlib.suppress(KeyError):
+                    del sys.modules[module_name]
+                raise
+
     #  Python <= v3.4 style
     else:
         module = importlib.machinery.SourceFileLoader(
