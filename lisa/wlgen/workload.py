@@ -15,15 +15,13 @@
 # limitations under the License.
 #
 
-import logging
-import os
-from shlex import quote
-
 from shlex import quote
 from datetime import datetime
+from subprocess import PIPE
+
 from devlib.utils.misc import list_to_mask
 
-from lisa.utils import Loggable, ArtifactPath
+from lisa.utils import Loggable, ArtifactPath, deprecate
 
 class Workload(Loggable):
     """
@@ -141,7 +139,42 @@ class Workload(Loggable):
             command = self.target.cgroups.run_into_cmd(cgroup, command)
 
         return command
+    def run_background(self, cpus=None, cgroup=None, as_root=False,
+                       stdout=PIPE, stderr=PIPE):
+        """
+        Execute the workload on the configured target asynchronously.
 
+        :param cpus: CPUs on which to restrict the workload execution (taskset)
+        :type cpus: list(int)
+
+        :param cgroup: cgroup in which to run the workload
+        :type cgroup: str
+
+        :param as_root: Whether to run the workload as root or not
+        :type as_root: bool
+
+        :returns: the Popen handle of the host subprocess executing the remote
+          command
+
+        .. note:: Popen handles can be used as context managers, so you could
+          (and probably should) use this like so::
+
+            with run_background() as handle:
+                do_stuff_with(handle)
+                handle.communicate()
+        """
+        logger = self.get_logger()
+        if not self.command:
+            raise RuntimeError("Workload does not specify any command to execute")
+
+        command = self.wrap_command(cpus, cgroup)
+        target = self.target
+
+        logger.info("Background execution start: %s", command)
+        return target.background(command, stdout=stdout, stderr=stderr, as_root=as_root)
+
+    @deprecate(parameter="background", replaced_by=run_background,
+               deprecated_in='2.0', removed_in='2.1')
     def run(self, cpus=None, cgroup=None, background=False, as_root=False, timeout=None):
         """
         Execute the workload on the configured target.
@@ -170,17 +203,13 @@ class Workload(Loggable):
         command = self.wrap_command(cpus, cgroup)
 
         logger.info("Execution start: %s", command)
+        self.output = target.execute(command, as_root=as_root, timeout=timeout)
+        logger.info("Execution complete")
 
-        if background:
-            target.background(command, as_root=as_root)
-        else:
-            self.output = target.execute(command, as_root=as_root, timeout=timeout)
-            logger.info("Execution complete")
+        logfile = ArtifactPath.join(self.res_dir, 'output.log')
+        logger.debug('Saving stdout to %s...', logfile)
 
-            logfile = ArtifactPath.join(self.res_dir, 'output.log')
-            logger.debug('Saving stdout to %s...', logfile)
-
-            with open(logfile, 'w') as ofile:
-                ofile.write(self.output)
+        with open(logfile, 'w') as ofile:
+            ofile.write(self.output)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
