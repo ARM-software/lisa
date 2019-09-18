@@ -23,10 +23,11 @@ import abc
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from itertools import chain
 from devlib.target import KernelVersion
 
 from lisa.wlgen.rta import Periodic, Ramp, Step
-from lisa.analysis.rta import PerfAnalysis
+from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.tests.base import ResultBundle, CannotCreateError, RTATestBundle
 from lisa.utils import ArtifactPath
 from lisa.datautils import series_integrate
@@ -333,6 +334,7 @@ class EASBehaviour(RTATestBundle):
 
         return res
 
+    @RTAEventsAnalysis.df_rtapp_stats.used_events
     def test_slack(self, negative_slack_allowed_pct=15) -> ResultBundle:
         """
         Assert that the RTApp workload was given enough performance
@@ -341,17 +343,16 @@ class EASBehaviour(RTATestBundle):
             activations with negative slack.
         :type negative_slack_allowed_pct: int
 
-        Use :class:`lisa.analysis.rta.PerfAnalysis` to find instances where the
-        RT-App workload wasn't able to complete its activations (i.e. its
-        reported "slack" was negative). Assert that this happened less than
+        Use :class:`lisa.analysis.rta.EASEventsAnalysis` to find instances
+        where the RT-App workload wasn't able to complete its activations (i.e.
+        its reported "slack" was negative). Assert that this happened less than
         ``negative_slack_allowed_pct`` percent of the time.
         """
-        analysis = PerfAnalysis.from_dir(self.res_dir)
-
         passed = True
         bad_activations = {}
-        for task in analysis.tasks:
-            slack = analysis.get_df(task)["Slack"]
+        test_tasks = list(chain.from_iterable(self.rtapp_tasks_map.values()))
+        for task in test_tasks:
+            slack = self.trace.analysis.rta.df_rtapp_stats(task)["slack"]
 
             bad_activations_pct = len(slack[slack < 0]) * 100 / len(slack)
             if bad_activations_pct > negative_slack_allowed_pct:
