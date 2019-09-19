@@ -883,11 +883,7 @@ class DmesgTestBundle(TestBundle):
         :class:`devlib.trace.dmesg.KernelLogEntry`.
         """
         with open(self.dmesg_path) as f:
-            return [
-                KernelLogEntry.from_str(line)
-                for line in f.read().splitlines()
-                if line.strip()
-            ]
+            return list(KernelLogEntry.from_dmesg_output(f.read()))
 
     def test_dmesg(self, level='warn', facility=None, ignored_patterns:DmesgTestConf.IgnoredPatterns=None) -> ResultBundle:
         """

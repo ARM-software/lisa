@@ -115,7 +115,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [str]),
 
         KeyDesc('host', 'Hostname or IP address of the host', [str, None]),
-        KeyDesc('username', 'SSH username', [str, None]),
+        KeyDesc('username', 'SSH username. On ADB connections, "root" username will root adb upon target connection', [str, None]),
         PasswordKeyDesc('password', 'SSH password', [str, None]),
         KeyDesc('port', 'SSH or ADB server port', [int, None]),
         KeyDesc('device', 'ADB device. Takes precedence over "host"', [str, None]),
@@ -516,6 +516,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 device = 'DEFAULT'
 
             conn_settings['device'] = device
+            conn_settings['adb_as_root'] = (username == 'root')
 
         elif kind == 'linux':
             logger.debug('Setting up Linux target...')
@@ -543,7 +544,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         logger.info('%s %s target connection settings:', kind, name)
         for key, val in conn_settings.items():
-            logger.info('%10s : %s', key, val)
+            logger.info('    %s: %s', key, val)
 
         ########################################################################
         # Devlib Platform configuration
@@ -601,9 +602,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         logger.debug('  workdir: %s', target.working_directory)
 
         target.setup()
-
-        if isinstance(target, devlib.AndroidTarget):
-            target.adb_root(force=True)
 
         # Verify that all the required modules have been initialized
         for module in devlib_module_list:
