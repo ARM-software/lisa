@@ -51,6 +51,7 @@ Maintenance commands
 * ``lisa-update-subtrees``  - Update the subtrees by pulling their latest changes
 * ``lisa-log-subtree``      - Git log on the squashed commits of the given
   subtree. All other options are passed to `git log`.
+* ``lisa-doc-build``        - Build the documentation
 
 
 Notebooks commands
@@ -113,12 +114,10 @@ Environment variables
 The following environment variables are available:
 
 .. run-command::
-   
+
   # Strip-out version-specific info, so we have a more stable output
   export LISA_VENV_PATH=".lisa-venv-<python version>"
   env-list.py --rst --filter-home
 
 If an environment variable is defined prior to sourcing ``init_env``, it will
 keep its value.
-
-

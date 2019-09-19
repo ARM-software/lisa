@@ -19,6 +19,8 @@
 
 ret=0
 
+cd "$LISA_HOME/doc" || exit 1
+
 ##############################
 # Build the main documentation
 ##############################
@@ -70,5 +72,7 @@ docs=(
 for doc in "${docs[@]}"; do
     sphinx-build "$LISA_HOME/$doc" "$LISA_HOME/doc/man1" -Enab man || ret=2
 done
+
+echo "Man pages have been updated and the main documentation can be found under: $LISA_HOME/doc/_build/html/index.html"
 
 exit $ret
