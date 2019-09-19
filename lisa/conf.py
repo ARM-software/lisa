@@ -24,6 +24,7 @@ import inspect
 import itertools
 import textwrap
 import logging
+import re
 
 from lisa.utils import (
     Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
@@ -56,7 +57,14 @@ class KeyDescBase(abc.ABC):
     to sanitize user input and generate help snippets used in various places.
     """
     INDENTATION = 4 * ' '
+    _VALID_NAME_PATTERN = r'^[a-zA-Z0-9-]+$'
+
     def __init__(self, name, help):
+        if not re.match(self._VALID_NAME_PATTERN, name):
+            raise ValueError('Invalid key name "{}". Key names must match: {}'.format(
+                name, self._VALID_NAME_PATTERN,
+            ))
+
         self.name = name
         self.help = help
         self.parent = None
