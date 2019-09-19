@@ -508,6 +508,7 @@ class MultiSrcConfMeta(abc.ABCMeta):
                     Newtype.__name__ = newtype_name
                     Newtype.__qualname__ = '{}.{}'.format(new_cls.__qualname__, newtype_name)
                     Newtype.__module__ = new_cls.__module__
+                    Newtype.__doc__ = key_desc.help
                     setattr(new_cls, newtype_name, Newtype)
 
                     def make_getter(cls, type_, key_desc):
