@@ -44,6 +44,7 @@ from lisa.target import Target
 from lisa.utils import (
     Serializable, memoized, ArtifactPath, non_recursive_property,
     update_wrapper_doc, ExekallTaggable, annotations_from_signature,
+    nullcontext,
 )
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
@@ -1261,7 +1262,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         return '/' + cg.name
 
     @classmethod
-    def run_rtapp(cls, target, res_dir, profile=None, ftrace_coll=None, cg_cfg=None):
+    def run_rtapp(cls, target, res_dir, profile=None, ftrace_coll=None, cg_cfg=None, wipe_run_dir=True):
         """
         Run the given RTA profile on the target, and collect an ftrace trace.
 
@@ -1286,6 +1287,10 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             :meth:`lisa.tests.base.RTATestBundle.get_cgroup_configuration` is
             called with ``target.plat_info``.
         :type cg_cfg: dict
+
+        :param wipe_run_dir: Remove the run directory on the target after
+            execution of the workload.
+        :type wipe_run_dir: bool
         """
 
         trace_path = ArtifactPath.join(res_dir, cls.TRACE_PATH)
@@ -1300,6 +1305,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                                profile, res_dir=res_dir)
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
         as_root = cgroup is not None
+        wload_cm = wload if wipe_run_dir else nullcontext(wload)
 
         # Pre-hit the calibration information, in case this is a lazy value.
         # This avoids polluting the trace and the dmesg output with the
@@ -1307,7 +1313,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         # anything useful, it's reasonable to do it here.
         target.plat_info['rtapp']['calib']
 
-        with dmesg_coll, ftrace_coll, target.freeze_userspace():
+        with wload_cm, dmesg_coll, ftrace_coll, target.freeze_userspace():
             wload.run(cgroup=cgroup, as_root=as_root)
 
         ftrace_coll.get_trace(trace_path)
