@@ -311,6 +311,7 @@ class Serializable(Loggable):
     "Default format used when serializing objects"
 
     _yaml = YAML(typ='unsafe')
+    _roundtrip_yaml = YAML()
 
     @classmethod
     def _init_yaml(cls):
@@ -318,21 +319,21 @@ class Serializable(Loggable):
         Needs to be called only once when the module is imported. Since that is
         done at module-level, there is no need to do that from user code.
         """
-        yaml = cls._yaml
-        # If allow_unicode=True, true unicode characters will be written to the
-        # file instead of being replaced by escape sequence.
-        yaml.allow_unicode = ('utf' in cls.YAML_ENCODING)
-        yaml.default_flow_style = False
-        yaml.indent = 4
-        yaml.constructor.add_constructor('!include', cls._yaml_include_constructor)
-        yaml.constructor.add_constructor('!var', cls._yaml_var_constructor)
-        yaml.constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
-        yaml.constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
+        for yaml in (cls._yaml, cls._roundtrip_yaml):
+            # If allow_unicode=True, true unicode characters will be written to the
+            # file instead of being replaced by escape sequence.
+            yaml.allow_unicode = ('utf' in cls.YAML_ENCODING)
+            yaml.default_flow_style = False
+            yaml.indent = 4
+            yaml.constructor.add_constructor('!include', functools.partial(cls._yaml_include_constructor, yaml=yaml))
+            yaml.constructor.add_constructor('!var', cls._yaml_var_constructor)
+            yaml.constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
+            yaml.constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
 
-        # Replace unknown tags by a placeholder object containing the data.
-        # This happens when the class was not imported at the time the object
-        # was deserialized
-        yaml.constructor.add_constructor(None, cls._yaml_unknown_tag_constructor)
+            # Replace unknown tags by a placeholder object containing the data.
+            # This happens when the class was not imported at the time the object
+            # was deserialized
+            yaml.constructor.add_constructor(None, cls._yaml_unknown_tag_constructor)
 
     @classmethod
     def _yaml_unknown_tag_constructor(cls, loader, node):
@@ -382,7 +383,7 @@ class Serializable(Loggable):
             Serializable._included_path.val = old
 
     @classmethod
-    def _yaml_include_constructor(cls, loader, node):
+    def _yaml_include_constructor(cls, yaml, loader, node):
         path = loader.construct_scalar(node)
         assert isinstance(path, str)
         path = os.path.expandvars(path)
@@ -393,7 +394,7 @@ class Serializable(Loggable):
 
         with cls._set_relative_include_root(path):
             with open(path, 'r', encoding=cls.YAML_ENCODING) as f:
-                return cls._yaml.load(f)
+                return yaml.load(f)
 
     @classmethod
     def _yaml_env_var_constructor(cls, loader, suffix, node):
@@ -447,9 +448,13 @@ class Serializable(Loggable):
         if fmt is None:
             fmt = cls.DEFAULT_SERIALIZATION_FMT
 
+        yaml_kwargs = dict(mode='w', encoding=cls.YAML_ENCODING)
         if fmt == 'yaml':
-            kwargs = dict(mode='w', encoding=cls.YAML_ENCODING)
+            kwargs = yaml_kwargs
             dumper = cls._yaml.dump
+        elif fmt == 'yaml-roundtrip':
+            kwargs = yaml_kwargs
+            dumper = cls._roundtrip_yaml.dump
         elif fmt == 'pickle':
             kwargs = dict(mode='wb')
             dumper = pickle.dump
