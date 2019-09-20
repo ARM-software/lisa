@@ -30,6 +30,8 @@ from lisa.utils import (
     is_running_sphinx, get_cls_name, HideExekallID,
 )
 
+from ruamel.yaml.comments import CommentedMap
+
 class DeferredValue:
     """
     Wrapper similar to functools.partial.
@@ -584,6 +586,12 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
         return mapping
 
     def to_yaml_map(self, path):
+        """
+        Write a configuration file, with the key descriptions in comments.
+
+        :param path: Path to the file to write to.
+        :type path: str
+        """
         return self._to_path(self.as_yaml_map, path, fmt='yaml')
 
     # Only used with Python >= 3.6, but since that is just a sanity check it
@@ -1234,6 +1242,62 @@ class SimpleMultiSrcConf(MultiSrcConf):
 
     def to_map(self):
         return dict(self._get_effective_map())
+
+    def to_yaml_map(self, path, add_placeholder=False, placeholder='<no default>'):
+        """
+        Write a configuration file, with the key descriptions in comments.
+
+        :param path: Path to the file to write to.
+        :type path: str
+
+        :param add_placeholder: If ``True``, a placeholder value will be used
+            for keys that don't have values. This allows creating template
+            configuration files that list all keys.
+        :type add_placeholder: bool
+
+        :param placeholder: Placeholder to use for missing values when
+            ``add_placeholder`` is used.
+        :type placeholder: object
+        """
+
+        def format_comment(key_desc):
+            comment = key_desc.help
+            if not comment:
+                return comment
+            else:
+                return comment[0].upper() + comment[1:]
+
+        def add_help(key_desc, data):
+            name = key_desc.name
+
+            if isinstance(key_desc, LevelKeyDesc):
+                level_data = CommentedMap(data.get(name, {}))
+
+                for subkey_desc in key_desc.children:
+                    if subkey_desc.name not in level_data:
+                        if add_placeholder:
+                            if isinstance(subkey_desc, DerivedKeyDesc):
+                                continue
+
+                            if not isinstance(subkey_desc, LevelKeyDesc):
+                                level_data[subkey_desc.name] = placeholder
+                        else:
+                            continue
+
+                    indent = 4 * (len(subkey_desc.path) - 1)
+                    level_data.yaml_set_comment_before_after_key(subkey_desc.name,
+                        indent=indent,
+                        before='\n' + format_comment(subkey_desc),
+                    )
+                    add_help(subkey_desc, level_data)
+
+                data[name] = level_data
+
+        data = CommentedMap(self.as_yaml_map)
+        data.yaml_set_start_comment(format_comment(self.STRUCTURE))
+        add_help(self.STRUCTURE, data)
+
+        return self._to_path(data, path, fmt='yaml-roundtrip')
 
 class ConfigurableMeta(abc.ABCMeta):
     def __new__(metacls, name, bases, dct, **kwargs):
