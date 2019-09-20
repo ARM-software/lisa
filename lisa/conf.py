@@ -1341,9 +1341,9 @@ class ConfigurableMeta(abc.ABCMeta):
 
 class Configurable(abc.ABC, metaclass=ConfigurableMeta):
     """
-    Pear a regular class with a configuration class.
+    Pair a regular class with a configuration class.
 
-    The pearing is achieved by inheriting from :class:`Configurable` and
+    The pairing is achieved by inheriting from :class:`Configurable` and
     setting ``CONF_CLASS`` attribute. The benefits are:
 
         * The docstring of the class is processed as a string template and
@@ -1368,7 +1368,7 @@ class Configurable(abc.ABC, metaclass=ConfigurableMeta):
     configuration key. That path is a list of strings to take into account
     sublevels like ``['level-key', 'sublevel', 'foo']``.
 
-    .. note:: A given configuration class must be peared to only one class.
+    .. note:: A given configuration class must be paired to only one class.
         Otherwise, the ``DEFAULT_SRC`` conf class attribute will be updated
         multiple times, leading to unexpected results.
 
