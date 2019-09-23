@@ -180,15 +180,17 @@ class RTA(Workload):
         self._early_init(target, name, res_dir, None)
 
         # Sanity check for task names rt-app uses pthread_setname_np(3) which
-        # limits the task name to 16 characters including the terminal '\0'.
-        too_long_tids = sorted((
+        # limits the task name to 16 characters including the terminal '\0' and
+        # the rt-app suffix.
+        max_size = TASK_COMM_MAX_LEN - len('-XX-XXXX')
+        too_long_tids = sorted(
             tid for tid in profile.keys()
-            if len(tid) > TASK_COMM_MAX_LEN
-        ))
+            if len(tid) > max_size
+        )
         if too_long_tids:
             raise ValueError(
-                'Task names too long, please configure your tasks with names shorter than 16 characters: {}'.format(
-                too_long_tids
+                'Task names too long, please configure your tasks with names shorter than {} characters: {}'.format(
+                max_size, too_long_tids
             ))
 
         invalid_tids = sorted((
