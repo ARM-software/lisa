@@ -325,7 +325,7 @@ class Serializable(Loggable):
             yaml.allow_unicode = ('utf' in cls.YAML_ENCODING)
             yaml.default_flow_style = False
             yaml.indent = 4
-            yaml.constructor.add_constructor('!include', functools.partial(cls._yaml_include_constructor, yaml=yaml))
+            yaml.constructor.add_constructor('!include', functools.partial(cls._yaml_include_constructor, yaml))
             yaml.constructor.add_constructor('!var', cls._yaml_var_constructor)
             yaml.constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
             yaml.constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
