@@ -24,7 +24,7 @@ import pandas as pd
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import TaskID, requires_events
-from lisa.utils import memoized
+from lisa.utils import memoized, deprecate
 
 class RTAEventsAnalysis(TraceAnalysisBase):
     """
@@ -666,7 +666,10 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         if local_fig:
             axis.set_title(ylabel)
 
-
+@deprecate('Log-file based analysis has been replaced by ftrace-based analysis',
+    deprecated_in='2.0',
+    replaced_by=RTAEventsAnalysis,
+)
 class PerfAnalysis(AnalysisHelpers):
     """
     Parse and analyse a set of RTApp log files
