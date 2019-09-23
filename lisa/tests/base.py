@@ -1038,7 +1038,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             for prefix, regexp in prefix_regexps.items()
         }
 
-        missing = set(self.rtapp_profile.keys()) - task_map.keys()
+        missing = sorted(prefix for prefix, comms in task_map.items() if not comms)
         if missing:
             raise RuntimeError("Missing tasks matching the following rt-app profile names: {}"
                                 .format(', '.join(missing)))
