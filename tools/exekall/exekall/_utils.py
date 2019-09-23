@@ -512,7 +512,13 @@ def import_modules(paths_or_names, best_effort=False):
             yield from import_folder(path_or_name, best_effort=best_effort)
         # If passed a file, a symlink or something like that
         elif path_or_name.exists():
-            yield import_file(path_or_name)
+            try:
+                yield import_file(path_or_name)
+            except ImportError:
+                if best_effort:
+                    return
+                else:
+                    raise
         # Otherwise, assume it is just a module name
         else:
             yield from import_name_recursively(path_or_name, best_effort=best_effort)
