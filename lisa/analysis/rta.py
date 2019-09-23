@@ -71,7 +71,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
             if not evt.startswith('rtapp_'):
                 continue
             df = self.trace.df_events(evt)
-            for pid,name in df[['__pid', '__comm']].drop_duplicates().values:
+            for pid, name in df[['__pid', '__comm']].drop_duplicates().values:
                 task_ids.add(TaskID(pid, name))
         return sorted(task_ids)
 
