@@ -631,7 +631,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         task = self.trace.get_task_id(task)
         ylabel = 'slack of "{}"'.format(task)
         series = self.df_rtapp_stats(task)['slack']
-        series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel)
+        series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel, figure=axis.get_figure())
         axis.axvline(series.mean(), linestyle='--', linewidth=2, label='mean')
         axis.legend()
 
@@ -659,7 +659,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         self.get_logger().info('perf index of task "{}": avg={:.2f} std={:.2f}'
                                .format(task, mean, series.std()))
 
-        series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel)
+        series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel, figure=axis.get_figure())
         axis.axvline(mean, linestyle='--', linewidth=2, label='mean')
         axis.legend()
 
