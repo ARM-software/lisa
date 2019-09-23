@@ -166,6 +166,8 @@ class Workload(Loggable):
         if cgroup:
             _command = target.cgroups.run_into_cmd(cgroup, _command)
 
+        _command = 'cd {} && {}'.format(quote(self.run_dir), _command)
+
         logger.info("Execution start: %s", _command)
 
         if background:
