@@ -509,16 +509,16 @@ def import_modules(paths_or_names, best_effort=False):
     def import_it(path_or_name, best_effort):
         # Recursively import all modules when passed folders
         if path_or_name.is_dir():
-            yield from import_folder(path_or_name, best_effort)
+            yield from import_folder(path_or_name, best_effort=best_effort)
         # If passed a file, a symlink or something like that
         elif path_or_name.exists():
-            yield import_file(path_or_name, best_effort)
+            yield import_file(path_or_name)
         # Otherwise, assume it is just a module name
         else:
-            yield from import_name_recursively(path_or_name, best_effort)
+            yield from import_name_recursively(path_or_name, best_effort=best_effort)
 
     return set(itertools.chain.from_iterable(
-        import_it(pathlib.Path(path), best_effort)
+        import_it(pathlib.Path(path), best_effort=best_effort)
         for path in paths_or_names
     ))
 
@@ -547,7 +547,7 @@ def import_name_recursively(name, best_effort=False):
     # This is a package, so we import all the submodules recursively
     else:
         for path in paths:
-            yield from import_folder(pathlib.Path(path), best_effort)
+            yield from import_folder(pathlib.Path(path), best_effort=best_effort)
 
 def import_folder(path, best_effort=False):
     """
