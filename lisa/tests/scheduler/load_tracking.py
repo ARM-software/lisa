@@ -227,7 +227,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
     roughly the same util & load values regardless of compute power of the
     CPU used and its frequency.
     """
-    task_prefix = 'invariance'
+    task_prefix = 'invar'
     cpufreq_conf = {
         "governor" : "userspace"
     }
@@ -259,7 +259,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         duty_cycle_pct //= 2
 
         rtapp_profile = {}
-        rtapp_profile["{}_cpu{}".format(cls.task_prefix, cpu)] = Periodic(
+        rtapp_profile["{}{}".format(cls.task_prefix, cpu)] = Periodic(
             duty_cycle_pct=duty_cycle_pct,
             duration_s=2,
             period_ms=cls.TASK_PERIOD_MS,
@@ -654,7 +654,7 @@ class PELTTask(LoadTrackingBase):
     the signal should be very similar to simulated one.
     """
 
-    task_prefix = 'pelt_behv'
+    task_prefix = 'pelt'
 
     TASK_PERIOD_MS = 16 * (1024/1000)
     """
@@ -667,7 +667,7 @@ class PELTTask(LoadTrackingBase):
         cpu = cls.get_max_capa_cpu(plat_info)
 
         rtapp_profile = {}
-        rtapp_profile["{}_cpu{}".format(cls.task_prefix, cpu)] = Periodic(
+        rtapp_profile["{}{}".format(cls.task_prefix, cpu)] = Periodic(
             duty_cycle_pct=50,
             duration_s=2,
             period_ms=cls.TASK_PERIOD_MS,
@@ -1083,7 +1083,7 @@ class OneTaskCPUMigration(CPUMigrationBase):
         profile = {}
         cpus = cls.get_migration_cpus(plat_info)
 
-        for task in ["migrating", "static0", "static1"]:
+        for task in ["migr", "static0", "static1"]:
             # An empty RTATask just to sum phases up
             profile[task] = RTATask()
 
@@ -1094,7 +1094,7 @@ class OneTaskCPUMigration(CPUMigrationBase):
 
         for cpu in cpus:
             # A task that will migrate to another CPU
-            profile["migrating"] += Periodic(
+            profile["migr"] += Periodic(
                 duty_cycle_pct=cls.unscaled_utilization(plat_info, cpu, 20),
                 cpus=[cpu], **common_phase_settings)
 
@@ -1117,7 +1117,7 @@ class NTasksCPUMigrationBase(CPUMigrationBase):
     @classmethod
     def get_rtapp_profile(cls, plat_info):
         cpus = cls.get_migration_cpus(plat_info)
-        make_name = lambda i: 'migrating{}'.format(i)
+        make_name = lambda i: 'migr{}'.format(i)
 
         nr_tasks = len(cpus)
         profile = {

@@ -522,7 +522,7 @@ class RampUp(EASBehaviour):
     """
     A single task whose utilization slowly ramps up
     """
-    task_name = "ramp_up"
+    task_name = "up"
 
     @EASBehaviour.test_task_placement.used_events
     def test_task_placement(self, energy_est_threshold_pct=15, nrg_model:EnergyModel=None,
@@ -568,7 +568,7 @@ class RampDown(EASBehaviour):
     """
     A single task whose utilization slowly ramps down
     """
-    task_name = "ramp_down"
+    task_name = "down"
 
     @EASBehaviour.test_task_placement.used_events
     def test_task_placement(self, energy_est_threshold_pct=18, nrg_model:EnergyModel=None,

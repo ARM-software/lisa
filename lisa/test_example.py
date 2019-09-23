@@ -46,7 +46,7 @@ class ExampleTestBundle(RTATestBundle):
     gains some ``rt-app``-specific and ftrace capabilities.
     """
 
-    task_prefix = 'example'
+    task_prefix = 'exmpl'
     "Prefix used for rt-app task names"
 
     # res_dir and plat_info are "mandatory" parameters of all TestBundle, but
