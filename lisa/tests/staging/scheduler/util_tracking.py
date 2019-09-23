@@ -132,11 +132,11 @@ class Convergence(UtilTrackingBase):
         return cur_kernel < min_kernel
 
     def _plot_signals(self, task, test, failures):
-        signals=['util', 'util_est_enqueued', 'util_est_ewma']
+        signals = ['util', 'util_est_enqueued', 'util_est_ewma']
         ax = self.trace.analysis.load_tracking.plot_task_signals(task, signals=signals)
         ax = self.trace.analysis.rta.plot_phases(task, axis=ax);
         for start in failures:
-            ax = axes.axvline(start, alpha=0.5, color='r', axis=ax)
+            ax.axvline(start, alpha=0.5, color='r', axis=ax)
         filepath = os.path.join(self.res_dir, 'util_est_{}.png'.format(test))
         self.trace.analysis.rta.save_plot(ax.figure, filepath=filepath)
 
@@ -231,7 +231,7 @@ class Convergence(UtilTrackingBase):
         if not failure_reasons:
             return bundle
 
-        # Plot signals to support debugging analysis 
+        # Plot signals to support debugging analysis
         self._plot_signals(test_task, 'areas', failures)
         bundle.add_metric("failure reasons", failure_reasons)
 
