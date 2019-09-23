@@ -16,7 +16,7 @@
 #
 
 import os
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 import itertools
 from statistics import mean
 
@@ -28,7 +28,7 @@ from devlib.target import KernelVersion
 from lisa.tests.base import (TestMetric, Result, ResultBundle, TestBundle,
                              RTATestBundle, CannotCreateError)
 from lisa.target import Target
-from lisa.utils import ArtifactPath, memoized
+from lisa.utils import ArtifactPath, memoized, namedtuple
 from lisa.wlgen.rta import Periodic, Ramp
 from lisa.trace import FtraceCollector, requires_events
 from lisa.analysis.rta import RTAEventsAnalysis
