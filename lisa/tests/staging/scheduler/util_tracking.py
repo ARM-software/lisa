@@ -126,8 +126,9 @@ class Convergence(UtilTrackingBase):
     def fast_ramp(self):
         # The EWMA "fast ramp up" feature has been merged only in kernel TBD
         # TODO fix kernel version
-        min_kernel = KernelVersion('4.5-rc1').parts
+        return False
 
+        min_kernel = KernelVersion('5.4-rc1').parts
         cur_kernel = self.plat_info['kernel']['version'].parts
         return cur_kernel < min_kernel
 
