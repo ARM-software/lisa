@@ -54,8 +54,9 @@ class RTAEventsAnalysis(TraceAnalysisBase):
     def _task_filtered(self, df, task=None):
         if not task:
             return df
-        if type(task) is not TaskID:
-            task = self.trace.get_task_id(task)
+
+        task = self.trace.get_task_id(task)
+
         if task not in self.rtapp_tasks:
             raise ValueError("Task [{}] is not an rt-app task: {}"
                              .format(task, self.rtapp_tasks))
