@@ -225,7 +225,7 @@ class Convergence(UtilTrackingBase):
                     failures.append(phase.start)
                     continue
 
-        bundle = ResultBundle.from_bool(len(failure_reasons)==0)
+        bundle = ResultBundle.from_bool(failure_reasons)
         bundle.add_metric("fast ramp", self.fast_ramp)
         bundle.add_metric("phases stats", metrics)
         if not failure_reasons:
@@ -328,12 +328,10 @@ class Convergence(UtilTrackingBase):
                     failures.append(activation)
                     continue
 
-        bundle = ResultBundle.from_bool(len(failure_reasons)==0)
+        if failure_reasons:
+            self._plot_signals(test_task, 'activations', failures)
+
+        bundle = ResultBundle.from_bool(not failure_reasons)
         bundle.add_metric("signals", metrics)
-        if not failure_reasons:
-            return bundle
-
-        self._plot_signals(test_task, 'activations', failures)
         bundle.add_metric("failure reasons", failure_reasons)
-
         return bundle
