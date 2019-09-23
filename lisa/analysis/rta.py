@@ -147,11 +147,8 @@ class RTAEventsAnalysis(TraceAnalysisBase):
                   timestamps.
         """
         df = self.df_rtapp_main()
-
-        return self.RefTime(
-            df[df.event == 'clock_ref'].index.values[0],
-            df[df.event == 'clock_ref'].data.values[0]
-        )
+        df = df[df['event'] == 'clock_ref']
+        return self.RefTime(df.index.values[0], df.data.values[0])
 
     ###########################################################################
     # rtapp_task events related methods
