@@ -190,9 +190,9 @@ class Convergence(UtilTrackingBase):
             metrics[phase.id] = self.PhaseStats(phase.start, phase.end,
                                                 area_util, area_enqueued, area_ewma)
 
-            idx = "phase {}".format(phase.id)
+            phase_name = "phase {}".format(phase.id)
             if area_enqueued < area_util:
-                failure_reasons[idx] = 'Enqueued smaller then Util Average'
+                failure_reasons[phase_name] = 'Enqueued smaller then Util Average'
                 failures.append(phase.start)
                 continue
 
@@ -201,7 +201,7 @@ class Convergence(UtilTrackingBase):
 
                 # STABLE, DOWN and UP:
                 if area_ewma < area_enqueued:
-                    failure_reasons[idx] = 'NO_FAST_RAMP: EWMA smaller then Enqueued'
+                    failure_reasons[phase_name] = 'NO_FAST_RAMP: EWMA smaller then Enqueued'
                     failures.append(phase.start)
                     continue
 
@@ -210,19 +210,19 @@ class Convergence(UtilTrackingBase):
 
                 # STABLE: ewma ramping up
                 if phase.id == 0 and area_ewma > area_enqueued:
-                    failure_reasons[idx] = 'FAST_RAMP(STABLE): EWMA bigger then Enqueued'
+                    failure_reasons[phase_name] = 'FAST_RAMP(STABLE): EWMA bigger then Enqueued'
                     failures.append(phase.start)
                     continue
 
                 # DOWN: ewma ramping down
                 if 0 < phase.id < 5 and area_ewma < area_enqueued:
-                    failure_reasons[idx] = 'FAST_RAMP(DOWN): EWMA smaller then Enqueued'
+                    failure_reasons[phase_name] = 'FAST_RAMP(DOWN): EWMA smaller then Enqueued'
                     failures.append(phase.start)
                     continue
 
                 # UP: ewma ramping up
                 if phase.id > 4 and area_ewma > area_enqueued:
-                    failure_reasons[idx] = 'FAST_RAMP(UP): EWMA bigger then Enqueued'
+                    failure_reasons[phase_name] = 'FAST_RAMP(UP): EWMA bigger then Enqueued'
                     failures.append(phase.start)
                     continue
 
