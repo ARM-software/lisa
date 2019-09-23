@@ -369,19 +369,19 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         :param timestamp: the timestamp to get the phase for
         :type timestamp: int or float
 
-        :returns: the ID of the phase corresponding to the specified timestamp,
-                  None if the specified timestamp does not match a phase
+        :returns: the ID of the phase corresponding to the specified timestamp.
         """
         # Last phase is special, compute end time as start + duration
         last_phase_end = self.df_phases(task).index[-1]
         last_phase_end += float(self.df_phases(task).iloc[-1].values)
         if timestamp > last_phase_end:
-            return None
+            raise ValueError('Passed timestamp ({}) is after last phase end ({})'.format(
+                timestamp, last_phase_end))
 
         phase_id = len(self.df_phases(task)) - \
                    len(self.df_phases(task)[timestamp:]) - 1
         if phase_id < 0:
-            return None
+            raise ValueError('negative phase ID')
 
         return self.task_phase_window(task, phase_id)
 
