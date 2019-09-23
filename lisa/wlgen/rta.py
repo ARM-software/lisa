@@ -46,6 +46,8 @@ class RTA(Workload):
 
     sched_policies = ['OTHER', 'FIFO', 'RR', 'DEADLINE']
 
+    ALLOWED_TASK_NAME_REGEX = r'^[a-zA-Z0-9_]+$'
+
     def __init__(self, target, name, res_dir=None, json_file=None):
         # Don't add code here, use the early/late init methods instead.
         # This lets us factorize some code for the class methods that serve as
@@ -171,6 +173,16 @@ class RTA(Workload):
             raise ValueError(
                 'Task names too long, please configure your tasks with names shorter than 16 characters: {}'.format(
                 too_long_tids
+            ))
+
+        invalid_tids = sorted((
+            tid for tid in profile.keys()
+            if not re.match(cls.ALLOWED_TASK_NAME_REGEX, tid)
+        ))
+        if invalid_tids:
+            raise ValueError(
+                'Task names not matching "{}": {}'.format(
+                cls.ALLOWED_TASK_NAME_REGEX, invalid_tids,
             ))
 
         rta_profile = {
