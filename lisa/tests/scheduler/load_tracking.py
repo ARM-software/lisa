@@ -681,7 +681,19 @@ class PELTTask(LoadTrackingBase):
         """
         The name of the only task this test uses
         """
-        return self.rtapp_tasks[0]
+        tasks = self.rtapp_tasks
+        assert len(tasks) == 1
+        return tasks[0]
+
+    @property
+    def wlgen_task(self):
+        """
+        The :class:`lisa.wlgen.rta.RTATask` description of the only rt-app
+        task, as specified in the profile.
+        """
+        tasks = list(self.rtapp_profile.values())
+        assert len(tasks) == 1
+        return tasks[0]
 
     @LoadTrackingBase.get_task_sched_signal.used_events
     def get_task_sched_signal(self, cpu, signal):
@@ -706,7 +718,7 @@ class PELTTask(LoadTrackingBase):
             0, HALF_LIFE_MS
         )
 
-        phase = self.rtapp_profile[self.task_name].phases[0]
+        phase = self.wlgen_task.phases[0]
         peltsim = pelt.Simulator(init_value=init_value,
                                  half_life_ms=HALF_LIFE_MS)
         period_samples = int(phase.period_ms*1e3/peltsim._sample_us)
@@ -720,7 +732,7 @@ class PELTTask(LoadTrackingBase):
     @get_simulated_pelt.used_events
     def _test_range(self, signal_name, allowed_error_pct):
         res = ResultBundle.from_bool(True)
-        task = self.rtapp_profile[self.task_name]
+        task = self.wlgen_task
         cpu = task.phases[0].cpus[0]
 
         # Note: This test-case is only valid if executed at capacity == 1024.
@@ -764,7 +776,7 @@ class PELTTask(LoadTrackingBase):
     @requires_events('sched_switch')
     def _test_behaviour(self, signal_name, error_margin_pct, allowed_error_pct):
         res = ResultBundle.from_bool(True)
-        task = self.rtapp_profile[self.task_name]
+        task = self.wlgen_task
         phase = task.phases[0]
         cpu = phase.cpus[0]
 
