@@ -1991,7 +1991,7 @@ class ClassContext:
                 cycle_handler=cycle_handler,
             )
             for expr in expr_gen:
-                if expr.validate(op_map):
+                if expr.validate(cls_map):
                     expr_list.append(expr)
 
         # Apply CSE to get a cleaner result
@@ -2165,7 +2165,7 @@ class Expression(ExpressionBase):
 
     .. seealso:: :class:`ComputableExpression`.
     """
-    def validate(self, op_map):
+    def validate(self, cls_map):
         """
         Check that the Expression does not involve two classes that are
         compatible.
@@ -2175,18 +2175,19 @@ class Expression(ExpressionBase):
         same expression after :meth:`ExpressionBase.cse` is applied.
         """
         type_map = dict()
-        valid = self._populate_type_map(type_map)
-        if not valid:
+        if not self._populate_type_map(type_map):
             return False
 
-        cls_bags = [set(cls_list) for cls_list in op_map.values()]
-        cls_used = set(type_map.keys())
-        for cls1, cls2 in itertools.product(cls_used, repeat=2):
-            for cls_bag in cls_bags:
-                if cls1 in cls_bag and cls2 in cls_bag:
-                    return False
-
-        return True
+        # Use sets for faster inclusion test
+        cls_map = {
+            cls: set(cls_list)
+            for cls, cls_list in cls_map.items()
+        }
+        cls_used = type_map.keys()
+        return all(
+            cls1 not in cls_map[cls2] and cls2 not in cls_map[cls1]
+            for cls1, cls2 in itertools.combinations(cls_used, 2)
+        )
 
     def _populate_type_map(self, type_map):
         value_type = self.op.value_type
