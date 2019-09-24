@@ -62,11 +62,18 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
     # Prevent creation of a __dict__. This allows a more compact representation
     __slots__ = []
 
+    def __init__(self, *args, **kwargs):
+        # TODO: remove that once this trace-cmd issue is solved in one way or another:
+        # https://bugzilla.kernel.org/show_bug.cgi?id=204979
+        if self.comm == '<...>':
+            raise ValueError('Invalid comm name "<...>"')
+
     def __str__(self):
         if self.pid is not None and self.comm is not None:
             return '{}:{}'.format(self.pid, self.comm)
         else:
             return str(self.comm if self.comm is not None else self.pid)
+
 
 class TraceBase(abc.ABC):
     """
