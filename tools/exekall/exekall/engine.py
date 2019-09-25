@@ -2174,8 +2174,8 @@ class Expression(ExpressionBase):
         each expression, so that all references to that class will point to the
         same expression after :meth:`ExpressionBase.cse` is applied.
         """
-        type_map = dict()
-        if not self._populate_type_map(type_map):
+        valid, cls_used = self._get_used_cls()
+        if not valid:
             return False
 
         # Use sets for faster inclusion test
@@ -2183,25 +2183,34 @@ class Expression(ExpressionBase):
             cls: set(cls_list)
             for cls, cls_list in cls_map.items()
         }
-        cls_used = type_map.keys()
         return all(
             cls1 not in cls_map[cls2] and cls2 not in cls_map[cls1]
             for cls1, cls2 in itertools.combinations(cls_used, 2)
         )
 
-    def _populate_type_map(self, type_map):
-        value_type = self.op.value_type
-        # If there was already an Expression producing that type, the Expression
-        # is not valid
-        found_callable = type_map.get(value_type)
-        if found_callable is not None and found_callable is not self.op.callable_:
-            return False
-        type_map[value_type] = self.op.callable_
+    def _get_used_cls(self):
+        def go(expr, type_map):
+            value_type = expr.op.value_type
+            # If there was already an Expression producing that type, the Expression
+            # is not valid
+            try:
+                found_callable = type_map[value_type]
+            except KeyError:
+                pass
+            else:
+                if found_callable is not expr.op.callable_:
+                    return False
 
-        for param_expr in self.param_map.values():
-            if not param_expr._populate_type_map(type_map):
-                return False
-        return True
+            type_map[value_type] = expr.op.callable_
+
+            return all(
+                go(param_expr, type_map)
+                for param_expr in expr.param_map.values()
+            )
+
+        type_map = {}
+        valid = go(self, type_map)
+        return (valid, set(type_map.keys()))
 
 class AnnotationError(Exception):
     """
