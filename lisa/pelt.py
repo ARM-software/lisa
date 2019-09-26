@@ -15,10 +15,24 @@
 # limitations under the License.
 #
 
+import math
+
 import pandas as pd
 import numpy as np
 
-def simulate_pelt(activations, init=0, index=None, window=1024*1024*1e-9, half_life=32, scale=1024):
+PELT_WINDOW = 1024*1024*1e-9
+"""
+PELT window in seconds.
+"""
+
+PELT_HALF_LIFE = 32
+"""
+PELT half-life in number of windows.
+"""
+
+PELT_SCALE = 1024
+
+def simulate_pelt(activations, init=0, index=None, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
     """
     Simulate a PELT signal out of a series of activations.
 
@@ -129,5 +143,66 @@ def simulate_pelt(activations, init=0, index=None, window=1024*1024*1e-9, half_l
     )
     df['pelt'] = df.apply(sim, axis=1)
     return df['pelt']
+
+
+def pelt_settling_time(margin_pct=1, init=0, final=1024, window=PELT_WINDOW, half_life=PELT_HALF_LIFE):
+    """
+    Compute an approximation of the PELT settling time.
+
+    :param margin_pct: How close to the final value we want to get, as a
+        percentage of ``final``.
+    :type margin_pct: float
+
+    :param init: Initial PELT value.
+    :type init: float
+
+    :param final: Final PELT value.
+    :type final: float
+
+    :param window: PELT window in seconds.
+    :type window: float
+
+    :param half_life: PELT half life, in number of windows.
+    :type half_life: int
+
+    :param scale: PELT scale.
+    :type scale: float
+
+    .. note:: The PELT signal is approximated as a first order filter. This
+        does not take into account the averaging inside a window, but the
+        window is small enough in practice for that effect to be negligible.
+    """
+
+    # Compute the time constant of an equivalent continuous-time system as
+    # defined by:
+    # tau = period * (alpha / (1-alpha))
+    # https://en.wikipedia.org/wiki/Low-pass_filter#Simple_infinite_impulse_response_filter
+
+    # Alpha as defined in https://en.wikipedia.org/wiki/Moving_average
+    decay = (1/2)**(1/half_life)
+    alpha = 1 - decay
+    tau = window * ((1 - alpha) / alpha)
+
+    # Response of a first order low pass filter:
+    # y(t) = u(t) * (1 - exp(-t/tau))
+    # We want to find `t` such as the output y(t) is as close as we want from
+    # the input u(t):
+    # A * u(t) = u(t) * (1 - exp(-t/tau))
+    # A is how close from u(t) we want the output to get after a time `t`
+    # From which follows:
+    # A = (1 - exp(-t/tau))
+    # t = -tau * log(1-A)
+
+    # Since the equation we have is for a step response, i.e. from 0 to a final
+    # value
+    if init > final:
+        init, final = final, init
+    final -= init
+
+    margin = margin_pct / 100
+    A = 1 - margin
+
+    settling_time = - tau * math.log(1 - A)
+    return settling_time
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
