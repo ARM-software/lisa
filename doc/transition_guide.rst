@@ -14,7 +14,7 @@ Project structure
 
 * ``$repo/libs/utils`` is now ``$repo/lisa/``. ``$repo/libs/wlgen`` has also been
   moved to that location.
-* :mod:`devlib`, :mod:`trappy`, :mod:`bart` and :mod:`wa` are
+* :mod:`devlib`, :mod:`trappy` and :mod:`wa` are
   now under ``$repo/external/``. Git subtrees are now used instead of submodules.
 * All non self-tests have been moved from ``$repo/tests`` to ``$repo/lisa/tests``
 
@@ -280,4 +280,3 @@ with ``hwmon_conf.yml`` containing:
 
 All subclasses of :class:`lisa.energy_meter.EnergyMeter` have a configuration
 class named `*Conf`.
-
