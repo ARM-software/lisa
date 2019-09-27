@@ -333,8 +333,7 @@ class Convergence(UtilTrackingBase):
                     failures.append(activation)
                     continue
 
-        if failure_reasons:
-            self._plot_signals(test_task, 'activations', failures)
+        self._plot_signals(test_task, 'activations', failures)
 
         bundle = ResultBundle.from_bool(not failure_reasons)
         bundle.add_metric("signals", metrics)
