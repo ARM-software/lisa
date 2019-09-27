@@ -34,10 +34,11 @@ from lisa.tests.base import (
 )
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby, ExekallTaggable
-from lisa.datautils import series_integrate, series_mean, df_window
+from lisa.datautils import series_integrate, series_mean, df_window, df_filter_task_ids
 from lisa.wlgen.rta import Periodic, RTATask
 from lisa.trace import FtraceConf, FtraceCollector, requires_events
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
+from lisa.pelt import simulate_pelt, pelt_settling_time
 
 
 UTIL_SCALE = 1024
@@ -701,194 +702,182 @@ class PELTTask(LoadTrackingBase):
         return super().get_task_sched_signal(self.trace, cpu, self.task_name, signal)
 
     @requires_events('sched_switch')
-    def get_simulated_pelt(self, cpu, signal_name):
+    def get_simulated_pelt(self, task, signal_name):
         """
-        Get simulated PELT signal and the periodic task used to model it.
+        Simulate a PELT signal for a given task.
 
-        :returns: tuple of
-          - :class:`bart.sched.pelt.Simulator.Simulator` the PELT simulator object
-          - :class:`bart.sched.pelt.PeriodicTask` simulated periodic task
-          - :class:`pandas.DataFrame` instance which reports the computed
-          PELT values at each PELT sample interval.
+        :param task: task to look for in the trace.
+        :type task: int or str or tuple(int, str)
+
+        :param signal_name: Name of the PELT signal to simulate.
+        :type signal_name: str
+
+        :return: A :class:`pandas.DataFrame` with a ``simulated`` column
+            containing the simulated signal, along with the column of the
+            signal as found in the trace.
         """
-        signal_df = self.get_task_sched_signal(cpu, signal_name)
+        logger = self.get_logger()
+        trace = self.trace
+        task = trace.get_task_id(task)
 
-        init_value = pelt.Simulator.estimateInitialPeltValue(
-            signal_df[signal_name].iloc[0], signal_df.index[0],
-            0, HALF_LIFE_MS
+        # Capacity lower than 1024 will create some time-scaling artifacts that
+        # are not currently simulated
+        assert all(
+            self.plat_info["cpu-capacities"][cpu] == UTIL_SCALE
+            for cpu in cpus
         )
 
+        df_activation = trace.analysis.tasks.df_task_activation(task)
+        df = trace.analysis.load_tracking.df_tasks_signal(signal_name)
+        df = df_filter_task_ids(df, [task])
+
+        # Ignore the first activation, as its signals are incorrect
+        df_activation = df_activation.iloc[2:]
+
+        # Get the initial signal value matching the first activation we will care about
+        init_iloc = df.index.get_loc(df_activation.index[0], method='ffill')
+        init = df[signal_name].iloc[init_iloc]
+
+        try:
+            # PELT clock in nanoseconds
+            clock = df['update_time'] * 1e-9
+        except KeyError:
+            logger.warning('PELT clock is not available, ftrace timestamp will be used at the expense of accuracy')
+            clock = None
+
+        df['simulated'] = simulate_pelt(df_activation['active'], index=df.index, init=init, clock=clock)
+        df['error'] = df[signal_name] - df['simulated']
+
+        df = df.dropna()
+        return df
+
+    def _plot_pelt(self, task, signal_name, simulated, test_name):
+        trace = self.trace
+
+        kwargs = dict(always_save=False, interactive=False)
+
+        axis = trace.analysis.load_tracking.plot_task_signals(task, signals=[signal_name], **kwargs)
+        simulated.plot(ax=axis, drawstyle='steps-post', label='simulated {}'.format(signal_name))
+        trace.analysis.tasks.plot_task_activation(task, alpha=0.2, axis=axis, **kwargs)
+
+        axis.legend()
+
+        path = ArtifactPath.join(self.res_dir, '{}_{}.png'.format(test_name, signal_name))
+        trace.analysis.load_tracking.save_plot(axis.get_figure(), filepath=path)
+
+    @get_simulated_pelt.used_events
+    def _test_behaviour(self, signal_name, error_margin_pct):
+
+        task = self.task_name
         phase = self.wlgen_task.phases[0]
-        peltsim = pelt.Simulator(init_value=init_value,
-                                 half_life_ms=HALF_LIFE_MS)
-        period_samples = int(phase.period_ms*1e3/peltsim._sample_us)
-        duty_cycle_pct = self.get_task_duty_cycle_pct(self.trace, self.task_name, cpu)
-        pelt_task = pelt.PeriodicTask(period_samples=period_samples,
-                                      duty_cycle_pct=duty_cycle_pct)
-        df = peltsim.getSignal(pelt_task, 0, phase.duration_s)
+        df = self.get_simulated_pelt(task, signal_name)
 
-        return peltsim, pelt_task, df
+        expected_duty_cycle_pct = phase.duty_cycle_pct
+        expected_final_util = expected_duty_cycle_pct / 100 * UTIL_SCALE
+        settling_time = pelt_settling_time(1, init=0, final=expected_final_util)
+        settling_time += df.index[0]
 
-    @get_simulated_pelt.used_events
-    def _test_range(self, signal_name, allowed_error_pct):
-        res = ResultBundle.from_bool(True)
-        task = self.wlgen_task
-        cpu = task.phases[0].cpus[0]
+        df = df[settling_time:]
 
-        # Note: This test-case is only valid if executed at capacity == 1024.
-        # The below assertion is insufficient as it only checks the CPU can potentially
-        # reach a capacity of 1024.
-        assert self.plat_info["cpu-capacities"][cpu] == UTIL_SCALE
+        settled_signal_mean = series_mean(df[signal_name])
+        expected_signal_mean = expected_final_util
 
-        peltsim, pelt_task, sim_df = self.get_simulated_pelt(cpu, signal_name)
-        signal_df = self.get_task_sched_signal(cpu, signal_name)
+        signal_mean_error_pct = abs(expected_signal_mean - settled_signal_mean) / UTIL_SCALE * 100
+        res = ResultBundle.from_bool(signal_mean_error_pct < error_margin_pct)
 
-        sim_range = peltsim.stableRange(pelt_task)
+        res.add_metric('expected mean', expected_signal_mean)
+        res.add_metric('settled mean', settled_signal_mean)
+        res.add_metric('settled mean error', signal_mean_error_pct, '%')
 
-        # Get signal statistics in a period of time where the signal is
-        # supposed to be stable
-        signal_stats = signal_df[UTIL_AVG_CONVERGENCE_TIME_S:][signal_name].describe()
-
-        expected_data = {}
-        trace_data = {}
-
-        for stat in ['min', 'max']:
-            stat_value = getattr(sim_range, '{}_value'.format(stat))
-
-            if not self.is_almost_equal(stat_value, signal_stats[stat], allowed_error_pct):
-                res.result = Result.FAILED
-
-            trace_data[stat] = TestMetric(signal_stats[stat])
-            expected_data[stat] = TestMetric(stat_value)
-
-        res.add_metric("Trace signal", trace_data)
-        res.add_metric("Expected signal", expected_data)
+        self._plot_pelt(task, signal_name, df['simulated'], 'behaviour')
 
         return res
 
-    def _plot_behaviour(self, ax, df, title, task_duty_cycle_pct):
-        df.plot(ax=ax, title=title)
-        avg = task_duty_cycle_pct * 1024 / 100
-        ax.axhline(avg, label="duty-cycle based average", linestyle="--", color="orange")
-        ax.legend()
-
     @get_simulated_pelt.used_events
-    @requires_events('sched_switch')
-    def _test_behaviour(self, signal_name, error_margin_pct, allowed_error_pct):
-        res = ResultBundle.from_bool(True)
-        task = self.wlgen_task
-        phase = task.phases[0]
-        cpu = phase.cpus[0]
+    def _test_correctness(self, signal_name, mean_error_margin_pct, max_error_margin_pct):
 
-        # Note: This test-case is only valid if executed at capacity == 1024.
-        # The below assertion is insufficient as it only checks the CPU can potentially
-        # reach a capacity of 1024.
-        assert self.plat_info["cpu-capacities"][cpu] == UTIL_SCALE
+        task = self.task_name
+        df = self.get_simulated_pelt(task, signal_name)
 
-        # Due to simplifications in the PELT simulator :class:`bart.pelt.Simulator` and
-        # general misalignment between the simulated PELT signal and the traced one the
-        # error margin has to be fairly generous. The error sources include:
-        #
-        # 1. Misaligned PELT period boundaries (error <= 22)
-        # 2. Inaccurate duty cycle of rt_app task which can't be compensated for in the
-        #    PELT simulator as it only speaks integer PELT periods.
-        # 3. Nearest sample can be up to 512us off (error <= 11).
-        #
-        # The combined error depends on the properties of the task being traced/modelled.
-        # For a 50% 16ms period task that amounts to 5-7% error on TC2.
+        abs_error = df['error'].abs()
+        mean_error_pct = series_mean(abs_error) / UTIL_SCALE * 100
+        max_error_pct = abs_error.max() / UTIL_SCALE * 100
 
-        peltsim, _, sim_df = self.get_simulated_pelt(cpu, signal_name)
-        signal_df = self.get_task_sched_signal(cpu, signal_name)
+        mean_ok = mean_error_pct <= mean_error_margin_pct
+        max_ok = max_error_pct <= max_error_margin_pct
 
-        trace_duty_cycle = self.get_task_duty_cycle_pct(
-            self.trace, self.task_name, cpu)
-        requested_duty_cycle = phase.duty_cycle_pct
+        res = ResultBundle.from_bool(mean_ok and max_ok)
 
-        # Do a bit of plotting
-        fig, axes = plt.subplots(2, 1, figsize=(32, 10), sharex=True)
-        self._plot_behaviour(axes[0], signal_df[signal_name], "Trace signal", trace_duty_cycle)
-        self._plot_behaviour(axes[1], sim_df.pelt_value, "Expected signal",
-                             requested_duty_cycle)
+        res.add_metric('actual mean', series_mean(df[signal_name]))
+        res.add_metric('simulated mean', series_mean(df['simulated']))
+        res.add_metric('mean error', mean_error_pct, '%')
 
-        figname = ArtifactPath.join(self.res_dir, '{}_behaviour.png'.format(signal_name))
-        plt.savefig(figname, bbox_inches='tight')
-        plt.close()
+        res.add_metric('actual max', df[signal_name].max())
+        res.add_metric('simulated max', df['simulated'].max())
+        res.add_metric('max error', max_error_pct, '%')
 
-        # Compare actual PELT signal with the simulated one
-        errors = 0
-
-        for entry in signal_df.iterrows():
-            trace_val = entry[1][signal_name]
-            timestamp = entry[0]
-
-            sim_val_loc = sim_df.index.get_loc(timestamp,
-                                               method='nearest')
-            sim_val = sim_df.pelt_value.iloc[sim_val_loc]
-
-            if not self.is_almost_equal(trace_val, sim_val, error_margin_pct):
-                errors += 1
-
-        error_pct = (errors / len(signal_df)) * 100
-        res.add_metric("Error stats",
-                       {"total" : TestMetric(errors), "pct" : TestMetric(error_pct)})
-        # Exclude possible outliers (these may be due to a kernel thread that
-        # for some reason gets coscheduled with our workload).
-        if error_pct > allowed_error_pct:
-            res.result = Result.FAILED
+        self._plot_pelt(task, signal_name, df['simulated'], 'correctness')
 
         return res
 
-    @_test_range.used_events
-    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
-    def test_util_avg_range(self, allowed_error_pct=1.5) -> ResultBundle:
+    @_test_correctness.used_events
+    def test_util_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=2) -> ResultBundle:
         """
-        Test that the util_avg value ranges (min, max) are sane
+        Check that the utilization signal is as expected.
 
-        :param allowed_error_pct: The allowed range difference
-        """
-        return self._test_range('util', allowed_error_pct)
+        :param mean_error_margin_pct: Maximum allowed difference in the mean of
+            the actual signal and the simulated one, as a percentage of utilization
+            scale.
+        :type mean_error_margin_pct: float
 
-    @_test_range.used_events
-    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
-    def test_load_avg_range(self, allowed_error_pct=1.5) -> ResultBundle:
+        :param max_error_margin_pct: Maximum allowed difference between samples
+            of the actual signal and the simulated one, as a percentage of
+            utilization scale.
+        :type max_error_margin_pct: float
         """
-        Test that the load_avg value ranges (min, max) are sane
+        return self._test_correctness(
+            signal_name='util',
+            mean_error_margin_pct=mean_error_margin_pct,
+            max_error_margin_pct=max_error_margin_pct,
+        )
 
-        :param allowed_error_pct: The allowed range difference
+    @_test_correctness.used_events
+    def test_load_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=2) -> ResultBundle:
         """
-        return self._test_range('load', allowed_error_pct)
+        Same as :meth:`test_util_correctness` but checking the load.
+        """
+        return self._test_correctness(
+            signal_name='load',
+            mean_error_margin_pct=mean_error_margin_pct,
+            max_error_margin_pct=max_error_margin_pct,
+        )
+
 
     @_test_behaviour.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
-    def test_util_avg_behaviour(self, error_margin_pct=7, allowed_error_pct=5)\
-        -> ResultBundle:
+    def test_util_avg_behaviour(self, error_margin_pct=5) -> ResultBundle:
         """
-        Validate every utilization signal event by comparing traced events with
-        simulated ones based on :class:`bart.pelt.Simulator`.
+        Check the utilization mean is linked to the task duty cycle.
 
-        :param error_margin_pct: How much the actual signal can stray from the
-          simulated signal
 
-        :param allowed_error_pct: How many PELT errors (determined by
-          ``error_margin_pct```) are allowed
+        .. note:: That is not really the case, as the util of a task is not
+            updated when the task is sleeping, but is fairly close to reality
+            as long as the task period is small enough.
+
+        :param error_margin_pct: Allowed difference in percentage of
+            utilization scale.
+        :type error_margin_pct: float
+
         """
-        return self._test_behaviour('util', error_margin_pct, allowed_error_pct)
+        return self._test_behaviour('util', error_margin_pct)
 
     @_test_behaviour.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
-    def test_load_avg_behaviour(self, error_margin_pct=7, allowed_error_pct=5)\
-        -> ResultBundle:
+    def test_load_avg_behaviour(self, error_margin_pct=5) -> ResultBundle:
         """
-        Validate every load signal event by comparing traced events with
-        simulated ones based on :class:`bart.pelt.Simulator`.
-
-        :param error_margin_pct: How much the actual signal can stray from the
-          simulated signal
-
-        :param allowed_error_pct: How many PELT errors (determined by
-          ``error_margin_pct```) are allowed
+        Same as :meth:`test_util_avg_behaviour` but checking the load.
         """
-        return self._test_behaviour('load', error_margin_pct, allowed_error_pct)
+        return self._test_behaviour('load', error_margin_pct)
 
 
 class CPUMigrationBase(LoadTrackingBase):
