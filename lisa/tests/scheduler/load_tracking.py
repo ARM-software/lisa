@@ -649,9 +649,12 @@ class PELTTask(LoadTrackingBase):
 
     task_prefix = 'pelt'
 
-    TASK_PERIOD_MS = 16 * (1024/1000)
+    TASK_PERIOD_MS = 16
     """
-    The task period must be n*1.024 due to :class:`bart.pelt.Simulator` restrictions
+    Force a small enough period so that average util signal is close to the
+    duty cycle. This is not generally true, since the signal is not modified
+    when the task is sleeping, leading to a higher average. If the period is
+    small enough, the difference stays small.
     """
 
     @classmethod
