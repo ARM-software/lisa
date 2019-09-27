@@ -16,17 +16,9 @@
 #
 
 import abc
-import copy
 import os
-from collections import OrderedDict
 import itertools
 from statistics import mean
-
-import matplotlib.pyplot as plt
-
-from bart.sched import pelt
-
-from trappy.stats.Topology import Topology
 
 from lisa.tests.base import (
     TestMetric, Result, ResultBundle, AggregatedResultBundle, TestBundle,
@@ -34,9 +26,9 @@ from lisa.tests.base import (
 )
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby, ExekallTaggable
-from lisa.datautils import series_integrate, series_mean, df_window, df_filter_task_ids
+from lisa.datautils import series_mean, df_window, df_filter_task_ids
 from lisa.wlgen.rta import Periodic, RTATask
-from lisa.trace import FtraceConf, FtraceCollector, requires_events
+from lisa.trace import FtraceCollector, requires_events
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.pelt import simulate_pelt, pelt_settling_time
 
