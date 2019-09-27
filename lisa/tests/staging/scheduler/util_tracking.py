@@ -96,7 +96,7 @@ class Convergence(UtilTrackingBase):
         big_cpu = plat_info["capacity-classes"][-1][0]
 
         task = (
-            # Big task: 15 activations at full utilization
+            # Big task
             Periodic(
                 duty_cycle_pct=75,
                 duration_s=5,
@@ -151,6 +151,10 @@ class Convergence(UtilTrackingBase):
         The integral of `util_est_enqueued` is expected to be always not
         smaller than that of `util_avg`, since this last is subject to decays
         while the first not.
+
+        The integral of `util_est_enqueued` is expected to be always greater or
+        equal than the integral of `util_avg`, since this `util_avg` is subject
+        to decays while `util_est_enqueued` not.
 
         On fast-ramp systems, the `util_est_ewma` signal is never smaller then
         the `util_est_enqueued`, thus his integral is expected to be bigger.
@@ -245,8 +249,8 @@ class Convergence(UtilTrackingBase):
         """
         Test signals are properly "aggregated" at enqueue/dequeue time.
 
-        On fast-ramp systems, the `util_est_enqueud` is expected to be always
-        not bigger then `util_est_ewma`.
+        On fast-ramp systems, `util_est_enqueud` is expected to be always
+        smaller than `util_est_ewma`.
 
         On non fast-ramp systems, the `util_est_enqueued` is expected to be
         smaller then `util_est_ewma` in ramp-down phases, or bigger in ramp-up
