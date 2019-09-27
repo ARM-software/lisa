@@ -56,11 +56,13 @@ class RTA(Workload):
         self._early_init(target, name, res_dir, json_file)
         self._late_init()
 
-    def _early_init(self, target, name, res_dir, json_file):
+    def _early_init(self, target, name, res_dir, json_file, log_stats=False, trace_events=None):
         """
         Initialize everything that is not related to the contents of the json file
         """
         super().__init__(target, name, res_dir)
+        self.log_stats = log_stats
+        self.trace_events = trace_events or []
 
         if not json_file:
             json_file = '{}.json'.format(self.name)
@@ -74,8 +76,7 @@ class RTA(Workload):
 
         self.command = '{0:s} {1:s} 2>&1'.format(quote(rta_cmd), quote(self.remote_json))
 
-    def _late_init(self, calibration=None, tasks_names=None,
-                   log_stats=False, trace_events=[]):
+    def _late_init(self, calibration=None, tasks_names=None):
         """
         Complete initialization with a ready json file
 
@@ -96,8 +97,6 @@ class RTA(Workload):
 
         self.calibration = calibration
         self.tasks = sorted(tasks_names)
-        self.log_stats = log_stats
-        self.trace_events = trace_events
 
         # Move configuration file to target
         self.target.push(self.local_json, self.remote_json)
@@ -140,7 +139,7 @@ class RTA(Workload):
     @classmethod
     def by_profile(cls, target, name, profile, res_dir=None, default_policy=None,
                    max_duration_s=None, calibration=None,
-                   log_stats=False, trace_events=[]):
+                   log_stats=False, trace_events=None):
         """
         Create an rt-app workload using :class:`RTATask` instances
 
@@ -177,7 +176,8 @@ class RTA(Workload):
         """
         logger = cls.get_logger()
         self = cls.__new__(cls)
-        self._early_init(target, name, res_dir, None)
+        self._early_init(target, name, res_dir, None, log_stats=log_stats,
+                        trace_events=trace_events)
 
         # Sanity check for task names rt-app uses pthread_setname_np(3) which
         # limits the task name to 16 characters including the terminal '\0' and
@@ -277,8 +277,7 @@ class RTA(Workload):
             json.dump(rta_profile, outfile, indent=4, separators=(',', ': '))
 
         self._late_init(calibration=calibration,
-                        tasks_names=list(profile.keys()),
-                        log_stats=log_stats, trace_events=trace_events)
+                        tasks_names=list(profile.keys()))
         return self
 
     @classmethod
