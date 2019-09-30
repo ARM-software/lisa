@@ -227,7 +227,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
     roughly the same util & load values regardless of compute power of the
     CPU used and its frequency.
     """
-    task_prefix = 'invariance'
+    task_prefix = 'invar'
     cpufreq_conf = {
         "governor" : "userspace"
     }
@@ -259,7 +259,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         duty_cycle_pct //= 2
 
         rtapp_profile = {}
-        rtapp_profile["{}_cpu{}".format(cls.task_prefix, cpu)] = Periodic(
+        rtapp_profile["{}{}".format(cls.task_prefix, cpu)] = Periodic(
             duty_cycle_pct=duty_cycle_pct,
             duration_s=2,
             period_ms=cls.TASK_PERIOD_MS,
@@ -654,7 +654,7 @@ class PELTTask(LoadTrackingBase):
     the signal should be very similar to simulated one.
     """
 
-    task_prefix = 'pelt_behv'
+    task_prefix = 'pelt'
 
     TASK_PERIOD_MS = 16 * (1024/1000)
     """
@@ -667,7 +667,7 @@ class PELTTask(LoadTrackingBase):
         cpu = cls.get_max_capa_cpu(plat_info)
 
         rtapp_profile = {}
-        rtapp_profile["{}_cpu{}".format(cls.task_prefix, cpu)] = Periodic(
+        rtapp_profile["{}{}".format(cls.task_prefix, cpu)] = Periodic(
             duty_cycle_pct=50,
             duration_s=2,
             period_ms=cls.TASK_PERIOD_MS,
@@ -681,7 +681,19 @@ class PELTTask(LoadTrackingBase):
         """
         The name of the only task this test uses
         """
-        return self.rtapp_tasks[0]
+        tasks = self.rtapp_tasks
+        assert len(tasks) == 1
+        return tasks[0]
+
+    @property
+    def wlgen_task(self):
+        """
+        The :class:`lisa.wlgen.rta.RTATask` description of the only rt-app
+        task, as specified in the profile.
+        """
+        tasks = list(self.rtapp_profile.values())
+        assert len(tasks) == 1
+        return tasks[0]
 
     @LoadTrackingBase.get_task_sched_signal.used_events
     def get_task_sched_signal(self, cpu, signal):
@@ -706,7 +718,7 @@ class PELTTask(LoadTrackingBase):
             0, HALF_LIFE_MS
         )
 
-        phase = self.rtapp_profile[self.task_name].phases[0]
+        phase = self.wlgen_task.phases[0]
         peltsim = pelt.Simulator(init_value=init_value,
                                  half_life_ms=HALF_LIFE_MS)
         period_samples = int(phase.period_ms*1e3/peltsim._sample_us)
@@ -720,7 +732,7 @@ class PELTTask(LoadTrackingBase):
     @get_simulated_pelt.used_events
     def _test_range(self, signal_name, allowed_error_pct):
         res = ResultBundle.from_bool(True)
-        task = self.rtapp_profile[self.task_name]
+        task = self.wlgen_task
         cpu = task.phases[0].cpus[0]
 
         # Note: This test-case is only valid if executed at capacity == 1024.
@@ -764,7 +776,7 @@ class PELTTask(LoadTrackingBase):
     @requires_events('sched_switch')
     def _test_behaviour(self, signal_name, error_margin_pct, allowed_error_pct):
         res = ResultBundle.from_bool(True)
-        task = self.rtapp_profile[self.task_name]
+        task = self.wlgen_task
         phase = task.phases[0]
         cpu = phase.cpus[0]
 
@@ -1083,7 +1095,7 @@ class OneTaskCPUMigration(CPUMigrationBase):
         profile = {}
         cpus = cls.get_migration_cpus(plat_info)
 
-        for task in ["migrating", "static0", "static1"]:
+        for task in ["migr", "static0", "static1"]:
             # An empty RTATask just to sum phases up
             profile[task] = RTATask()
 
@@ -1094,7 +1106,7 @@ class OneTaskCPUMigration(CPUMigrationBase):
 
         for cpu in cpus:
             # A task that will migrate to another CPU
-            profile["migrating"] += Periodic(
+            profile["migr"] += Periodic(
                 duty_cycle_pct=cls.unscaled_utilization(plat_info, cpu, 20),
                 cpus=[cpu], **common_phase_settings)
 
@@ -1117,7 +1129,7 @@ class NTasksCPUMigrationBase(CPUMigrationBase):
     @classmethod
     def get_rtapp_profile(cls, plat_info):
         cpus = cls.get_migration_cpus(plat_info)
-        make_name = lambda i: 'migrating{}'.format(i)
+        make_name = lambda i: 'migr{}'.format(i)
 
         nr_tasks = len(cpus)
         profile = {

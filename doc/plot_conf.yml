@@ -24,7 +24,7 @@ doc-plot-conf:
 
         TasksAnalysis.plot_task_residency:
             kwargs:
-                task: &task big_0
+                task: &task big_0-3
 
         TasksAnalysis.plot_task_total_residency:
             kwargs:
@@ -101,6 +101,26 @@ doc-plot-conf:
                 field: frequency
                 filter_columns:
                     cpu: *cpu
+
+        RTAEventsAnalysis.plot_phases:
+            kwargs:
+                task: *task
+
+        RTAEventsAnalysis.plot_perf:
+            kwargs:
+                task: *task
+
+        RTAEventsAnalysis.plot_latency:
+            kwargs:
+                task: *task
+
+        RTAEventsAnalysis.plot_slack_histogram:
+            kwargs:
+                task: *task
+
+        RTAEventsAnalysis.plot_perf_index_histogram:
+            kwargs:
+                task: *task
 
         ##########################
         # HIDDEN PLOTS

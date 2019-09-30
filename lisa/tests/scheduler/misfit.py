@@ -92,7 +92,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
     """
 
-    task_prefix = "misfit"
+    task_prefix = "msft"
 
     PIN_DELAY_S = 0.001
     """
@@ -160,7 +160,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         profile = {}
 
         for cpu in cpus:
-            profile["{}_{}".format(cls.task_prefix, cpu)] = (
+            profile["{}{}".format(cls.task_prefix, cpu)] = (
                 Periodic(
                     duty_cycle_pct=100,
                     duration_s=cls.PIN_DELAY_S,
