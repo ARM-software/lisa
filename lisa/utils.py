@@ -1163,7 +1163,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
         # For classes, wrap __new__ and update docstring
         if isinstance(obj, type):
             # Warn on instance creation
-            obj.__new__ = wrap_func(obj.__new__)
+            obj.__init__ = wrap_func(obj.__init__)
             # Will show the warning when the class is subclassed
             # in Python >= 3.6 . Earlier versions of Python don't have
             # object.__init_subclass__
