@@ -18,6 +18,7 @@
 from collections import OrderedDict, namedtuple
 import json
 import os
+import re
 
 from lisa.wlgen.rta import RTA, Periodic, Ramp, Step, RunAndSync
 
@@ -58,6 +59,7 @@ class RTABase(StorageTestCase):
     def assert_can_read_logfile(self, exp_tasks):
         """Assert that the perf_analysis module understands the log output"""
         analysis = PerfAnalysis.from_dir(self.res_dir)
+        exp_tasks = [re.sub(r'-[0-9]+', '', task) for task in exp_tasks]
         self.assertSetEqual(set(exp_tasks), set(analysis.tasks))
 
 class TestRTAProfile(RTABase):
@@ -85,7 +87,7 @@ class TestRTAProfile(RTABase):
         self.assert_output_file_exists('output.log')
         self.assert_output_file_exists('test.json')
         self.assert_output_file_exists('rt-app-test-0.log')
-        self.assert_can_read_logfile(exp_tasks=['test'])
+        self.assert_can_read_logfile(exp_tasks=['test-0'])
 
     def test_profile_periodic_smoke(self):
         """
