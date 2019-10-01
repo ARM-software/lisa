@@ -773,7 +773,6 @@ class PerfAnalysis(AnalysisHelpers):
     def _parse_df(logfile):
         df = pd.read_csv(logfile,
                 sep='\s+',
-                skiprows=1,
                 header=0,
                 usecols=[1,2,3,4,7,8,9,10],
                 names=[
