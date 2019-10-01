@@ -220,7 +220,7 @@ class RTA(Workload):
             # the JSON
             'lock_pages': False,
             'logstats' : log_stats,
-            'ftrace': ','.join(trace_events),
+            'ftrace': ','.join(self.trace_events),
         }
 
         if max_duration_s:
