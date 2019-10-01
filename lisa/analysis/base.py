@@ -24,6 +24,7 @@ import base64
 import functools
 import docutils.core
 import contextlib
+import warnings
 
 import numpy
 import matplotlib
@@ -88,6 +89,11 @@ class AnalysisHelpers(Loggable, abc.ABC):
         :returns: tuple(matplotlib.figure.Figure, matplotlib.axes.Axes (or an
           array of, if ``nrows`` > 1))
         """
+
+        if tuple(map(int, matplotlib.__version__.split('.'))) <= (3, 0, 3):
+            warnings.warn('This version of matplotlib does not allow saving figures from axis created using Figure(), forcing interactive=True')
+            interactive = True
+
         if interactive:
             figure, axes = plt.subplots(
                 ncols=ncols, nrows=nrows, figsize=(width, height * nrows),
