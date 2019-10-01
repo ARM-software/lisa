@@ -32,10 +32,9 @@ PELT half-life in number of windows.
 
 PELT_SCALE = 1024
 
-def simulate_pelt(activations, init=0, index=None, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
+def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
     """
     Simulate a PELT signal out of a series of activations.
-
 
     :param activations: Series of a task's activations:
         ``1 == running`` and ``0 == sleeping``.
@@ -50,6 +49,9 @@ def simulate_pelt(activations, init=0, index=None, window=PELT_WINDOW, half_life
         updating the signal while it's running.
     :type index: pandas.Index
 
+    :param clock: Series of clock values to be used instead of the timestamp index.
+    :type clock: pandas.Series
+
     :param window: PELT window in seconds.
     :type window: float
 
@@ -61,32 +63,27 @@ def simulate_pelt(activations, init=0, index=None, window=PELT_WINDOW, half_life
 
     .. note:: PELT windowing is not time-invariant, i.e. it depends on the
         absolute value of the timestamp. This means that the timestamp of the
-        activations matters, and it is recommended to load the trace without
-        time normalization in order to achieve best results. In any case, the
-        timestamp of the kernel event may not match exactly what timestamp was
-        used to compute the PELT sample, which can lead to a small amount of
-        errors.
+        activations matters, and it is recommended to use the ``clock``
+        parameter to provide the actual clock used by PELT.
 
         Also note that the kernel uses integer arithmetic with a different way
         of computing the signal. This means that the simulation cannot
         perfectly match the kernel's signal.
     """
     if index is not None:
-        index = np.concatenate((activations.index, index))
-        index.sort()
         activations = activations.reindex(index, method='ffill')
         activations.dropna(inplace=True)
 
     df = pd.DataFrame({'activations': activations})
-    df['time'] = df.index
-    df['delta'] = df['time'].diff()
+    df['clock'] = clock if clock is not None else df.index
+    df['delta'] = df['clock'].diff()
     # First row of "delta" is NaN
     df['delta'].iloc[0] = 0
 
     # Compute the number of crossed PELT windows between each sample Since PELT
     # windowing is not time invariant (windows are at "millisecond"
     # boundaries), we need non-normalized timestamps
-    window_series = df['time'] // window
+    window_series = df['clock'] // window
     df['crossed_windows'] = window_series.diff()
     df['crossed_windows'].iloc[0] = 0
 
@@ -105,14 +102,14 @@ def simulate_pelt(activations, init=0, index=None, window=PELT_WINDOW, half_life
 
             # 1=running 0=sleeping
             running = row['activations']
-            time = row['time']
+            clock = row['clock']
             delta = row['delta']
             windows = row['crossed_windows'].astype('int')
 
             # We crossed one or more windows boundaries
             if windows:
                 # Handle last piece of the window in which this activation started
-                first_window_fraction = window - ((time - delta) % window)
+                first_window_fraction = window - ((clock - delta) % window)
                 first_window_fraction /= window
 
                 acc += running * first_window_fraction
@@ -123,7 +120,7 @@ def simulate_pelt(activations, init=0, index=None, window=PELT_WINDOW, half_life
                     signal = alpha * running + (1-alpha) * signal
 
                 # Handle the current incomplete window
-                last_window_fraction = (time % window) / window
+                last_window_fraction = (clock % window) / window
                 signal += alpha * running * last_window_fraction
                 acc = 0
             # If we are still in the same window, just accumulate the running
