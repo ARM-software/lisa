@@ -96,9 +96,10 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
         acc = 0
         # Output signal
         signal = init / scale
+        output = signal
 
         def pelt(row):
-            nonlocal acc, signal
+            nonlocal acc, signal, output
 
             # 1=running 0=sleeping
             running = row['activations']
@@ -121,6 +122,16 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
 
                 # Handle the current incomplete window
                 last_window_fraction = (clock % window) / window
+
+                # Extrapolate the signal as it would look with the same
+                # `running` state at the end of the current window
+                extrapolated = running * alpha + (1-alpha) * signal
+                # Take an value between signal and extrapolated based on the
+                # current completion of the window. This implements the same
+                # idea as introduced by kernel commit:
+                #  sched/cfs: Make util/load_avg more stable 625ed2bf049d5a352c1bcca962d6e133454eaaff
+                output = signal + last_window_fraction * (extrapolated - signal)
+
                 signal += alpha * running * last_window_fraction
                 acc = 0
             # If we are still in the same window, just accumulate the running
@@ -128,7 +139,7 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
             else:
                 acc += running * delta / window
 
-            return signal * scale
+            return output * scale
 
         return pelt
 
