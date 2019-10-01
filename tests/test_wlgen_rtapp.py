@@ -20,9 +20,14 @@ import json
 import os
 
 from lisa.wlgen.rta import RTA, Periodic, Ramp, Step, RunAndSync
-from lisa.analysis.rta import PerfAnalysis
 
 from .utils import StorageTestCase, create_local_target, ASSET_DIR
+
+
+# Disable DeprecationWarning since PerfAnalysis is deprecated
+from lisa.analysis.rta import PerfAnalysis
+import warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 class RTABase(StorageTestCase):
     """
