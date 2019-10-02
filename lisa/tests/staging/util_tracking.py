@@ -77,7 +77,7 @@ ActivationSignals = namedtuple("ActivationSignals", [
 )
 
 
-class Convergence(UtilTrackingBase):
+class UtilConvergence(UtilTrackingBase):
     """
     Basic checks for estimated utilization signals
 
@@ -126,7 +126,7 @@ class Convergence(UtilTrackingBase):
                 period_ms=200,
                 cpus=[big_cpu])
         )
-        return {'test_task' : task}
+        return {'test' : task}
 
     @property
     @memoized

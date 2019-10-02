@@ -696,6 +696,7 @@ class PELTTask(LoadTrackingBase):
         logger = self.get_logger()
         trace = self.trace
         task = trace.get_task_id(task)
+        cpus = trace.cpus_of_tasks([task])
 
         # Capacity lower than 1024 will create some time-scaling artifacts that
         # are not currently simulated
