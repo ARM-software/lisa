@@ -158,15 +158,13 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         :type signal: str
         """
-        if signal in ('util', 'load', 'required_capacity'):
+        if signal in ('util', 'load'):
             df = self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
 
         elif signal in ('util_est_enqueued', 'util_est_ewma'):
             df = self._df_uniformized_signal('sched_util_est_task')
-        else:
-            raise ValueError('Signal "{}" not supported'.format(signal))
 
-        if signal == 'required_capacity':
+        elif signal == 'required_capacity':
             # Add a column which represents the max capacity of the smallest
             # CPU which can accomodate the task utilization
             capacities = sorted(self.trace.plat_info["cpu-capacities"].values())
@@ -177,7 +175,11 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                         return capacity
 
                 return capacities[-1]
-            df['required_capacity'] = df.util.map(fits_capacity)
+            df = self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
+            df['required_capacity'] = df['util'].map(fits_capacity)
+
+        else:
+            raise ValueError('Signal "{}" not supported'.format(signal))
 
         return df[['cpu', 'comm', 'pid', signal]]
 
