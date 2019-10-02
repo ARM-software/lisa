@@ -112,7 +112,7 @@ class Workload(Loggable):
             context manager.
         """
         logger = self.get_logger()
-        logger.info("Wiping run_dir [%s]", self.run_dir)
+        logger.info("Wiping target run directory: {}".format(self.run_dir))
         self.target.execute("rm -rf {}".format(quote(self.run_dir)))
 
     def __enter__(self):

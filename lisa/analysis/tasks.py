@@ -787,20 +787,21 @@ class TasksAnalysis(TraceAnalysisBase):
         # Adapt the steps height to the existing limits. This allows
         # re-using an existing axis that already contains some data.
         min_lim, max_lim = axis.get_ylim()
-        height = abs(max_lim - min_lim)
 
         if overlay:
-            height /= 4
+            active_default = max_lim / 4
             _alpha = alpha if alpha is not None else 0.5
         else:
+            active_default = max_lim
             _alpha = alpha
 
-        active_value = active_value if active_value is not None else height
-        sleep_value = sleep_value if sleep_value is not None else min_lim
+        active_value = active_value if active_value is not None else active_default
+        sleep_value = sleep_value if sleep_value is not None else 0
 
         df = self.df_task_activation(task,
             cpu=cpu, active_value=active_value, sleep_value=sleep_value,
         )
+
         if not df.empty:
             axis.fill_between(df.index, df['active'], step='post',
                 alpha=_alpha

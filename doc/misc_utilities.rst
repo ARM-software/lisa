@@ -31,6 +31,12 @@ Dataframe and Series handling utilities
 .. automodule:: lisa.datautils
    :members:
 
+PELT signals simulations
+========================
+
+.. automodule:: lisa.pelt
+   :members:
+
 Sphinx documentation
 ====================
 

@@ -78,7 +78,6 @@ setup(
         # subtree/submodule
         "devlib",
         "trappy",
-        "bart-py",
     ],
 
     extras_require={
