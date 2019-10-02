@@ -88,13 +88,18 @@ class LoadTrackingHelpers:
         ]
 
     @classmethod
-    def get_max_capa_cpu(cls, plat_info):
+    def get_cpu(cls, plat_info, capa_class):
         """
-        :returns: A CPU with the highest capacity value that is not blacklisted.
+        :returns: A CPU with the given capacity class that is not blacklisted.
+
+        :param capa_class: ``max`` to get max capacity CPU or ``min`` to get
+            the minimum capacity.
+        :type capa_class: str
         """
         # capacity-classes is sorted by capacity, last class therefore contains
         # the biggest CPUs
-        candidates = cls.filter_capacity_classes(plat_info)[-1]
+        capa_class = -1 if capa_class == 'max' else 0
+        candidates = cls.filter_capacity_classes(plat_info)[capa_class]
 
         if not candidates:
             raise RuntimeError('All CPUs of that class have been blacklisted: {}'.format(
@@ -632,7 +637,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             result=overall_result
         )
 
-class PELTTask(LoadTrackingBase):
+class PELTTaskBase(LoadTrackingBase):
     """
     Basic checks for task related PELT signals behaviour
 
@@ -653,19 +658,22 @@ class PELTTask(LoadTrackingBase):
     """
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
-        # Run the 50% workload on a CPU with highest capacity
-        cpu = cls.get_max_capa_cpu(plat_info)
+    def _get_rtapp_profile(cls, plat_info, stress_time_scaling):
+        # Run the 50% workload on a CPU.
+        # When stressing time scaling, we choose the CPU with the minimum
+        # capacity so that the effects are easily visible even at max
+        # frequency.
+        capa_class = 'min' if stress_time_scaling else 'max'
+        cpu = cls.get_cpu(plat_info, capa_class=capa_class)
 
-        rtapp_profile = {}
-        rtapp_profile["{}{}".format(cls.task_prefix, cpu)] = Periodic(
-            duty_cycle_pct=50,
-            duration_s=2,
-            period_ms=cls.TASK_PERIOD_MS,
-            cpus=[cpu]
-        )
-
-        return rtapp_profile
+        return {
+            "{}{}".format(cls.task_prefix, cpu): Periodic(
+                duty_cycle_pct=cls.unscaled_utilization(plat_info, cpu, 50),
+                duration_s=2,
+                period_ms=cls.TASK_PERIOD_MS,
+                cpus=[cpu]
+            ),
+        }
 
     @property
     def task_name(self):
@@ -711,13 +719,6 @@ class PELTTask(LoadTrackingBase):
         task = trace.get_task_id(task)
         cpus = trace.analysis.tasks.cpus_of_tasks([task])
 
-        # Capacity lower than 1024 will create some time-scaling artifacts that
-        # are not currently simulated
-        assert all(
-            self.plat_info["cpu-capacities"][cpu] == UTIL_SCALE
-            for cpu in cpus
-        )
-
         df_activation = trace.analysis.tasks.df_task_activation(task)
         df = trace.analysis.load_tracking.df_tasks_signal(signal_name)
         df = df_filter_task_ids(df, [task])
@@ -737,6 +738,13 @@ class PELTTask(LoadTrackingBase):
             # PELT clock in nanoseconds
             clock = df['update_time'] * 1e-9
         except KeyError:
+            if any(
+                self.plat_info['cpu-capacities'][cpu] != UTIL_SCALE
+                for phase in self.wlgen_task.phases
+                for cpu in phase.cpus
+            ):
+                raise CannotCreateError('PELT time scaling can only be simulated when the PELT clock is available from the trace')
+
             logger.warning('PELT clock is not available, ftrace timestamp will be used at the expense of accuracy')
             clock = None
 
@@ -883,6 +891,24 @@ class PELTTask(LoadTrackingBase):
         """
         return self._test_behaviour('load', error_margin_pct)
 
+class PELTTask(PELTTaskBase):
+    """
+    See :class:`PELTTaskBase`
+    """
+    @classmethod
+    def get_rtapp_profile(cls, plat_info):
+        return super()._get_rtapp_profile(plat_info, stress_time_scaling=False)
+
+class PELTTimeScalingTask(PELTTaskBase):
+    """
+    See :class:`PELTTaskBase`
+
+    Additionally, the rt-app workload will be setup so that PELT time scaling
+    has a visible effect.
+    """
+    @classmethod
+    def get_rtapp_profile(cls, plat_info):
+        return super()._get_rtapp_profile(plat_info, stress_time_scaling=True)
 
 class CPUMigrationBase(LoadTrackingBase):
     """
