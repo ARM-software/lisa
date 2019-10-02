@@ -282,3 +282,9 @@ actively evaluated.
 
 .. automodule:: lisa.tests.staging.sched_android
    :members:
+
+.. automodule:: lisa.tests.staging.util_tracking
+   :members:
+
+.. automodule:: lisa.tests.staging.schedutil
+   :members:

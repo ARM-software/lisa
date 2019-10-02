@@ -64,6 +64,19 @@ class UtilTrackingBase(RTATestBundle, LoadTrackingHelpers):
 
         return cls(res_dir, plat_info)
 
+
+PhaseStats = namedtuple("PhaseStats", [
+    'start', 'end', 'area_util', 'area_enqueued', 'area_ewma'],
+    module=__name__,
+)
+
+
+ActivationSignals = namedtuple("ActivationSignals", [
+    'time', 'util_avg', 'util_est_enqueued', 'util_est_ewma'],
+    module=__name__,
+)
+
+
 class Convergence(UtilTrackingBase):
     """
     Basic checks for estimated utilization signals
@@ -84,12 +97,6 @@ class Convergence(UtilTrackingBase):
     Based on these two invariant, this class provides a set of tests to verify
     these conditions using different methods and sampling points.
     """
-
-    PhaseStats = namedtuple("PhaseStats", [
-        'start', 'end', 'area_util', 'area_enqueued', 'area_ewma'])
-
-    ActivationSignals = namedtuple("ActivationSignals", [
-        'time', 'util_avg', 'util_est_enqueued', 'util_est_ewma'])
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):
@@ -165,10 +172,11 @@ class Convergence(UtilTrackingBase):
 
         Those conditions are checked on a single execution of a task which has
         three main behaviours:
-        - STABLE: periodic big task running for a relatively long period to
-                  ensure `util_avg` saturation.
-        - DOWN: periodic ramp-down task, to slowly decay `util_avg`
-        - UP: periodic ramp-up task, to slowly increase `util_avg`
+
+            * STABLE: periodic big task running for a relatively long period to
+                ensure `util_avg` saturation.
+            * DOWN: periodic ramp-down task, to slowly decay `util_avg`
+            * UP: periodic ramp-up task, to slowly increase `util_avg`
 
         """
         failure_reasons = {}
@@ -191,7 +199,7 @@ class Convergence(UtilTrackingBase):
             phase_df = ua_df[phase.start:phase.end]
             area_util = series_integrate(phase_df.util)
 
-            metrics[phase.id] = self.PhaseStats(phase.start, phase.end,
+            metrics[phase.id] = PhaseStats(phase.start, phase.end,
                                                 area_util, area_enqueued, area_ewma)
 
             phase_name = "phase {}".format(phase.id)
@@ -258,10 +266,11 @@ class Convergence(UtilTrackingBase):
 
         Those conditions are checked on a single execution of a task which has
         three main behaviours:
-        - STABLE: periodic big task running for a relatively long period to
-                  ensure `util_avg` saturation.
-        - DOWN: periodic ramp-down task, to slowly decay `util_avg`
-        - UP: periodic ramp-up task, to slowly increase `util_avg`
+
+            * STABLE: periodic big task running for a relatively long period to
+                    ensure `util_avg` saturation.
+            * DOWN: periodic ramp-down task, to slowly decay `util_avg`
+            * UP: periodic ramp-up task, to slowly increase `util_avg`
 
         """
         failure_reasons = {}
@@ -288,7 +297,7 @@ class Convergence(UtilTrackingBase):
             avg, enq, ewma = restrict(df, activation)[[
                 'util_avg', 'util_est_enqueued', 'util_est_ewma']].iloc[-1]
 
-            metrics[idx+1] = self.ActivationSignals(activation, avg, enq, ewma)
+            metrics[idx+1] = ActivationSignals(activation, avg, enq, ewma)
 
             # UtilEst is not updated when within 1% of previous activation
             if 1.01 * enq < avg:
