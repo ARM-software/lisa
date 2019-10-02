@@ -77,7 +77,7 @@ ActivationSignals = namedtuple("ActivationSignals", [
 )
 
 
-class Convergence(UtilTrackingBase):
+class UtilConvergence(UtilTrackingBase):
     """
     Basic checks for estimated utilization signals
 
