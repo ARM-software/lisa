@@ -88,6 +88,7 @@ TRACE_EVENT(sched_load_se,
 		__field(	unsigned long,	load			)
 		__field(	unsigned long,	rbl_load		)
 		__field(	unsigned long,	util			)
+		__field(	unsigned long long, update_time	        )
 	),
 
 	TP_fast_assign(
@@ -98,11 +99,12 @@ TRACE_EVENT(sched_load_se,
 		__entry->load		= avg->load_avg;
 		__entry->rbl_load	= avg->runnable_load_avg;
 		__entry->util		= avg->util_avg;
+		__entry->update_time    = avg->last_update_time;
 	),
 
-	TP_printk("cpu=%d path=%s comm=%s pid=%d load=%lu rbl_load=%lu util=%lu",
+	TP_printk("cpu=%d path=%s comm=%s pid=%d load=%lu rbl_load=%lu util=%lu update_time=%llu",
 		  __entry->cpu, __entry->path, __entry->comm, __entry->pid,
-		  __entry->load, __entry->rbl_load,__entry->util)
+		  __entry->load, __entry->rbl_load,__entry->util, __entry->update_time)
 );
 
 TRACE_EVENT(sched_overutilized,
