@@ -1392,12 +1392,15 @@ def annotations_from_signature(sig):
 
     return annotations
 
-def namedtuple(*args, **kwargs):
+def namedtuple(*args, module, **kwargs):
     """
     Same as :func:`collections.namedtuple`, with
     :class:`collections.abc.Mapping` behaviour.
+
+    :param module: Name of the module the type is defined in.
+    :type module: str
     """
-    type_ = collections.namedtuple(*args, **kwargs)
+    type_ = collections.namedtuple(*args, **kwargs, module=module)
 
     class Augmented(type_, Mapping):
         def __getitem__(self, key):
@@ -1405,7 +1408,6 @@ def namedtuple(*args, **kwargs):
 
     Augmented.__qualname__ = type_.__qualname__
     Augmented.__name__ = type_.__name__
-    Augmented.__module__ = type_.__module__
     Augmented.__doc__ = type_.__doc__
     return Augmented
 

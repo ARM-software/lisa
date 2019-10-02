@@ -86,10 +86,14 @@ class Convergence(UtilTrackingBase):
     """
 
     PhaseStats = namedtuple("PhaseStats", [
-        'start', 'end', 'area_util', 'area_enqueued', 'area_ewma'])
+        'start', 'end', 'area_util', 'area_enqueued', 'area_ewma'],
+        module=__name__,
+    )
 
     ActivationSignals = namedtuple("ActivationSignals", [
-        'time', 'util_avg', 'util_est_enqueued', 'util_est_ewma'])
+        'time', 'util_avg', 'util_est_enqueued', 'util_est_ewma'],
+        module=__name__,
+    )
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):
