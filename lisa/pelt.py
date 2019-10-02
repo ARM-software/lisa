@@ -72,20 +72,20 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
     """
     if index is not None:
         activations = activations.reindex(index, method='ffill')
-        activations.dropna(inplace=True)
 
     df = pd.DataFrame({'activations': activations})
     df['clock'] = clock if clock is not None else df.index
     df['delta'] = df['clock'].diff()
-    # First row of "delta" is NaN
-    df['delta'].iloc[0] = 0
 
     # Compute the number of crossed PELT windows between each sample Since PELT
     # windowing is not time invariant (windows are at "millisecond"
     # boundaries), we need non-normalized timestamps
     window_series = df['clock'] // window
     df['crossed_windows'] = window_series.diff()
-    df['crossed_windows'].iloc[0] = 0
+
+    # First row of "delta" is NaN, and activations reindex may have produced
+    # some NaN at the beginning of the dataframe as well
+    df.dropna(inplace=True)
 
     def make_pelt_sim(init, scale, window, half_life):
         decay = (1/2)**(1/half_life)
