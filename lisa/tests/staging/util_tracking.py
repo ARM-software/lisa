@@ -126,7 +126,7 @@ class UtilConvergence(UtilTrackingBase):
                 period_ms=200,
                 cpus=[big_cpu])
         )
-        return {'test_task' : task}
+        return {'test' : task}
 
     @property
     @memoized
