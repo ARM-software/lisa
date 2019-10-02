@@ -322,7 +322,8 @@ class AggregatedResultBundle(ResultBundleBase):
 
 class CannotCreateError(RuntimeError):
     """
-    Something prevented the creation of a :class:`TestBundle` instance
+    Something prevented the creation of a :class:`TestBundle` or
+    :class:`ResultBundleBase` instance.
     """
     pass
 
