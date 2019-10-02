@@ -181,7 +181,10 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         else:
             raise ValueError('Signal "{}" not supported'.format(signal))
 
-        return df[['cpu', 'comm', 'pid', signal]]
+        # Select the available columns among
+        columns = {'cpu', 'comm', 'pid', 'update_time', signal}
+        columns = sorted(set(df.columns) & columns)
+        return df[columns]
 
     @deprecate(replaced_by=df_tasks_signal, deprecated_in='2.0', removed_in='2.1')
     @requires_one_event_of('sched_load_se', 'sched_load_avg_task')
