@@ -18,6 +18,7 @@
 import re
 import abc
 import copy
+import collections
 from collections.abc import Mapping, MutableMapping, Sequence
 from collections import OrderedDict
 import contextlib
@@ -1391,5 +1392,21 @@ def annotations_from_signature(sig):
 
     return annotations
 
+def namedtuple(*args, **kwargs):
+    """
+    Same as :func:`collections.namedtuple`, with
+    :class:`collections.abc.Mapping` behaviour.
+    """
+    type_ = collections.namedtuple(*args, **kwargs)
+
+    class Augmented(type_, Mapping):
+        def __getitem__(self, key):
+            return self._asdict()[key]
+
+    Augmented.__qualname__ = type_.__qualname__
+    Augmented.__name__ = type_.__name__
+    Augmented.__module__ = type_.__module__
+    Augmented.__doc__ = type_.__doc__
+    return Augmented
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
