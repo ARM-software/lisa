@@ -627,24 +627,6 @@ class PELTTask(LoadTrackingBase):
     collects a trace from the target device. The util_avg values are extracted
     from scheduler trace events and the behaviour of the signal is compared
     against a simulated value of PELT.
-    This class runs the following tests:
-
-    - test_util_avg_range: test that util_avg's stable range matches with the
-        stable range of the simulated signal. In particular, this test compares
-        min, max and mean values of the two signals.
-
-    - test_util_avg_behaviour: check behaviour of util_avg against the simualted
-        PELT signal. This test assumes that PELT is configured with 32 ms half
-        life time and the samples are 1024 us. Also, it assumes that the first
-        trace event related to the task used for testing is generated 'after'
-        the task starts (hence, we compute the initial PELT value when the task
-        started).
-
-    **Expected Behaviour:**
-
-    Simulated PELT signal and the signal extracted from the trace should have
-    very similar min, max and mean values in the stable range and the behaviour of
-    the signal should be very similar to simulated one.
     """
 
     task_prefix = 'pelt'
