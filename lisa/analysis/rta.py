@@ -26,6 +26,24 @@ from lisa.datautils import df_filter_task_ids
 from lisa.trace import TaskID, requires_events
 from lisa.utils import memoized, deprecate
 
+
+RefTime = namedtuple("RefTime", ['kernel', 'user'])
+"""
+Named tuple to synchronize kernel and userspace (``rt-app``) timestamps.
+"""
+
+
+PhaseWindow = namedtuple("PhaseWindow", ['id', 'start', 'end'])
+"""
+Named tuple with fields:
+
+    * ``id``: integer ID of the phase
+    * ``start``: timestamp of the start of the phase
+    * ``end``: timestamp of the end of the phase
+
+"""
+
+
 class RTAEventsAnalysis(TraceAnalysisBase):
     """
     Support for RTA events analysis.
@@ -35,21 +53,6 @@ class RTAEventsAnalysis(TraceAnalysisBase):
     """
 
     name = 'rta'
-
-    RefTime = namedtuple("RefTime", ['kernel', 'user'])
-    """
-    Named tuple to synchronize kernel and userspace (``rt-app``) timestamps.
-    """
-
-    PhaseWindow = namedtuple("PhaseWindow", ['id', 'start', 'end'])
-    """
-    Named tuple with fields:
-
-        * ``id``: integer ID of the phase
-        * ``start``: timestamp of the start of the phase
-        * ``end``: timestamp of the end of the phase
-
-    """
 
     def _task_filtered(self, df, task=None):
         if not task:
@@ -144,12 +147,12 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         infrastructure. This method allows to know which trace timestamp
         corresponds to the rt-app generated timestamps stored in log files.
 
-        :returns: a :class:`RTAEventsAnalysis.RefTime` reporting ``kernel`` and ``user``
+        :returns: a :class:`RefTime` reporting ``kernel`` and ``user``
                   timestamps.
         """
         df = self.df_rtapp_main()
         df = df[df['event'] == 'clock_ref']
-        return self.RefTime(df.index.values[0], df.data.values[0])
+        return RefTime(df.index.values[0], df.data.values[0])
 
     ###########################################################################
     # rtapp_task events related methods
@@ -350,17 +353,17 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         :param phase: The ID of the phase to consider
         :type phase: int
 
-        :rtype: RTAEventsAnalysis.PhaseWindow
+        :rtype: PhaseWindow
         """
         phase_start = self.df_rtapp_phase_start(task, phase)
         phase_end = self.df_rtapp_phase_end(task, phase)
 
-        return self.PhaseWindow(phase, phase_start, phase_end)
+        return PhaseWindow(phase, phase_start, phase_end)
 
     @task_phase_window.used_events
     def task_phase_at(self, task, timestamp):
         """
-        Return the :class:`RTAEventsAnalysis.PhaseWindow` for the specified
+        Return the :class:`PhaseWindow` for the specified
         task and timestamp.
 
         :param task: the rt-app task to filter for
@@ -522,11 +525,11 @@ class RTAEventsAnalysis(TraceAnalysisBase):
             * `start` : the iteration start time
             * `end` : the iteration end time
 
-        :return: Generator yielding :class:`RTAEventsAnalysis.PhaseWindow` with
+        :return: Generator yielding :class:`PhaseWindow` with
             start end end timestamps.
         """
         for idx, phase in enumerate(self.df_phases(task).itertuples()):
-            yield self.PhaseWindow(idx, phase.Index,
+            yield PhaseWindow(idx, phase.Index,
                                     phase.Index+phase.duration)
 
 ###############################################################################
