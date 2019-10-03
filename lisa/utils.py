@@ -1400,7 +1400,7 @@ def namedtuple(*args, module, **kwargs):
     :param module: Name of the module the type is defined in.
     :type module: str
     """
-    type_ = collections.namedtuple(*args, **kwargs, module=module)
+    type_ = collections.namedtuple(*args, **kwargs)
 
     class Augmented(type_, Mapping):
         def __getitem__(self, key):
@@ -1409,6 +1409,7 @@ def namedtuple(*args, module, **kwargs):
     Augmented.__qualname__ = type_.__qualname__
     Augmented.__name__ = type_.__name__
     Augmented.__doc__ = type_.__doc__
+    Augmented.__module__ = module
     return Augmented
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
