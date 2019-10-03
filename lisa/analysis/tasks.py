@@ -511,6 +511,7 @@ class TasksAnalysis(TraceAnalysisBase):
           * A timestamp as index
           * A ``active`` column, containing ``active_value`` when the task is
             not sleeping, ``sleep_value`` otherwise.
+          * A ``cpu`` column with the CPU the task was running on.
         """
 
         df = self.df_task_states(task)
@@ -524,13 +525,13 @@ class TasksAnalysis(TraceAnalysisBase):
         if cpu is not None:
             df = df[df['cpu'] == cpu]
 
-        curr_state = df.curr_state
-        active_series = curr_state[
+        curr_state = df['curr_state']
+        df['active'] = curr_state[
             (curr_state == TaskState.TASK_ACTIVE) |
             (curr_state == TaskState.TASK_INTERRUPTIBLE)
         ].map(f)
 
-        return active_series.to_frame('active')
+        return df
 
 ###############################################################################
 # Plotting Methods
