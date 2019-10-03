@@ -37,6 +37,7 @@ from devlib.trace.dmesg import KernelLogEntry
 from devlib import TargetStableError
 
 from lisa.analysis.tasks import TasksAnalysis
+from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.trace import requires_events, may_use_events
 from lisa.trace import Trace, TaskID
 from lisa.wlgen.rta import RTA
@@ -969,7 +970,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
       the associated task will be ignored in the noise accounting.
     """
 
-    @requires_events('sched_switch')
+    @RTAEventsAnalysis.df_rtapp_phases_start.used_events
+    @RTAEventsAnalysis.df_rtapp_phases_end.used_events
     def trace_window(self, trace):
         """
         The time window to consider for this :class:`RTATestBundle`
@@ -987,12 +989,10 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
           Calling ``self.trace`` here will raise an :exc:`AttributeError`
           exception, to avoid entering infinite recursion.
         """
-        sdf = trace.df_events('sched_switch')
-
-        # Find when the first task starts running
-        rta_start = sdf[sdf.next_comm.isin(self.rtapp_tasks)].index[0]
-        # Find when the last task stops running
-        rta_stop = sdf[sdf.prev_comm.isin(self.rtapp_tasks)].index[-1]
+        # Find when the first rtapp phase starts
+        rta_start = trace.analysis.rta.df_rtapp_phases_start()['Time'].min()
+        # Find when the last rtapp phase ends
+        rta_stop = trace.analysis.rta.df_rtapp_phases_end()['Time'].max()
 
         return (rta_start, rta_stop)
 
