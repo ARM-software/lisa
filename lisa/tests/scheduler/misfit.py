@@ -139,7 +139,6 @@ class StaggeredFinishes(MisfitMigrationBase):
         because we still need the first wakeups to be visible.
         """
         sdf = self.trace.df_events('sched_switch')
-        sdf = sdf[self.trace.start + self.IDLING_DELAY_S * 0.9:]
 
         # Find out when all tasks started executing on their designated CPU
         def get_start_time(sdf, task, profile):
