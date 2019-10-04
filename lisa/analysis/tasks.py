@@ -519,19 +519,15 @@ class TasksAnalysis(TraceAnalysisBase):
         def f(state):
             if state == TaskState.TASK_ACTIVE:
                 return active_value
-            elif state == TaskState.TASK_INTERRUPTIBLE:
+            else:
                 return sleep_value
 
         if cpu is not None:
             df = df[df['cpu'] == cpu]
 
-        curr_state = df['curr_state']
-        df['active'] = curr_state[
-            (curr_state == TaskState.TASK_ACTIVE) |
-            (curr_state == TaskState.TASK_INTERRUPTIBLE)
-        ].map(f)
+        df['active'] = df['curr_state'].map(f)
 
-        return df
+        return df[['active', 'cpu']]
 
 ###############################################################################
 # Plotting Methods
