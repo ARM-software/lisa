@@ -174,7 +174,7 @@ class UtilConvergence(UtilTrackingBase):
         three main behaviours:
 
             * STABLE: periodic big task running for a relatively long period to
-                ensure `util_avg` saturation.
+              ensure `util_avg` saturation.
             * DOWN: periodic ramp-down task, to slowly decay `util_avg`
             * UP: periodic ramp-up task, to slowly increase `util_avg`
 
@@ -268,7 +268,7 @@ class UtilConvergence(UtilTrackingBase):
         three main behaviours:
 
             * STABLE: periodic big task running for a relatively long period to
-                    ensure `util_avg` saturation.
+              ensure `util_avg` saturation.
             * DOWN: periodic ramp-down task, to slowly decay `util_avg`
             * UP: periodic ramp-up task, to slowly increase `util_avg`
 
