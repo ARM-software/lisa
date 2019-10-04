@@ -496,21 +496,22 @@ class TasksAnalysis(TraceAnalysisBase):
         :type task: int or str or tuple(int, str)
 
         :param cpu: the CPUs to look at. If ``None``, all CPUs will be used.
-        :type task: int or None
+        :type cpu: int or None
 
         :param active_value: the value to use in the series when task is
             active.
-        :type task: float
+        :type active_value: float
 
-        :param active_value: the value to use in the series when task is
+        :param sleep_value: the value to use in the series when task is
             sleeping.
-        :type task: float
+        :type sleep_value: float
 
         :returns: a :class:`pandas.DataFrame` with:
 
           * A timestamp as index
           * A ``active`` column, containing ``active_value`` when the task is
             not sleeping, ``sleep_value`` otherwise.
+          * A ``cpu`` column with the CPU the task was running on.
         """
 
         df = self.df_task_states(task)
@@ -518,19 +519,15 @@ class TasksAnalysis(TraceAnalysisBase):
         def f(state):
             if state == TaskState.TASK_ACTIVE:
                 return active_value
-            elif state == TaskState.TASK_INTERRUPTIBLE:
+            else:
                 return sleep_value
 
         if cpu is not None:
             df = df[df['cpu'] == cpu]
 
-        curr_state = df.curr_state
-        active_series = curr_state[
-            (curr_state == TaskState.TASK_ACTIVE) |
-            (curr_state == TaskState.TASK_INTERRUPTIBLE)
-        ].map(f)
+        df['active'] = df['curr_state'].map(f)
 
-        return active_series.to_frame('active')
+        return df[['active', 'cpu']]
 
 ###############################################################################
 # Plotting Methods
