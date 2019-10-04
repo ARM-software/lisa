@@ -253,9 +253,9 @@ for arg in "$@"; do
         ;;&
 
     "--install-doc-extras" | "--install-all")
-        apt_packages+=(plantuml graphviz)
+        apt_packages+=(plantuml graphviz pandoc)
         # plantuml can be installed from the AUR
-        pacman_packages+=(graphviz)
+        pacman_packages+=(graphviz pandoc)
         handled=1;
         ;;&
 

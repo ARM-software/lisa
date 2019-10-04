@@ -134,6 +134,7 @@ extensions = [
     #  'sphinx.ext.viewcode',
     'sphinx.ext.inheritance_diagram',
     'sphinxcontrib.plantuml',
+    'nbsphinx',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
