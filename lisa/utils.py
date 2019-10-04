@@ -1400,7 +1400,12 @@ def namedtuple(*args, module, **kwargs):
     :param module: Name of the module the type is defined in.
     :type module: str
     """
+    assert isinstance(module, str)
+
     type_ = collections.namedtuple(*args, **kwargs)
+    # Make sure this type also has a sensible __module__, since it's going to
+    # appear as a base class. Otherwise, Sphinx's autodoc will choke on it.
+    type_.__module__ = module
 
     class Augmented(type_, Mapping):
         def __getitem__(self, key):
