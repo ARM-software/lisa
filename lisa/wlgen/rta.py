@@ -396,7 +396,7 @@ class RTA(Workload):
                                  calibration="CPU{}".format(cpu),
                                  res_dir=res_dir)
 
-            with target.freeze_userspace():
+            with target.disable_idle_states(), target.freeze_userspace():
                 rta.run(as_root=True)
 
             for line in rta.output.split('\n'):
