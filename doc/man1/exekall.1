@@ -69,8 +69,8 @@ subcommands:
 .ft C
 usage: exekall run [\-h] [\-s ID_PATTERN] [\-\-list] [\-n N] [\-\-load\-db LOAD_DB]
                    [\-\-load\-type TYPE_PATTERN] [\-\-replay REPLAY]
-                   [\-\-artifact\-dir ARTIFACT_DIR] [\-\-verbose]
-                   [\-\-log\-level {debug,info,warn,error,critical}]
+                   [\-\-artifact\-dir ARTIFACT_DIR] [\-\-no\-save\-value\-db]
+                   [\-\-verbose] [\-\-log\-level {debug,info,warn,error,critical}]
                    [\-\-param CALLABLE_PATTERN PARAM VALUE]
                    [\-\-sweep CALLABLE_PATTERN PARAM START STOP STEP]
                    [\-\-share TYPE_PATTERN] [\-\-random\-order]
@@ -123,6 +123,9 @@ optional arguments:
 advanced arguments:
   Options not needed for every\-day use
 
+  \-\-no\-save\-value\-db    Do not create a VALUE_DB.pickle.xz file in the artifact folder. This
+                        avoids a costly serialization of the results, but prevents partial re\-
+                        execution of expressions.
   \-\-verbose, \-v         More verbose output. Can be repeated for even more verbosity. This
                         only impacts exekall output, \-\-log\-level for more global settings.
   \-\-log\-level {debug,info,warn,error,critical}

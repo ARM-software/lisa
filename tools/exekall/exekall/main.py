@@ -263,6 +263,10 @@ please run ``exekall run YOUR_SOURCES_OR_MODULES --help``.
 
     run_parser = run_parser.add_argument_group(title='advanced arguments', description='Options not needed for every-day use')
 
+    add_argument(run_parser, '--no-save-value-db', action='store_false',
+        dest='save_value_db',
+        help="""Do not create a VALUE_DB.pickle.xz file in the artifact folder. This avoids a costly serialization of the results, but prevents partial re-execution of expressions.""")
+
     add_argument(run_parser, '--verbose', '-v', action='count', default=0,
         help="""More verbose output. Can be repeated for even more verbosity. This only impacts exekall output, --log-level for more global settings.""")
 
@@ -665,6 +669,7 @@ def do_run(args, parser, run_parser, argv):
     module_set.add(inspect.getmodule(adaptor_cls))
 
     verbose = args.verbose
+    save_db = args.save_value_db
 
     iteration_nr = args.n
     shared_pattern_set = set(args.share)
@@ -935,6 +940,7 @@ def do_run(args, parser, run_parser, argv):
         only_template_scripts=only_template_scripts,
         adaptor_cls=adaptor_cls,
         verbose=verbose,
+        save_db=save_db,
     )
 
     # If we reloaded a DB, merge it with the current DB so the outcome is a
@@ -949,7 +955,7 @@ def do_run(args, parser, run_parser, argv):
     return exec_ret_code
 
 def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
-        hidden_callable_set, only_template_scripts, adaptor_cls, verbose):
+                   hidden_callable_set, only_template_scripts, adaptor_cls, verbose, save_db):
 
     if not only_template_scripts:
         with (artifact_dir/'UUID').open('wt') as f:
@@ -1163,16 +1169,21 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
             for uuid_ in computed_uuid_set:
                 (artifact_dir/'BY_UUID'/uuid_).symlink_to(expr_artifact_dir)
 
-    db = engine.ValueDB(
-        engine.FrozenExprValSeq.from_expr_list(
-            utils.flatten_seq(iteration_expr_list),
-            hidden_callable_set=hidden_callable_set,
-        ),
-        adaptor_cls=adaptor_cls,
-    )
+    if save_db:
+        db = engine.ValueDB(
+            engine.FrozenExprValSeq.from_expr_list(
+                utils.flatten_seq(iteration_expr_list),
+                hidden_callable_set=hidden_callable_set,
+            ),
+            adaptor_cls=adaptor_cls,
+        )
 
-    db_path = artifact_dir/utils.DB_FILENAME
-    db.to_path(db_path)
+        db_path = artifact_dir/utils.DB_FILENAME
+        db.to_path(db_path)
+        relative_db_path = db_path.relative_to(artifact_dir)
+    else:
+        relative_db_path = None
+        db = None
 
     out('#'*80)
     info('Artifacts dir: {}'.format(artifact_dir))
@@ -1189,7 +1200,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
     result_name_map, all_scripts = engine.Expression.get_all_script(
         utils.flatten_seq(iteration_expr_list),
         prefix='expr',
-        db_path=db_path.relative_to(artifact_dir),
+        db_path=relative_db_path,
         db_relative_to='__file__',
         db=db,
         adaptor_cls=adaptor_cls,
