@@ -609,7 +609,8 @@ class Ramp(RTATask):
     :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run.
-                .. note:: if not specified, it can run on all CPUs
+
+        .. note:: if not specified, it can run on all CPUs
     :type cpus: list(int)
     """
 
@@ -660,7 +661,8 @@ class Step(Ramp):
     :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run.
-                .. note:: if not specified, it can run on all CPUs
+
+        .. note:: if not specified, it can run on all CPUs
     :type cpus: list(int)
     """
 
@@ -699,7 +701,8 @@ class Pulse(RTATask):
     :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run
-                .. note:: if not specified, it can run on all CPUs
+
+        .. note:: if not specified, it can run on all CPUs
     :type cpus: list(int)
     """
 
@@ -744,7 +747,8 @@ class Periodic(Pulse):
     :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run.
-                .. note:: if not specified, it can run on all CPUs
+
+        .. note:: if not specified, it can run on all CPUs
     :type cpus: list(int)
     """
 
@@ -770,7 +774,8 @@ class RunAndSync(RTATask):
     :type sched_policy: str or None
 
     :param cpus: the list of CPUs on which task can run.
-                .. note:: if not specified, it can run on all CPUs
+
+        .. note:: if not specified, it can run on all CPUs
     :type cpus: list(int)
 
     """
