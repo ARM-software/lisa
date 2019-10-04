@@ -496,15 +496,15 @@ class TasksAnalysis(TraceAnalysisBase):
         :type task: int or str or tuple(int, str)
 
         :param cpu: the CPUs to look at. If ``None``, all CPUs will be used.
-        :type task: int or None
+        :type cpu: int or None
 
         :param active_value: the value to use in the series when task is
             active.
-        :type task: float
+        :type active_value: float
 
-        :param active_value: the value to use in the series when task is
+        :param sleep_value: the value to use in the series when task is
             sleeping.
-        :type task: float
+        :type sleep_value: float
 
         :returns: a :class:`pandas.DataFrame` with:
 
