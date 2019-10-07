@@ -629,7 +629,7 @@ class WaResultsCollector(Loggable):
 
         df = self._select(tag, kernel, test)
         if df.empty:
-            logger.warn("No data to plot for (tag: %s, kernel: %s, test: %s)",
+            logger.warning("No data to plot for (tag: %s, kernel: %s, test: %s)",
                            tag, kernel, test)
             return None
 

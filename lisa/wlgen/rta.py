@@ -224,7 +224,7 @@ class RTA(Workload):
         }
 
         if max_duration_s:
-            logger.warn('Limiting workload duration to %d [s]', max_duration_s)
+            logger.warning('Limiting workload duration to %d [s]', max_duration_s)
 
         if default_policy:
             if default_policy in self.sched_policies:
