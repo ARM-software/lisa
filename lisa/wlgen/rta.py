@@ -25,7 +25,7 @@ from shlex import quote
 import copy
 
 from lisa.wlgen.workload import Workload
-from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN
+from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, groupby
 
 class RTA(Workload):
     """
@@ -396,7 +396,7 @@ class RTA(Workload):
                                  calibration="CPU{}".format(cpu),
                                  res_dir=res_dir)
 
-            with target.freeze_userspace():
+            with rta, target.disable_idle_states(), target.freeze_userspace():
                 rta.run(as_root=True)
 
             for line in rta.output.split('\n'):
@@ -413,21 +413,22 @@ class RTA(Workload):
 
         # Sanity check calibration values for asymmetric systems
         cpu_capacities = target.sched.get_capacities()
-        capa_pload = {capacity : sys.maxsize for capacity in list(cpu_capacities.values())}
 
         # Find the max pload per capacity level
-        # for capacity, index in enumerate(sorted_capacities):
-        for cpu, capacity in list(cpu_capacities.items()):
-            capa_pload[capacity] = max(capa_pload[capacity], pload[cpu])
+        capa_pload = {
+            capacity: max(pload[cpu] for cpu, capa in cpu_caps)
+            for capacity, cpu_caps in groupby(cpu_capacities.items(), lambda k_v: k_v[1])
+        }
 
-        sorted_capas = sorted(capa_pload.keys())
+        # Sort by capacity
+        capa_pload_list = sorted(capa_pload.items())
+        # unzip the list of tuples
+        _, pload_list = zip(*capa_pload_list)
 
-        # Make sure pload decreases with capacity
-        for index, capa in enumerate(sorted_capas[1:]):
-            if capa_pload[capa] > capa_pload[sorted_capas[index-1]]:
-                logger.warning('Calibration values reports big cores less '
-                            'capable than LITTLE cores')
-                raise RuntimeError('Calibration failed: try again or file a bug')
+        # If sorting according to capa was not equivalent to reverse sorting
+        # according to pload (small pload=fast cpu)
+        if list(pload_list) != sorted(pload_list, reverse=True):
+            raise RuntimeError('Calibration values reports big cores less capable than LITTLE cores')
 
         return pload
 

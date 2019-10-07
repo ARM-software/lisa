@@ -94,7 +94,7 @@ class Workload(Loggable):
                                       quote(wlgen_dir), quote(temp_fmt))).strip()
 
         logger = self.get_logger()
-        logger.info("Creating target's run_dir: %s", self.run_dir)
+        logger.info("Creating target's run directory: %s", self.run_dir)
 
         res_dir = res_dir if res_dir else target.get_res_dir(
             name='{}-{}'.format(self.__class__.__qualname__, name)
