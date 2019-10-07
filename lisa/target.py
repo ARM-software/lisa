@@ -346,7 +346,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         try:
             plat_info = PlatformInfo.from_yaml_map(path)
         except Exception as e:
-            cls.get_logger().warn('No platform information could be found: {}'.format(e))
+            cls.get_logger().warning('No platform information could be found: {}'.format(e))
             plat_info = None
         return cls.from_conf(conf=conf, plat_info=plat_info)
 
