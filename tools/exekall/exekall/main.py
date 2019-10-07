@@ -945,7 +945,7 @@ def do_run(args, parser, run_parser, argv):
 
     # If we reloaded a DB, merge it with the current DB so the outcome is a
     # self-contained artifact dir
-    if load_db_path_list:
+    if load_db_path_list and save_db:
         orig_list = [
             path if path.is_dir() else path.parent
             for path in map(pathlib.Path, load_db_path_list)

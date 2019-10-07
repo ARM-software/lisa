@@ -972,6 +972,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
 
     @RTAEventsAnalysis.df_rtapp_phases_start.used_events
     @RTAEventsAnalysis.df_rtapp_phases_end.used_events
+    @requires_events('sched_switch')
     def trace_window(self, trace):
         """
         The time window to consider for this :class:`RTATestBundle`
@@ -989,8 +990,19 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
           Calling ``self.trace`` here will raise an :exc:`AttributeError`
           exception, to avoid entering infinite recursion.
         """
-        # Find when the first rtapp phase starts
-        rta_start = trace.analysis.rta.df_rtapp_phases_start()['Time'].min()
+        swdf = trace.df_events('sched_switch')
+
+        def get_first_switch(row):
+            comm, pid, _ = row.name
+            start_time = row['Time']
+            task = TaskID(comm=comm, pid=pid)
+            start_swdf = df_filter_task_ids(swdf, [task], pid_col='next_pid', comm_col='next_comm')
+            return start_swdf[start_swdf.index < start_time].index[-1]
+
+        # Find when the first rtapp phase starts, and take the associated
+        # sched_switch that is immediately preceding
+        rta_start = trace.analysis.rta.df_rtapp_phases_start().apply(get_first_switch, axis=1).min()
+
         # Find when the last rtapp phase ends
         rta_stop = trace.analysis.rta.df_rtapp_phases_end()['Time'].max()
 
