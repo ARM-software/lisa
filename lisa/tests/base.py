@@ -997,7 +997,15 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             start_time = row['Time']
             task = TaskID(comm=comm, pid=pid)
             start_swdf = df_filter_task_ids(swdf, [task], pid_col='next_pid', comm_col='next_comm')
-            return start_swdf[start_swdf.index < start_time].index[-1]
+            pre_phase_swdf = start_swdf[start_swdf.index < start_time]
+            # The task with that comm and PID was never switched-in, which
+            # means it was still on the current CPU when it was renamed, so we
+            # just report phase-start.
+            if pre_phase_swdf.empty:
+                return start_time
+            # Otherwise, we return the timestamp of the switch
+            else:
+                return pre_phase_swdf.index[-1]
 
         # Find when the first rtapp phase starts, and take the associated
         # sched_switch that is immediately preceding
