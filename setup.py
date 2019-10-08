@@ -93,6 +93,7 @@ setup(
             "sphinx >= 1.8",
             "sphinx_rtd_theme",
             "sphinxcontrib-plantuml",
+            "nbsphinx",
         ],
 
         "test": [

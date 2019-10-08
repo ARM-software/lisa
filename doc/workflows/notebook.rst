@@ -49,3 +49,27 @@ Notebooks as development environment
 
   Note that this can cause a few type checking issues, but you should get an
   explicit error in that case.
+
+Notebook examples
+=================
+
+Typical experiment
+++++++++++++++++++
+
+Basic experiment running a workload and analysing the trace:
+
+.. toctree::
+    :maxdepth: 2
+
+    ipynb/examples/typical_experiment.ipynb
+
+Synthetic test example
+++++++++++++++++++++++
+
+Example showing how to run one of the synthetic tests based on
+:class:`lisa.tests.base.TestBundle`:
+
+.. toctree::
+    :maxdepth: 2
+
+    ipynb/tests/synthetics_example.ipynb
