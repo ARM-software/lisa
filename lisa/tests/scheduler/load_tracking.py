@@ -30,20 +30,11 @@ from lisa.datautils import series_mean, df_window, df_filter_task_ids
 from lisa.wlgen.rta import Periodic, RTATask
 from lisa.trace import FtraceCollector, requires_events
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
-from lisa.pelt import simulate_pelt, pelt_settling_time
+from lisa.pelt import PELT_SCALE, simulate_pelt, pelt_settling_time
 
+UTIL_SCALE = PELT_SCALE
 
-UTIL_SCALE = 1024
-"""
-PELT utilization values scale
-"""
-
-HALF_LIFE_MS = 32
-"""
-PELT half-life value in ms
-"""
-
-UTIL_AVG_CONVERGENCE_TIME_S = 0.3
+UTIL_AVG_CONVERGENCE_TIME_S = pelt_settling_time(1, init=0, final=1024)
 """
 Time in seconds for util_avg to converge (i.e. ignored time)
 """
