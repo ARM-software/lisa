@@ -712,6 +712,10 @@ class PELTTask(LoadTrackingBase):
         # Ignore the first activation, as its signals are incorrect
         df_activation = df_activation.iloc[2:]
 
+        # Make sure the activation df does not start before the dataframe of
+        # signal values, otherwise we cannot provide a sensible init value
+        df_activation = df_activation[df.index[0]:]
+
         # Get the initial signal value matching the first activation we will care about
         init_iloc = df.index.get_loc(df_activation.index[0], method='ffill')
         init = df[signal_name].iloc[init_iloc]
