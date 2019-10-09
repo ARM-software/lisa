@@ -342,7 +342,8 @@ def rerere_autocommit(repo):
         else:
             if empty_staging_area(repo):
                 # If the commit would be empty, just skip it
-                warn('Empty commit, skipping it')
+                curr_sha1 = git(['rev-list', '-n1', 'CHERRY_PICK_HEAD'], capture=True).decode()
+                warn('Empty commit, skipping it: {}'.format(curr_sha1))
                 git(['reset'])
             else:
                 info('Git rerere supplied solution, carrying on')
