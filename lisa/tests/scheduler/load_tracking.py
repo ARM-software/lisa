@@ -778,7 +778,11 @@ class PELTTask(LoadTrackingBase):
 
         df = df[settling_time:]
 
-        settled_signal_mean = series_mean(df[signal_name])
+        signal_min = df[signal_name].min()
+        # Instead of taking the mean, take the average between the min and max
+        # values of the settled signal. This avoids the bias introduced by the
+        # fact that the util signal stays high while the task sleeps
+        settled_signal_mean = abs(df[signal_name].max() - signal_min) / 2 + signal_min
         expected_signal_mean = expected_final_util
         expected_signal_mean = self.correct_expected_pelt(self.plat_info, cpu, expected_signal_mean)
 
