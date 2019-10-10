@@ -25,7 +25,7 @@ from shlex import quote
 import copy
 
 from lisa.wlgen.workload import Workload
-from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, groupby
+from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, groupby, nullcontext
 
 class RTA(Workload):
     """
@@ -444,9 +444,11 @@ class RTA(Workload):
         if 'cpufreq' not in target.modules:
             cls.get_logger().warning(
                 'cpufreq module not loaded, skipping setting frequency to max')
-            return cls._calibrate(target, res_dir)
+            cm = nullcontext()
+        else:
+            cm = target.cpufreq.use_governor('performance')
 
-        with target.cpufreq.use_governor('performance'):
+        with cm:
             return cls._calibrate(target, res_dir)
 
 class Phase(Loggable):
