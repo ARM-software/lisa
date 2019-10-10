@@ -504,6 +504,46 @@ def df_window(df, window, method='inclusive', clip_window=False):
     """
     return _data_window(df, window, method, clip_window)
 
+def _data_adjacent_index(data, ref, method):
+    """
+    ``data`` can either be a :class:`pandas.DataFrame` or :class:`pandas.Series`.
+    """
+    res = None
+
+    if method not in ["prev", "next"]:
+        raise ValueError("Adjacent index search method not supported: {}".format(method))
+
+    if method == "prev" and ref > data.index[0]:
+        res = data.index.get_loc(ref, "ffill")
+    elif method == "next" and ref < data.index[-1]:
+        res = data.index.get_loc(ref, "bfill")
+
+    return res
+
+def df_adjacent_index(df, ref, method):
+    """
+    :param ref: The index value to look around
+
+    :param method: Choose how adjacent index is selected:
+      * `prev`: find the index value directly preceding ``ref`` (will be
+        ``ref`` if it is a valid index value).
+      * `next`: find the index value directly following ``ref`` (will be
+        ``ref`` if it is a valid index value).
+    :type method: str
+
+    :returns: An index value following the `method` choice. Will be `None` if
+      there is no valid index to return (e.g. `prev` was selected but there is
+      no index value preceding ``ref``).
+
+    .. note:: ``ref`` doesn't have to be an existing index itself.
+    """
+    return _data_adjacent_index(df, ref, method)
+
+def series_adjacent_index(series, ref, method):
+    """
+    .. seealso:: :func:`df_adjacent_index`
+    """
+    return _data_adjacent_index(series, ref, method)
 
 def series_align_signal(ref, to_align, max_shift=None):
     """
