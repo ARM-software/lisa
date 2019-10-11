@@ -92,9 +92,6 @@ class RTA(Workload):
         :parameters: Attributes that have been pre-computed and ended up
           in the json file. Passing them can prevent a needless file read.
         """
-        if not os.path.exists(self.local_json):
-            raise RuntimeError("Could not find {}".format(self.local_json))
-
         if calibration or not tasks_names:
             with open(self.local_json, "r") as fh:
                 desc = json.load(fh)
