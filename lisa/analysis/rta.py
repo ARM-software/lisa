@@ -664,7 +664,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         ylabel = 'perf index of "{}"'.format(task)
         series = self.df_rtapp_stats(task)['perf_index']
         mean = series.mean()
-        self.get_logger().info('perf index of task "{}": avg={:.2f} std={:.2f}'
+        self.logger.info('perf index of task "{}": avg={:.2f} std={:.2f}'
                                .format(task, mean, series.std()))
 
         series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel, figure=axis.get_figure())
@@ -698,7 +698,7 @@ class PerfAnalysis(AnalysisHelpers):
         """
         Load peformance data of an rt-app workload
         """
-        logger = self.get_logger()
+        logger = self.logger
 
         if not task_log_map:
             raise ValueError('No tasks in the task log mapping')
@@ -906,7 +906,7 @@ class PerfAnalysis(AnalysisHelpers):
         ylabel = 'perf index of "{}"'.format(task)
         series = self.get_df(task)['PerfIndex']
         mean = series.mean()
-        self.get_logger().info('perf index of task "{}": avg={:.2f} std={:.2f}'.format(
+        self.logger.info('perf index of task "{}": avg={:.2f} std={:.2f}'.format(
             task, mean, series.std()))
 
         series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel)

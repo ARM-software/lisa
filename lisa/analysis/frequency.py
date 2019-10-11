@@ -278,7 +278,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         :type clk: str
         """
 
-        logger = self.get_logger()
+        logger = self.logger
         start = self.trace.start
         end = self.trace.end
 
@@ -359,7 +359,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         If ``sched_overutilized`` events are available, the plots will also
         show the intervals of time where the system was overutilized.
         """
-        logger = self.get_logger()
+        logger = self.logger
 
         df = self.trace.df_events('cpu_frequency')
         df = df[df.cpu == cpu]

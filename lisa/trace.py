@@ -304,7 +304,7 @@ class Trace(Loggable, TraceBase):
 
         super().__init__()
 
-        logger = self.get_logger()
+        logger = self.logger
 
         if plat_info is None:
             plat_info = PlatformInfo()
@@ -338,7 +338,7 @@ class Trace(Loggable, TraceBase):
             max_cpu = max(int(self.df_events(e)['__cpu'].max())
                           for e in self.available_events)
             count = max_cpu + 1
-            self.get_logger().info("Estimated CPU count from trace: %s", count)
+            self.logger.info("Estimated CPU count from trace: %s", count)
             return count
 
     @deprecate('Direct access to underlying ftrace object is discouraged as this is now an implementation detail of that class which could change in the future',
@@ -390,7 +390,7 @@ class Trace(Loggable, TraceBase):
             - SysTrace
         :type trace_format: str
         """
-        logger = self.get_logger()
+        logger = self.logger
         logger.debug('Loading [sched] events from trace in [%s]...', path)
         logger.debug('Parsing events: %s', self.events)
         if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
@@ -437,7 +437,7 @@ class Trace(Loggable, TraceBase):
         :param key: key to be used for TRAPpy filtering
         :type key: str
         """
-        logger = self.get_logger()
+        logger = self.logger
         available_events = []
         for val in self._ftrace.get_filters(key):
             obj = getattr(self._ftrace, val)
@@ -527,7 +527,7 @@ class Trace(Loggable, TraceBase):
         self.end = self.start + duration
         self.time_range = self.end - self.start
 
-        self.get_logger().debug('Trace contains events from %s to %s',
+        self.logger.debug('Trace contains events from %s to %s',
                                 self.start, self.end)
 
     def get_task_name_pids(self, name, ignore_fork=True):
@@ -837,7 +837,7 @@ class Trace(Loggable, TraceBase):
 
         Also convert between existing field name formats for sched_energy_diff
         """
-        logger = self.get_logger()
+        logger = self.logger
         if not self.has_events('sched_energy_diff') \
            or 'nrg-model' not in self.plat_info:
             return
@@ -918,7 +918,7 @@ class Trace(Loggable, TraceBase):
         """
         Rename some columns and add fake devlib frequency events
         """
-        logger = self.get_logger()
+        logger = self.logger
         if not self.has_events('cpu_frequency_devlib') \
            or 'freq-domains' not in self.plat_info:
             return

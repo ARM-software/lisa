@@ -93,7 +93,7 @@ class Workload(Loggable):
         self.run_dir = target.execute("mktemp -d -p {} {}".format(
                                       quote(wlgen_dir), quote(temp_fmt))).strip()
 
-        logger = self.get_logger()
+        logger = self.logger
         logger.info("Creating target's run directory: %s", self.run_dir)
 
         res_dir = res_dir if res_dir else target.get_res_dir(
@@ -111,7 +111,7 @@ class Workload(Loggable):
             sessions. For other purposes, use :class:`Workload` instances as a
             context manager.
         """
-        logger = self.get_logger()
+        logger = self.logger
         logger.info("Wiping target run directory: {}".format(self.run_dir))
         self.target.execute("rm -rf {}".format(quote(self.run_dir)))
 
@@ -147,7 +147,7 @@ class Workload(Loggable):
 
         The standard output will be saved into a file in ``self.res_dir``
         """
-        logger = self.get_logger()
+        logger = self.logger
         if not self.command:
             raise RuntimeError("Workload does not specify any command to execute")
 

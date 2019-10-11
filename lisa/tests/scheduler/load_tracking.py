@@ -317,7 +317,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
             signal_name == 'load'
             and kernel_version.parts[:2] < (5, 1)
         ):
-            self.get_logger().warning('Load signal is assumed to be CPU invariant, which is true for recent mainline kernels, but may be wrong for {}'.format(
+            self.logger.warning('Load signal is assumed to be CPU invariant, which is true for recent mainline kernels, but may be wrong for {}'.format(
                 kernel_version,
             ))
 
@@ -576,7 +576,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
         .. seealso:: :class:`InvarianceItem.test_task_util_avg`
         """
 
-        logger = self.get_logger()
+        logger = self.logger
 
         def make_group_bundle(cpu, item_group):
             bundle = AggregatedResultBundle(
@@ -693,7 +693,7 @@ class PELTTask(LoadTrackingBase):
             containing the simulated signal, along with the column of the
             signal as found in the trace.
         """
-        logger = self.get_logger()
+        logger = self.logger
         trace = self.trace
         task = trace.get_task_id(task)
         cpus = trace.analysis.tasks.cpus_of_tasks([task])

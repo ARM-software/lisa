@@ -214,7 +214,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     ):
 
         super().__init__()
-        logger = self.get_logger()
+        logger = self.logger
 
         self.name = name
 
@@ -496,7 +496,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         """
         Initialize the Target
         """
-        logger = self.get_logger()
+        logger = self.logger
         conn_settings = {}
 
         # If the target is Android, we need just (eventually) the device
@@ -647,7 +647,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         )
 
     def _get_res_dir(self, root, relative, name, append_time, symlink):
-        logger = self.get_logger()
+        logger = self.logger
         while True:
             time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
             if not name:
@@ -721,7 +721,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         """
         Context manager that lets you freeze the userspace
         """
-        logger = self.get_logger()
+        logger = self.logger
         if 'cgroups' not in self.target.modules:
             raise RuntimeError('Could not freeze userspace: "cgroups" devlib module is necessary')
 
@@ -762,7 +762,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         # This assumes that freq domains are tied to "idle domains"
         # We'll have to change this if this assumption no longer holds true
 
-        logger = self.get_logger()
+        logger = self.logger
         logger.info('Disabling idle states for all domains')
 
         try:

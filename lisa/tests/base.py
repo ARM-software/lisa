@@ -910,7 +910,7 @@ class DmesgTestBundle(TestBundle):
         # Consider as an issue all levels more critical than `level`
         issue_levels = levels[:levels.index(level) + 1]
 
-        logger = self.get_logger()
+        logger = self.logger
 
         if ignored_patterns:
             logger.info('Will ignore patterns in dmesg output: {}'.format(ignored_patterns))
@@ -1147,7 +1147,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                 if df_filter_task_ids(df, [task_id]).iloc[0].runtime_pct <= threshold
             )
 
-        self.get_logger().info("Ignored PIDs for noise contribution: {}".format(
+        self.logger.info("Ignored PIDs for noise contribution: {}".format(
             ", ".join(map(str, ignored_ids))
         ))
 

@@ -785,7 +785,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         mapping as a new source.
         """
 
-        logger = self.get_logger()
+        logger = self.logger
         if logger.isEnabledFor(logging.DEBUG):
             caller, filename, lineno = get_call_site(1, exclude_caller_module=True)
             logger.debug('{caller} ({filename}:{lineno}) has set source "{src}":\n{conf}'.format(
@@ -1089,7 +1089,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 val = self._eval_deferred_val(src, key)
 
 
-        logger = self.get_logger()
+        logger = self.logger
         if not quiet and logger.isEnabledFor(logging.DEBUG):
             caller, filename, lineno = get_call_site(2, exclude_caller_module=True)
             logger.debug('{caller} ({filename}:{lineno}) has used key {key} from source "{src}": {val}'.format(

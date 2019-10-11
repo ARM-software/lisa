@@ -177,7 +177,7 @@ class SchedTuneFreqItem(SchedTuneItemBase):
         """
         kernel_version = self.plat_info['kernel']['version']
         if kernel_version.parts[:2] < (4, 14):
-            self.get_logger().warning('This test requires the RT boost hold, but it may be disabled in {}'.format(kernel_version))
+            self.logger.warning('This test requires the RT boost hold, but it may be disabled in {}'.format(kernel_version))
 
         cpu = self.plat_info['capacity-classes'][-1][0]
         freqs = self.plat_info['freqs'][cpu]

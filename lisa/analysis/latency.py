@@ -196,14 +196,14 @@ class LatencyAnalysis(TraceAnalysisBase):
         if wakeup:
             df = self.df_latency_wakeup(task)
             if df.empty:
-                self.get_logger().warning("No data to plot for wakeups")
+                self.logger.warning("No data to plot for wakeups")
             else:
                 df.plot(ax=axis, style='+', label="Wakeup")
 
         if preempt:
             df = self.df_latency_preemption(task)
             if df.empty:
-                self.get_logger().warning("No data to plot for preemption")
+                self.logger.warning("No data to plot for preemption")
             else:
                 df.plot(ax=axis, style='+', label="Preemption")
 

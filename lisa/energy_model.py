@@ -168,7 +168,7 @@ class EnergyModelNode(_CpuTree):
     def __init__(self, active_states, idle_states,
                  cpu=None, children=None, name=None):
         super().__init__(cpu, children)
-        logger = self.get_logger()
+        logger = self.logger
 
         def is_monotonic(l, decreasing=False):
             op = operator.ge if decreasing else operator.le
@@ -343,7 +343,7 @@ class EnergyModel(Serializable, Loggable):
     """
 
     def __init__(self, root_node, root_power_domain, freq_domains):
-        logger = self.get_logger()
+        logger = self.logger
         self.cpus = root_node.cpus
         if self.cpus != tuple(range(len(self.cpus))):
             raise ValueError('CPU IDs [{}] are sparse'.format(self.cpus))
@@ -711,7 +711,7 @@ class EnergyModel(Serializable, Loggable):
 
         num_candidates = len(self.cpus) ** len(tasks)
 
-        logger = self.get_logger()
+        logger = self.logger
         logger.debug(
             '%14s - Searching %d configurations for optimal task placement...',
             'EnergyModel', num_candidates)

@@ -103,7 +103,7 @@ class RTA(Workload):
 
     def run(self, cpus=None, cgroup=None, background=False, as_root=False):
         super().run(cpus, cgroup, background, as_root)
-        logger = self.get_logger()
+        logger = self.logger
 
         if background:
             # TODO: handle background case
@@ -493,7 +493,7 @@ class Phase(Loggable):
 
         :returns: OrderedDict
         """
-        logger = self.get_logger()
+        logger = self.logger
         phase = OrderedDict()
         # Convert time parameters to integer [us] units
         duration = int(self.duration_s * 1e6)

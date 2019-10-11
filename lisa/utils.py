@@ -101,6 +101,24 @@ class Loggable:
             name += '.' + suffix
         return logging.getLogger(name)
 
+    @property
+    def logger(self):
+        """
+        Default logger, shorthand to ``self.logger``.
+        """
+        try:
+            return self.__dict__['logger']
+        except KeyError:
+            logger = self.get_logger()
+            self.logger = logger
+            return logger
+
+    # Devlib sets logger attribute on some of its classes, which means this
+    # property has to be settable
+    @logger.setter
+    def logger(self, logger):
+        self.__dict__['logger'] = logger
+
     @classmethod
     def log_locals(cls, var_names=None, level='debug'):
         """
