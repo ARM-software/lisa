@@ -29,6 +29,13 @@ from lisa.wlgen.workload import Workload
 from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, groupby, nullcontext
 from lisa.pelt import PELT_SCALE
 
+class CalibrationError(RuntimeError):
+    """
+    Exception raised when the ``rt-app`` calibration is not consistent with the
+    CPU capacities in a way or another.
+    """
+    pass
+
 class RTA(Workload):
     """
     An rt-app workload
@@ -440,7 +447,7 @@ class RTA(Workload):
         # If sorting according to capa was not equivalent to reverse sorting
         # according to pload (small pload=fast cpu)
         if list(pload_list) != sorted(pload_list, reverse=True):
-            raise RuntimeError('Calibration values reports big cores less capable than LITTLE cores')
+            raise CalibrationError('Calibration values reports big cores less capable than LITTLE cores')
 
         # Check that the CPU capacities seen by rt-app are similar to the one
         # the kernel uses
@@ -455,7 +462,7 @@ class RTA(Workload):
             logger.warning('The calibration values are not inversely proportional to the CPU capacities, the duty cycles will be up to {:.2f}% off on some CPUs: {}'.format(dispersion_pct, capa_factors_pct))
 
         if dispersion_pct > 20:
-            raise RuntimeError('The calibration values are not inversely proportional to the CPU capacities. Either rt-app calibration failed, or the rt-app busy loops has a very different instruction mix compared to the workload used to establish the CPU capacities: {}'.format(capa_factors_pct))
+            raise CalibrationError('The calibration values are not inversely proportional to the CPU capacities. Either rt-app calibration failed, or the rt-app busy loops has a very different instruction mix compared to the workload used to establish the CPU capacities: {}'.format(capa_factors_pct))
 
         # Map of CPUs X to list of CPUs Ys that are faster than it although CPUs
         # of Ys have a smaller capacity than X
@@ -481,7 +488,7 @@ class RTA(Workload):
         }
 
         if faster_than_map:
-            logger.warning('Some CPUs of higher capacities are slower than other CPUs of smaller capacities: {}'.format(faster_than_map))
+            raise CalibrationError('Some CPUs of higher capacities are slower than other CPUs of smaller capacities: {}'.format(faster_than_map))
 
         return pload
 
