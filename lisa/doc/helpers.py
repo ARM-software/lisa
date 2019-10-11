@@ -249,7 +249,6 @@ def get_analysis_list(meth_type):
 
     for subclass in get_subclasses(AnalysisHelpers):
         class_path = "{}.{}".format(subclass.__module__, subclass.__qualname__)
-        analysis = subclass.__module__.split(".")[-1]
         if meth_type == 'plot':
             meth_list = [
                 f.__name__
@@ -266,7 +265,7 @@ def get_analysis_list(meth_type):
 
         rst_list += [
             ":class:`{analysis_name}<{cls}>`::meth:`~{cls}.{meth}`".format(
-                analysis_name=analysis,
+                analysis_name=subclass.name,
                 cls=class_path,
                 meth=meth,
             )
@@ -274,7 +273,7 @@ def get_analysis_list(meth_type):
         ]
 
     joiner = '\n* '
-    return joiner + joiner.join(rst_list)
+    return joiner + joiner.join(sorted(rst_list))
 
 
 def find_dead_links(content):
