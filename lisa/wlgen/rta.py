@@ -23,9 +23,18 @@ import sys
 from collections import OrderedDict
 from shlex import quote
 import copy
+import itertools
 
 from lisa.wlgen.workload import Workload
 from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, groupby, nullcontext
+from lisa.pelt import PELT_SCALE
+
+class CalibrationError(RuntimeError):
+    """
+    Exception raised when the ``rt-app`` calibration is not consistent with the
+    CPU capacities in a way or another.
+    """
+    pass
 
 class RTA(Workload):
     """
@@ -83,9 +92,6 @@ class RTA(Workload):
         :parameters: Attributes that have been pre-computed and ended up
           in the json file. Passing them can prevent a needless file read.
         """
-        if not os.path.exists(self.local_json):
-            raise RuntimeError("Could not find {}".format(self.local_json))
-
         if calibration or not tasks_names:
             with open(self.local_json, "r") as fh:
                 desc = json.load(fh)
@@ -408,16 +414,26 @@ class RTA(Workload):
 
         logger.info('Target RT-App calibration: %s', pload)
 
-        if 'sched' not in target.modules:
+        plat_info = target.plat_info
+
+        # Sanity check calibration values for asymmetric systems if we have
+        # access to capacities
+        try:
+            cpu_capacities = plat_info['cpu-capacities']
+        except KeyError:
             return pload
 
-        # Sanity check calibration values for asymmetric systems
-        cpu_capacities = target.sched.get_capacities()
-
-        # Find the max pload per capacity level
-        capa_pload = {
-            capacity: max(pload[cpu] for cpu, capa in cpu_caps)
+        capa_ploads = {
+            capacity: {cpu: pload[cpu] for cpu, capa in cpu_caps}
             for capacity, cpu_caps in groupby(cpu_capacities.items(), lambda k_v: k_v[1])
+        }
+
+        # Find the min pload per capacity level, i.e. the fastest detected CPU.
+        # It is more likely to represent the right pload, as it has suffered
+        # from less IRQ slowdown or similar disturbances that might be random.
+        capa_pload = {
+            capacity: min(ploads.values())
+            for capacity, ploads in capa_ploads.items()
         }
 
         # Sort by capacity
@@ -428,9 +444,72 @@ class RTA(Workload):
         # If sorting according to capa was not equivalent to reverse sorting
         # according to pload (small pload=fast cpu)
         if list(pload_list) != sorted(pload_list, reverse=True):
-            raise RuntimeError('Calibration values reports big cores less capable than LITTLE cores')
+            raise CalibrationError('Calibration values reports big cores less capable than LITTLE cores')
+
+        # Check that the CPU capacities seen by rt-app are similar to the one
+        # the kernel uses
+        true_capacities = cls.get_cpu_capacities_from_calibrations(pload)
+        capa_factors_pct = {
+            cpu: true_capacities[cpu] / cpu_capacities[cpu] * 100
+            for cpu in cpu_capacities.keys()
+        }
+        dispersion_pct = max(abs(100 - factor) for factor in capa_factors_pct.values())
+
+        if dispersion_pct > 2:
+            logger.warning('The calibration values are not inversely proportional to the CPU capacities, the duty cycles will be up to {:.2f}% off on some CPUs: {}'.format(dispersion_pct, capa_factors_pct))
+
+        if dispersion_pct > 20:
+            raise CalibrationError('The calibration values are not inversely proportional to the CPU capacities. Either rt-app calibration failed, or the rt-app busy loops has a very different instruction mix compared to the workload used to establish the CPU capacities: {}'.format(capa_factors_pct))
+
+        # Map of CPUs X to list of CPUs Ys that are faster than it although CPUs
+        # of Ys have a smaller capacity than X
+        faster_than_map = {
+            cpu1: sorted(
+                cpu2
+                for cpu2, pload2 in ploads2.items()
+                # CPU2 faster than CPU1
+                if pload2 < pload1
+            )
+            for (capa1, ploads1), (capa2, ploads2) in itertools.permutations(capa_ploads.items())
+            for cpu1, pload1 in ploads1.items()
+            # Only look at permutations in which CPUs of ploads1 are supposed
+            # to be faster than the one in ploads2
+            if capa1 > capa2
+        }
+
+        # Remove empty lists
+        faster_than_map = {
+            cpu: faster_cpus
+            for cpu, faster_cpus in faster_than_map.items()
+            if faster_cpus
+        }
+
+        if faster_than_map:
+            raise CalibrationError('Some CPUs of higher capacities are slower than other CPUs of smaller capacities: {}'.format(faster_than_map))
 
         return pload
+
+    @classmethod
+    def get_cpu_capacities_from_calibrations(cls, calibrations):
+        """
+        Compute the CPU capacities out of the rt-app calibration values.
+
+        :returns: A mapping of CPU to capacity.
+
+        :param calibrations: Mapping of CPU to pload value.
+        :type calibrations: dict
+        """
+
+        # calibration values are inversely proportional to the CPU capacities
+        inverse_calib = {cpu: 1/calib for cpu, calib in calibrations.items()}
+
+        def compute_capa(cpu):
+            # True CPU capacity for the rt-app workload, rather than for the
+            # whatever workload was used to compute the CPU capacities exposed by
+            # the kernel
+            return inverse_calib[cpu] / max(inverse_calib.values()) * PELT_SCALE
+
+        return {cpu: compute_capa(cpu) for cpu in calibrations.keys()}
 
     @classmethod
     def get_cpu_calibrations(cls, target, res_dir=None):

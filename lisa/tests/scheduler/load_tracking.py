@@ -27,23 +27,14 @@ from lisa.tests.base import (
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby, ExekallTaggable
 from lisa.datautils import series_mean, df_window, df_filter_task_ids
-from lisa.wlgen.rta import Periodic, RTATask
+from lisa.wlgen.rta import RTA, Periodic, RTATask
 from lisa.trace import FtraceCollector, requires_events
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
-from lisa.pelt import simulate_pelt, pelt_settling_time
+from lisa.pelt import PELT_SCALE, simulate_pelt, pelt_settling_time
 
+UTIL_SCALE = PELT_SCALE
 
-UTIL_SCALE = 1024
-"""
-PELT utilization values scale
-"""
-
-HALF_LIFE_MS = 32
-"""
-PELT half-life value in ms
-"""
-
-UTIL_AVG_CONVERGENCE_TIME_S = 0.3
+UTIL_AVG_CONVERGENCE_TIME_S = pelt_settling_time(1, init=0, final=1024)
 """
 Time in seconds for util_avg to converge (i.e. ignored time)
 """
@@ -146,6 +137,28 @@ class LoadTrackingHelpers:
             end_df = end_df[(end_df["__cpu"] == cpu)]
 
         return (start_df.index[0], end_df.index[-1])
+
+    @classmethod
+    def correct_expected_pelt(cls, plat_info, cpu, signal_value):
+        """
+        Correct an expected PELT signal from ``rt-app`` based on the calibration
+        values.
+
+        Since the instruction mix of ``rt-app`` might not be the same as the
+        benchmark that was used to establish CPU capacities, the duty cycle of
+        ``rt-app`` will only be accurate on big CPUs. When we know on which CPU
+        the task actually executed, we can correct the expected value based on
+        the ratio of calibration values and CPU capacities.
+        """
+
+        calib = plat_info['rtapp']['calib']
+        cpu_capacities = plat_info['cpu-capacities']
+
+        # Correct the signal mean to what it should have been if rt-app
+        # workload was exactly the same as the one used to establish CPU
+        # capacities
+        true_capacities = RTA.get_cpu_capacities_from_calibrations(calib)
+        return signal_value * cpu_capacities[cpu] / true_capacities[cpu]
 
 
 class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
@@ -754,6 +767,10 @@ class PELTTask(LoadTrackingBase):
         phase = self.wlgen_task.phases[0]
         df = self.get_simulated_pelt(task, signal_name)
 
+        cpus = phase.cpus
+        assert len(cpus) == 1
+        cpu = cpus[0]
+
         expected_duty_cycle_pct = phase.duty_cycle_pct
         expected_final_util = expected_duty_cycle_pct / 100 * UTIL_SCALE
         settling_time = pelt_settling_time(1, init=0, final=expected_final_util)
@@ -761,8 +778,13 @@ class PELTTask(LoadTrackingBase):
 
         df = df[settling_time:]
 
-        settled_signal_mean = series_mean(df[signal_name])
+        signal_min = df[signal_name].min()
+        # Instead of taking the mean, take the average between the min and max
+        # values of the settled signal. This avoids the bias introduced by the
+        # fact that the util signal stays high while the task sleeps
+        settled_signal_mean = abs(df[signal_name].max() - signal_min) / 2 + signal_min
         expected_signal_mean = expected_final_util
+        expected_signal_mean = self.correct_expected_pelt(self.plat_info, cpu, expected_signal_mean)
 
         signal_mean_error_pct = abs(expected_signal_mean - settled_signal_mean) / UTIL_SCALE * 100
         res = ResultBundle.from_bool(signal_mean_error_pct < error_margin_pct)
