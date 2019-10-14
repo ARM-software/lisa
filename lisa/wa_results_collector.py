@@ -164,7 +164,11 @@ class WaResultsCollector(Loggable):
         kernel_refs = {}
         for sha1 in df['kernel_sha1'].unique():
             if kernel_repo_path:
-                kernel_refs[sha1] = find_shortest_symref(kernel_repo_path, sha1) or sha1
+                try:
+                    symref = find_shortest_symref(kernel_repo_path, sha1)
+                except ValueError:
+                    symref = sha1
+                kernel_refs[sha1] = symref
             else:
                 kernel_refs[sha1] = sha1
 
