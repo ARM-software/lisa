@@ -470,8 +470,8 @@ class Invariance(TestBundle, LoadTrackingHelpers):
     """
     Basic check for frequency invariant load and utilization tracking
 
-    This test runs the same workload on the most capable CPU on the system at a
-    cross section of available frequencies.
+    This test runs the same workload on one CPU of each capacity available in
+    the system at a cross section of available frequencies.
 
     This class is mostly a wrapper around :class:`InvarianceItem`,
     providing a way to build a list of those for a few frequencies, and
