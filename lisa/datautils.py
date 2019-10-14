@@ -610,5 +610,41 @@ def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=Fals
 
     return df[tasks_filter]
 
+def series_local_extremum(series, kind):
+    """
+    Returns a series of local extremum.
+
+    :param series: Series to look at.
+    :type series: pandas.Series
+
+    :param kind: Kind of extremum: ``min`` or ``max``.
+    :type kind: str
+    """
+    if kind == 'min':
+        comparator = np.less_equal
+    elif kind == 'max':
+        comparator = np.greater_equal
+    else:
+        raise ValueError('Unsupported kind: {}'.format(kind))
+
+    ilocs = scipy.signal.argrelextrema(series.values, comparator=comparator)
+    return series.iloc[ilocs]
+
+def series_tunnel_mean(series):
+    """
+    Compute the average between the mean of local maximums and local minimums
+    of the series.
+
+    Assuming that the values are ranging inside a tunnel, this will give the
+    average center of that tunnel.
+    """
+    maxs = series_local_extremum(series, kind='max')
+    mins = series_local_extremum(series, kind='min')
+
+    maxs_mean = series_mean(maxs)
+    mins_mean = series_mean(mins)
+
+    return (maxs_mean - mins_mean) / 2 + mins_mean
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

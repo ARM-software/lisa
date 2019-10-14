@@ -26,7 +26,7 @@ from lisa.tests.base import (
 )
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby, ExekallTaggable
-from lisa.datautils import series_mean, df_window, df_filter_task_ids
+from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_tunnel_mean
 from lisa.wlgen.rta import RTA, Periodic, RTATask
 from lisa.trace import FtraceCollector, requires_events
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
@@ -358,11 +358,10 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
 
         df = df[settling_time:]
 
-        signal_min = df[signal_name].min()
         # Instead of taking the mean, take the average between the min and max
         # values of the settled signal. This avoids the bias introduced by the
         # fact that the util signal stays high while the task sleeps
-        settled_signal_mean = abs(df[signal_name].max() - signal_min) / 2 + signal_min
+        settled_signal_mean = series_tunnel_mean(df[signal_name])
         expected_signal_mean = expected_final_util
         expected_signal_mean = self.correct_expected_pelt(self.plat_info, cpu, expected_signal_mean)
 
@@ -837,15 +836,7 @@ class CPUMigrationBase(LoadTrackingBase):
 
             for cpu in self.cpus:
                 util = phase_df[phase_df.cpu == cpu].util
-                # The runqueue util signal's average does not match the duty
-                # cycle of the task, since it "decays instantly" at next task
-                # wakeup, but stays at its previous value when the task sleeps.
-                # This means that rq PELT signal average is higher than the
-                # idealized PELT signal. Using trapz integration allows to
-                # lower the contribution of the sleep-time util, since it links
-                # with a straight line the point when task goes to sleep with
-                # the wakeup util point.
-                cpu_util.setdefault(cpu, {})[i] = series_mean(util, method='trapz')
+                cpu_util.setdefault(cpu, {})[i] = series_tunnel_mean(util)
 
             phase_start += phase.duration_s
 
