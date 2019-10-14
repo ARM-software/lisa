@@ -302,8 +302,21 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
             clock = None
 
         df['simulated'] = simulate_pelt(df_activation['active'], index=df.index, init=init, clock=clock)
-        df['error'] = df[signal_name] - df['simulated']
 
+        # Since load is now CPU invariant in recent kernel versions, we don't
+        # rescale it back. To match the old behavior, that line is
+        # needed:
+        #  df['simulated'] /= self.plat_info['cpu-capacities'][cpu] / UTIL_SCALE
+        kernel_version = self.plat_info['kernel']['version']
+        if (
+            signal_name == 'load'
+            and kernel_version.parts[:2] < (5, 1)
+        ):
+            logger().warning('Load signal is assumed to be CPU invariant, which is true for recent mainline kernels, but may be wrong for {}'.format(
+                kernel_version,
+            ))
+
+        df['error'] = df[signal_name] - df['simulated']
         df = df.dropna()
         return df
 
