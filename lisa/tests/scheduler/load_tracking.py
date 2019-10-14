@@ -395,7 +395,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         return res
 
     @_test_correctness.used_events
-    def test_util_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=2) -> ResultBundle:
+    def test_util_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=5) -> ResultBundle:
         """
         Check that the utilization signal is as expected.
 
@@ -416,7 +416,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         )
 
     @_test_correctness.used_events
-    def test_load_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=2) -> ResultBundle:
+    def test_load_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=5) -> ResultBundle:
         """
         Same as :meth:`test_util_correctness` but checking the load.
         """
@@ -558,7 +558,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
     # InvarianceItem with the result merged.
 
     @InvarianceItem.test_util_correctness.used_events
-    def test_util_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=2) -> AggregatedResultBundle:
+    def test_util_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=5) -> AggregatedResultBundle:
         """
         Aggregated version of :meth:`InvarianceItem.test_util_correctness`
         """
@@ -570,7 +570,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
         return self._test_all_freq(item_test)
 
     @InvarianceItem.test_load_correctness.used_events
-    def test_load_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=2) -> AggregatedResultBundle:
+    def test_load_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=5) -> AggregatedResultBundle:
         """
         Aggregated version of :meth:`InvarianceItem.test_load_correctness`
         """
