@@ -871,21 +871,19 @@ class CPUMigrationBase(LoadTrackingBase):
             for i, phase in enumerate(self.reference_task.phases):
                 expected_util = expected_cpu_util[cpu][i]
                 expected_util = self.correct_expected_pelt(self.plat_info, cpu, expected_util)
+                trace_util = trace_cpu_util[cpu][i]
                 if not self.is_almost_equal(
-                        trace_cpu_util[cpu][i],
+                        trace_util,
                         expected_util,
                         allowed_error_pct):
                     passed = False
 
                 # Just some verbose metric collection...
                 phase_str = "phase{}".format(i)
+                delta = 100 * (trace_util - expected_util) / expected_util
 
-                expected = expected_cpu_util[cpu][i]
-                trace = trace_cpu_util[cpu][i]
-                delta = 100 * (trace - expected) / expected
-
-                expected_metrics[cpu_str].data[phase_str] = TestMetric(expected)
-                trace_metrics[cpu_str].data[phase_str] = TestMetric(trace)
+                expected_metrics[cpu_str].data[phase_str] = TestMetric(expected_util)
+                trace_metrics[cpu_str].data[phase_str] = TestMetric(trace_util)
                 deltas[cpu_str].data[phase_str] = TestMetric(delta, "%")
 
         res = ResultBundle.from_bool(passed)
