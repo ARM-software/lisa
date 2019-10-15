@@ -869,9 +869,11 @@ class CPUMigrationBase(LoadTrackingBase):
             deltas[cpu_str] = TestMetric({})
 
             for i, phase in enumerate(self.reference_task.phases):
+                expected_util = expected_cpu_util[cpu][i]
+                expected_util = self.correct_expected_pelt(self.plat_info, cpu, expected_util)
                 if not self.is_almost_equal(
                         trace_cpu_util[cpu][i],
-                        expected_cpu_util[cpu][i],
+                        expected_util,
                         allowed_error_pct):
                     passed = False
 
