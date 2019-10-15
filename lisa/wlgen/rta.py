@@ -403,7 +403,7 @@ class RTA(Workload):
                                  res_dir=res_dir)
 
             with rta, target.disable_idle_states(), target.freeze_userspace():
-                rta.run(as_root=True)
+                rta.run(as_root=target.is_rooted)
 
             for line in rta.output.split('\n'):
                 pload_match = re.search(pload_regexp, line)

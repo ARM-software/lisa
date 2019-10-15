@@ -722,34 +722,34 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         Context manager that lets you freeze the userspace
         """
         logger = self.get_logger()
-        if 'cgroups' not in self.target.modules:
-            raise RuntimeError('Could not freeze userspace: "cgroups" devlib module is necessary')
-
-        controllers = [s.name for s in self.target.cgroups.list_subsystems()]
-        if 'freezer' not in controllers:
-            logger.warning('Could not freeze userspace: freezer cgroup controller not available on the target')
-            cm = nullcontext
-
-        elif not self.is_rooted:
+        if not self.is_rooted:
             logger.warning('Could not freeze userspace: target is not rooted')
             cm = nullcontext
-
         else:
-            exclude = copy.copy(self.CRITICAL_TASKS[self.target.os])
+            if 'cgroups' not in self.target.modules:
+                raise RuntimeError('Could not freeze userspace: "cgroups" devlib module is necessary')
 
-            # Do not freeze the process in charge of de-freezing, otherwise we
-            # will freeze to death and a machine hard reboot will be required
-            if isinstance(self.target, devlib.LocalLinuxTarget):
-                exclude.append(str(os.getpid()))
+            controllers = [s.name for s in self.target.cgroups.list_subsystems()]
+            if 'freezer' not in controllers:
+                logger.warning('Could not freeze userspace: freezer cgroup controller not available on the target')
+                cm = nullcontext
 
-            @contextlib.contextmanager
-            def cm():
-                logger.info('Freezing all tasks except: %s', ','.join(exclude))
-                try:
-                    yield self.target.cgroups.freeze(exclude)
-                finally:
-                    logger.info('Un-freezing userspace tasks')
-                    self.target.cgroups.freeze(thaw=True)
+            else:
+                exclude = copy.copy(self.CRITICAL_TASKS[self.target.os])
+
+                # Do not freeze the process in charge of de-freezing, otherwise we
+                # will freeze to death and a machine hard reboot will be required
+                if isinstance(self.target, devlib.LocalLinuxTarget):
+                    exclude.append(str(os.getpid()))
+
+                @contextlib.contextmanager
+                def cm():
+                    logger.info('Freezing all tasks except: %s', ','.join(exclude))
+                    try:
+                        yield self.target.cgroups.freeze(exclude)
+                    finally:
+                        logger.info('Un-freezing userspace tasks')
+                        self.target.cgroups.freeze(thaw=True)
 
         with cm() as x:
             yield x
