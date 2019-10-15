@@ -34,7 +34,7 @@ from lisa.pelt import PELT_SCALE, simulate_pelt, pelt_settling_time
 
 UTIL_SCALE = PELT_SCALE
 
-UTIL_AVG_CONVERGENCE_TIME_S = pelt_settling_time(1, init=0, final=1024)
+UTIL_CONVERGENCE_TIME_S = pelt_settling_time(1, init=0, final=1024)
 """
 Time in seconds for util_avg to converge (i.e. ignored time)
 """
@@ -441,7 +441,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
 
     @_test_behaviour.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
-    def test_util_avg_behaviour(self, error_margin_pct=5) -> ResultBundle:
+    def test_util_behaviour(self, error_margin_pct=5) -> ResultBundle:
         """
         Check the utilization mean is linked to the task duty cycle.
 
@@ -459,9 +459,9 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
 
     @_test_behaviour.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
-    def test_load_avg_behaviour(self, error_margin_pct=5) -> ResultBundle:
+    def test_load_behaviour(self, error_margin_pct=5) -> ResultBundle:
         """
-        Same as :meth:`test_util_avg_behaviour` but checking the load.
+        Same as :meth:`test_util_behaviour` but checking the load.
         """
         return self._test_behaviour('load', error_margin_pct)
 
@@ -593,24 +593,24 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             )
         return self._test_all_freq(item_test)
 
-    @InvarianceItem.test_util_avg_behaviour.used_events
-    def test_util_avg_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
+    @InvarianceItem.test_util_behaviour.used_events
+    def test_util_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
         """
-        Aggregated version of :meth:`InvarianceItem.test_util_avg_behaviour`
+        Aggregated version of :meth:`InvarianceItem.test_util_behaviour`
         """
         def item_test(test_item):
-            return test_item.test_util_avg_behaviour(
+            return test_item.test_util_behaviour(
                 error_margin_pct=error_margin_pct,
             )
         return self._test_all_freq(item_test)
 
-    @InvarianceItem.test_load_avg_behaviour.used_events
-    def test_load_avg_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
+    @InvarianceItem.test_load_behaviour.used_events
+    def test_load_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
         """
-        Aggregated version of :meth:`InvarianceItem.test_load_avg_behaviour`
+        Aggregated version of :meth:`InvarianceItem.test_load_behaviour`
         """
         def item_test(test_item):
-            return test_item.test_load_avg_behaviour(
+            return test_item.test_load_behaviour(
                 error_margin_pct=error_margin_pct,
             )
         return self._test_all_freq(item_test)
@@ -629,7 +629,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
         ]
         return AggregatedResultBundle(item_res_bundles, 'cpu')
 
-    @InvarianceItem.test_util_avg_behaviour.used_events
+    @InvarianceItem.test_util_behaviour.used_events
     def test_cpu_invariance(self) -> AggregatedResultBundle:
         """
         Check that items using the max freq on each CPU is passing util avg test.
@@ -637,7 +637,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
         There could be false positives, but they are expected to be relatively
         rare.
 
-        .. seealso:: :class:`InvarianceItem.test_util_avg_behaviour`
+        .. seealso:: :class:`InvarianceItem.test_util_behaviour`
         """
         res_list = []
         for cpu, item_group in groupby(self.invariance_items, key=lambda x: x.cpu):
@@ -654,17 +654,17 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             ]
             for item in max_freq_items:
                 # Only test util, as it should be more robust
-                res = item.test_util_avg_behaviour()
+                res = item.test_util_behaviour()
                 res_list.append(res)
 
         return AggregatedResultBundle(res_list, 'cpu')
 
-    @InvarianceItem.test_util_avg_behaviour.used_events
+    @InvarianceItem.test_util_behaviour.used_events
     def test_freq_invariance(self) -> ResultBundle:
         """
         Check that at least one CPU has items passing for all tested frequencies.
 
-        .. seealso:: :class:`InvarianceItem.test_util_avg_behaviour`
+        .. seealso:: :class:`InvarianceItem.test_util_behaviour`
         """
 
         logger = self.get_logger()
@@ -673,7 +673,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             bundle = AggregatedResultBundle(
                 [
                     # Only test util, as it should be more robust
-                    item.test_util_avg_behaviour()
+                    item.test_util_behaviour()
                     for item in item_group
                 ],
                 # each item's "cpu" metric also contains the frequency
@@ -729,7 +729,7 @@ class CPUMigrationBase(LoadTrackingBase):
     phases are all aligned.
     """
 
-    PHASE_DURATION_S = 3 * UTIL_AVG_CONVERGENCE_TIME_S
+    PHASE_DURATION_S = 3 * UTIL_CONVERGENCE_TIME_S
     """
     The duration of a single phase
     """
@@ -828,7 +828,7 @@ class CPUMigrationBase(LoadTrackingBase):
 
         for i, phase in enumerate(self.reference_task.phases):
             # Start looking at signals once they should've converged
-            start = phase_start + UTIL_AVG_CONVERGENCE_TIME_S
+            start = phase_start + UTIL_CONVERGENCE_TIME_S
             # Trim the end a bit, otherwise we could have one or two events
             # from the next phase
             end = phase_start + phase.duration_s * .9
