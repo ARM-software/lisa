@@ -34,7 +34,7 @@ from lisa.pelt import PELT_SCALE, simulate_pelt, pelt_settling_time
 
 UTIL_SCALE = PELT_SCALE
 
-UTIL_CONVERGENCE_TIME_S = pelt_settling_time(1, init=0, final=1024)
+UTIL_CONVERGENCE_TIME_S = pelt_settling_time(0.1, init=0, final=1024)
 """
 Time in seconds for util_avg to converge (i.e. ignored time)
 """
