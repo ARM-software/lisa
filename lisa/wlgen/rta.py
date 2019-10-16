@@ -432,7 +432,8 @@ class Phase(Loggable):
     :type barrier_after: str
     """
 
-    def __init__(self, duration_s, period_ms, duty_cycle_pct, cpus=None, barrier_after=None):
+    def __init__(self, duration_s, period_ms, duty_cycle_pct, cpus=None, barrier_after=None,
+                 uclamp_min=None, uclamp_max=None):
         if barrier_after and duty_cycle_pct != 100:
             # This could be implemented but currently don't foresee any use.
             raise ValueError('Barriers only supported when duty_cycle_pct=100')
@@ -442,6 +443,8 @@ class Phase(Loggable):
         self.duty_cycle_pct = duty_cycle_pct
         self.cpus = cpus
         self.barrier_after = barrier_after
+        self.uclamp_min = uclamp_min
+        self.uclamp_max = uclamp_max
 
     def get_rtapp_repr(self, task_name):
         """
@@ -500,6 +503,14 @@ class Phase(Loggable):
 
         if self.cpus is not None:
             phase['cpus'] = self.cpus
+
+        if self.uclamp_min is not None:
+            phase['util_min'] = self.uclamp_min
+            logger.info(' | util_min %7d', self.uclamp_min)
+
+        if self.uclamp_max is not None:
+            phase['util_max'] = self.uclamp_max
+            logger.info(' | util_max %7d', self.uclamp_max)
 
         return phase
 
@@ -577,7 +588,7 @@ class Ramp(RTATask):
 
     def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
                  period_ms=100, delay_s=0, loops=1, sched_policy=None,
-                 priority=None, cpus=None):
+                 priority=None, cpus=None, uclamp_min=None, uclamp_max=None):
         super(Ramp, self).__init__(delay_s, loops, sched_policy, priority)
 
         if not (0 <= start_pct <= 100 and 0 <= end_pct <= 100):
@@ -595,9 +606,11 @@ class Ramp(RTATask):
         phases = []
         for load in steps:
             if load == 0:
-                phase = Phase(time_s, 0, 0, cpus)
+                phase = Phase(time_s, 0, 0, cpus, uclamp_min=uclamp_min,
+                              uclamp_max=uclamp_max)
             else:
-                phase = Phase(time_s, period_ms, load, cpus)
+                phase = Phase(time_s, period_ms, load, cpus, 
+                              uclamp_min=uclamp_min, uclamp_max=uclamp_max)
             phases.append(phase)
 
         self.phases = phases
@@ -627,11 +640,12 @@ class Step(Ramp):
     """
 
     def __init__(self, start_pct=0, end_pct=100, time_s=1, period_ms=100,
-                 delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None):
+                 delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None,
+                 uclamp_min=None, uclamp_max=None):
         delta_pct = abs(end_pct - start_pct)
         super(Step, self).__init__(start_pct, end_pct, delta_pct, time_s,
                                    period_ms, delay_s, loops, sched_policy,
-                                   priority, cpus)
+                                   priority, cpus, uclamp_min, uclamp_max)
 
 class Pulse(RTATask):
     """
@@ -666,7 +680,8 @@ class Pulse(RTATask):
     """
 
     def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
-                 delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None):
+                 delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None,
+                 uclamp_min=None, uclamp_max=None):
         super(Pulse, self).__init__(delay_s, loops, sched_policy, priority)
 
         if end_pct >= start_pct:
@@ -681,7 +696,8 @@ class Pulse(RTATask):
         for load in [start_pct, end_pct]:
             if load == 0:
                 continue
-            phase = Phase(time_s, period_ms, load, cpus)
+            phase = Phase(time_s, period_ms, load, cpus, uclamp_min=uclamp_min,
+                          uclamp_max=uclamp_max)
             phases.append(phase)
 
         self.phases = phases
@@ -710,10 +726,13 @@ class Periodic(Pulse):
     """
 
     def __init__(self, duty_cycle_pct=50, duration_s=1, period_ms=100,
-                 delay_s=0, sched_policy=None, priority=None, cpus=None):
+                 delay_s=0, sched_policy=None, priority=None, cpus=None,
+                 uclamp_min=None, uclamp_max=None):
         super(Periodic, self).__init__(duty_cycle_pct, 0, duration_s,
                                        period_ms, delay_s, 1, sched_policy,
-                                       priority, cpus)
+                                       priority, cpus, 
+                                       uclamp_min=uclamp_min,
+                                       uclamp_max=uclamp_max)
 
 class RunAndSync(RTATask):
     """
@@ -736,11 +755,12 @@ class RunAndSync(RTATask):
 
     """
     def __init__(self, barrier, time_s=1, delay_s=0, loops=1, sched_policy=None,
-                 priority=None, cpus=None):
+                 priority=None, cpus=None, uclamp_min=None, uclamp_max=None):
         super(RunAndSync, self).__init__(delay_s, loops, sched_policy, priority)
 
         # This should translate into a phase containing a 'run' event and a
         # 'barrier' event
-        self.phases = [Phase(time_s, None, 100, cpus, barrier_after=barrier)]
+        self.phases = [Phase(time_s, None, 100, cpus, barrier_after=barrier,
+                             uclamp_min=uclamp_min, uclamp_max=uclamp_max)]
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
