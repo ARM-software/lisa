@@ -1,5 +1,6 @@
 import matplotlib
 import warnings
+import os
 
 from lisa.version import __version__
 
@@ -22,6 +23,7 @@ warnings.filterwarnings(
 
 # Prevent matplotlib from trying to connect to X11 server, for headless testing.
 # Must be done before importing matplotlib.pyplot or pylab
-matplotlib.use('Agg')
+if not os.getenv('DISPLAY'):
+    matplotlib.use('Agg')
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
