@@ -455,6 +455,10 @@ class Trace(Loggable, TraceBase):
 
         The names or PIDs are listed in appearance order.
         """
+
+        name_to_pid = {}
+        pid_to_name = {}
+
         def load(event, name_col, pid_col):
             df = self.df_events(event)
 
@@ -464,20 +468,22 @@ class Trace(Loggable, TraceBase):
                     for k in df[key_col].unique()
                 }
 
-            name_to_pid = create_mapping(df, name_col, pid_col)
-            pid_to_name = create_mapping(df, pid_col, name_col)
+            name_to_pid.update(create_mapping(df, name_col, pid_col))
+            pid_to_name.update(create_mapping(df, pid_col, name_col))
 
-            return (name_to_pid, pid_to_name)
+        if 'sched_load_avg_task' in self.available_events:
+            load('sched_load_avg_task', 'comm', 'pid')
 
+        if 'sched_wakeup' in self.available_events:
+            load('sched_wakeup', '__comm', '__pid')
 
         if 'sched_switch' in self.available_events:
-            return load('sched_switch', 'prev_comm', 'prev_pid')
+            load('sched_switch', 'prev_comm', 'prev_pid')
 
-        elif 'sched_load_avg_task' in self.available_events:
-            return load('sched_load_avg_task', 'comm', 'pid')
+        if not (name_to_pid and pid_to_name):
+            raise RuntimeError('Failed to load tasks names, sched_switch, sched_wakeup, or sched_load_avg_task events are needed')
 
-        else:
-            raise RuntimeError('Failed to load tasks names, sched_switch or sched_load_avg_task events are needed')
+        return (name_to_pid, pid_to_name)
 
     @property
     def _task_name_map(self):
