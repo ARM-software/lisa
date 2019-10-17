@@ -1,16 +1,16 @@
 The included trace-cmd binary is distributed under the GPLv2 license
 and a snapshot of the source code is available at this link:
 
-   https://github.com/ARM-software/third-party-source/blob/master/trace-cmd/20160115_trace-cmd_v2.4.tar.xz
+   https://github.com/ARM-software/third-party-source/blob/master/trace-cmd/20191017_trace-cmd_v2.8.3.tar.xz
 
 These sources may be obtained also from:
 
    git://git.kernel.org/pub/scm/linux/kernel/git/rostedt/trace-cmd.git
 
 The binary have been build and statically linked with all the external
-dependencies using the code version v2.4:
+dependencies using the code version v2.8.3:
 
-  http://git.kernel.org/cgit/linux/kernel/git/rostedt/trace-cmd.git/tree/?h=trace-cmd-stable-v2.4
+  http://git.kernel.org/cgit/linux/kernel/git/rostedt/trace-cmd.git/tree/?h=trace-cmd-v2.8.3
 
 The full GPLv2 licese text follows.
 
