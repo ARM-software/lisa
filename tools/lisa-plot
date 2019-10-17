@@ -243,7 +243,7 @@ Available plots:
         f = flat_plot_map[plot_name]
         dirname = os.path.dirname(file_path)
         if dirname:
-            os.makedirs(file_path, exist_ok=True)
+            os.makedirs(dirname, exist_ok=True)
 
         with handle_plot_excep(exit_on_error=not args.best_effort):
             TraceAnalysisBase.call_on_trace(f, trace,

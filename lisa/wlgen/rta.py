@@ -402,7 +402,7 @@ class RTA(Workload):
                                  calibration="CPU{}".format(cpu),
                                  res_dir=res_dir)
 
-            with rta, target.disable_idle_states(), target.freeze_userspace():
+            with rta, target.freeze_userspace():
                 rta.run(as_root=target.is_rooted)
 
             for line in rta.output.split('\n'):
@@ -527,7 +527,8 @@ class RTA(Workload):
         else:
             cm = target.cpufreq.use_governor('performance')
 
-        with cm:
+
+        with cm, target.disable_idle_states():
             return cls._calibrate(target, res_dir)
 
 class Phase(Loggable):

@@ -571,7 +571,7 @@ class Serializable(Loggable):
 
 Serializable._init_yaml()
 
-def setup_logging(filepath='logging.conf', level=logging.INFO):
+def setup_logging(filepath='logging.conf', level=None):
     """
     Initialize logging used for all the LISA modules.
 
@@ -580,27 +580,28 @@ def setup_logging(filepath='logging.conf', level=logging.INFO):
                      :attr:`lisa.utils.LISA_HOME` as base folder.
     :type filepath: str
 
-    :param level: the default log level to enable
+    :param level: Override the conf file and force logging level. Defaults to
+        ``logging.INFO``.
     :type level: int
     """
+    resolved_level = logging.INFO if level is None else level
 
     # Load the specified logfile using an absolute path
     if not os.path.isabs(filepath):
         filepath = os.path.join(LISA_HOME, filepath)
 
-    if not os.path.exists(filepath):
-        raise FileNotFoundError('Logging configuration file not found in: {}'\
-                         .format(filepath))
-
     # Capture the warnings as log entries
     logging.captureWarnings(True)
 
     # Set the level first, so the config file can override with more details
-    logging.getLogger().setLevel(level)
-    logging.config.fileConfig(filepath)
+    logging.getLogger().setLevel(resolved_level)
 
-    logging.info('Using LISA logging configuration:')
-    logging.info('  %s', filepath)
+    if not level:
+        if os.path.exists(filepath):
+            logging.config.fileConfig(filepath)
+            logging.info('Using LISA logging configuration: {}'.format(filepath))
+        else:
+            raise FileNotFoundError('Logging configuration file not found: {}'.format(filepath))
 
 class ArtifactPath(str, Loggable, HideExekallID):
     """Path to a folder that can be used to store artifacts of a function.

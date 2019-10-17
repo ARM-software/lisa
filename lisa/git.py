@@ -32,24 +32,18 @@ def find_shortest_symref(repo_path, sha1):
     Returns None if nothing points to the requested SHA1
     """
     repo_path = os.path.expanduser(repo_path)
-    possibles = []
-    # Can't use git for-each-ref --points-at because it only came in in Git 2.7
-    # which is not in Ubuntu 14.04 - check by hand instead.
-    branches = subprocess.check_output(
-        "git for-each-ref --sort=-committerdate "
-        "--format='%(objectname:short) %(refname:short)' "
-        "refs/heads/ refs/remotes/ refs/tags",
+    branches = subprocess.check_output([
+            'git', 'for-each-ref',
+            '--points-at={}'.format(sha1),
+            '--format=%(refname:short)',
+        ],
         universal_newlines=True,
-        cwd=repo_path, shell=True)
-    for line in branches.splitlines():
-        try:
-            sha1_out, name = line.strip().split()
-        except ValueError:
-            continue
-        if sha1_out[:7] == sha1[:7]:
-            possibles.append(name)
+        cwd=repo_path)
+
+    possibles = branches.splitlines()
+
     if not possibles:
-        return None
+        raise ValueError('No symbolic reference found for SHA1 {} in {}'.format(sha1, repo_path))
 
     return min(possibles, key=len)
 

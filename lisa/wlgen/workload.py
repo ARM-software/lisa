@@ -113,7 +113,7 @@ class Workload(Loggable):
         """
         logger = self.get_logger()
         logger.info("Wiping target run directory: {}".format(self.run_dir))
-        self.target.execute("rm -rf {}".format(quote(self.run_dir)))
+        self.target.remove(self.run_dir)
 
     def __enter__(self):
         return self

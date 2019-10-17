@@ -209,7 +209,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
     def __init__(self, kind, name='<noname>', tools=[], res_dir=None,
         plat_info=None, workdir=None, device=None, host=None, port=None,
-        username='root', password=None, keyfile=None, devlib_platform=None,
+        username=None, password=None, keyfile=None, devlib_platform=None,
         devlib_excluded_modules=[], wait_boot=True, wait_boot_timeout=10,
     ):
 
@@ -498,6 +498,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         """
         logger = self.get_logger()
         conn_settings = {}
+        resolved_username = username or 'root'
 
         # If the target is Android, we need just (eventually) the device
         if kind == 'android':
@@ -516,13 +517,15 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 device = 'DEFAULT'
 
             conn_settings['device'] = device
+            # If the username was explicitly set to "root", root the target as
+            # early as possible
             conn_settings['adb_as_root'] = (username == 'root')
 
         elif kind == 'linux':
             logger.debug('Setting up Linux target...')
             devlib_target_cls = devlib.LinuxTarget
 
-            conn_settings['username'] = username
+            conn_settings['username'] = resolved_username
             conn_settings['port'] = port or self.SSH_PORT_DEFAULT
             conn_settings['host'] = host
 
@@ -593,6 +596,14 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         )
 
         target.connect(check_boot_completed=wait_boot, timeout=wait_boot_timeout)
+
+        # None as username means adb root will be attempted, but failure will
+        # not prevent from connecting to the target.
+        if kind == 'android' and username is None:
+            try:
+                target.adb_root(enable=True)
+            except Exception as e:
+                logger.warning('"adb root" failed: {}'.format(e))
 
         logger.debug('Checking target connection...')
         logger.debug('Target info:')
