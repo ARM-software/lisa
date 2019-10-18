@@ -357,7 +357,7 @@ class Trace(Loggable, TraceBase):
 
     @classmethod
     @contextlib.contextmanager
-    def from_target(cls, target, events=[], buffer_size=10240, filepath=None, **kwargs):
+    def from_target(cls, target, events=None, buffer_size=10240, filepath=None, **kwargs):
         """
         Context manager that can be used to collect a :class:`Trace` directly
         from a :class:`lisa.target.Target` without needing to setup an
@@ -1481,7 +1481,9 @@ class FtraceCollector(devlib.FtraceCollector, Loggable, Configurable):
 
     CONF_CLASS = FtraceConf
 
-    def __init__(self, target, events=[], functions=[], buffer_size=10240, autoreport=False, **kwargs):
+    def __init__(self, target, events=None, functions=None, buffer_size=10240, autoreport=False, **kwargs):
+        events = events or []
+        functions = functions or []
         kwargs.update(dict(
             target=target,
             events=events,
