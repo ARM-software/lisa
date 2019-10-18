@@ -36,7 +36,6 @@ class Mongoperf(Workload):
     .. note:: ``mongoperf`` seems to ramp up threads in powers of two over a
               period of tens of seconds (there doesn't appear to be a way to
               change that). Bear this in mind when setting the ``duration``.
-
     """
 
     parameters = [
@@ -71,7 +70,6 @@ class Mongoperf(Workload):
                     system, and can use normal file system cache. Use mmf in
                     this mode to test file system cache behavior with memory
                     mapped files.
-
                   """),
         Parameter('read', kind=bool, default=True,
                   aliases=['r'],
@@ -107,7 +105,7 @@ class Mongoperf(Workload):
         try:
             self.target.execute('mongoperf -h')
         except TargetError:
-            raise WorkloadError('Mongoperf must be installed an in $PATH on the target.')
+            raise WorkloadError('Mongoperf must be installed and in $PATH on the target.')
 
     def setup(self, context):
         config = {}

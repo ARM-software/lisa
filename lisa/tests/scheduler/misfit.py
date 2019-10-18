@@ -66,16 +66,6 @@ class MisfitMigrationBase(RTATestBundle):
         HZ = plat_info['kernel']['config']['CONFIG_HZ']
         return ((HZ * plat_info['cpus-count']) // 10) * (1. / HZ)
 
-    @classmethod
-    def from_target(cls, target:Target, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'MisfitMigrationBase':
-        """
-        Factory method to create a bundle using a live target
-
-        This will execute the rt-app workload described in
-        :meth:`~lisa.tests.base.RTATestBundle.get_rtapp_profile`
-        """
-        return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
-
 class StaggeredFinishes(MisfitMigrationBase):
     """
     One 100% task per CPU, with staggered completion times.
@@ -102,7 +92,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
     """
 
-    task_prefix = "misfit"
+    task_prefix = "msft"
 
     PIN_DELAY_S = 0.001
     """
@@ -116,35 +106,54 @@ class StaggeredFinishes(MisfitMigrationBase):
     rq->avg_idle > sysctl_sched_migration_cost
     """
 
-    def __init__(self, res_dir, plat_info):
-        super().__init__(res_dir, plat_info)
+    @property
+    def src_cpus(self):
+        return self.plat_info['capacity-classes'][0]
 
-        sdf = self.trace.df_events('sched_switch')
+    @property
+    def dst_cpus(self):
+        cpu_classes = self.plat_info['capacity-classes']
 
-        # The tasks don't wake up at the same exact time, find the task that is
-        # the last to wake up. We don't want to redefine trace_window() here
-        # because we still need the first wakeups to be visible.
-        last_start = 0
-
-        sdf = sdf[self.trace.start + self.IDLING_DELAY_S * 0.9:]
-
-        for task in self.rtapp_tasks:
-            task_cpu = int(task.strip("{}_".format(self.task_prefix)))
-            task_start = sdf[(sdf.next_comm == task) & (sdf["__cpu"] == task_cpu)].index[0]
-            last_start = max(last_start, task_start)
-
-        self.start_time = last_start
-        self.end_time = self.trace.end
-        self.duration = self.end_time - self.start_time
-
-        cpu_classes = plat_info['capacity-classes']
-
-        self.src_cpus = cpu_classes[0]
         # XXX: Might need to check the tasks can fit on all of those, rather
         # than just pick all but the smallest CPUs
-        self.dst_cpus = []
+        dst_cpus = []
         for group in cpu_classes[1:]:
-            self.dst_cpus += group
+            dst_cpus += group
+        return dst_cpus
+
+    @property
+    def end_time(self):
+        return self.trace.end
+
+    @property
+    def duration(self):
+        return self.end_time - self.start_time
+
+    @property
+    @memoized
+    @requires_events('sched_switch')
+    def start_time(self):
+        """
+        The tasks don't wake up at the same exact time, find the task that is
+        the last to wake up. We don't want to redefine trace_window() here
+        because we still need the first wakeups to be visible.
+        """
+        sdf = self.trace.df_events('sched_switch')
+
+        # Find out when all tasks started executing on their designated CPU
+        def get_start_time(sdf, task, profile):
+            task_cpu = profile.phases[0].cpus[0]
+
+            names = self.rtapp_tasks_map[task]
+            assert len(names) == 1
+            name = names[0]
+
+            return sdf[(sdf.next_comm == name) & (sdf["__cpu"] == task_cpu)].index[0]
+
+        return max(
+            get_start_time(sdf, task, profile)
+            for task, profile in self.rtapp_profile.items()
+        )
 
     @classmethod
     def check_from_target(cls, target):
@@ -164,7 +173,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         profile = {}
 
         for cpu in cpus:
-            profile["{}_{}".format(cls.task_prefix, cpu)] = (
+            profile["{}{}".format(cls.task_prefix, cpu)] = (
                 Periodic(
                     duty_cycle_pct=100,
                     duration_s=cls.PIN_DELAY_S,

@@ -40,6 +40,8 @@ class Aitutu(ApkUiautoWorkload):
     Known working APK version: 1.0.3
     '''
 
+    requires_network = True
+
     def __init__(self, target, **kwargs):
         super(Aitutu, self).__init__(target, **kwargs)
         self.gui.timeout = 1200000

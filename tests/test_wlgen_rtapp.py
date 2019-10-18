@@ -18,11 +18,17 @@
 from collections import OrderedDict, namedtuple
 import json
 import os
+import re
 
 from lisa.wlgen.rta import RTA, Periodic, Ramp, Step, RunAndSync
-from lisa.analysis.rta import PerfAnalysis
 
 from .utils import StorageTestCase, create_local_target, ASSET_DIR
+
+
+# Disable DeprecationWarning since PerfAnalysis is deprecated
+from lisa.analysis.rta import PerfAnalysis
+import warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 class RTABase(StorageTestCase):
     """
@@ -53,19 +59,20 @@ class RTABase(StorageTestCase):
     def assert_can_read_logfile(self, exp_tasks):
         """Assert that the perf_analysis module understands the log output"""
         analysis = PerfAnalysis.from_dir(self.res_dir)
+        exp_tasks = [re.sub(r'-[0-9]+', '', task) for task in exp_tasks]
         self.assertSetEqual(set(exp_tasks), set(analysis.tasks))
 
 class TestRTAProfile(RTABase):
     def _do_test(self, profile, exp_phases):
         rtapp = RTA.by_profile(
             self.target, name='test', profile=profile, res_dir=self.res_dir,
-            calibration=None)
+            calibration=None, log_stats=True)
 
         with open(rtapp.local_json) as f:
             conf = json.load(f, object_pairs_hook=OrderedDict)
 
         # Check that the configuration looks like we expect it to
-        phases = list(conf['tasks']['test_task']['phases'].values())
+        phases = list(conf['tasks']['test']['phases'].values())
         self.assertEqual(len(phases), len(exp_phases), 'Wrong number of phases')
         for phase, exp_phase in zip(phases, exp_phases):
             self.assertDictEqual(phase, exp_phase)
@@ -79,8 +86,8 @@ class TestRTAProfile(RTABase):
 
         self.assert_output_file_exists('output.log')
         self.assert_output_file_exists('test.json')
-        self.assert_output_file_exists('rt-app-test_task-0.log')
-        self.assert_can_read_logfile(exp_tasks=['test_task'])
+        self.assert_output_file_exists('rt-app-test-0.log')
+        self.assert_can_read_logfile(exp_tasks=['test-0'])
 
     def test_profile_periodic_smoke(self):
         """
@@ -91,7 +98,7 @@ class TestRTAProfile(RTABase):
         """
 
         profile = {
-            "test_task" : Periodic(period_ms=100, duty_cycle_pct=20, duration_s=1)
+            "test" : Periodic(period_ms=100, duty_cycle_pct=20, duration_s=1)
         }
 
         exp_phases = [
@@ -100,7 +107,7 @@ class TestRTAProfile(RTABase):
                 'run': 20000,
                 'timer': {
                     'period': 100000,
-                    'ref': 'test_task'
+                    'ref': 'test'
                 }
             }
         ]
@@ -115,7 +122,7 @@ class TestRTAProfile(RTABase):
         content, then tests that it can be run.
         """
 
-        profile = {"test_task" : Step(start_pct=100, end_pct=0, time_s=1)}
+        profile = {"test" : Step(start_pct=100, end_pct=0, time_s=1)}
 
         exp_phases = [
             {
@@ -131,7 +138,7 @@ class TestRTAProfile(RTABase):
         self._do_test(profile, exp_phases)
 
     def test_profile_run_and_sync_smoke(self):
-        profile = {"test_task" : RunAndSync('my_barrier', time_s=1)}
+        profile = {"test" : RunAndSync('my_barrier', time_s=1)}
         exp_phases = [
             OrderedDict([
                 ('loop', 1),
@@ -159,7 +166,7 @@ class TestRTAProfile(RTABase):
 
         heavy = Periodic(duty_cycle_pct=90, duration_s=0.1, period_ms=100)
 
-        profile = {"test_task" : light + ramp + heavy}
+        profile = {"test" : light + ramp + heavy}
 
         exp_phases = [
             # Light phase:
@@ -168,7 +175,7 @@ class TestRTAProfile(RTABase):
                 "run": 1000,
                 "timer": {
                     "period": 10000,
-                    "ref": "test_task"
+                    "ref": "test"
                 }
             },
             # Ramp phases:
@@ -177,7 +184,7 @@ class TestRTAProfile(RTABase):
                 "run": 5000,
                 "timer": {
                     "period": 50000,
-                    "ref": "test_task"
+                    "ref": "test"
                 }
             },
             {
@@ -185,7 +192,7 @@ class TestRTAProfile(RTABase):
                 "run": 15000,
                 "timer": {
                     "period": 50000,
-                    "ref": "test_task"
+                    "ref": "test"
                 }
             },
             {
@@ -193,7 +200,7 @@ class TestRTAProfile(RTABase):
                 "run": 25000,
                 "timer": {
                     "period": 50000,
-                    "ref": "test_task"
+                    "ref": "test"
                 }
             },
             {
@@ -201,7 +208,7 @@ class TestRTAProfile(RTABase):
                 "run": 35000,
                 "timer": {
                     "period": 50000,
-                    "ref": "test_task"
+                    "ref": "test"
                 }
             },
             {
@@ -209,7 +216,7 @@ class TestRTAProfile(RTABase):
                 "run": 45000,
                 "timer": {
                     "period": 50000,
-                    "ref": "test_task"
+                    "ref": "test"
                 }
             },
             # Heavy phase:
@@ -218,7 +225,7 @@ class TestRTAProfile(RTABase):
                 "run": 90000,
                 "timer": {
                     "period": 100000,
-                    "ref": "test_task"
+                    "ref": "test"
                 }
             }]
 
@@ -294,7 +301,7 @@ class TestRTACustom(RTABase):
 class TestRTACalibrationConf(RTABase):
     """Test setting the "calibration" field of rt-app config"""
     def _get_calib_conf(self, calibration):
-        profile = {"test_task" : Periodic()}
+        profile = {"test" : Periodic()}
         rtapp = RTA.by_profile(
             self.target, name='test', res_dir=self.res_dir, profile=profile,
             calibration=calibration)

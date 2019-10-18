@@ -24,6 +24,7 @@ import base64
 import functools
 import docutils.core
 import contextlib
+import warnings
 
 import numpy
 import matplotlib
@@ -88,6 +89,11 @@ class AnalysisHelpers(Loggable, abc.ABC):
         :returns: tuple(matplotlib.figure.Figure, matplotlib.axes.Axes (or an
           array of, if ``nrows`` > 1))
         """
+
+        if tuple(map(int, matplotlib.__version__.split('.'))) <= (3, 0, 3):
+            warnings.warn('This version of matplotlib does not allow saving figures from axis created using Figure(), forcing interactive=True')
+            interactive = True
+
         if interactive:
             figure, axes = plt.subplots(
                 ncols=ncols, nrows=nrows, figsize=(width, height * nrows),
@@ -240,9 +246,9 @@ class AnalysisHelpers(Loggable, abc.ABC):
         It allows for automatic plot setup and HTML and reStructuredText output.
         """
 
-        def decorator(f):
+        def decorator(func):
             @update_wrapper_doc(
-                f,
+                func,
                 added_by=':meth:`{}.{}.plot_method`'.format(
                     AnalysisHelpers.__module__,
                     AnalysisHelpers.__qualname__,
@@ -277,14 +283,18 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     document, or ``rst`` for a reStructuredText output.
                 :type output: str or None
 
-                :param kwargs: keyword arguments forwarded to
+                :Variable keyword arguments: Forwarded to
                     :meth:`~lisa.analysis.base.AnalysisHelpers.setup_plot`
-                :type kwargs: dict
                 """),
                 remove_params=['local_fig'],
                 include_kwargs=True,
             )
             def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=True, **kwargs):
+
+                # Bind the function to the instance, so we avoid having "self"
+                # showing up in the signature, which breaks parameter
+                # formatting code.
+                f = func.__get__(self, type(self))
 
                 def is_f_param(param):
                     """
@@ -321,10 +331,11 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         plot_name=f.__name__,
                     )
 
+
                 # Allow returning an axis directly, or just update a given axis
                 if return_axis:
                     # In that case, the function takes all the kwargs
-                    axis = f(self, *args, **kwargs, axis=axis)
+                    axis = f(*args, **kwargs, axis=axis)
                 else:
                     if local_fig:
                         setup_plot_kwargs = {
@@ -334,7 +345,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         }
                         fig, axis = self.setup_plot(**setup_plot_kwargs)
 
-                    f(self, *args, axis=axis, local_fig=local_fig, **f_kwargs)
+                    f(*args, axis=axis, local_fig=local_fig, **f_kwargs)
 
                 if isinstance(axis, numpy.ndarray):
                     fig = axis[0].get_figure()

@@ -23,10 +23,11 @@ import abc
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from itertools import chain
 from devlib.target import KernelVersion
 
 from lisa.wlgen.rta import Periodic, Ramp, Step
-from lisa.analysis.rta import PerfAnalysis
+from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.tests.base import ResultBundle, CannotCreateError, RTATestBundle
 from lisa.utils import ArtifactPath
 from lisa.datautils import series_integrate
@@ -65,7 +66,13 @@ class EASBehaviour(RTATestBundle):
             raise CannotCreateError("Energy model not available")
 
     @classmethod
-    def _from_target(cls, target, res_dir, ftrace_coll=None):
+    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'EASBehaviour':
+        """
+        Factory method to create a bundle using a live target
+
+        This will execute the rt-app workload described in
+        :meth:`lisa.tests.base.RTATestBundle.get_rtapp_profile`
+        """
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
 
@@ -73,19 +80,9 @@ class EASBehaviour(RTATestBundle):
         # so make sure this is what's being used
         with target.disable_idle_states():
             with target.cpufreq.use_governor("schedutil"):
-                cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
+                cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
 
         return cls(res_dir, plat_info)
-
-    @classmethod
-    def from_target(cls, target:Target, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'EASBehaviour':
-        """
-        Factory method to create a bundle using a live target
-
-        This will execute the rt-app workload described in
-        :meth:`lisa.tests.base.RTATestBundle.get_rtapp_profile`
-        """
-        return super().from_target(target, res_dir, ftrace_coll=ftrace_coll)
 
     def _get_expected_task_utils_df(self, nrg_model):
         """
@@ -106,9 +103,14 @@ class EASBehaviour(RTATestBundle):
             else:
                 transitions[time][task] = util
 
+        tasks_map = self.rtapp_tasks_map
+
         # First we'll build a dict D {time: {task_name: util}} where D[t][n] is
         # the expected utilization of task n from time t.
         for task, params in self.rtapp_profile.items():
+            task_list = tasks_map[task]
+            assert len(task_list) == 1
+            task = task_list[0]
             # time = self.get_start_time(experiment) + params.get('delay', 0)
             time = params.delay_s
             add_transition(time, task, 0)
@@ -194,7 +196,7 @@ class EASBehaviour(RTATestBundle):
 
                 prev = time
 
-        figname = os.path.join(self.res_dir, 'expected_placement.png')
+        figname = ArtifactPath.join(self.res_dir, 'expected_placement.png')
         plt.savefig(figname, bbox_inches='tight')
         plt.close()
 
@@ -327,8 +329,12 @@ class EASBehaviour(RTATestBundle):
         res = ResultBundle.from_bool(passed)
         res.add_metric("estimated energy", est_energy, 'bogo-joules')
         res.add_metric("energy threshold", threshold, 'bogo-joules')
+
+        res.plat_info = self.plat_info
+
         return res
 
+    @RTAEventsAnalysis.df_rtapp_stats.used_events
     def test_slack(self, negative_slack_allowed_pct=15) -> ResultBundle:
         """
         Assert that the RTApp workload was given enough performance
@@ -337,17 +343,16 @@ class EASBehaviour(RTATestBundle):
             activations with negative slack.
         :type negative_slack_allowed_pct: int
 
-        Use :class:`lisa.analysis.rta.PerfAnalysis` to find instances where the
-        RT-App workload wasn't able to complete its activations (i.e. its
-        reported "slack" was negative). Assert that this happened less than
+        Use :class:`lisa.analysis.rta.RTAEventsAnalysis` to find instances
+        where the RT-App workload wasn't able to complete its activations (i.e.
+        its reported "slack" was negative). Assert that this happened less than
         ``negative_slack_allowed_pct`` percent of the time.
         """
-        analysis = PerfAnalysis.from_dir(self.res_dir)
-
         passed = True
         bad_activations = {}
-        for task in analysis.tasks:
-            slack = analysis.get_df(task)["Slack"]
+        test_tasks = list(chain.from_iterable(self.rtapp_tasks_map.values()))
+        for task in test_tasks:
+            slack = self.trace.analysis.rta.df_rtapp_stats(task)["slack"]
 
             bad_activations_pct = len(slack[slack < 0]) * 100 / len(slack)
             if bad_activations_pct > negative_slack_allowed_pct:
@@ -517,7 +522,7 @@ class RampUp(EASBehaviour):
     """
     A single task whose utilization slowly ramps up
     """
-    task_name = "ramp_up"
+    task_name = "up"
 
     @EASBehaviour.test_task_placement.used_events
     def test_task_placement(self, energy_est_threshold_pct=15, nrg_model:EnergyModel=None,
@@ -563,7 +568,7 @@ class RampDown(EASBehaviour):
     """
     A single task whose utilization slowly ramps down
     """
-    task_name = "ramp_down"
+    task_name = "down"
 
     @EASBehaviour.test_task_placement.used_events
     def test_task_placement(self, energy_est_threshold_pct=18, nrg_model:EnergyModel=None,

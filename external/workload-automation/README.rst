@@ -18,7 +18,7 @@ workloads, instruments or output processing.
 Requirements
 ============
 
-- Python 2.7 or Python 3
+- Python 3
 - Linux (should work on other Unixes, but untested)
 - Latest Android SDK (ANDROID_HOME must be set) for Android devices, or
 - SSH for Linux devices
@@ -30,7 +30,11 @@ Installation
 To install::
 
         git clone git@github.com:ARM-software/workload-automation.git workload-automation
-        sudo -H pip install ./workload-automation
+        sudo -H python setup [install|develop]
+
+Note: A `requirements.txt` is included however this is designed to be used as a
+reference for known working versions rather than as part of a standard
+installation.
 
 Please refer to the `installation section <http://workload-automation.readthedocs.io/en/latest/user_information.html#install>`_
 in the documentation for more details.

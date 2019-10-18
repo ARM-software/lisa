@@ -18,13 +18,15 @@ and then issue these commands::
   # A few packages need to be installed, like python3 or kernelshark. Python
   # modules will be installed in a venv at the next step, without touching
   # any system-wide install location.
-  sudo ./install_base_ubuntu.sh
+  sudo ./install_base.sh --install-all
   # On the first run, it will take care of creating a Python venv and populating it
   source init_env
 
 In case the venv becomes unusable for some reason, the ``lisa-install``
 shell command available after sourcing ``init_env`` will allow to create a new
 clean venv from scratch.
+
+.. note:: Building the documentation with Python < 3.6 will fail.
 
 Additional Python packages
 --------------------------

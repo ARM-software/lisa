@@ -88,6 +88,13 @@ def _get_callable_set(module, visited_obj_set, verbose):
                     e=e,
                 ))
                 continue
+            # If some annotations fail to resolve
+            except NameError as e:
+                log_f('callable with unresolvable annotations will not be used: {e}'.format(
+                    callable=get_name(callable_),
+                    e=e,
+                ))
+                continue
             # If something goes wrong, that means it is not properly annotated
             # so we just ignore it
             except (AttributeError, ValueError, KeyError, engine.AnnotationError):

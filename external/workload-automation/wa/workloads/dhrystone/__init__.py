@@ -153,7 +153,8 @@ class Dhrystone(Workload):
 
     @once
     def finalize(self, context):
-        self.target.uninstall('dhrystone')
+        if self.uninstall:
+            self.target.uninstall('dhrystone')
 
     def validate(self):
         if self.mloops and self.duration:  # pylint: disable=E0203

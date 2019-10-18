@@ -139,11 +139,11 @@ public class UiAutomation extends BaseUiAutomation {
         uiDeviceSwipe(Direction.DOWN, 50);
         scrollPage();
 
-        String packageName = isCorporate ? "com.primatelabs.geekbench4.corporate"
+        String packageName = isCorporate ? "com.primatelabs.geekbench.*.corporate"
                                          : "com.primatelabs.geekbench";
+
         UiObject runButton =
-           mDevice.findObject(new UiSelector().resourceId(packageName + ":id/runCpuBenchmarks")
-                                         .className("android.widget.Button"));
+	    mDevice.findObject(new UiSelector().resourceIdMatches(packageName + ":id/runCpuBenchmarks"));
         if (!runButton.waitForExists(WAIT_TIMEOUT_5SEC)) {
             throw new UiObjectNotFoundException("Could not find Run button");
         }

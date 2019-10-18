@@ -55,7 +55,7 @@ class HotplugBase(TestBundle):
 
         """
         if len(sequence) != nr_operations:
-            raise CPUHPSequenceError('{} operations requested, but got {}'.fromat(
+            raise CPUHPSequenceError('{} operations requested, but got {}'.format(
                 nr_operations, len(sequence)
             ))
 
@@ -137,8 +137,27 @@ class HotplugBase(TestBundle):
         return script
 
     @classmethod
-    def _from_target(cls, target, res_dir, seed, nr_operations, sleep_min_ms,
-                      sleep_max_ms, max_cpus_off):
+    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, seed=None,
+                     nr_operations=100, sleep_min_ms=10, sleep_max_ms=100,
+                     max_cpus_off=sys.maxsize) -> 'HotplugBase':
+        """
+        :param seed: Seed of the RNG used to create the hotplug sequences
+        :type seed: int
+
+        :param nr_operations: Number of operations in the sequence
+        :type nr_operations: int
+
+        :param sleep_min_ms: Minimum sleep duration between hotplug operations
+        :type sleep_min_ms: int
+
+        :param sleep_max_ms: Maximum sleep duration between hotplug operations
+          (0 would lead to no sleep)
+        :type sleep_max_ms: int
+
+        :param max_cpus_off: Maximum number of CPUs hotplugged out at any given
+          moment
+        :type max_cpus_off: int
+        """
 
         # Instantiate a generator so we can change the seed without any global
         # effect
@@ -174,34 +193,6 @@ class HotplugBase(TestBundle):
 
         return cls(target.plat_info, target_alive, hotpluggable_cpus, live_cpus)
 
-    @classmethod
-    def from_target(cls, target:Target, res_dir:ArtifactPath=None, seed=None,
-                     nr_operations=100, sleep_min_ms=10, sleep_max_ms=100,
-                     max_cpus_off=sys.maxsize) -> 'HotplugBase':
-        """
-        :param seed: Seed of the RNG used to create the hotplug sequences
-        :type seed: int
-
-        :param nr_operations: Number of operations in the sequence
-        :type nr_operations: int
-
-        :param sleep_min_ms: Minimum sleep duration between hotplug operations
-        :type sleep_min_ms: int
-
-        :param sleep_max_ms: Maximum sleep duration between hotplug operations
-          (0 would lead to no sleep)
-        :type sleep_max_ms: int
-
-        :param max_cpus_off: Maximum number of CPUs hotplugged out at any given
-          moment
-        :type max_cpus_off: int
-        """
-        # This is just boilerplate but it lets us document parameters
-        return super().from_target(
-            target, res_dir, seed=seed, nr_operations=nr_operations,
-            sleep_min_ms=sleep_min_ms, sleep_max_ms=sleep_max_ms,
-            max_cpus_off=max_cpus_off)
-
     def test_target_alive(self) -> ResultBundle:
         """
         Test that the hotplugs didn't leave the target in an unusable state
@@ -213,8 +204,9 @@ class HotplugBase(TestBundle):
         Test that all CPUs came back online after the hotplug operations
         """
         res = ResultBundle.from_bool(self.hotpluggable_cpus == self.live_cpus)
-        res.add_metric("hotpluggable CPUs", self.hotpluggable_cpus)
-        res.add_metric("Online CPUs", self.live_cpus)
+        dead_cpus = sorted(set(self.hotpluggable_cpus) - set(self.live_cpus))
+        res.add_metric("dead CPUs", dead_cpus)
+        res.add_metric("number of dead CPUs", len(dead_cpus))
         return res
 
 class HotplugTorture(HotplugBase):

@@ -85,8 +85,11 @@ params = dict(
         'wrapt',  # Basic for construction of decorator functions
         'future', # Python 2-3 compatibility
         'enum34;python_version<"3.4"', # Enums for Python < 3.4
-        'pandas',
-        'numpy',
+        'contextlib2;python_version<"3.0"', # Python 3 contextlib backport for Python 2
+        'numpy<=1.16.4; python_version<"3"',
+        'numpy; python_version>="3"',
+        'pandas<=0.24.2; python_version<"3"',
+        'pandas; python_version>"3"',
     ],
     extras_require={
         'daq': ['daqpower'],
@@ -96,10 +99,10 @@ params = dict(
     },
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'License :: OSI Approved :: Apache Software License',
         'Operating System :: POSIX :: Linux',
-        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
     ],
 )
 

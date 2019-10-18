@@ -21,7 +21,12 @@ import subprocess
 import inspect
 import itertools
 import logging
+import functools
+import re
 from collections.abc import Mapping
+from urllib.request import urlopen
+from urllib.error import HTTPError, URLError
+
 
 from docutils.parsers.rst import Directive, directives
 from docutils.parsers.rst.directives import flag
@@ -154,9 +159,9 @@ def is_test(method):
     # Tests are methods with an annotated return type, with at least
     # one base class with a name containing 'result'
     try:
-        ret_type = method.__annotations__['return']
+        ret_type = inspect.signature(method).return_annotation
         base_cls_list = inspect.getmro(ret_type)
-    except (AttributeError, KeyError):
+    except (ValueError, AttributeError, KeyError):
         return False
     else:
         return any(
@@ -244,7 +249,6 @@ def get_analysis_list(meth_type):
 
     for subclass in get_subclasses(AnalysisHelpers):
         class_path = "{}.{}".format(subclass.__module__, subclass.__qualname__)
-        analysis = subclass.__module__.split(".")[-1]
         if meth_type == 'plot':
             meth_list = [
                 f.__name__
@@ -261,7 +265,7 @@ def get_analysis_list(meth_type):
 
         rst_list += [
             ":class:`{analysis_name}<{cls}>`::meth:`~{cls}.{meth}`".format(
-                analysis_name=analysis,
+                analysis_name=subclass.name,
                 cls=class_path,
                 meth=meth,
             )
@@ -269,6 +273,46 @@ def get_analysis_list(meth_type):
         ]
 
     joiner = '\n* '
-    return joiner + joiner.join(rst_list)
+    return joiner + joiner.join(sorted(rst_list))
+
+
+def find_dead_links(content):
+    """
+    Look for HTTP URLs in ``content`` and return a dict of URL to errors when
+    trying to open them.
+    """
+    regex = r"https?://[^\s]+"
+    links = re.findall(regex, content)
+
+    @functools.lru_cache(maxsize=None)
+    def check(url):
+        try:
+            urlopen(url)
+        except (HTTPError, URLError) as e:
+            return e.reason
+        else:
+            return None
+
+    errors = {
+        link: check(link)
+        for link in links
+        if check(link) is not None
+    }
+    return errors
+
+def check_dead_links(filename):
+    """
+    Check ``filename`` for broken links, and raise an exception if there is any.
+    """
+    with open(filename) as f:
+        dead_links = find_dead_links(f.read())
+
+    if dead_links:
+        raise RuntimeError('Found dead links in {}:\n  {}'.format(
+            filename,
+            '\n  '.join(
+                '{}: {}'.format(url, error)
+                for url, error in dead_links.items()
+        )))
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

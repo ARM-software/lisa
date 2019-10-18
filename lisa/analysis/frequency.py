@@ -284,7 +284,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         def plotter(axis, local_fig):
             freq_axis, state_axis = axis
-            fig.suptitle('Peripheral frequency', y=.97, fontsize=16, horizontalalignment='center')
+            freq_axis.get_figure().suptitle('Peripheral frequency', y=.97, fontsize=16, horizontalalignment='center')
 
             freq = self.df_peripheral_clock_effective_rate(clk)
             freq = df_refit_index(freq, start, end)

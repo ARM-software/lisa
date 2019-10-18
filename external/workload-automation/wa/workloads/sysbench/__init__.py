@@ -147,11 +147,13 @@ class Sysbench(Workload):
             extract_threads_fairness_metric('execution time', next(fh), context.output)
 
     def teardown(self, context):
-        self.target.remove(self.target_results_file)
+        if self.cleanup_assets:
+            self.target.remove(self.target_results_file)
 
     @once
     def finalize(self, context):
-        self.target.uninstall('sysbench')
+        if self.uninstall:
+            self.target.uninstall('sysbench')
 
     def _build_command(self, **parameters):
         param_strings = ['--{}={}'.format(k.replace('_', '-'), v)

@@ -17,7 +17,7 @@ $> cd /path/to/your/LISA_HOME
 # Initialize a LISAShell
 $> source init_env
 
-# Export your ANDROID_HOME
+# Export your ANDROID_HOME if it not set already to the correct path
 [LISAShell lisa] \> export ANDROID_HOME=/path/to/your/android-sdk-linux
 
 # Ensure your cross-compiler is in your PATH

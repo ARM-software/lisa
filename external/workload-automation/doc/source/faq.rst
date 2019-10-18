@@ -114,3 +114,10 @@ parameter and will be picked up be the ``fps`` augmentation.
 mismatch of your WA and devlib versions. Please update both to their latest
 versions and delete your ``$USER_HOME/.workload_automation/cache/targets.json``
 (or equivalent) file.
+
+**Q:** I get an error which looks similar to ``UnicodeDecodeError('ascii' codec can't decode byte...``
+------------------------------------------------------------------------------------------------------
+**A:** If you receive this error or a similar warning about your environment,
+please ensure that you configure your environment to use a locale which supports
+UTF-8. Otherwise this can cause issues when attempting to parse files containing
+none ascii characters.

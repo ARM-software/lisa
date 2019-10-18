@@ -45,7 +45,7 @@ public class BaseUiAutomation {
 
     public enum FindByCriteria { BY_ID, BY_TEXT, BY_DESC };
     public enum Direction { UP, DOWN, LEFT, RIGHT, NULL };
-    public enum ScreenOrientation { RIGHT, NATURAL, LEFT };
+    public enum ScreenOrientation { RIGHT, NATURAL, LEFT, PORTRAIT, LANDSCAPE };
     public enum PinchType { IN, OUT, NULL };
 
     // Time in milliseconds
@@ -176,6 +176,8 @@ public class BaseUiAutomation {
     }
 
     public void setScreenOrientation(ScreenOrientation orientation) throws Exception {
+        int width = mDevice.getDisplayWidth();
+        int height = mDevice.getDisplayHeight();
         switch (orientation) {
             case RIGHT:
                 mDevice.setOrientationRight();
@@ -185,6 +187,30 @@ public class BaseUiAutomation {
                 break;
             case LEFT:
                 mDevice.setOrientationLeft();
+                break;
+            case LANDSCAPE:
+                if (mDevice.isNaturalOrientation()){
+                    if (height > width){
+                        mDevice.setOrientationRight();
+                    }
+                }
+                else {
+                    if (height > width){
+                        mDevice.setOrientationNatural();
+                    }
+                }
+                break;
+            case PORTRAIT:
+                if (mDevice.isNaturalOrientation()){
+                    if (height < width){
+                        mDevice.setOrientationRight();
+                    }
+                }
+                else {
+                    if (height < width){
+                        mDevice.setOrientationNatural();
+                    }
+                }
                 break;
             default:
                 throw new Exception("No orientation specified");

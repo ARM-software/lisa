@@ -1,4 +1,4 @@
-From fbb3f083f135b6e43eb7a71adc8ee850f408558b Mon Sep 17 00:00:00 2001
+From b03bc38384e70ab7271b3435ef9b1e240fac2aba Mon Sep 17 00:00:00 2001
 From: Qais Yousef <qais.yousef@arm.com>
 Date: Fri, 24 May 2019 15:10:46 +0100
 Subject: [PATCH] sched: add a module to convert tp into events
@@ -12,9 +12,9 @@ Lisa tests.
 Signed-off-by: Qais Yousef <qais.yousef@arm.com>
 ---
  kernel/sched/Makefile       |   3 +
- kernel/sched/sched_events.h | 134 ++++++++++++++++++++++++++++++++++++
- kernel/sched/sched_tp.c     | 132 +++++++++++++++++++++++++++++++++++
- 3 files changed, 269 insertions(+)
+ kernel/sched/sched_events.h | 134 ++++++++++++++++++++++++++++++++++
+ kernel/sched/sched_tp.c     | 141 ++++++++++++++++++++++++++++++++++++
+ 3 files changed, 278 insertions(+)
  create mode 100644 kernel/sched/sched_events.h
  create mode 100644 kernel/sched/sched_tp.c
 
@@ -34,10 +34,10 @@ index 21fb5a5662b5..dbcb46d51509 100644
  obj-$(CONFIG_SCHEDSTATS) += stats.o
 diff --git a/kernel/sched/sched_events.h b/kernel/sched/sched_events.h
 new file mode 100644
-index 000000000000..06c16e6ac1b3
+index 000000000000..659563ccb570
 --- /dev/null
 +++ b/kernel/sched/sched_events.h
-@@ -0,0 +1,134 @@
+@@ -0,0 +1,136 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#undef TRACE_SYSTEM
 +#define TRACE_SYSTEM sched
@@ -45,8 +45,8 @@ index 000000000000..06c16e6ac1b3
 +#if !defined(_SCHED_EVENTS_H) || defined(TRACE_HEADER_MULTI_READ)
 +#define _SCHED_EVENTS_H
 +
-+#define PATH_SIZE		128
-+#define SPAN_SIZE		128/4	/* assuming a max of 128 cpu system! */
++#define PATH_SIZE		64
++#define SPAN_SIZE		NR_CPUS/4
 +
 +#include <linux/tracepoint.h>
 +
@@ -128,6 +128,7 @@ index 000000000000..06c16e6ac1b3
 +		__field(	unsigned long,	load			)
 +		__field(	unsigned long,	rbl_load		)
 +		__field(	unsigned long,	util			)
++		__field(	unsigned long long, update_time	        )
 +	),
 +
 +	TP_fast_assign(
@@ -138,11 +139,12 @@ index 000000000000..06c16e6ac1b3
 +		__entry->load		= avg->load_avg;
 +		__entry->rbl_load	= avg->runnable_load_avg;
 +		__entry->util		= avg->util_avg;
++		__entry->update_time    = avg->last_update_time;
 +	),
 +
-+	TP_printk("cpu=%d path=%s comm=%s pid=%d load=%lu rbl_load=%lu util=%lu",
++	TP_printk("cpu=%d path=%s comm=%s pid=%d load=%lu rbl_load=%lu util=%lu update_time=%llu",
 +		  __entry->cpu, __entry->path, __entry->comm, __entry->pid,
-+		  __entry->load, __entry->rbl_load,__entry->util)
++		  __entry->load, __entry->rbl_load,__entry->util, __entry->update_time)
 +);
 +
 +TRACE_EVENT(sched_overutilized,
@@ -174,10 +176,10 @@ index 000000000000..06c16e6ac1b3
 +#include <trace/define_trace.h>
 diff --git a/kernel/sched/sched_tp.c b/kernel/sched/sched_tp.c
 new file mode 100644
-index 000000000000..290fd149b885
+index 000000000000..f2cc4992749e
 --- /dev/null
 +++ b/kernel/sched/sched_tp.c
-@@ -0,0 +1,132 @@
+@@ -0,0 +1,141 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#include <linux/module.h>
 +
@@ -191,6 +193,15 @@ index 000000000000..290fd149b885
 +{
 +#ifdef CONFIG_FAIR_GROUP_SCHED
 +	return se->my_q;
++#else
++	return NULL;
++#endif
++}
++
++static inline struct cfs_rq *get_se_cfs_rq(struct sched_entity *se)
++{
++#ifdef CONFIG_FAIR_GROUP_SCHED
++	return se->cfs_rq;
 +#else
 +	return NULL;
 +#endif
@@ -254,7 +265,7 @@ index 000000000000..290fd149b885
 +{
 +	if (trace_sched_load_se_enabled()) {
 +		void *gcfs_rq = get_group_cfs_rq(se);
-+		void *cfs_rq = se->cfs_rq;
++		void *cfs_rq = get_se_cfs_rq(se);
 +		struct task_struct *p;
 +		char path[PATH_SIZE];
 +		char *comm;

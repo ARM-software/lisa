@@ -36,8 +36,9 @@ from devlib.utils.misc import which
 from devlib import Platform
 from devlib.platform.gem5 import Gem5SimulationPlatform
 
+import lisa.assets
 from lisa.wlgen.rta import RTA
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, ASSETS_PATH, setup_logging, ArtifactPath, nullcontext, ExekallTaggable
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrList, Configurable
 
 from lisa.platforms.platinfo import PlatformInfo
@@ -114,7 +115,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('kind', 'Target kind. Can be "linux" (ssh) or "android" (adb)', [str]),
 
         KeyDesc('host', 'Hostname or IP address of the host', [str, None]),
-        KeyDesc('username', 'SSH username', [str, None]),
+        KeyDesc('username', 'SSH username. On ADB connections, "root" username will root adb upon target connection', [str, None]),
         PasswordKeyDesc('password', 'SSH password', [str, None]),
         KeyDesc('port', 'SSH or ADB server port', [int, None]),
         KeyDesc('device', 'ADB device. Takes precedence over "host"', [str, None]),
@@ -145,7 +146,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         }
     }
 
-class Target(Loggable, HideExekallID, Configurable):
+class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     """
     Wrap :class:`devlib.target.Target` to provide additional features on top of
     it.
@@ -208,7 +209,7 @@ class Target(Loggable, HideExekallID, Configurable):
 
     def __init__(self, kind, name='<noname>', tools=[], res_dir=None,
         plat_info=None, workdir=None, device=None, host=None, port=None,
-        username='root', password=None, keyfile=None, devlib_platform=None,
+        username=None, password=None, keyfile=None, devlib_platform=None,
         devlib_excluded_modules=[], wait_boot=True, wait_boot_timeout=10,
     ):
 
@@ -274,7 +275,7 @@ class Target(Loggable, HideExekallID, Configurable):
         # initialized. Expensive computations are deferred so they will only be
         # computed when actually needed.
 
-        rta_calib_res_dir = os.path.join(self._res_dir, 'rta_calib')
+        rta_calib_res_dir = ArtifactPath.join(self._res_dir, 'rta_calib')
         os.makedirs(rta_calib_res_dir)
         self.plat_info.add_target_src(self, rta_calib_res_dir, fallback=True)
 
@@ -345,12 +346,24 @@ class Target(Loggable, HideExekallID, Configurable):
         try:
             plat_info = PlatformInfo.from_yaml_map(path)
         except Exception as e:
-            cls.get_logger().warn('No platform information could be found: {}'.format(e))
+            cls.get_logger().warning('No platform information could be found: {}'.format(e))
             plat_info = None
         return cls.from_conf(conf=conf, plat_info=plat_info)
 
     @classmethod
-    def from_cli(cls, argv=None) -> 'Target':
+    # Keep the signature without *args and **kwargs so that it's usable by exekall
+    def from_cli(cls, argv=None, params=None) -> 'Target':
+        """
+        Same as :meth:`from_custom_cli` without the custom parameters
+        capabilities.
+
+        :return: A connected :class:`Target`
+        """
+        args, target = cls.from_custom_cli(argv=argv, params=params)
+        return target
+
+    @classmethod
+    def from_custom_cli(cls, argv=None, params=None):
         """
         Create a Target from command line arguments.
 
@@ -358,9 +371,15 @@ class Target(Loggable, HideExekallID, Configurable):
           this is ``None``.
         :type argv: list(str)
 
-        Trying to use this in a script that expects extra arguments is bound
-        to be confusing (help message woes, argument clashes...), so for now
-        this should only be used in scripts that only expect Target args.
+        :param params: Dictionary of custom parameters to add to the parser. It
+            is in the form of
+            ``{param_name: {dict of ArgumentParser.add_argument() options}}``.
+        :type params: dict(str, dict)
+
+        :return: A tuple ``(args, target)``
+
+        .. note:: This method should not be relied upon to implement long-term
+            scripts, it's more designed for quick scripting.
         """
         parser = argparse.ArgumentParser(
             formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -371,28 +390,26 @@ class Target(Loggable, HideExekallID, Configurable):
 
                 EXAMPLES
 
-                --target-conf can point to a YAML target configuration file
+                --conf can point to a YAML target configuration file
                 with all the necessary connection information:
-                $ {script} --target-conf my_target.yml
+                $ {script} --conf my_target.yml
 
                 Alternatively, --kind must be set along the relevant credentials:
                 $ {script} --kind linux --host 192.0.2.1 --username root --password root
 
-                In both cases, --platform-info can point to a PlatformInfo YAML
-                file.
+                In both cases, --conf can also contain a PlatformInfo YAML description.
 
                 """.format(
                     script=os.path.basename(sys.argv[0])
                 )))
 
+        parser.add_argument("--conf", '-c',
+            help="Path to a TargetConf and PlatformInfo yaml file. Other options will override what is specified in the file."
+        )
 
-        kind_group = parser.add_mutually_exclusive_group(required=True)
-        kind_group.add_argument("--kind", "-k",
+        parser.add_argument("--kind", "-k",
             choices=["android", "linux", "host"],
             help="The kind of target to connect to.")
-
-        kind_group.add_argument("--target-conf", "-t",
-                            help="Path to a TargetConf yaml file. Superseeds other target connection related options.")
 
         device_group = parser.add_mutually_exclusive_group()
         device_group.add_argument("--device", "-d",
@@ -405,9 +422,6 @@ class Target(Loggable, HideExekallID, Configurable):
         parser.add_argument("--password", "-p",
                             help="Login password. Only applies to Linux kind.")
 
-        parser.add_argument("--platform-info", "-pi",
-                            help="Path to a PlatformInfo yaml file.")
-
         parser.add_argument("--log-level",
                             default='info',
                             choices=('warning', 'info', 'debug'),
@@ -416,31 +430,63 @@ class Target(Loggable, HideExekallID, Configurable):
         parser.add_argument("--res-dir", "-o",
                             help="Result directory of the created Target. If no directory is specified, a default location under $LISA_HOME will be used.")
 
+        params = params or {}
+        for param, settings in params.items():
+            parser.add_argument('--{}'.format(param), **settings)
+        custom_params = {k.replace('-', '_') for k in params.keys()}
+
         # Options that are not a key in TargetConf must be listed here
-        not_target_conf_opt = (
-            'platform_info', 'log_level', 'res_dir', 'target_conf',
-        )
+        not_target_conf_opt = {
+            'platform_info', 'log_level', 'res_dir', 'conf',
+        }
+        not_target_conf_opt.update(custom_params)
 
         args = parser.parse_args(argv)
         setup_logging(level=args.log_level.upper())
 
+        target_conf = TargetConf()
+        platform_info = None
+
+        if args.conf:
+            # Tentatively load a PlatformInfo from the conf file
+            with contextlib.suppress(KeyError):
+                platform_info = PlatformInfo.from_yaml_map(args.conf)
+
+            # Load the TargetConf from the file, and update it with command
+            # line arguments
+            try:
+                conf = TargetConf.from_yaml_map(args.conf)
+            except KeyError:
+                pass
+            else:
+                target_conf.add_src(args.conf, conf)
+
+        target_conf.add_src('command-line', {
+            k: v for k, v in vars(args).items()
+            if v is not None and k not in not_target_conf_opt
+        })
+
+        # Some sanity check to get better error messages
+        if 'kind' not in target_conf:
+            parser.error('--conf with target configuration or any of the connection options is required')
+
         if args.kind == 'android':
-            if not (args.host or args.device):
+            if ('host' not in target_conf) and ('device' not in target_conf):
                 parser.error('--host or --device must be specified')
+
         if args.kind == 'linux':
             for required in ['host', 'username', 'password']:
-                if getattr(args, required) is None:
+                if required not in target_conf:
                     parser.error('--{} must be specified'.format(required))
 
-        platform_info = PlatformInfo.from_yaml_map(args.platform_info) if args.platform_info else None
-        if args.target_conf:
-            target_conf = TargetConf.from_yaml_map(args.target_conf)
-        else:
-            target_conf = TargetConf(
-                {k : v for k, v in vars(args).items()
-                 if v is not None and k not in not_target_conf_opt})
+        custom_args = {
+            param: value
+            for param, value in vars(args).items()
+            if param in custom_params
+        }
+        custom_args = argparse.Namespace(**custom_args)
 
-        return cls.from_conf(conf=target_conf, plat_info=platform_info, res_dir=args.res_dir)
+        return custom_args, cls.from_conf(conf=target_conf, plat_info=platform_info, res_dir=args.res_dir)
 
     def _init_target(self, kind, name, workdir, device, host,
             port, username, password, keyfile,
@@ -452,6 +498,7 @@ class Target(Loggable, HideExekallID, Configurable):
         """
         logger = self.get_logger()
         conn_settings = {}
+        resolved_username = username or 'root'
 
         # If the target is Android, we need just (eventually) the device
         if kind == 'android':
@@ -470,12 +517,15 @@ class Target(Loggable, HideExekallID, Configurable):
                 device = 'DEFAULT'
 
             conn_settings['device'] = device
+            # If the username was explicitly set to "root", root the target as
+            # early as possible
+            conn_settings['adb_as_root'] = (username == 'root')
 
         elif kind == 'linux':
             logger.debug('Setting up Linux target...')
             devlib_target_cls = devlib.LinuxTarget
 
-            conn_settings['username'] = username
+            conn_settings['username'] = resolved_username
             conn_settings['port'] = port or self.SSH_PORT_DEFAULT
             conn_settings['host'] = host
 
@@ -497,7 +547,7 @@ class Target(Loggable, HideExekallID, Configurable):
 
         logger.info('%s %s target connection settings:', kind, name)
         for key, val in conn_settings.items():
-            logger.info('%10s : %s', key, val)
+            logger.info('    %s: %s', key, val)
 
         ########################################################################
         # Devlib Platform configuration
@@ -547,6 +597,14 @@ class Target(Loggable, HideExekallID, Configurable):
 
         target.connect(check_boot_completed=wait_boot, timeout=wait_boot_timeout)
 
+        # None as username means adb root will be attempted, but failure will
+        # not prevent from connecting to the target.
+        if kind == 'android' and username is None:
+            try:
+                target.adb_root(enable=True)
+            except Exception as e:
+                logger.warning('"adb root" failed: {}'.format(e))
+
         logger.debug('Checking target connection...')
         logger.debug('Target info:')
         logger.debug('      ABI: %s', target.abi)
@@ -555,9 +613,6 @@ class Target(Loggable, HideExekallID, Configurable):
         logger.debug('  workdir: %s', target.working_directory)
 
         target.setup()
-
-        if isinstance(target, devlib.AndroidTarget):
-            target.adb_root(force=True)
 
         # Verify that all the required modules have been initialized
         for module in devlib_module_list:
@@ -660,10 +715,9 @@ class Target(Loggable, HideExekallID, Configurable):
 
         tools_to_install = set()
         for tool in tools:
-            binary = '{}/tools/scripts/{}'.format(LISA_HOME, tool)
+            binary = os.path.join(ASSETS_PATH, 'binaries', self.abi, tool)
             if not os.path.isfile(binary):
-                binary = '{}/tools/{}/{}'\
-                         .format(LISA_HOME, self.target.abi, tool)
+                binary = os.path.join(ASSETS_PATH, 'binaries', 'scripts', tool)
             tools_to_install.add(binary)
 
         # TODO: compute the checksum of the tool + install location and keep
@@ -679,29 +733,34 @@ class Target(Loggable, HideExekallID, Configurable):
         Context manager that lets you freeze the userspace
         """
         logger = self.get_logger()
-        if 'cgroups' not in self.target.modules:
-            raise RuntimeError('Could not freeze userspace: "cgroups" devlib module is necessary')
-
-        controllers = [s.name for s in self.target.cgroups.list_subsystems()]
-        if 'freezer' not in controllers:
-            logger.warning('Could not freeze userspace: freezer cgroup controller not available on the target')
-            cm = nullcontext
-
-        elif not self.is_rooted:
+        if not self.is_rooted:
             logger.warning('Could not freeze userspace: target is not rooted')
             cm = nullcontext
-
         else:
-            exclude = self.CRITICAL_TASKS[self.target.os]
+            if 'cgroups' not in self.target.modules:
+                raise RuntimeError('Could not freeze userspace: "cgroups" devlib module is necessary')
 
-            @contextlib.contextmanager
-            def cm():
-                logger.info('Freezing all tasks except: %s', ','.join(exclude))
-                try:
-                    yield self.target.cgroups.freeze(exclude)
-                finally:
-                    logger.info('Un-freezing userspace tasks')
-                    self.target.cgroups.freeze(thaw=True)
+            controllers = [s.name for s in self.target.cgroups.list_subsystems()]
+            if 'freezer' not in controllers:
+                logger.warning('Could not freeze userspace: freezer cgroup controller not available on the target')
+                cm = nullcontext
+
+            else:
+                exclude = copy.copy(self.CRITICAL_TASKS[self.target.os])
+
+                # Do not freeze the process in charge of de-freezing, otherwise we
+                # will freeze to death and a machine hard reboot will be required
+                if isinstance(self.target, devlib.LocalLinuxTarget):
+                    exclude.append(str(os.getpid()))
+
+                @contextlib.contextmanager
+                def cm():
+                    logger.info('Freezing all tasks except: %s', ','.join(exclude))
+                    try:
+                        yield self.target.cgroups.freeze(exclude)
+                    finally:
+                        logger.info('Un-freezing userspace tasks')
+                        self.target.cgroups.freeze(thaw=True)
 
         with cm() as x:
             yield x
@@ -718,14 +777,27 @@ class Target(Loggable, HideExekallID, Configurable):
         logger.info('Disabling idle states for all domains')
 
         try:
-            for domain in self.target.cpufreq.iter_domains():
-                self.target.cpuidle.disable_all(domain[0])
-            yield
-        finally:
-            logger.info('Re-enabling idle states for all domains')
-            for domain in self.target.cpufreq.iter_domains():
-                self.target.cpuidle.enable_all(domain[0])
+            cpuidle = self.target.cpuidle
+        except AttributeError:
+            logger.warning('Could not disable idle states, cpuidle devlib module is not loaded')
+            cm = nullcontext
+        else:
+            @contextlib.contextmanager
+            def cm():
+                try:
+                    for domain in self.target.cpufreq.iter_domains():
+                        cpuidle.disable_all(domain[0])
+                    yield
+                finally:
+                    logger.info('Re-enabling idle states for all domains')
+                    for domain in self.target.cpufreq.iter_domains():
+                        cpuidle.enable_all(domain[0])
 
+        with cm() as x:
+            yield x
+
+    def get_tags(self):
+        return {'board': self.name}
 
 class Gem5SimulationPlatformWrapper(Gem5SimulationPlatform):
     def __init__(self, system, simulator, **kwargs):

@@ -120,5 +120,5 @@ class HWUITest(Workload):
 
     @once
     def finalize(self, context):
-        if self.target_exe:
+        if self.target_exe and self.uninstall:
             self.target.uninstall(self.target_exe)

@@ -23,21 +23,37 @@ import abc
 import sys
 import textwrap
 import re
-
-from collections.abc import Mapping
-from inspect import signature
 import inspect
 import copy
+import contextlib
+import itertools
+
+from datetime import datetime
+from collections import OrderedDict, ChainMap
+from collections.abc import Mapping
+from inspect import signature
+
+from devlib.trace.dmesg import KernelLogEntry
+from devlib import TargetStableError
 
 from lisa.analysis.tasks import TasksAnalysis
-from lisa.trace import Trace, requires_events
+from lisa.analysis.rta import RTAEventsAnalysis
+from lisa.trace import requires_events, may_use_events
+from lisa.trace import Trace, TaskID
 from lisa.wlgen.rta import RTA
+from lisa.target import Target
 
 from lisa.utils import (
     Serializable, memoized, ArtifactPath, non_recursive_property,
-    LayeredMapping, update_wrapper_doc
+    update_wrapper_doc, ExekallTaggable, annotations_from_signature,
+    nullcontext,
 )
+from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
+from lisa.conf import (
+    SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc,
+    StrList,
+)
 
 class TestMetric:
     """
@@ -54,10 +70,11 @@ class TestMetric:
 
     def __str__(self):
         if isinstance(self.data, Mapping):
-            return '{{{}}}'.format(', '.join(
-                ["{}={}".format(name, data) for name, data in self.data.items()]))
+            result = '{{{}}}'.format(', '.join(
+                "{}={}".format(name, data) for name, data in self.data.items()))
+        else:
+            result = str(self.data)
 
-        result = str(self.data)
         if self.units:
             result += ' ' + self.units
 
@@ -141,6 +158,15 @@ class ResultBundle(ResultBundleBase):
       It will also be used as the truth-value of a ResultBundle.
     :type result: :class:`Result`
 
+    :param utc_datetime: UTC time at which the result was collected, or
+        ``None`` to record the current datetime.
+    :type utc_datetime: datetime.datetime
+
+    :param context: Contextual information to attach to the bundle.
+        Keep the content small, as size of :class:`ResultBundle` instances
+        matters a lot for storing long test sessions results.
+    :type context: dict(str, object)
+
     :class:`TestMetric` can be added to an instance of this class. This can
     make it easier for users of your tests to understand why a certain test
     passed or failed. For instance::
@@ -161,9 +187,11 @@ class ResultBundle(ResultBundleBase):
         >>> print(res_bundle)
         FAILED: current time=11
     """
-    def __init__(self, result):
+    def __init__(self, result, utc_datetime=None, context=None):
         self.result = result
         self.metrics = {}
+        self.utc_datetime = utc_datetime or datetime.utcnow()
+        self.context = context if context is not None else {}
 
     @classmethod
     def from_bool(cls, cond, *args, **kwargs):
@@ -191,16 +219,47 @@ class AggregatedResultBundle(ResultBundleBase):
         not the default one, without having to make a whole new subclass.
     :type result: Result
 
+    :param context: Contextual information to attach to the bundle.
+        Keep the content small, as size of :class:`ResultBundle` instances
+        matters a lot for storing long test sessions results.
+    :type context: dict(str, object)
+
     This is useful for some tests that are naturally decomposed in subtests.
 
     .. note:: Metrics of aggregated bundles will always be shown, but can be
         augmented with new metrics using the usual API.
     """
-    def __init__(self, result_bundles, name_metric=None, result=None):
+    def __init__(self, result_bundles, name_metric=None, result=None, context=None):
         self.result_bundles = result_bundles
         self.name_metric = name_metric
         self.extra_metrics = {}
+        self.extra_context = context if context is not None else {}
         self._forced_result = result
+
+    @property
+    def utc_datetime(self):
+        """
+        Use the earliest ``utc_datetime`` among the aggregated bundles.
+        """
+        return min(
+            result_bundle.utc_datetime
+            for result_bundle in self.result_bundles
+        )
+
+    @property
+    def context(self):
+        """
+        Merge the context of all the aggregated bundles, with priority given to
+        last in the list.
+        """
+        # All writes will be done in that first layer
+        bases = [self.extra_context]
+        bases.extend(
+            result_bundle.context
+            for result_bundle in self.result_bundles
+        )
+
+        return ChainMap(*bases)
 
     @property
     def result(self):
@@ -259,16 +318,201 @@ class AggregatedResultBundle(ResultBundleBase):
                 if res_bundle.result is Result.FAILED
             ])
         top = self.extra_metrics
-        return LayeredMapping(base, top)
+        return ChainMap(top, base)
 
 
 class CannotCreateError(RuntimeError):
     """
-    Something prevented the creation of a :class:`TestBundle` instance
+    Something prevented the creation of a :class:`TestBundle` or
+    :class:`ResultBundleBase` instance.
     """
     pass
 
-class TestBundle(Serializable, abc.ABC):
+
+class TestBundleMeta(abc.ABCMeta):
+    """
+    Metaclass of :class:`TestBundle`.
+
+    Method with a return annotation of :class:`ResultBundleBase` are wrapped to
+    update the ``context`` attribute of a returned :class:`ResultBundleBase`.
+
+    If ``_from_target`` is defined in the class but ``from_target`` is not, a
+    stub is created and the annotation of ``_from_target`` is copied to the
+    stub. The annotation is then removed from ``_from_target`` so that it is
+    not picked up by exekall.
+
+    The signature of ``from_target`` is the result of merging
+    ``super().from_target`` parameters with the ones defined in
+    ``_from_target``.
+    """
+    @staticmethod
+    def test_method(func):
+        """
+        Decorator to intercept returned :class:`ResultBundle` and attach some contextual information.
+        """
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            res = func(self, *args, **kwargs)
+            if isinstance(res, ResultBundleBase):
+                plat_info = self.plat_info
+                # Map context keys to PlatformInfo nested keys
+                keys = {
+                    'board-name': ['name'],
+                    'kernel-version': ['kernel', 'version']
+                }
+                context = {}
+                for context_key, plat_info_key in keys.items():
+                    try:
+                        val = plat_info.get_nested_key(plat_info_key)
+                    except KeyError:
+                        continue
+                    else:
+                        context[context_key] = val
+
+                # Only update what is strictly necessary here, so that
+                # AggregatedResultBundle ends up with a minimal context state.
+                res_context = res.context
+                for key, val in context.items():
+                    if key not in res_context:
+                        res_context[key] = val
+
+            return res
+
+        return wrapper
+
+    def __new__(metacls, cls_name, bases, dct, **kwargs):
+        new_cls = super().__new__(metacls, cls_name, bases, dct, **kwargs)
+
+        # Wrap the test methods to add contextual information
+        for name, f in dct.items():
+            try:
+                sig = signature(f)
+            except TypeError:
+                continue
+
+            annotation = sig.return_annotation
+            if isinstance(annotation, type) and issubclass(annotation, ResultBundleBase):
+                f = metacls.test_method(f)
+                setattr(new_cls, name, f)
+
+
+        # If that class defines _from_target but not from_target, we create a
+        # stub from_target and move the annotations of _from_target to
+        # from_target
+        if '_from_target' in dct and 'from_target' not in dct:
+            assert isinstance(dct['_from_target'], classmethod)
+            _from_target = new_cls._from_target
+
+            # Sanity check on _from_target signature
+            for name, param in signature(_from_target).parameters.items():
+                if name != 'target' and param.kind is not inspect.Parameter.KEYWORD_ONLY:
+                    raise TypeError('Non keyword parameters "{}" are not allowed in {} signature'.format(
+                        _from_target.__qualname__, name))
+
+            def get_keyword_only_names(f):
+                return {
+                    param.name
+                    for param in signature(f).parameters.values()
+                    if param.kind is inspect.Parameter.KEYWORD_ONLY
+                }
+
+            try:
+                missing_params = (
+                    get_keyword_only_names(super(bases[0], new_cls)._from_target)
+                    - get_keyword_only_names(_from_target)
+                )
+            except AttributeError:
+                pass
+            else:
+                if missing_params:
+                    raise TypeError('{}._from_target() must at least implement all the parameters of {}._from_target(). Missing parameters: {}'.format(
+                        new_cls.__qualname__,
+                        bases[0].__qualname__,
+                        ', '.join(sorted(missing_params))
+
+                    ))
+
+            def merge_signatures(sig1, sig2):
+                parameters = list(sig1.parameters.values())
+                sig1_param_names = {param.name for param in parameters}
+                parameters.extend(
+                    param
+                    for param in sig2.parameters.values()
+                    if (
+                        param.kind is inspect.Parameter.KEYWORD_ONLY
+                        and not param.name in sig1_param_names
+                    )
+                )
+                parameters = [
+                    param
+                    for param in parameters
+                    if param.kind not in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL)
+                ]
+                return sig1.replace(
+                    parameters=parameters,
+                    return_annotation=sig2.return_annotation
+                )
+
+            # Make a stub that we can freely update
+            @functools.wraps(_from_target.__func__)
+            def from_target(cls, *args, **kwargs):
+                return super(new_cls, cls).from_target(*args, **kwargs)
+
+            # Hide the fact that we wrapped the function, so exekall does not
+            # get confused
+            del from_target.__wrapped__
+
+            # Fixup the names, so it is not displayed as `_from_target`
+            from_target.__name__ = 'from_target'
+            from_target.__qualname__ = new_cls.__qualname__ + '.' + from_target.__name__
+
+            # Merge the signatures to get the base signature of super().from_target,
+            # and add the keyword-only and return annotation of _from_target.
+            from_target.__signature__ = merge_signatures(
+                signature(new_cls.from_target.__func__),
+                signature(_from_target.__func__),
+            )
+
+            # Stich the relevant docstrings
+            func = new_cls.from_target.__func__
+            from_target_doc = inspect.cleandoc(func.__doc__ or '')
+            _from_target_doc = inspect.cleandoc(_from_target.__doc__ or '')
+            if _from_target_doc:
+                doc = '{}\n\n(**above inherited from** :meth:`{}.{}`)\n\n{}\n'.format(
+                    from_target_doc,
+                    func.__module__, func.__qualname__,
+                    _from_target_doc,
+                )
+            else:
+                doc = from_target_doc
+
+            from_target.__doc__ = doc
+
+            # Make sure the annotation points to an actual class object if it
+            # was set, as most of the time they will be strings for factories.
+            # Since the wrapper's __globals__ (read-only) attribute is not
+            # going to contain the necessary keys to resolve that string, we
+            # take care of it here.
+
+            # Only update the annotation if there was one.
+            if 'return' in from_target.__annotations__:
+                # since we set the signature manually, we also need to update
+                # the annotations in it
+                sig = from_target.__signature__
+                assert sig.return_annotation == cls_name
+                from_target.__signature__ = sig.replace(return_annotation=new_cls)
+
+            # Keep the annotations and the signature in sync
+            from_target.__annotations__ = annotations_from_signature(from_target.__signature__)
+
+            # De-annotate the _from_target function so it is not picked up by exekall
+            del _from_target.__func__.__annotations__
+
+            new_cls.from_target = classmethod(from_target)
+
+        return new_cls
+
+class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMeta):
     """
     A LISA test bundle.
 
@@ -297,6 +541,7 @@ class TestBundle(Serializable, abc.ABC):
 
       * :meth:`from_target` will collect whatever artifacts are required
         from a given target, and will then return a :class:`TestBundle`.
+        Note that a default implementation is provided out of ``_from_target``.
       * :meth:`from_dir` will use whatever artifacts are available in a
         given directory (which should have been created by an earlier call
         to :meth:`from_target` and then :meth:`to_dir`), and will then return
@@ -311,17 +556,21 @@ class TestBundle(Serializable, abc.ABC):
 
     **Implementation example**::
 
+        from lisa.target import Target
+        from lisa.platforms.platinfo import PlatformInfo
+        from lisa.utils import ArtifactPath
+
         class DummyTestBundle(TestBundle):
 
             def __init__(self, res_dir, plat_info, shell_output):
-                super(DummyTestBundle, self).__init__(res_dir, plat_info)
+                super().__init__(res_dir, plat_info)
 
                 self.shell_output = shell_output
 
             @classmethod
-            def _from_target(cls, target, plat_info, res_dir):
+            def _from_target(cls, target:Target, *, res_dir:ArtifactPath) -> 'DummyTestBundle':
                 output = target.execute('echo $((21+21))').split()
-                return cls(res_dir, plat_info, output)
+                return cls(res_dir, target.plat_info, output)
 
             def test_output(self) -> ResultBundle:
                 return ResultBundle.from_bool(
@@ -334,7 +583,7 @@ class TestBundle(Serializable, abc.ABC):
     **Usage example**::
 
         # Creating a Bundle from a live target
-        bundle = TestBundle.from_target(target, plat_info, "/my/res/dir")
+        bundle = TestBundle.from_target(target, plat_info=plat_info, res_dir="/my/res/dir")
         # Running some test on the bundle
         res_bundle = bundle.test_foo()
 
@@ -366,11 +615,25 @@ class TestBundle(Serializable, abc.ABC):
         self.res_dir = res_dir
         self.plat_info = plat_info
 
+    def get_tags(self):
+        try:
+            return {'board': self.plat_info['name']}
+        except KeyError:
+            return {}
+
     @classmethod
     @abc.abstractmethod
-    def _from_target(cls, target, res_dir):
+    def _from_target(cls, target, *, res_dir):
         """
         Internals of the target factory method.
+
+        .. note:: This must be a classmethod, and all parameters except
+            ``target`` must be keyword-only, i.e. appearing after `args*` or a
+            lonely `*`::
+
+                @classmethod
+                def _from_target(cls, target, *, foo=33, bar):
+                    ...
         """
         pass
 
@@ -401,14 +664,21 @@ class TestBundle(Serializable, abc.ABC):
             return False
 
     @classmethod
-    def from_target(cls, target, res_dir=None, **kwargs):
+    def from_target(cls, target:Target, *, res_dir:ArtifactPath=None, **kwargs):
         """
         Factory method to create a bundle using a live target
 
-        This is mostly boiler-plate code around :meth:`_from_target`,
-        which lets us introduce common functionalities for daughter classes.
-        Unless you know what you are doing, you should not override this method,
-        but the internal :meth:`_from_target` instead.
+        :param target: Target to connect to.
+        :type target: lisa.target.Target
+
+        :param res_dir: Host result directory holding artifacts.
+        :type res_dir: str or lisa.utils.ArtifactPath
+
+        This is mostly boiler-plate code around
+        :meth:`~lisa.tests.base.TestBundle._from_target`, which lets us
+        introduce common functionalities for daughter classes. Unless you know
+        what you are doing, you should not override this method, but the
+        internal :meth:`lisa.tests.base.TestBundle._from_target` instead.
         """
         cls.check_from_target(target)
 
@@ -417,7 +687,12 @@ class TestBundle(Serializable, abc.ABC):
             symlink=True,
         )
 
-        bundle = cls._from_target(target, res_dir, **kwargs)
+        # Make sure that all the relevant dmesg warnings will fire when running
+        # things on the target, even if we already hit some warn_once warnings.
+        with contextlib.suppress(TargetStableError):
+            target.write_value('/sys/kernel/debug/clear_warn_once', '1', verify=False)
+
+        bundle = cls._from_target(target, res_dir=res_dir, **kwargs)
 
         # We've created the bundle from the target, and have all of
         # the information we need to execute the test code. However,
@@ -432,7 +707,7 @@ class TestBundle(Serializable, abc.ABC):
 
     @classmethod
     def _filepath(cls, res_dir):
-        return os.path.join(res_dir, "{}.yaml".format(cls.__qualname__))
+        return ArtifactPath.join(res_dir, "{}.yaml".format(cls.__qualname__))
 
     @classmethod
     def from_dir(cls, res_dir, update_res_dir=True):
@@ -458,16 +733,17 @@ class TestBundle(Serializable, abc.ABC):
         super().to_path(self._filepath(res_dir))
 
 
-class RTATestBundleMeta(abc.ABCMeta):
+class FtraceTestBundleMeta(TestBundleMeta):
     """
-    Metaclass of :class:`RTATestBundle`.
+    Metaclass of :class:`FtraceTestBundle`.
 
     This metaclass ensures that each class will get its own copy of
     ``ftrace_conf`` attribute, and that the events specified in that
-    configuration are a superset of what is needed by methods using the
-    decorator :func:`lisa.trace.requires_events`. This makes sure that the
+    configuration are a superset of what is needed by methods using the family
+    of decorators :func:`lisa.trace.requires_events`. This makes sure that the
     default set of events is always enough to run all defined methods, without
-    duplicating that information.
+    duplicating that information. That means that trace events are "inherited"
+    at the same time as the methods that need them.
 
     The ``ftrace_conf`` attribute is typically built by merging these sources:
 
@@ -475,7 +751,7 @@ class RTATestBundleMeta(abc.ABCMeta):
           :class:`RTATestBundle` subclass
 
         * Events required by methods using :func:`lisa.trace.requires_events`
-          decorator.
+          decorator (and equivalents).
 
         * :class:`lisa.trace.FtraceConf` specified by the user and passed to
           :meth:`lisa.trace.FtraceCollector.from_user_conf`
@@ -523,7 +799,7 @@ class RTATestBundleMeta(abc.ABCMeta):
         return new_cls
 
 
-class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
+class FtraceTestBundle(TestBundle, metaclass=FtraceTestBundleMeta):
     """
     Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
 
@@ -532,7 +808,7 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
     workload is being run. By default, the required events are extracted from
     decorated test methods.
 
-    .. seealso: :class:`lisa.tests.base.RTATestBundleMeta` for default
+    .. seealso: :class:`lisa.tests.base.FtraceTestBundleMeta` for default
         ``ftrace_conf`` content.
     """
 
@@ -540,68 +816,13 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
     """
     Path to the ``trace-cmd`` trace.dat file in the result directory.
     """
-    DMESG_PATH = 'dmesg.log'
-    """
-    Path to the dmesg log in the result directory.
-    """
-
-    TASK_PERIOD_MS = 16
-    """
-    A task period you can re-use for your :class:`lisa.wlgen.rta.RTATask`
-    definitions.
-    """
-
-    NOISE_ACCOUNTING_THRESHOLDS = {
-        # Idle task - ignore completely
-        0 : 100,
-        # Feeble boards like Juno/TC2 spend a while in sugov
-        r"^sugov:\d+$" : 5,
-        # The mailbox controller (MHU), now threaded, creates work that sometimes
-        # exceeds the 1% threshold.
-        r"^irq/\d+-mhu_link$": 1.5
-    }
-    """
-    PID/comm specific tuning for :meth:`test_noisy_tasks`
-
-    * **keys** can be PIDs, comms, or regexps for comms.
-
-    * **values** are noisiness thresholds (%), IOW below that runtime threshold
-      the associated task will be ignored in the noise accounting.
-    """
-
-    @requires_events('sched_switch')
-    def trace_window(self, trace):
-        """
-        The time window to consider for this :class:`RTATestBundle`
-
-        :returns: a (start, stop) tuple
-
-        Since we're using rt-app profiles, we know the name of tasks we are
-        interested in, so we can trim our trace scope to filter out the
-        setup/teardown events we don't care about.
-
-        Override this method if you need a different trace trimming.
-
-        .. warning::
-
-          Calling ``self.trace`` here will raise an :exc:`AttributeError`
-          exception, to avoid entering infinite recursion.
-        """
-        sdf = trace.df_events('sched_switch')
-
-        # Find when the first task starts running
-        rta_start = sdf[sdf.next_comm.isin(self.rtapp_tasks)].index[0]
-        # Find when the last task stops running
-        rta_stop = sdf[sdf.prev_comm.isin(self.rtapp_tasks)].index[-1]
-
-        return (rta_start, rta_stop)
 
     @property
     def trace_path(self):
         """
         Path to the ``trace-cmd report`` trace.dat file.
         """
-        return os.path.join(self.res_dir, self.TRACE_PATH)
+        return ArtifactPath.join(self.res_dir, self.TRACE_PATH)
 
     # Guard before the cache, so we don't accidentally start depending on the
     # LRU cache for functionnal correctness.
@@ -624,13 +845,176 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
 
     def get_trace(self, **kwargs):
         """
-        :returns: a :class:`lisa.trace.TraceView` cropped to fit the ``rt-app``
-            tasks.
+        :returns: a :class:`lisa.trace.Trace` collected in the standard location.
 
-        :Keyword arguments: forwarded to :class:`lisa.trace.Trace`.
+        :Variable keyword arguments: Forwarded to :class:`lisa.trace.Trace`.
         """
-        trace = Trace(self.trace_path, self.plat_info, **kwargs)
-        return trace.get_view(self.trace_window(trace))
+        return Trace(self.trace_path, self.plat_info, **kwargs)
+
+
+class DmesgTestConf(SimpleMultiSrcConf):
+    """
+    Configuration class for :meth:`lisa.tests.base.DmesgTestBundle.test_dmesg`.
+
+    {generated_help}
+    """
+    STRUCTURE = TopLevelKeyDesc('dmesg-test-conf', 'Dmesg test configuration', (
+        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries content to be whitelisted', [StrList]),
+    ))
+
+
+class DmesgTestBundle(TestBundle):
+    """
+    Abstract Base Class for TestBundles based on dmesg output.
+    """
+
+    DMESG_PATH = 'dmesg.log'
+    """
+    Path to the dmesg log in the result directory.
+    """
+
+    @property
+    def dmesg_path(self):
+        """
+        Path to the dmesg output log file
+        """
+        return ArtifactPath.join(self.res_dir, self.DMESG_PATH)
+
+    @property
+    def dmesg_entries(self):
+        """
+        List of parsed dmesg output entries
+        :class:`devlib.trace.dmesg.KernelLogEntry`.
+        """
+        with open(self.dmesg_path) as f:
+            return list(KernelLogEntry.from_dmesg_output(f.read()))
+
+    def test_dmesg(self, level='warn', facility=None, ignored_patterns:DmesgTestConf.IgnoredPatterns=None) -> ResultBundle:
+        """
+        Basic test on kernel dmesg output.
+
+        :param level: Any dmesg entr with a level more critical than (and
+            including) that will make the test fail.
+        :type level: str
+
+        :param facility: Only select entries emitted by the given dmesg
+            facility like `kern`. Note that not all versions of `dmesg` are
+            able to print it, so specifying it may lead to no entry being
+            inspected at all. If ``None``, the facility is ignored.
+        :type facility: str or None
+
+        :param ignored_patterns: List of regexes to ignore some messages.
+        :type ignored_patterns: list or None
+        """
+        levels = DmesgCollector.LOG_LEVELS
+        # Consider as an issue all levels more critical than `level`
+        issue_levels = levels[:levels.index(level) + 1]
+
+        logger = self.get_logger()
+
+        if ignored_patterns:
+            logger.info('Will ignore patterns in dmesg output: {}'.format(ignored_patterns))
+            ignored_regex = [
+                re.compile(pattern)
+                for pattern in ignored_patterns
+            ]
+        else:
+            ignored_regex = []
+
+        issues = [
+            entry
+            for entry in self.dmesg_entries
+            if (
+                (entry.facility == facility if facility else True)
+                and (entry.level in issue_levels)
+                and not any(regex.match(entry.msg) for regex in ignored_regex)
+            )
+        ]
+
+        res = ResultBundle.from_bool(not issues)
+        multiline = len(issues) > 1
+        res.add_metric('dmesg output', ('\n' if multiline else '') + '\n'.join(str(entry) for entry in issues))
+        return res
+
+
+class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
+    """
+    Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
+
+    .. seealso: :class:`lisa.tests.base.FtraceTestBundleMeta` for default
+        ``ftrace_conf`` content.
+    """
+
+    TASK_PERIOD_MS = 16
+    """
+    A task period you can re-use for your :class:`lisa.wlgen.rta.RTATask`
+    definitions.
+    """
+
+    NOISE_ACCOUNTING_THRESHOLDS = {
+        # Idle task - ignore completely
+        # note: since it has multiple comms, we need to ignore them
+        TaskID(pid=0, comm=None) : 100,
+        # Feeble boards like Juno/TC2 spend a while in sugov
+        r"^sugov:\d+$" : 5,
+        # The mailbox controller (MHU), now threaded, creates work that sometimes
+        # exceeds the 1% threshold.
+        r"^irq/\d+-mhu_link$": 1.5
+    }
+    """
+    PID/comm specific tuning for :meth:`test_noisy_tasks`
+
+    * **keys** can be PIDs, comms, or regexps for comms.
+
+    * **values** are noisiness thresholds (%), IOW below that runtime threshold
+      the associated task will be ignored in the noise accounting.
+    """
+
+    @RTAEventsAnalysis.df_rtapp_phases_start.used_events
+    @RTAEventsAnalysis.df_rtapp_phases_end.used_events
+    @requires_events('sched_switch')
+    def trace_window(self, trace):
+        """
+        The time window to consider for this :class:`RTATestBundle`
+
+        :returns: a (start, stop) tuple
+
+        Since we're using rt-app profiles, we know the name of tasks we are
+        interested in, so we can trim our trace scope to filter out the
+        setup/teardown events we don't care about.
+
+        Override this method if you need a different trace trimming.
+
+        .. warning::
+
+          Calling ``self.trace`` here will raise an :exc:`AttributeError`
+          exception, to avoid entering infinite recursion.
+        """
+        swdf = trace.df_events('sched_switch')
+
+        def get_first_switch(row):
+            comm, pid, _ = row.name
+            start_time = row['Time']
+            task = TaskID(comm=comm, pid=pid)
+            start_swdf = df_filter_task_ids(swdf, [task], pid_col='next_pid', comm_col='next_comm')
+            pre_phase_swdf = start_swdf[start_swdf.index < start_time]
+            # The task with that comm and PID was never switched-in, which
+            # means it was still on the current CPU when it was renamed, so we
+            # just report phase-start.
+            if pre_phase_swdf.empty:
+                return start_time
+            # Otherwise, we return the timestamp of the switch
+            else:
+                return pre_phase_swdf.index[-1]
+
+        # Find when the first rtapp phase starts, and take the associated
+        # sched_switch that is immediately preceding
+        rta_start = trace.analysis.rta.df_rtapp_phases_start().apply(get_first_switch, axis=1).min()
+
+        # Find when the last rtapp phase ends
+        rta_stop = trace.analysis.rta.df_rtapp_phases_end()['Time'].max()
+
+        return (rta_start, rta_stop)
 
     @property
     def rtapp_profile(self):
@@ -642,10 +1026,44 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
     @property
     def rtapp_tasks(self):
         """
-        Sorted list of rtapp task names, as defined in ``rtapp_profile``
-        attribute.
+        The rtapp task names as found from the trace in this bundle.
+
+        :return: the list of actual trace task names
         """
-        return sorted(self.rtapp_profile.keys())
+        return sorted(itertools.chain.from_iterable(self.rtapp_tasks_map.values()))
+
+    @property
+    @requires_events('sched_switch')
+    @memoized
+    def rtapp_tasks_map(self):
+        """
+        Mapping of task names as specified in the rtapp profile to list of task
+        names found in the trace.
+
+        If the task forked, the list will contain more than one item.
+        """
+        trace = self.get_trace(events=['sched_switch'])
+
+        prefix_regexps = {
+            prefix: re.compile(r"^{}(-[0-9]+)*$".format(re.escape(prefix)))
+            for prefix in self.rtapp_profile.keys()
+        }
+
+        comms = set(itertools.chain.from_iterable(trace.get_tasks().values()))
+        task_map = {
+            prefix: sorted(
+                comm
+                for comm in comms
+                if re.match(regexp, comm)
+            )
+            for prefix, regexp in prefix_regexps.items()
+        }
+
+        missing = sorted(prefix for prefix, comms in task_map.items() if not comms)
+        if missing:
+            raise RuntimeError("Missing tasks matching the following rt-app profile names: {}"
+                                .format(', '.join(missing)))
+        return task_map
 
     @property
     def cgroup_configuration(self):
@@ -653,6 +1071,25 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         Compute the cgroup configuration based on ``plat_info``
         """
         return self.get_cgroup_configuration(self.plat_info)
+
+    @non_recursive_property
+    @memoized
+    def trace(self):
+        """
+        :returns: a :class:`lisa.trace.TraceView` cropped to fit the ``rt-app``
+            tasks.
+
+        All events specified in ``ftrace_conf`` are parsed from the trace,
+        so it is suitable for direct use in methods.
+
+        Having the trace as a property lets us defer the loading of the actual
+        trace to when it is first used. Also, this prevents it from being
+        serialized when calling :meth:`lisa.utils.Serializable.to_path` and
+        allows updating the underlying path before it is actually loaded to
+        match a different folder structure.
+        """
+        trace = self.get_trace(events=self.ftrace_conf["events"])
+        return trace.get_view(self.trace_window(trace))
 
     @TasksAnalysis.df_tasks_runtime.used_events
     def test_noisy_tasks(self, noise_threshold_pct=None, noise_threshold_ms=None):
@@ -684,33 +1121,38 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         df = self.trace.analysis.tasks.df_tasks_runtime()
 
         # We don't want to account the test tasks
-        ignored_pids = list(map(self.trace.get_task_pid, self.rtapp_tasks))
+        ignored_ids = list(map(self.trace.get_task_id, self.rtapp_tasks))
 
         def compute_duration_pct(row):
             return row.runtime * 100 / self.trace.time_range
 
         df["runtime_pct"] = df.apply(compute_duration_pct, axis=1)
+        df['pid'] = df.index
 
         # Figure out which PIDs to exclude from the thresholds
         for key, threshold in self.NOISE_ACCOUNTING_THRESHOLDS.items():
             # Find out which task(s) this threshold is about
-            if isinstance(key, int):
-                pids = [key]
-            elif isinstance(key, str):
+            if isinstance(key, str):
                 comms = [comm for comm in df.comm.values if re.match(key, comm)]
-                pids = df[df.comm.isin(comms)].index.values
+                task_ids = [self.trace.get_task_id(comm) for comm in comms]
             else:
-                pids = []
+                # Use update=False to let None fields propagate, as they are
+                # used to indicate a "dont care" value
+                task_ids = [self.trace.get_task_id(key, update=False)]
 
             # For those tasks, check the threshold
-            ignored_pids += [pid for pid in pids if df.loc[pid].runtime_pct <= threshold]
+            ignored_ids.extend(
+                task_id
+                for task_id in task_ids
+                if df_filter_task_ids(df, [task_id]).iloc[0].runtime_pct <= threshold
+            )
 
-        log_pids = ["{} ({})".format(pid, df.loc[pid].comm) for pid in ignored_pids]
-        self.get_logger().info(
-            "Ignored PIDs for noise contribution: %s", ", ".join(log_pids))
+        self.get_logger().info("Ignored PIDs for noise contribution: {}".format(
+            ", ".join(map(str, ignored_ids))
+        ))
 
         # Filter out unwanted tasks (rt-app tasks + thresholds)
-        df_noise = df[~df.index.isin(ignored_pids)]
+        df_noise = df_filter_task_ids(df, ignored_ids, invert=True)
 
         if df_noise.empty:
             return ResultBundle.from_bool(True)
@@ -824,7 +1266,7 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
           }
 
         """
-        return None
+        return {}
 
     @classmethod
     def _target_configure_cgroup(cls, target, cfg):
@@ -842,32 +1284,87 @@ class RTATestBundle(TestBundle, metaclass=RTATestBundleMeta):
         return '/' + cg.name
 
     @classmethod
-    def _run_rtapp(cls, target, res_dir, profile, ftrace_coll=None, cg_cfg=None):
-        wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.lower()),
-                               profile, res_dir=res_dir)
+    def run_rtapp(cls, target, res_dir, profile=None, ftrace_coll=None, cg_cfg=None, wipe_run_dir=True):
+        """
+        Run the given RTA profile on the target, and collect an ftrace trace.
 
-        trace_path = os.path.join(res_dir, cls.TRACE_PATH)
-        dmesg_path = os.path.join(res_dir, cls.DMESG_PATH)
+        :param target: target to execute the workload on.
+        :type target: lisa.target.Target
+
+        :param res_dir: Artifact folder where the artifacts will be stored.
+        :type res_dir: str or lisa.utils.ArtifactPath
+
+        :param profile: ``rt-app`` profile, as a dictionary of
+            ``dict(task_name, RTATask)``. If ``None``,
+            :meth:`~lisa.tests.base.RTATestBundle.get_rtapp_profile` is called
+            with ``target.plat_info``.
+        :type profile: dict(str, lisa.wlgen.rta.RTATask)
+
+        :param ftrace_coll: Ftrace collector to use to record the trace. This
+            allows recording extra events compared to the default one, which is
+            based on the ``ftrace_conf`` class attribute.
+        :type ftrace_coll: lisa.trace.FtraceCollector
+
+        :param cg_cfg: CGroup configuration dictionary. If ``None``,
+            :meth:`lisa.tests.base.RTATestBundle.get_cgroup_configuration` is
+            called with ``target.plat_info``.
+        :type cg_cfg: dict
+
+        :param wipe_run_dir: Remove the run directory on the target after
+            execution of the workload.
+        :type wipe_run_dir: bool
+        """
+
+        trace_path = ArtifactPath.join(res_dir, cls.TRACE_PATH)
+        dmesg_path = ArtifactPath.join(res_dir, cls.DMESG_PATH)
         ftrace_coll = ftrace_coll or FtraceCollector.from_conf(target, cls.ftrace_conf)
         dmesg_coll = DmesgCollector(target)
 
+        profile = profile or cls.get_rtapp_profile(target.plat_info)
+        cg_cfg = cg_cfg or cls.get_cgroup_configuration(target.plat_info)
+
+        trace_events = [event.replace('rtapp_', '')
+                        for event in ftrace_coll.events
+                        if event.startswith("rtapp_")]
+
+        wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.lower()),
+                               profile, res_dir=res_dir,
+                               trace_events=trace_events)
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
         as_root = cgroup is not None
+        wload_cm = wload if wipe_run_dir else nullcontext(wload)
 
-        with dmesg_coll, ftrace_coll, target.freeze_userspace():
+        # Pre-hit the calibration information, in case this is a lazy value.
+        # This avoids polluting the trace and the dmesg output with the
+        # calibration tasks. Since we know that rt-app will always need it for
+        # anything useful, it's reasonable to do it here.
+        target.plat_info['rtapp']['calib']
+
+        with wload_cm, dmesg_coll, ftrace_coll, target.freeze_userspace():
             wload.run(cgroup=cgroup, as_root=as_root)
 
         ftrace_coll.get_trace(trace_path)
         dmesg_coll.get_trace(dmesg_path)
         return trace_path
 
+    # Keep compat with existing code
     @classmethod
-    def _from_target(cls, target, res_dir, ftrace_coll=None):
-        plat_info = target.plat_info
-        rtapp_profile = cls.get_rtapp_profile(plat_info)
-        cgroup_config = cls.get_cgroup_configuration(plat_info)
-        cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll, cgroup_config)
+    def _run_rtapp(cls, *args, **kwargs):
+        """
+        Has been renamed to :meth:`~lisa.tests.base.RTATestBundle.run_rtapp`, as it really is part of the public API.
+        """
+        return cls.run_rtapp(*args, **kwargs)
 
+    @classmethod
+    def _from_target(cls, target:Target, *, res_dir:ArtifactPath, ftrace_coll:FtraceCollector=None) -> 'RTATestBundle':
+        """
+        Factory method to create a bundle using a live target
+
+        This will execute the rt-app workload described in
+        :meth:`~lisa.tests.base.RTATestBundle.get_rtapp_profile`
+        """
+        cls.run_rtapp(target, res_dir, ftrace_coll=ftrace_coll)
+        plat_info = target.plat_info
         return cls(res_dir, plat_info)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

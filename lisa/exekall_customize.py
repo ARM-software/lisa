@@ -28,7 +28,7 @@ from collections import OrderedDict, namedtuple
 from lisa.target import Target, TargetConf
 from lisa.trace import FtraceCollector, FtraceConf
 from lisa.platforms.platinfo import PlatformInfo
-from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable, get_nested_key
+from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable, get_nested_key, ExekallTaggable
 from lisa.conf import MultiSrcConf
 from lisa.tests.base import TestBundle, ResultBundleBase, Result, RTATestBundle
 from lisa.tests.scheduler.load_tracking import InvarianceItem
@@ -517,14 +517,8 @@ comparison. Can be repeated.""")
 
     @classmethod
     def get_tags(cls, value):
-        tags = {}
-        if isinstance(value, Target):
-            tags['board'] = value.name
-        elif isinstance(value, InvarianceItem):
-            if value.cpu is not None:
-                tags['cpu'] = '{}@{}'.format(value.cpu, value.freq)
-        elif isinstance(value, TestBundle):
-            tags['board'] = value.plat_info.get('name')
+        if isinstance(value, ExekallTaggable):
+            tags = value.get_tags()
         else:
             tags = super().get_tags(value)
 

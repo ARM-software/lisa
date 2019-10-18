@@ -15,8 +15,10 @@
 # limitations under the License.
 #
 
+import re
 import abc
 import copy
+import collections
 from collections.abc import Mapping, MutableMapping, Sequence
 from collections import OrderedDict
 import contextlib
@@ -50,10 +52,12 @@ from ruamel.yaml import YAML
 try:
     import sphobjinv
     from IPython.display import IFrame
-except ModuleNotFoundError:
+# ModuleNotFoundError does not exist in Python < 3.6
+except ImportError:
     pass
 
 import lisa
+import lisa.assets
 from lisa.version import version_tuple, parse_version, format_version
 
 
@@ -65,8 +69,20 @@ LISA_HOME = os.getenv('LISA_HOME')
 The detected location of your LISA installation
 """
 
+ASSETS_PATH = os.path.dirname(lisa.assets.__file__)
+"""
+Path in which all assets the ``lisa`` package relies on are located in.
+"""
+
 RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
+
+TASK_COMM_MAX_LEN = 16 - 1
+"""
+Value of ``TASK_COMM_LEN - 1`` macro in the kernel, to account for ``\0``
+terminator.
+"""
+
 
 class Loggable:
     """
@@ -258,6 +274,9 @@ class Serializable(Loggable):
 
                 !include /foo/$ENV_VAR/bar.yml
 
+          Relative paths are treated as relative to the file in which the
+          ``!include`` tag appears.
+
         * ``!env``: take the value of an environment variable, and convert
           it to a Python type:
 
@@ -293,6 +312,7 @@ class Serializable(Loggable):
     "Default format used when serializing objects"
 
     _yaml = YAML(typ='unsafe')
+    _roundtrip_yaml = YAML()
 
     @classmethod
     def _init_yaml(cls):
@@ -300,21 +320,21 @@ class Serializable(Loggable):
         Needs to be called only once when the module is imported. Since that is
         done at module-level, there is no need to do that from user code.
         """
-        yaml = cls._yaml
-        # If allow_unicode=True, true unicode characters will be written to the
-        # file instead of being replaced by escape sequence.
-        yaml.allow_unicode = ('utf' in cls.YAML_ENCODING)
-        yaml.default_flow_style = False
-        yaml.indent = 4
-        yaml.constructor.add_constructor('!include', cls._yaml_include_constructor)
-        yaml.constructor.add_constructor('!var', cls._yaml_var_constructor)
-        yaml.constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
-        yaml.constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
+        for yaml in (cls._yaml, cls._roundtrip_yaml):
+            # If allow_unicode=True, true unicode characters will be written to the
+            # file instead of being replaced by escape sequence.
+            yaml.allow_unicode = ('utf' in cls.YAML_ENCODING)
+            yaml.default_flow_style = False
+            yaml.indent = 4
+            yaml.constructor.add_constructor('!include', functools.partial(cls._yaml_include_constructor, yaml))
+            yaml.constructor.add_constructor('!var', cls._yaml_var_constructor)
+            yaml.constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
+            yaml.constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
 
-        # Replace unknown tags by a placeholder object containing the data.
-        # This happens when the class was not imported at the time the object
-        # was deserialized
-        yaml.constructor.add_constructor(None, cls._yaml_unknown_tag_constructor)
+            # Replace unknown tags by a placeholder object containing the data.
+            # This happens when the class was not imported at the time the object
+            # was deserialized
+            yaml.constructor.add_constructor(None, cls._yaml_unknown_tag_constructor)
 
     @classmethod
     def _yaml_unknown_tag_constructor(cls, loader, node):
@@ -364,7 +384,7 @@ class Serializable(Loggable):
             Serializable._included_path.val = old
 
     @classmethod
-    def _yaml_include_constructor(cls, loader, node):
+    def _yaml_include_constructor(cls, yaml, loader, node):
         path = loader.construct_scalar(node)
         assert isinstance(path, str)
         path = os.path.expandvars(path)
@@ -375,7 +395,7 @@ class Serializable(Loggable):
 
         with cls._set_relative_include_root(path):
             with open(path, 'r', encoding=cls.YAML_ENCODING) as f:
-                return cls._yaml.load(f)
+                return yaml.load(f)
 
     @classmethod
     def _yaml_env_var_constructor(cls, loader, suffix, node):
@@ -429,9 +449,13 @@ class Serializable(Loggable):
         if fmt is None:
             fmt = cls.DEFAULT_SERIALIZATION_FMT
 
+        yaml_kwargs = dict(mode='w', encoding=cls.YAML_ENCODING)
         if fmt == 'yaml':
-            kwargs = dict(mode='w', encoding=cls.YAML_ENCODING)
+            kwargs = yaml_kwargs
             dumper = cls._yaml.dump
+        elif fmt == 'yaml-roundtrip':
+            kwargs = yaml_kwargs
+            dumper = cls._roundtrip_yaml.dump
         elif fmt == 'pickle':
             kwargs = dict(mode='wb')
             dumper = pickle.dump
@@ -547,7 +571,7 @@ class Serializable(Loggable):
 
 Serializable._init_yaml()
 
-def setup_logging(filepath='logging.conf', level=logging.INFO):
+def setup_logging(filepath='logging.conf', level=None):
     """
     Initialize logging used for all the LISA modules.
 
@@ -556,27 +580,28 @@ def setup_logging(filepath='logging.conf', level=logging.INFO):
                      :attr:`lisa.utils.LISA_HOME` as base folder.
     :type filepath: str
 
-    :param level: the default log level to enable
+    :param level: Override the conf file and force logging level. Defaults to
+        ``logging.INFO``.
     :type level: int
     """
+    resolved_level = logging.INFO if level is None else level
 
     # Load the specified logfile using an absolute path
     if not os.path.isabs(filepath):
         filepath = os.path.join(LISA_HOME, filepath)
 
-    if not os.path.exists(filepath):
-        raise FileNotFoundError('Logging configuration file not found in: {}'\
-                         .format(filepath))
-
     # Capture the warnings as log entries
     logging.captureWarnings(True)
 
     # Set the level first, so the config file can override with more details
-    logging.getLogger().setLevel(level)
-    logging.config.fileConfig(filepath)
+    logging.getLogger().setLevel(resolved_level)
 
-    logging.info('Using LISA logging configuration:')
-    logging.info('  %s', filepath)
+    if not level:
+        if os.path.exists(filepath):
+            logging.config.fileConfig(filepath)
+            logging.info('Using LISA logging configuration: {}'.format(filepath))
+        else:
+            raise FileNotFoundError('Logging configuration file not found: {}'.format(filepath))
 
 class ArtifactPath(str, Loggable, HideExekallID):
     """Path to a folder that can be used to store artifacts of a function.
@@ -854,54 +879,6 @@ def non_recursive_property(f):
 
     return property(wrapper)
 
-class LayeredMapping(MutableMapping):
-    """
-    A layered mutable mapping that allows setting values in a ``top`` layer,
-    while values from ``base`` layer cannot be modified.
-
-    :param base: Base layer that will be read-only
-    :type base: collections.abc.Mapping
-
-    :param top: Top layer that will be read-write and have priority over
-        ``base``.
-    :type base: collections.abc.MutableMapping
-    """
-    def __init__(self, base, top=None):
-        self.base = base
-        self.top = top if top is not None else {}
-
-    @property
-    def _merged(self):
-        merged = dict(self.base)
-        merged.update(self.top)
-        return merged
-
-    def __getitem__(self, key):
-        return self._merged[key]
-
-    def __setitem__(self, key, val):
-        self.top[key] = val
-
-    def __delitem__(self, key):
-        del self.top[key]
-
-    def __iter__(self):
-        return iter(self._merged)
-
-    def __len__(self):
-        return len(self._merged)
-
-    def __str__(self):
-        return str(self._merged)
-
-    def __copy__(self):
-        # Shallow copy of underlying dict, so that they can be modified
-        # independently. Otherwise, any mutation on the LayeredMapping would
-        # impact the original top layer.
-        return LayeredMapping(
-            base=copy.copy(self.base),
-            top=copy.copy(self.top),
-        )
 
 def get_short_doc(obj):
     """
@@ -1019,7 +996,7 @@ DEPRECATED_MAP = {}
 Global dictionary of deprecated classes, functions and so on.
 """
 
-def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
+def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, parameter=None):
     """
     Mark a class, method, function etc as deprecated and update its docstring.
 
@@ -1034,6 +1011,12 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
 
     :param removed_in: Version in which the deprecated object will be removed.
     :type removed_in: str
+
+    :param parameter: If not ``None``, the deprecation will only apply to the
+        usage of the given parameter. The relevant ``:param:`` block in the
+        docstring will be updated, and the deprecation warning will be emitted
+        anytime a caller gives a value to that parameter (default or not).
+    :type parameter: str or None
 
     .. note:: In order to decorate all the accessors of properties, apply the
         decorator once the property is fully built::
@@ -1104,6 +1087,40 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
         removed_in = parse_version(removed_in)
     current_version = lisa.version.version_tuple
 
+    def make_msg(deprecated_obj, parameter=None, style=None, show_doc_url=True):
+        if replaced_by is not None:
+            doc_url = ''
+            if show_doc_url:
+                with contextlib.suppress(Exception):
+                    doc_url = ' (see: {})'.format(get_doc_url(replaced_by))
+
+            replacement_msg = ', use {} instead{}'.format(
+                getname(replaced_by, style=style), doc_url,
+            )
+        else:
+            replacement_msg = ''
+
+        if removed_in:
+            removal_msg = ' and will be removed in version {}'.format(
+                format_version(removed_in)
+            )
+        else:
+            removal_msg = ''
+
+        name = getname(deprecated_obj, style=style, abbrev=True)
+        if parameter:
+            if style == 'rst':
+                parameter = '``{}``'.format(parameter)
+            name = '{} parameter of {}'.format(parameter, name)
+
+        return '{name} is deprecated{remove}{replace}{msg}'.format(
+            name=name,
+            replace=replacement_msg,
+            remove=removal_msg,
+            msg=': ' + msg if msg else '',
+        )
+
+
     def decorator(obj):
         obj_name = getname(obj)
 
@@ -1114,60 +1131,46 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
                 version=format_version(current_version),
             ))
 
-        def make_msg(style=None):
-            if replaced_by is not None:
-                try:
-                    doc_url = ' (see: {})'.format(get_doc_url(replaced_by))
-                except Exception:
-                    doc_url = ''
-
-                replacement_msg = ', use {} instead{}'.format(
-                    getname(replaced_by, style=style), doc_url,
-                )
-            else:
-                replacement_msg = ''
-
-            if removed_in:
-                removal_msg = ' and will be removed in version {}'.format(
-                    format_version(removed_in)
-                )
-            else:
-                removal_msg = ''
-
-            return '{name} is deprecated{remove}{replace}{msg}'.format(
-                name=getname(obj, style=style, abbrev=True),
-                replace=replacement_msg,
-                remove=removal_msg,
-                msg=': ' + msg if msg else '',
-            )
-
         # stacklevel != 1 breaks the filtering for warnings emitted by APIs
         # called from external modules, like __init_subclass__ that is called
         # from other modules like abc.py
-        def wrap_func(func, stacklevel=1):
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                warnings.warn(make_msg(), DeprecationWarning, stacklevel=stacklevel)
-                return func(*args, **kwargs)
-            return wrapper
+        if parameter:
+            def wrap_func(func, stacklevel=1):
+                sig = inspect.signature(func)
+                @functools.wraps(func)
+                def wrapper(*args, **kwargs):
+                    kwargs = sig.bind(*args, **kwargs).arguments
+                    if parameter in kwargs:
+                        warnings.warn(make_msg(obj, parameter), DeprecationWarning, stacklevel=stacklevel)
+                    return func(**kwargs)
+                return wrapper
+        else:
+            def wrap_func(func, stacklevel=1):
+                @functools.wraps(func)
+                def wrapper(*args, **kwargs):
+                    warnings.warn(make_msg(obj), DeprecationWarning, stacklevel=stacklevel)
+                    return func(*args, **kwargs)
+                return wrapper
 
-        # Make sure we don't accidentally override an existing entry
-        assert obj_name not in DEPRECATED_MAP
-        DEPRECATED_MAP[obj_name] = {
-            'obj': obj,
-            'replaced_by': replaced_by,
-            'msg': msg,
-            'removed_in': removed_in,
-            'deprecated_in': deprecated_in,
-        }
+            # Make sure we don't accidentally override an existing entry
+            assert obj_name not in DEPRECATED_MAP
+            DEPRECATED_MAP[obj_name] = {
+                'obj': obj,
+                'replaced_by': replaced_by,
+                'msg': msg,
+                'removed_in': removed_in,
+                'deprecated_in': deprecated_in,
+            }
 
         # For classes, wrap __new__ and update docstring
         if isinstance(obj, type):
             # Warn on instance creation
-            obj.__new__ = wrap_func(obj.__new__)
+            obj.__init__ = wrap_func(obj.__init__)
             # Will show the warning when the class is subclassed
-            # in Python >= 3.6
-            obj.__init_subclass__ = wrap_func(obj.__init_subclass__)
+            # in Python >= 3.6 . Earlier versions of Python don't have
+            # object.__init_subclass__
+            if hasattr(obj, '__init_subclass__'):
+                obj.__init_subclass__ = wrap_func(obj.__init_subclass__)
             return_obj = obj
             update_doc_of = obj
 
@@ -1203,8 +1206,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
             return_obj = wrap_func(obj, stacklevel=stacklevel)
             update_doc_of = return_obj
 
-        doc = inspect.getdoc(update_doc_of) or ''
-        update_doc_of.__doc__ = doc + '\n\n' + textwrap.dedent(
+        extra_doc = textwrap.dedent(
         """
         .. attention::
 
@@ -1213,9 +1215,43 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None):
             {msg}
         """.format(
             deprecated_in=deprecated_in if deprecated_in else '<unknown>',
-            msg=make_msg(style='rst'),
+            # The documentation already creates references to the replacement,
+            # so we can avoid downloading the inventory for nothing.
+            msg=make_msg(obj, parameter, style='rst', show_doc_url=False),
         )).strip()
+        doc = inspect.getdoc(update_doc_of) or ''
 
+        # Update the description of the parameter in the right spot in the docstring
+        if parameter:
+
+            # Split into chunks of restructured text at boundaries such as
+            # ":param foo: ..." or ":type foo: ..."
+            blocks = []
+            curr_block = []
+            for line in doc.splitlines(keepends=True):
+                if re.match(r'\s*:', line):
+                    curr_block = []
+                    blocks.append(curr_block)
+
+                curr_block.append(line)
+
+            # Add the extra bits in the right block and join lines of the block
+            def update_block(block):
+                if re.match(':param\s+{}'.format(re.escape(parameter)), block[0]):
+                    if len(block) > 1:
+                        indentation = re.match(r'^(\s*)', block[-1]).group(0)
+                    else:
+                        indentation = ' ' * 4
+                    block.append('\n' + textwrap.indent(extra_doc, indentation) + '\n')
+                return ''.join(block)
+
+            doc = ''.join(map(update_block, blocks))
+
+        # Otherwise just append the extra bits at the end of the docstring
+        else:
+            doc += '\n\n' + extra_doc
+
+        update_doc_of.__doc__ = doc
         return return_obj
 
     return decorator
@@ -1326,5 +1362,60 @@ def nullcontext(enter_result=None):
     """
     yield enter_result
 
+
+class ExekallTaggable:
+    """
+    Allows tagging the objects produced in exekall expressions ID.
+
+    .. seealso:: :ref:`exekall expression ID<exekall-expression-id>`
+    """
+
+    @abc.abstractmethod
+    def get_tags(self):
+        """
+        :return: Dictionary of tags and tag values
+        :rtype: dict(str, object)
+        """
+        return {}
+
+def annotations_from_signature(sig):
+    """
+    Build a PEP484 ``__annotations__`` dictionary from a :class:`inspect.Signature`.
+    """
+    annotations = {
+        name: param_spec.annotation
+        for name, param_spec in sig.parameters.items()
+        if param_spec.annotation != inspect.Parameter.empty
+    }
+
+    if sig.return_annotation != inspect.Signature.empty:
+        annotations['return'] = sig.return_annotation
+
+    return annotations
+
+def namedtuple(*args, module, **kwargs):
+    """
+    Same as :func:`collections.namedtuple`, with
+    :class:`collections.abc.Mapping` behaviour.
+
+    :param module: Name of the module the type is defined in.
+    :type module: str
+    """
+    assert isinstance(module, str)
+
+    type_ = collections.namedtuple(*args, **kwargs)
+    # Make sure this type also has a sensible __module__, since it's going to
+    # appear as a base class. Otherwise, Sphinx's autodoc will choke on it.
+    type_.__module__ = module
+
+    class Augmented(type_, Mapping):
+        def __getitem__(self, key):
+            return self._asdict()[key]
+
+    Augmented.__qualname__ = type_.__qualname__
+    Augmented.__name__ = type_.__name__
+    Augmented.__doc__ = type_.__doc__
+    Augmented.__module__ = module
+    return Augmented
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

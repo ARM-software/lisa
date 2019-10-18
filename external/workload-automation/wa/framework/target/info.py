@@ -221,6 +221,7 @@ class CpuInfo(Podable):
 def get_target_info(target):
     info = TargetInfo()
     info.target = target.__class__.__name__
+    info.modules = target.modules
     info.os = target.os
     info.os_version = target.os_version
     info.system_id = target.system_id
@@ -313,12 +314,13 @@ def cache_target_info(target_info, overwrite=False):
 
 class TargetInfo(Podable):
 
-    _pod_serialization_version = 4
+    _pod_serialization_version = 5
 
     @staticmethod
     def from_pod(pod):
         instance = super(TargetInfo, TargetInfo).from_pod(pod)
         instance.target = pod['target']
+        instance.modules = pod['modules']
         instance.abi = pod['abi']
         instance.cpus = [CpuInfo.from_pod(c) for c in pod['cpus']]
         instance.os = pod['os']
@@ -343,6 +345,7 @@ class TargetInfo(Podable):
     def __init__(self):
         super(TargetInfo, self).__init__()
         self.target = None
+        self.modules = []
         self.cpus = []
         self.os = None
         self.os_version = None
@@ -362,6 +365,7 @@ class TargetInfo(Podable):
     def to_pod(self):
         pod = super(TargetInfo, self).to_pod()
         pod['target'] = self.target
+        pod['modules'] = self.modules
         pod['abi'] = self.abi
         pod['cpus'] = [c.to_pod() for c in self.cpus]
         pod['os'] = self.os
@@ -413,3 +417,7 @@ class TargetInfo(Podable):
     @staticmethod
     def _pod_upgrade_v4(pod):
         return TargetInfo._pod_upgrade_v3(pod)
+
+    @staticmethod
+    def _pod_upgrade_v5(pod):
+        pod['modules'] = pod.get('modules') or []

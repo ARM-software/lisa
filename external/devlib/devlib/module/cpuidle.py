@@ -173,4 +173,7 @@ class Cpuidle(Module):
         return self.target.read_value(self.target.path.join(self.root_path, 'current_driver'))
 
     def get_governor(self):
-        return self.target.read_value(self.target.path.join(self.root_path, 'current_governor_ro'))
+        path = self.target.path.join(self.root_path, 'current_governor_ro')
+        if not self.target.path.exists(path):
+            path = self.target.path.join(self.root_path, 'current_governor')
+        return self.target.read_value(path)

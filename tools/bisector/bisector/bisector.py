@@ -917,7 +917,7 @@ def call_process(cmd, *args, merge_stderr=True, **kwargs):
     :param cmd: name of the command to run
     :param args: command line arguments passed to the command
     :param merge_stderr: merge stderr with stdout.
-    :param kwargs: parameters passed to :func:`subprocess.check_output`
+    :Variable keyword arguments: Forwarded to :func:`subprocess.check_output`
     """
     cmd = tuple(str(arg) for arg in cmd)
     if merge_stderr:
@@ -2564,10 +2564,16 @@ def import_file(script_name, name=None):
     return module
 
 def import_files(src_files):
+    try:
+        import_excep = ModuleNotFoundError
+    # ModuleNotFoundError does not exists in Python < 3.6
+    except NameError:
+        import_excep = ImportError
+
     for src in src_files:
         try:
             import_file(src)
-        except (ModuleNotFoundError, FileNotFoundError) as e:
+        except (import_excep, FileNotFoundError) as e:
             pass
 
 def get_subclasses(cls):

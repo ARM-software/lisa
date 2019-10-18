@@ -16,6 +16,7 @@
 import os
 import uuid
 import collections
+import tarfile
 
 try:
     import psycopg2
@@ -24,6 +25,7 @@ try:
 except ImportError as e:
     psycopg2 = None
     import_error_msg = e.args[0] if e.args else str(e)
+
 from devlib.target import KernelVersion, KernelConfig
 
 from wa import OutputProcessor, Parameter, OutputProcessorError
@@ -88,10 +90,10 @@ class PostgresqlResultProcessor(OutputProcessor):
                       "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
         "update_run": "UPDATE Runs SET event_summary=%s, status=%s, timestamp=%s, end_time=%s, duration=%s, state=%s WHERE oid=%s;",
         "create_job": "INSERT INTO Jobs (oid, run_oid, status, retry, label, job_id, iterations, workload_name, metadata, _pod_version, _pod_serialization_version) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);",
-        "create_target": "INSERT INTO Targets (oid, run_oid, target, cpus, os, os_version, hostid, hostname, abi, is_rooted, kernel_version, kernel_release, kernel_sha1, kernel_config, sched_features, page_size_kb, screen_resolution, prop, android_id, _pod_version, _pod_serialization_version) "
-                         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        "create_target": "INSERT INTO Targets (oid, run_oid, target, modules, cpus, os, os_version, hostid, hostname, abi, is_rooted, kernel_version, kernel_release, kernel_sha1, kernel_config, sched_features, page_size_kb, system_id, screen_resolution, prop, android_id, _pod_version, _pod_serialization_version) "
+                         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
         "create_event": "INSERT INTO Events (oid, run_oid, job_oid, timestamp, message, _pod_version, _pod_serialization_version) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s",
-        "create_artifact": "INSERT INTO Artifacts (oid, run_oid, job_oid, name, large_object_uuid, description, kind, _pod_version, _pod_serialization_version) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        "create_artifact": "INSERT INTO Artifacts (oid, run_oid, job_oid, name, large_object_uuid, description, kind, is_dir, _pod_version, _pod_serialization_version) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
         "create_metric": "INSERT INTO Metrics (oid, run_oid, job_oid, name, value, units, lower_is_better, _pod_version, _pod_serialization_version) VALUES (%s, %s, %s, %s, %s, %s , %s, %s, %s)",
         "create_augmentation": "INSERT INTO Augmentations (oid, run_oid, name) VALUES (%s, %s, %s)",
         "create_classifier": "INSERT INTO Classifiers (oid, artifact_oid, metric_oid, job_oid, run_oid, key, value) VALUES (%s, %s, %s, %s, %s, %s, %s)",
@@ -126,8 +128,6 @@ class PostgresqlResultProcessor(OutputProcessor):
                 'Postgresql Output Processor: {}'.format(import_error_msg))
         # N.B. Typecasters are for postgres->python and adapters the opposite
         self.connect_to_database()
-        self.cursor = self.conn.cursor()
-        self.verify_schema_versions()
 
         # Register the adapters and typecasters for enum types
         self.cursor.execute("SELECT NULL::status_enum")
@@ -190,6 +190,7 @@ class PostgresqlResultProcessor(OutputProcessor):
                 self.target_uuid,
                 self.run_uuid,
                 target_pod['target'],
+                target_pod['modules'],
                 target_pod['cpus'],
                 target_pod['os'],
                 target_pod['os_version'],
@@ -205,12 +206,13 @@ class PostgresqlResultProcessor(OutputProcessor):
                 target_info.kernel_config,
                 target_pod['sched_features'],
                 target_pod['page_size_kb'],
+                target_pod['system_id'],
                 # Android Specific
                 list(target_pod.get('screen_resolution', [])),
                 target_pod.get('prop'),
                 target_pod.get('android_id'),
-                target_pod.get('pod_version'),
-                target_pod.get('pod_serialization_version'),
+                target_pod.get('_pod_version'),
+                target_pod.get('_pod_serialization_version'),
             )
         )
 
@@ -221,6 +223,8 @@ class PostgresqlResultProcessor(OutputProcessor):
         ''' Run once for each job to upload information that is
             updated on a job by job basis.
         '''
+        # Ensure we're still connected to the database.
+        self.connect_to_database()
         job_uuid = uuid.uuid4()
         # Create a new job
         self.cursor.execute(
@@ -302,8 +306,11 @@ class PostgresqlResultProcessor(OutputProcessor):
         ''' A final export of the RunOutput that updates existing parameters
             and uploads ones which are only generated after jobs have run.
         '''
-        if not self.cursor:  # Database did not connect correctly.
+        if self.cursor is None:  # Output processor did not initialise correctly.
             return
+        # Ensure we're still connected to the database.
+        self.connect_to_database()
+
         # Update the job statuses following completion of the run
         for job in run_output.jobs:
             job_id = job.id
@@ -510,6 +517,8 @@ class PostgresqlResultProcessor(OutputProcessor):
             raise OutputProcessorError(
                 "Database error, if the database doesn't exist, " +
                 "please use 'wa create database' to create the database: {}".format(e))
+        self.cursor = self.conn.cursor()
+        self.verify_schema_versions()
 
     def execute_sql_line_by_line(self, sql):
         cursor = self.conn.cursor()
@@ -532,7 +541,7 @@ class PostgresqlResultProcessor(OutputProcessor):
                   'with the create command'
             raise OutputProcessorError(msg.format(db_schema_version, local_schema_version))
 
-    def _sql_write_lobject(self, source, lobject):
+    def _sql_write_file_lobject(self, source, lobject):
         with open(source) as lobj_file:
             lobj_data = lobj_file.read()
         if len(lobj_data) > 50000000:  # Notify if LO inserts larger than 50MB
@@ -540,10 +549,18 @@ class PostgresqlResultProcessor(OutputProcessor):
         lobject.write(lobj_data)
         self.conn.commit()
 
+    def _sql_write_dir_lobject(self, source, lobject):
+        with tarfile.open(fileobj=lobject, mode='w|gz') as lobj_dir:
+            lobj_dir.add(source, arcname='.')
+        self.conn.commit()
+
     def _sql_update_artifact(self, artifact, output_object):
         self.logger.debug('Updating artifact: {}'.format(artifact))
         lobj = self.conn.lobject(oid=self.artifacts_already_added[artifact], mode='w')
-        self._sql_write_lobject(os.path.join(output_object.basepath, artifact.path), lobj)
+        if artifact.is_dir:
+            self._sql_write_dir_lobject(os.path.join(output_object.basepath, artifact.path), lobj)
+        else:
+            self._sql_write_file_lobject(os.path.join(output_object.basepath, artifact.path), lobj)
 
     def _sql_create_artifact(self, artifact, output_object, record_in_added=False, job_uuid=None):
         self.logger.debug('Uploading artifact: {}'.format(artifact))
@@ -551,8 +568,10 @@ class PostgresqlResultProcessor(OutputProcessor):
         lobj = self.conn.lobject()
         loid = lobj.oid
         large_object_uuid = uuid.uuid4()
-
-        self._sql_write_lobject(os.path.join(output_object.basepath, artifact.path), lobj)
+        if artifact.is_dir:
+            self._sql_write_dir_lobject(os.path.join(output_object.basepath, artifact.path), lobj)
+        else:
+            self._sql_write_file_lobject(os.path.join(output_object.basepath, artifact.path), lobj)
 
         self.cursor.execute(
             self.sql_command['create_large_object'],
@@ -571,6 +590,7 @@ class PostgresqlResultProcessor(OutputProcessor):
                 large_object_uuid,
                 artifact.description,
                 str(artifact.kind),
+                artifact.is_dir,
                 artifact._pod_version,  # pylint: disable=protected-access
                 artifact._pod_serialization_version,  # pylint: disable=protected-access
             )

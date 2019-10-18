@@ -90,8 +90,10 @@ class Hackbench(Workload):
                         context.add_metric(label, float(match.group(1)), units)
 
     def teardown(self, context):
-        self.target.execute('rm -f {}'.format(self.target_output_file))
+        if self.cleanup_assets:
+            self.target.execute('rm -f {}'.format(self.target_output_file))
 
     @once
     def finalize(self, context):
-        self.target.uninstall(self.binary_name)
+        if self.uninstall:
+            self.target.uninstall(self.binary_name)

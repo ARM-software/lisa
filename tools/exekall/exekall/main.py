@@ -160,7 +160,7 @@ def load_from_db(db, adaptor, non_reusable_type_set, pattern_list, uuid_list, uu
             froz_val_list = list(group)
 
             type_ = utils.get_common_base(
-                type(froz_val.value)
+                froz_val.type_
                 for froz_val in froz_val_list
             )
 
@@ -210,7 +210,7 @@ Run expressions
 
 Note that the adaptor in the customization module is able to add more
 parameters to ``exekall run``. In order to get the complete set of options,
-please run ``exekall run YOUR_SOURCES --help``.
+please run ``exekall run YOUR_SOURCES_OR_MODULES --help``.
     """,
     formatter_class=argparse.RawTextHelpFormatter)
 
@@ -219,14 +219,13 @@ please run ``exekall run YOUR_SOURCES --help``.
     # sources, and importing the modules will therefore fail with unknown files
     # error.
     add_argument(run_parser, 'python_files', nargs='+',
-        metavar='PYTHON_SRC',
-        help="""Python modules files. If passed a folder, all contained files recursively are selected. By default, the current directory is selected.""")
-
+        metavar='PYTHON_MODULES',
+        help="""Python modules files or module names. If passed a folder, all contained files recursively are selected. By default, the current directory is selected.""")
 
     add_argument(run_parser, '-s', '--select', action='append',
         metavar='ID_PATTERN',
         default=[],
-        help="""Only run the expressions with an ID matching any of the supplied filters.""")
+        help="""Only run the expressions with an ID matching any of the supplied pattern. A pattern starting with "!" can be used to exclude IDs matching it.""")
 
     # Same as --select, but allows multiple patterns without needing to
     # repeat the option. This is mostly available to support wrapper
@@ -240,30 +239,9 @@ please run ``exekall run YOUR_SOURCES --help``.
     add_argument(run_parser, '--list', action='store_true',
         help="""List the expressions that will be run without running them.""")
 
-    # Show the list of expressions in reStructuredText format, suitable for
-    # inclusion in Sphinx documentation
-    add_argument(run_parser, '--rst-list', action='store_true',
-        help=argparse.SUPPRESS)
-
-    add_argument(run_parser, '--log-level', default='info',
-        choices=('debug', 'info', 'warn', 'error', 'critical'),
-        help="""Change the default log level of the standard logging module.""")
-
-    add_argument(run_parser, '--verbose', '-v', action='count', default=0,
-        help="""More verbose output. Can be repeated for even more verbosity. This only impacts exekall output, --log-level for more global settings.""")
-
-    artifact_dir_group = run_parser.add_mutually_exclusive_group()
-    add_argument(artifact_dir_group, '--artifact-root',
-        default=os.getenv('EXEKALL_ARTIFACT_ROOT', 'artifacts'),
-        help="Root folder under which the artifact folders will be created. Defaults to EXEKALL_ARTIFACT_ROOT env var.")
-
-    add_argument(artifact_dir_group, '--artifact-dir',
-        default=os.getenv('EXEKALL_ARTIFACT_DIR'),
-        help="""Folder in which the artifacts will be stored. Defaults to EXEKALL_ARTIFACT_DIR env var.""")
-
-    add_argument(run_parser, '--symlink-artifact-dir-to',
-        type=pathlib.Path,
-        help="""Create a symlink pointing at the artifact dir.""")
+    add_argument(run_parser, '-n', type=int,
+        default=1,
+        help="""Run the tests for a number of iterations.""")
 
     add_argument(run_parser, '--load-db', action='append',
         default=[],
@@ -275,13 +253,67 @@ please run ``exekall run YOUR_SOURCES --help``.
         help="""Load the (indirect) instances of the given class from the database instead of the root objects.""")
 
     uuid_group = run_parser.add_mutually_exclusive_group()
+    add_argument(uuid_group, '--replay',
+        help="""Replay the execution of the given UUID, loading as much prerequisite from the DB as possible.""")
+
+    artifact_dir_group = run_parser.add_mutually_exclusive_group()
+    add_argument(artifact_dir_group, '--artifact-dir',
+        default=os.getenv('EXEKALL_ARTIFACT_DIR'),
+        help="""Folder in which the artifacts will be stored. Defaults to EXEKALL_ARTIFACT_DIR env var.""")
+
+    run_parser = run_parser.add_argument_group(title='advanced arguments', description='Options not needed for every-day use')
+
+    add_argument(run_parser, '--no-save-value-db', action='store_false',
+        dest='save_value_db',
+        help="""Do not create a VALUE_DB.pickle.xz file in the artifact folder. This avoids a costly serialization of the results, but prevents partial re-execution of expressions.""")
+
+    add_argument(run_parser, '--verbose', '-v', action='count', default=0,
+        help="""More verbose output. Can be repeated for even more verbosity. This only impacts exekall output, --log-level for more global settings.""")
+
+    add_argument(run_parser, '--log-level', default='info',
+        choices=('debug', 'info', 'warn', 'error', 'critical'),
+        help="""Change the default log level of the standard logging module.""")
+
+    add_argument(run_parser, '--param', nargs=3, action='append', default=[],
+        metavar=('CALLABLE_PATTERN', 'PARAM', 'VALUE'),
+        help="""Set a function parameter. It needs three fields:
+    * pattern matching qualified name of the callable
+    * name of the parameter
+    * value""")
+
+    add_argument(run_parser, '--sweep', nargs=5, action='append', default=[],
+        metavar=('CALLABLE_PATTERN', 'PARAM', 'START', 'STOP', 'STEP'),
+        help="""Parametric sweep on a function parameter. It needs five fields:
+    * pattern matching qualified name of the callable
+    * name of the parameter
+    * start value
+    * stop value
+    * step size.""")
+
+    add_argument(run_parser, '--share', action='append',
+        metavar='TYPE_PATTERN',
+        default=[],
+        help="""Class name pattern to share between multiple iterations.""")
+
+    add_argument(run_parser, '--random-order', action='store_true',
+        help="""Run the expressions in a random order, instead of sorting by name.""")
+
+    add_argument(artifact_dir_group, '--artifact-root',
+        default=os.getenv('EXEKALL_ARTIFACT_ROOT', 'artifacts'),
+        help="Root folder under which the artifact folders will be created. Defaults to EXEKALL_ARTIFACT_ROOT env var.")
+
+    add_argument(run_parser, '--symlink-artifact-dir-to',
+        type=pathlib.Path,
+        help="""Create a symlink pointing at the artifact dir.""")
+
+    # Show the list of expressions in reStructuredText format, suitable for
+    # inclusion in Sphinx documentation
+    add_argument(run_parser, '--rst-list', action='store_true',
+        help=argparse.SUPPRESS)
 
     add_argument(uuid_group, '--load-uuid', action='append',
         default=[],
         help="""Load the given UUID from the database.""")
-
-    add_argument(uuid_group, '--replay',
-        help="""Replay the execution of the given UUID, loading as much prerequisite from the DB as possible.""")
 
     # Load the parameters that were used to compute the value with the given
     # UUID from the database. This can be used as a more flexible form of
@@ -315,39 +347,11 @@ please run ``exekall run YOUR_SOURCES --help``.
         default=[],
         help="""Compute expressions ending with a callable which name is matching this pattern.""")
 
-    add_argument(run_parser, '--sweep', nargs=5, action='append', default=[],
-        metavar=('CALLABLE_PATTERN', 'PARAM', 'START', 'STOP', 'STEP'),
-        help="""Parametric sweep on a function parameter. It needs five fields:
-    * pattern matching qualified name of the callable
-    * name of the parameter
-    * start value
-    * stop value
-    * step size.""")
-
-    add_argument(run_parser, '--param', nargs=3, action='append', default=[],
-        metavar=('CALLABLE_PATTERN', 'PARAM', 'VALUE'),
-        help="""Set a function parameter. It needs three fields:
-    * pattern matching qualified name of the callable
-    * name of the parameter
-    * value""")
-
     add_argument(run_parser, '--template-scripts', metavar='SCRIPT_FOLDER',
         help="""Only create the template scripts of the expressions without running them.""")
 
     add_argument(run_parser, '--adaptor',
         help="""Adaptor to use from the customization module, if there is more than one to choose from.""")
-
-    add_argument(run_parser, '-n', type=int,
-        default=1,
-        help="""Run the tests for a number of iterations.""")
-
-    add_argument(run_parser, '--share', action='append',
-        metavar='TYPE_PATTERN',
-        default=[],
-        help="""Class name pattern to share between multiple iterations.""")
-
-    add_argument(run_parser, '--random-order', action='store_true',
-        help="""Run the expressions in a random order, instead of sorting by name.""")
 
 
     merge_parser = subparsers.add_parser('merge',
@@ -635,12 +639,12 @@ def do_run(args, parser, run_parser, argv):
     for path in args.python_files:
         # This might fail, since some adaptor options may introduce "fake"
         # positional arguments, since these options are not registered yet.
-        with contextlib.suppress(ValueError):
-            module_set.update(utils.import_paths([path]))
+        with contextlib.suppress(ValueError, ImportError):
+            module_set.update(utils.import_modules([path], best_effort=True))
 
     # Look for a customization submodule in one of the parent packages of the
     # modules we specified on the command line.
-    module_set.update(utils.find_customization_module_set(module_set))
+    utils.find_customization_module_set(module_set)
 
     adaptor_name = args.adaptor
     adaptor_cls = AdaptorBase.get_adaptor_cls(adaptor_name)
@@ -659,9 +663,13 @@ def do_run(args, parser, run_parser, argv):
     args = parser.parse_args(argv)
 
     # Re-import now that we are sure to have the correct list of sources
-    module_set.update(utils.import_paths(args.python_files))
+    module_set = utils.import_modules(args.python_files)
+
+    # Make sure the module in which adaptor_cls is defined is used
+    module_set.add(inspect.getmodule(adaptor_cls))
 
     verbose = args.verbose
+    save_db = args.save_value_db
 
     iteration_nr = args.n
     shared_pattern_set = set(args.share)
@@ -932,11 +940,12 @@ def do_run(args, parser, run_parser, argv):
         only_template_scripts=only_template_scripts,
         adaptor_cls=adaptor_cls,
         verbose=verbose,
+        save_db=save_db,
     )
 
     # If we reloaded a DB, merge it with the current DB so the outcome is a
     # self-contained artifact dir
-    if load_db_path_list:
+    if load_db_path_list and save_db:
         orig_list = [
             path if path.is_dir() else path.parent
             for path in map(pathlib.Path, load_db_path_list)
@@ -946,7 +955,7 @@ def do_run(args, parser, run_parser, argv):
     return exec_ret_code
 
 def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
-        hidden_callable_set, only_template_scripts, adaptor_cls, verbose):
+                   hidden_callable_set, only_template_scripts, adaptor_cls, verbose, save_db):
 
     if not only_template_scripts:
         with (artifact_dir/'UUID').open('wt') as f:
@@ -1160,16 +1169,21 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
             for uuid_ in computed_uuid_set:
                 (artifact_dir/'BY_UUID'/uuid_).symlink_to(expr_artifact_dir)
 
-    db = engine.ValueDB(
-        engine.FrozenExprValSeq.from_expr_list(
-            utils.flatten_seq(iteration_expr_list),
-            hidden_callable_set=hidden_callable_set,
-        ),
-        adaptor_cls=adaptor_cls,
-    )
+    if save_db:
+        db = engine.ValueDB(
+            engine.FrozenExprValSeq.from_expr_list(
+                utils.flatten_seq(iteration_expr_list),
+                hidden_callable_set=hidden_callable_set,
+            ),
+            adaptor_cls=adaptor_cls,
+        )
 
-    db_path = artifact_dir/utils.DB_FILENAME
-    db.to_path(db_path)
+        db_path = artifact_dir/utils.DB_FILENAME
+        db.to_path(db_path)
+        relative_db_path = db_path.relative_to(artifact_dir)
+    else:
+        relative_db_path = None
+        db = None
 
     out('#'*80)
     info('Artifacts dir: {}'.format(artifact_dir))
@@ -1186,7 +1200,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
     result_name_map, all_scripts = engine.Expression.get_all_script(
         utils.flatten_seq(iteration_expr_list),
         prefix='expr',
-        db_path=db_path.relative_to(artifact_dir),
+        db_path=relative_db_path,
         db_relative_to='__file__',
         db=db,
         adaptor_cls=adaptor_cls,

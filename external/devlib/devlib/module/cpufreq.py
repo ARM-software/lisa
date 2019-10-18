@@ -111,7 +111,7 @@ class CpufreqModule(Module):
         :Keyword Arguments: Governor tunables, See :meth:`set_governor_tunables`
         """
         if not cpus:
-            cpus = range(self.target.number_of_cpus)
+            cpus = self.target.list_online_cpus()
 
         # Setting a governor & tunables for a cpu will set them for all cpus
         # in the same clock domain, so only manipulating one cpu per domain

@@ -62,11 +62,14 @@ for root, dirs, files in os.walk(wa_dir):
 
 scripts = [os.path.join('scripts', s) for s in os.listdir('scripts')]
 
+with open("README.rst", "r") as fh:
+    long_description = fh.read()
 
 devlib_version = format_version(required_devlib_version)
 params = dict(
     name='wlauto',
     description='A framework for automating workload execution and measurement collection on ARM devices.',
+    long_description=long_description,
     version=get_wa_version_with_commit(),
     packages=packages,
     package_data=data_files,
@@ -77,7 +80,8 @@ params = dict(
     maintainer='ARM Architecture & Technology Device Lab',
     maintainer_email='workload-automation@arm.com',
     setup_requires=[
-        'numpy'
+        'numpy<=1.16.4; python_version<"3"',
+        'numpy; python_version>="3"',
     ],
     install_requires=[
         'python-dateutil',  # converting between UTC and local time.
@@ -89,25 +93,24 @@ params = dict(
         'devlib>={}'.format(devlib_version),  # Interacting with devices
         'louie-latest',  # callbacks dispatch
         'wrapt',  # better decorators
-        'pandas>=0.23.0',  # Data analysis and manipulation
+        'pandas>=0.23.0,<=0.24.2; python_version<"3.5.3"',  # Data analysis and manipulation
+        'pandas>=0.23.0; python_version>="3.5.3"',  # Data analysis and manipulation
         'future',  # Python 2-3 compatiblity
     ],
     dependency_links=['https://github.com/ARM-software/devlib/tarball/master#egg=devlib-{}'.format(devlib_version)],
     extras_require={
-        'other': ['jinja2'],
         'test': ['nose', 'mock'],
-        'mongodb': ['pymongo'],
         'notify': ['notify2'],
         'doc': ['sphinx', 'sphinx_rtd_theme'],
-        'postgres': ['psycopg2-binary']
+        'postgres': ['psycopg2-binary'],
+        'daq': ['daqpower'],
     },
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Environment :: Console',
         'License :: OSI Approved :: Apache Software License',
         'Operating System :: POSIX :: Linux',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
     ],
 )

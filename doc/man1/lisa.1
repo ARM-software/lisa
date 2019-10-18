@@ -91,6 +91,8 @@ man pages.
 .IP \(bu 2
 \fBlisa\-log\-subtree\fP      \- Git log on the squashed commits of the given
 subtree. All other options are passed to \fIgit log\fP\&.
+.IP \(bu 2
+\fBlisa\-doc\-build\fP        \- Build the documentation
 .UNINDENT
 .SS Notebooks commands
 .INDENT 0.0
@@ -208,8 +210,8 @@ _
 T{
 LISA_HOST_ABI
 T}	T{
-Add some shell utilities to the PATH, with lower priority than
-system\(aqs one in case the user needs a different version of them
+Add some shell utilities to the PATH, based on the host ABI. Priority
+is determined by LISA_USE_SYSTEM_BIN
 T}	T{
 x86_64
 T}
@@ -237,6 +239,14 @@ T}	T{
 By default, store the results under that folder
 T}	T{
 results
+T}
+_
+T{
+LISA_USE_SYSTEM_BIN
+T}	T{
+Use the system binaries if 1, will use the ones shipped with LISA if 0
+T}	T{
+0
 T}
 _
 T{

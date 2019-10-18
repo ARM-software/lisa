@@ -77,7 +77,7 @@ class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
     :param power: Power usage at frequency
     """
     def __new__(cls, capacity=None, power=None):
-        return super(ActiveState, cls).__new__(cls, capacity, power)
+        return super().__new__(cls, capacity, power)
 
 class _CpuTree(Loggable):
     """Internal class. Abstract representation of a CPU topology.
@@ -167,7 +167,7 @@ class EnergyModelNode(_CpuTree):
     """
     def __init__(self, active_states, idle_states,
                  cpu=None, children=None, name=None):
-        super(EnergyModelNode, self).__init__(cpu, children)
+        super().__init__(cpu, children)
         logger = self.get_logger()
 
         def is_monotonic(l, decreasing=False):
@@ -193,7 +193,7 @@ class EnergyModelNode(_CpuTree):
             # This is needed for idle_state_by_idx to work.
             if not isinstance(idle_states, OrderedDict):
                 f = 'idle_states is {}, must be collections.OrderedDict'
-                raise ValueError(f.format(type(self.idle_states)))
+                raise ValueError(f.format(type(idle_states)))
 
             # Sanity check for idle_states powers
             power_vals = list(idle_states.values())
@@ -232,8 +232,7 @@ class EnergyModelRoot(EnergyModelNode):
     """
     def __init__(self, active_states=None, idle_states=None,
                  cpu=None, children=None, name=None):
-        return super(EnergyModelRoot, self).__init__(
-            active_states, idle_states, cpu, children, name)
+        super().__init__(active_states, idle_states, cpu, children, name)
 
 class PowerDomain(_CpuTree):
     """Describes the power domain hierarchy for an EnergyModel.
@@ -267,7 +266,7 @@ class PowerDomain(_CpuTree):
     def __init__(self, idle_states, cpu=None, children=None):
         if idle_states is None:
             raise ValueError('idle_states cannot be None (but may be empty)')
-        super(PowerDomain, self).__init__(cpu, children)
+        super().__init__(cpu, children)
         self.idle_states = idle_states
 
 class EnergyModel(Serializable, Loggable):

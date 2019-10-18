@@ -17,10 +17,13 @@
 
 import logging
 import os
+from shlex import quote
 
+from shlex import quote
+from datetime import datetime
 from devlib.utils.misc import list_to_mask
 
-from lisa.utils import Loggable
+from lisa.utils import Loggable, ArtifactPath
 
 class Workload(Loggable):
     """
@@ -56,7 +59,7 @@ class Workload(Loggable):
                 self.command = "echo"
 
             def run(self, cpus=None, cgroup=None, background=False, as_root=False, value=42):
-                self.command = "{} {}".format(self.command, value)
+                self.command = "{} {}".format(self.command, shlex.quote(value))
                 super().run(cpus, cgroup, background, as_root)
 
     **Usage example**::
@@ -80,7 +83,18 @@ class Workload(Loggable):
         self.name = name
         self.command = None
         self.output = ""
-        self.run_dir = self.target.working_directory
+
+        wlgen_dir = self.target.path.join(target.working_directory,
+                                          "lisa", "wlgen")
+        self.target.execute("mkdir -p {}/lisa/wlgen".format(quote(wlgen_dir)))
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        temp_fmt = "{}_{}_XXXXXX".format(self.name, timestamp)
+        self.run_dir = target.execute("mktemp -d -p {} {}".format(
+                                      quote(wlgen_dir), quote(temp_fmt))).strip()
+
+        logger = self.get_logger()
+        logger.info("Creating target's run directory: %s", self.run_dir)
 
         res_dir = res_dir if res_dir else target.get_res_dir(
             name='{}-{}'.format(self.__class__.__qualname__, name)
@@ -88,6 +102,27 @@ class Workload(Loggable):
         self.res_dir = res_dir
 
         self.target.install_tools(self.required_tools)
+
+    def wipe_run_dir(self):
+        """
+        Wipe all content from the ``run_dir`` target directory.
+
+        .. note :: This function should only be called directly in interactive
+            sessions. For other purposes, use :class:`Workload` instances as a
+            context manager.
+        """
+        logger = self.get_logger()
+        logger.info("Wiping target run directory: {}".format(self.run_dir))
+        self.target.remove(self.run_dir)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Wipe the run directory on the target.
+        """
+        self.wipe_run_dir()
 
     def run(self, cpus=None, cgroup=None, background=False, as_root=False, timeout=None):
         """
@@ -125,11 +160,13 @@ class Workload(Loggable):
                 raise RuntimeError("Could not find 'taskset' executable on the target")
 
             cpumask = list_to_mask(cpus)
-            taskset_cmd = '{} 0x{:x}'.format(taskset_bin, cpumask)
+            taskset_cmd = '{} {}'.format(quote(taskset_bin), quote('0x{:x}'.format(cpumask)))
             _command = '{} {}'.format(taskset_cmd, _command)
 
         if cgroup:
             _command = target.cgroups.run_into_cmd(cgroup, _command)
+
+        _command = 'cd {} && {}'.format(quote(self.run_dir), _command)
 
         logger.info("Execution start: %s", _command)
 
@@ -139,7 +176,7 @@ class Workload(Loggable):
             self.output = target.execute(_command, as_root=as_root, timeout=timeout)
             logger.info("Execution complete")
 
-            logfile = os.path.join(self.res_dir, 'output.log')
+            logfile = ArtifactPath.join(self.res_dir, 'output.log')
             logger.debug('Saving stdout to %s...', logfile)
 
             with open(logfile, 'w') as ofile:

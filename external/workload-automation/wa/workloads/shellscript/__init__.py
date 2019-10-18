@@ -67,4 +67,5 @@ class ShellScript(Workload):
             wfh.write(self.output)
 
     def teardown(self, context):
-        self.target.remove(self.on_target_script_file)
+        if self.cleanup_assets:
+            self.target.remove(self.on_target_script_file)

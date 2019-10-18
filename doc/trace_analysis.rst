@@ -116,6 +116,13 @@ Tasks
    :members:
    :exclude-members: StateInt, TaskState
 
+rt-app
+++++++
+
+.. automodule:: lisa.analysis.rta
+   :members:
+   :exclude-members: PerfAnalysis
+
 Idle
 ++++
 
@@ -144,4 +151,10 @@ Function profiling
 ++++++++++++++++++
 
 .. automodule:: lisa.analysis.functions
+   :members:
+
+Interactive notebook helper
++++++++++++++++++++++++++++
+
+.. automodule:: lisa.analysis.notebook
    :members:

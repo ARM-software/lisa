@@ -16,6 +16,7 @@
 
 import sys
 import argparse
+import locale
 import logging
 import os
 import warnings
@@ -76,6 +77,18 @@ def check_devlib_version():
         raise HostError(msg.format(format_version(required_devlib_version), devlib.__version__))
 
 
+# If the default encoding is not UTF-8 warn the user as this may cause compatibility issues
+# when parsing files.
+def check_system_encoding():
+    system_encoding = locale.getpreferredencoding()
+    msg = 'System Encoding: {}'.format(system_encoding)
+    if 'UTF-8' not in system_encoding:
+        logger.warning(msg)
+        logger.warning('To prevent encoding issues please use a locale setting which supports UTF-8')
+    else:
+        logger.debug(msg)
+
+
 def main():
     if not os.path.exists(settings.user_directory):
         init_user_directory()
@@ -115,6 +128,7 @@ def main():
         logger.debug('devlib version: {}'.format(devlib.__full_version__))
         logger.debug('Command Line: {}'.format(' '.join(sys.argv)))
         check_devlib_version()
+        check_system_encoding()
 
         # each command will add its own subparser
         subparsers = parser.add_subparsers(dest='command')

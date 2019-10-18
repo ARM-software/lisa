@@ -87,7 +87,8 @@ rt-app
    :exclude-members: RTA, RTATask, Phase
    :members:
 
-.. automodule:: lisa.analysis.rta
+.. autoclass:: lisa.analysis.rta.PerfAnalysis
+   :exclude-members: RTAEventsAnalysis
    :members:
 
 Sysbench

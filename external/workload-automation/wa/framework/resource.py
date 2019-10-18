@@ -24,7 +24,7 @@ from wa.framework.exception import ResourceError
 from wa.framework.configuration import settings
 from wa.utils import log
 from wa.utils.misc import get_object_name
-from wa.utils.types import enum, list_or_string, prioritylist
+from wa.utils.types import enum, list_or_string, prioritylist, version_tuple
 
 
 SourcePriority = enum(['package', 'remote', 'lan', 'local',
@@ -142,10 +142,12 @@ class ApkFile(Resource):
 
     def __init__(self, owner, variant=None, version=None,
                  package=None, uiauto=False, exact_abi=False,
-                 supported_abi=None):
+                 supported_abi=None, min_version=None, max_version=None):
         super(ApkFile, self).__init__(owner)
         self.variant = variant
         self.version = version
+        self.max_version = max_version
+        self.min_version = min_version
         self.package = package
         self.uiauto = uiauto
         self.exact_abi = exact_abi
@@ -158,11 +160,15 @@ class ApkFile(Resource):
     def match(self, path):
         name_matches = True
         version_matches = True
+        version_range_matches = True
         package_matches = True
         abi_matches = True
         uiauto_matches = uiauto_test_matches(path, self.uiauto)
         if self.version:
             version_matches = apk_version_matches(path, self.version)
+        if self.max_version or self.min_version:
+            version_range_matches = apk_version_matches_range(path, self.min_version,
+                                                              self.max_version)
         if self.variant:
             name_matches = file_name_matches(path, self.variant)
         if self.package:
@@ -171,8 +177,8 @@ class ApkFile(Resource):
             abi_matches = apk_abi_matches(path, self.supported_abi,
                                           self.exact_abi)
         return name_matches and version_matches and \
-            uiauto_matches and package_matches and \
-            abi_matches
+            version_range_matches and uiauto_matches \
+            and package_matches and abi_matches
 
     def __str__(self):
         text = '<{}\'s apk'.format(self.owner)
@@ -283,9 +289,30 @@ def apk_version_matches(path, version):
     return False
 
 
+def apk_version_matches_range(path, min_version=None, max_version=None):
+    info = ApkInfo(path)
+    return range_version_matching(info.version_name, min_version, max_version)
+
+
+def range_version_matching(apk_version, min_version=None, max_version=None):
+    if not apk_version:
+        return False
+    apk_version = version_tuple(apk_version)
+
+    if max_version:
+        max_version = version_tuple(max_version)
+        if apk_version > max_version:
+            return False
+    if min_version:
+        min_version = version_tuple(min_version)
+        if apk_version < min_version:
+            return False
+    return True
+
+
 def loose_version_matching(config_version, apk_version):
-    config_version = config_version.split('.')
-    apk_version = apk_version.split('.')
+    config_version = version_tuple(config_version)
+    apk_version = version_tuple(apk_version)
 
     if len(apk_version) < len(config_version):
         return False  # More specific version requested than available

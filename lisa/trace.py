@@ -19,12 +19,10 @@
 
 import abc
 import copy
-import numpy as np
+import numbers
 import os
 import os.path
-import pandas as pd
 import sys
-import trappy
 import json
 import warnings
 import operator
@@ -34,12 +32,48 @@ import inspect
 import shlex
 from functools import reduce, wraps
 from collections.abc import Sequence
+from collections import namedtuple
+
+import numpy as np
+import pandas as pd
+
+import trappy
+import devlib
+from devlib.target import KernelVersion
 
 from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, StrList, Configurable
-import devlib
-from devlib.target import KernelVersion
+
+
+class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
+    """
+    Unique identifier of a logical task in a :class:`Trace`.
+
+    :param pid: PID of the task. ``None`` indicates the PID is not important.
+    :type pid: int
+
+    :param comm: Name of the task. ``None`` indicates the name is not important.
+        This is useful to describe tasks like PID0, which can have multiple
+        names associated.
+    :type comm: str
+    """
+
+    # Prevent creation of a __dict__. This allows a more compact representation
+    __slots__ = []
+
+    def __init__(self, *args, **kwargs):
+        # TODO: remove that once this trace-cmd issue is solved in one way or another:
+        # https://bugzilla.kernel.org/show_bug.cgi?id=204979
+        if self.comm == '<...>':
+            raise ValueError('Invalid comm name "<...>"')
+
+    def __str__(self):
+        if self.pid is not None and self.comm is not None:
+            return '{}:{}'.format(self.pid, self.comm)
+        else:
+            return str(self.comm if self.comm is not None else self.pid)
+
 
 class TraceBase(abc.ABC):
     """
@@ -384,8 +418,6 @@ class Trace(Loggable, TraceBase):
         self.basetime = self._ftrace.basetime
 
         self._compute_timespan()
-        # Index PIDs and Task names
-        self._load_tasks_names()
 
         # Setup internal data reference to interesting events/dataframes
         self._sanitize_SchedLoadAvgCpu()
@@ -416,23 +448,50 @@ class Trace(Loggable, TraceBase):
             logger.debug(' - %s', evt)
         return available_events
 
-    def _load_tasks_names(self):
+    @memoized
+    def _get_task_maps(self):
         """
-        Try to load tasks names using one of the supported events.
-        """
-        def load(event, name_key, pid_key):
-            df = self.df_events(event)
-            self._scan_tasks(df, name_key=name_key, pid_key=pid_key)
+        Give the mapping from PID to task names, and the opposite.
 
-        if 'sched_switch' in self.available_events:
-            load('sched_switch', 'prev_comm', 'prev_pid')
-            return
+        The names or PIDs are listed in appearance order.
+        """
+
+        name_to_pid = {}
+        pid_to_name = {}
+
+        def load(event, name_col, pid_col):
+            df = self.df_events(event)
+
+            def create_mapping(df, key_col, value_col):
+                return {
+                    k: list(df[df[key_col] == k][value_col].unique())
+                    for k in df[key_col].unique()
+                }
+
+            name_to_pid.update(create_mapping(df, name_col, pid_col))
+            pid_to_name.update(create_mapping(df, pid_col, name_col))
 
         if 'sched_load_avg_task' in self.available_events:
             load('sched_load_avg_task', 'comm', 'pid')
-            return
 
-        self.get_logger().warning('Failed to load tasks names from trace events')
+        if 'sched_wakeup' in self.available_events:
+            load('sched_wakeup', '__comm', '__pid')
+
+        if 'sched_switch' in self.available_events:
+            load('sched_switch', 'prev_comm', 'prev_pid')
+
+        if not (name_to_pid and pid_to_name):
+            raise RuntimeError('Failed to load tasks names, sched_switch, sched_wakeup, or sched_load_avg_task events are needed')
+
+        return (name_to_pid, pid_to_name)
+
+    @property
+    def _task_name_map(self):
+        return self._get_task_maps()[0]
+
+    @property
+    def _task_pid_map(self):
+        return self._get_task_maps()[1]
 
     def has_events(self, events):
         """
@@ -477,30 +536,7 @@ class Trace(Loggable, TraceBase):
         self.get_logger().debug('Trace contains events from %s to %s',
                                 self.start, self.end)
 
-    def _scan_tasks(self, df, name_key='comm', pid_key='pid'):
-        """
-        Extract tasks names and PIDs from the input data frame. The data frame
-        should contain a task name column and PID column.
-
-        :param df: data frame containing trace events from which tasks names
-            and PIDs will be extracted
-        :type df: :mod:`pandas.DataFrame`
-
-        :param name_key: The name of the dataframe columns containing task
-            names
-        :type name_key: str
-
-        :param pid_key: The name of the dataframe columns containing task PIDs
-        :type pid_key: str
-        """
-        df = df[[name_key, pid_key]]
-        self._tasks_by_pid = (df.drop_duplicates(subset=pid_key, keep='last')
-                .rename(columns={
-                    pid_key : 'PID',
-                    name_key : 'TaskName'})
-                .set_index('PID').sort_index())
-
-    def get_task_by_name(self, name):
+    def get_task_name_pids(self, name, ignore_fork=True):
         """
         Get the PIDs of all tasks with the specified name.
 
@@ -508,19 +544,60 @@ class Trace(Loggable, TraceBase):
         is generated it inherits the parent name and then its name is updated
         to represent what the task really is.
 
-        This API works under the assumption that a task name is updated at
-        most one time and it always considers the name a task had the last time
-        it has been scheduled for execution in the current trace.
-
         :param name: task name
         :type name: str
 
-        :return: a list of PID for tasks which name matches the required one,
+        :param ignore_fork: Hide the PIDs of tasks that initially had ``name``
+            but were later renamed. This is common for shell processes for
+            example, which fork a new task, inheriting the shell name, and then
+            being renamed with the final "real" task name
+        :type ignore_fork: bool
+
+        :return: a list of PID for tasks which name matches the required one.
+        """
+        pids = self._task_name_map[name]
+
+        if ignore_fork:
+            pids = [
+                pid
+                for pid in pids
+                # Only keep the PID if its last name was the name we are
+                # looking for.
+                if self._task_pid_map[pid][-1] == name
+            ]
+
+        return pids
+
+    @deprecate('This method has been deprecated and is an alias',
+        deprecated_in='2.0',
+        removed_in='2.1',
+        replaced_by=get_task_name_pids,
+    )
+    def get_task_by_name(self, name):
+        return self.get_task_name_pids(name, ignore_fork=True)
+
+    def get_task_pid_names(self, pid):
+        """
+        Get the all the names of the task(s) with the specified PID, in
+        appearance order.
+
+        The same PID can have different task names, mainly because once a task
+        is generated it inherits the parent name and then its name is
+        updated to represent what the task really is.
+
+        :param name: task PID
+        :type name: int
+
+        :return: the name of the task which PID matches the required one,
                  the last time they ran in the current trace
         """
-        return (self._tasks_by_pid[self._tasks_by_pid.TaskName == name]
-                    .index.tolist())
+        return self._task_pid_map[pid]
 
+    @deprecate('This function raises exceptions when faced with ambiguity instead of giving the choice to the user',
+        deprecated_in='2.0',
+        removed_in='2.1',
+        replaced_by=get_task_pid_names,
+    )
     def get_task_by_pid(self, pid):
         """
         Get the name of the task with the specified PID.
@@ -539,44 +616,110 @@ class Trace(Loggable, TraceBase):
         :return: the name of the task which PID matches the required one,
                  the last time they ran in the current trace
         """
-        try:
-            return self._tasks_by_pid.loc[pid].values[0]
-        except KeyError:
-            return None
+        name_list = self.get_task_pid_names(pid)
 
+        if len(name_list) > 2:
+            raise RuntimeError('The PID {} had more than two names in its life: {}'.format(
+                pid, name_list,
+            ))
+
+        return name_list[-1]
+
+    def get_task_ids(self, task, update=True):
+        """
+        Similar to :meth:`get_task_id` but returns a list with all the
+        combinations, instead of raising an exception.
+
+        :param task: Either the task name, the task PID, or a tuple ``(pid, comm)``
+        :type task: int or str or tuple(int, str)
+
+        :param update: If a partially-filled :class:`TaskID` is passed (one of
+            the fields set to ``None``), returns a complete :class:`TaskID`
+            instead of leaving the ``None`` fields.
+        :type update: bool
+        """
+
+        def comm_to_pid(comm):
+            try:
+                pid_list = self._task_name_map[comm]
+            except IndexError:
+                raise ValueError('trace does not have any task named "{}"'.format(comm))
+
+            return pid_list
+
+        def pid_to_comm(pid):
+            try:
+                comm_list = self._task_pid_map[pid]
+            except IndexError:
+                raise ValueError('trace does not have any task PID {}'.format(pid))
+
+            return comm_list
+
+
+        if isinstance(task, str):
+            task_ids = [
+                TaskID(pid=pid, comm=task)
+                for pid in comm_to_pid(task)
+            ]
+        elif isinstance(task, numbers.Number):
+            task_ids = [
+                TaskID(pid=task, comm=comm)
+                for comm in pid_to_comm(task)
+            ]
+        else:
+            pid, comm = task
+            if pid is None and comm is None:
+                raise ValueError('TaskID needs to have at least one of PID or comm specified')
+
+            if update:
+                non_none = pid if comm is None else comm
+                task_ids = self.get_task_ids(non_none)
+            else:
+                task_ids = [TaskID(pid=pid, comm=comm)]
+
+        return task_ids
+
+    def get_task_id(self, task, update=True):
+        """
+        Helper that resolves a task PID or name to a :class:`TaskID`.
+
+        :param task: Either the task name, the task PID, or a tuple ``(pid, comm)``
+        :type task: int or str or tuple(int, str)
+
+        :param update: If a partially-filled :class:`TaskID` is passed (one of
+            the fields set to ``None``), returns a complete :class:`TaskID`
+            instead of leaving the ``None`` fields.
+        :type update: bool
+
+        :raises ValueError: If there the input matches multiple tasks in the trace.
+            See :meth:`get_task_ids` to get all the ambiguous alternatives
+            instead of an exception.
+        """
+        task_ids = self.get_task_ids(task, update=update)
+        if len(task_ids) > 1:
+            raise ValueError('More than one TaskID matching: {}'.format(task_ids))
+
+        return task_ids[0]
+
+
+    @deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=get_task_id)
     def get_task_pid(self, task):
         """
         Helper that takes either a name or a PID and always returns a PID
 
         :param task: Either the task name or the task PID
-        :type task: int or str
+        :type task: int or str or tuple(int, str)
         """
-        if isinstance(task, str):
-            pid_list = self.get_task_by_name(task)
-
-            if not pid_list:
-                raise ValueError('trace does not have any task named "{}".format(task)')
-
-            if len(pid_list) > 1:
-                self.get_logger().warning(
-                    "More than one PID found for task {}, "
-                    "using the first one ({})".format(task, pid_list[0]))
-
-            pid = pid_list[0]
-        else:
-            pid = task
-
-        return pid
-
+        return self.get_task_id(task).pid
 
     def get_tasks(self):
         """
         Get a dictionary of all the tasks in the Trace.
 
-        :return: a dictionary which maps each PID to the corresponding task
-                 name
+        :return: a dictionary which maps each PID to the corresponding list of
+                 task name
         """
-        return self._tasks_by_pid.TaskName.to_dict()
+        return self._task_pid_map
 
     def show(self):
         """
@@ -620,8 +763,7 @@ class Trace(Loggable, TraceBase):
         available and the platform is big.LITTLE.
         """
         if not self.has_events('cpu_capacity') \
-           or 'nrg-model' not in self.plat_info \
-           or not self.has_big_little:
+           or 'nrg-model' not in self.plat_info:
             return
 
         df = self.df_events('cpu_capacity')
@@ -703,8 +845,7 @@ class Trace(Loggable, TraceBase):
         """
         logger = self.get_logger()
         if not self.has_events('sched_energy_diff') \
-           or 'nrg-model' not in self.plat_info \
-           or not self.has_big_little:
+           or 'nrg-model' not in self.plat_info:
             return
         nrg_model = self.plat_info['nrg-model']
         em_lcluster = nrg_model['little']['cluster']

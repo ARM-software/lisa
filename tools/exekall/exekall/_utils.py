@@ -500,25 +500,73 @@ def find_customization_module_set(module_set):
 
     return customization_module_set
 
-def import_paths(paths):
+def import_modules(paths_or_names, best_effort=False):
     """
     Import the modules in the given list of paths.
 
     If a folder is passed, all Python sources are recursively imported.
     """
-    def import_it(path):
+    def import_it(path_or_name, best_effort):
         # Recursively import all modules when passed folders
-        if path.is_dir():
-            for python_src in glob.iglob(str(path/'**'/'*.py'), recursive=True):
-                yield import_file(python_src)
-        # If passed a file, just import it directly
+        if path_or_name.is_dir():
+            yield from import_folder(path_or_name, best_effort=best_effort)
+        # If passed a file, a symlink or something like that
+        elif path_or_name.exists():
+            try:
+                yield import_file(path_or_name)
+            except ImportError:
+                if best_effort:
+                    return
+                else:
+                    raise
+        # Otherwise, assume it is just a module name
         else:
-            yield import_file(path)
+            yield from import_name_recursively(path_or_name, best_effort=best_effort)
 
     return set(itertools.chain.from_iterable(
-        import_it(pathlib.Path(path))
-        for path in paths
+        import_it(pathlib.Path(path), best_effort=best_effort)
+        for path in paths_or_names
     ))
+
+def import_name_recursively(name, best_effort=False):
+    """
+    Import a module by its name.
+
+    :param name: Full name of the module.
+    :type name: str
+
+    If it's a package, import all submodules recursively.
+    """
+
+    try:
+        mod = importlib.import_module(str(name))
+    except ImportError:
+        if best_effort:
+            return
+        else:
+            raise
+    try:
+        paths = mod.__path__
+    # This is a plain module
+    except AttributeError:
+        yield mod
+    # This is a package, so we import all the submodules recursively
+    else:
+        for path in paths:
+            yield from import_folder(pathlib.Path(path), best_effort=best_effort)
+
+def import_folder(path, best_effort=False):
+    """
+    Import all modules contained in the given folder, recurisvely.
+    """
+    for python_src in glob.iglob(str(path/'**'/'*.py'), recursive=True):
+        try:
+            yield import_file(python_src)
+        except ImportError:
+            if best_effort:
+                continue
+            else:
+                raise
 
 def import_file(python_src, module_name=None, is_package=False):
     """
@@ -594,11 +642,22 @@ def import_file(python_src, module_name=None, is_package=False):
                 ))
 
         module = importlib.util.module_from_spec(spec)
-        # Register module before executing it so relative imports will work
-        sys.modules[module_name] = module
-        # Nothing to execute in a namespace package
         if not is_namespace_package:
-            spec.loader.exec_module(module)
+            try:
+                # Register module before executing it so relative imports will
+                # work
+                sys.modules[module_name] = module
+                # Nothing to execute in a namespace package
+                spec.loader.exec_module(module)
+            # If the module cannot be imported cleanly regardless of the reason,
+            # make sure we remove it from sys.modules since it's broken. Future
+            # attempt to import it should raise again, rather than returning the
+            # broken module
+            except BaseException:
+                with contextlib.suppress(KeyError):
+                    del sys.modules[module_name]
+                raise
+
     #  Python <= v3.4 style
     else:
         module = importlib.machinery.SourceFileLoader(
@@ -711,7 +770,7 @@ def get_froz_val_set_set(db, uuid_seq=None, type_pattern_seq=None):
         return froz_val.uuid in uuid_seq
 
     def type_pattern_predicate(froz_val):
-        return match_base_cls(type(froz_val.value), type_pattern_seq)
+        return match_base_cls(froz_val.type_, type_pattern_seq)
 
     if type_pattern_seq and not uuid_seq:
         predicate = type_pattern_predicate
@@ -904,3 +963,12 @@ def add_argument(parser, *args, help, **kwargs):
 def create_adaptor_parser_group(parser, adaptor_cls):
     description = '{} custom options.\nCan only be specified *after* positional parameters.'.format(adaptor_cls.name)
     return parser.add_argument_group(adaptor_cls.name, description)
+
+
+def powerset(iterable):
+    """
+    Powerset of the given iterable ::
+        powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)
+    """
+    s = list(iterable)
+    return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s)+1))

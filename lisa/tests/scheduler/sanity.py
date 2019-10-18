@@ -37,7 +37,10 @@ class CapacitySanity(TestBundle):
         self.capacity_work = capacity_work
 
     @classmethod
-    def _from_target(cls, target, res_dir):
+    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None) -> 'CapacitySanity':
+        """
+        Factory method to create a bundle using a live target
+        """
         with target.cpufreq.use_governor("performance"):
             sysbench = Sysbench(target, "sysbench", res_dir)
 
@@ -52,13 +55,6 @@ class CapacitySanity(TestBundle):
                 capa_work[capa] = min(capa_work[capa], sysbench.output.nr_events)
 
         return cls(res_dir, target.plat_info, capa_work)
-
-    @classmethod
-    def from_target(cls, target:Target, res_dir:ArtifactPath=None) -> 'CapacitySanity':
-        """
-        Factory method to create a bundle using a live target
-        """
-        return super().from_target(target, res_dir)
 
     def test_capacity_sanity(self) -> ResultBundle:
         """

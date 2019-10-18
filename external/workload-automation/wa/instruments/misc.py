@@ -174,8 +174,14 @@ class SysfsExtractor(Instrument):
                     self.target.list_directory(dev_dir)):
                 self.logger.error('sysfs files were not pulled from the device.')
                 self.device_and_host_paths.remove(paths)  # Path is removed to skip diffing it
-        for _, before_dir, after_dir, diff_dir in self.device_and_host_paths:
+        for dev_dir, before_dir, after_dir, diff_dir in self.device_and_host_paths:
             diff_sysfs_dirs(before_dir, after_dir, diff_dir)
+            context.add_artifact('{} [before]'.format(dev_dir), before_dir,
+                                 kind='data', classifiers={'stage': 'before'})
+            context.add_artifact('{} [after]'.format(dev_dir), after_dir,
+                                 kind='data', classifiers={'stage': 'after'})
+            context.add_artifact('{} [diff]'.format(dev_dir), diff_dir,
+                                 kind='data', classifiers={'stage': 'diff'})
 
     def teardown(self, context):
         self._one_time_setup_done = []
@@ -276,9 +282,15 @@ class InterruptStatsInstrument(Instrument):
             wfh.write(self.target.execute('cat /proc/interrupts'))
 
     def update_output(self, context):
+        context.add_artifact('interrupts [before]', self.before_file, kind='data',
+                             classifiers={'stage': 'before'})
         # If workload execution failed, the after_file may not have been created.
         if os.path.isfile(self.after_file):
             diff_interrupt_files(self.before_file, self.after_file, _f(self.diff_file))
+            context.add_artifact('interrupts [after]', self.after_file, kind='data',
+                                 classifiers={'stage': 'after'})
+            context.add_artifact('interrupts [diff]', self.diff_file, kind='data',
+                                 classifiers={'stage': 'diff'})
 
 
 class DynamicFrequencyInstrument(SysfsExtractor):

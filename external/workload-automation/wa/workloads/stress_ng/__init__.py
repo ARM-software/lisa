@@ -131,4 +131,5 @@ class StressNg(Workload):
 
     @once
     def finalize(self, context):
-        self.target.uninstall('stress-ng')
+        if self.uninstall:
+            self.target.uninstall('stress-ng')

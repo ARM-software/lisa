@@ -31,8 +31,10 @@ import pandas as pd
 import hashlib
 import shutil
 import warnings
+import math
 
 from tempfile import NamedTemporaryFile
+import numpy as np
 
 from trappy.bare_trace import BareTrace
 from trappy.exception import TrappyParseError
@@ -387,6 +389,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         actual_trace = itertools.takewhile(self.trace_hasnt_finished(),
                                            actual_trace)
 
+        timestamp = 0
         for line in actual_trace:
             trace_class = self.__get_trace_class(line, cls_for_unique_word)
             if not trace_class:
@@ -406,9 +409,26 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             # reported either in [s].[us] or [ns] format. Let's ensure that we
             # always generate DF which have the index expressed in:
             #    [s].[decimals]
-            timestamp = float(fields_match.group('timestamp'))
+            _timestamp = float(fields_match.group('timestamp'))
             if not fields_match.group('us'):
-                timestamp /= 1e9
+                _timestamp /= 1e9
+
+            # Make sure that each event has a unique timestamp in the trace, so
+            # that the ordering of events is preserved when dispatching them in
+            # different dataframes, and joining the dataframes back.
+            if _timestamp > timestamp:
+                timestamp = _timestamp
+            else:
+                # nextafter will pick the next representable float value toward
+                # +inf, so that the increment is kept as small as possibly can,
+                # while ensuring correct ordering. The increment is done at
+                # around the 16th least significant digit, so as long as the
+                # timestamps are under 10e7 seconds (~115 days),
+                # nanosecond-based computation should not really see any
+                # difference. Normalized timestamps can help keeping the
+                # absolute value down.
+                timestamp = np.nextafter(timestamp, math.inf)
+
             data_str = fields_match.group('data')
 
             if not self.basetime:
@@ -867,7 +887,7 @@ class FTrace(GenericFTrace):
         """
         from subprocess import check_output
 
-        cmd = ["trace-cmd", "report"]
+        cmd = ["trace-cmd", "report", '-t']
 
         if not os.path.isfile(trace_dat):
             raise IOError("No such file or directory: {}".format(trace_dat))

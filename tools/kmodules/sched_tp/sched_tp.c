@@ -16,6 +16,15 @@ static inline struct cfs_rq *get_group_cfs_rq(struct sched_entity *se)
 #endif
 }
 
+static inline struct cfs_rq *get_se_cfs_rq(struct sched_entity *se)
+{
+#ifdef CONFIG_FAIR_GROUP_SCHED
+	return se->cfs_rq;
+#else
+	return NULL;
+#endif
+}
+
 static void sched_pelt_cfs(void *data, struct cfs_rq *cfs_rq)
 {
 	if (trace_sched_load_cfs_rq_enabled()) {
@@ -74,7 +83,7 @@ static void sched_pelt_se(void *data, struct sched_entity *se)
 {
 	if (trace_sched_load_se_enabled()) {
 		void *gcfs_rq = get_group_cfs_rq(se);
-		void *cfs_rq = se->cfs_rq;
+		void *cfs_rq = get_se_cfs_rq(se);
 		struct task_struct *p;
 		char path[PATH_SIZE];
 		char *comm;
@@ -92,7 +101,7 @@ static void sched_pelt_se(void *data, struct sched_entity *se)
 	}
 }
 
-static void sched_overutilized(void *data, struct root_domain * rd, bool overutilized)
+static void sched_overutilized(void *data, struct root_domain *rd, bool overutilized)
 {
 	if (trace_sched_overutilized_enabled()) {
 		char span[SPAN_SIZE];

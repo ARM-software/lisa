@@ -24,6 +24,8 @@ import pandas as pd
 import scipy.integrate
 import scipy.signal
 
+from lisa.utils import TASK_COMM_MAX_LEN
+
 
 def series_refit_index(series, start=None, end=None, method='pre'):
     """
@@ -416,7 +418,7 @@ def series_mean(y, x=None, **kwargs):
         used. Note that `y` and `x` are expected to have the same index.
     :type y: pandas.DataFrame or None
 
-    :keyword arguments: Passed to :func:`series_integrate`.
+    :Variable keyword arguments: Forwarded to :func:`series_integrate`.
     """
     x = _resolve_x(y, x)
     integral = series_integrate(y, x, **kwargs)
@@ -561,6 +563,52 @@ def series_align_signal(ref, to_align, max_shift=None):
 
     # Compensate the shift
     return ref, to_align.shift(-shift)
+
+def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=False, comm_max_len=TASK_COMM_MAX_LEN):
+    """
+    Filter a dataframe using a list of :class:`lisa.trace.TaskID`
+
+    :param task_ids: List of task IDs to filter
+    :type task_ids: list(lisa.trace.TaskID)
+
+    :param df: Dataframe to act on.
+    :type df: pandas.DataFrame
+
+    :param pid_col: Column name in the dataframe with PIDs.
+    :type pid_col: str or None
+
+    :param comm_col: Column name in the dataframe with comm.
+    :type comm_col: str or None
+
+    :param comm_max_len: Maximum expected length of the strings in
+        ``comm_col``. The ``task_ids`` `comm` field will be truncated at that
+        length before being matched.
+
+    :param invert: Invert selection
+    :type invert: bool
+    """
+
+    def make_filter(task_id):
+        if pid_col and task_id.pid is not None:
+            pid = (df[pid_col] == task_id.pid)
+        else:
+            pid = True
+        if comm_col and task_id.comm is not None:
+            comm = (df[comm_col] == task_id.comm[:comm_max_len])
+        else:
+            comm = True
+
+        return pid & comm
+
+    tasks_filters = map(make_filter, task_ids)
+
+    # Combine all the task filters with OR
+    tasks_filter = functools.reduce(operator.or_, tasks_filters, False)
+
+    if invert:
+        tasks_filter = ~tasks_filter
+
+    return df[tasks_filter]
 
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

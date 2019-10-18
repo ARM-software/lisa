@@ -34,13 +34,8 @@ SERIES=${SERIES:-''}
 WA_AGENDA=${WA_AGENDA:-''}
 TEST_CMD=${TEST_CMD:-'echo "Test DONE!"'}
 
-if [ -z "$ANDROID_HOME" ]; then
-	ADB=${ADB:-$(which adb)}
-	FASTBOOT=${FASTBOOT:-$(which fastboot)}
-else
-	ADB=${ADB:-$ANDROID_HOME/platform-tools/adb}
-	FASTBOOT=${FASTBOOT:-$ANDROID_HOME/platform-tools/fastboot}
-fi
+ADB=${ADB:-$(which adb)}
+FASTBOOT=${FASTBOOT:-$(which fastboot)}
 
 EMETER=${EMETER:-'ACME'}
 ACME_IP=${ACME_IP:-'192.168.0.1'}
@@ -806,13 +801,17 @@ name_sha1() {
 	if [ "x$WLTEST_REPO_TARGET" == "xy" ]; then
 		return $OK
 	fi
+
 	# Find a name for each possible REF
+	# TODO: looks like "git name-rev --name-only $COMMIT_SHA1" could be used
+	#       to replace the following "for-each-ref + grep + awk" sequence
 	mkfifo tmp_pipe &>/dev/null
 	git -C $KERNEL_TREE for-each-ref \
 			--sort=-committerdate \
-			--format='%(objectname:short) %(refname:short)' \
+			--format='%(objectname) %(refname:short)' \
 			refs/heads/ refs/remotes/ refs/tags |
-	grep $COMMIT_SHA1 | awk '{print $2}' > tmp_pipe &
+	    grep -e "^$COMMIT_SHA1" |
+	    awk '{print $2}' > tmp_pipe &
 	while IFS= read -r NAME; do
 		# Return the fist name starting by "test_"
 		if [[ $NAME = test_* ]]; then
@@ -1031,29 +1030,20 @@ while read -u10 COMMITS; do
 	# Extract commit identifier from commit description
 	COMMIT=${COMMITS%% *}
 
-	# Translate possible branch name to SHA1
-	COMMITS=$(git -C $KERNEL_TREE show-ref -s $COMMIT)
-	if [ $? -ne 0 ]; then
-		COMMIT_SHA1=$COMMIT
-	elif [ $(echo $(git -C $KERNEL_TREE show-ref -s $COMMIT | sort | uniq) | wc -w) -eq 1 ]; then
-		if [ "x$WLTEST_REPO_TARGET" == "xy" ]; then
-			# For repo targets, the series file contains the name
-			# of repo branches, which is what 'repo checkout'
-			# understands
-			COMMIT_SHA1=$COMMIT
-		else
-			COMMIT_SHA1=$(git -C $KERNEL_TREE show-ref -s $COMMIT | sort | uniq)
-		fi
-	else
-		c_error "The branch name must be univocal, \"$COMMIT\" may refer to:"
-		for b in $(git -C $KERNEL_TREE show-ref $COMMIT | cut -f 2 -d " "); do
-			c_error "    $b"
-		done
+	# Get a full SHA1 for the specified branch name or short SHA1
+	COMMIT_SHA1=$(git -C $KERNEL_TREE rev-parse --quiet --verify "$COMMIT")
+	if [ $(echo $COMMIT_SHA1 | wc -w) -ne 1 ]; then
+		c_error "$COMMIT: unknown revision or path not in the working tree"
 		exit $EINVAL
 	fi
 
+	# For repo targets, the series file contains the name
+	# of repo branches, which is what 'repo checkout'
+	# understands
+	[ "x$WLTEST_REPO_TARGET" != "xy" ] || COMMIT_SHA1=$COMMIT
+
 	box_out "PROGRESS : $COMMIT_ID/$COMMITS_COUNT" \
-		"COMMIT   : $COMMITS"
+		"COMMIT   : $COMMIT_SHA1"
 	echo
 	device_status
 

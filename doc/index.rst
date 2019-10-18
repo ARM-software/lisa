@@ -61,6 +61,11 @@ Indices and tables
 
 Building this documentation
 ==============================
-- Install ``sphinx-doc``
-- From the root of the LISA source tree: ``cd doc && make html``
+
+- Install ``doc`` optional dependencies of ``lisa`` package (``lisa-install``
+  does that by default)
+- Run::
+
+  $ source init_env
+  $ lisa-doc-build
 - Find the HTML in ``doc/_build/html``
