@@ -30,6 +30,8 @@ import logging
 import webbrowser
 import inspect
 import shlex
+import contextlib
+import tempfile
 from functools import reduce, wraps
 from collections.abc import Sequence
 from collections import namedtuple
@@ -41,7 +43,7 @@ import trappy
 import devlib
 from devlib.target import KernelVersion
 
-from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate
+from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate, nullcontext
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, StrList, Configurable
 
@@ -351,6 +353,86 @@ class Trace(Loggable, TraceBase):
         Underlying :class:`trappy.ftrace.FTrace`.
         """
         return self._ftrace
+
+
+    @classmethod
+    @contextlib.contextmanager
+    def from_target(cls, target, events=None, buffer_size=10240, filepath=None, **kwargs):
+        """
+        Context manager that can be used to collect a :class:`Trace` directly
+        from a :class:`lisa.target.Target` without needing to setup an
+        :class:`FtraceCollector`.
+
+        **Example**::
+
+            from lisa.trace import Trace
+            from lisa.target import Target
+
+            target = Target.from_default_conf()
+
+            with Trace.from_target(target, events=['sched_switch', 'sched_wakeup']) as trace:
+                target.execute('echo hello world')
+                # DO NOT USE trace object inside the `with` statement
+
+            trace.analysis.tasks.plot_tasks_total_residency(filepath='plot.png')
+
+
+        :param target: Target to connect to.
+        :type target: Target
+
+        :param events: ftrace events to collect and parse in the trace.
+        :type events: list(str)
+
+        :param buffer_size: Size of the ftrace ring buffer.
+        :type buffer_size: int
+
+        :param filepath: If set, the trace file will be saved at that location.
+            Otherwise, a temporary file is created and removed as soon as the
+            parsing is finished.
+        :type filepath: str or None
+
+        :Variable keyword arguments: Forwarded to :class:`Trace`.
+        """
+        ftrace_coll = FtraceCollector(target, events=events, buffer_size=buffer_size)
+        plat_info = target.plat_info
+
+        class TraceProxy(TraceBase):
+            def get_view(self, *args, **kwargs):
+                return self.base_trace.get_view(*args, **kwargs)
+
+            def __getattr__(self, attr):
+                try:
+                    base_trace = self.__dict__['base_trace']
+                except KeyError:
+                    raise RuntimeError('The trace instance can only be used outside its "with" statement.')
+                else:
+                    return getattr(base_trace, attr)
+
+        proxy = TraceProxy()
+
+        with ftrace_coll:
+            yield proxy
+
+        if filepath:
+            cm = nullcontext(filepath)
+        else:
+            @contextlib.contextmanager
+            def cm_func():
+                with tempfile.NamedTemporaryFile(suffix='.dat', delete=True) as temp:
+                    yield temp.name
+
+            cm = cm_func()
+
+        with cm as path:
+            ftrace_coll.get_trace(path)
+            trace = cls(
+                path,
+                events=events,
+                plat_info=plat_info,
+                **kwargs
+            )
+
+        proxy.base_trace = trace
 
     @staticmethod
     def _process_events(events, proxy_cls):
@@ -1399,7 +1481,9 @@ class FtraceCollector(devlib.FtraceCollector, Loggable, Configurable):
 
     CONF_CLASS = FtraceConf
 
-    def __init__(self, target, events=[], functions=[], buffer_size=10240, autoreport=False, **kwargs):
+    def __init__(self, target, events=None, functions=None, buffer_size=10240, autoreport=False, **kwargs):
+        events = events or []
+        functions = functions or []
         kwargs.update(dict(
             target=target,
             events=events,
