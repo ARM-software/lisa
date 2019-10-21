@@ -32,7 +32,7 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from cycler import cycler
 
-from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format
+from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython
 from lisa.trace import MissingTraceEventError
 
 # Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
@@ -61,7 +61,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         pass
 
     @classmethod
-    def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, interactive=True, **kwargs):
+    def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, interactive=None, **kwargs):
         """
         Common helper for setting up a matplotlib plot
 
@@ -80,7 +80,8 @@ class AnalysisHelpers(Loggable, abc.ABC):
         :param interactive: If ``True``, use the pyplot API of matplotlib,
             which integrates well with notebooks. However, it can lead to
             memory leaks in scripts generating lots of plots, in which case it
-            is better to use the non-interactive API.
+            is better to use the non-interactive API. Defaults to ``True`` when
+            running under IPython or Jupyter notebook, `False`` otherwise.
         :type interactive: bool
 
         :Keywords arguments: Extra arguments to pass to
@@ -89,6 +90,9 @@ class AnalysisHelpers(Loggable, abc.ABC):
         :returns: tuple(matplotlib.figure.Figure, matplotlib.axes.Axes (or an
           array of, if ``nrows`` > 1))
         """
+
+        if interactive is None:
+            interactive = is_running_ipython()
 
         if tuple(map(int, matplotlib.__version__.split('.'))) <= (3, 0, 3):
             warnings.warn('This version of matplotlib does not allow saving figures from axis created using Figure(), forcing interactive=True')
@@ -289,7 +293,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 remove_params=['local_fig'],
                 include_kwargs=True,
             )
-            def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=True, **kwargs):
+            def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=False, **kwargs):
 
                 # Bind the function to the instance, so we avoid having "self"
                 # showing up in the signature, which breaks parameter

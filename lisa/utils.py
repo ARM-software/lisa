@@ -845,6 +845,13 @@ def is_running_sphinx():
     """
     return 'sphinx' in sys.modules
 
+def is_running_ipython():
+    """
+    Returns True if running in IPython console or Jupyter notebook, False
+    otherwise.
+    """
+    return hasattr(__builtins__, '__IPYTHON__')
+
 def non_recursive_property(f):
     """
     Create a property that raises an :exc:`AttributeError` if it is re-entered.
