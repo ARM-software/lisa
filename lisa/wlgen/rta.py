@@ -455,6 +455,8 @@ class RTA(Workload):
         }
         dispersion_pct = max(abs(100 - factor) for factor in capa_factors_pct.values())
 
+        logger.info('CPU capacities according to rt-app workload: {}'.format(true_capacities))
+
         if dispersion_pct > 2:
             logger.warning('The calibration values are not inversely proportional to the CPU capacities, the duty cycles will be up to {:.2f}% off on some CPUs: {}'.format(dispersion_pct, capa_factors_pct))
 
