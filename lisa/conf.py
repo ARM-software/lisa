@@ -981,7 +981,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             self._key_map[key][src] = val
         return val
 
-    def eval_deferred(self, cls=DeferredValue, src=None):
+    def eval_deferred(self, cls=DeferredValue, src=None, resolve_src=True):
         """
         Evaluate instances of :class:`DeferredValue` that can be used for
         values that are expensive to compute.
@@ -994,8 +994,17 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         :param src: If not ``None``, only evaluate values that were added under
             that source name.
         :type src: str or None
+
+        :param resolve_src: If ``True``, resolve the source of each key and
+            only compute deferred values for this source.
+        :type resolve_src: bool
         """
         for key, src_map in self._key_map.items():
+
+            if resolve_src and src is None:
+                resolved_src = self.resolve_src(key)
+                src_map = {resolved_src: src_map[resolved_src]}
+
             for src_, val in src_map.items():
                 if src is not None and src != src_:
                     continue
@@ -1003,7 +1012,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                     self._eval_deferred_val(src_, key)
 
         for sublevel in self._sublevel_map.values():
-            sublevel.eval_deferred(cls, src)
+            sublevel.eval_deferred(cls, src, resolve_src)
 
     def __getstate__(self):
         """
