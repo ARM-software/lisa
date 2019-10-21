@@ -55,6 +55,58 @@ from lisa.conf import (
     StrList,
 )
 
+def _nested_formatter(multiline):
+    def sort_mapping(data):
+        if isinstance(data, Mapping):
+            # Ensure stable ordering of keys if possible
+            try:
+                data = OrderedDict(sorted(data.items()))
+            except TypeError:
+                data = data
+
+        return data
+
+    if multiline:
+        def format_data(data, level=0):
+            idt = '\n' + ' ' * 4 * level
+            def indent(s):
+                stripped = s.strip()
+                if '\n' in stripped:
+                    return idt + stripped.replace('\n', idt)
+                else:
+                    return stripped
+
+            if isinstance(data, TestMetric):
+                out = data.pretty_format(multiline=multiline)
+                out = indent(out) if '\n' in out else out
+
+            elif isinstance(data, Mapping):
+                data = sort_mapping(data)
+                body = '\n'.join(
+                    '{}: {}'.format(key, format_data(data, level + 1))
+                    for key, data in data.items()
+                )
+                out = indent(body)
+
+            else:
+                out = str(data)
+
+            return out
+    else:
+        def format_data(data):
+            # Handle recursive mappings, like metrics of AggregatedResultBundle
+            if isinstance(data, Mapping):
+                data = sort_mapping(data)
+                return '{' + ', '.join(
+                    '{}={}'.format(key, format_data(data))
+                    for key, data in data.items()
+                ) + '}'
+
+            else:
+                return str(data)
+
+    return format_data
+
 class TestMetric:
     """
     A storage class for metrics used by tests
@@ -69,11 +121,17 @@ class TestMetric:
         self.units = units
 
     def __str__(self):
-        if isinstance(self.data, Mapping):
-            result = '{{{}}}'.format(', '.join(
-                "{}={}".format(name, data) for name, data in self.data.items()))
-        else:
-            result = str(self.data)
+        return self.pretty_format(multiline=False)
+
+    def pretty_format(self, multiline=True):
+        """
+        Pretty print the metrics.
+
+        :param multiline: If ``True``, use a multiline format.
+        :type multiline: bool
+        """
+        format_data = _nested_formatter(multiline=multiline)
+        result = format_data(self.data)
 
         if self.units:
             result += ' ' + self.units
@@ -122,18 +180,18 @@ class ResultBundleBase:
         return self.result is Result.PASSED
 
     def __str__(self):
+        return self.pretty_format(multiline=False)
 
-        def format_val(val):
-            # Handle recursive mappings, like metrics of AggregatedResultBundle
-            if isinstance(val, Mapping):
-                return '{' + ', '.join(
-                    '{}={}'.format(key, format_val(val))
-                    for key, val in val.items()
-                ) + '}'
-            else:
-                return str(val)
+    def pretty_format(self, multiline=True):
+        format_data = _nested_formatter(multiline=multiline)
+        metrics_str = format_data(self.metrics)
+        if '\n' in metrics_str:
+            idt = '\n' + ' ' * 4
+            metrics_str = metrics_str.replace('\n', idt)
+        else:
+            metrics_str = ': ' + metrics_str
 
-        return self.result.name + ': ' + format_val(self.metrics)
+        return self.result.name + metrics_str
 
     def add_metric(self, name, data, units=None):
         """
