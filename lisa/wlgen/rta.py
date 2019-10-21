@@ -225,7 +225,7 @@ class RTA(Workload):
             # run(as_root=True), at which point we already generated and pushed
             # the JSON
             'lock_pages': False,
-            'logstats' : log_stats,
+            'log_size' : 'file' if log_stats else 'disable',
             'ftrace': ','.join(self.trace_events),
         }
 
