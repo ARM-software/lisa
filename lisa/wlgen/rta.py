@@ -281,6 +281,7 @@ class RTA(Workload):
         # Generate JSON configuration on local file
         with open(self.local_json, 'w') as outfile:
             json.dump(rta_profile, outfile, indent=4, separators=(',', ': '))
+            outfile.write('\n')
 
         self._late_init(calibration=calibration,
                         tasks_names=list(profile.keys()))
