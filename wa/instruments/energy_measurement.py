@@ -144,7 +144,13 @@ class DAQBackend(EnergyInstrumentBackend):
                   connector on the DAQ (varies between DAQ models). The default
                   assumes DAQ 6363 and similar with AI channels on connectors
                   0-7 and 16-23.
-                  """)
+                  """),
+        Parameter('keep_raw', kind=bool, default=False,
+                  description="""
+                  If set to ``True``, this will prevent the raw files obtained
+                  from the device before processing from being deleted
+                  (this is maily used for debugging).
+                  """),
     ]
 
     instrument = DaqInstrument
@@ -189,6 +195,12 @@ class EnergyProbeBackend(EnergyInstrumentBackend):
                   description="""
                   Path to /dev entry for the energy probe (it should be /dev/ttyACMx)
                   """),
+        Parameter('keep_raw', kind=bool, default=False,
+                  description="""
+                  If set to ``True``, this will prevent the raw files obtained
+                  from the device before processing from being deleted
+                  (this is maily used for debugging).
+                  """),
     ]
 
     instrument = EnergyProbeInstrument
@@ -223,6 +235,12 @@ class ArmEnergyProbeBackend(EnergyInstrumentBackend):
         Parameter('config_file', kind=str,
                   description="""
                   Path to config file of the AEP
+                  """),
+        Parameter('keep_raw', kind=bool, default=False,
+                  description="""
+                  If set to ``True``, this will prevent the raw files obtained
+                  from the device before processing from being deleted
+                  (this is maily used for debugging).
                   """),
     ]
 
@@ -282,6 +300,12 @@ class AcmeCapeBackend(EnergyInstrumentBackend):
                   description="""
                   Size of the capture buffer (in KB).
                   """),
+        Parameter('keep_raw', kind=bool, default=False,
+                  description="""
+                  If set to ``True``, this will prevent the raw files obtained
+                  from the device before processing from being deleted
+                  (this is maily used for debugging).
+                  """),
     ]
 
     # pylint: disable=arguments-differ
@@ -307,7 +331,7 @@ class AcmeCapeBackend(EnergyInstrumentBackend):
         for iio_device in iio_devices:
             ret[iio_device] = AcmeCapeInstrument(
                 target, iio_capture=iio_capture, host=host,
-                iio_device=iio_device, buffer_size=buffer_size)
+                iio_device=iio_device, buffer_size=buffer_size, keep_raw=self.keep_raw)
         return ret
 
 
@@ -510,3 +534,7 @@ class EnergyMeasurement(Instrument):
                 units = metrics[0].units
                 value = sum(m.value for m in metrics)
                 context.add_metric(name, value, units)
+
+    def teardown(self, context):
+        for instrument in self.instruments.values():
+            instrument.teardown()

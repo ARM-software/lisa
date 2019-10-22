@@ -123,7 +123,7 @@ public class UiAutomation extends BaseUiAutomation {
                                                .childSelector(new UiSelector().text("RUN")
                                                .className("android.view.View")));
         if (run.exists()) {
-            run.click();
+            run.clickTopLeft();
         } else {
             UiObject runtext =
                 mDevice.findObject(new UiSelector().text("RUN"));

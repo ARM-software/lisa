@@ -41,7 +41,7 @@ class AdobeReader(ApkUiautoWorkload):
         Search ``document_name`` for each string in the ``search_string_list``
     4. Close the document
 
-    Known working APK version: 16.1
+    Known working APK version: 19.7.1.10709
     '''
 
     default_search_strings = [

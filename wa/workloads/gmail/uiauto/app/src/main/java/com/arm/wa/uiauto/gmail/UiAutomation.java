@@ -20,6 +20,7 @@ import android.support.test.runner.AndroidJUnit4;
 import android.support.test.uiautomator.UiObject;
 import android.support.test.uiautomator.UiObjectNotFoundException;
 import android.support.test.uiautomator.UiSelector;
+import android.util.Log;
 
 import com.arm.wa.uiauto.ApplaunchInterface;
 import com.arm.wa.uiauto.BaseUiAutomation;
@@ -40,6 +41,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
     protected String recipient;
     protected String workdir_name;
     protected boolean offlineMode;
+    protected String test_image;
 
     private int networkTimeoutSecs = 30;
     private long networkTimeout =  TimeUnit.SECONDS.toMillis(networkTimeoutSecs);
@@ -51,6 +53,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         recipient = parameters.getString("recipient");
         workdir_name = parameters.getString("workdir_name");
         offlineMode = parameters.getBoolean("offline_mode");
+        test_image = parameters.getString("test_image");
     }
 
     @Test
@@ -112,6 +115,26 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
                                          .className("android.widget.TextView"));
         if (takeMeToBox.exists()) {
             takeMeToBox.clickAndWaitForNewWindow(uiAutoTimeout);
+
+            UiObject noEmailAddressMessage = mDevice.findObject(new UiSelector()
+                .textContains("Please add at least one email address.")
+                .className("android.widget.TextView"));
+
+            if (noEmailAddressMessage.exists()) {
+                throw new UiObjectNotFoundException("No email account setup on device. Set up at least one email address");
+            }
+        }
+        
+        // Dismiss fresh new look pop up messages
+        UiObject newLookMessageDismissButton =
+            mDevice.findObject(new UiSelector().resourceId(packageID + "gm_dismiss_button")
+                                         .className("android.widget.Button"));
+        if(newLookMessageDismissButton.exists()) {
+            newLookMessageDismissButton.click();
+        }
+        //Dismiss secondary message also with same button
+        if(newLookMessageDismissButton.exists()) {
+            newLookMessageDismissButton.click();
         }
 
         // If we're in offline mode we don't need to worry about syncing, so we're done
@@ -142,11 +165,6 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
             !waitUntilNoObject(waitingSync, networkTimeoutSecs*4)) {
             throw new UiObjectNotFoundException("Device cannot sync! Try rebooting or clearing app data");
         }
-    }
-
-    public void clickNewMail() throws Exception {
-        String testTag = "click_new";
-        ActionLogger logger = new ActionLogger(testTag, parameters);
 
         UiObject conversationView =
             mDevice.findObject(new UiSelector().resourceIdMatches(packageID + "conversation_list.*"));
@@ -154,8 +172,34 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
             throw new UiObjectNotFoundException("Could not find \"conversationView\".");
         }
 
+        //Get rid of smart compose message on newer versions and return to home screen before ckickNewMail test
         UiObject newMailButton =
             getUiObjectByDescription("Compose", "android.widget.ImageButton");
+        newMailButton.click();
+
+        UiObject smartComposeDismissButton = mDevice.findObject(new UiSelector().textContains("Got it")
+                                                                                .className("android.widget.Button"));
+        if(smartComposeDismissButton.exists()) {
+            smartComposeDismissButton.click();
+        }
+
+        // Return to conversation/home screen
+        mDevice.pressBack();
+        if(!conversationView.exists()) {
+           mDevice.pressBack(); 
+        }
+        if(!conversationView.exists()) {
+           mDevice.pressBack(); 
+        }
+    }
+
+    public void clickNewMail() throws Exception {
+        String testTag = "click_new";
+        ActionLogger logger = new ActionLogger(testTag, parameters);
+
+        UiObject newMailButton =
+            getUiObjectByDescription("Compose", "android.widget.ImageButton");
+
         logger.start();
         newMailButton.clickAndWaitForNewWindow(uiAutoTimeout);
         logger.stop();
@@ -189,58 +233,55 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         if (rootMenu.exists()){
             rootMenu.click();
         }
-        // Check for Photos
-        UiObject photos =
-            mDevice.findObject(new UiSelector().text("Photos")
+
+        UiObject imagesEntry =
+            mDevice.findObject(new UiSelector().textContains("Images")
                                                .className("android.widget.TextView"));
-        // If Photos does not exist use the images folder
-        if (!photos.waitForExists (uiAutoTimeout)) {
-            UiObject imagesEntry =
-                mDevice.findObject(new UiSelector().textContains("Images")
-                                                   .className("android.widget.TextView"));
-            if (imagesEntry.waitForExists(uiAutoTimeout)) {
-                imagesEntry.click();
-            }
+        if (imagesEntry.waitForExists(uiAutoTimeout)) {
+            imagesEntry.click();
+
             selectGalleryFolder(workdir_name);
 
-            UiObject imageButton =
-            mDevice.findObject(new UiSelector().resourceId("com.android.documentsui:id/grid")
-                                               .className("android.widget.Gridview")
-                                               .childSelector(new UiSelector().index(0)
-                                               .className("android.widget.FrameLayout")));
-            if (!imageButton.exists()){
-                imageButton =
-                    mDevice.findObject(new UiSelector().resourceId("com.android.documentsui:id/dir_list")
-                                                       .childSelector(new UiSelector().index(0)
-                                                       .classNameMatches("android.widget..*Layout")));
-                }
+            //Switch from grid view to menu view to display filename on larger screens
+            UiObject menuListButton = mDevice.findObject(new UiSelector().resourceId("com.android.documentsui:id/menu_list") 
+                                                                         .className("android.widget.TextView"));
+            if (menuListButton.exists()) {
+                menuListButton.click();
+            }
+
+            UiObject imageButton = mDevice.findObject(new UiSelector().textContains(test_image)
+                                                                      .className("android.widget.TextView"));
+
             imageButton.click();
             imageButton.waitUntilGone(uiAutoTimeout);
-        } else {
+        } else { // Use google photos as fallback
+            UiObject photos =
+                mDevice.findObject(new UiSelector().text("Photos")
+                                                   .className("android.widget.TextView"));
+                
             photos.click();
-            //Click wa folder image
+
             UiObject working_directory =
-            mDevice.findObject(new UiSelector().textContains(workdir_name)
-                                               .className("android.widget.TextView"));
-            if (!working_directory.waitForExists (uiAutoTimeout)) {
-                UiObject refresh =
-                    getUiObjectByResourceId("com.google.android.apps.photos:id/image");
-                    refresh.clickAndWaitForNewWindow();
-                UiObject back =
-                    getUiObjectByResourceId("com.google.android.apps.photos:id/action_mode_close_button");
-                    back.clickAndWaitForNewWindow();
-            }
+                mDevice.findObject(new UiSelector().textContains(workdir_name)
+                                                   .className("android.widget.TextView"));
+
             working_directory.waitForExists (uiAutoTimeout);
             working_directory.click();
+            
             //Click test image
             UiObject imageFileButton =
                 mDevice.findObject(new UiSelector().descriptionContains("Photo"));
+            
             imageFileButton.click();
+            
             UiObject accept = getUiObjectByText("DONE");
+            
             if (accept.waitForExists (uiAutoTimeout)) {
                 accept.click();
             }
+
         }
+        
         logger.stop();
     }
 
@@ -272,7 +313,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         String testTag = "text_body";
         ActionLogger logger = new ActionLogger(testTag, parameters);
 
-        UiObject composeField = mDevice.findObject(new UiSelector().textContains("Compose email")                                                   );
+        UiObject composeField = mDevice.findObject(new UiSelector().textContains("Compose email"));
         if (!composeField.exists()){
             composeField = mDevice.findObject(new UiSelector().descriptionContains("Compose email"));
         }

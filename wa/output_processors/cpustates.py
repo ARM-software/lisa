@@ -94,6 +94,12 @@ class CpuStatesProcessor(OutputProcessor):
         if not trace_file:
             self.logger.warning('Text trace does not appear to have been generated; skipping this iteration.')
             return
+        if 'cpufreq' not in target_info.modules:
+            msg = '"cpufreq" module not detected on target, cpu frequency information may be missing.'
+            self.logger.warning(msg)
+        if 'cpuidle' not in target_info.modules:
+            msg = '"cpuidle" module not detected on target, cpu idle information may be missing.'
+            self.logger.debug(msg)
 
         self.logger.info('Generating power state reports from trace...')
         reports = report_power_stats(  # pylint: disable=unbalanced-tuple-unpacking
