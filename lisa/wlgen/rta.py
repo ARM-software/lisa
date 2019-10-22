@@ -523,7 +523,7 @@ class RTA(Workload):
         :returns: Dict mapping CPU numbers to rt-app calibration values.
         """
 
-        if 'cpufreq' not in target.modules:
+        if not target.is_module_available('cpufreq'):
             cls.get_logger().warning(
                 'cpufreq module not loaded, skipping setting frequency to max')
             cm = nullcontext()

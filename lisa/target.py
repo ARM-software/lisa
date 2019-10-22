@@ -297,6 +297,28 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         logger.info('Effective platform information:\n{}'.format(self.plat_info))
 
+    def is_module_available(self, module):
+        """
+        Check if the given devlib module is available.
+
+        :returns: ``True`` if module is available, ``False`` otherwise.
+
+        :param module: Devlib module to check.
+        :type module: str
+
+        .. note:: This will attempt to load the module if it's not loaded
+            already, and bail out if it fails to load.
+        """
+        if module not in _DEVLIB_AVAILABLE_MODULES:
+            raise ValueError('"{}" is not a devlib module'.format(module))
+
+        try:
+            getattr(self, module)
+        except Exception:
+            return False
+        else:
+            return True
+
     def __getattr__(self, attr):
         """
         Forward all non-overriden attributes/method accesses to the underlying
@@ -746,7 +768,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             logger.warning('Could not freeze userspace: target is not rooted')
             cm = nullcontext
         else:
-            if 'cgroups' not in self.target.modules:
+            if not self.is_module_available('cgroups'):
                 raise RuntimeError('Could not freeze userspace: "cgroups" devlib module is necessary')
 
             controllers = [s.name for s in self.target.cgroups.list_subsystems()]

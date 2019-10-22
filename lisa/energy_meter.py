@@ -149,7 +149,7 @@ class HWMon(EnergyMeter):
         # Energy readings
         self.readings = {}
 
-        if 'hwmon' not in self._target.modules:
+        if not self._target.is_module_available('hwmon'):
             raise RuntimeError('HWMON devlib module not enabled')
 
         # Initialize HWMON instrument
