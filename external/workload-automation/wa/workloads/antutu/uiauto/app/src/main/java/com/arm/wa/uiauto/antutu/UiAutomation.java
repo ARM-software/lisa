@@ -44,7 +44,8 @@ public class UiAutomation extends BaseUiAutomation {
 
     @Test
     public void setup() throws Exception {
-        dismissAndroidVersionPopup();
+       dismissAndroidVersionPopup();
+       clearPopups();
     }
 
     @Test
@@ -63,6 +64,15 @@ public class UiAutomation extends BaseUiAutomation {
             mDevice.findObject(new UiSelector().resourceId("com.antutu.ABenchMark:id/main_test_start_title"));
         testbutton.click();
         sleep(1);
+    }
+
+    public void clearPopups() throws Exception {
+        UiObject cancel =
+            mDevice.findObject(new UiSelector().textContains("CANCEL"));
+        cancel.waitForExists(5000);
+        if (cancel.exists()){
+            cancel.click();
+        }
     }
 
     public void waitforCompletion() throws Exception {
