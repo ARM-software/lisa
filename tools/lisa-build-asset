@@ -1,0 +1,212 @@
+#! /usr/bin/env python3
+
+import argparse
+import subprocess
+import os
+import tempfile
+import shutil
+import sys
+
+from lisa.utils import nullcontext
+
+LISA_HOME = os.environ['LISA_HOME']
+
+def get_env(asset, arch, toolchain, recipe, build_dir):
+    # Set of env var "leaking" into the build environment. Controlling this set
+    # ensures reproducible builds that do not depend on user setup.
+    leaked = {'PATH'}
+    env = {
+        var: val
+        for var, val in os.environ.items()
+        if var.startswith('LISA_') or var in leaked
+    }
+
+    env.update({
+        'ARCH': arch,
+        'LISA_ASSET': asset,
+        'LISA_ASSET_RECIPE': recipe,
+        'LISA_ARCH_ASSETS': os.path.join(LISA_HOME, 'lisa', 'assets', 'binaries', arch),
+        'BUILD_DIR': os.path.abspath(build_dir),
+        'CROSS_COMPILE': toolchain + '-' if toolchain else None,
+        'CONFIGURE_HOST': os.path.basename(toolchain) if toolchain else None,
+    })
+
+    env = {
+        var: val
+        for var, val in env.items()
+        if val is not None
+    }
+
+    with open(recipe) as f:
+        recipe_content = f.read()
+
+    used_env_var = {
+        var
+        for var in env.keys()
+        if var in recipe_content
+    }
+    env['LISA_ASSET_RECIPE_USED_ENV'] = ' '.join(sorted(used_env_var))
+
+    return env
+
+def list_assets(recipe_dir):
+    recipes = os.listdir(recipe_dir)
+    return sorted(
+        os.path.splitext(script)[0]
+        for script in recipes
+        if script.endswith('.recipe')
+    )
+
+def get_asset_recipe(asset, recipe_dir):
+    return os.path.join(recipe_dir, '{}.recipe'.format(asset))
+
+def make(asset, actions, arch, toolchain, recipe_dir, build_dir):
+    recipe = get_asset_recipe(asset, recipe_dir)
+    env = get_env(asset, arch, toolchain, recipe, build_dir)
+    for action in actions:
+        print('\nMaking {} {} {} in: {}\n'.format(arch, asset, action, build_dir))
+
+        script = 'source {recipe} && {action}'.format(
+            recipe=recipe,
+            action=action,
+        )
+        cmd = ['bash', '-c', script]
+        subprocess.check_call(cmd, env=env, cwd=build_dir)
+
+ARCHITECTURES = ['arm64', 'armeabi', 'x86_64']
+
+def make_asset(asset, arch_list, build_dir, recipe_dir, toolchains):
+    if build_dir:
+        shutil.rmtree(build_dir, ignore_errors=True)
+        os.makedirs(build_dir, exist_ok=True)
+        cm = nullcontext(build_dir)
+    else:
+        cm = tempfile.TemporaryDirectory()
+
+    with cm as build_dir:
+        # All architectures need to be built
+        if len(arch_list) > 1:
+            # Download sources once for all architectures
+            download_dir = os.path.join(build_dir, 'download')
+            os.makedirs(download_dir)
+            make(asset, ['download'], arch='any', toolchain=None, recipe_dir=recipe_dir, build_dir=download_dir)
+
+            # Build and install for each
+            actions = ['build', 'install']
+            for arch in arch_list:
+                arch_build_dir = os.path.join(build_dir, arch)
+                shutil.copytree(download_dir, arch_build_dir)
+
+                toolchain = toolchains[arch]
+                make(asset, actions, arch, toolchain, recipe_dir, arch_build_dir)
+
+        # Only one architecture was requested
+        else:
+            arch = arch_list[0]
+            actions = ['download', 'build', 'install']
+            toolchain = toolchains[arch]
+            make(asset, actions, arch, toolchain, recipe_dir, build_dir)
+
+def error_missing_toolchains(parser, missing):
+    parser.error('Missing toolchains, please specify: {}'.format(
+        ', '.join(
+            '--{}-toolchain'.format(arch)
+            for arch in missing
+        )
+    ))
+
+def main():
+    recipe_dir = os.path.join(LISA_HOME, 'tools', 'recipes')
+    asset_list = list_assets(recipe_dir)
+
+    try:
+        cross_compile = os.environ['CROSS_COMPILE']
+    except KeyError:
+        default_toolchains = {
+            'armeabi': 'arm-linux-gnueabi',
+            'arm64': 'aarch64-linux-gnu',
+        }
+    else:
+        default_toolchains = {
+            arch: cross_compile
+            for arch in ARCHITECTURES
+        }
+
+    try:
+        host_arch = os.environ['LISA_HOST_ABI']
+    except KeyError:
+        pass
+    else:
+        default_toolchains[host_arch] = ''
+
+    parser = argparse.ArgumentParser(
+        description="""
+        Build LISA binary assets.
+
+        Build recipes are available in: {recipe_dir}
+        """.format(recipe_dir=recipe_dir),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument('asset', help='Asset to build',
+        choices=['all'] + asset_list,
+    )
+    parser.add_argument('--arch', help='Architecture to build for',
+        default='all',
+        choices=ARCHITECTURES + ['all'],
+    )
+
+    for arch in ARCHITECTURES:
+        parser.add_argument('--{}-toolchain'.format(arch),
+            default=default_toolchains.get(arch),
+            help='Name of the toolchain for {} (CROSS_COMPILE without trailing dash)'.format(arch),
+        )
+
+    parser.add_argument('--build-dir', help='Build director. Defaults to temp folder')
+    args = parser.parse_args()
+
+    toolchains = {
+        arch: vars(args).get('{}_toolchain'.format(arch))
+        for arch in ARCHITECTURES
+    }
+
+    if args.arch == 'all':
+        missing = sorted(
+            arch
+            for arch, toolchain in toolchains.items()
+            if toolchain is None
+        )
+
+        if missing:
+            error_missing_toolchains(parser, missing)
+
+    elif toolchains[args.arch] is None:
+        error_missing_toolchains(parser, [args.arch])
+
+
+    if args.asset == 'all':
+        assets_to_make = asset_list
+    else:
+        assets_to_make = [args.asset]
+
+    if args.arch == 'all':
+        archs_to_make = ARCHITECTURES
+    else:
+        archs_to_make = [args.arch]
+
+    print('Will make {} for {}'.format(
+        ', '.join(assets_to_make),
+        ', '.join(archs_to_make),
+    ))
+
+    ret = 0
+    for asset in assets_to_make:
+        try:
+            make_asset(asset, archs_to_make, args.build_dir, recipe_dir, toolchains)
+        except Exception as e:
+            print('\nError while making {}: {}\n'.format(asset, e))
+            ret = 1
+
+    return ret
+
+if __name__ == '__main__':
+   sys.exit(main())

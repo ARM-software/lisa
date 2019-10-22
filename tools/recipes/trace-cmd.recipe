@@ -1,0 +1,54 @@
+#! /bin/bash
+
+download() {
+    # Official repo lacks some old version tags
+    # git clone git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
+    # So we use the personal one from Steven Rostedt
+    git clone git://git.kernel.org/pub/scm/linux/kernel/git/rostedt/trace-cmd.git
+
+    git -C trace-cmd checkout trace-cmd-v2.4.2
+}
+
+# For trace-cmd v2.8.3
+# TRACE_CMD_BIN=tracecmd/trace-cmd
+
+# For older versions of trace-cmd
+TRACE_CMD_BIN=trace-cmd
+
+build() {
+    cd trace-cmd
+
+    export PYTHON_VERS=python3
+    # trace-cmd needs explicit CC and AR from the environment to successfully
+    # cross-compile a static build
+    export CC="$CROSS_COMPILE"gcc
+    export AR="$CROSS_COMPILE"ar
+    export LD="$CROSS_COMPILE"ld
+
+    # Disable libaudit, to limit the amount of dependencies
+    make LDFLAGS="-static" trace-cmd NO_AUDIT=yes
+    "$CROSS_COMPILE"strip "$TRACE_CMD_BIN"
+}
+
+install() {
+    cd trace-cmd
+    cp -v "$TRACE_CMD_BIN" "$LISA_ARCH_ASSETS/trace-cmd"
+
+    source "$LISA_HOME/tools/recipes/utils.sh"
+    install_readme trace-cmd . COPYING
+}
+
+
+# Do not use libaudit unless there is a good reason, to avoid build issues in
+# non-necessary dependencies
+download_audit() {
+    git clone https://github.com/linux-audit/audit-userspace.git
+    git -C audit-userspace checkout master
+}
+
+build_audit() {
+    cd audit-userspace
+    ./autogen.sh
+    ./configure --disable-shared
+    make
+}

@@ -1,0 +1,32 @@
+#! /bin/bash
+
+download() {
+    git clone git://git.kernel.org/pub/scm/utils/util-linux/util-linux.git
+    git -C util-linux checkout 448e6c3567988492d8724f26950ff167ab58d22a
+}
+
+build() {
+    cd util-linux
+
+    ./autogen.sh
+    ./configure --host=$CONFIGURE_HOST \
+                --disable-shared \
+                --without-tinfo \
+                --without-ncurses \
+                --without-ncursesw \
+                --disable-widechar \
+                --without-python \
+                --enable-static-programs=dmesg,taskset
+    make dmesg taskset LDFLAGS='--static'
+
+    "$CROSS_COMPILE"strip dmesg taskset
+}
+
+install() {
+    cp -v util-linux/dmesg "$LISA_ARCH_ASSETS/dmesg"
+    cp -v util-linux/taskset "$LISA_ARCH_ASSETS/taskset"
+
+    source "$LISA_HOME/tools/recipes/utils.sh"
+    install_readme dmesg util-linux COPYING
+    install_readme taskset util-linux COPYING
+}
