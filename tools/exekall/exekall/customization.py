@@ -251,8 +251,9 @@ class AdaptorBase:
             for result in result_list:
                 msg = self.format_result(result)
                 msg = msg + '\n' if '\n' in msg else msg
-                summary.append('{id:<{max_id_len}} {result}'.format(
+                summary.append('{id:<{max_id_len}} UUID={uuid} {result}'.format(
                     id=result_id_map[result],
+                    uuid=result.uuid,
                     result=msg,
                     max_id_len=max_id_len,
                 ))
@@ -290,4 +291,3 @@ class AdaptorBase:
             if subcls.name == name:
                 return subcls
         return None
-

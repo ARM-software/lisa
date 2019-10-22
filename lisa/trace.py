@@ -72,9 +72,11 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
 
     def __str__(self):
         if self.pid is not None and self.comm is not None:
-            return '{}:{}'.format(self.pid, self.comm)
+            out = '{}:{}'.format(self.pid, self.comm)
         else:
-            return str(self.comm if self.comm is not None else self.pid)
+            out = str(self.comm if self.comm is not None else self.pid)
+
+        return '[{}]'.format(out)
 
 
 class TraceBase(abc.ABC):

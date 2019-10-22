@@ -542,3 +542,13 @@ comparison. Can be repeated.""")
                 if val.result is Result.FAILED:
                     return 10
         return 0
+
+    def format_result(self, expr_val):
+        val = expr_val.value
+        if val is NoValue or val is None:
+            return super().format_result(expr_val)
+        else:
+            if isinstance(val, ResultBundleBase):
+                return val.pretty_format()
+            else:
+                return str(val)
