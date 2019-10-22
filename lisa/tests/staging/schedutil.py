@@ -17,6 +17,7 @@
 
 from math import ceil
 import os
+import itertools
 
 import pandas as pd
 
@@ -77,8 +78,32 @@ class RampBoostTestBase(RTATestBundle):
         cpu = self.cpu
 
         # schedutil_df also has a 'util' column that would conflict
-        schedutil_df = trace.df_events('schedutil_em')[['cpu', 'cost_margin']]
+        schedutil_df = trace.df_events('schedutil_em')[['cpu', 'cost_margin', 'base_freq']]
         schedutil_df['from_schedutil'] = True
+
+        def compute_base_cost(row):
+            freq = row['base_freq']
+            cpu = row['cpu']
+
+            em = self.plat_info['nrg-model']
+            active_states = em.cpu_nodes[cpu].active_states
+            freqs = sorted(active_states.keys())
+            max_freq = max(freqs)
+
+            def cost(freq):
+                higher_freqs = list(itertools.dropwhile(lambda f: f < freq, freqs))
+                freq = freqs[-1] if not higher_freqs else higher_freqs[0]
+                active_state = active_states[freq]
+                return active_state.power * max_freq / freq
+
+            max_cost = max(
+                cost(freq)
+                for freq in active_states.keys()
+            )
+
+            return cost(freq) / max_cost * 100
+
+        schedutil_df['base_cost'] = schedutil_df.apply(compute_base_cost, axis=1)
 
         df_list = [
             schedutil_df,
@@ -113,7 +138,7 @@ class RampBoostTestBase(RTATestBundle):
         )
         df['boost_points'] = boost_points
 
-        df['expected_cost_margin'] = (df['util'] - df['util_est_enqueued']).where(
+        df['expected_cost_margin'] = ((df['util'] - df['util_est_enqueued'])).where(
             cond=boost_points,
             other=0,
         )
@@ -123,6 +148,8 @@ class RampBoostTestBase(RTATestBundle):
 
         for col in ('expected_cost_margin', 'cost_margin'):
             df[col] *= 100 / ENERGY_SCALE
+
+        df['allowed_cost'] = df['base_cost'] + df['cost_margin']
 
         # We cannot know if the first row is supposed to be boosted or not
         # because we lack history, so we just drop it
@@ -135,6 +162,8 @@ class RampBoostTestBase(RTATestBundle):
         df['cost_margin'].plot(ax=axis, drawstyle='steps-post', color='r')
         df['boost_points'].astype('int', copy=False).plot(ax=axis, drawstyle='steps-post', color='black')
         df['expected_cost_margin'].plot(ax=axis, drawstyle='steps-post', color='blue')
+        df['base_cost'].plot(ax=axis, drawstyle='steps-post', color='orange')
+        df['allowed_cost'].plot(ax=axis, drawstyle='steps-post', color='green')
 
         self.trace.analysis.tasks.plot_task_activation(task, axis=axis, overlay=True)
 
@@ -182,6 +211,7 @@ class RampBoostTestBase(RTATestBundle):
         # "post" steps
         expected_boost_nrg = series_mean(df['expected_cost_margin'])
         actual_boost_nrg = series_mean(df['cost_margin'])
+        boost_overhead = series_mean(df['cost_margin'] / df['base_cost'] * 100)
 
         # Check that the total amount of boost is close to expectations
         lower = max(0, expected_boost_nrg - nrg_threshold_pct)
@@ -201,8 +231,9 @@ class RampBoostTestBase(RTATestBundle):
 
         passed = passed_overhead and passed_shape
         res = ResultBundle.from_bool(passed)
-        res.add_metric('expected boost energy overhead', expected_boost_nrg, '%')
-        res.add_metric('boost energy overhead', actual_boost_nrg, '%')
+        res.add_metric('expected boost energy', expected_boost_nrg, '%')
+        res.add_metric('boost energy', actual_boost_nrg, '%')
+        res.add_metric('boost overhead', boost_overhead, '%')
         res.add_metric('bad boost samples', bad_shape_pct, '%')
 
         # Add some slack metrics and plots
