@@ -225,7 +225,7 @@ class RTA(Workload):
             # run(as_root=True), at which point we already generated and pushed
             # the JSON
             'lock_pages': False,
-            'logstats' : log_stats,
+            'log_size' : 'file' if log_stats else 'disable',
             'ftrace': ','.join(self.trace_events),
         }
 
@@ -281,6 +281,7 @@ class RTA(Workload):
         # Generate JSON configuration on local file
         with open(self.local_json, 'w') as outfile:
             json.dump(rta_profile, outfile, indent=4, separators=(',', ': '))
+            outfile.write('\n')
 
         self._late_init(calibration=calibration,
                         tasks_names=list(profile.keys()))
@@ -733,7 +734,7 @@ class Ramp(RTATask):
                 phase = Phase(time_s, 0, 0, cpus, uclamp_min=uclamp_min,
                               uclamp_max=uclamp_max)
             else:
-                phase = Phase(time_s, period_ms, load, cpus, 
+                phase = Phase(time_s, period_ms, load, cpus,
                               uclamp_min=uclamp_min, uclamp_max=uclamp_max)
             phases.append(phase)
 
@@ -858,7 +859,7 @@ class Periodic(Pulse):
                  uclamp_min=None, uclamp_max=None):
         super(Periodic, self).__init__(duty_cycle_pct, 0, duration_s,
                                        period_ms, delay_s, 1, sched_policy,
-                                       priority, cpus, 
+                                       priority, cpus,
                                        uclamp_min=uclamp_min,
                                        uclamp_max=uclamp_max)
 
