@@ -47,6 +47,22 @@ class PasswordKeyDesc(KeyDesc):
     def pretty_format(self, v):
         return '<password>'
 
+
+
+# Make sure all submodules of devlib.module are imported so the classes
+# are all created before we list them
+import_all_submodules(devlib.module)
+_DEVLIB_AVAILABLE_MODULES = {
+    cls.name
+    for cls in get_subclasses(devlib.module.Module)
+    if (
+        getattr(cls, 'name', None)
+        # early modules try to connect to UART and do very
+        # platform-specific things we are not interested in
+        and getattr(cls, 'stage') != 'early'
+    )
+}
+
 class TargetConf(SimpleMultiSrcConf, HideExekallID):
     """
     Target connection settings.
@@ -288,14 +304,33 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         .. note:: That will not forward special methods like __str__, since the
             interpreter bypasses __getattr__ when looking them up.
+
+        .. note:: Devlib modules are loaded on demand when accessed.
         """
-        return getattr(self.target, attr)
+        get = lambda: getattr(self.target, attr)
+
+        try:
+            return get()
+        except AttributeError:
+            # Load the module on demand
+            if attr in self._devlib_loadable_modules:
+                self.get_logger().info('Loading target devlib module {}'.format(attr))
+                self.target.install_module(attr)
+                return get()
+            # If it was not in the loadable list, it
+            # has been excluded explicitly
+            elif attr in _DEVLIB_AVAILABLE_MODULES:
+                raise AttributeError('Devlib target module {} was explicitly excluded, not loading it'.format(attr))
+            # Something else that does not exists ...
+            else:
+                raise
 
     def __dir__(self):
         """
-        List our attributes plus the ones from the underlying target.
+        List our attributes plus the ones from the underlying target, and the
+        devlib modules that could be loaded on-demand.
         """
-        attrs = set(super().__dir__()) | set(dir(self.target))
+        attrs = set(super().__dir__()) | set(dir(self.target)) | self._devlib_loadable_modules
         return sorted(attrs)
 
     @classmethod
@@ -559,28 +594,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         ########################################################################
         # Devlib modules configuration
         ########################################################################
-
-        # Make sure all submodules of devlib.module are imported so the classes
-        # are all created
-        import_all_submodules(devlib.module)
-        # Get all devlib Module subclasses that exist
-        devlib_module_set = {
-            cls.name
-            for cls in get_subclasses(devlib.module.Module)
-            if (
-                getattr(cls, 'name', None)
-                # early modules try to connect to UART and do very
-                # platform-specific things we are not interested in
-                and getattr(cls, 'stage') != 'early'
-            )
-        }
-
-        # The platform can define a list of modules to exclude, in case a given
-        # module really have troubles on a given platform.
-        devlib_module_set.difference_update(devlib_excluded_modules)
-
-        devlib_module_list = sorted(devlib_module_set)
-        logger.info('Devlib modules to load: %s', ', '.join(devlib_module_list))
+        self._devlib_loadable_modules = _DEVLIB_AVAILABLE_MODULES - set(devlib_excluded_modules)
 
         ########################################################################
         # Create devlib Target object
@@ -588,7 +602,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         target = devlib_target_cls(
             platform = devlib_platform,
-            modules = devlib_module_list,
             load_default_modules = False,
             connection_settings = conn_settings,
             working_directory = workdir,
@@ -614,10 +627,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         target.setup()
 
-        # Verify that all the required modules have been initialized
-        for module in devlib_module_list:
-            if not hasattr(target, module):
-                logger.warning('Failed to initialized "{}" devlib Module'.format(module))
         return target
 
     def get_res_dir(self, name=None, append_time=True, symlink=True):
