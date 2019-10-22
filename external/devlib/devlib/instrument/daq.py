@@ -14,6 +14,7 @@
 #
 
 import os
+import shutil
 import tempfile
 from itertools import chain
 
@@ -44,9 +45,11 @@ class DaqInstrument(Instrument):
                  dv_range=0.2,
                  sample_rate_hz=10000,
                  channel_map=(0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23),
+                 keep_raw=False
                  ):
         # pylint: disable=no-member
         super(DaqInstrument, self).__init__(target)
+        self.keep_raw = keep_raw
         self._need_reset = True
         self._raw_files = []
         if execute_command is None:
@@ -154,6 +157,9 @@ class DaqInstrument(Instrument):
 
     def teardown(self):
         self.execute('close')
+        if not self.keep_raw:
+            if os.path.isdir(tempdir):
+                shutil.rmtree(tempdir)
 
     def execute(self, command, **kwargs):
         return execute_command(self.server_config, command, **kwargs)
