@@ -48,7 +48,7 @@ class ThermalZone(object):
         self.path = target.path.join(root, self.name)
         self.trip_points = {}
 
-        for entry in self.target.list_directory(self.path):
+        for entry in self.target.list_directory(self.path, as_root=target.is_rooted):
             re_match = re.match('^trip_point_([0-9]+)_temp', entry)
             if re_match is not None:
                 self.add_trip_point(re_match.group(1))

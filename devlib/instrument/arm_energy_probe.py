@@ -71,7 +71,7 @@ class ArmEnergyProbeInstrument(Instrument):
 
     MAX_CHANNELS = 12 # 4 Arm Energy Probes
 
-    def __init__(self, target, config_file='./config-aep', ):
+    def __init__(self, target, config_file='./config-aep', keep_raw=False):
         super(ArmEnergyProbeInstrument, self).__init__(target)
         self.arm_probe = which('arm-probe')
         if self.arm_probe is None:
@@ -80,6 +80,7 @@ class ArmEnergyProbeInstrument(Instrument):
         self.attributes = ['power', 'voltage', 'current']
         self.sample_rate_hz = 10000
         self.config_file = config_file
+        self.keep_raw = keep_raw
 
         self.parser = AepParser()
         #TODO make it generic
@@ -142,3 +143,8 @@ class ArmEnergyProbeInstrument(Instrument):
 
     def get_raw(self):
         return [self.output_file_raw]
+
+    def teardown(self):
+        if not self.keep_raw:
+            if os.path.isfile(self.output_file_raw):
+                os.remove(self.output_file_raw)
