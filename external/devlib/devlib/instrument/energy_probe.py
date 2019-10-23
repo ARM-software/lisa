@@ -34,9 +34,11 @@ class EnergyProbeInstrument(Instrument):
     def __init__(self, target, resistor_values,
                  labels=None,
                  device_entry='/dev/ttyACM0',
+                 keep_raw=False
                  ):
         super(EnergyProbeInstrument, self).__init__(target)
         self.resistor_values = resistor_values
+        self.keep_raw = keep_raw
         if labels is not None:
             self.labels = labels
         else:
@@ -126,3 +128,8 @@ class EnergyProbeInstrument(Instrument):
 
     def get_raw(self):
         return [self.raw_data_file]
+
+    def teardown(self):
+        if self.keep_raw:
+            if os.path.isfile(self.raw_data_file):
+                os.remove(self.raw_data_file)

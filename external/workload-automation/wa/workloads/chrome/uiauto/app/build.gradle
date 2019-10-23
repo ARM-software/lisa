@@ -6,7 +6,7 @@ android {
     defaultConfig {
         applicationId "com.arm.wa.uiauto.chrome"
         minSdkVersion 18
-        targetSdkVersion 25
+        targetSdkVersion 28
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {

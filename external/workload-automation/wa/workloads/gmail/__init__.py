@@ -44,7 +44,7 @@ class Gmail(ApkUiautoWorkload):
     The result should then be placed in the '~/.workload_automation/dependencies/gmail/' directory
     on your local machine, creating this if it does not already exist.
 
-    Known working APK version: 7.11.5.176133587
+    Known working APK version: 2019.05.26.252424914.release
     '''
 
     parameters = [
@@ -90,14 +90,13 @@ class Gmail(ApkUiautoWorkload):
 
     def init_resources(self, context):
         super(Gmail, self).init_resources(context)
-        if self.target.get_sdk_version() >= 24 and 'com.google.android.apps.photos' not in self.target.list_packages():
-            raise WorkloadError('gmail workload requires Google Photos to be installed for Android N onwards')
         # Allows for getting working directory regardless if path ends with a '/'
         work_dir = self.target.working_directory
         work_dir = work_dir if work_dir[-1] != os.sep else work_dir[:-1]
         self.gui.uiauto_params['workdir_name'] = self.target.path.basename(work_dir)
         self.gui.uiauto_params['recipient'] = self.recipient
         self.gui.uiauto_params['offline_mode'] = self.offline_mode
+        self.gui.uiauto_params['test_image'] = self.test_image
         # Only accept certain image formats
         if os.path.splitext(self.test_image.lower())[1] not in ['.jpg', '.jpeg', '.png']:
             raise ValidationError('{} must be a JPEG or PNG file'.format(self.test_image))

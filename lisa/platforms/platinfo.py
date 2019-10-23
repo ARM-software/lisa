@@ -95,7 +95,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             'cpus-count': target.number_of_cpus
         }
 
-        if hasattr(target, 'cpufreq'):
+        if target.is_module_available('cpufreq'):
             info['freq-domains'] = list(target.cpufreq.iter_domains())
             freqs = {cpu : target.cpufreq.list_frequencies(cpu)
                              for cpu in range(target.number_of_cpus)}
@@ -105,7 +105,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
                 info['freqs'] = freqs
 
 
-        if hasattr(target, 'sched'):
+        if target.is_module_available('sched'):
             info['cpu-capacities'] = target.sched.get_capacities(default=1024)
 
         return self.add_src(src, info, filter_none=True, **kwargs)

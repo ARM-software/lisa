@@ -545,6 +545,14 @@ Target
 
    :returns: ``True`` if internet seems available, ``False`` otherwise.
 
+.. method:: Target.install_module(mod, **params)
+  :param mod: The module name or object to be installed to the target.
+  :param params: Keyword arguments used to instantiate the module.
+
+    Installs an additional module to the target after the initial setup has been
+    performed.
+
+
 Android Target
 ---------------
 
@@ -680,7 +688,7 @@ ChromeOS Target
 
     :param android_executables_directory: This is the location of the
         executables directory to be used for the android container. If not
-        specified will default to a ``bin`` subfolder in the
+        specified will default to a ``bin`` subdirectory in the
         ``android_working_directory.``
 
     :param package_data_directory: This is the location of the data stored

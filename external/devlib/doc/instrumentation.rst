@@ -164,9 +164,20 @@ Instrument
 .. method:: Instrument.get_raw()
 
    Returns a list of paths to files containing raw output from the underlying
-   source(s) that is used to produce the data CSV. If now raw output is
+   source(s) that is used to produce the data CSV. If no raw output is
    generated or saved, an empty list will be returned. The format of the
    contents of the raw files is entirely source-dependent.
+
+  .. note:: This method is not guaranteed to return valid filepaths after the
+            :meth:`teardown` method has been invoked as the raw files may have
+            been deleted. Please ensure that copies are created manually
+            prior to calling :meth:`teardown` if the files are to be retained.
+
+.. method:: Instrument.teardown()
+
+   Performs any required clean up of the instrument. This usually includes
+   removing temporary and raw files (if ``keep_raw`` is set to ``False`` on relevant
+   instruments), stopping services etc.
 
 .. attribute:: Instrument.sample_rate_hz
 
@@ -400,7 +411,7 @@ For reference, the software stack on the host is roughly given by:
 
 Ethernet was the only IIO Interface used and tested during the development of
 this instrument. However,
-`USB seems to be supported<https://gitlab.com/baylibre-acme/ACME/issues/2>`_.
+`USB seems to be supported <https://gitlab.com/baylibre-acme/ACME/issues/2>`_.
 The IIO library also provides "Local" and "XML" connections but these are to be
 used when the IIO devices are directly connected to the host *i.e.* in our
 case, if we were to run Python and devlib on the BBB. These are also untested.

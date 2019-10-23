@@ -910,7 +910,7 @@ class EnergyModel(Serializable, Loggable):
 
     @classmethod
     def _get_idle_states_name(cls, target, cpu):
-        if 'cpuidle' in target.modules:
+        if target.is_module_available('cpuidle'):
             return [s.name for s in target.cpuidle.get_states(cpu)]
         else:
             return ['placeholder-idle-state']
@@ -1083,11 +1083,11 @@ class LegacyEnergyModel(EnergyModel):
         :returns: Constructed EnergyModel object based on the parameters
                   reported by the target.
         """
-        if 'cpufreq' not in target.modules:
+        if not target.is_module_available('cpufreq'):
             raise TargetStableError('Requires cpufreq devlib module. Please ensure '
                                '"cpufreq" is listed in your target/test modules')
 
-        if 'cpuidle' not in target.modules:
+        if not target.is_module_available('cpuidle'):
             cls.get_logger().warning('Idle states detection requires cpuidle devlib module. Please ensure "cpuidle" is listed in your target/test modules')
 
         def sge_path(cpu, domain, group, field):

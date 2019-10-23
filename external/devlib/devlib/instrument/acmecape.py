@@ -58,12 +58,14 @@ class AcmeCapeInstrument(Instrument):
                  iio_capture=which('iio-capture'),
                  host='baylibre-acme.local',
                  iio_device='iio:device0',
-                 buffer_size=256):
+                 buffer_size=256,
+                 keep_raw=False):
         super(AcmeCapeInstrument, self).__init__(target)
         self.iio_capture = iio_capture
         self.host = host
         self.iio_device = iio_device
         self.buffer_size = buffer_size
+        self.keep_raw = keep_raw
         self.sample_rate_hz = 100
         if self.iio_capture is None:
             raise HostError('Missing iio-capture binary')
@@ -159,3 +161,8 @@ class AcmeCapeInstrument(Instrument):
 
     def get_raw(self):
         return [self.raw_data_file]
+
+    def teardown(self):
+        if not self.keep_raw:
+            if os.path.isfile(self.raw_data_file):
+                os.remove(self.raw_data_file)

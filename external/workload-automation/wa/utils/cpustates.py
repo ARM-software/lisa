@@ -151,7 +151,7 @@ class PowerStateProcessor(object):
 
     def __init__(self, cpus, wait_for_marker=True, no_idle=None):
         if no_idle is None:
-            no_idle = True if cpus[0].cpuidle else False
+            no_idle = False if cpus[0].cpuidle and cpus[0].cpuidle.states else True
         self.power_state = SystemPowerState(len(cpus), no_idle=no_idle)
         self.requested_states = {}  # cpu_id -> requeseted state
         self.wait_for_marker = wait_for_marker
@@ -368,7 +368,7 @@ class PowerStateTimeline(object):
             if frequency is None:
                 if idle_state == -1:
                     row.append('Running (unknown kHz)')
-                elif idle_state is None:
+                elif idle_state is None or not self.idle_state_names[cpu_idx]:
                     row.append('unknown')
                 else:
                     row.append(self.idle_state_names[cpu_idx][idle_state])
@@ -499,7 +499,7 @@ class PowerStateStats(object):
                         state = 'Running (unknown KHz)'
                 elif freq:
                     state = '{}-{:07}KHz'.format(self.idle_state_names[cpu][idle], freq)
-                elif idle is not None:
+                elif idle is not None and self.idle_state_names[cpu]:
                     state = self.idle_state_names[cpu][idle]
                 else:
                     state = 'unknown'
@@ -560,12 +560,12 @@ class CpuUtilizationTimeline(object):
 
         headers = ['ts'] + ['{} CPU{}'.format(cpu.name, cpu.id) for cpu in cpus]
         self.writer.writerow(headers)
-        self._max_freq_list = [cpu.cpufreq.available_frequencies[-1] for cpu in cpus]
+        self._max_freq_list = [cpu.cpufreq.available_frequencies[-1] for cpu in cpus if cpu.cpufreq.available_frequencies]
 
     def update(self, timestamp, core_states):  # NOQA
         row = [timestamp]
         for core, [_, frequency] in enumerate(core_states):
-            if frequency is not None:
+            if frequency is not None and core in self._max_freq_list:
                 frequency /= float(self._max_freq_list[core])
                 row.append(frequency)
             else:

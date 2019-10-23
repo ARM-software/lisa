@@ -70,6 +70,11 @@ class FramesInstrument(Instrument):
     def _init_channels(self):
         raise NotImplementedError()
 
+    def teardown(self):
+        if not self.keep_raw:
+            if os.path.isfile(self._raw_file):
+                os.remove(self._raw_file)
+
 
 class GfxInfoFramesInstrument(FramesInstrument):
 

@@ -110,6 +110,28 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
 
 
     private void dismissWelcomeView() throws Exception {
+
+        //Close optional sign in screen on newer versions (19.4.0.9813)
+        UiObject closeWelcomeImage = mDevice.findObject(new UiSelector().resourceId(packageID + "optional_signing_cross_button")
+            .className("android.widget.ImageView"));
+    	if (closeWelcomeImage.exists()) {
+    		closeWelcomeImage.click();
+    	}
+
+        // Deal with popup dialog message tutorial on newer versions
+        UiObject tutorialDialog = mDevice.findObject(new UiSelector().resourceId(packageID + "close_card_button")
+            .className("android.widget.ImageButton"));
+
+        if (tutorialDialog.waitForExists(TimeUnit.SECONDS.toMillis(3))) {
+                tutorialDialog.click();
+        }
+
+        //Check to see if app is on home screen
+        if (mDevice.findObject(new UiSelector().textContains("Home")).exists()) {
+            return;
+        }
+
+        // Support older version (Last known working 16.1)
         UiObject welcomeView = getUiObjectByResourceId("android:id/content",
                                                        "android.widget.FrameLayout");
         welcomeView.swipeLeft(10);
@@ -150,37 +172,8 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
     private void openFile(final String filename) throws Exception {
         String testTag = "open_document";
         ActionLogger logger = new ActionLogger(testTag, parameters);
-
-        // Select the local files list from the My Documents view
-        clickUiObject(BY_TEXT, "LOCAL", "android.widget.TextView");
-        UiObject directoryPath =
-                mDevice.findObject(new UiSelector().resourceId(packageID + "directoryPath"));
-        if (!directoryPath.waitForExists(TimeUnit.SECONDS.toMillis(60))) {
-            throw new UiObjectNotFoundException("Could not find any local files");
-        }
-
-        // Click the button to search from the present file list view
-        UiObject searchButton =
-                mDevice.findObject(new UiSelector().resourceId(packageID + "split_pane_search"));
-        if (!searchButton.waitForExists(TimeUnit.SECONDS.toMillis(10))) {
-            throw new UiObjectNotFoundException("Could not find search button");
-        }
-        searchButton.click();
-        // Force a refresh of files before searching
-        uiDeviceSwipe(Direction.DOWN, 100);
-        // Repeat as first swipe is sometimes ignored.
-        uiDeviceSwipe(Direction.DOWN, 100);
-
-        // Enter search text into the file searchBox.  This will automatically filter the list.
-        UiObject searchBox =
-                mDevice.findObject(new UiSelector().resourceIdMatches(".*search_src_text")
-                                                   .classNameMatches("android.widget.Edit.*"));
-
-        searchBox.setText(filename);
-
-        // Open a file from a file list view by searching for UiObjects containing the doc title.
-        UiObject fileObject = getUiObjectByText(filename, "android.widget.TextView");
-
+        
+        UiObject fileObject = findFileObject(filename);
         logger.start();
 
         fileObject.clickAndWaitForNewWindow(uiAutoTimeout);
@@ -192,6 +185,68 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         };
 
         logger.stop();
+    }
+
+    private UiObject findFileObject(String filename) throws Exception {
+        UiObject localFilesTab = mDevice.findObject(new UiSelector().textContains("LOCAL")
+            .className("android.widget.TextView"));
+        
+        // Support older versions
+        if (localFilesTab.exists()) {
+            localFilesTab.click();
+
+            UiObject directoryPath =
+                mDevice.findObject(new UiSelector().resourceId(packageID + "directoryPath"));
+            if (!directoryPath.waitForExists(TimeUnit.SECONDS.toMillis(60))) {
+                throw new UiObjectNotFoundException("Could not find any local files");
+            }
+
+            // Click the button to search from the present file list view
+            UiObject searchButton =
+                    mDevice.findObject(new UiSelector().resourceId(packageID + "split_pane_search"));
+            if (!searchButton.waitForExists(TimeUnit.SECONDS.toMillis(10))) {
+                throw new UiObjectNotFoundException("Could not find search button");
+            }
+            searchButton.click();
+            // Force a refresh of files before searching
+            uiDeviceSwipe(Direction.DOWN, 100);
+            // Repeat as first swipe is sometimes ignored.
+            uiDeviceSwipe(Direction.DOWN, 100);
+
+            // Enter search text into the file searchBox.  This will automatically filter the list.
+            UiObject searchBox =
+                    mDevice.findObject(new UiSelector().resourceIdMatches(".*search_src_text")
+                                                       .classNameMatches("android.widget.Edit.*"));
+
+            searchBox.setText(filename);
+
+            // Open a file from a file list view by searching for UiObjects containing the doc title.
+            return getUiObjectByText(filename, "android.widget.TextView");
+        }
+
+        // Support for newer version
+        UiObject searchNavigationButton = mDevice.findObject(new UiSelector()
+            .resourceIdMatches(packageID + "bottombaritem_search")
+            .className("android.widget.FrameLayout"));
+
+        // On devices with larger screen sizes, layout is different 
+        if(!searchNavigationButton.exists()) {
+            searchNavigationButton = getUiObjectByResourceId(packageID + "search_button_home",
+                                                             "android.widget.TextView");
+        }
+
+        searchNavigationButton.click();
+
+        UiObject searchBox =
+                mDevice.findObject(new UiSelector().resourceIdMatches(".*search_src_text")
+                                                   .classNameMatches("android.widget.EditText"));
+
+        searchBox.click();
+        searchBox.setText(filename);
+        mDevice.pressEnter();
+
+        // Remove file extension
+        return getUiObjectByText(filename.substring(0,filename.lastIndexOf(".")), "android.widget.TextView");
     }
 
     private void gesturesTest() throws Exception {
@@ -295,21 +350,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
             progressBar.waitUntilGone(searchTimeout);
 
             logger.stop();
-
-            // Get back to the main document view by clicking twice on the close button
-            UiObject searchCloseButton =
-                    mDevice.findObject(new UiSelector().resourceIdMatches(".*search_close_btn")
-                                                       .className("android.widget.ImageView"));
-            searchCloseButton.click();
-
-            if (searchCloseButton.exists()){
-                searchCloseButton.clickAndWaitForNewWindow();
-            }
-            else {
-                UiObject searchBackButton = getUiObjectByDescription("Collapse",
-                                                                     "android.widget.ImageButton");
-                searchBackButton.clickAndWaitForNewWindow();
-            }
+            mDevice.pressBack();
         }
     }
 
@@ -333,13 +374,8 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
             menuButton.click();
         }
         else {
-            menuButton =
-                    mDevice.findObject(new UiSelector().resourceIdMatches(".*up.*")
-                                            .classNameMatches("android.widget.Image.*"));
-            menuButton.click();
+            mDevice.pressBack();
         }
-
-        clickUiObject(BY_DESC, "My Documents", "android.widget.LinearLayout", true);
 
         UiObject searchBackButton =
                 mDevice.findObject(new UiSelector().description("Collapse")
@@ -348,7 +384,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
             searchBackButton.click();
         }
         else {
-            clickUiObject(BY_ID, "android:id/up", "android.widget.ImageView", true);
+        	mDevice.pressBack();
         }
     }
 }
