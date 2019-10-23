@@ -97,8 +97,13 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
         if hasattr(target, 'cpufreq'):
             info['freq-domains'] = list(target.cpufreq.iter_domains())
-            info['freqs'] = {cpu : target.cpufreq.list_frequencies(cpu)
+            freqs = {cpu : target.cpufreq.list_frequencies(cpu)
                              for cpu in range(target.number_of_cpus)}
+            # Only add the frequency info if there is any, otherwise don't
+            # mislead the client code with empty frequency list
+            if all(freqs.values()):
+                info['freqs'] = freqs
+
 
         if hasattr(target, 'sched'):
             info['cpu-capacities'] = target.sched.get_capacities(default=1024)
