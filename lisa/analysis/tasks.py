@@ -488,7 +488,7 @@ class TasksAnalysis(TraceAnalysisBase):
         return res_df[:count]
 
     @df_task_states.used_events
-    def df_task_activation(self, task, cpu=None, active_value=1, sleep_value=0):
+    def df_task_activation(self, task, cpu=None, active_value=True, sleep_value=False):
         """
         DataFrame of a task's active time on a given CPU
 
