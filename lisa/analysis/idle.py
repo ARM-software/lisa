@@ -51,22 +51,22 @@ class IdleAnalysis(TraceAnalysisBase):
         :param cpu: CPU ID
         :type cpu: int
 
-        :returns: A :class:`pandas.Series` that equals 1 at timestamps where the
-          CPU is reported to be non-idle, 0 otherwise
+        :returns: A :class:`pandas.Series` that equals True at timestamps where the
+          CPU is reported to be non-idle, False otherwise
         """
         idle_df = self.trace.df_events('cpu_idle')
         cpu_df = idle_df[idle_df.cpu_id == cpu]
 
         cpu_active = cpu_df.state.apply(
-            lambda s: 1 if s == -1 else 0
+            lambda s: True if s == -1 else False
         )
 
         start_time = self.trace.start
 
         if cpu_active.empty:
-            cpu_active = pd.Series([0], index=[start_time])
+            cpu_active = pd.Series([False], index=[start_time])
         elif cpu_active.index[0] != start_time:
-            entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[start_time])
+            entry_0 = pd.Series(not cpu_active.iloc[0], index=[start_time])
             cpu_active = pd.concat([entry_0, cpu_active])
 
         # Fix sequences of wakeup/sleep events reported with the same index
@@ -123,8 +123,8 @@ class IdleAnalysis(TraceAnalysisBase):
         sr = pd.Series()
         for cpu in cpus:
             cpu_sr = self.signal_cpu_active(cpu)
-            cpu_sr = cpu_sr[cpu_sr == 1]
-            cpu_sr = cpu_sr.replace(1, cpu)
+            cpu_sr = cpu_sr[cpu_sr]
+            cpu_sr = cpu_sr.replace(True, cpu)
             sr = sr.append(cpu_sr)
 
         return pd.DataFrame({'cpu': sr}).sort_index()
