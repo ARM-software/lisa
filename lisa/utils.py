@@ -850,7 +850,12 @@ def is_running_ipython():
     Returns True if running in IPython console or Jupyter notebook, False
     otherwise.
     """
-    return hasattr(__builtins__, '__IPYTHON__')
+    try:
+        __IPYTHON__
+    except NameError:
+        return False
+    else:
+        return True
 
 def non_recursive_property(f):
     """
