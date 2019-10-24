@@ -582,21 +582,24 @@ def setup_logging(filepath='logging.conf', level=None):
 
     :param level: Override the conf file and force logging level. Defaults to
         ``logging.INFO``.
-    :type level: int
+    :type level: int or str
     """
     resolved_level = logging.INFO if level is None else level
-
-    # Load the specified logfile using an absolute path
-    if not os.path.isabs(filepath):
-        filepath = os.path.join(LISA_HOME, filepath)
 
     # Capture the warnings as log entries
     logging.captureWarnings(True)
 
-    # Set the level first, so the config file can override with more details
-    logging.getLogger().setLevel(resolved_level)
+    if level is not None:
+        log_format = '%(asctime)s %(levelname)-8s: %(name)-12s : %(message)s'
+        logging.basicConfig(level=resolved_level, format=log_format)
+    else:
+        # Load the specified logfile using an absolute path
+        if not os.path.isabs(filepath):
+            filepath = os.path.join(LISA_HOME, filepath)
 
-    if not level:
+        # Set the level first, so the config file can override with more details
+        logging.getLogger().setLevel(resolved_level)
+
         if os.path.exists(filepath):
             logging.config.fileConfig(filepath)
             logging.info('Using LISA logging configuration: {}'.format(filepath))
