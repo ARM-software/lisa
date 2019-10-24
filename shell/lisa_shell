@@ -267,6 +267,14 @@ function lisa-install {
 
     # Install additiona Jupyter Notebook extensions
     _lisa-install-nbextensions
+
+    local lisa_install_versions="$LISA_HOME/.lisa-install-versions"
+
+    # Log the version of all Python modules, so we know what is the faulty
+    # version when something goes wrong
+    LC_ALL=C date >> "$lisa_install_versions"
+    lisa-version >> "$lisa_install_versions"
+    _lisa-python -m pip freeze >> "$lisa_install_versions"
 }
 
 ################################################################################
