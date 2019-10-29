@@ -1413,6 +1413,9 @@ def namedtuple(*args, module, **kwargs):
     Same as :func:`collections.namedtuple`, with
     :class:`collections.abc.Mapping` behaviour.
 
+    .. warning:: Iterating over instances will yield the field names rather the
+        values, unlike regular :func:`collections.namedtuple`.
+
     :param module: Name of the module the type is defined in.
     :type module: str
     """
@@ -1423,9 +1426,30 @@ def namedtuple(*args, module, **kwargs):
     # appear as a base class. Otherwise, Sphinx's autodoc will choke on it.
     type_.__module__ = module
 
-    class Augmented(type_, Mapping):
+    class Augmented(Mapping):
+        # Keep an efficient representation to avoid adding too much overhead on
+        # top of the inner tuple
+        __slots__ = ['_tuple']
+
+        def __init__(self, *args, **kwargs):
+            # This inner tuple attribute is read-only, DO NOT UPDATE IT OR IT
+            # WILL BREAK __hash__
+            self._tuple = type_(*args, **kwargs)
+
+        def __getattr__(self, attr):
+            return getattr(self._tuple, attr)
+
+        def __hash__(self):
+            return hash(self._tuple)
+
         def __getitem__(self, key):
-            return self._asdict()[key]
+            return self._tuple._asdict()[key]
+
+        def __iter__(self):
+            return iter(self._tuple._fields)
+
+        def __len__(self):
+            return len(self._tuple._fields)
 
     Augmented.__qualname__ = type_.__qualname__
     Augmented.__name__ = type_.__name__
