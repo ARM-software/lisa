@@ -24,6 +24,7 @@ from collections import OrderedDict
 from shlex import quote
 import copy
 import itertools
+import weakref
 
 from lisa.wlgen.workload import Workload
 from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, groupby, nullcontext
@@ -533,6 +534,72 @@ class RTA(Workload):
 
         with cm, target.disable_idle_states():
             return cls._calibrate(target, res_dir)
+
+    @classmethod
+    def _compute_task_map(cls, trace, names):
+        prefix_regexps = {
+            prefix: re.compile(r"^{}(-[0-9]+)*$".format(re.escape(prefix)))
+            for prefix in names
+        }
+
+        task_map = {
+            prefix: sorted(
+                task_id
+                for task_id in trace.task_ids
+                if re.match(regexp, task_id.comm)
+            )
+            for prefix, regexp in prefix_regexps.items()
+        }
+
+        missing = sorted(prefix for prefix, task_ids in task_map.items() if not task_ids)
+        if missing:
+            raise RuntimeError("Missing tasks matching the following rt-app profile names: {}"
+                                .format(', '.join(missing)))
+        return task_map
+
+    # Mapping of Trace objects to their task map.
+    # We don't want to keep traces alive just for this cache, so we use weak
+    # references for the keys.
+    _traces_task_map = weakref.WeakKeyDictionary()
+
+    @classmethod
+    def resolve_trace_task_names(cls, trace, names):
+        """
+        Translate an RTA profile task name to a list of
+        :class:`lisa.trace.TaskID` as found in a :class:`lisa.trace.Trace`.
+
+        :returns: A dictionnary of ``rt-app`` profile names to list of
+            :class:`lisa.trace.TaskID` The list will contain more than one item
+            if the task forked.
+
+        :param trace: Trace to look at.
+        :type trace: lisa.trace.Trace
+
+        :param names: ``rt-app`` task names as specified in profile keys
+        :type names: list(str)
+        """
+
+        task_map = cls._traces_task_map.setdefault(trace, {})
+        # Update with the names that have not been discovered yet
+        not_computed_yet = set(names) - task_map.keys()
+        if not_computed_yet:
+            task_map.update(cls._compute_task_map(trace, not_computed_yet))
+
+        # Only return what we were asked for, so the client code does not
+        # accidentally starts depending on whatever was requested in earlier
+        # calls
+        return {
+            name: task_ids
+            for name, task_ids in task_map.items()
+            if name in names
+        }
+
+    def get_trace_task_names(self, trace):
+        """
+        Get a dictionnary of :class:`lisa.trace.TaskID` used in the given trace
+        for this task.
+        """
+        return self.resolve_trace_task_names(trace, self.tasks)
 
 class Phase(Loggable):
     """
