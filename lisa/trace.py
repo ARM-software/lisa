@@ -563,6 +563,7 @@ class Trace(Loggable, TraceBase):
 
         if 'sched_switch' in self.available_events:
             load('sched_switch', 'prev_comm', 'prev_pid')
+            load('sched_switch', 'next_comm', 'next_pid')
 
         if not (name_to_pid and pid_to_name):
             raise RuntimeError('Failed to load tasks names, sched_switch, sched_wakeup, or sched_load_avg_task events are needed')
