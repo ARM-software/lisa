@@ -131,11 +131,7 @@ class UtilConvergence(UtilTrackingBase):
     @property
     @memoized
     def fast_ramp(self):
-        # The EWMA "fast ramp up" feature has been merged only in kernel TBD
-        # TODO fix kernel version
-        return False
-
-        min_kernel = KernelVersion('5.4-rc1').parts
+        min_kernel = KernelVersion('5.5').parts
         cur_kernel = self.plat_info['kernel']['version'].parts
         return cur_kernel < min_kernel
 
