@@ -210,7 +210,9 @@ class RTA(Workload):
             ))
 
         rta_profile = {
-            'tasks': {},
+            # Keep a stable order for tasks definition, to get stable IDs
+            # allocated by rt-app
+            'tasks': OrderedDict(),
             'global': {}
         }
 
@@ -244,7 +246,7 @@ class RTA(Workload):
         rta_profile['global'] = global_conf
 
         # Setup tasks parameters
-        for tid, task in profile.items():
+        for tid, task in sorted(profile.items(), key=lambda k_v: k_v[0]):
             task_conf = {}
 
             if not task.sched_policy:
