@@ -33,7 +33,7 @@ from lisa.wlgen.rta import Periodic, Ramp
 from lisa.trace import FtraceCollector, requires_events
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.tasks import TaskState, TasksAnalysis
-from lisa.datautils import series_integrate
+from lisa.datautils import series_integrate, df_filter_task_ids
 
 from lisa.tests.scheduler.load_tracking import LoadTrackingHelpers
 
@@ -131,11 +131,7 @@ class UtilConvergence(UtilTrackingBase):
     @property
     @memoized
     def fast_ramp(self):
-        # The EWMA "fast ramp up" feature has been merged only in kernel TBD
-        # TODO fix kernel version
-        return False
-
-        min_kernel = KernelVersion('5.4-rc1').parts
+        min_kernel = KernelVersion('5.5').parts
         cur_kernel = self.plat_info['kernel']['version'].parts
         return cur_kernel < min_kernel
 
@@ -186,9 +182,9 @@ class UtilConvergence(UtilTrackingBase):
         test_task = self.trace.analysis.rta.rtapp_tasks[-1]
 
         ue_df = self.trace.df_events('sched_util_est_task')
-        ue_df = ue_df[ue_df.pid == test_task.pid]
+        ue_df = df_filter_task_ids(ue_df, [test_task])
         ua_df = self.trace.df_events('sched_load_se')
-        ua_df = ua_df[ua_df.pid == test_task.pid]
+        ua_df = df_filter_task_ids(ua_df, [test_task])
 
         failures = []
         for phase in self.trace.analysis.rta.task_phase_windows(test_task):
@@ -280,13 +276,13 @@ class UtilConvergence(UtilTrackingBase):
         test_task = self.trace.analysis.rta.rtapp_tasks[-1]
 
         # Get list of task's activations
-        df = self.trace.analysis.tasks.df_task_states(test_task.pid)
+        df = self.trace.analysis.tasks.df_task_states(test_task)
         activations = df[(df.curr_state == TaskState.TASK_WAKING) &
                          (df.next_state == TaskState.TASK_ACTIVE)].index
 
         # Check task signals at each activation
         df = self.trace.df_events('sched_util_est_task')
-        df = df[df.pid == test_task.pid]
+        df = df_filter_task_ids(df, [test_task])
 
         # Define a time interval to correlate relative trace events.
         def restrict(df, time, delta=1e-3):
