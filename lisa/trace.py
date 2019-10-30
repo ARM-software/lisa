@@ -806,6 +806,20 @@ class Trace(Loggable, TraceBase):
         """
         return self._task_pid_map
 
+    @property
+    @memoized
+    def task_ids(self):
+        """
+        List of all the :class:`TaskID` in the trace, sorted by PID.
+        """
+        key = lambda k_v: k_v[0]
+
+        return [
+            TaskID(pid=pid, comm=comm)
+            for pid, comms in sorted(self._task_pid_map.items(), key=key)
+            for comm in comms
+        ]
+
     def show(self):
         """
         Open the parsed trace using the most appropriate native viewer.
