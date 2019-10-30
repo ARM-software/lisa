@@ -330,8 +330,6 @@ class EASBehaviour(RTATestBundle):
         res.add_metric("estimated energy", est_energy, 'bogo-joules')
         res.add_metric("energy threshold", threshold, 'bogo-joules')
 
-        res.plat_info = self.plat_info
-
         return res
 
     @RTAEventsAnalysis.df_rtapp_stats.used_events
