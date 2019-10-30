@@ -73,6 +73,8 @@ Notebooks commands
       * - `PORT`
         - the tcp port for the server (default: 8888)
 
+* ``lisa-execute-notebook`` - Execute the given notebook as a script.
+
 Test commands
 -------------
 
