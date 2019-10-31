@@ -210,7 +210,9 @@ class RTA(Workload):
             ))
 
         rta_profile = {
-            'tasks': {},
+            # Keep a stable order for tasks definition, to get stable IDs
+            # allocated by rt-app
+            'tasks': OrderedDict(),
             'global': {}
         }
 
@@ -244,7 +246,7 @@ class RTA(Workload):
         rta_profile['global'] = global_conf
 
         # Setup tasks parameters
-        for tid, task in profile.items():
+        for tid, task in sorted(profile.items(), key=lambda k_v: k_v[0]):
             task_conf = {}
 
             if not task.sched_policy:
@@ -254,7 +256,7 @@ class RTA(Workload):
                 task_conf['policy'] = 'SCHED_{}'.format(task.sched_policy)
                 if task.priority is not None:
                     task_conf['prio'] = task.priority
-                sched_descr = 'sched: {0:s}'.format(task.sched_policy)
+                sched_descr = 'sched: {}'.format(task.sched_policy)
 
 
             logger.info('------------------------')
@@ -269,14 +271,11 @@ class RTA(Workload):
             task_conf['phases'] = OrderedDict()
             rta_profile['tasks'][tid] = task_conf
 
-            pid = 1
-            for phase in task.phases:
-                phase_name = 'p{}'.format(str(pid).zfill(6))
+            for pid, phase in enumerate(task.phases, start=1):
+                phase_name = 'phase_{:0>6}'.format(pid)
 
-                logger.info(' + phase_%06d', pid)
+                logger.info(' + {}'.format(phase_name))
                 rta_profile['tasks'][tid]['phases'][phase_name] = phase.get_rtapp_repr(tid)
-
-                pid += 1
 
         # Generate JSON configuration on local file
         with open(self.local_json, 'w') as outfile:
