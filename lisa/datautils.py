@@ -65,11 +65,13 @@ def _data_refit_index(data, start, end, method):
     data = _data_window(data, (start, end), method=method, clip_window=True)
     index = data.index.to_series()
 
-    if start is not None:
-        index.iloc[0] = start
-
     if end is not None:
         index.iloc[-1] = end
+
+    # If the dataframe has one row, we want the "start" timestamp to be used
+    # rather than "end", so set iloc[0] last
+    if start is not None:
+        index.iloc[0] = start
 
     # Shallow copy is enough, we only want to replace the index and not the
     # actual data
