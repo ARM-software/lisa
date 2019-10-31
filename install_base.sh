@@ -207,7 +207,7 @@ if [[ ! -z "$package_manager" ]] && ! test_os_release NAME "$expected_distro"; t
 fi
 
 usage() {
-    echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools] [--install-android-platform-tools] [--install-doc-extras] [--install-nodejs] [--install-bisector-dbus] [--install-all]"
+    echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools] [--install-android-platform-tools] [--install-doc-extras] [--install-nodejs] [--install-bisector-dbus] [--install-toolchains] [--install-all]"
     cat << EOF
 
 Install distribution packages and other bits that don't fit in the Python
@@ -271,6 +271,20 @@ for arg in "$@"; do
         fi
         handled=1;
         ;;&
+
+    "--install-toolchains" | "--install-all")
+        apt_packages+=(build-essential gcc-arm-linux-gnueabi gcc-aarch64-linux-gnu)
+        # arm-linux-gnueabihf-gcc can be installed from the AUR
+        pacman_packages+=(base-devel aarch64-linux-gnu-gcc)
+
+        # Build dependencies of some assets
+        apt_packages+=(autopoint autoconf libtool bison)
+        # gettext for autopoint
+        pacman_packages+=(gettext autoconf libtool bison)
+
+        handled=1;
+        ;;&
+
 
     "--install-bisector-dbus" | "--install-all")
         apt_packages+=(
