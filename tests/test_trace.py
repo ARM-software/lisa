@@ -138,8 +138,9 @@ class TestTrace(TraceTestCase):
         trace = self.make_trace(in_data)
 
         self.assertEqual(trace.get_task_pid_names(1234), ['father'])
-        self.assertEqual(trace.get_task_pid_names(5678), ['child'])
+        self.assertEqual(trace.get_task_pid_names(5678), ['father', 'child'])
         self.assertEqual(trace.get_task_name_pids('father'), [1234])
+        self.assertEqual(trace.get_task_name_pids('father', ignore_fork=False), [1234, 5678])
 
     def test_time_range(self):
         """
