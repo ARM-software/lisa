@@ -58,6 +58,37 @@ def df_refit_index(df, start=None, end=None, method='pre'):
     return _data_refit_index(df, start, end, method=method)
 
 
+def df_split_signals(df, signal_cols, align_start=False):
+    """
+    Yield subset of ``df`` that only contain one signal, along with the signal
+    identification values.
+
+    :param df: The dataframe to split.
+    :type df: pandas.DataFrame
+
+    :param signal_cols: Columns that uniquely identify a signal.
+    :type signal_cols: list(str)
+
+    :param align_start: If ``True``, :func:`df_refit_index` will be applied on
+        the yielded dataframes so that they all start at the same index.
+    :type refit_index: bool
+    """
+
+    grouped = df.groupby(signal_cols)
+    for group, index in grouped.groups.items():
+        # When only one column is looked at, the group is the value instead of
+        # a tuple of values
+        if len(signal_cols) < 2:
+            cols_val = {signal_cols[0]: group}
+        else:
+            cols_val = dict(zip(signal_cols, group))
+
+        signal = grouped.get_group(group)
+        if align_start:
+            signal = df_refit_index(signal, start=df.index[0], method='inclusive')
+        yield (cols_val, signal)
+
+
 def _data_refit_index(data, start, end, method):
     if data.empty:
         return data
