@@ -207,7 +207,7 @@ if [[ ! -z "$package_manager" ]] && ! test_os_release NAME "$expected_distro"; t
 fi
 
 usage() {
-    echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools] [--install-android-platform-tools] [--install-doc-extras] [--install-nodejs] [--install-bisector-dbus] [--install-toolchains] [--install-all]"
+    echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools] [--install-android-platform-tools] [--install-doc-extras] [--install-nodejs] [--install-bisector-dbus] [--install-toolchains] [--install-vagrant] [--install-all]"
     cat << EOF
 
 Install distribution packages and other bits that don't fit in the Python
@@ -285,6 +285,12 @@ for arg in "$@"; do
         handled=1;
         ;;&
 
+    "--install-vagrant" | "--install-all")
+        apt_packages+=(vagrant virtualbox)
+        pacman_packages+=(vagrant virtualbox virtualbox-host-dkms)
+
+        handled=1;
+        ;;&
 
     "--install-bisector-dbus" | "--install-all")
         apt_packages+=(
