@@ -543,17 +543,42 @@ class Trace(Loggable, TraceBase):
         name_to_pid = {}
         pid_to_name = {}
 
+        # Merge the list values if the key already exists rather than
+        # overriding them
+        def update_mapping(existing, new):
+            for key, new_val in new.items():
+                existing.setdefault(key, []).extend(new_val)
+
+        # Keep only the values, in appearance order according to the timestamp
+        # index
+        def finalize_mapping(mapping):
+            keep_values = lambda items: list(zip(*items))[1]
+            sort_by_index = lambda values: sorted(values, key=lambda index_v: index_v[0])
+            return {
+                # Remove duplicates and only keep the first occurence of each
+                k: deduplicate(
+                    # Sort by index values, i.e. appearance order
+                    keep_values(sort_by_index(values)),
+                    keep_last=False
+                )
+                for k, values in mapping.items()
+            }
+
+        def create_mapping(df, key_col, value_col):
+            return {
+                k: [
+                    # save the index at which that value appeared so we
+                    # conserve appearance order across events
+                    (df[df[value_col] == value].index[0], value)
+                    for value in df[df[key_col] == k][value_col].unique()
+                ]
+                for k in df[key_col].unique()
+            }
+
         def load(event, name_col, pid_col):
             df = self.df_events(event)
-
-            def create_mapping(df, key_col, value_col):
-                return {
-                    k: list(df[df[key_col] == k][value_col].unique())
-                    for k in df[key_col].unique()
-                }
-
-            name_to_pid.update(create_mapping(df, name_col, pid_col))
-            pid_to_name.update(create_mapping(df, pid_col, name_col))
+            update_mapping(name_to_pid, create_mapping(df, name_col, pid_col))
+            update_mapping(pid_to_name, create_mapping(df, pid_col, name_col))
 
         if 'sched_load_avg_task' in self.available_events:
             load('sched_load_avg_task', 'comm', 'pid')
@@ -567,6 +592,9 @@ class Trace(Loggable, TraceBase):
 
         if not (name_to_pid and pid_to_name):
             raise RuntimeError('Failed to load tasks names, sched_switch, sched_wakeup, or sched_load_avg_task events are needed')
+
+        name_to_pid = finalize_mapping(name_to_pid)
+        pid_to_name = finalize_mapping(pid_to_name)
 
         return (name_to_pid, pid_to_name)
 
