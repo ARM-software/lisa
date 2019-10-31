@@ -1,28 +1,60 @@
-The included sysbench binary is distributed under the GPLv2 license
-and a snapshot of the source code is available at this link:
+Sources of taskset available at:
+Git commit: d4319b91c9d7d69e7b954fc66819214f81501312
+Git repository: git://git.kernel.org/pub/scm/utils/util-linux/util-linux.git
 
-  https://github.com/ARM-software/third-party-source/blob/master/sysbench/20160812_sysbench_0.4.12.tar.xz
 
-These sources are available also on GitHub:
+Build recipe:
 
-  https://github.com/akopytov/sysbench
+export ARCH=arm64
+export CONFIGURE_HOST=aarch64-linux-gnu
+export CROSS_COMPILE=aarch64-linux-gnu-
+export LISA_ARCH_ASSETS=/lisa/assets/binaries/arm64
+export LISA_HOME=''
+#! /bin/bash
 
-The binaries have been build and statically linked with all the external
-dependencies using the code version 0.4.12.
+download() {
+    git clone git://git.kernel.org/pub/scm/utils/util-linux/util-linux.git
+    git -C util-linux checkout 448e6c3567988492d8724f26950ff167ab58d22a
+}
 
-The full GPLv2 licese text follows
+build() {
+    cd util-linux
 
-################################################################################
+    ./autogen.sh
+    ./configure --host=$CONFIGURE_HOST \
+                --disable-shared \
+                --without-tinfo \
+                --without-ncurses \
+                --without-ncursesw \
+                --disable-widechar \
+                --without-python \
+                --enable-static-programs=dmesg,taskset
+    make dmesg taskset LDFLAGS='--static'
 
-		    GNU GENERAL PUBLIC LICENSE
-		       Version 2, June 1991
+    "$CROSS_COMPILE"strip dmesg taskset
+}
 
- Copyright (C) 1989, 1991 Free Software Foundation, Inc.
-     59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+install() {
+    cp -v util-linux/dmesg "$LISA_ARCH_ASSETS/dmesg"
+    cp -v util-linux/taskset "$LISA_ARCH_ASSETS/taskset"
+
+    source "$LISA_HOME/tools/recipes/utils.sh"
+    install_readme dmesg util-linux COPYING
+    install_readme taskset util-linux COPYING
+}
+
+
+The sources were distributed under the following licence (content of util-linux/COPYING):
+
+                    GNU GENERAL PUBLIC LICENSE
+                       Version 2, June 1991
+
+ Copyright (C) 1989, 1991 Free Software Foundation, Inc.,
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  Everyone is permitted to copy and distribute verbatim copies
  of this license document, but changing it is not allowed.
 
-			    Preamble
+                            Preamble
 
   The licenses for most software are designed to take away your
 freedom to share and change it.  By contrast, the GNU General Public
@@ -31,7 +63,7 @@ software--to make sure the software is free for all its users.  This
 General Public License applies to most of the Free Software
 Foundation's software and to any other program whose authors commit to
 using it.  (Some other Free Software Foundation software is covered by
-the GNU Library General Public License instead.)  You can apply it to
+the GNU Lesser General Public License instead.)  You can apply it to
 your programs, too.
 
   When we speak of free software, we are referring to freedom, not
@@ -71,8 +103,8 @@ patent must be licensed for everyone's free use or not licensed at all.
 
   The precise terms and conditions for copying, distribution and
 modification follow.
-
-		    GNU GENERAL PUBLIC LICENSE
+
+                    GNU GENERAL PUBLIC LICENSE
    TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
   0. This License applies to any program or other work which contains
@@ -126,7 +158,7 @@ above, provided that you also meet all of these conditions:
     License.  (Exception: if the Program itself is interactive but
     does not normally print such an announcement, your work based on
     the Program is not required to print an announcement.)
-
+
 These requirements apply to the modified work as a whole.  If
 identifiable sections of that work are not derived from the Program,
 and can be reasonably considered independent and separate works in
@@ -184,7 +216,7 @@ access to copy from a designated place, then offering equivalent
 access to copy the source code from the same place counts as
 distribution of the source code, even though third parties are not
 compelled to copy the source along with the object code.
-
+
   4. You may not copy, modify, sublicense, or distribute the Program
 except as expressly provided under this License.  Any attempt
 otherwise to copy, modify, sublicense or distribute the Program is
@@ -241,7 +273,7 @@ impose that choice.
 
 This section is intended to make thoroughly clear what is believed to
 be a consequence of the rest of this License.
-
+
   8. If the distribution and/or use of the Program is restricted in
 certain countries either by patents or by copyrighted interfaces, the
 original copyright holder who places the Program under this License
@@ -271,7 +303,7 @@ make exceptions for this.  Our decision will be guided by the two goals
 of preserving the free status of all derivatives of our free software and
 of promoting the sharing and reuse of software generally.
 
-			    NO WARRANTY
+                            NO WARRANTY
 
   11. BECAUSE THE PROGRAM IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY
 FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW.  EXCEPT WHEN
@@ -293,9 +325,9 @@ YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER
 PROGRAMS), EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGES.
 
-		     END OF TERMS AND CONDITIONS
-
-	    How to Apply These Terms to Your New Programs
+                     END OF TERMS AND CONDITIONS
+
+            How to Apply These Terms to Your New Programs
 
   If you develop a new program, and you want it to be of the greatest
 possible use to the public, the best way to achieve this is to make it
@@ -319,17 +351,16 @@ the "copyright" line and a pointer to where the full notice is found.
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 Also add information on how to contact you by electronic and paper mail.
 
 If the program is interactive, make it output a short notice like this
 when it starts in an interactive mode:
 
-    Gnomovision version 69, Copyright (C) year  name of author
+    Gnomovision version 69, Copyright (C) year name of author
     Gnomovision comes with ABSOLUTELY NO WARRANTY; for details type `show w'.
     This is free software, and you are welcome to redistribute it
     under certain conditions; type `show c' for details.
@@ -352,5 +383,5 @@ necessary.  Here is a sample; alter the names:
 This General Public License does not permit incorporating your program into
 proprietary programs.  If your program is a subroutine library, you may
 consider it more useful to permit linking proprietary applications with the
-library.  If this is what you want to do, use the GNU Library General
+library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.

@@ -1,8 +1,0 @@
-trace-cmd built from:
-
-https://github.com/ARM-software/third-party-source bcc5f35d03c70e67860ddbcc0b737f69d53979d7
-trace-cmd/20160115_trace-cmd_v2.4.tar.xz
-
-Built with:
-export CC=aarch64-linux-gnu-gcc
-make LDFLAGS="--static" trace-cmd
