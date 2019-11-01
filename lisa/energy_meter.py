@@ -89,10 +89,10 @@ class EnergyMeter(Loggable, Configurable):
 
         cls.get_logger('{} energy meter configuration:\n{}'.format(cls.name, conf))
         kwargs = cls.conf_to_init_kwargs(conf)
-        kwargs.update({
-            'target': target,
-            'res_dir': res_dir,
-        })
+        kwargs.update(
+            target=target,
+            res_dir=res_dir,
+        )
         cls.check_init_param(**kwargs)
         return cls(**kwargs)
 
