@@ -1488,19 +1488,25 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
         :type conf: FtraceConf
         """
         def merge_conf(key, val):
-            if key in ('events', 'functions'):
-                return sorted(set(val) | set(self.get(key, [])))
-            elif key == 'buffer-size':
-                return max(val, self.get(key, 0))
-            elif key == 'trace-clock':
+
+            def non_mergeable(key):
                 if self.get(key, val) == val:
                     return val
                 else:
                     raise KeyError('Cannot merge key "{}": incompatible values specified: {} != {}'.format(
                         key, self[key], val,
                     ))
+
+            if key in ('events', 'functions'):
+                return sorted(set(val) | set(self.get(key, [])))
+            elif key == 'buffer-size':
+                return max(val, self.get(key, 0))
+            elif key == 'trace-clock':
+                return non_mergeable(key)
             elif key == 'saved-cmdlines-nr':
                 return max(val, self.get(key, 0))
+            elif key == 'tracer':
+                return non_mergeable(key)
             else:
                 raise KeyError('Cannot merge key "{}"'.format(key))
 
