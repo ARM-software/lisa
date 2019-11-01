@@ -1619,4 +1619,7 @@ class StrList(TypedList):
 class StrIntListDict(TypedDict):
     _type = (str, IntList)
 
+class IntStrDict(TypedDict):
+    _type = (int, str)
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
