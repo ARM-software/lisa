@@ -513,6 +513,7 @@ class Trace(Loggable, TraceBase):
         self._sanitize_SchedOverutilized()
         self._sanitize_CpuFrequency()
         self._sanitize_ThermalPowerCpu()
+        self._sanitize_funcgraph()
 
     def _check_available_events(self, key=""):
         """
@@ -1114,6 +1115,28 @@ class Trace(Loggable, TraceBase):
                 df.sort_index(inplace=True)
 
             self._ftrace.cpu_frequency.data_frame = df
+
+    def _sanitize_funcgraph(self):
+        """
+        Resolve the kernel function names.
+        """
+
+        events = [
+            event
+            for event in ('funcgraph_entry', 'funcgraph_exit')
+            if self.has_events(event)
+        ]
+        if not events:
+            return
+
+        try:
+            addr_map = self.plat_info['kernel']['symbols-address']
+        except KeyError as e:
+            self.get_logger().warning('Missing symbol addresses, function names will not be resolved: {}'.format(e))
+        else:
+            for event in events:
+                df = self.df_events(event)
+                df['func_name'] = df['func'].map(addr_map)
 
 
 class TraceEventCheckerBase(abc.ABC, Loggable):
