@@ -38,12 +38,14 @@ from exekall.utils import get_name, get_method_class, add_argument, NoValue, fla
 from exekall.engine import ExprData, Consumer, PrebuiltOperator
 from exekall.customization import AdaptorBase
 
+
 class NonReusable:
     pass
 
+
 class ExekallArtifactPath(ArtifactPath, NonReusable):
     @classmethod
-    def from_expr_data(cls, data:ExprData, consumer:Consumer) -> 'ExekallArtifactPath':
+    def from_expr_data(cls, data: ExprData, consumer: Consumer) -> 'ExekallArtifactPath':
         """
         Factory used when running under `exekall`
         """
@@ -58,8 +60,8 @@ class ExekallArtifactPath(ArtifactPath, NonReusable):
                 break
 
         cls.get_logger().info('Creating {consumer} artifact storage: {path}'.format(
-            consumer = consumer_name,
-            path = artifact_dir
+            consumer=consumer_name,
+            path=artifact_dir
         ))
         artifact_dir.mkdir(parents=True)
         # Get canonical absolute paths
@@ -67,6 +69,7 @@ class ExekallArtifactPath(ArtifactPath, NonReusable):
         root = data['artifact_dir']
         relative = artifact_dir.relative_to(root)
         return cls(root, relative)
+
 
 class ExekallFtraceCollector(FtraceCollector, HideExekallID):
     @staticmethod
@@ -84,7 +87,7 @@ class ExekallFtraceCollector(FtraceCollector, HideExekallID):
         return conf
 
     @classmethod
-    def from_user_conf(cls, target:Target, consumer:Consumer, user_conf:FtraceConf=None) -> 'ExekallFtraceCollector':
+    def from_user_conf(cls, target: Target, consumer: Consumer, user_conf: FtraceConf = None) -> 'ExekallFtraceCollector':
         base_conf = cls._get_consumer_conf(consumer)
         consumer_cls = get_method_class(consumer)
         merged_src = 'user+{}'.format(consumer_cls.__qualname__)
@@ -94,6 +97,7 @@ class ExekallFtraceCollector(FtraceCollector, HideExekallID):
             base_conf, user_conf,
             merged_src=merged_src
         )
+
 
 class LISAAdaptor(AdaptorBase):
     name = 'LISA'
@@ -276,7 +280,7 @@ comparison. Can be repeated.""")
                 # Only show the number of iterations required to validate a fix
                 # when there was a regression.
                 if regr.failure_delta_pc > 0:
-                    validation_nr=regr.fix_validation_min_iter_nr
+                    validation_nr = regr.fix_validation_min_iter_nr
                 else:
                     validation_nr = ''
 
@@ -393,10 +397,9 @@ comparison. Can be repeated.""")
                     eq=eq,
                 ))
 
-
         if len(yaml_show_spec_list) == 1:
             yaml_show_format = '{yaml}'
-            yaml_indent = lambda x: x
+            def yaml_indent(x): return x
         else:
             yaml_show_format = 'UUID={uuid} {type}:\n\n{yaml}'
             yaml_indent = indent
@@ -492,7 +495,7 @@ comparison. Can be repeated.""")
             if not is_subfolder:
                 # We get the name of the callable
                 callable_folder = val.parts[-2]
-                folder = expr_artifact_dir/callable_folder
+                folder = expr_artifact_dir / callable_folder
 
                 # We build a relative path back in the hierarchy to the root of
                 # all artifacts
@@ -500,7 +503,7 @@ comparison. Can be repeated.""")
 
                 # The target needs to be a relative symlink, so we replace the
                 # absolute artifact_dir by a relative version of it
-                target = relative_artifact_dir/val.relative_to(artifact_dir)
+                target = relative_artifact_dir / val.relative_to(artifact_dir)
 
                 with contextlib.suppress(FileExistsError):
                     folder.mkdir(parents=True)

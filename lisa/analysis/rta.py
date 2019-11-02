@@ -285,7 +285,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
             df = self.df_rtapp_phases_end(task)
         if phase and phase < 0:
             phase += len(df)
-        phase += 1 # because of the followig "head().tail()" filter
+        phase += 1  # because of the followig "head().tail()" filter
         return df.loc[task.comm].head(phase).tail(1).Time.values[0]
 
     @_get_task_phase.used_events
@@ -382,12 +382,11 @@ class RTAEventsAnalysis(TraceAnalysisBase):
                 timestamp, last_phase_end))
 
         phase_id = len(self.df_phases(task)) - \
-                   len(self.df_phases(task)[timestamp:]) - 1
+            len(self.df_phases(task)[timestamp:]) - 1
         if phase_id < 0:
             raise ValueError('negative phase ID')
 
         return self.task_phase_window(task, phase_id)
-
 
     ###########################################################################
     # rtapp_phase events related methods
@@ -530,7 +529,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         """
         for idx, phase in enumerate(self.df_phases(task).itertuples()):
             yield PhaseWindow(idx, phase.Index,
-                                    phase.Index+phase.duration)
+                              phase.Index + phase.duration)
 
 ###############################################################################
 # Plotting Methods
@@ -599,10 +598,9 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         """
         task = self.trace.get_task_id(task)
         axis.set_title('Task [{}] Performance Index'.format(task))
-        data = self.df_rtapp_stats(task)[['perf_index',]]
+        data = self.df_rtapp_stats(task)[['perf_index', ]]
         data.plot(ax=axis, drawstyle='steps-post')
         axis.set_ylim(0, 2)
-
 
     @AnalysisHelpers.plot_method()
     @df_rtapp_stats.used_events
@@ -673,6 +671,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         if local_fig:
             axis.set_title(ylabel)
+
 
 @deprecate('Log-file based analysis has been replaced by ftrace-based analysis',
     deprecated_in='2.0',
@@ -782,14 +781,14 @@ class PerfAnalysis(AnalysisHelpers):
         df = pd.read_csv(logfile,
                 sep=r'\s+',
                 header=0,
-                usecols=[1,2,3,4,7,8,9,10],
+                usecols=[1, 2, 3, 4, 7, 8, 9, 10],
                 names=[
-                    'Cycles', 'Run' ,'Period', 'Timestamp',
+                    'Cycles', 'Run', 'Period', 'Timestamp',
                     'Slack', 'CRun', 'CPeriod', 'WKPLatency'
                 ])
         # Normalize time to [s] with origin on the first event
-        start_time = df['Timestamp'][0]/1e6
-        df['Time'] = df['Timestamp']/1e6 - start_time
+        start_time = df['Timestamp'][0] / 1e6
+        df['Time'] = df['Timestamp'] / 1e6 - start_time
         df.set_index(['Time'], inplace=True)
         # Add performance metrics column, performance is defined as:
         #             slack
@@ -848,17 +847,16 @@ class PerfAnalysis(AnalysisHelpers):
         Plot the performance Index
         """
         axis.set_title('Task [{}] Performance Index'.format(task))
-        data = self.get_df(task)[['PerfIndex',]]
+        data = self.get_df(task)[['PerfIndex', ]]
         data.plot(ax=axis, drawstyle='steps-post')
         axis.set_ylim(0, 2)
-
 
     @AnalysisHelpers.plot_method()
     def plot_latency(self, task, axis, local_fig):
         """
         Plot the Latency/Slack and Performance data for the specified task.
         """
-        axis.set_title('Task [{}] (start) Latency and (completion) Slack'\
+        axis.set_title('Task [{}] (start) Latency and (completion) Slack'
                 .format(task))
         data = self.get_df(task)[['Slack', 'WKPLatency']]
         data.plot(ax=axis, drawstyle='steps-post')

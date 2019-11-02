@@ -44,8 +44,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         if event in ['sched_load_avg_cpu', 'sched_load_avg_task']:
             return {
-                "util_avg" : "util",
-                "load_avg" : "load"
+                "util_avg": "util",
+                "load_avg": "load"
             }
 
         if event == 'sched_util_est_task':
@@ -84,7 +84,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         df.drop(columns=to_drop, inplace=True, errors='ignore')
 
         return df
-
 
     def _df_either_event(self, events):
         for event in events:
@@ -203,7 +202,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
           * A ``required_capacity`` column (the minimum available CPU capacity
             required to run this task without being CPU-bound)
         """
-        df =  self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
+        df = self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
 
         if "cpu-capacities" in self.trace.plat_info:
             df['required_capacity'] = self.df_tasks_signal('required_capacity')['required_capacity']
@@ -234,7 +233,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         samples = samples[samples > min_samples]
         samples = samples.sort_values(ascending=False)
 
-        top_df = pd.DataFrame(samples).rename(columns={"util" : "samples"})
+        top_df = pd.DataFrame(samples).rename(columns={"util": "samples"})
+
         def get_name(pid):
             return self.trace.get_task_pid_names(pid)[-1]
         top_df["comm"] = top_df.index.map(get_name)

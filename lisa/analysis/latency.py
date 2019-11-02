@@ -22,6 +22,7 @@ from lisa.analysis.base import TraceAnalysisBase, COLOR_CYCLES
 from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.utils import memoized
 
+
 class LatencyAnalysis(TraceAnalysisBase):
     """
     Support for plotting Latency Analysis data
@@ -32,8 +33,8 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     name = 'latency'
 
-    LATENCY_THRESHOLD_ZONE_COLOR=COLOR_CYCLES[2]
-    LATENCY_THRESHOLD_COLOR=COLOR_CYCLES[3]
+    LATENCY_THRESHOLD_ZONE_COLOR = COLOR_CYCLES[2]
+    LATENCY_THRESHOLD_COLOR = COLOR_CYCLES[3]
 
 ###############################################################################
 # DataFrame Getter Methods
@@ -57,7 +58,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         df = df[(df.curr_state == TaskState.TASK_WAKING) &
                 (df.next_state == TaskState.TASK_ACTIVE)][["delta"]]
 
-        df.rename(columns={'delta' : 'wakeup_latency'}, inplace=True)
+        df.rename(columns={'delta': 'wakeup_latency'}, inplace=True)
         return df
 
     @TasksAnalysis.df_task_states.used_events
@@ -77,7 +78,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         df = df[(df.curr_state == TaskState.TASK_RUNNING) &
                 (df.next_state == TaskState.TASK_ACTIVE)][["delta"]]
 
-        df.rename(columns={'delta' : 'preempt_latency'}, inplace=True)
+        df.rename(columns={'delta': 'preempt_latency'}, inplace=True)
         return df
 
     @TasksAnalysis.df_task_states.used_events
@@ -207,12 +208,10 @@ class LatencyAnalysis(TraceAnalysisBase):
             else:
                 df.plot(ax=axis, style='+', label="Preemption")
 
-
         axis.set_title('Latencies of task "{}"'.format(task))
         axis.set_ylabel("Latency (s)")
         axis.legend()
         axis.set_xlim(self.trace.start, self.trace.end)
-
 
     def _get_cdf(self, data, threshold):
         """
@@ -235,11 +234,11 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         if wakeup:
             wkp_df = self.df_latency_wakeup(task)
-            wkp_df.rename(columns={'wakeup_latency' : 'latency'}, inplace=True)
+            wkp_df.rename(columns={'wakeup_latency': 'latency'}, inplace=True)
 
         if preempt:
             prt_df = self.df_latency_preemption(task)
-            prt_df.rename(columns={'preempt_latency' : 'latency'}, inplace=True)
+            prt_df.rename(columns={'preempt_latency': 'latency'}, inplace=True)
 
         if wakeup and preempt:
             df = wkp_df.append(prt_df)
@@ -276,13 +275,12 @@ class LatencyAnalysis(TraceAnalysisBase):
         axis.axhline(below, linestyle='--', color=self.LATENCY_THRESHOLD_COLOR,
                      label="Latencies below {}ms".format(threshold_ms))
         axis.axvspan(0, threshold_s, facecolor=self.LATENCY_THRESHOLD_ZONE_COLOR,
-                     alpha=0.5, label="{}ms threshold zone".format(threshold_ms));
+                     alpha=0.5, label="{}ms threshold zone".format(threshold_ms))
 
         axis.set_title('Latencies CDF of task "{}"'.format(task))
         axis.set_xlabel("Latency (s)")
         axis.set_ylabel("Latencies below the x value (%)")
         axis.legend()
-
 
     @TraceAnalysisBase.plot_method()
     @_get_latencies_df.used_events
@@ -309,12 +307,11 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         df.latency.plot.hist(bins=bins, ax=axis, xlim=(0, 1.1 * df.latency.max()))
         axis.axvspan(0, threshold_s, facecolor=self.LATENCY_THRESHOLD_ZONE_COLOR, alpha=0.5,
-                     label="{}ms threshold zone".format(threshold_ms));
+                     label="{}ms threshold zone".format(threshold_ms))
 
         axis.set_title('Latencies histogram of task "{}"'.format(task))
         axis.set_xlabel("Latency (s)")
         axis.legend()
-
 
     @TraceAnalysisBase.plot_method()
     @df_latency_wakeup.used_events

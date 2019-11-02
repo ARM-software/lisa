@@ -27,6 +27,7 @@ import itertools
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import Loggable
 
+
 class AnalysisProxy(Loggable):
     """
     Define list of supported Analysis Classes.

@@ -21,6 +21,7 @@ from shlex import quote
 from lisa.utils import memoized
 from lisa.wlgen.workload import Workload
 
+
 class SysbenchOutput(str):
     """
     A wrapper around sysbench's stdout to more easily access some results
@@ -44,6 +45,7 @@ class SysbenchOutput(str):
         match = re.search(r'total time:\s*(?P<time>[0-9]+\.[0-9]+)s', self)
         return float(match.group('time'))
 
+
 class Sysbench(Workload):
     """
     A sysbench workload
@@ -59,7 +61,6 @@ class Sysbench(Workload):
             raise RuntimeError("No sysbench executable found on the target")
 
         self.sysbench_bin = sysbench_bin
-
 
     def run(self, cpus=None, cgroup=None, background=False, as_root=False,
             test="cpu", max_duration_s=None, max_requests=None, **kwargs):

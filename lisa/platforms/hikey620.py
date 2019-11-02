@@ -20,10 +20,10 @@ from lisa.energy_model import (ActiveState, EnergyModelNode, EnergyModelRoot,
 from collections import OrderedDict
 
 cluster_active_states = OrderedDict([
-    ( 208000, ActiveState(capacity=178, power=16)),
-    ( 432000, ActiveState(capacity=369, power=29)),
-    ( 729000, ActiveState(capacity=622, power=47)),
-    ( 960000, ActiveState(capacity=819, power=75)),
+    (208000, ActiveState(capacity=178, power=16)),
+    (432000, ActiveState(capacity=369, power=29)),
+    (729000, ActiveState(capacity=622, power=47)),
+    (960000, ActiveState(capacity=819, power=75)),
     (1200000, ActiveState(capacity=1024, power=112))
 ])
 
@@ -34,10 +34,10 @@ cluster_idle_states = OrderedDict([
 ])
 
 cpu_active_states = OrderedDict([
-    ( 208000,  ActiveState(capacity=178,  power=69)),
-    ( 432000,  ActiveState(capacity=369,  power=124)),
-    ( 729000,  ActiveState(capacity=622,  power=224)),
-    ( 960000,  ActiveState(capacity=819,  power=367)),
+    (208000, ActiveState(capacity=178, power=69)),
+    (432000, ActiveState(capacity=369, power=124)),
+    (729000, ActiveState(capacity=622, power=224)),
+    (960000, ActiveState(capacity=819, power=367)),
     (1200000, ActiveState(capacity=1024, power=670))
 ])
 
@@ -45,13 +45,17 @@ cpu_idle_states = OrderedDict([
     ('WFI', 15), ('cpu-sleep', 0), ('cluster-sleep', 0)
 ])
 
+
 def cpu_pd(cpu):
     return PowerDomain(cpu=cpu, idle_states=['WFI', 'cpu-sleep'])
+
 
 def cpu_node(cpu):
     return EnergyModelNode(cpu=cpu,
                            active_states=cpu_active_states,
                            idle_states=cpu_idle_states)
+
+
 nrg_model = EnergyModel(
     root_node=EnergyModelRoot(children=[
         EnergyModelNode(name='cluster0',

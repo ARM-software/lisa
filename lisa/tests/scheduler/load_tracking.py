@@ -39,12 +39,13 @@ UTIL_CONVERGENCE_TIME_S = pelt_settling_time(0.1, init=0, final=1024)
 Time in seconds for util_avg to converge (i.e. ignored time)
 """
 
+
 class LoadTrackingHelpers:
     """
     Common bunch of helpers for load tracking tests.
     """
 
-    MAX_RTAPP_CALIB_DEVIATION = 3/100
+    MAX_RTAPP_CALIB_DEVIATION = 3 / 100
     """
     Blacklist CPUs that have a RTapp calibration value that deviates too much
     from the average calib value in their capacity class.
@@ -116,7 +117,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
     """
 
     cpufreq_conf = {
-        "governor" : "performance"
+        "governor": "performance"
     }
     """
     The cpufreq configuration used while the synthetic workload is being run.
@@ -124,7 +125,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
     """
 
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'LoadTrackingBase':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None) -> 'LoadTrackingBase':
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
 
@@ -150,6 +151,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
         delta = target * allowed_delta_pct / 100
         return target - delta <= value <= target + delta
 
+
 class InvarianceItem(LoadTrackingBase, ExekallTaggable):
     """
     Basic check for CPU and frequency invariant load and utilization tracking
@@ -162,7 +164,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
     """
     task_prefix = 'invar'
     cpufreq_conf = {
-        "governor" : "userspace"
+        "governor": "userspace"
     }
 
     def __init__(self, res_dir, plat_info, cpu, freq, freq_list):
@@ -205,7 +207,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         cycle, pinned to the given CPU.
         """
         freq_capa = cls._get_freq_capa(cpu, freq, plat_info)
-        duty_cycle_pct = freq_capa/UTIL_SCALE * 100
+        duty_cycle_pct = freq_capa / UTIL_SCALE * 100
         # Use half of the capacity at that OPP, so we are sure that the
         # task will fit even at the lowest OPP
         duty_cycle_pct //= 2
@@ -221,7 +223,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         return rtapp_profile
 
     @classmethod
-    def _from_target(cls, target:Target, *, cpu:int, freq:int, freq_list=None, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'InvarianceItem':
+    def _from_target(cls, target: Target, *, cpu: int, freq: int, freq_list=None, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None) -> 'InvarianceItem':
         """
         :param cpu: CPU to use, or ``None`` to automatically choose an
             appropriate set of CPUs.
@@ -400,7 +402,6 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         res.add_metric('simulated max', df['simulated'].max())
         res.add_metric('max error', max_error_pct, '%')
 
-
         self._plot_pelt(task, signal_name, df['simulated'], 'correctness')
 
         res = self._add_cpu_metric(res)
@@ -438,7 +439,6 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
             max_error_margin_pct=max_error_margin_pct,
         )
 
-
     @_test_behaviour.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_util_behaviour(self, error_margin_pct=5) -> ResultBundle:
@@ -464,6 +464,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         Same as :meth:`test_util_behaviour` but checking the load.
         """
         return self._test_behaviour('load', error_margin_pct)
+
 
 class Invariance(TestBundle, LoadTrackingHelpers):
     """
@@ -552,7 +553,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
         yield from self.invariance_items
 
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'Invariance':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None) -> 'Invariance':
         return cls(res_dir, target.plat_info,
             list(cls._build_invariance_items(target, res_dir, ftrace_coll))
         )
@@ -911,6 +912,7 @@ class CPUMigrationBase(LoadTrackingBase):
 
         return res
 
+
 class OneTaskCPUMigration(CPUMigrationBase):
     """
     Some tasks on two big CPUs, one of them migrates in its second phase.
@@ -951,6 +953,7 @@ class OneTaskCPUMigration(CPUMigrationBase):
 
         return profile
 
+
 class NTasksCPUMigrationBase(CPUMigrationBase):
     """
     N tasks on N CPUs, with all the migration permutations.
@@ -959,7 +962,7 @@ class NTasksCPUMigrationBase(CPUMigrationBase):
     @classmethod
     def get_rtapp_profile(cls, plat_info):
         cpus = cls.get_migration_cpus(plat_info)
-        make_name = lambda i: 'migr{}'.format(i)
+        def make_name(i): return 'migr{}'.format(i)
 
         nr_tasks = len(cpus)
         profile = {

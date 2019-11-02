@@ -21,10 +21,13 @@ __all__ = []
 # Import all the submodules before they are asked for by user code, since
 # we need to create the *Analysis classes in order for them to be
 # registered against TraceAnalysisBase
+
+
 def _import_submodules():
     from lisa.utils import _import_all_submodules
     modules = _import_all_submodules(__name__, __path__)
     __all__.extend(modules)
+
 
 _import_submodules()
 # Avoid polluting the namespace with non-necessary names

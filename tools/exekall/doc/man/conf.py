@@ -35,4 +35,3 @@ man_pages = [
     (master_doc, 'exekall', 'test runner',
      [author], 1)
 ]
-

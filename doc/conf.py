@@ -45,16 +45,19 @@ for name, obj in vars(unittest).items():
     try:
         m = obj.__module__
         obj.__module__ = 'unittest' if m == 'unittest.case' else m
-    except Exception: pass
+    except Exception:
+        pass
 
 # This is a hack to prevent :ivar: docs from attempting to create a reference
 # Credit goes to https://stackoverflow.com/a/41184353/5096023
+
+
 def patched_make_field(self, types, domain, items, env=None):
     # type: (List, unicode, Tuple) -> nodes.field
     def handle_item(fieldarg, content):
         par = nodes.paragraph()
         par += addnodes.literal_strong('', fieldarg)  # Patch: this line added
-        #par.extend(self.make_xrefs(self.rolename, domain, fieldarg,
+        # par.extend(self.make_xrefs(self.rolename, domain, fieldarg,
         #                           addnodes.literal_strong))
         if fieldarg in types:
             par += nodes.Text(' (')
@@ -83,6 +86,7 @@ def patched_make_field(self, types, domain, items, env=None):
             bodynode += nodes.list_item('', handle_item(fieldarg, content))
     fieldbody = nodes.field_body('', bodynode)
     return nodes.field('', fieldname, fieldbody)
+
 
 TypedField.make_field = patched_make_field
 
@@ -289,21 +293,21 @@ htmlhelp_basename = 'LISAdoc'
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
-# The paper size ('letterpaper' or 'a4paper').
-#'papersize': 'letterpaper',
+    # The paper size ('letterpaper' or 'a4paper').
+    # 'papersize': 'letterpaper',
 
-# The font size ('10pt', '11pt' or '12pt').
-#'pointsize': '10pt',
+    # The font size ('10pt', '11pt' or '12pt').
+    # 'pointsize': '10pt',
 
-# Additional stuff for the LaTeX preamble.
-#'preamble': '',
+    # Additional stuff for the LaTeX preamble.
+    # 'preamble': '',
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'LISA.tex', 'LISA Documentation',
+    ('index', 'LISA.tex', 'LISA Documentation',
    'ARM-Software', 'manual'),
 ]
 
@@ -347,7 +351,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'LISA', 'LISA Documentation',
+    ('index', 'LISA', 'LISA Documentation',
    'ARM-Software', 'LISA', 'One line description of project.',
    'Miscellaneous'),
 ]
@@ -365,15 +369,15 @@ texinfo_documents = [
 #texinfo_no_detailmenu = False
 
 intersphinx_mapping = {
-    'python' : ('https://docs.python.org/3', None),
-    'pandas' : ('https://pandas.pydata.org/pandas-docs/stable/', None),
-    'matplotlib' : ('https://matplotlib.org', None),
+    'python': ('https://docs.python.org/3', None),
+    'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None),
+    'matplotlib': ('https://matplotlib.org', None),
     'numpy': ('https://docs.scipy.org/doc/numpy', None),
     # XXX: Doesn't seem to work, might be due to how devlib doc is generated
-    'wa' : ('https://devlib.readthedocs.io/en/latest/', None),
-    'trappy' : ('https://pythonhosted.org/TRAPpy', None),
-    'bart' :   ('https://pythonhosted.org/bart-py/', None),
-    'wa' : ('https://workload-automation.readthedocs.io/en/latest/', None),
+    'wa': ('https://devlib.readthedocs.io/en/latest/', None),
+    'trappy': ('https://pythonhosted.org/TRAPpy', None),
+    'bart': ('https://pythonhosted.org/bart-py/', None),
+    'wa': ('https://workload-automation.readthedocs.io/en/latest/', None),
 }
 
 #
@@ -386,8 +390,8 @@ autoclass_content = 'both'
 autodoc_member_order = 'bysource'
 
 autodoc_default_options = {
-    'show-inheritance' : '', # Show parent class
-    'undoc-members' : '',    # Show members even if they don't have docstrings
+    'show-inheritance': '',  # Show parent class
+    'undoc-members': '',    # Show members even if they don't have docstrings
 }
 autodoc_inherit_docstrings = True
 

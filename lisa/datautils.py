@@ -50,11 +50,13 @@ def series_refit_index(series, start=None, end=None, method='pre'):
 
     return _data_refit_index(series, start, end, method=method)
 
+
 def df_refit_index(df, start=None, end=None, method='pre'):
     """
     Same as :func:`series_refit_index` but acting on :class:`pandas.DataFrame`
     """
     return _data_refit_index(df, start, end, method=method)
+
 
 def _data_refit_index(data, start, end, method):
     if data.empty:
@@ -175,6 +177,7 @@ def df_squash(df, start, end, column='delta'):
 
     return res_df
 
+
 def df_filter(df, filter_columns):
     """
     Filter the content of a dataframe.
@@ -195,6 +198,7 @@ def df_filter(df, filter_columns):
     )
 
     return df[key]
+
 
 def df_merge(df_list, drop_columns=None, drop_inplace=False, filter_columns=None):
     """
@@ -386,7 +390,6 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
 
         return (y * dx).sum()
 
-
     # Make a DataFrame to make sure all rows stay aligned when we drop NaN,
     # which is needed by all the below methods
     df = pd.DataFrame({'x': x, 'y': y}).dropna()
@@ -453,6 +456,7 @@ def series_window(series, window, method='inclusive', clip_window=False):
     .. note:: The index of `series` must be monotonic and without duplicates.
     """
     return _data_window(series, window, method, clip_window)
+
 
 def _data_window(data, window, method='inclusive', clip_window=False):
     """
@@ -533,9 +537,9 @@ def series_align_signal(ref, to_align, max_shift=None):
     # Resample so that we operate on a fixed sampled rate signal, which is
     # necessary in order to be able to do a meaningful interpretation of
     # correlation argmax
-    get_period = lambda series: pd.Series(series.index).diff().min()
+    def get_period(series): return pd.Series(series.index).diff().min()
     period = min(get_period(ref), get_period(to_align))
-    num = math.ceil((end - start)/period)
+    num = math.ceil((end - start) / period)
     new_index = pd.Float64Index(np.linspace(start, end, num))
 
     to_align = to_align.reindex(new_index, method='ffill')
@@ -563,6 +567,7 @@ def series_align_signal(ref, to_align, max_shift=None):
 
     # Compensate the shift
     return ref, to_align.shift(-shift)
+
 
 def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=False, comm_max_len=TASK_COMM_MAX_LEN):
     """
@@ -610,6 +615,7 @@ def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=Fals
 
     return df[tasks_filter]
 
+
 def series_local_extremum(series, kind):
     """
     Returns a series of local extremum.
@@ -629,6 +635,7 @@ def series_local_extremum(series, kind):
 
     ilocs = scipy.signal.argrelextrema(series.values, comparator=comparator)
     return series.iloc[ilocs]
+
 
 def series_tunnel_mean(series):
     """

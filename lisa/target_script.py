@@ -20,6 +20,7 @@ import contextlib
 
 from time import sleep
 
+
 class TargetScript:
     """
     This class provides utility to create and run a script
@@ -82,7 +83,7 @@ class TargetScript:
     def __getattr__(self, name):
         # dunder name lookup would have succeeded by now, like __setstate__
         if not (name.startswith('__') and name.endswith('__')) \
-            and name in self._target_attrs:
+                and name in self._target_attrs:
             return getattr(self.target, name)
 
         return super().__getattribute__(name)

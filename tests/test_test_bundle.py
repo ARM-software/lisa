@@ -20,10 +20,12 @@ from lisa.platforms.platinfo import PlatformInfo
 from lisa.tests.base import TestBundle, ResultBundle
 from .utils import create_local_target, StorageTestCase
 
+
 class DummyTestBundle(TestBundle):
     """
     A dummy bundle that only does some simple target interaction
     """
+
     def __init__(self, res_dir, shell_output):
         plat_info = PlatformInfo()
         super().__init__(res_dir, plat_info)
@@ -43,11 +45,13 @@ class DummyTestBundle(TestBundle):
 
         return ResultBundle.from_bool(passed)
 
+
 class BundleCheck(StorageTestCase):
     """
     A test class that verifies some :class:`lisa.tests.base.TestBundle`
     base behaviours.
     """
+
     def setUp(self):
         super().setUp()
         self.target = create_local_target()

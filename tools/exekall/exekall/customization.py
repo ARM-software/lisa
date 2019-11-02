@@ -21,6 +21,7 @@ import numbers
 from exekall.engine import ValueDB
 from exekall.utils import out, get_name, NoValue, get_subclasses
 
+
 class AdaptorBase:
     """
     Base class of all adaptors.
@@ -212,8 +213,8 @@ class AdaptorBase:
             for failed_parent in expr_val.get_excep():
                 excep = failed_parent.excep
                 return 'EXCEPTION ({type}): {msg}'.format(
-                    type = get_name(type(excep), full_qual=False),
-                    msg = excep
+                    type=get_name(type(excep), full_qual=False),
+                    msg=excep
                 )
             return 'No value computed'
         else:

@@ -37,18 +37,18 @@ from lisa.datautils import series_integrate, df_filter_task_ids
 
 from lisa.tests.scheduler.load_tracking import LoadTrackingHelpers
 
+
 class UtilTrackingBase(RTATestBundle, LoadTrackingHelpers):
     """
     Base class for shared functionality of utilization tracking tests
     """
 
     @classmethod
-    def _from_target(cls, target:Target, *,
-                     res_dir:ArtifactPath=None,
-                     ftrace_coll:FtraceCollector=None) -> 'UtilTrackingBase':
+    def _from_target(cls, target: Target, *,
+                     res_dir: ArtifactPath = None,
+                     ftrace_coll: FtraceCollector = None) -> 'UtilTrackingBase':
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
-
 
         # After a bit of experimenting, it turns out that on some platforms
         # misprediction of the idle time (which leads to a shallow idle state,
@@ -126,7 +126,7 @@ class UtilConvergence(UtilTrackingBase):
                 period_ms=200,
                 cpus=[big_cpu])
         )
-        return {'test' : task}
+        return {'test': task}
 
     @property
     @memoized
@@ -138,7 +138,7 @@ class UtilConvergence(UtilTrackingBase):
     def _plot_signals(self, task, test, failures):
         signals = ['util', 'util_est_enqueued', 'util_est_ewma']
         ax = self.trace.analysis.load_tracking.plot_task_signals(task, signals=signals, interactive=False)
-        ax = self.trace.analysis.rta.plot_phases(task, axis=ax, interactive=False);
+        ax = self.trace.analysis.rta.plot_phases(task, axis=ax, interactive=False)
         for start in failures:
             ax.axvline(start, alpha=0.5, color='r')
         filepath = os.path.join(self.res_dir, 'util_est_{}.png'.format(test))
@@ -196,7 +196,7 @@ class UtilConvergence(UtilTrackingBase):
             area_util = series_integrate(phase_df.util)
 
             metrics[phase.id] = PhaseStats(phase.start, phase.end,
-                                                area_util, area_enqueued, area_ewma)
+                                           area_util, area_enqueued, area_ewma)
 
             phase_name = "phase {}".format(phase.id)
             if area_enqueued < area_util:
@@ -286,19 +286,19 @@ class UtilConvergence(UtilTrackingBase):
 
         # Define a time interval to correlate relative trace events.
         def restrict(df, time, delta=1e-3):
-            return df[time-delta:time+delta]
+            return df[time - delta:time + delta]
 
         failures = []
         for idx, activation in enumerate(activations):
             avg, enq, ewma = restrict(df, activation)[[
                 'util_avg', 'util_est_enqueued', 'util_est_ewma']].iloc[-1]
 
-            metrics[idx+1] = ActivationSignals(activation, avg, enq, ewma)
+            metrics[idx + 1] = ActivationSignals(activation, avg, enq, ewma)
 
             # UtilEst is not updated when within 1% of previous activation
             if 1.01 * enq < avg:
                 failure_reasons[idx] = 'enqueued({}) smaller than util_avg({}) @ {}'\
-                                        .format(enq, avg, activation)
+                    .format(enq, avg, activation)
                 failures.append(activation)
                 continue
 
@@ -308,7 +308,7 @@ class UtilConvergence(UtilTrackingBase):
                 # STABLE, DOWN and UP:
                 if enq > ewma:
                     failure_reasons[idx] = 'enqueued({}) bigger than ewma({}) @ {}'\
-                                            .format(enq, ewma, activation)
+                        .format(enq, ewma, activation)
                     failures.append(activation)
                     continue
 
@@ -320,21 +320,21 @@ class UtilConvergence(UtilTrackingBase):
                 # STABLE: ewma ramping up
                 if phase.id == 0 and enq < ewma:
                     failure_reasons[idx] = 'enqueued({}) smaller than ewma({}) @ {}'\
-                                            .format(enq, ewma, activation)
+                        .format(enq, ewma, activation)
                     failures.append(activation)
                     continue
 
                 # DOWN: ewma ramping down
                 if 0 < phase.id < 5 and enq > ewma:
                     failure_reasons[idx] = 'enqueued({}) bigger than ewma({}) @ {}'\
-                                            .format(enq, ewma, activation)
+                        .format(enq, ewma, activation)
                     failures.append(activation)
                     continue
 
                 # UP: ewma ramping up
                 if phase.id > 4 and enq < ewma:
                     failure_reasons[idx] = 'enqueued({}) smaller than ewma({}) @ {}'\
-                                            .format(enq, ewma, activation)
+                        .format(enq, ewma, activation)
                     failures.append(activation)
                     continue
 

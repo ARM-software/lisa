@@ -17,15 +17,16 @@
 
 import sys
 
+
 class TestColors:
 
     level = {
-        'failed'    : '\033[0;31m', # Red
-        'good'      : '\033[0;32m', # Green
-        'warning'   : '\033[0;33m', # Yellow
-        'passed'    : '\033[0;34m', # Blue
-        'purple'    : '\033[0;35m', # Purple
-        'endc'      : '\033[0m'     # End color
+        'failed': '\033[0;31m',  # Red
+        'good': '\033[0;32m',  # Green
+        'warning': '\033[0;33m',  # Yellow
+        'passed': '\033[0;34m',  # Blue
+        'purple': '\033[0;35m',  # Purple
+        'endc': '\033[0m'     # End color
     }
 
     @staticmethod

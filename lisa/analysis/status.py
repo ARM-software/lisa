@@ -22,6 +22,7 @@
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
 
+
 class StatusAnalysis(TraceAnalysisBase):
     """
     Support for System Status analysis

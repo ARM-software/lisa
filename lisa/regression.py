@@ -28,6 +28,7 @@ import scipy.stats
 
 ResultCount = namedtuple('ResultCount', ('passed', 'failed'))
 
+
 class RegressionResult:
     """
     Compute failure-rate regression between old and new series.
@@ -48,10 +49,11 @@ class RegressionResult:
 
 
     """
+
     def __init__(self, testcase_id,
-            old_count, new_count,
-            alpha=None,
-        ):
+                old_count, new_count,
+                alpha=None,
+            ):
         self.old_count = old_count
         self.new_count = new_count
 
@@ -133,7 +135,7 @@ class RegressionResult:
         """
         def div(x, y):
             try:
-                return x/y
+                return x / y
             except ZeroDivisionError:
                 return float('Inf')
         failure_new_pc = 100 * div(self.new_count.failed, (self.new_count.failed + self.new_count.passed))
@@ -177,7 +179,7 @@ class RegressionResult:
                 [self.old_count.failed, self.old_count.passed],
                 [self.new_count.failed, self.new_count.passed],
             ],
-            alternative = alternative,
+            alternative=alternative,
         )
         return p_val
 
@@ -196,7 +198,7 @@ class RegressionResult:
 
         # We want to be able to detect at least this amount of change
         failure_delta_pc = self.failure_delta_pc
-        failure_rate_old, failure_rate_new = (x/100 for x in self.failure_pc)
+        failure_rate_old, failure_rate_new = (x / 100 for x in self.failure_pc)
 
         # If the failure rate is exactly the same, there is nothing to fix and
         # no way of telling them apart.

@@ -35,6 +35,7 @@ import sys
 import exekall._utils as utils
 from exekall._utils import NoValue
 
+
 class NoOperatorError(Exception):
     """
     Exception raised when no operator has been found to build objects of a
@@ -42,10 +43,12 @@ class NoOperatorError(Exception):
     """
     pass
 
+
 class IndentationManager:
     """
     Manage the indentation level in a generated script.
     """
+
     def __init__(self, style):
         self.style = style
         self.level = 0
@@ -58,6 +61,7 @@ class IndentationManager:
 
     def __str__(self):
         return str(self.style) * self.level
+
 
 class ValueDB:
     """
@@ -100,6 +104,7 @@ class ValueDB:
 
         # First pass: find all frozen values corresponding to a given UUID
         uuid_map = collections.defaultdict(set)
+
         def update_uuid_map(froz_val):
             uuid_map[froz_val.uuid].add(froz_val)
             return froz_val
@@ -282,9 +287,9 @@ class ValueDB:
         if optimize:
             bytes_ = pickle.dumps(self, protocol=self.PICKLE_PROTOCOL)
             bytes_ = pickletools.optimize(bytes_)
-            dumper = lambda f: f.write(bytes_)
+            def dumper(f): return f.write(bytes_)
         else:
-            dumper = lambda f: pickle.dump(self, f, protocol=self.PICKLE_PROTOCOL)
+            def dumper(f): return pickle.dump(self, f, protocol=self.PICKLE_PROTOCOL)
 
         with lzma.open(str(path), 'wb') as f:
             dumper(f)
@@ -378,6 +383,7 @@ class ValueDB:
         # Make sure we don't select the same froz_val twice
         if deduplicate:
             visited = set()
+
             def wrapped_predicate(froz_val):
                 if froz_val in visited:
                     return False
@@ -390,11 +396,11 @@ class ValueDB:
         for froz_val_seq in self.froz_val_seq_list:
             froz_val_set = set()
             for froz_val in itertools.chain(
-                    # traverse all values, including the ones from the
-                    # parameters, even when there was no value computed
-                    # (because of a failed parent for example)
-                    froz_val_seq, froz_val_seq.param_map.values()
-                ):
+                # traverse all values, including the ones from the
+                # parameters, even when there was no value computed
+                # (because of a failed parent for example)
+                froz_val_seq, froz_val_seq.param_map.values()
+            ):
                 froz_val_set.update(froz_val.get_by_predicate(wrapped_predicate))
 
             froz_val_set_set.add(frozenset(froz_val_set))
@@ -514,9 +520,9 @@ class ValueDB:
             expression.
         """
         if include_subclasses:
-            predicate = lambda froz_val: isinstance(froz_val.value, cls)
+            def predicate(froz_val): return isinstance(froz_val.value, cls)
         else:
-            predicate = lambda froz_val: froz_val.type_ is cls
+            def predicate(froz_val): return froz_val.type_ is cls
         return self.get_by_predicate(predicate, **kwargs)
 
     def get_by_id(self, id_pattern, qual=False, full_qual=False, **kwargs):
@@ -557,6 +563,7 @@ class ScriptValueDB:
         :class:`ValueDB` in the generated script.
     :type var_name: str
     """
+
     def __init__(self, db, var_name='db'):
         self.db = db
         self.var_name = var_name
@@ -567,6 +574,7 @@ class ScriptValueDB:
             uuid=repr(expr_val.uuid),
             attr=attr,
         )
+
 
 class CycleError(Exception):
     """
@@ -583,6 +591,7 @@ class ExprHelpers(collections.abc.Mapping):
     It mainly implements the mapping protocol, with keys being parameters and
     values being subexpressions computing the value of these parameters.
     """
+
     def __getitem__(self, k):
         return self.param_map[k]
 
@@ -614,6 +623,7 @@ class ExpressionBase(ExprHelpers):
         the sources.
     :type param_map: collections.OrderedDict
     """
+
     def __init__(self, op, param_map):
         self.op = op
         # Map of parameters to other Expression
@@ -699,7 +709,7 @@ class ExpressionBase(ExprHelpers):
     def __repr__(self):
         return '<Expression of {name} at {id}>'.format(
             name=self.op.get_name(full_qual=True, pretty=True),
-            id = hex(id(self))
+            id=hex(id(self))
         )
 
     def format_structure(self, full_qual=True, graphviz=False):
@@ -733,17 +743,17 @@ class ExpressionBase(ExprHelpers):
 
         op_name = self._format_structure_op_name(self.op)
         out = '{op_name} ({value_type_name})'.format(
-            op_name = op_name,
-            value_type_name = utils.get_name(self.op.value_type,
+            op_name=op_name,
+            value_type_name=utils.get_name(self.op.value_type,
                 full_qual=full_qual,
                 pretty=True,
             ),
         )
         if self.param_map:
-            out += ':\n'+ indent_str + ('\n'+indent_str).join(
+            out += ':\n' + indent_str + ('\n' + indent_str).join(
                 '{param}: {desc}'.format(param=param, desc=desc._format_structure(
                     full_qual=full_qual,
-                    indent=indent+1
+                    indent=indent + 1
                 ))
                 for param, desc in self.param_map.items()
             )
@@ -790,7 +800,7 @@ class ExpressionBase(ExprHelpers):
                 out.append(
                     param_expr._format_graphviz_structure(
                         full_qual=full_qual,
-                        level=level+1,
+                        level=level + 1,
                         visited=visited,
                     )
                 )
@@ -887,13 +897,13 @@ class ExpressionBase(ExprHelpers):
         param_id_map = OrderedDict(
             (param, param_expr._get_id(
                 **get_id_kwargs,
-                with_tags = with_tags,
+                with_tags=with_tags,
                 remove_tags=remove_tags,
                 # Pass None when there is no value available, so we will get
                 # a non-tagged ID when there is no value computed
-                expr_val = param_map.get(param),
-                marked_expr_val_set = marked_expr_val_set,
-                hidden_callable_set = hidden_callable_set,
+                expr_val=param_map.get(param),
+                marked_expr_val_set=marked_expr_val_set,
+                hidden_callable_set=hidden_callable_set,
             ))
             for param, param_expr in self.param_map.items()
             if (
@@ -946,17 +956,17 @@ class ExpressionBase(ExprHelpers):
                 param_str = ''
 
             op_str = '{op}{tags}'.format(
-                op = self.op.get_id(**get_id_kwargs),
-                tags = tag_str,
+                op=self.op.get_id(**get_id_kwargs),
+                tags=tag_str,
             )
             id_ = '{param_str}{op_str}'.format(
-                param_str = param_str,
-                op_str = op_str,
+                param_str=param_str,
+                op_str=op_str,
             )
             marker_str = '{param_marker}{separator}{op_marker}'.format(
-                param_marker = param_marker,
-                separator = separator_spacing,
-                op_marker = len(op_str) * get_marker_char(expr_val)
+                param_marker=param_marker,
+                separator=separator_spacing,
+                op_marker=len(op_str) * get_marker_char(expr_val)
             )
 
             # If there are some remaining parameters, show them in
@@ -1035,7 +1045,6 @@ class ExpressionBase(ExprHelpers):
         else:
             script_db = ScriptValueDB(db)
 
-
         def make_comment(txt):
             joiner = '\n# '
             return joiner + joiner.join(
@@ -1050,22 +1059,22 @@ class ExpressionBase(ExprHelpers):
         reusable_outvar_map = dict()
         for i, expr in enumerate(expr_list):
             script += (
-                '#'*80 + '\n# Computed expressions:' +
+                '#' * 80 + '\n# Computed expressions:' +
                 make_comment(expr.get_id(mark_excep=True, full_qual=False))
                 + '\n' +
                 make_comment(expr.format_structure()) + '\n\n'
             )
-            idt = IndentationManager(' '*4)
+            idt = IndentationManager(' ' * 4)
 
             expr_val_set = set(expr.get_all_vals())
             result_name, snippet = expr._get_script(
-                reusable_outvar_map = reusable_outvar_map,
-                prefix = prefix + str(i),
-                script_db = script_db,
-                module_name_set = module_name_set,
-                idt = idt,
-                expr_val_set = expr_val_set,
-                consumer_expr_stack = [],
+                reusable_outvar_map=reusable_outvar_map,
+                prefix=prefix + str(i),
+                script_db=script_db,
+                module_name_set=module_name_set,
+                idt=idt,
+                expr_val_set=expr_val_set,
+                consumer_expr_stack=[],
             )
 
             # ExprData must be printable to a string representation that can be
@@ -1082,7 +1091,6 @@ class ExpressionBase(ExprHelpers):
             plain_name_cls_set.update(type(x) for x in expr.data.values())
 
             result_name_map[expr] = result_name
-
 
         # Add all the imports
         header = (
@@ -1103,8 +1111,8 @@ class ExpressionBase(ExprHelpers):
             if mod_name == 'builtins':
                 continue
             header += 'from {mod} import {cls}\n'.format(
-                cls = cls_.__qualname__,
-                mod = mod_name
+                cls=cls_.__qualname__,
+                mod=mod_name
             )
 
         header += '\n\n'
@@ -1113,15 +1121,15 @@ class ExpressionBase(ExprHelpers):
         # to access any ValueDB
         if expr_val_set:
             if db_relative_to is not None:
-                db_relative_to = ', relative_to='+db_relative_to
+                db_relative_to = ', relative_to=' + db_relative_to
             else:
                 db_relative_to = ''
 
             header += '{db} = {db_loader}({path}{db_relative_to})\n'.format(
-                db = script_db.var_name,
-                db_loader = utils.get_name(ValueDB.from_path, full_qual=True),
-                path = repr(str(db_path)),
-                db_relative_to = db_relative_to
+                db=script_db.var_name,
+                db_loader=utils.get_name(ValueDB.from_path, full_qual=True),
+                path=repr(str(db_path)),
+                db_relative_to=db_relative_to
             )
 
         script = header + '\n' + script
@@ -1199,13 +1207,12 @@ class ExpressionBase(ExprHelpers):
                 ))
             return '\n' + ',\n'.join(out)
 
-
         def format_expr_val(expr_val, com=lambda x: ' # ' + x):
             excep = expr_val.excep
             value = expr_val.value
 
             if excep is NoValue:
-                comment =  expr_val.get_id(full_qual=False) + ' (' + type(value).__name__ + ')'
+                comment = expr_val.get_id(full_qual=False) + ' (' + type(value).__name__ + ')'
                 obj = make_serialized(expr_val, 'value')
             else:
                 comment = type(excep).__name__ + ' raised when executing ' + expr_val.get_id()
@@ -1238,7 +1245,7 @@ class ExpressionBase(ExprHelpers):
                 assert expr_val_list[1:] == expr_val_list[:-1]
 
                 expr_data = utils.take_first(expr_val_set)
-                return (format_expr_val(expr_data, lambda x:''), '')
+                return (format_expr_val(expr_data, lambda x: ''), '')
             # Prior to execution, we don't have an ExprVal yet
             else:
                 is_user_defined = True
@@ -1299,7 +1306,7 @@ class ExpressionBase(ExprHelpers):
             param_outvar, param_out = param_expr._get_script(
                 reusable_outvar_map, param_prefix, script_db, module_name_set, idt,
                 param_expr_val_set,
-                consumer_expr_stack = consumer_expr_stack + [self],
+                consumer_expr_stack=consumer_expr_stack + [self],
             )
 
             snippet_list.append(param_out)
@@ -1338,7 +1345,7 @@ class ExpressionBase(ExprHelpers):
                         len(expr_val_seq_list) == 1 and
                         len(expr_val_seq_list[0].expr_val_list) == 1
                     )
-                )
+            )
         ):
             is_genfunc = False
 
@@ -1361,24 +1368,24 @@ class ExpressionBase(ExprHelpers):
         src_file, src_line = self.op.src_loc
         if src_file and src_line:
             src_loc = '({src_file}:{src_line})'.format(
-                src_line = src_line,
-                src_file = src_file,
+                src_line=src_line,
+                src_file=src_file,
             )
         else:
             src_loc = ''
 
         script += '\n'
         script += make_comment('{id}{src_loc}'.format(
-            id = self.get_id(with_tags=False, full_qual=False),
-            src_loc = '\n' + src_loc if src_loc else ''
+            id=self.get_id(with_tags=False, full_qual=False),
+            src_loc='\n' + src_loc if src_loc else ''
         ), idt_str)
 
         # If no serialized value is available
         if is_user_defined:
             script += make_comment('User-defined:', idt_str)
             script += '{idt}{outname} = \n'.format(
-                outname = outname,
-                idt = idt_str,
+                outname=outname,
+                idt=idt_str,
             )
 
         # Dump the serialized value
@@ -1422,14 +1429,14 @@ class ExpressionBase(ExprHelpers):
                         for expr_val in expr_val_list
                     ) + '\n'
                     serialized_instance = 'for {outname} in ({values}):'.format(
-                        outname = outname,
-                        values = serialized_list
+                        outname=outname,
+                        values=serialized_list
                     )
                 # Just one value
                 elif expr_val_list:
                     serialized_instance = '{outname} = {value}'.format(
-                        outname = outname,
-                        value = format_expr_val(expr_val_list[0])
+                        outname=outname,
+                        value=format_expr_val(expr_val_list[0])
                     )
             # The values cannot be serialized so we hide them
             except utils.NotSerializableError:
@@ -1458,17 +1465,17 @@ class ExpressionBase(ExprHelpers):
         if not do_not_call_callable:
             if is_genfunc:
                 script += '{idt}for {output} in {op}({param}):\n'.format(
-                    output = outname,
-                    op = op_callable,
-                    param = param_spec,
-                    idt = idt_str
+                    output=outname,
+                    op=op_callable,
+                    param=param_spec,
+                    idt=idt_str
                 )
             else:
                 script += '{idt}{output} = {op}({param})\n'.format(
-                    output = outname,
-                    op = op_callable,
-                    param = param_spec,
-                    idt = idt_str,
+                    output=outname,
+                    op=op_callable,
+                    param=param_spec,
+                    idt=idt_str,
                 )
 
         return outname, script
@@ -1488,6 +1495,7 @@ class ComputableExpression(ExpressionBase):
     Instances of this class contains values, whereas :class:`Expression` do
     not.
     """
+
     def __init__(self, op, param_map, data=None):
         self.uuid = utils.create_uuid()
         self.expr_val_seq_list = list()
@@ -1774,6 +1782,7 @@ class ComputableExpression(ExpressionBase):
             for expr_val in self.get_all_vals()
         ))
 
+
 class ClassContext:
     """
     Collect callables and types that put together will be used to create
@@ -1857,6 +1866,7 @@ class ClassContext:
             op for op in itertools.chain.from_iterable(op_map.values())
             if utils.match_name(op.get_name(full_qual=True), restricted_pattern_set)
         }
+
         def apply_restrict(produced, op_set, restricted_op_set, cls_map):
             restricted_op_set = {
                 op for op in restricted_op_set
@@ -1965,7 +1975,6 @@ class ClassContext:
         All combinations of compatible classes and operators will be generated.
         """
 
-
         op_map = copy.copy(self.op_map)
         cls_map = {
             cls: compat_cls_set
@@ -1986,7 +1995,7 @@ class ClassContext:
         expr_list = list()
         for result_op in result_op_set:
             expr_gen = self._build_expr(result_op, op_map, cls_map,
-                op_stack = [],
+                op_stack=[],
                 non_produced_handler=non_produced_handler,
                 cycle_handler=cycle_handler,
             )
@@ -2009,7 +2018,7 @@ class ClassContext:
                 return
             elif cycle_handler == 'raise':
                 raise CycleError('Cyclic dependency found: {path}'.format(
-                    path = ' -> '.join(
+                    path=' -> '.join(
                         op.name for op in new_op_stack
                     )
                 ))
@@ -2165,6 +2174,7 @@ class Expression(ExpressionBase):
 
     .. seealso:: :class:`ComputableExpression`.
     """
+
     def validate(self, cls_map):
         """
         Check that the Expression does not involve two classes that are
@@ -2212,11 +2222,13 @@ class Expression(ExpressionBase):
         valid = go(self, type_map)
         return (valid, set(type_map.keys()))
 
+
 class AnnotationError(Exception):
     """
     Exception raised when there is a missing PEP 484 annotation.
     """
     pass
+
 
 class PartialAnnotationError(AnnotationError):
     """
@@ -2228,12 +2240,14 @@ class PartialAnnotationError(AnnotationError):
     """
     pass
 
+
 class ForcedParamType:
     """
     Base class for types placeholders used when forcing the value of a
     parameter using :meth:`Operator.force_param`.
     """
     pass
+
 
 class UnboundMethod:
     """
@@ -2249,6 +2263,7 @@ class UnboundMethod:
         :class:`UnboundMethod`, all subclasses will also have that method
         wrapped the same way.
     """
+
     def __init__(self, callable_, cls):
         self.cls = cls
         self.__wrapped__ = callable_
@@ -2281,6 +2296,7 @@ class UnboundMethod:
             id=hex(id(self))
         )
 
+
 class Operator:
     """
     Wrap a callable.
@@ -2298,12 +2314,13 @@ class Operator:
         return a mapping of tags names to values.
     :type tags_getter: collections.abc.Callable
     """
+
     def __init__(self, callable_, non_reusable_type_set=None, tags_getter=None):
         if non_reusable_type_set is None:
             non_reusable_type_set = set()
 
         if not tags_getter:
-            tags_getter = lambda v: {}
+            def tags_getter(v): return {}
         self.tags_getter = tags_getter
 
         assert callable(callable_)
@@ -2747,8 +2764,8 @@ class Operator:
                     excep_cls = AnnotationError
 
                 raise excep_cls('Missing annotation for "{param}" parameters of operator "{op}"'.format(
-                    param = param,
-                    op = self.name,
+                    param=param,
+                    op=self.name,
                 ))
 
         # Iterate over keys and values of "mapping" in the same order as "keys"
@@ -2771,6 +2788,7 @@ class Operator:
 
         return (param_map, produced)
 
+
 class PrebuiltOperator(Operator):
     """
     :class:`Operator` that injects prebuilt objects.
@@ -2786,6 +2804,7 @@ class PrebuiltOperator(Operator):
 
     :Variable keyword arguments: Forwarded to :class:`Operator` constructor.
     """
+
     def __init__(self, obj_type, obj_list, id_=None, **kwargs):
         obj_list_ = list()
         uuid_list = list()
@@ -2837,6 +2856,7 @@ class PrebuiltOperator(Operator):
             yield from zip(self.uuid_list, self.obj_list, itertools.repeat(NoValue))
         return genf
 
+
 class ConsumerOperator(PrebuiltOperator):
     """
     Placeholder operator used to represent the consumer of the an expression
@@ -2846,6 +2866,7 @@ class ConsumerOperator(PrebuiltOperator):
         refering to its consumer.
     :type consumer: collections.abc.Callable
     """
+
     def __init__(self, consumer=None):
         obj_type = Consumer
         super().__init__(
@@ -2866,6 +2887,7 @@ class ConsumerOperator(PrebuiltOperator):
     def consumer(self):
         return self.obj_list[0]
 
+
 class ExprDataOperator(PrebuiltOperator):
     """
     Placeholder operator for :class:`ExprData`.
@@ -2873,6 +2895,7 @@ class ExprDataOperator(PrebuiltOperator):
     The :class:`ExprData` that will be used is the same throughout an
     expression, and is the one of the root expression.
     """
+
     def __init__(self, data=None):
         obj_type = ExprData
         super().__init__(
@@ -2892,6 +2915,7 @@ class ExprDataOperator(PrebuiltOperator):
     @uuid_list.setter
     def uuid_list(self, val):
         pass
+
 
 class ExprValSeq:
     """
@@ -2915,6 +2939,7 @@ class ExprValSeq:
     Since :class:`ComputableExpression` can represent generator functions, they
     are allowed to create multiple :class:`ExprVal`.
     """
+
     def __init__(self, expr, iterator, param_map, post_compute_cb=None):
         self.expr = expr
         assert isinstance(iterator, collections.abc.Iterator)
@@ -2954,7 +2979,7 @@ class ExprValSeq:
         """
         callback = self.post_compute_cb
         if not callback:
-            callback = lambda x, reused: None
+            def callback(x, reused): return None
 
         def yielder(iteratable, reused):
             for x in iteratable:
@@ -2999,6 +3024,7 @@ class ExprValParamMap(OrderedDict):
     Mapping of parameters to :class:`ExprVal` used when computing the value of
     a :class:`ComputableExpression`.
     """
+
     def is_partial(self, ignore_error=False):
         """
         Return ``True`` if the map is partial, i.e. some parameters don't have
@@ -3087,7 +3113,6 @@ class ExprValParamMap(OrderedDict):
                 )
                 yield cls(zip(param_list, values))
 
-
     @classmethod
     def _product(cls, gen_list):
         """
@@ -3141,6 +3166,7 @@ class ExprValParamMap(OrderedDict):
         # on the right side of the parameter list (to have a default value)
         return functools.reduce(reducer, reversed(gen_list), initializer())
 
+
 class ExprValBase(ExprHelpers):
     """
     Base class for classes representing the value of an expression.
@@ -3160,6 +3186,7 @@ class ExprValBase(ExprHelpers):
     :param uuid: UUID of the :class:`ExprValBase`
     :type uuid: str
     """
+
     def __init__(self, param_map, value, excep, uuid):
         self.param_map = param_map
         self.value = value
@@ -3205,9 +3232,9 @@ class ExprValBase(ExprHelpers):
         :type include_subclasses: bool
         """
         if include_subclasses:
-            predicate = lambda expr_val: isinstance(expr_val.value, cls)
+            def predicate(expr_val): return isinstance(expr_val.value, cls)
         else:
-            predicate = lambda expr_val: type(expr_val.value) is cls
+            def predicate(expr_val): return type(expr_val.value) is cls
         return self.get_by_predicate(predicate, **kwargs)
 
     def format_structure(self, full_qual=True):
@@ -3242,7 +3269,7 @@ class ExprValBase(ExprHelpers):
             params=params,
             joiner=':' + joiner if params else '',
             uuid=self.uuid,
-            type = utils.get_name(type(value), full_qual=full_qual, pretty=True),
+            type=utils.get_name(type(value), full_qual=full_qual, pretty=True),
         )
 
 
@@ -3299,11 +3326,12 @@ class FrozenExprVal(ExprValBase):
     .. seealso:: :class:`ExprValBase`
 
     """
+
     def __init__(self,
-            param_map, value, excep, uuid,
-            callable_qualname, callable_name, recorded_id_map,
-            tags,
-        ):
+                param_map, value, excep, uuid,
+                callable_qualname, callable_name, recorded_id_map,
+                tags,
+            ):
         self.callable_qualname = callable_qualname
         self.callable_name = callable_name
         self.recorded_id_map = recorded_id_map
@@ -3497,11 +3525,13 @@ class FrozenExprVal(ExprValBase):
     def get_tags(self):
         return self.tags
 
+
 class PrunedFrozVal(FrozenExprVal):
     """
     Placeholder introduced by :meth:`ValueDB.prune_by_predicate` when a
     :class:`FrozenExprVal` is pruned.
     """
+
     def __init__(self, froz_val):
         super().__init__(
             param_map=OrderedDict(),
@@ -3513,6 +3543,7 @@ class PrunedFrozVal(FrozenExprVal):
             recorded_id_map=copy.copy(froz_val.recorded_id_map),
             tags=froz_val.get_tags(),
         )
+
 
 class FrozenExprValSeq(collections.abc.Sequence):
     """
@@ -3528,6 +3559,7 @@ class FrozenExprValSeq(collections.abc.Sequence):
     Since it inherits from :class:`collections.abc.Sequence`, it can be
     iterated over directly.
     """
+
     def __init__(self, froz_val_list, param_map):
         self.froz_val_list = froz_val_list
         self.param_map = param_map
@@ -3588,6 +3620,7 @@ class ExprVal(ExprValBase):
 
     .. seealso:: :class:`ExprValBase` for the other parameters.
     """
+
     def __init__(self, expr, param_map,
         value=NoValue, excep=NoValue, uuid=None,
     ):
@@ -3630,6 +3663,7 @@ class ExprVal(ExprValBase):
         :class:`ComputableExpression`, unless it is non reusable.
         """
         expr_map = {}
+
         def update_map(expr_val1):
             # The check does not apply for non-reusable operators, since it is
             # expected that the same expression may reference multiple values
@@ -3663,11 +3697,13 @@ class ExprVal(ExprValBase):
             *args, **kwargs
         )
 
+
 class UnEvaluatedExprVal(ExprVal):
     """
     Placeholder :class:`ExprVal` created when computing the value was known to
     not lead to anything useful.
     """
+
     def __init__(self, expr):
         super().__init__(
             expr=expr,
@@ -3679,6 +3715,7 @@ class UnEvaluatedExprVal(ExprVal):
             excep=NoValue,
         )
 
+
 class Consumer:
     """
     Placeholder type used in PEP 484 annotations by callables to refer to the
@@ -3687,14 +3724,17 @@ class Consumer:
     .. note:: This leads to cloning the expression refering to its consumer for
         each different consumer.
     """
+
     def __init__(self):
         pass
+
 
 class ExprData(dict):
     """
     Placeholder type used in PEP 484 annotations by callables to refer to the
     expression-wide data dictionnary.
     """
+
     def __init__(self):
         super().__init__()
         self.uuid = utils.create_uuid()

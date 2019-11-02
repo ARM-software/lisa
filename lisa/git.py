@@ -19,6 +19,7 @@ import logging
 import os
 import subprocess
 
+
 def find_shortest_symref(repo_path, sha1):
     """
     Find the shortest symbolic reference (branch/tag) to a Git SHA1
@@ -33,10 +34,10 @@ def find_shortest_symref(repo_path, sha1):
     """
     repo_path = os.path.expanduser(repo_path)
     branches = subprocess.check_output([
-            'git', 'for-each-ref',
-            '--points-at={}'.format(sha1),
-            '--format=%(refname:short)',
-        ],
+        'git', 'for-each-ref',
+        '--points-at={}'.format(sha1),
+        '--format=%(refname:short)',
+    ],
         universal_newlines=True,
         cwd=repo_path)
 

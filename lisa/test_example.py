@@ -37,6 +37,7 @@ how to use the main APIs.
 # corresponding documentation in a browser.
 ################################################################################
 
+
 class ExampleTestBundle(RTATestBundle):
     """
     The test bundle contains the data the test will work on. See
@@ -58,7 +59,7 @@ class ExampleTestBundle(RTATestBundle):
         self.shell_output = shell_output
 
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath, ftrace_coll:FtraceCollector=None) -> 'ExampleTestBundle':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath, ftrace_coll: FtraceCollector = None) -> 'ExampleTestBundle':
         """
         This class method is the main way of creating a :class:`ExampleTestBundle`.
 

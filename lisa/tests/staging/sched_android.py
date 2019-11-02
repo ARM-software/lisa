@@ -27,6 +27,7 @@ from lisa.utils import ArtifactPath
 from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.tasks import TasksAnalysis
 
+
 class SchedTuneItemBase(RTATestBundle):
     """
     Abstract class enabling rtapp execution in a schedtune group
@@ -50,12 +51,12 @@ class SchedTuneItemBase(RTATestBundle):
     @classmethod
     def get_cgroup_configuration(cls, plat_info, boost, prefer_idle):
         attributes = {
-                    'boost': boost,
-                    'prefer_idle': int(prefer_idle)
-                 }
-        return { 'name': 'lisa_test',
-                 'controller': 'schedtune',
-                 'attributes': attributes }
+            'boost': boost,
+            'prefer_idle': int(prefer_idle)
+        }
+        return {'name': 'lisa_test',
+                'controller': 'schedtune',
+                'attributes': attributes}
 
     @classmethod
     # Not annotated, to prevent exekall from picking it up. See
@@ -68,6 +69,7 @@ class SchedTuneItemBase(RTATestBundle):
 
         return cls(res_dir, plat_info, boost, prefer_idle)
 
+
 class SchedTuneBase(TestBundle):
     """
     Abstract class enabling the aggregation of ``SchedTuneItemBase``
@@ -76,14 +78,15 @@ class SchedTuneBase(TestBundle):
         multiple ``SchedTuneItemBase`` instances
     :type test_bundles: list
     """
+
     def __init__(self, res_dir, plat_info, test_bundles):
         super().__init__(res_dir, plat_info)
 
         self.test_bundles = test_bundles
 
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None,
-            ftrace_coll:FtraceCollector=None) -> 'SchedTuneBase':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None,
+            ftrace_coll: FtraceCollector = None) -> 'SchedTuneBase':
         """
         Creates a SchedTuneBase bundle from the target.
         """
@@ -133,13 +136,13 @@ class SchedTuneFreqItem(SchedTuneItemBase):
         cpu = plat_info['capacity-classes'][-1][0]
         rtapp_profile = {}
         rtapp_profile['stune'] = Periodic(
-            duty_cycle_pct = 1, # very small task, no impact on freq w/o boost
-            duration_s = 10,
-            period_ms = 16,
-            cpus = [cpu], # pin to big CPU, to focus on frequency selection
-            sched_policy = 'FIFO' # RT tasks have the boost holding feature so
-                                  # the frequency should be more stable, and we
-                                  # shouldn't go to max freq in Android
+            duty_cycle_pct=1,  # very small task, no impact on freq w/o boost
+            duration_s=10,
+            period_ms=16,
+            cpus=[cpu],  # pin to big CPU, to focus on frequency selection
+            sched_policy='FIFO'  # RT tasks have the boost holding feature so
+            # the frequency should be more stable, and we
+            # shouldn't go to max freq in Android
         )
         return rtapp_profile
 
@@ -200,6 +203,7 @@ class SchedTuneFreqItem(SchedTuneItemBase):
 
         return res
 
+
 class SchedTuneFrequencyTest(SchedTuneBase):
     """
     Runs multiple ``SchedTuneFreqItem`` tests at various boost levels ranging
@@ -225,6 +229,7 @@ class SchedTuneFrequencyTest(SchedTuneBase):
         ]
         return AggregatedResultBundle(item_res_bundles, 'boost')
 
+
 class SchedTunePlacementItem(SchedTuneItemBase):
     """
     Runs a tiny RT-App task marked 'prefer_idle' at a given boost level and
@@ -235,9 +240,9 @@ class SchedTunePlacementItem(SchedTuneItemBase):
     def get_rtapp_profile(cls, plat_info):
         rtapp_profile = {}
         rtapp_profile['stune'] = Periodic(
-            duty_cycle_pct = 1,
-            duration_s = 3,
-            period_ms = 16,
+            duty_cycle_pct=1,
+            duration_s=3,
+            period_ms=16,
         )
 
         return rtapp_profile
@@ -275,6 +280,7 @@ class SchedTunePlacementItem(SchedTuneItemBase):
         res.add_metric("boost", boost, '%')
 
         return res
+
 
 class SchedTunePlacementTest(SchedTuneBase):
     """

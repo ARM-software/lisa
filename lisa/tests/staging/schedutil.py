@@ -48,6 +48,7 @@ class RampBoostTestBase(RTATestBundle):
 
     def get_avg_slack(self, only_negative=False):
         analysis = self.trace.analysis.rta
+
         def get_slack(task):
             series = analysis.df_rtapp_stats(task)['slack']
             if only_negative:
@@ -265,7 +266,7 @@ class LargeStepUp(RampBoostTestBase):
         return self.get_rtapp_profile(self.plat_info, self.cpu, self.nr_steps)
 
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None, cpu=None, nr_steps=1) -> 'LargeStepUp':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None, cpu=None, nr_steps=1) -> 'LargeStepUp':
         plat_info = target.plat_info
 
         # Use a big CPU by default to allow maximum range of utilization
@@ -289,7 +290,7 @@ class LargeStepUp(RampBoostTestBase):
         delta_pct = ceil((end_pct - start_pct) / nr_steps)
 
         rtapp_profile = {
-            cls.task_name : Ramp(
+            cls.task_name: Ramp(
                 start_pct=start_pct,
                 end_pct=end_pct,
                 delta_pct=delta_pct,

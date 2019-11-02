@@ -18,6 +18,6 @@
 
 import textwrap
 
-def indent(txt):
-    return textwrap.indent(txt, 4*' ')
 
+def indent(txt):
+    return textwrap.indent(txt, 4 * ' ')

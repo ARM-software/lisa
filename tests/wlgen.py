@@ -25,6 +25,7 @@ from devlib import LocalLinuxTarget, Platform
 
 dummy_calibration = {}
 
+
 class TestTarget(LocalLinuxTarget):
     """
     Devlib target for self-testing LISA
@@ -33,13 +34,14 @@ class TestTarget(LocalLinuxTarget):
     Adds facility to record the commands that were executed for asserting LISA
     behaviour.
     """
+
     def __init__(self):
         self.execute_calls = []
         super().__init__(platform=Platform(),
-                                         working_directory = '/tmp/devlib-target',
-                                         executables_directory = '/tmp/devlib-target/bin',
-                                         load_default_modules=False,
-                                         connection_settings={'unrooted': True})
+                         working_directory='/tmp/devlib-target',
+                         executables_directory='/tmp/devlib-target/bin',
+                         load_default_modules=False,
+                         connection_settings={'unrooted': True})
 
     def execute(self, *args, **kwargs):
         self.execute_calls.append((args, kwargs))
@@ -52,6 +54,7 @@ class TestTarget(LocalLinuxTarget):
 
     def clear_execute_calls(self):
         self.execute_calls = []
+
 
 class WlgenSelfBase(TestCase):
     """

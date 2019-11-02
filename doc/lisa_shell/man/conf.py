@@ -35,4 +35,3 @@ man_pages = [
     (master_doc, 'lisa', 'LISA shell commands',
      [author], 1)
 ]
-

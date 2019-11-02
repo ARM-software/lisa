@@ -33,6 +33,7 @@ from trappy.stats.grammar import Parser
 
 """Classes for modeling and estimating energy usage of CPU systems"""
 
+
 def read_multiple_oneline_files(target, glob_patterns):
     """
     Quickly read many single-line files that match a glob pattern
@@ -66,9 +67,11 @@ def read_multiple_oneline_files(target, glob_patterns):
 
     return dict(zip(paths, contents))
 
+
 class EnergyModelCapacityError(Exception):
     """Used by :meth:`EnergyModel.get_optimal_placements`"""
     pass
+
 
 class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
     """Represents power and compute capacity at a given frequency
@@ -79,6 +82,7 @@ class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
     def __new__(cls, capacity=None, power=None):
         return super().__new__(cls, capacity, power)
 
+
 class _CpuTree(Loggable):
     """Internal class. Abstract representation of a CPU topology.
 
@@ -88,6 +92,7 @@ class _CpuTree(Loggable):
     :ivar cpu: For convenience, this holds the single CPU contained by leaf
       nodes. ``None`` for non-leaf nodes.
     """
+
     def __init__(self, cpu, children):
         if (cpu is None) == (children is None):
             raise ValueError('Provide exactly one of: cpu or children')
@@ -136,6 +141,7 @@ class _CpuTree(Loggable):
         """Iterate over leaves"""
         return self._iter(False)
 
+
 class EnergyModelNode(_CpuTree):
     """
     Describes topology and energy data for an EnergyModel.
@@ -164,6 +170,7 @@ class EnergyModelNode(_CpuTree):
                  have a default name of "cpuN" where N is the cpu number.
     :type name: str
     """
+
     def __init__(self, active_states, idle_states,
                  cpu=None, children=None, name=None):
         super().__init__(cpu, children)
@@ -222,6 +229,7 @@ class EnergyModelNode(_CpuTree):
 
         raise KeyError('No idle state with index {}'.format(idx))
 
+
 class EnergyModelRoot(EnergyModelNode):
     """
     Convenience class for root of an EnergyModelNode tree.
@@ -229,9 +237,11 @@ class EnergyModelRoot(EnergyModelNode):
     Just like EnergyModelNode except that ``active_states`` and ``idle_states``
     aren't required.
     """
+
     def __init__(self, active_states=None, idle_states=None,
                  cpu=None, children=None, name=None):
         super().__init__(active_states, idle_states, cpu, children, name)
+
 
 class PowerDomain(_CpuTree):
     """Describes the power domain hierarchy for an EnergyModel.
@@ -262,11 +272,13 @@ class PowerDomain(_CpuTree):
     :ivar cpus: CPUs contained in this node. Includes those of child nodes.
     :type cpus: tuple(int)
     """
+
     def __init__(self, idle_states, cpu=None, children=None):
         if idle_states is None:
             raise ValueError('idle_states cannot be None (but may be empty)')
         super().__init__(cpu, children)
         self.idle_states = idle_states
+
 
 class EnergyModel(Serializable, Loggable):
     """Represents hierarchical CPU topology with power and capacity data
@@ -879,7 +891,7 @@ class EnergyModel(Serializable, Loggable):
             cpus_active = input_row['idle'] == -1
             deepest_possible = self._deepest_idle_idxs(cpus_active)
             idle_idxs = [min(i, j) for i, j in zip(deepest_possible,
-                                                        input_row['idle'])]
+                                                   input_row['idle'])]
 
             # Convert indexes to state names
             idle_states = [n.idle_state_by_idx(max(i, 0))
@@ -970,7 +982,7 @@ class LinuxEnergyModel(EnergyModel):
             pd_attr[pd]['frequency'] = []
             pd_attr[pd]['power'] = []
             cstates = [k for k in debugfs_em[pd].keys() if 'cs:' in k]
-            cstates = sorted(cstates, key=lambda cs: int(cs.replace('cs:','')))
+            cstates = sorted(cstates, key=lambda cs: int(cs.replace('cs:', '')))
             for cs in cstates:
                 pd_attr[pd]['frequency'].append(int(debugfs_em[pd][cs]['frequency']))
                 pd_attr[pd]['power'].append(int(debugfs_em[pd][cs]['power']))
@@ -1060,8 +1072,7 @@ class LegacyEnergyModel(EnergyModel):
         return target.file_exists(f)
 
     @classmethod
-    def from_target(cls, target, filename=
-            '/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}'):
+    def from_target(cls, target, filename='/proc/sys/kernel/sched_domain/cpu{}/domain{}/group{}/energy/{}'):
         """
         Create an EnergyModel by reading a target filesystem
 
@@ -1130,8 +1141,8 @@ class LegacyEnergyModel(EnergyModel):
             # then the reported states are from a kernel which *has*
             # frequency model support, and each state has three values to parse.
             nr_values = len(cap_states_strs)
-            nr_states  = int(nr_cap_states_strs[0])
-            em_member_count = int(nr_values/nr_states)
+            nr_states = int(nr_cap_states_strs[0])
+            em_member_count = int(nr_values / nr_states)
             if em_member_count not in (2, 3):
                 raise TargetStableError('Unsupported cap_states format '
                                   'cpu={} domain_level={} path={}'.format(cpu, domain_level, cap_states_path))
@@ -1146,7 +1157,7 @@ class LegacyEnergyModel(EnergyModel):
             # it's generic, and doesn't care if the EM gets any more values in between so long as the
             # capacity is first and power is last.
             cap_states = [ActiveState(capacity=int(c), power=int(p))
-                          for c, p in map(lambda x: (x[0],x[-1]), grouper(cap_states_strs, em_member_count))]
+                          for c, p in map(lambda x: (x[0], x[-1]), grouper(cap_states_strs, em_member_count))]
 
             freqs = target.cpufreq.list_frequencies(cpu)
             return OrderedDict(zip(sorted(freqs), cap_states))
@@ -1174,7 +1185,7 @@ class LegacyEnergyModel(EnergyModel):
         # Read the "cluster" level data from sched_domain level 1
         core_group_nodes = []
         for core_group in cls._find_core_groups(target):
-            node=EnergyModelNode(
+            node = EnergyModelNode(
                 children=[cpu_nodes[c] for c in core_group],
                 active_states=read_active_states(core_group[0], 1),
                 idle_states=read_idle_states(core_group[0], 1))
@@ -1199,7 +1210,7 @@ class LegacyEnergyModel(EnergyModel):
             names = cls._get_idle_states_name(target, cpu)
             cpu_pds.append(PowerDomain(cpu=cpu, idle_states=names))
 
-        root_pd=PowerDomain(children=cpu_pds, idle_states=[])
+        root_pd = PowerDomain(children=cpu_pds, idle_states=[])
 
         return cls(root_node=root,
                    root_power_domain=root_pd,

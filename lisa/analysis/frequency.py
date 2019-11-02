@@ -31,6 +31,7 @@ from lisa.utils import memoized
 from lisa.trace import requires_events
 from lisa.datautils import series_integrate, df_refit_index
 
+
 class FrequencyAnalysis(TraceAnalysisBase):
     """
     Support for plotting Frequency Analysis data
@@ -315,19 +316,19 @@ class FrequencyAnalysis(TraceAnalysisBase):
             freq_axis.set_xlabel('')
             freq_axis.grid(True)
             freq_axis.legend()
+
             def mhz(x, pos):
-                return '{:1.2f} MHz'.format(x*1e-6)
+                return '{:1.2f} MHz'.format(x * 1e-6)
             freq_axis.get_yaxis().set_major_formatter(FuncFormatter(mhz))
 
             on = freq[freq.state == 1]
             state_axis.hlines([0] * len(on),
                               on['start'], on['start'] + on['len'],
-                              linewidth = 10.0, label='clock on', color='green')
+                              linewidth=10.0, label='clock on', color='green')
             off = freq[freq.state == 0]
             state_axis.hlines([0] * len(off),
                               off['start'], off['start'] + off['len'],
-                              linewidth = 10.0, label='clock off', color='red')
-
+                              linewidth=10.0, label='clock off', color='red')
 
             # Plot time period that the clock state was unknown from the trace
             indeterminate = pd.concat([on, off]).sort_index()
@@ -335,7 +336,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 indet_range_max = end
             else:
                 indet_range_max = indeterminate.index[0]
-            state_axis.hlines(0, 0, indet_range_max, linewidth = 1.0, label='indeterminate clock state', linestyle='--')
+            state_axis.hlines(0, 0, indet_range_max, linewidth=1.0, label='indeterminate clock state', linestyle='--')
             state_axis.legend(bbox_to_anchor=(0., 1.02, 1., 0.102), loc=3, ncol=3, mode='expand')
             state_axis.set_yticks([])
             state_axis.set_xlabel('seconds')
@@ -373,7 +374,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         avg = self.get_average_cpu_frequency(cpu)
         logger.info(
-            "Average frequency for CPU{} : {:.3f} GHz".format(cpu, avg/1e6))
+            "Average frequency for CPU{} : {:.3f} GHz".format(cpu, avg / 1e6))
 
         df = df_refit_index(df, self.trace.start, self.trace.end)
         df['frequency'].plot(ax=axis, drawstyle='steps-post')
@@ -471,7 +472,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         def plotter(axes, local_fig):
             for idx, domain in enumerate(domains):
-                local_axes = axes[2 * idx : 2 * (idx + 1)]
+                local_axes = axes[2 * idx: 2 * (idx + 1)]
 
                 self.plot_cpu_frequency_residency(domain[0],
                     pct=pct,
@@ -483,7 +484,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
                     axis.set_title(title.replace(
                         "CPU{}".format(domain[0]), "CPUs {}".format(domain)))
 
-        return self.do_plot(plotter, nrows=2*len(domains), sharex=True, **kwargs)
+        return self.do_plot(plotter, nrows=2 * len(domains), sharex=True, **kwargs)
 
     @TraceAnalysisBase.plot_method()
     @df_cpu_frequency_transitions.used_events
@@ -514,7 +515,6 @@ class FrequencyAnalysis(TraceAnalysisBase):
         axis.set_ylabel("Frequency (Hz)")
         axis.grid(True)
 
-
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cpu_frequency_transitions.used_events
     def plot_domain_frequency_transitions(self, pct=False, **kwargs):
@@ -537,8 +537,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
                 title = axis.get_title()
                 axis.set_title(title.replace("CPU{}".format(domain[0]),
-                                                    "CPUs {}".format(domain)))
-
+                                             "CPUs {}".format(domain)))
 
         return self.do_plot(plotter, nrows=len(domains), **kwargs)
 

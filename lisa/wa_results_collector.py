@@ -43,6 +43,7 @@ from lisa.git import find_shortest_symref
 from lisa.utils import Loggable, memoized
 from lisa.datautils import series_integrate, series_mean
 
+
 class WaResultsCollector(Loggable):
     """
     Collects, analyses and visualises results from multiple WA3 directories
@@ -144,7 +145,6 @@ class WaResultsCollector(Loggable):
                 raise ValueError(
                     'if base_dir is not provided, wa_dirs should be a list of paths')
 
-
         wa_dirs = [os.path.expanduser(p) for p in wa_dirs]
 
         self.plat_info = plat_info
@@ -184,7 +184,7 @@ class WaResultsCollector(Loggable):
         dirs = []
         logger = self.get_logger()
         logger.info("Processing WA3 dirs matching [%s], rooted at %s",
-                       wa_dirs_re, base_dir)
+                    wa_dirs_re, base_dir)
         wa_dirs_re = re.compile(wa_dirs_re)
 
         for subdir in os.listdir(base_dir):
@@ -418,7 +418,6 @@ class WaResultsCollector(Loggable):
             df = pd.DataFrame([trace.analysis.idle.signal_cpu_active(cpu) for cpu in cpus])
             return df.sum(axis=1).sum(axis=0)
 
-
         domains = trace.plat_info.get('freq-domains', [])
         for domain in domains:
             name = '-'.join(str(c) for c in domain)
@@ -426,7 +425,7 @@ class WaResultsCollector(Loggable):
             df = trace.analysis.frequency.df_domain_frequency_residency(domain)
             if df is None or df.empty:
                 logger.warning("Can't get cluster freq residency from %s",
-                                  trace.trace_path)
+                               trace.trace_path)
             else:
                 df = df.reset_index()
                 avg_freq = (df.frequency * df.time).sum() / df.time.sum()
@@ -451,11 +450,11 @@ class WaResultsCollector(Loggable):
         event = None
         if trace.has_events('sched_load_cfs_rq'):
             event = 'sched_load_cfs_rq'
-            row_filter = lambda r: r.path == '/'
+            def row_filter(r): return r.path == '/'
             column = 'util'
         elif trace.has_events('sched_load_avg_cpu'):
             event = 'sched_load_avg_cpu'
-            row_filter = lambda r: True
+            def row_filter(r): return True
             column = 'util_avg'
         if event:
             df = trace.df_events(event)
@@ -471,7 +470,7 @@ class WaResultsCollector(Loggable):
                                 zone_df.iloc[0]['temp_prev'],
                                 'milliCelcius'))
 
-                if len(zone_df == 1): # Avoid division by 0
+                if len(zone_df == 1):  # Avoid division by 0
                     avg_tmp = zone_df['temp'].iloc[0]
                 else:
                     avg_tmp = series_mean(zone_df['temp'])
@@ -529,7 +528,7 @@ class WaResultsCollector(Loggable):
         # think we can simplify this.
         for artifact_name, path in artifacts.items():
             if os.stat(path).st_size == 0:
-                logger.info(" no data for %s",  path)
+                logger.info(" no data for %s", path)
                 continue
 
             if artifact_name.startswith('energy_instrument_output'):
@@ -537,7 +536,7 @@ class WaResultsCollector(Loggable):
                 try:
                     df = pd.read_csv(path)
                 except pandas.errors.ParserError as e:
-                    logger.info(" no data for %s",  path)
+                    logger.info(" no data for %s", path)
                     continue
 
                 if 'device_power' in df.columns:
@@ -661,7 +660,6 @@ class WaResultsCollector(Loggable):
 
         return df
 
-
     SortBy = namedtuple('SortBy', ['key', 'params', 'column'])
 
     def _get_sort_params(self, sort_on):
@@ -677,7 +675,7 @@ class WaResultsCollector(Loggable):
             quantile = int(match.group('quantile'))
             if quantile < 1 or quantile > 100:
                 raise ValueError("Error sorting data: Quantile value out of range [1..100]")
-            return self.SortBy('quantile', {'q': quantile/100.}, sort_on)
+            return self.SortBy('quantile', {'q': quantile / 100.}, sort_on)
 
         # Otherwise, verify if it's a valid Pandas::describe()'s column name
         if sort_on in valid_sort:
@@ -754,7 +752,7 @@ class WaResultsCollector(Loggable):
         _df = _df[sorted_df.index]
 
         # Plot boxes sorted by mean
-        fig, axes = plt.subplots(figsize=(16,8))
+        fig, axes = plt.subplots(figsize=(16, 8))
         _df.boxplot(ax=axes, vert=False, showmeans=True)
         fig.suptitle('')
         if xlim:
@@ -870,7 +868,6 @@ class WaResultsCollector(Loggable):
 
         return (axes, stats_df)
 
-
     CDF = namedtuple('CDF', ['df', 'threshold', 'above', 'below'])
 
     def _get_cdf(self, data, threshold):
@@ -945,7 +942,7 @@ class WaResultsCollector(Loggable):
             return
 
         test_cnt = len(df.groupby(['test', 'tag', 'kernel']))
-        colors = iter(cm.rainbow(np.linspace(0, 1, test_cnt+1)))
+        colors = iter(cm.rainbow(np.linspace(0, 1, test_cnt + 1)))
 
         fig, axes = plt.subplots()
         axes.axvspan(0, threshold, facecolor='g', alpha=0.1)
@@ -963,7 +960,7 @@ class WaResultsCollector(Loggable):
         for (keys, df, cdf) in sorted(data, key=lambda x: x[2].below,
                                       reverse=True)[:top_most]:
             color = next(colors)
-            cdf.df.plot(legend=False, xlim=(0,None), figsize=(16, 6),
+            cdf.df.plot(legend=False, xlim=(0, None), figsize=(16, 6),
                         label=test, color=to_hex(color))
             lines.append(axes.lines[-1])
             axes.axhline(y=cdf.below, linewidth=1,
@@ -971,10 +968,10 @@ class WaResultsCollector(Loggable):
             labels.append("{:16s}: {:32s} ({:4.1f}%)".format(
                           keys[2], keys[1], 100. * cdf.below))
 
-            logger.debug("%-32s: %-32s: %.1f", keys[2], keys[1], 100.*cdf.below)
+            logger.debug("%-32s: %-32s: %.1f", keys[2], keys[1], 100. * cdf.below)
 
         [units] = df['units'].unique()
-        axes.set_title('Total duration CDFs (% within {} [{}] threshold)'\
+        axes.set_title('Total duration CDFs (% within {} [{}] threshold)'
                      .format(threshold, units))
         axes.grid(True)
         if ncol < 2:
@@ -1031,8 +1028,8 @@ class WaResultsCollector(Loggable):
 
                 if base_id not in gb.groups:
                     logger.warning('Skipping - No baseline results for test '
-                                      '[%s] %s [%s] metric [%s]',
-                                      test, invariant, inv_id, metric)
+                                   '[%s] %s [%s] metric [%s]',
+                                   test, invariant, inv_id, metric)
                     continue
 
                 base_results = gb.get_group(base_id)
@@ -1057,7 +1054,7 @@ class WaResultsCollector(Loggable):
                         # base mean is 0, can't divide by that.
                         if group_mean == 0:
                             # Both are 0 so diff_pct is 0
-                            mean_diff_pct =0
+                            mean_diff_pct = 0
                         else:
                             # Tricky one - base value was 0, new value isn't.
                             # Let's just call it a 100% difference.
@@ -1134,11 +1131,10 @@ class WaResultsCollector(Loggable):
             # If there are more bars we'll need to make them thinner so they
             # fit. The sum of the bars' thicknesses should be 60% of a tick on
             # the 'y-axis'.
-            thickness= 0.6 / len(test_comparisons.groupby('new_id'))
+            thickness = 0.6 / len(test_comparisons.groupby('new_id'))
 
             # TODO: something is up with the calculations above, because there's
             # always a bit of empty space at the bottom of the axes.
-
 
             gb = test_comparisons.groupby('new_id')
             colors = cm.rainbow(np.linspace(0, 1, len(gb)))

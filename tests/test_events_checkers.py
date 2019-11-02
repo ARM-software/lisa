@@ -40,29 +40,37 @@ class TestEventCheckerBase:
             print('Checking: {}'.format(self.checker))
             self.checker.check_events(self.EVENTS_SET)
 
+
 class TestEventChecker_and1(TestEventCheckerBase, TestCase):
     checker = AndTraceEventChecker.from_events(['foo', 'bar'])
+
 
 class TestEventChecker_and2(TestEventCheckerBase, TestCase):
     checker = AndTraceEventChecker.from_events(['foo', 'lancelot'])
     expected_success = False
 
+
 class TestEventChecker_or1(TestEventCheckerBase, TestCase):
     checker = OrTraceEventChecker.from_events(['foo', 'bar'])
 
+
 class TestEventChecker_or2(TestEventCheckerBase, TestCase):
     checker = OrTraceEventChecker.from_events(['foo', 'lancelot'])
+
 
 class TestEventChecker_or3(TestEventCheckerBase, TestCase):
     checker = OrTraceEventChecker.from_events(['arthur', 'lancelot'])
     expected_success = False
 
+
 class TestEventChecker_single1(TestEventCheckerBase, TestCase):
     checker = TraceEventChecker('bar')
+
 
 class TestEventChecker_single2(TestEventCheckerBase, TestCase):
     checker = TraceEventChecker('non-existing-event')
     expected_success = False
+
 
 class TestEventChecker_and3(TestEventCheckerBase, TestCase):
     checker = AndTraceEventChecker.from_events([
@@ -70,11 +78,13 @@ class TestEventChecker_and3(TestEventCheckerBase, TestCase):
         TestEventChecker_or1.checker,
     ])
 
+
 class TestEventChecker_and4(TestEventCheckerBase, TestCase):
     checker = AndTraceEventChecker.from_events([
         TestEventChecker_and1.checker,
         TestEventChecker_or2.checker,
     ])
+
 
 class TestEventChecker_and5(TestEventCheckerBase, TestCase):
     checker = AndTraceEventChecker.from_events([

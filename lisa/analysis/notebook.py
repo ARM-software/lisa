@@ -78,7 +78,6 @@ class NotebookAnalysis(TraceAnalysisBase):
         else:
             return val
 
-
     @TraceAnalysisBase.plot_method(return_axis=False)
     def plot_event_field(self, event, field, axis, local_fig, filter_columns=None, filter_f=None):
         """

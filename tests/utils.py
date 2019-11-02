@@ -42,19 +42,21 @@ HOST_PLAT_INFO = PlatformInfo({
     },
 })
 
+
 def create_local_target():
     """
     :returns: A localhost :class:`lisa.target.Target` instance
     """
     return Target.from_conf(conf=HOST_TARGET_CONF, plat_info=HOST_PLAT_INFO)
 
+
 class StorageTestCase(TestCase):
     """
     A base class for tests that also provides a directory
     """
+
     def setUp(self):
         self.res_dir = tempfile.mkdtemp()
 
     def tearDown(self):
         shutil.rmtree(self.res_dir)
-

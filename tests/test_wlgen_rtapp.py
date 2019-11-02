@@ -30,6 +30,7 @@ from lisa.analysis.rta import PerfAnalysis
 import warnings
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
+
 class RTABase(StorageTestCase):
     """
     Common functionality for testing RTA
@@ -61,6 +62,7 @@ class RTABase(StorageTestCase):
         analysis = PerfAnalysis.from_dir(self.res_dir)
         exp_tasks = [re.sub(r'-[0-9]+', '', task) for task in exp_tasks]
         self.assertSetEqual(set(exp_tasks), set(analysis.tasks))
+
 
 class TestRTAProfile(RTABase):
     def _do_test(self, profile, exp_phases):
@@ -98,7 +100,7 @@ class TestRTAProfile(RTABase):
         """
 
         profile = {
-            "test" : Periodic(period_ms=100, duty_cycle_pct=20, duration_s=1)
+            "test": Periodic(period_ms=100, duty_cycle_pct=20, duration_s=1)
         }
 
         exp_phases = [
@@ -122,7 +124,7 @@ class TestRTAProfile(RTABase):
         content, then tests that it can be run.
         """
 
-        profile = {"test" : Step(start_pct=100, end_pct=0, time_s=1)}
+        profile = {"test": Step(start_pct=100, end_pct=0, time_s=1)}
 
         exp_phases = [
             {
@@ -138,7 +140,7 @@ class TestRTAProfile(RTABase):
         self._do_test(profile, exp_phases)
 
     def test_profile_run_and_sync_smoke(self):
-        profile = {"test" : RunAndSync('my_barrier', time_s=1)}
+        profile = {"test": RunAndSync('my_barrier', time_s=1)}
         exp_phases = [
             OrderedDict([
                 ('loop', 1),
@@ -166,7 +168,7 @@ class TestRTAProfile(RTABase):
 
         heavy = Periodic(duty_cycle_pct=90, duration_s=0.1, period_ms=100)
 
-        profile = {"test" : light + ramp + heavy}
+        profile = {"test": light + ramp + heavy}
 
         exp_phases = [
             # Light phase:
@@ -229,7 +231,6 @@ class TestRTAProfile(RTABase):
                 }
             }]
 
-
         self._do_test(profile, exp_phases)
 
     def test_invalid_composition(self):
@@ -273,7 +274,7 @@ class TestRTACustom(RTABase):
         self.assertSetEqual(
             set(conf['tasks'].keys()),
             {'AudioTick', 'AudioOut', 'AudioTrack',
-                 'mp3.decoder', 'OMXCall'})
+             'mp3.decoder', 'OMXCall'})
 
         # Would like to try running the workload but mp3-short.json has nonzero
         # 'priority' fields, and we probably don't have permission for that
@@ -300,8 +301,9 @@ class TestRTACustom(RTABase):
 
 class TestRTACalibrationConf(RTABase):
     """Test setting the "calibration" field of rt-app config"""
+
     def _get_calib_conf(self, calibration):
-        profile = {"test" : Periodic()}
+        profile = {"test": Periodic()}
         rtapp = RTA.by_profile(
             self.target, name='test', res_dir=self.res_dir, profile=profile,
             calibration=calibration)

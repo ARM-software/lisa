@@ -33,6 +33,7 @@ from lisa.utils import (
 
 from ruamel.yaml.comments import CommentedMap
 
+
 class DeferredValue:
     """
     Wrapper similar to :func:`functools.partial` allowing to defer computation
@@ -46,6 +47,7 @@ class DeferredValue:
     typically not have it available (unless :meth:`~MultiSrcConf.eval_deferred`
     was called) although they might need it.
     """
+
     def __init__(self, callback, *args, **kwargs):
         self.callback = callback
         self.args = args
@@ -56,6 +58,7 @@ class DeferredValue:
 
     def __str__(self):
         return '<lazy value of {}>'.format(self.callback.__qualname__)
+
 
 class KeyDescBase(abc.ABC):
     """
@@ -148,6 +151,7 @@ class KeyDesc(KeyDescBase):
         return ``None``.
     :type newtype: str or None
     """
+
     def __init__(self, name, help, classinfo, newtype=None):
         super().__init__(name=name, help=help)
         # isinstance's style classinfo
@@ -177,16 +181,17 @@ class KeyDesc(KeyDescBase):
         # Or if that key is supposed to hold a value
         classinfo = self.classinfo
         key = self.qualname
+
         def get_excep(key, val, classinfo, cls, msg):
             classinfo = ' or '.join(get_cls_name(cls) for cls in classinfo)
             msg = ': ' + msg if msg else ''
             return TypeError('Key "{key}" is an instance of {actual_cls}, but should be instance of {classinfo}{msg}. Help: {help}'.format(
-                        key=key,
-                        actual_cls=get_cls_name(type(val)),
-                        classinfo=classinfo,
-                        msg=msg,
-                        help=self.help,
-                    ), key)
+                key=key,
+                actual_cls=get_cls_name(type(val)),
+                classinfo=classinfo,
+                msg=msg,
+                help=self.help,
+            ), key)
 
         def checkinstance(key, val, classinfo):
             excep_list = []
@@ -255,11 +260,13 @@ class KeyDesc(KeyDescBase):
         """
         return str(v)
 
+
 class MissingBaseKeyError(KeyError):
     """
     Exception raised when a base key needed to compute a derived key is missing.
     """
     pass
+
 
 class DerivedKeyDesc(KeyDesc):
     """
@@ -348,6 +355,7 @@ class DerivedKeyDesc(KeyDesc):
             for path in self._base_key_paths
         )
 
+
 class LevelKeyDesc(KeyDescBase, Mapping):
     """
     Key descriptor defining a hierarchical level in the configuration.
@@ -364,6 +372,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
     constructor.
 
     """
+
     def __init__(self, name, help, children):
         super().__init__(name=name, help=help)
         self.children = children
@@ -378,10 +387,13 @@ class LevelKeyDesc(KeyDescBase, Mapping):
             key_desc.name: key_desc
             for key_desc in self.children
         }
+
     def __iter__(self):
         return iter(self._key_map)
+
     def __len__(self):
         return len(self._key_map)
+
     def __getitem__(self, key):
         self.check_allowed_key(key)
         return self._key_map[key]
@@ -434,7 +446,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
             prefix=prefix,
             suffix=suffix,
             key=self.name,
-            help= ' ' + self.help if self.help else '',
+            help=' ' + self.help if self.help else '',
             idt=idt,
         )
         nl = '\n' + idt
@@ -447,6 +459,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
 
         return help_
 
+
 class TopLevelKeyDesc(LevelKeyDesc):
     """
     Top-level key descriptor, which defines the top-level key to use in the
@@ -456,6 +469,7 @@ class TopLevelKeyDesc(LevelKeyDesc):
     configuration file, since it only reflects the configuration class
     """
     pass
+
 
 class MultiSrcConfMeta(abc.ABCMeta):
     """
@@ -481,7 +495,6 @@ class MultiSrcConfMeta(abc.ABCMeta):
                 style = 'rst' if is_running_sphinx() else None
                 generated_help = '\n' + new_cls.get_help(style=style)
                 new_cls.__doc__ = doc.format(generated_help=generated_help)
-
 
         # Create the types for the keys that specify it, along with the getters
         # to expose the values to exekall
@@ -528,7 +541,7 @@ class MultiSrcConfMeta(abc.ABCMeta):
                     setattr(new_cls, newtype_name, Newtype)
 
                     def make_getter(cls, type_, key_desc):
-                        def getter(self:cls) -> type_:
+                        def getter(self: cls) -> type_:
                             try:
                                 return self.get_nested_key(key_desc.path[1:])
                             # We cannot afford to raise here, as the
@@ -548,6 +561,7 @@ class MultiSrcConfMeta(abc.ABCMeta):
                     setattr(new_cls, newtype_getter.__name__, newtype_getter)
 
         return new_cls
+
 
 class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
     _registered_toplevel_keys = {}
@@ -619,14 +633,15 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
             toplevel_key = cls.STRUCTURE.name
             if toplevel_key in cls._registered_toplevel_keys:
                 raise RuntimeError('Class {name} cannot reuse top level key "{key}" as it is already used by {user}'.format(
-                    name = cls.__qualname__,
-                    key = toplevel_key,
-                    user = cls._registered_toplevel_keys[toplevel_key]
+                    name=cls.__qualname__,
+                    key=toplevel_key,
+                    user=cls._registered_toplevel_keys[toplevel_key]
                 ))
             else:
                 cls._registered_toplevel_keys[toplevel_key] = cls
 
         super().__init_subclass__(**kwargs)
+
 
 class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     """
@@ -705,8 +720,8 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         for key, key_desc in self._structure.items():
             if isinstance(key_desc, LevelKeyDesc):
                 self._sublevel_map[key] = self._nested_new(
-                    structure = key_desc,
-                    src_prio = self._src_prio,
+                    structure=key_desc,
+                    src_prio=self._src_prio,
                 )
 
     @classmethod
@@ -1109,7 +1124,6 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             if eval_deferred:
                 val = self._eval_deferred_val(src, key)
 
-
         logger = self.get_logger()
         if not quiet and logger.isEnabledFor(logging.DEBUG):
             caller, filename, lineno = get_call_site(2, exclude_caller_module=True)
@@ -1187,7 +1201,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 v = v.pretty_format(eval_deferred=eval_deferred)
                 # If there is no content, just skip that sublevel entirely
                 if not v.strip():
-                   continue
+                    continue
             else:
                 v = key_desc.pretty_format(v)
 
@@ -1207,8 +1221,8 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
             out.append('{k}{src}{cls}:{v}'.format(
                 k=k_str,
-                cls='' if is_sublevel else ' ('+v_cls.__qualname__+')',
-                src='' if is_sublevel else ' from '+self.resolve_src(k),
+                cls='' if is_sublevel else ' (' + v_cls.__qualname__ + ')',
+                src='' if is_sublevel else ' from ' + self.resolve_src(k),
                 v=v,
             ))
         return '\n'.join(out)
@@ -1329,6 +1343,7 @@ class SimpleMultiSrcConf(MultiSrcConf):
 
         return self._to_path(data, path, fmt='yaml-roundtrip')
 
+
 class ConfigurableMeta(abc.ABCMeta):
     def __new__(metacls, name, bases, dct, **kwargs):
         new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
@@ -1423,6 +1438,7 @@ class ConfigurableMeta(abc.ABCMeta):
             for param, key_desc
             in cls._get_param_key_desc_map().items()
         )
+
 
 class Configurable(abc.ABC, metaclass=ConfigurableMeta):
     """
@@ -1534,13 +1550,16 @@ class GenericContainerMetaBase(type):
         else:
             return True
 
+
 class GenericContainerBase:
     """
     Base class for generic containers.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         type(self).instancecheck(self)
+
 
 class GenericMappingMeta(GenericContainerMetaBase, type(Mapping)):
     """
@@ -1570,11 +1589,13 @@ class GenericMappingMeta(GenericContainerMetaBase, type(Mapping)):
                     v_type=v_type.__qualname__,
                 ), k)
 
+
 class TypedDict(GenericContainerBase, dict, metaclass=GenericMappingMeta):
     """
     Subclass of dict providing keys and values type check.
     """
     pass
+
 
 class GenericSequenceMeta(GenericContainerMetaBase, type(Sequence)):
     """Similar to :class:`GenericMappingMeta` for sequences"""
@@ -1592,32 +1613,41 @@ class GenericSequenceMeta(GenericContainerMetaBase, type(Sequence)):
                     type_=type_.__qualname__
                 ), i)
 
+
 class TypedList(GenericContainerBase, list, metaclass=GenericSequenceMeta):
     """
     Subclass of list providing keys and values type check.
     """
     pass
 
+
 class IntIntDict(TypedDict):
     _type = (int, int)
+
 
 class IntList(TypedList):
     _type = int
 
+
 class FloatList(TypedList):
     _type = float
+
 
 class IntIntListDict(TypedDict):
     _type = (int, IntList)
 
+
 class IntListList(TypedList):
     _type = IntList
+
 
 class StrList(TypedList):
     _type = str
 
+
 class StrIntListDict(TypedDict):
     _type = (str, IntList)
+
 
 class IntStrDict(TypedDict):
     _type = (int, str)

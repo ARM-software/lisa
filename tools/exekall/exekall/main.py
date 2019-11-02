@@ -38,6 +38,8 @@ import exekall.engine as engine
 
 # Create an operator for all callables that have been detected in a given
 # set of modules
+
+
 def build_op_set(callable_pool, non_reusable_type_set, allowed_pattern_set, adaptor):
     op_set = {
         engine.Operator(
@@ -55,6 +57,7 @@ def build_op_set(callable_pool, non_reusable_type_set, allowed_pattern_set, adap
         if utils.match_name(op.get_name(full_qual=True), allowed_pattern_set)
     )
     return filtered_op_set
+
 
 def build_patch_map(sweep_spec_list, param_spec_list, op_set):
     sweep_spec_list = copy.copy(sweep_spec_list)
@@ -75,8 +78,9 @@ def build_patch_map(sweep_spec_list, param_spec_list, op_set):
                 utils.sweep_param(
                     callable_, param,
                     start, stop, step
-            ))
+                ))
     return patch_map
+
 
 def apply_patch_map(patch_map, adaptor):
     prebuilt_op_set = set()
@@ -95,6 +99,7 @@ def apply_patch_map(patch_map, adaptor):
             continue
 
     return prebuilt_op_set
+
 
 def load_from_db(db, adaptor, non_reusable_type_set, pattern_list, uuid_list, uuid_args):
     # We do not filter on UUID if we only got a type pattern list
@@ -188,6 +193,7 @@ def load_from_db(db, adaptor, non_reusable_type_set, pattern_list, uuid_list, uu
                 ))
 
     return prebuilt_op_set
+
 
 def _main(argv):
     parser = argparse.ArgumentParser(description="""
@@ -353,7 +359,6 @@ please run ``exekall run YOUR_SOURCES_OR_MODULES --help``.
     add_argument(run_parser, '--adaptor',
         help="""Adaptor to use from the customization module, if there is more than one to choose from.""")
 
-
     merge_parser = subparsers.add_parser('merge',
     description="""
 Merge artifact directories of "exekall run" executions.
@@ -378,7 +383,6 @@ contains subexpression's values.
 
     add_argument(merge_parser, '--copy', action='store_true',
         help="""Force copying files, instead of using hardlinks.""")
-
 
     compare_parser = subparsers.add_parser('compare',
     description="""
@@ -415,7 +419,7 @@ arguments.
     # Avoid showing help message on the incomplete parser. Instead, we carry on
     # and the help will be displayed after the parser customization of run
     # subcommand has a chance to take place.
-    help_options =  ('-h', '--help')
+    help_options = ('-h', '--help')
     no_help_argv = [
         arg for arg in argv
         if arg not in help_options
@@ -471,6 +475,7 @@ arguments.
             db_path=args.db,
         )
 
+
 def do_show(parser, show_parser, argv, db_path):
     db = engine.ValueDB.from_path(db_path)
     adaptor_cls = db.adaptor_cls
@@ -489,6 +494,7 @@ def do_show(parser, show_parser, argv, db_path):
     adaptor = adaptor_cls(args)
 
     return adaptor.show_db(db)
+
 
 def do_compare(parser, compare_parser, argv, db_path_list):
     assert len(db_path_list) == 2
@@ -521,6 +527,7 @@ def do_compare(parser, compare_parser, argv, db_path_list):
 
     return adaptor.compare_db_list(db_list)
 
+
 def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
     output_dir = pathlib.Path(output_dir)
 
@@ -535,26 +542,25 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
     else:
         # This will fail loudly if the folder already exists
         output_dir.mkdir(parents=True, exist_ok=output_exist)
-        (output_dir/'BY_UUID').mkdir(exist_ok=True)
-        merged_db_path = output_dir/utils.DB_FILENAME
+        (output_dir / 'BY_UUID').mkdir(exist_ok=True)
+        merged_db_path = output_dir / utils.DB_FILENAME
 
     testsession_uuid_list = []
     for artifact_dir in artifact_dirs:
-        with (artifact_dir/'UUID').open(encoding='utf-8') as f:
+        with (artifact_dir / 'UUID').open(encoding='utf-8') as f:
             testsession_uuid = f.read().strip()
             testsession_uuid_list.append(testsession_uuid)
 
-        src_by_uuid = artifact_dir/'BY_UUID'
+        src_by_uuid = artifact_dir / 'BY_UUID'
         for uuid_symlink in src_by_uuid.iterdir():
             target = uuid_symlink.resolve()
             target = pathlib.Path('..', target.relative_to(artifact_dir.resolve()))
-            (output_dir/'BY_UUID'/uuid_symlink.name).symlink_to(target)
-
+            (output_dir / 'BY_UUID' / uuid_symlink.name).symlink_to(target)
 
         link_base_path = pathlib.Path('ORIGIN', testsession_uuid)
         shutil.copytree(
             str(src_by_uuid),
-            str(output_dir/link_base_path/'BY_UUID'),
+            str(output_dir / link_base_path / 'BY_UUID'),
             symlinks=True,
         )
 
@@ -562,16 +568,16 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
         for dirpath, dirnames, filenames in os.walk(str(artifact_dir)):
             dirpath = pathlib.Path(dirpath)
             for name in filenames:
-                path = dirpath/name
+                path = dirpath / name
                 rel_path = pathlib.Path(os.path.relpath(str(path), str(artifact_dir)))
-                link_path = output_dir/link_base_path/rel_path
+                link_path = output_dir / link_base_path / rel_path
 
                 levels = pathlib.Path(*(['..'] * (
-                      len(rel_path.parents)
+                    len(rel_path.parents)
                     + len(link_base_path.parents)
                     - 1
                 )))
-                src_link_path = levels/rel_path
+                src_link_path = levels / rel_path
 
                 # top-level files are relocated under a ORIGIN instead of having
                 # a symlink, otherwise they would clash
@@ -580,7 +586,7 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
                     create_link = False
                 # Otherwise, UUIDs will ensure that there is no clash
                 else:
-                    dst_path = output_dir/rel_path
+                    dst_path = output_dir / rel_path
                     create_link = True
 
                 # Create the folder and make sure that all its parents get the
@@ -590,8 +596,8 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
                 # We do not do copystat on the topmost parent, as it is shared
                 # by all original artifact_dir
                 for parent in list(rel_path.parents)[:-2]:
-                    stat_src = artifact_dir/parent
-                    stat_dst = output_dir/parent
+                    stat_src = artifact_dir / parent
+                    stat_dst = output_dir / parent
                     shutil.copystat(str(stat_src), str(stat_dst))
 
                 # Create a mirror of the original hierarchy
@@ -618,8 +624,8 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
                 for uuid_ in sorted(testsession_uuid_list)
             )
         ).hexdigest()[:32]
-        with (output_dir/'UUID').open('wt') as f:
-            f.write(combined_uuid+'\n')
+        with (output_dir / 'UUID').open('wt') as f:
+            f.write(combined_uuid + '\n')
 
     if output_exist:
         root_db = engine.ValueDB.from_path(merged_db_path)
@@ -632,6 +638,7 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
     ]
     merged_db = engine.ValueDB.merge(db_list, roots_from=root_db)
     merged_db.to_path(merged_db_path)
+
 
 def do_run(args, parser, run_parser, argv):
     # Import all modules, before selecting the adaptor
@@ -741,8 +748,8 @@ def do_run(args, parser, run_parser, argv):
         # Update the CLI arguments so the customization module has access to the
         # correct value
         args.artifact_dir = artifact_dir
-        debug_log = artifact_dir/'DEBUG.log'
-        info_log = artifact_dir/'INFO.log'
+        debug_log = artifact_dir / 'DEBUG.log'
+        info_log = artifact_dir / 'INFO.log'
 
     utils.setup_logging(args.log_level, debug_log, info_log, verbose=verbose)
 
@@ -811,16 +818,16 @@ def do_run(args, parser, run_parser, argv):
         @utils.once
         def handle_non_produced(cls_name, consumer_name, param_name, callable_path):
             info('Nothing can produce instances of {cls} needed for {consumer} (parameter "{param}", along path {path})'.format(
-                cls = cls_name,
-                consumer = consumer_name,
-                param = param_name,
-                path = ' -> '.join(utils.get_name(callable_) for callable_ in callable_path)
+                cls=cls_name,
+                consumer=consumer_name,
+                param=param_name,
+                path=' -> '.join(utils.get_name(callable_) for callable_ in callable_path)
             ))
 
         @utils.once
         def handle_cycle(path):
             error('Cyclic dependency detected: {path}'.format(
-                path = ' -> '.join(
+                path=' -> '.join(
                     utils.get_name(callable_)
                     for callable_ in path
                 )
@@ -838,9 +845,9 @@ def do_run(args, parser, run_parser, argv):
             # All producers of the goal types can be a root operator in the
             # expressions we are going to build, i.e. the outermost function call
             utils.match_base_cls(op.value_type, type_goal_pattern_set)
-        # Only keep the Expression where the outermost (root) operator is
-        # defined in one of the files that were explicitely specified on the
-        # command line.
+            # Only keep the Expression where the outermost (root) operator is
+            # defined in one of the files that were explicitely specified on the
+            # command line.
         ) and inspect.getmodule(op.callable_) in module_set
     }
 
@@ -887,7 +894,7 @@ def do_run(args, parser, run_parser, argv):
     if rst_expr_list:
         id_kwargs['style'] = 'rst'
         for expr in expr_list:
-           out('* {}'.format(expr.get_id(**id_kwargs)))
+            out('* {}'.format(expr.get_id(**id_kwargs)))
     else:
         out('The following expressions will be executed:\n')
         for expr in expr_list:
@@ -914,7 +921,7 @@ def do_run(args, parser, run_parser, argv):
             op for op in (op_set - root_op_set)
             if utils.match_base_cls(op.value_type, shared_pattern_set)
         }
-        predicate = lambda expr: expr.op not in shared_op_set
+        def predicate(expr): return expr.op not in shared_op_set
 
         iteration_expr_list = [
             # Apply CSE within each iteration
@@ -954,14 +961,15 @@ def do_run(args, parser, run_parser, argv):
 
     return exec_ret_code
 
+
 def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                    hidden_callable_set, only_template_scripts, adaptor_cls, verbose, save_db):
 
     if not only_template_scripts:
-        with (artifact_dir/'UUID').open('wt') as f:
-            f.write(testsession_uuid+'\n')
+        with (artifact_dir / 'UUID').open('wt') as f:
+            f.write(testsession_uuid + '\n')
 
-        (artifact_dir/'BY_UUID').mkdir()
+        (artifact_dir / 'BY_UUID').mkdir()
 
     out('\nArtifacts dir: {}\n'.format(artifact_dir))
 
@@ -987,13 +995,13 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
         data['artifact_dir'] = artifact_dir
         data['expr_artifact_dir'] = expr_artifact_dir
 
-        with (expr_artifact_dir/'UUID').open('wt') as f:
+        with (expr_artifact_dir / 'UUID').open('wt') as f:
             f.write(expr.uuid + '\n')
 
-        with (expr_artifact_dir/'ID').open('wt') as f:
-            f.write(expr_short_id+'\n')
+        with (expr_artifact_dir / 'ID').open('wt') as f:
+            f.write(expr_short_id + '\n')
 
-        with (expr_artifact_dir/'STRUCTURE').open('wt') as f:
+        with (expr_artifact_dir / 'STRUCTURE').open('wt') as f:
             f.write(expr.get_id(
                 hidden_callable_set=hidden_callable_set,
                 with_tags=False,
@@ -1002,21 +1010,21 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
             f.write(expr.format_structure() + '\n')
 
         is_svg, dot_output = utils.render_graphviz(expr)
-        graphviz_path = expr_artifact_dir/'STRUCTURE.{}'.format(
+        graphviz_path = expr_artifact_dir / 'STRUCTURE.{}'.format(
             'svg' if is_svg else 'dot'
         )
         with graphviz_path.open('wt', encoding='utf-8') as f:
             f.write(dot_output)
 
-        with (expr_artifact_dir/'EXPRESSION_TEMPLATE.py').open(
+        with (expr_artifact_dir / 'EXPRESSION_TEMPLATE.py').open(
             'wt', encoding='utf-8'
         ) as f:
             f.write(
                 expr.get_script(
-                    prefix = 'expr',
-                    db_path = os.path.join('..', utils.DB_FILENAME),
-                    db_relative_to = '__file__',
-                )[1]+'\n',
+                    prefix='expr',
+                    db_path=os.path.join('..', utils.DB_FILENAME),
+                    db_relative_to='__file__',
+                )[1] + '\n',
             )
 
     if only_template_scripts:
@@ -1031,18 +1039,18 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
 
         for expr in expr_list:
             exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}\nUUID: {uuid_}'.format(
-                    short_id=expr.get_id(
-                        hidden_callable_set=hidden_callable_set,
-                        full_qual=False,
-                        qual=False,
-                    ),
+                short_id=expr.get_id(
+                    hidden_callable_set=hidden_callable_set,
+                    full_qual=False,
+                    qual=False,
+                ),
 
-                    full_id=expr.get_id(
-                        hidden_callable_set=hidden_callable_set if not verbose else None,
-                        full_qual=True,
-                    ),
-                    folder=expr.data['expr_artifact_dir'],
-                    uuid_=expr.uuid
+                full_id=expr.get_id(
+                    hidden_callable_set=hidden_callable_set if not verbose else None,
+                    full_qual=True,
+                ),
+                folder=expr.data['expr_artifact_dir'],
+                uuid_=expr.uuid
             ).replace('\n', '\n# ')
 
             delim = '#' * (len(exec_start_msg.splitlines()[0]) + 2)
@@ -1056,6 +1064,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
             # Make sure that all the output of the expression is flushed to ensure
             # there won't be any buffered stderr output being displayed after the
             # "official" end of the Expression's execution.
+
             def flush_std_streams():
                 sys.stdout.flush()
                 sys.stderr.flush()
@@ -1065,6 +1074,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
 
             computed_expr_val_set = set()
             reused_expr_val_set = set()
+
             def log_expr_val(expr_val, reused):
                 # Consider that PrebuiltOperator reuse values instead of
                 # actually computing them.
@@ -1105,11 +1115,11 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                     excep = excep_val.excep
                     tb = utils.format_exception(excep)
                     error('{e_name}: {e}\nID: {id}\n{tb}'.format(
-                            id=excep_val.get_id(),
-                            e_name=utils.get_name(type(excep)),
-                            e=excep,
-                            tb=tb,
-                        ),
+                        id=excep_val.get_id(),
+                        e_name=utils.get_name(type(excep)),
+                        e=excep,
+                        tb=tb,
+                    ),
                     )
 
                 prefix = 'Finished {uuid} '.format(uuid=get_uuid_str(result))
@@ -1120,13 +1130,12 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                         mark_excep=True,
                         with_tags=True,
                         hidden_callable_set=hidden_callable_set,
-                    ).strip().replace('\n', '\n'+len(prefix)*' '),
+                    ).strip().replace('\n', '\n' + len(prefix) * ' '),
                     prefix=prefix,
                 ))
 
                 out(adaptor.format_result(result))
                 result_list.append(result)
-
 
             out('')
             expr_artifact_dir = expr.data['expr_artifact_dir']
@@ -1135,13 +1144,13 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
             adaptor.finalize_expr(expr)
 
             # Dump the reproducer script
-            with (expr_artifact_dir/'EXPRESSION.py').open('wt', encoding='utf-8') as f:
+            with (expr_artifact_dir / 'EXPRESSION.py').open('wt', encoding='utf-8') as f:
                 f.write(
                     expr.get_script(
-                        prefix = 'expr',
-                        db_path = os.path.join('..', '..', utils.DB_FILENAME),
-                        db_relative_to = '__file__',
-                    )[1]+'\n',
+                        prefix='expr',
+                        db_path=os.path.join('..', '..', utils.DB_FILENAME),
+                        db_relative_to='__file__',
+                    )[1] + '\n',
                 )
 
             def format_uuid(expr_val_list):
@@ -1155,9 +1164,9 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                 with path.open('wt') as f:
                     f.write(format_uuid(*args) + '\n')
 
-            write_uuid(expr_artifact_dir/'VALUES_UUID', result_list)
-            write_uuid(expr_artifact_dir/'REUSED_VALUES_UUID', reused_expr_val_set)
-            write_uuid(expr_artifact_dir/'COMPUTED_VALUES_UUID', computed_expr_val_set)
+            write_uuid(expr_artifact_dir / 'VALUES_UUID', result_list)
+            write_uuid(expr_artifact_dir / 'REUSED_VALUES_UUID', reused_expr_val_set)
+            write_uuid(expr_artifact_dir / 'COMPUTED_VALUES_UUID', computed_expr_val_set)
 
             # From there, use a relative path for symlinks
             expr_artifact_dir = pathlib.Path('..', expr_artifact_dir.relative_to(artifact_dir))
@@ -1167,7 +1176,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
             }
             computed_uuid_set.add(expr.uuid)
             for uuid_ in computed_uuid_set:
-                (artifact_dir/'BY_UUID'/uuid_).symlink_to(expr_artifact_dir)
+                (artifact_dir / 'BY_UUID' / uuid_).symlink_to(expr_artifact_dir)
 
     if save_db:
         db = engine.ValueDB(
@@ -1178,25 +1187,25 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
             adaptor_cls=adaptor_cls,
         )
 
-        db_path = artifact_dir/utils.DB_FILENAME
+        db_path = artifact_dir / utils.DB_FILENAME
         db.to_path(db_path)
         relative_db_path = db_path.relative_to(artifact_dir)
     else:
         relative_db_path = None
         db = None
 
-    out('#'*80)
+    out('#' * 80)
     info('Artifacts dir: {}'.format(artifact_dir))
     info('Result summary:')
 
     # Display the results summary
     summary = adaptor.get_summary(result_map)
     out(summary)
-    with (artifact_dir/'SUMMARY').open('wt', encoding='utf-8') as f:
+    with (artifact_dir / 'SUMMARY').open('wt', encoding='utf-8') as f:
         f.write(summary + '\n')
 
     # Output the merged script with all subscripts
-    script_path = artifact_dir/'ALL_SCRIPTS.py'
+    script_path = artifact_dir / 'ALL_SCRIPTS.py'
     result_name_map, all_scripts = engine.Expression.get_all_script(
         utils.flatten_seq(iteration_expr_list),
         prefix='expr',
@@ -1211,11 +1220,14 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
 
     return adaptor.get_run_exit_code(result_map)
 
+
 SILENT_EXCEPTIONS = (KeyboardInterrupt, BrokenPipeError)
 GENERIC_ERROR_CODE = 1
 
 # Global variable reset once we parsed the command line
 show_traceback = True
+
+
 def main(argv=sys.argv[1:]):
     return_code = 0
 
@@ -1228,7 +1240,7 @@ def main(argv=sys.argv[1:]):
         return_code = e.code
     # Catch-all
     except Exception as e:
-        formatted_excep = 'Exception traceback:\n' +  utils.format_exception(e)
+        formatted_excep = 'Exception traceback:\n' + utils.format_exception(e)
         if show_traceback:
             error(formatted_excep)
         else:
@@ -1240,6 +1252,7 @@ def main(argv=sys.argv[1:]):
         return_code = GENERIC_ERROR_CODE
 
     sys.exit(return_code)
+
 
 if __name__ == '__main__':
     main()

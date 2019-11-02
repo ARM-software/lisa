@@ -35,4 +35,3 @@ man_pages = [
     (master_doc, 'bisector', 'command sequencer',
      [author], 1)
 ]
-
