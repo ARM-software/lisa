@@ -2552,7 +2552,7 @@ def update_json(path, mapping):
     try:
         with open(path, 'r') as f:
             data = json.load(f)
-    except:
+    except BaseException:
         data = dict()
     data.update(mapping)
     with open(path, 'w', encoding='utf-8') as f:
@@ -4280,7 +4280,7 @@ class DBusSlaveThread:
         # Unexpected exceptions will kill the whole process. This makes sure
         # that this dbus slave thread cannot die unexpectedly, leading to some
         # blocking reads on the pipe or similar issues.
-        except:
+        except BaseException:
             # Print the exception before killing the whole process.
             traceback.print_exc()
             os.kill(os.getpid(), signal.SIGTERM)
@@ -4350,7 +4350,7 @@ class DBusSlaveThread:
                 # not responsive.
                 slave_book.RegisterSlave(location, timeout=2)
             # Ignore failures, as the server may not be running.
-            except:
+            except BaseException:
                 pass
 
         # Register in the SlaveBook when the bus name shows up
@@ -4453,7 +4453,7 @@ def do_monitor(slave_id, args):
         if args.prop:
             try:
                 print(props[args.prop])
-            except:
+            except BaseException:
                 warn('Property {prop} not found on slave {slave_id}'.format(
                     prop=args.prop,
                     slave_id=slave_id
