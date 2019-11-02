@@ -35,7 +35,7 @@ class TestTarget(LocalLinuxTarget):
     """
     def __init__(self):
         self.execute_calls = []
-        super(TestTarget, self).__init__(platform=Platform(),
+        super().__init__(platform=Platform(),
                                          working_directory = '/tmp/devlib-target',
                                          executables_directory = '/tmp/devlib-target/bin',
                                          load_default_modules=False,
@@ -43,7 +43,7 @@ class TestTarget(LocalLinuxTarget):
 
     def execute(self, *args, **kwargs):
         self.execute_calls.append((args, kwargs))
-        return super(TestTarget, self).execute(*args, **kwargs)
+        return super().execute(*args, **kwargs)
 
     @property
     def executed_commands(self):

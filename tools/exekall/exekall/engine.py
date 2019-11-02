@@ -1804,7 +1804,7 @@ class ClassContext:
     @staticmethod
     def _build_cls_map(op_set, compat_cls):
         # Pool of classes that can be produced by the ops
-        produced_pool = set(op.value_type for op in op_set)
+        produced_pool = {op.value_type for op in op_set}
 
         # Set of all types that can be depended upon. All base class of types that
         # are actually produced are also part of this set, since they can be

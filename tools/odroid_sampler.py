@@ -85,7 +85,7 @@ def parseOptions():
         else:
             assert False, "unhandled option"
 
-    logging.info('Sampler configured for {0:d} samples, evenry {1:.3f}ms'\
+    logging.info('Sampler configured for {:d} samples, evenry {:.3f}ms'\
         .format(config['samples'], config['period']/1000))
 
 def main():
@@ -95,7 +95,7 @@ def main():
     sampler = OdroidSampler(config['samples'], config['period'])
 
     avg_power = amples.averagePower(config['device'])
-    logging.info('Average power: {0:f}'.format(avg_power))
+    logging.info('Average power: {:f}'.format(avg_power))
 
 logging.basicConfig(
     format='%(asctime)-9s %(levelname)-8s: %(message)s',

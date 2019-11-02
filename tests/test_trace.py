@@ -432,7 +432,7 @@ class TestTraceNoClusterData(TestTrace):
     no cluster info the platform dict.
     """
     def _get_plat_info(self, trace_name=None):
-        plat_info = super(TestTraceNoClusterData, self)._get_plat_info(trace_name)
+        plat_info = super()._get_plat_info(trace_name)
         plat_info = copy.copy(plat_info)
         plat_info.force_src('freq-domains', ['SOURCE THAT DOES NOT EXISTS'])
         return plat_info

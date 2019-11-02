@@ -138,7 +138,7 @@ class RampBoostTestBase(RTATestBundle):
         )
         df['boost_points'] = boost_points
 
-        df['expected_cost_margin'] = ((df['util'] - df['util_est_enqueued'])).where(
+        df['expected_cost_margin'] = (df['util'] - df['util_est_enqueued']).where(
             cond=boost_points,
             other=0,
         )

@@ -830,7 +830,7 @@ def do_run(args, parser, run_parser, argv):
         handle_cycle = 'ignore'
 
     # Get the callable goals, either by the callable name or the value type
-    root_op_set = set(
+    root_op_set = {
         op for op in op_set
         if (
             utils.match_name(op.get_name(full_qual=True), callable_goal_pattern_set)
@@ -842,7 +842,7 @@ def do_run(args, parser, run_parser, argv):
         # defined in one of the files that were explicitely specified on the
         # command line.
         ) and inspect.getmodule(op.callable_) in module_set
-    )
+    }
 
     # Build the class context from the set of Operator's that we collected
     class_ctx = engine.ClassContext.from_op_set(

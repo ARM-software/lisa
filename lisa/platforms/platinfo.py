@@ -138,7 +138,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         """
 
         def parse_line(line):
-            splitted = re.split('\W+', line)
+            splitted = re.split(r'\W+', line)
             addr = int(splitted[0], base=16)
             symtype = splitted[1]
             func = splitted[2]

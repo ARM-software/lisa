@@ -987,7 +987,7 @@ class Trace(Loggable, TraceBase):
         power_max = em_lcpu['nrg_max'] * lcpus + em_bcpu['nrg_max'] * bcpus + \
             em_lcluster['nrg_max'] + em_bcluster['nrg_max']
         logger.debug(
-            "Maximum estimated system energy: {0:d}".format(power_max))
+            "Maximum estimated system energy: {:d}".format(power_max))
 
         df = self.df_events('sched_energy_diff')
 

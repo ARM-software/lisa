@@ -287,7 +287,7 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
     """
     Compute the integral of `y` with respect to `x`.
 
-    :return: A scalar :math:`\int_{x=A}^{x=B} y \, dx`, where `x` is either the
+    :return: A scalar :math:`\\int_{x=A}^{x=B} y \\, dx`, where `x` is either the
         index of `y` or another series.
 
     :param y: Series with the data to integrate.
@@ -339,7 +339,7 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
 
             .. math::
 
-                \sum_{k=0}^{N-1} (x_{k+1} - {x_k}) \\times f(x_k) \\\\
+                \\sum_{k=0}^{N-1} (x_{k+1} - {x_k}) \\times f(x_k) \\\\
                 (2 \\times 3) + (1 \\times 2) = 8
 
         - Step: Pre
@@ -363,7 +363,7 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
 
             .. math::
 
-                \sum_{k=1}^{N} (x_k - x_{k-1}) \\times f(x_k) \\\\
+                \\sum_{k=1}^{N} (x_k - x_{k-1}) \\times f(x_k) \\\\
                 (2 \\times 3) + (1 \\times 3) = 9
     """
 

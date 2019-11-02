@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # LISA documentation build configuration file, created by
 # sphinx-quickstart on Tue Dec 13 14:20:00 2016.
@@ -64,7 +63,7 @@ def patched_make_field(self, types, domain, items, env=None):
             # inconsistencies later when references are resolved
             fieldtype = types.pop(fieldarg)
             if len(fieldtype) == 1 and isinstance(fieldtype[0], nodes.Text):
-                typename = u''.join(n.astext() for n in fieldtype)
+                typename = ''.join(n.astext() for n in fieldtype)
                 par.extend(self.make_xrefs(self.typerolename, domain, typename,
                                            addnodes.literal_emphasis))
             else:
@@ -150,8 +149,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'LISA'
-copyright = u'2017, ARM-Software'
+project = 'LISA'
+copyright = '2017, ARM-Software'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -160,7 +159,7 @@ copyright = u'2017, ARM-Software'
 try:
     git_description = subprocess.check_output(
         ['git', 'describe', '--tags', '--match=v??.??'])
-    version = re.match('v([0-9][0-9]\.[0-9][0-9]).*', git_description).group(1)
+    version = re.match(r'v([0-9][0-9]\.[0-9][0-9]).*', git_description).group(1)
 except Exception as e:
     logging.info("Couldn't set project version from git: {}".format(e))
     version = lisa.__version__
@@ -304,8 +303,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'LISA.tex', u'LISA Documentation',
-   u'ARM-Software', 'manual'),
+  ('index', 'LISA.tex', 'LISA Documentation',
+   'ARM-Software', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -334,8 +333,8 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'lisa', u'LISA Documentation',
-     [u'ARM-Software'], 1)
+    ('index', 'lisa', 'LISA Documentation',
+     ['ARM-Software'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -348,8 +347,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'LISA', u'LISA Documentation',
-   u'ARM-Software', 'LISA', 'One line description of project.',
+  ('index', 'LISA', 'LISA Documentation',
+   'ARM-Software', 'LISA', 'One line description of project.',
    'Miscellaneous'),
 ]
 

@@ -672,7 +672,7 @@ class WaResultsCollector(Loggable):
         valid_sort = ['count', 'mean', 'std', 'min', 'max']
 
         # Verify if valid percentile string has been required
-        match = re.match('^(?P<quantile>\d{1,3})\%$', sort_on)
+        match = re.match(r'^(?P<quantile>\d{1,3})\%$', sort_on)
         if match:
             quantile = int(match.group('quantile'))
             if quantile < 1 or quantile > 100:

@@ -157,8 +157,8 @@ class TestOptimalPlacement(TestCase):
         """
         Assert that a pair of lists of lists contain the same lists in any order
         """
-        s1 = set([tuple(l) for l in l1])
-        s2 = set([tuple(l) for l in l2])
+        s1 = {tuple(l) for l in l1}
+        s2 = {tuple(l) for l in l2}
         self.assertSetEqual(s1, s2)
 
     def test_single_small(self):

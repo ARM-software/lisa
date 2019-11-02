@@ -84,7 +84,7 @@ class RTA(Workload):
         if not rta_cmd:
             raise RuntimeError("No rt-app executable found on the target")
 
-        self.command = '{0:s} {1:s} 2>&1'.format(quote(rta_cmd), quote(self.remote_json))
+        self.command = '{:s} {:s} 2>&1'.format(quote(rta_cmd), quote(self.remote_json))
 
     def _late_init(self, calibration=None, tasks_names=None):
         """
@@ -200,10 +200,10 @@ class RTA(Workload):
                 max_size, too_long_tids
             ))
 
-        invalid_tids = sorted((
+        invalid_tids = sorted(
             tid for tid in profile.keys()
             if not re.match(cls.ALLOWED_TASK_NAME_REGEX, tid)
-        ))
+        )
         if invalid_tids:
             raise ValueError(
                 'Task names not matching "{}": {}'.format(
@@ -704,7 +704,7 @@ class Phase(Loggable):
 
         return phase
 
-class RTATask(object):
+class RTATask:
     """
     Base class for conveniently constructing params to :meth:`RTA.by_profile`
 
@@ -780,7 +780,7 @@ class Ramp(RTATask):
     def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
                  period_ms=100, delay_s=0, loops=1, sched_policy=None,
                  priority=None, cpus=None, uclamp_min=None, uclamp_max=None):
-        super(Ramp, self).__init__(delay_s, loops, sched_policy, priority)
+        super().__init__(delay_s, loops, sched_policy, priority)
 
         if not (0 <= start_pct <= 100 and 0 <= end_pct <= 100):
             raise ValueError('start_pct and end_pct must be in [0..100] range')
@@ -875,7 +875,7 @@ class Pulse(RTATask):
     def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
                  delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None,
                  uclamp_min=None, uclamp_max=None):
-        super(Pulse, self).__init__(delay_s, loops, sched_policy, priority)
+        super().__init__(delay_s, loops, sched_policy, priority)
 
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')
@@ -923,7 +923,7 @@ class Periodic(Pulse):
     def __init__(self, duty_cycle_pct=50, duration_s=1, period_ms=100,
                  delay_s=0, sched_policy=None, priority=None, cpus=None,
                  uclamp_min=None, uclamp_max=None):
-        super(Periodic, self).__init__(duty_cycle_pct, 0, duration_s,
+        super().__init__(duty_cycle_pct, 0, duration_s,
                                        period_ms, delay_s, 1, sched_policy,
                                        priority, cpus,
                                        uclamp_min=uclamp_min,
@@ -952,7 +952,7 @@ class RunAndSync(RTATask):
     """
     def __init__(self, barrier, time_s=1, delay_s=0, loops=1, sched_policy=None,
                  priority=None, cpus=None, uclamp_min=None, uclamp_max=None):
-        super(RunAndSync, self).__init__(delay_s, loops, sched_policy, priority)
+        super().__init__(delay_s, loops, sched_policy, priority)
 
         # This should translate into a phase containing a 'run' event and a
         # 'barrier' event

@@ -124,8 +124,7 @@ class _CpuTree(Loggable):
 
     def _iter(self, include_non_leaves):
         for child in self.children:
-            for child_i in child._iter(include_non_leaves):
-                yield child_i
+            yield from child._iter(include_non_leaves)
         if include_non_leaves or not self.children:
             yield self
 
@@ -478,7 +477,7 @@ class EnergyModel(Serializable, Loggable):
         return self.cpu_nodes[cpu].active_states[freq].capacity
 
     def guess_idle_states(self, cpus_active):
-        """Pessimistically guess the idle states that each CPU may enter
+        r"""Pessimistically guess the idle states that each CPU may enter
 
         If a CPU has any tasks it is estimated that it may only enter its
         shallowest idle state in between task activations. If all the CPUs

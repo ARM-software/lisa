@@ -780,7 +780,7 @@ class PerfAnalysis(AnalysisHelpers):
     @staticmethod
     def _parse_df(logfile):
         df = pd.read_csv(logfile,
-                sep='\s+',
+                sep=r'\s+',
                 header=0,
                 usecols=[1,2,3,4,7,8,9,10],
                 names=[

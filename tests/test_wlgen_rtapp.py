@@ -272,8 +272,8 @@ class TestRTACustom(RTABase):
 
         self.assertSetEqual(
             set(conf['tasks'].keys()),
-            set(['AudioTick', 'AudioOut', 'AudioTrack',
-                 'mp3.decoder', 'OMXCall']))
+            {'AudioTick', 'AudioOut', 'AudioTrack',
+                 'mp3.decoder', 'OMXCall'})
 
         # Would like to try running the workload but mp3-short.json has nonzero
         # 'priority' fields, and we probably don't have permission for that
