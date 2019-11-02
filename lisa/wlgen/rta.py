@@ -84,7 +84,7 @@ class RTA(Workload):
         if not rta_cmd:
             raise RuntimeError("No rt-app executable found on the target")
 
-        self.command = '{:s} {:s} 2>&1'.format(quote(rta_cmd), quote(self.remote_json))
+        self.command = '{} {} 2>&1'.format(quote(rta_cmd), quote(self.remote_json))
 
     def _late_init(self, calibration=None, tasks_names=None):
         """
