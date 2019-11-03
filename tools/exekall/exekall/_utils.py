@@ -156,7 +156,7 @@ def get_name(obj, full_qual=True, qual=True, pretty=False):
         else:
             module_name = (
                 module_name + '.'
-                if module_name != '__main__' and module_name != 'builtins'
+                if module_name not in ('__main__', 'builtins', None)
                 else ''
             )
     else:
