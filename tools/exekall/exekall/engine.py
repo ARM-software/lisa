@@ -2360,7 +2360,7 @@ class Operator:
         """
         Returns a dictionnary of global variables as seen by the callable.
         """
-        globals_ = self.resolved_callable.__globals__
+        globals_ = self.resolved_callable.__globals__ or {}
         # Make sure the class name can be resolved
         if isinstance(self.callable_, UnboundMethod):
             globals_ = copy.copy(globals_)
