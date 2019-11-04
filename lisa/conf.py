@@ -35,10 +35,16 @@ from ruamel.yaml.comments import CommentedMap
 
 class DeferredValue:
     """
-    Wrapper similar to functools.partial.
+    Wrapper similar to :func:`functools.partial` allowing to defer computation
+    of the value until the key is actually used.
 
-    I is a nown class to detect and to derive from to create different
-    categories of deferred values.
+    Once computed, the deferred value is replaced by the value that was
+    computed. This is useful for values that are very costly to compute, but
+    should be used with care as it means it will usually not be available in
+    the offline :class:`lisa.platforms.platinfo.PlatformInfo` instances. This
+    means that client code such as submodules of ``lisa.analysis`` will
+    typically not have it available (unless :meth:`~MultiSrcConf.eval_deferred`
+    was called) although they might need it.
     """
     def __init__(self, callback, *args, **kwargs):
         self.callback = callback
