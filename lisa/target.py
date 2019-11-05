@@ -506,14 +506,14 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         if args.conf:
             # Tentatively load a PlatformInfo from the conf file
-            with contextlib.suppress(KeyError):
+            with contextlib.suppress(KeyError, ValueError):
                 platform_info = PlatformInfo.from_yaml_map(args.conf)
 
             # Load the TargetConf from the file, and update it with command
             # line arguments
             try:
                 conf = TargetConf.from_yaml_map(args.conf)
-            except KeyError:
+            except (KeyError, ValueError):
                 pass
             else:
                 target_conf.add_src(args.conf, conf)
