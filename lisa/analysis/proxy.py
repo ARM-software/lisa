@@ -47,10 +47,6 @@ class AnalysisProxy(Loggable):
         """
         Returns the set of all events used by any of the registered analysis.
         """
-
-        def predicate(f):
-            return callable(f) and hasattr(f, 'used_events')
-
         return set(itertools.chain.from_iterable(
             cls.get_all_events()
             for cls in TraceAnalysisBase.get_analysis_classes().values()
