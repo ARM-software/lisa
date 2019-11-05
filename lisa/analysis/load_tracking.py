@@ -17,6 +17,7 @@
 
 """ Scheduler load tracking analysis module """
 
+import itertools
 import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
@@ -261,9 +262,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         end = self.trace.end
 
         def plotter(axes, local_fig):
-            for cpu in cpus:
-                axis = axes[cpu] if len(cpus) > 1 else axes
-
+            axes = axes if len(cpus) > 1 else itertools.repeat(axes)
+            for cpu, axis in zip(cpus, axes):
                 # Add CPU utilization
                 axis.set_title('CPU{}'.format(cpu))
 

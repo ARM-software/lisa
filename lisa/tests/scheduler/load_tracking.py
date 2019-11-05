@@ -842,7 +842,23 @@ class CPUMigrationBase(LoadTrackingBase):
 
         return cpu_util
 
+    @LoadTrackingAnalysis.plot_task_signals.used_events
+    def _plot_util(self):
+        analysis = self.trace.analysis.load_tracking
+        fig, axes = analysis.setup_plot(nrows=len(self.rtapp_tasks))
+        for task, axis in zip(self.rtapp_tasks, axes):
+            analysis.plot_task_signals(task, signals=['util'], axis=axis)
+            self.trace.analysis.rta.plot_phases(task, axis=axis)
+
+        filepath = ArtifactPath.join(self.res_dir, 'tasks_util.png')
+        analysis.save_plot(fig, filepath=filepath)
+
+        filepath = ArtifactPath.join(self.res_dir, 'cpus_util.png')
+        cpus = sorted(self.cpus)
+        analysis.plot_cpus_signals(cpus, signals=['util'], filepath=filepath)
+
     @get_trace_cpu_util.used_events
+    @_plot_util.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_util_task_migration(self, allowed_error_pct=5) -> ResultBundle:
         """
@@ -890,6 +906,8 @@ class CPUMigrationBase(LoadTrackingBase):
         res.add_metric("Expected utilization", expected_metrics)
         res.add_metric("Trace utilization", trace_metrics)
         res.add_metric("Utilization deltas", deltas)
+
+        self._plot_util()
 
         return res
 
