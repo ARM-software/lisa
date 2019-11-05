@@ -1101,27 +1101,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         If the task forked, the list will contain more than one item.
         """
         trace = self.get_trace(events=['sched_switch'])
-
-        prefix_regexps = {
-            prefix: re.compile(r"^{}(-[0-9]+)*$".format(re.escape(prefix)))
-            for prefix in self.rtapp_profile.keys()
-        }
-
-        comms = set(itertools.chain.from_iterable(trace.get_tasks().values()))
-        task_map = {
-            prefix: sorted(
-                comm
-                for comm in comms
-                if re.match(regexp, comm)
-            )
-            for prefix, regexp in prefix_regexps.items()
-        }
-
-        missing = sorted(prefix for prefix, comms in task_map.items() if not comms)
-        if missing:
-            raise RuntimeError("Missing tasks matching the following rt-app profile names: {}"
-                                .format(', '.join(missing)))
-        return task_map
+        names = sorted(self.rtapp_profile.keys())
+        return RTA.resolve_trace_task_names(trace, names)
 
     @property
     def cgroup_configuration(self):
