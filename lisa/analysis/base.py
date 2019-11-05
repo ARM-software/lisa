@@ -25,6 +25,7 @@ import functools
 import docutils.core
 import contextlib
 import warnings
+import itertools
 
 import numpy
 import matplotlib
@@ -488,6 +489,20 @@ class TraceAnalysisBase(AnalysisHelpers):
 
     def __init__(self, trace):
         self.trace = trace
+
+    @classmethod
+    def get_all_events(cls):
+        """
+        Returns the set of all events used by any of the methods.
+        """
+
+        def predicate(f):
+            return callable(f) and hasattr(f, 'used_events')
+
+        return set(itertools.chain.from_iterable(
+            attr.used_events.get_all_events()
+            for name, attr in inspect.getmembers(cls, predicate=predicate)
+        ))
 
     def get_default_plot_path(self, **kwargs):
         return super().get_default_plot_path(
