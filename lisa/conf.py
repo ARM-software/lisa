@@ -815,7 +815,13 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 if v is not None
             }
 
-        self._structure.validate_val(conf)
+        # only validate at that level, since sublevel will take care of
+        # filtering then validating their own level
+        validated_conf = {
+            k: v for k, v in conf.items()
+            if not isinstance(self._structure[k], LevelKeyDesc)
+        }
+        self._structure.validate_val(validated_conf)
 
         for key, val in conf.items():
             key_desc = self._structure[key]
@@ -1612,5 +1618,8 @@ class StrList(TypedList):
 
 class StrIntListDict(TypedDict):
     _type = (str, IntList)
+
+class IntStrDict(TypedDict):
+    _type = (int, str)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

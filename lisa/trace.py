@@ -65,10 +65,10 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
     __slots__ = []
 
     def __init__(self, *args, **kwargs):
-        # TODO: remove that once this trace-cmd issue is solved in one way or another:
-        # https://bugzilla.kernel.org/show_bug.cgi?id=204979
+        # This happens when the number of saved PID/comms entries in the trace
+        # is too low
         if self.comm == '<...>':
-            raise ValueError('Invalid comm name "<...>"')
+            raise ValueError('Invalid comm name "<...>", please increase saved_cmdlines_nr value on FtraceCollector')
 
     def __str__(self):
         if self.pid is not None and self.comm is not None:
@@ -513,6 +513,7 @@ class Trace(Loggable, TraceBase):
         self._sanitize_SchedOverutilized()
         self._sanitize_CpuFrequency()
         self._sanitize_ThermalPowerCpu()
+        self._sanitize_funcgraph()
 
     def _check_available_events(self, key=""):
         """
@@ -1115,6 +1116,28 @@ class Trace(Loggable, TraceBase):
 
             self._ftrace.cpu_frequency.data_frame = df
 
+    def _sanitize_funcgraph(self):
+        """
+        Resolve the kernel function names.
+        """
+
+        events = [
+            event
+            for event in ('funcgraph_entry', 'funcgraph_exit')
+            if self.has_events(event)
+        ]
+        if not events:
+            return
+
+        try:
+            addr_map = self.plat_info['kernel']['symbols-address']
+        except KeyError as e:
+            self.get_logger().warning('Missing symbol addresses, function names will not be resolved: {}'.format(e))
+        else:
+            for event in events:
+                df = self.df_events(event)
+                df['func_name'] = df['func'].map(addr_map)
+
 
 class TraceEventCheckerBase(abc.ABC, Loggable):
     """
@@ -1472,6 +1495,9 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('events', 'FTrace events to trace', [StrList]),
         KeyDesc('functions', 'FTrace functions to trace', [StrList]),
         KeyDesc('buffer-size', 'FTrace buffer size', [int]),
+        KeyDesc('trace-clock', 'Clock used while tracing (see "trace_clock" in ftrace.txt kernel doc)', [str, None]),
+        KeyDesc('saved-cmdlines-nr', 'Number of saved cmdlines with associated PID while tracing', [int]),
+        KeyDesc('tracer', 'FTrace tracer to use', [str, None]),
     ))
 
     def add_merged_src(self, src, conf, **kwargs):
@@ -1485,10 +1511,25 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
         :type conf: FtraceConf
         """
         def merge_conf(key, val):
+
+            def non_mergeable(key):
+                if self.get(key, val) == val:
+                    return val
+                else:
+                    raise KeyError('Cannot merge key "{}": incompatible values specified: {} != {}'.format(
+                        key, self[key], val,
+                    ))
+
             if key in ('events', 'functions'):
                 return sorted(set(val) | set(self.get(key, [])))
             elif key == 'buffer-size':
                 return max(val, self.get(key, 0))
+            elif key == 'trace-clock':
+                return non_mergeable(key)
+            elif key == 'saved-cmdlines-nr':
+                return max(val, self.get(key, 0))
+            elif key == 'tracer':
+                return non_mergeable(key)
             else:
                 raise KeyError('Cannot merge key "{}"'.format(key))
 
@@ -1517,7 +1558,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
             **kwargs,
         )
 
-class FtraceCollector(devlib.FtraceCollector, Loggable, Configurable):
+class FtraceCollector(Loggable, Configurable):
     """
     Thin wrapper around :class:`devlib.FtraceCollector`.
 
@@ -1526,21 +1567,67 @@ class FtraceCollector(devlib.FtraceCollector, Loggable, Configurable):
 
     CONF_CLASS = FtraceConf
 
-    def __init__(self, target, events=None, functions=None, buffer_size=10240, autoreport=False, **kwargs):
+    def __init__(self, target, events=None, functions=None, buffer_size=10240, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, **kwargs):
         events = events or []
         functions = functions or []
-        kwargs.update(dict(
+        trace_clock = trace_clock or 'global'
+        kwargs.update(
             target=target,
             events=events,
             functions=functions,
             buffer_size=buffer_size,
             autoreport=autoreport,
-        ))
+            trace_clock=trace_clock,
+            saved_cmdlines_nr=saved_cmdlines_nr,
+            tracer=tracer,
+        )
         self.check_init_param(**kwargs)
 
-        super().__init__(**kwargs)
+        self.events = events
+        kernel_events = [
+            event for event in events
+            if self._is_kernel_event(event)
+        ]
+
+        if 'funcgraph_entry' in events or 'funcgraph_exit' in events:
+            tracer = 'function_graph' if tracer is None else tracer
+
+        # Only pass true kernel events to devlib, as it will reject any other.
+        kwargs.update(
+            events=kernel_events,
+            tracer=tracer,
+        )
+
+        self._collector = devlib.FtraceCollector(**kwargs)
+
         # Ensure we have trace-cmd on the target
         self.target.install_tools(['trace-cmd'])
+
+    def __getattr__(self, attr):
+        return getattr(self._collector, attr)
+
+    def __enter__(self):
+        return self._collector.__enter__()
+
+    def __exit__(self, *args, **kwargs):
+        return self._collector.__exit__(*args, **kwargs)
+
+    def _is_kernel_event(self, event):
+        """
+        Return ``True`` if the event is a kernel event.
+
+        This allows events to be passed around in the collector to be inspected
+        and used by other entities and then ignored when actually setting up
+        ``trace-cmd``. An example are the userspace events generated by
+        ``rt-app``.
+        """
+        return not (
+            event.startswith('rtapp_')
+            # trace-cmd start complains if given these events, even though they
+            # are actually present in the trace when function_graph is
+            # enabled
+            or event in ['funcgraph_entry', 'funcgraph_exit']
+        )
 
     @classmethod
     def from_conf(cls, target, conf):
