@@ -1,4 +1,4 @@
---!VERSION!1.4!ENDVERSION!
+--!VERSION!1.5!ENDVERSION!
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "lo";
 
@@ -82,7 +82,7 @@ CREATE TABLE Targets (
     cpus text[],
     os text,
     os_version jsonb,
-    hostid int,
+    hostid bigint,
     hostname text,
     abi text,
     is_rooted boolean,

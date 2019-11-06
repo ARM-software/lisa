@@ -37,7 +37,7 @@ class GoogleMaps(ApkUiautoWorkload):
     should then be placed in the ``~/.workload_automation/dependencies/googlemaps`` directory on your
     local machine, creating this if it does not already exist.
 
-    Known working APK version: 9.72.2
+    Known working APK version: 10.19.1
     '''
     package_names = ['com.google.android.apps.maps']
 
