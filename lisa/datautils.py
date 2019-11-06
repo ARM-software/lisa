@@ -564,7 +564,8 @@ def series_align_signal(ref, to_align, max_shift=None):
     # Compensate the shift
     return ref, to_align.shift(-shift)
 
-def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=False, comm_max_len=TASK_COMM_MAX_LEN):
+
+def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=False, comm_max_len=TASK_COMM_MAX_LEN, engine=None, use_query=None):
     """
     Filter a dataframe using a list of :class:`lisa.trace.TaskID`
 
@@ -586,29 +587,123 @@ def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=Fals
 
     :param invert: Invert selection
     :type invert: bool
+
+    :param use_query: Use :meth:`pandas.DataFrame.query` rather than usual
+        indexing. This can be faster on large datasets. However, complex
+        expressions can lead to errors un the query engine. Default value
+        should select a safe approach.
+    :type use_query: bool or None
+
+    :param engine: pandas query engine to use. Can be ``python`` or
+        ``numexpr``. Default will use a heuristic to decide which engine to
+        use.
+    :type engine: str or None
     """
+
+    # Building a large query will lead to MemoryError or ValueError in numexpr
+    if use_query is None:
+        use_query = len(task_ids) < 30
+
+    # Build a query suitable for Dataframe.query()
+    if use_query:
+        def op(lhs, op, rhs):
+            # Since pandas query language does not handle literals in boolean
+            # expressions, we don't have any neutral value to feed in the
+            # expression
+            if None in (lhs, rhs):
+                return lhs or rhs
+            else:
+                # Do not add paren here, as too much nesting might lead to
+                # MemoryError in the engine
+                return '({}) {} ({})'.format(lhs, op, rhs)
+
+        def unary_op(op, expr):
+            return '{} ({})'.format(op, expr)
+
+        def col_cmp(df, col, op, val):
+            if isinstance(val, str):
+                val = '"{}"'.format(val)
+
+            return '({} {} {})'.format(col, op, val)
+
+        def execute(df, query):
+            # Choose the backend to use: numexpr is faster for big datasets or complex
+            # queries
+
+            # That threshold has been found with trial and error and is
+            # machine-dependent
+            if engine:
+                _engine = engine
+            else:
+                if len(df) * len(task_ids) > 3e5:
+                    _engine = 'numexpr'
+                elif len(task_ids) > 5:
+                    _engine = 'numexpr'
+                else:
+                    _engine = 'python'
+
+            return df.query(tasks_filter, engine=_engine)
+
+    # Use regular indexing of dataframes
+    else:
+        binop = {
+            'or': operator.or_,
+            'and': operator.and_,
+            'xor': operator.xor,
+            '==': operator.eq,
+            '>=': operator.ge,
+            '<=': operator.le,
+            '>': operator.gt,
+            '<': operator.lt,
+        }
+        unaryop = {
+            'not': operator.not_,
+        }
+
+        def op(lhs, op, rhs):
+            op = binop[op]
+
+            if lhs is None:
+                return rhs
+            elif rhs is None:
+                return lhs
+            else:
+                return op(lhs, rhs)
+
+        def unary_op(op, expr):
+            op = unaryop[op]
+            return op(expr)
+
+        def col_cmp(df, col, op, val):
+            op = binop[op]
+            return op(df[col], val)
+
+        def execute(df, query):
+            return df[query]
 
     def make_filter(task_id):
         if pid_col and task_id.pid is not None:
-            pid = (df[pid_col] == task_id.pid)
+            pid = col_cmp(df, pid_col, '==', task_id.pid)
         else:
-            pid = True
+            pid = None
         if comm_col and task_id.comm is not None:
-            comm = (df[comm_col] == task_id.comm[:comm_max_len])
+            comm = col_cmp(df, comm_col, '==', task_id.comm[:comm_max_len])
         else:
-            comm = True
+            comm = None
 
-        return pid & comm
+        return op(pid, 'and', comm)
 
     tasks_filters = map(make_filter, task_ids)
-
-    # Combine all the task filters with OR
-    tasks_filter = functools.reduce(operator.or_, tasks_filters, False)
+    tasks_filter = functools.reduce(
+        # Combine all the task filters with OR
+        lambda lhs, rhs: op(lhs, 'or', rhs),
+        tasks_filters
+    )
 
     if invert:
-        tasks_filter = ~tasks_filter
+        tasks_filter = unary_op('not', tasks_filter)
 
-    return df[tasks_filter]
+    return execute(df, tasks_filter)
 
 def series_local_extremum(series, kind):
     """
