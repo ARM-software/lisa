@@ -71,6 +71,11 @@ setup(
         "ruamel.yaml >= 0.15.81",
         "docutils", # For the HTML output of analysis plots
 
+        # Recommended dependencies to speedup pandas
+        # https://pandas.pydata.org/pandas-docs/stable/install.html#install-recommended-dependencies
+        "numexpr >= 2.6.2",
+        "bottleneck >= 1.2.1",
+
         # Depdendencies that are shipped as part of the LISA repo as
         # subtree/submodule
         "devlib",
