@@ -171,19 +171,18 @@ class RampBoostTestBase(RTATestBundle):
         analysis.save_plot(fig, filepath=os.path.join(self.res_dir, 'ramp_boost.svg'))
         return axis
 
-    @requires_events('sched_switch')
+    @RTAEventsAnalysis.df_rtapp_phase_end.used_events
     def trace_window(self, trace):
         """
         Skip the first phase in the trace, since it is heavily influenced by
         what was immediately preceding it.
         """
-        profile = self.rtapp_profile
-        phase_duration = max(
-            task.phases[0].duration_s
-            for task in profile.values()
-        )
         start, end = super().trace_window(trace)
-        return (start + phase_duration, end)
+        first_phase_end = max(
+            trace.analysis.rta.df_rtapp_phase_end(task, phase=0)
+            for task in self.rtapp_tasks
+        )
+        return (first_phase_end, end)
 
     @RTAEventsAnalysis.plot_slack_histogram.used_events
     @RTAEventsAnalysis.plot_perf_index_histogram.used_events
