@@ -421,3 +421,4 @@ class TargetInfo(Podable):
     @staticmethod
     def _pod_upgrade_v5(pod):
         pod['modules'] = pod.get('modules') or []
+        return pod

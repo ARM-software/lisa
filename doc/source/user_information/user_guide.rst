@@ -318,7 +318,7 @@ like this:
         config:
                 augmentations:
                     - ~execution_time
-                    - json
+                    - targz
                 iterations: 2
         workloads:
                 - memcpy
@@ -332,7 +332,7 @@ This agenda:
 - Specifies two workloads: memcpy and dhrystone.
 - Specifies that dhrystone should run in one thread and execute five million loops.
 - Specifies that each of the two workloads should be run twice.
-- Enables json output processor, in addition to the output processors enabled in
+- Enables the targz output processor, in addition to the output processors enabled in
   the config.yaml.
 - Disables execution_time instrument, if it is enabled in the config.yaml
 

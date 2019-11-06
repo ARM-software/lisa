@@ -121,3 +121,20 @@ versions and delete your ``$USER_HOME/.workload_automation/cache/targets.json``
 please ensure that you configure your environment to use a locale which supports
 UTF-8. Otherwise this can cause issues when attempting to parse files containing
 none ascii characters.
+
+**Q:** I get the error ``Module "X" failed to install on target``
+------------------------------------------------------------------------------------------------------
+**A:** By default a set of devlib modules will be automatically loaded onto the
+target designed to add additional functionality. If the functionality provided
+by the module is not required then the module can be safely disabled by setting
+``load_default_modules`` to ``False`` in the ``device_config`` entry of the
+:ref:`agenda <config-agenda-entry>` and then re-enabling any specific modules
+that are still required. An example agenda snippet is shown below:
+
+.. code-block:: none
+
+    config:
+        device: generic_android
+        device_config:
+            load_default_modules: False
+            modules: ['list', 'of', 'modules', 'to', 'enable']
