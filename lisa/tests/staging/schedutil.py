@@ -189,7 +189,7 @@ class RampBoostTestBase(RTATestBundle):
     @RTAEventsAnalysis.plot_perf_index_histogram.used_events
     @RTAEventsAnalysis.plot_latency.used_events
     @df_ramp_boost.used_events
-    def test_ramp_boost(self, nrg_threshold_pct=0.1, bad_samples_threshold_pct=0.1) -> ResultBundle:
+    def test_ramp_boost(self, cost_threshold_pct=0.1, bad_samples_threshold_pct=0.1) -> ResultBundle:
         """
         Test that the energy boost feature is triggering as expected.
         """
@@ -209,14 +209,14 @@ class RampBoostTestBase(RTATestBundle):
 
         # "rect" method is accurate here since the signal is really following
         # "post" steps
-        expected_boost_nrg = series_mean(df['expected_cost_margin'])
-        actual_boost_nrg = series_mean(df['cost_margin'])
+        expected_boost_cost = series_mean(df['expected_cost_margin'])
+        actual_boost_cost = series_mean(df['cost_margin'])
         boost_overhead = series_mean(df['cost_margin'] / df['base_cost'] * 100)
 
         # Check that the total amount of boost is close to expectations
-        lower = max(0, expected_boost_nrg - nrg_threshold_pct)
-        higher = expected_boost_nrg
-        passed_overhead = lower <= actual_boost_nrg <= higher
+        lower = max(0, expected_boost_cost - cost_threshold_pct)
+        higher = expected_boost_cost
+        passed_overhead = lower <= actual_boost_cost <= higher
 
         # Check the shape of the signal: actual boost must be lower or equal
         # than the expected one.
@@ -231,8 +231,8 @@ class RampBoostTestBase(RTATestBundle):
 
         passed = passed_overhead and passed_shape
         res = ResultBundle.from_bool(passed)
-        res.add_metric('expected boost energy', expected_boost_nrg, '%')
-        res.add_metric('boost energy', actual_boost_nrg, '%')
+        res.add_metric('expected boost cost', expected_boost_cost, '%')
+        res.add_metric('boost cost', actual_boost_cost, '%')
         res.add_metric('boost overhead', boost_overhead, '%')
         res.add_metric('bad boost samples', bad_shape_pct, '%')
 
