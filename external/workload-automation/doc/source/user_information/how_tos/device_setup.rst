@@ -17,6 +17,8 @@ further configuration will be required.
 Android
 -------
 
+.. _android-general-device-setup:
+
 General Device Setup
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -44,12 +46,15 @@ common parameters you might want to change are outlined below.
    Android builds. If this is not the case for your device, you will need to
    specify an alternative working directory (e.g. under ``/data/local``).
 
+:load_default_modules: A number of "default" modules (e.g. for cpufreq
+  subsystem) are loaded automatically, unless explicitly disabled. If you
+  encounter an issue with one of the modules then this setting can be set to
+  ``False`` and any specific modules that you require can be request via the
+  ``modules`` entry.
 
 :modules: A list of additional modules to be installed for the target. Devlib
-  implements functionality for particular subsystems as modules.  A number of
-  "default" modules (e.g.  for cpufreq subsystem) are loaded automatically,
-  unless explicitly disabled.  If additional modules need to be loaded, they
-  may  be specified using this parameter.
+  implements functionality for particular subsystems as modules. If additional
+  modules need to be loaded, they may be specified using this parameter.
 
   Please see the `devlib documentation <http://devlib.readthedocs.io/en/latest/modules.html>`_
   for information on the available modules.
@@ -83,6 +88,7 @@ or a more specific config could be:
         device_config:
                 device: 0123456789ABCDEF
                 working_direcory: '/sdcard/wa-working'
+                load_default_modules: True
                 modules: ['hotplug', 'cpufreq']
                 core_names : ['a7', 'a7', 'a7', 'a15', 'a15']
                 # ...

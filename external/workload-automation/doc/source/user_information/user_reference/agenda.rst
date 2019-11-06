@@ -30,7 +30,7 @@ An example agenda can be seen here:
 
         device: generic_android
         device_config:
-            device: R32C801B8XY # Th adb name of our device we want to run on
+            device: R32C801B8XY # The adb name of our device we want to run on
             disable_selinux: true
             load_default_modules: true
             package_data_directory: /data/data
@@ -116,7 +116,9 @@ whole will behave. The most common options that that you may want to specify are
                   to connect to  (e.g. ``host`` for an SSH connection or
                   ``device`` to specific an ADB name) as well as configure other
                   options for the device for example the ``working_directory``
-                  or the list of ``modules`` to be loaded onto the device.
+                  or the list of ``modules`` to be loaded onto the device. (For
+                  more information please see
+                  :ref:`here <android-general-device-setup>`)
   :execution_order: Defines the order in which the agenda spec will be executed.
   :reboot_policy: Defines when during execution of a run a Device will be rebooted.
   :max_retries: The maximum number of times failed jobs will be retried before giving up.
@@ -124,7 +126,7 @@ whole will behave. The most common options that that you may want to specify are
 
 For more information and a full list of these configuration options please see
 :ref:`Run Configuration <run-configuration>` and
-:ref:`"Meta Configuration" <meta-configuration>`.
+:ref:`Meta Configuration <meta-configuration>`.
 
 
 Plugins

@@ -363,8 +363,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
 
         Iterator<Entry<String, Position>> it = testParams.entrySet().iterator();
 
-        clickUiObject(BY_ID, packageID + "edit", "android.widget.ImageView");
-        clickUiObject(BY_ID, packageID + "cpe_crop_tool", "android.widget.ImageView");
+        clickCropRotateButton();
 
         UiObject straightenSlider =
             getUiObjectByResourceId(packageID + "cpe_straighten_slider");
@@ -387,8 +386,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
 
         String[] subTests = {"90", "180", "270"};
 
-        clickUiObject(BY_ID, packageID + "edit", "android.widget.ImageView");
-        clickUiObject(BY_ID, packageID + "cpe_crop_tool", "android.widget.ImageView");
+        clickCropRotateButton();
 
         UiObject rotate =
             getUiObjectByResourceId(packageID + "cpe_rotate_90");
@@ -400,6 +398,19 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
             logger.start();
             rotate.click();
             logger.stop();
+        }
+    }
+
+    private void clickCropRotateButton() throws Exception {
+        clickUiObject(BY_ID, packageID + "edit", "android.widget.ImageView");
+        //For newer version of app
+        UiObject cropRotatebutton =
+            mDevice.findObject(new UiSelector().resourceId(packageID + "editor_tool_item_icon")
+                                               .descriptionContains("Crop and rotate photo"));
+        if (cropRotatebutton.exists()) {
+            cropRotatebutton.click();
+        } else {
+            clickUiObject(BY_ID, packageID + "cpe_crop_tool", "android.widget.ImageView");
         }
     }
 

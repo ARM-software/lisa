@@ -42,7 +42,7 @@ class Googlephotos(ApkUiautoWorkload):
     6. A rotate test is performed on a selected image, rotating anticlockwise 90 degrees, 180
        degrees and 270 degrees.
 
-    Known working APK version: 4.0.0.212659618
+    Known working APK version: 4.28.0.276318361
     '''
 
     default_test_images = [

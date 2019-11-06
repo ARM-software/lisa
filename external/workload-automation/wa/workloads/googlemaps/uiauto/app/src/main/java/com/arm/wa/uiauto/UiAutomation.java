@@ -36,6 +36,9 @@ import org.junit.runner.RunWith;
 
 import com.arm.wa.uiauto.BaseUiAutomation;
 
+import static com.arm.wa.uiauto.BaseUiAutomation.Direction.DOWN;
+import static com.arm.wa.uiauto.BaseUiAutomation.Direction.UP;
+
 @RunWith(AndroidJUnit4.class)
 public class UiAutomation extends BaseUiAutomation {
 
@@ -66,6 +69,17 @@ public class UiAutomation extends BaseUiAutomation {
         dismissLocationTutorial();
         sleep(3);
 
+        /** On newer version the location info at bottom of screen interferes with swiping tests so remove by 
+        swiping down. Check if new version by seeing if view switcher is present **/
+        UiObject viewSwitcher =
+            mDevice.findObject(new UiSelector().className("android.widget.ViewSwitcher"));
+        UiObject cambridgeTextView =
+            mDevice.findObject(new UiSelector().textContains("Cambridge"));
+
+        if(!viewSwitcher.exists()) { // Version 10.19.1
+            cambridgeTextView.dragTo(0,getDisplayHeight(), 40);
+        } 
+
         // Pinch to zoom, scroll around
         UiObject mapContainer = mDevice.findObject(new UiSelector().resourceId(packageID + "mainmap_container"));
         uiDeviceSwipeDown(100);
@@ -78,6 +92,11 @@ public class UiAutomation extends BaseUiAutomation {
         uiDeviceSwipeUp(100);
         uiObjectVertPinchOut(mapContainer, 100, 50);
         sleep(3);
+
+        // On newer versions swipe the location info tab back up
+        if(!viewSwitcher.exists()) { // Version 10.19.1
+            cambridgeTextView.dragTo(0, getDisplayCentreHeight(), 40);
+        }
 
         // Get directions from Cambridge train station to Corpus Christi college
         getDirectionsFromLocation();
