@@ -1102,7 +1102,10 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         """
         trace = self.get_trace(events=['sched_switch'])
         names = sorted(self.rtapp_profile.keys())
-        return RTA.resolve_trace_task_names(trace, names)
+        return {
+            name: [task_id.comm for task_id in task_ids]
+            for name, task_ids in RTA.resolve_trace_task_names(trace, names).items()
+        }
 
     @property
     def cgroup_configuration(self):
