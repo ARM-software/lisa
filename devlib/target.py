@@ -46,7 +46,8 @@ from devlib.module import get_module
 from devlib.platform import Platform
 from devlib.exception import (DevlibTransientError, TargetStableError,
                               TargetNotRespondingError, TimeoutError,
-                              TargetTransientError, KernelConfigKeyError) # pylint: disable=redefined-builtin
+                              TargetTransientError, KernelConfigKeyError,
+                              TargetError) # pylint: disable=redefined-builtin
 from devlib.utils.ssh import SshConnection
 from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect, INTENT_FLAGS
 from devlib.utils.misc import memoized, isiterable, convert_new_lines
@@ -116,7 +117,7 @@ class Target(object):
             try:
                 self.execute('ls /', timeout=5, as_root=True)
                 self._is_rooted = True
-            except (TargetStableError, TimeoutError):
+            except(TargetError, TimeoutError):
                 self._is_rooted = False
 
         return self._is_rooted or self.connected_as_root
