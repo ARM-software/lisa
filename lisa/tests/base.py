@@ -1081,31 +1081,56 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         """
         return self.get_rtapp_profile(self.plat_info)
 
-    @property
-    def rtapp_tasks(self):
-        """
-        The rtapp task names as found from the trace in this bundle.
-
-        :return: the list of actual trace task names
-        """
-        return sorted(itertools.chain.from_iterable(self.rtapp_tasks_map.values()))
+    _rtapp_tasks_events = requires_events('sched_switch')
 
     @property
-    @requires_events('sched_switch')
+    @_rtapp_tasks_events
     @memoized
-    def rtapp_tasks_map(self):
+    def rtapp_task_ids_map(self):
         """
-        Mapping of task names as specified in the rtapp profile to list of task
-        names found in the trace.
+        Mapping of task names as specified in the rtapp profile to list of
+        :class:`lisa.trace.TaskID` names found in the trace.
 
         If the task forked, the list will contain more than one item.
         """
         trace = self.get_trace(events=['sched_switch'])
-        names = sorted(self.rtapp_profile.keys())
+        names = self.rtapp_profile.keys()
         return {
-            name: [task_id.comm for task_id in task_ids]
+            name: task_ids
             for name, task_ids in RTA.resolve_trace_task_names(trace, names).items()
         }
+
+    @property
+    @_rtapp_tasks_events
+    def rtapp_task_ids(self):
+        """
+        The rtapp task :class:`lisa.trace.TaskID` as found from the trace in
+        this bundle.
+
+        :return: the list of actual trace task :class:`lisa.trace.TaskID`
+        """
+        return sorted(itertools.chain.from_iterable(self.rtapp_task_ids_map.values()))
+
+    @property
+    @_rtapp_tasks_events
+    def rtapp_tasks_map(self):
+        """
+        Same as :func:`rtapp_task_ids_map` but with list of strings for values.
+        """
+        return {
+            name: [task_id.comm for task_id in task_ids]
+            for name, task_ids in self.rtapp_task_ids_map.items()
+        }
+
+    @property
+    @_rtapp_tasks_events
+    def rtapp_tasks(self):
+        """
+        Same as :func:`rtapp_task_ids` but as a list of string.
+
+        :return: the list of actual trace task names
+        """
+        return [task_id.comm for task_id in self.rtapp_task_ids]
 
     @property
     def cgroup_configuration(self):
