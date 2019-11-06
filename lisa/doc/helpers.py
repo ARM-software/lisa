@@ -153,8 +153,9 @@ def is_test(method):
     if not callable(method):
         return False
 
-    if method.__name__.startswith('test_'):
-        return True
+    with contextlib.suppress(AttributeError):
+        if method.__name__.startswith('test_'):
+            return True
 
     # Tests are methods with an annotated return type, with at least
     # one base class with a name containing 'result'

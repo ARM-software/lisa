@@ -25,7 +25,7 @@ from lisa.wlgen.rta import Ramp
 from lisa.tests.base import TestBundle, ResultBundle, Result, RTATestBundle
 from lisa.target import Target
 from lisa.trace import requires_events, FtraceCollector, FtraceConf
-from lisa.datautils import df_merge, series_mean
+from lisa.datautils import df_merge, series_mean, df_filter_task_ids
 from lisa.utils import ArtifactPath
 
 from lisa.analysis.frequency import FrequencyAnalysis
@@ -178,10 +178,12 @@ class RampBoostTestBase(RTATestBundle):
         what was immediately preceding it.
         """
         start, end = super().trace_window(trace)
-        first_phase_end = max(
-            trace.analysis.rta.df_rtapp_phase_end(task, phase=0)
-            for task in self.rtapp_tasks
-        )
+
+        df = trace.analysis.rta.df_rtapp_loop()
+        df = df_filter_task_ids(df, self.rtapp_task_ids, pid_col='__pid', comm_col='__comm')
+        df = df[(df['phase'] == 0) & (df['event'] == 'end')]
+        first_phase_end = df.index[0]
+
         return (first_phase_end, end)
 
     @RTAEventsAnalysis.plot_slack_histogram.used_events
