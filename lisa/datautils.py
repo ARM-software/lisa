@@ -504,6 +504,40 @@ def df_window(df, window, method='inclusive', clip_window=False):
     """
     return _data_window(df, window, method, clip_window)
 
+def _data_adjacent_index(data, ref, prev):
+    """
+    ``data`` can either be a :class:`pandas.DataFrame` or :class:`pandas.Series`.
+    """
+    res = None
+
+    if prev and ref > data.index[0]:
+        res = data.index.get_loc(ref, "ffill")
+    elif ref < data.index[-1]:
+        res = data.index.get_loc(ref, "bfill")
+
+    return res
+
+def df_adjacent_index(df, ref, prev=True):
+    """
+    :param ref: The index value to look around
+
+    :param prev: Whether to find the previous index (``True``)
+      or the next index (``False``)
+    :type prev: bool
+
+    :returns: The index value directly preceding ``ref`` if ``prev``,
+      else the index value directly following ``ref``. The return
+      value will be ``None`` if there is no such preceding/following index.
+
+    .. note:: ``ref`` doesn't have to be an existing index itself.
+    """
+    return _data_adjacent_index(df, ref, prev)
+
+def series_adjacent_index(series, ref, prev=True):
+    """
+    .. seealso:: :func:`df_adjacent_index`
+    """
+    return _data_adjacent_index(series, ref, prev)
 
 def series_align_signal(ref, to_align, max_shift=None):
     """
