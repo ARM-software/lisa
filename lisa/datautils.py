@@ -690,11 +690,7 @@ def series_rolling_apply(series, func, window, window_float_index=True, center=F
     values = series.rolling(rolling_window).apply(func, raw=False).values
 
     if center:
-        def f(s):
-            index = s.index
-            return index[0] + (index[-1] - index[0]) / 2
-
-        new_index = series_rolling_apply(series, f, window, window_float_index=True)
+        new_index = orig_index - (window / 2)
     else:
         new_index = orig_index
 
