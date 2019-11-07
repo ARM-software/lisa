@@ -23,7 +23,7 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.datautils import df_filter_task_ids
+from lisa.datautils import df_filter_task_ids, series_rolling_apply
 from lisa.trace import requires_events
 
 class StateInt(int):
@@ -621,20 +621,6 @@ class TasksAnalysis(TraceAnalysisBase):
         axis.grid(True)
         axis.legend(loc='upper left',ncol=5, bbox_to_anchor=(0, -.15))
 
-    def _df_discretize_series(self, series, time_delta, name):
-        """
-        Discrete the contents of ``series`` in ``time_delta`` buckets
-        """
-        left = self.trace.start
-        data = []
-        index = []
-        for right in np.arange(left + time_delta, self.trace.end, time_delta):
-            index.append(left)
-            data.append(series[left:right].count())
-            left = right
-
-        return pd.DataFrame(data=data, index=index, columns=[name])
-
     def _plot_cpu_heatmap(self, x, y,  xbins, colorbar_label, cmap, **kwargs):
         """
         Plot some data in a heatmap-style 2d histogram
@@ -653,17 +639,20 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @requires_events("sched_wakeup")
-    def plot_tasks_wakeups(self, target_cpus=None, time_delta=0.01, axis=None,
-            local_fig=None):
+    def plot_tasks_wakeups(self, target_cpus=None, window=0.01, per_sec=False,
+                           axis=None, local_fig=None):
         """
         Plot task wakeups over time
 
         :param target_cpus:
         :type target_cpus:
 
-        :param time_delta: The discretization delta for summing up wakeups in a
-          given time delta.
-        :type time_delta: float
+        :param window: The rolling window size for wakeup counts.
+        :type window: float
+
+        :param per_sec: Display wakeups per second if True, else wakeup counts
+          within the window
+        :type per_sec: bool
         """
 
         df = self.trace.df_events("sched_wakeup")
@@ -671,11 +660,17 @@ class TasksAnalysis(TraceAnalysisBase):
         if target_cpus:
             df = df[df.target_cpu.isin(target_cpus)]
 
-        df = self._df_discretize_series(df["target_cpu"], time_delta, "Wakeup count")
+        series = series_rolling_apply(df["target_cpu"],
+                                      lambda x: x.count() / (window if per_sec else 1),
+                                      window, window_float_index=False, center=True)
 
-        df.plot(ax=axis, legend=False)
+        series.plot(ax=axis, legend=False)
 
-        axis.set_title("Number of task wakeups within {}s windows".format(time_delta))
+        if per_sec:
+            axis.set_title("Number of task wakeups per second ({}s windows)".format(window))
+        else:
+            axis.set_title("Number of task wakeups within {}s windows".format(window))
+
         axis.set_xlim(self.trace.start, self.trace.end)
 
     @TraceAnalysisBase.plot_method(return_axis=True)
@@ -709,16 +704,20 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @requires_events("sched_wakeup_new")
-    def plot_tasks_forks(self, target_cpus=None, time_delta=0.01, axis=None, local_fig=None):
+    def plot_tasks_forks(self, target_cpus=None, window=0.01, per_sec=False,
+                         axis=None, local_fig=None):
         """
         Plot task forks over time
 
         :param target_cpus:
         :type target_cpus:
 
-        :param time_delta: The discretization delta for summing up forks in a
-          given time delta.
-        :type time_delta: float
+        :param window: The rolling window size for fork counts.
+        :type window: float
+
+        :param per_sec: Display wakeups per second if True, else wakeup counts
+          within the window
+        :type per_sec: bool
         """
 
         df = self.trace.df_events("sched_wakeup_new")
@@ -726,12 +725,18 @@ class TasksAnalysis(TraceAnalysisBase):
         if target_cpus:
             df = df[df.target_cpu.isin(target_cpus)]
 
-        df = self._df_discretize_series(df["target_cpu"], time_delta, "Forks count")
-        df.plot(ax=axis, legend=False)
+        series = series_rolling_apply(df["target_cpu"],
+                                      lambda x: x.count() / (window if per_sec else 1),
+                                      window, window_float_index=False, center=True)
 
-        axis.set_title("Number of task forks within {}s windows".format(time_delta))
+        series.plot(ax=axis, legend=False)
+
+        if per_sec:
+            axis.set_title("Number of task forks per second ({}s windows)".format(window))
+        else:
+            axis.set_title("Number of task forks within {}s windows".format(window))
+
         axis.set_xlim(self.trace.start, self.trace.end)
-
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup_new")
