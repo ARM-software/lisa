@@ -31,9 +31,10 @@ import numpy
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from cycler import cycler
+# Avoid ambiguity between function name and usual variable name
+from cycler import cycler as make_cycler
 
-from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython
+from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython, nullcontext
 from lisa.trace import MissingTraceEventError
 
 # Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
@@ -42,7 +43,8 @@ COLOR_CYCLES = [
     '#f781bf', '#a65628', '#984ea3',
     '#999999', '#e41a1c', '#dede00']
 
-plt.rcParams['axes.prop_cycle'] = cycler(color=COLOR_CYCLES)
+plt.rcParams['axes.prop_cycle'] = make_cycler(color=COLOR_CYCLES)
+
 
 
 class AnalysisHelpers(Loggable, abc.ABC):
@@ -114,6 +116,28 @@ class AnalysisHelpers(Loggable, abc.ABC):
         return figure, axes
 
     @classmethod
+    @contextlib.contextmanager
+    def set_axis_cycler(cls, axis, cycler):
+        """
+        Context manager to set a cycler on an axis (and the default cycler as
+        well), and then restore the default cycler.
+        """
+        orig_cycler = plt.rcParams['axes.prop_cycle']
+
+        def set_cycler(cycler):
+            plt.rcParams['axes.prop_cycle'] = cycler
+            axis.set_prop_cycle(cycler)
+
+        set_cycler(cycler)
+        try:
+            yield
+        finally:
+            # Since there is no way to get the cycler from an Axis,
+            # we cannot restore the original one, so use the
+            # default one instead
+            set_cycler(orig_cycler)
+
+    @classmethod
     def cycle_colors(cls, axis, nr_cycles):
         """
         Cycle the axis color cycle ``nr_cycles`` forward
@@ -138,7 +162,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         if nr_cycles > len(colors):
             nr_cycles -= len(colors)
 
-        axis.set_prop_cycle(cycler(color=colors[nr_cycles:] + colors[:nr_cycles]))
+        axis.set_prop_cycle(make_cycler(color=colors[nr_cycles:] + colors[:nr_cycles]))
 
     @classmethod
     def get_next_color(cls, axis):
@@ -270,6 +294,9 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     or numpy.ndarray(matplotlib.axes.Axes)
                     or None
 
+                :param colors: List of color names to use for the plots.
+                :type colors: list(str) or None
+
                 :param filepath: Path of the file to save the figure in. If
                     `None`, no file is saved.
                 :type filepath: str or None
@@ -296,7 +323,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 remove_params=['local_fig'],
                 include_kwargs=True,
             )
-            def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=False, **kwargs):
+            def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=False, colors=None, **kwargs):
 
                 # Bind the function to the instance, so we avoid having "self"
                 # showing up in the signature, which breaks parameter
@@ -338,10 +365,16 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         plot_name=f.__name__,
                     )
 
+                if colors:
+                    cycler = make_cycler(color=colors)
+                    set_cycler = lambda axis: cls.set_axis_cycler(axis, cycler)
+                else:
+                    set_cycler = lambda axis: nullcontext()
                 # Allow returning an axis directly, or just update a given axis
                 if return_axis:
                     # In that case, the function takes all the kwargs
-                    axis = f(*args, **kwargs, axis=axis)
+                    with set_cycler(axis):
+                        axis = f(*args, **kwargs, axis=axis)
                 else:
                     if local_fig:
                         setup_plot_kwargs = {
@@ -351,7 +384,8 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         }
                         fig, axis = self.setup_plot(**setup_plot_kwargs)
 
-                    f(*args, axis=axis, local_fig=local_fig, **f_kwargs)
+                    with set_cycler(axis):
+                        f(*args, axis=axis, local_fig=local_fig, **f_kwargs)
 
                 if isinstance(axis, numpy.ndarray):
                     fig = axis[0].get_figure()
@@ -421,7 +455,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         fmt = 'png'
         b64_image = cls._get_base64_image(axis, fmt=fmt)
 
-        hidden_params = {'filepath', 'axis', 'output', 'img_format', 'always_save', 'kwargs'}
+        hidden_params = {'filepath', 'axis', 'output', 'img_format', 'always_save', 'kwargs', 'colors'}
         args_list = ', '.join(
             '{}={}'.format(k, v)
             for k, v in sorted(kwargs.items(), key=lambda k_v: k_v[0])
