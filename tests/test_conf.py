@@ -111,7 +111,7 @@ class TestMultiSrcConf(TestMultiSrcConfBase):
 
     def test_disallowed_val(self):
         with self.assertRaises(TypeError):
-            self.conf.add_src('bar', ['a', 'b'])
+            self.conf.add_src('bar', {'foo': ['a', 'b']})
 
     def test_multitypes(self):
         conf = copy.deepcopy(self.conf)
