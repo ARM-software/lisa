@@ -25,7 +25,6 @@ from trappy.utils import handle_duplicate_index
 from lisa.utils import memoized
 from lisa.datautils import series_integrate
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.trace import requires_events
 
 
@@ -52,70 +51,26 @@ class IdleAnalysis(TraceAnalysisBase):
         :param cpu: CPU ID
         :type cpu: int
 
-        :returns: A :class:`pandas.Series` that equals True at timestamps where the
-          CPU is reported to be non-idle, False otherwise
+        :returns: A :class:`pandas.Series` that equals 1 at timestamps where the
+          CPU is reported to be non-idle, 0 otherwise
         """
         idle_df = self.trace.df_events('cpu_idle')
         cpu_df = idle_df[idle_df.cpu_id == cpu]
 
         cpu_active = cpu_df.state.apply(
-            lambda s: True if s == -1 else False
+            lambda s: 1 if s == -1 else 0
         )
 
         start_time = self.trace.start
 
         if cpu_active.empty:
-            cpu_active = pd.Series([False], index=[start_time])
+            cpu_active = pd.Series([0], index=[start_time])
         elif cpu_active.index[0] != start_time:
-            entry_0 = pd.Series(not cpu_active.iloc[0], index=[start_time])
+            entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[start_time])
             cpu_active = pd.concat([entry_0, cpu_active])
 
         # Fix sequences of wakeup/sleep events reported with the same index
         return handle_duplicate_index(cpu_active)
-
-    @memoized
-    @signal_cpu_active.used_events
-    @TasksAnalysis.df_tasks_states.used_events
-    def signal_cpu_sched_active(self, cpu):
-        """
-        Build a square wave representing the active (i.e. non-idle) CPU time
-        from the scheduler's point of view.
-
-        :param cpu: CPU ID
-        :type cpu: int
-
-        :returns: A :class:`pandas.Series` that equals True at timestamps where the
-          CPU is reported to be non-idle, False otherwise
-        """
-        # Find the earliest time at which the scheduler placed a task on
-        # this CPU's rq. The scheduler won't consider this CPU idle at this
-        # time. A proper rq depth signal would make this more accurate.
-        signal_active = self.signal_cpu_active(cpu).copy()
-        df_states = self.trace.analysis.tasks.df_tasks_states()
-
-        df_states = df_states[df_states.target_cpu == cpu]
-        sched_active = pd.Series(index=df_states.index, data=1)
-
-        # If there's an enqueue when the CPU is deemed inactive, we want to
-        # "move" the active signal earlier in the df.
-        # To do that, first set the signal to active whenever there's such a
-        # wakeup, then clear up redundant values.
-        #
-        # XXX: bitwise 'or' has surprising results:
-        # s1 = pd.Series(index=[1.25], data=[True])
-        # s2 = pd.Series(index=[1.05], data=[True])
-        # print(s1 | s2)
-        # 1.05    False
-        # 1.25     True
-        def orify(a, b):
-            return a or b
-
-        signal_active = signal_active.combine(sched_active, orify, fill_value=False)
-
-        # Delete successive duplicate values
-        signal_active = signal_active[signal_active.shift() != signal_active].dropna()
-
-        return signal_active
 
     @signal_cpu_active.used_events
     def signal_cluster_active(self, cluster):
@@ -168,8 +123,8 @@ class IdleAnalysis(TraceAnalysisBase):
         sr = pd.Series()
         for cpu in cpus:
             cpu_sr = self.signal_cpu_active(cpu)
-            cpu_sr = cpu_sr[cpu_sr]
-            cpu_sr = cpu_sr.replace(True, cpu)
+            cpu_sr = cpu_sr[cpu_sr == 1]
+            cpu_sr = cpu_sr.replace(1, cpu)
             sr = sr.append(cpu_sr)
 
         return pd.DataFrame({'cpu': sr}).sort_index()
@@ -281,37 +236,6 @@ class IdleAnalysis(TraceAnalysisBase):
         idle_time_df.index.name = 'idle_state'
         return idle_time_df
 
-    def _idle_cpus_at(self, timestamp, active_signal_fn):
-        idles = []
-        for cpu in range(self.trace.cpus_count):
-            series_active = active_signal_fn(cpu)
-
-            # Get very first event before 'timestamp'
-            #
-            # XXX: NaN if 'timestamp' is before the first event in the series.
-            # This could be fixed by checking the first event after 'timestamp':
-            # if the CPU goes out of idle later, it was idle during 'timestamp'
-            # and vice-versa.
-            is_active = series_active.reindex([timestamp], method='ffill').iloc[0]
-            if not is_active:
-                idles.append(cpu)
-
-        return sorted(idles)
-
-    @signal_cpu_active.used_events
-    def idle_cpus_at(self, timestamp):
-        """
-        :returns: list of CPUs that were idle at the given ``timestamp``
-        """
-        return self._idle_cpus_at(timestamp, self.signal_cpu_active)
-
-    @signal_cpu_sched_active.used_events
-    def sched_idle_cpus_at(self, timestamp):
-        """
-        :returns: list of CPUs that were idle (from the scheduler's PoV) at
-          the given ``timestamp``
-        """
-        return self._idle_cpus_at(timestamp, self.signal_cpu_sched_active)
 
 ###############################################################################
 # Plotting Methods

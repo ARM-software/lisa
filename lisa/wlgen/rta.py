@@ -75,10 +75,10 @@ class RTA(Workload):
         self.trace_events = trace_events or []
 
         if not json_file:
-            json_file = ArtifactPath.join(self.res_dir, '{}.json'.format(self.name))
+            json_file = '{}.json'.format(self.name)
 
-        self.local_json = json_file
-        self.remote_json = self.target.path.join(self.run_dir, os.path.basename(json_file))
+        self.local_json = ArtifactPath.join(self.res_dir, json_file)
+        self.remote_json = self.target.path.join(self.run_dir, json_file)
 
         rta_cmd = self.target.which('rt-app')
         if not rta_cmd:
