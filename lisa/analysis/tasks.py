@@ -515,6 +515,7 @@ class TasksAnalysis(TraceAnalysisBase):
           * A ``active`` column, containing ``active_value`` when the task is
             not sleeping, ``sleep_value`` otherwise.
           * A ``cpu`` column with the CPU the task was running on.
+          * A ``duration`` column containing the duration of the current sleep or activation.
         """
 
         df = self.df_task_states(task)
@@ -534,6 +535,9 @@ class TasksAnalysis(TraceAnalysisBase):
         # Only keep first occurence of each adjacent duplicates, since we get
         # events when the signal changes
         df = df_deduplicate(df, consecutives=True, keep='first')
+
+        # Once we removed the duplicates, we can compute the time spent while sleeping or activating
+        df['duration'] = df.index.to_series().diff().shift(-1)
 
         return df
 
