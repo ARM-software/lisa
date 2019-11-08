@@ -23,7 +23,7 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.datautils import df_filter_task_ids, series_rolling_apply
+from lisa.datautils import df_filter_task_ids, series_rolling_apply, df_deduplicate
 from lisa.trace import requires_events
 
 
@@ -529,8 +529,13 @@ class TasksAnalysis(TraceAnalysisBase):
             df = df[df['cpu'] == cpu]
 
         df['active'] = df['curr_state'].map(f)
+        df = df[['active', 'cpu']]
 
-        return df[['active', 'cpu']]
+        # Only keep first occurence of each adjacent duplicates, since we get
+        # events when the signal changes
+        df = df_deduplicate(df, consecutives=True, keep='first')
+
+        return df
 
 ###############################################################################
 # Plotting Methods
