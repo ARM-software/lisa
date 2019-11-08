@@ -22,14 +22,15 @@ import operator
 import warnings
 import re
 
-from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses, deprecate, grouper
-
 import pandas as pd
 import numpy as np
 
 from devlib.utils.misc import mask_to_list, ranges_to_list
 from devlib.exception import TargetStableError
 from trappy.stats.grammar import Parser
+
+from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses, deprecate, grouper
+from lisa.datautils import df_deduplicate
 
 """Classes for modeling and estimating energy usage of CPU systems"""
 
@@ -874,8 +875,7 @@ class EnergyModel(Serializable, Loggable):
         # was to make room for NaN, but we've just dropped all the NaNs, so
         # that's fine.
         inputs = inputs.astype(int)
-        # Drop consecutive duplicates (optimisation)
-        inputs = inputs[(inputs.shift() != inputs).any(axis=1)]
+        inputs = df_deduplicate(inputs, keep='first', consecutives=True)
 
         memo_cache = {}
 

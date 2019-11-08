@@ -29,7 +29,7 @@ import numpy as np
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.trace import requires_events
-from lisa.datautils import series_integrate, df_refit_index
+from lisa.datautils import series_integrate, df_refit_index, series_deduplicate
 
 
 class FrequencyAnalysis(TraceAnalysisBase):
@@ -196,7 +196,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         # Remove possible duplicates (example: when devlib sets trace markers
         # a cpu_frequency event is triggered that can generate a duplicate)
-        cpu_freqs = cpu_freqs.loc[cpu_freqs.shift(-1) != cpu_freqs]
+        cpu_freqs = series_deduplicate(cpu_freqs, keep='last', consecutives=True)
         transitions = cpu_freqs.value_counts()
 
         transitions.name = "transitions"
