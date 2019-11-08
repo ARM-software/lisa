@@ -780,7 +780,7 @@ class TasksAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.plot_method()
     @df_task_activation.used_events
     def plot_task_activation(self, task, cpu=None, active_value=None,
-            sleep_value=None, alpha=None, overlay=False,
+            sleep_value=None, alpha=None, overlay=False, duration=False,
             axis=None, local_fig=None):
         """
         Plot task activations, in a style similar to kernelshark.
@@ -796,15 +796,24 @@ class TasksAnalysis(TraceAnalysisBase):
             the plot to blend with existing data.
         :type task: bool
 
+        :param duration: Plot the duration of each sleep/activation.
+        :type duration: bool
+
         .. seealso:: :meth:`df_task_activation`
         """
         # Adapt the steps height to the existing limits. This allows
         # re-using an existing axis that already contains some data.
         min_lim, max_lim = axis.get_ylim()
+        alpha_default = 0.5
+
+        df = self.df_task_activation(task, cpu=cpu)
 
         if overlay:
             active_default = max_lim / 4
-            _alpha = alpha if alpha is not None else 0.5
+            _alpha = alpha if alpha is not None else alpha_default
+        elif duration:
+            active_default = df['duration'].max() * 1.2
+            _alpha = alpha if alpha is not None else alpha_default
         else:
             active_default = max_lim
             _alpha = alpha
@@ -812,13 +821,23 @@ class TasksAnalysis(TraceAnalysisBase):
         active_value = active_value if active_value is not None else active_default
         sleep_value = sleep_value if sleep_value is not None else 0
 
-        df = self.df_task_activation(task,
-            cpu=cpu, active_value=active_value, sleep_value=sleep_value,
-        )
+        df['active'] = df['active'].map({True: active_value, False: sleep_value})
 
         if not df.empty:
             axis.fill_between(df.index, df['active'], step='post',
                 alpha=_alpha
             )
+
+            # For some reason fill_between does not advance in the color cycler so let's do that manually.
+            self.get_next_color(axis)
+
+            for active, label in (
+                    (active_value, 'Activations'),
+                    (sleep_value, 'Sleep')
+                ):
+                duration = df[df['active'] == active]['duration']
+                # Add blanks in the plot when the state is not the one we care about
+                duration = duration.reindex_like(df)
+                duration.plot(ax=axis, drawstyle='steps-post', label='{} duration of {}'.format(label, task))
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

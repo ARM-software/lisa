@@ -33,6 +33,7 @@ doc-plot-conf:
         TasksAnalysis.plot_task_activation:
             kwargs:
                 task: *task
+                duration: True
 
         LoadTrackingAnalysis.plot_task_signals:
             kwargs:
