@@ -196,7 +196,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         # Remove possible duplicates (example: when devlib sets trace markers
         # a cpu_frequency event is triggered that can generate a duplicate)
-        cpu_freqs = series_deduplicate(cpu_freqs, keep='last', consecutives=True)
+        cpu_freqs = series_deduplicate(cpu_freqs, keep='first', consecutives=True)
         transitions = cpu_freqs.value_counts()
 
         transitions.name = "transitions"
