@@ -703,4 +703,77 @@ def series_rolling_apply(series, func, window, window_float_index=True, center=F
 
     return pd.Series(values, index=new_index)
 
+
+def _data_deduplicate(data, keep, consecutives, cols, all_col):
+    if keep == 'first':
+        shift = 1
+    elif keep == 'last':
+        shift = -1
+    else:
+        raise ValueError('Unknown keep value: {}'.format(keep))
+
+    if consecutives:
+        dedup_data = data[cols] if cols else data
+        cond = dedup_data != dedup_data.shift(shift)
+        if isinstance(data, pd.DataFrame):
+            # The test is somewhat inverted since the cond must be True when
+            # the data is selected, but all_col is defined in terms of rejected
+            # data:
+            # not ((not x) and (not y))
+            # not (not (x or y))
+            # x or y
+            if all_col:
+                cond = cond.any(axis=1)
+            # not ((not x) or (not y))
+            # not (not (x and y))
+            # x and y
+            else:
+                cond = cond.all(axis=1)
+
+        return data[cond]
+    else:
+        if not all_cols:
+            raise ValueError("all_cols=False is not supported with consecutives=False")
+
+        kwargs = dict(subset=cols) if cols else {}
+        return data.drop_duplicates(keep=keep, **kwargs)
+
+
+def series_deduplicate(series, keep, consecutives):
+    """
+    Remove duplicate values in a :class:`pandas.Series`.
+
+    :param keep: Keep the first occurrences if ``first``, or the last if
+        ``last``.
+    :type keep: str
+
+    :param consecutives: If ``True``, will only remove consecutive duplicates,
+        for example::
+
+            s = pd.Series([1,2,2,3,4,2], index=[1,2,20,30,40,50])
+            s2 = series_deduplicate(s, keep='first', consecutives=True)
+            assert (s2 == [1,2,3,4,2]).all()
+
+            s3 = series_deduplicate(s, keep='first', consecutives=False)
+            assert (s3 == [1,2,3,4]).all()
+
+    :type consecutives: bool
+    """
+    return _data_deduplicate(series, keep=keep, consecutives=consecutives, cols=None, all_col=None)
+
+
+def df_deduplicate(df, keep, consecutives, cols=None, all_col=True):
+    """
+    Same as :func:`series_deduplicate` but for :class:`pandas.DataFrame`.
+
+    :param cols: Only consider these columns when looking for duplicates.
+        By default, all columns are considered
+    :type cols: list(str) or None
+
+    :param all_col: If ``True``, remove a row when all the columns have duplicated value.
+        Otherwise, remove the row if any column is duplicated.
+    :type all_col: bool
+    """
+    return _data_deduplicate(df, keep=keep, consecutives=consecutives, cols=cols, all_col=all_col)
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
