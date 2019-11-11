@@ -516,6 +516,8 @@ class TasksAnalysis(TraceAnalysisBase):
             not sleeping, ``sleep_value`` otherwise.
           * A ``cpu`` column with the CPU the task was running on.
           * A ``duration`` column containing the duration of the current sleep or activation.
+          * A ``duty_cycle`` column containing the duty cycle in ``[0...1]`` of
+            the task, updated at each pair of activation and sleep.
         """
 
         df = self.df_task_states(task)
@@ -538,6 +540,15 @@ class TasksAnalysis(TraceAnalysisBase):
 
         # Once we removed the duplicates, we can compute the time spent while sleeping or activating
         df['duration'] = df.index.to_series().diff().shift(-1)
+
+        sleep = df[df['active'] == sleep_value]['duration']
+        active = df[df['active'] == active_value]['duration']
+        # Pair an activation time with it's following sleep time
+        active = active.reindex_like(sleep, method='ffill')
+
+        df['duty_cycle'] = active / (active + sleep)
+        df['duty_cycle'].fillna(inplace=True, method='ffill')
+        df['duty_cycle'] = df['duty_cycle'].shift(-1)
 
         return df
 
@@ -781,7 +792,7 @@ class TasksAnalysis(TraceAnalysisBase):
     @df_task_activation.used_events
     def plot_task_activation(self, task, cpu=None, active_value=None,
             sleep_value=None, alpha=None, overlay=False, duration=False,
-            axis=None, local_fig=None):
+            duty_cycle=False, axis=None, local_fig=None):
         """
         Plot task activations, in a style similar to kernelshark.
 
@@ -799,6 +810,9 @@ class TasksAnalysis(TraceAnalysisBase):
         :param duration: Plot the duration of each sleep/activation.
         :type duration: bool
 
+        :param duty_cycle: Plot the duty cycle of each pair of sleep/activation.
+        :type duty_cycle: bool
+
         .. seealso:: :meth:`df_task_activation`
         """
         # Adapt the steps height to the existing limits. This allows
@@ -810,6 +824,9 @@ class TasksAnalysis(TraceAnalysisBase):
 
         if overlay:
             active_default = max_lim / 4
+            _alpha = alpha if alpha is not None else alpha_default
+        elif duty_cycle:
+            active_default = 1
             _alpha = alpha if alpha is not None else alpha_default
         elif duration:
             active_default = df['duration'].max() * 1.2
@@ -830,6 +847,9 @@ class TasksAnalysis(TraceAnalysisBase):
 
             # For some reason fill_between does not advance in the color cycler so let's do that manually.
             self.get_next_color(axis)
+
+            if duty_cycle:
+                df['duty_cycle'].plot(ax=axis, drawstyle='steps-post', label='Duty cycle of {}'.format(task))
 
             for active, label in (
                     (active_value, 'Activations'),
