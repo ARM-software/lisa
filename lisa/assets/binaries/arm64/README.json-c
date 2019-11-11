@@ -3,10 +3,26 @@ Git commit: ddd049045d98dd3163d01a7d79184b3c7fb95a14
 Git repository: https://github.com/json-c/json-c
 
 
+Build host info:
+
+NAME="Ubuntu"
+VERSION="18.04.3 LTS (Bionic Beaver)"
+ID=ubuntu
+ID_LIKE=debian
+PRETTY_NAME="Ubuntu 18.04.3 LTS"
+VERSION_ID="18.04"
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+VERSION_CODENAME=bionic
+UBUNTU_CODENAME=bionic
+
+
 Build recipe:
 
 export ARCH=arm64
-export BUILD_DIR=/tmp/tmp5pszrkr8/arm64
+export BUILD_DIR=/tmp/tmpgj0ta48e/arm64
 export CONFIGURE_HOST=aarch64-linux-gnu
 export CROSS_COMPILE=aarch64-linux-gnu-
 export LISA_ARCH_ASSETS=/lisa/assets/binaries/arm64
