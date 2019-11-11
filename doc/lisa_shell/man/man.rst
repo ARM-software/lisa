@@ -110,6 +110,9 @@ Misc commands
 
 * ``lisa-plot`` - Generate various plots from a ``trace.dat`` file.
   See ``lisa-plot -h`` for available plots.
+* ``lisa-platinfo-extract`` - Extract a platform information file
+  (:class:`lisa.platforms.platinfo.PlatformInfo`) from the target, containing
+  all the knowledge of the target tests or plot functions need.
 
 Environment variables
 +++++++++++++++++++++
