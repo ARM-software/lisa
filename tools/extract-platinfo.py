@@ -23,7 +23,12 @@
 from lisa.target import Target
 
 def main():
-    target = Target.from_cli()
+    params = {
+        'plat-info': dict(
+            help='Path to the PlatformInfo file to generate',
+        )
+    }
+    args, target = Target.from_custom_cli(params=params)
     plat_info = target.plat_info
 
     # Make sure we get all the information we can, even if it means running for
@@ -32,7 +37,7 @@ def main():
 
     print(plat_info)
 
-    path = 'plat_info.yml'
+    path = args.plat_info or '{}.plat_info.yml'.format(target.name)
     plat_info.to_yaml_map(path)
     print('\nPlatform info written to: {}'.format(path))
 
