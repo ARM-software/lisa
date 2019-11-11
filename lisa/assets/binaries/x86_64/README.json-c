@@ -1,0 +1,96 @@
+Sources of json-c available at:
+Git commit: ddd049045d98dd3163d01a7d79184b3c7fb95a14
+Git repository: https://github.com/json-c/json-c
+
+
+Build recipe:
+
+export ARCH=x86_64
+export BUILD_DIR=/tmp/tmp5pszrkr8/x86_64
+export LISA_ARCH_ASSETS=/lisa/assets/binaries/x86_64
+export LISA_HOME=''
+#! /bin/bash
+
+build_jsonc() {
+    cd json-c
+    export ac_cv_func_malloc_0_nonnull=yes
+    export ac_cv_func_realloc_0_nonnull=yes
+    ./autogen.sh
+    ./configure --host=$CONFIGURE_HOST --disable-shared --enable-static
+    make
+}
+
+build_rtapp() {
+    cd rt-app
+    export ac_cv_lib_json_c_json_object_from_file=yes
+    ./autogen.sh
+    ./configure --host=$CONFIGURE_HOST LDFLAGS="--static -L$BUILD_DIR/json-c/" CFLAGS="-I$BUILD_DIR" --with-deadline
+    make
+    "$CROSS_COMPILE"strip src/rt-app
+}
+
+download() {
+    git clone https://github.com/json-c/json-c
+    git -C json-c checkout ddd049045d98dd3163d01a7d79184b3c7fb95a14
+
+    git clone https://github.com/scheduler-tools/rt-app.git
+    git -C rt-app checkout 9a50d76f726d7c325c82ac8c7ed9ed70e1c97937
+}
+
+build() {
+    (build_jsonc) && (build_rtapp)
+}
+
+install() {
+    source "$LISA_HOME/tools/recipes/utils.sh"
+    cp -v rt-app/src/rt-app "$LISA_ARCH_ASSETS/rt-app"
+
+    install_readme rt-app rt-app COPYING.in
+    install_readme json-c json-c COPYING
+}
+
+
+The sources were distributed under the following licence (content of json-c/COPYING):
+
+
+Copyright (c) 2009-2012 Eric Haszlakiewicz
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+----------------------------------------------------------------
+
+Copyright (c) 2004, 2005 Metaparadigm Pte Ltd
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -1,0 +1,60 @@
+#! /bin/bash
+
+
+download() {
+    git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git --branch v5.3 --depth=1
+}
+
+build() {
+    cd linux/tools/perf
+
+    case $ARCH in
+        armeabi) arch=arm;;
+        arm64) arch=arm64;;
+        x86_64) arch=x86_64;;
+    esac
+
+    make -f Makefile ARCH=$arch CROSS_COMPILE=$CROSS_COMPILE NO_SDT=1 LDFLAGS="-static"
+    "$CROSS_COMPILE"strip perf
+}
+
+install() {
+    cp -v linux/tools/perf/perf "$LISA_ARCH_ASSETS/perf"
+    source "$LISA_HOME/tools/recipes/utils.sh"
+    install_readme perf linux/tools/perf COPYING
+}
+
+
+# zlib is easy to cross compile but convincing perf to detect the library seems
+# not that straightforward, parking it until somebody really needs it ...
+
+download_zlib() {
+    git clone https://github.com/madler/zlib.git
+    git -C zlib checkout 2fa463bacfff79181df1a5270fb67cc679a53e71
+}
+
+build_zlib() {
+    cd zlib
+
+    export CC="$CROSS_COMPILE"gcc
+    export LD="$CROSS_COMPILE"ld
+    export AR="$CROSS_COMPILE"ar
+    ./configure
+    make
+}
+
+# It seems to be impossible to cross compile libelf, so park it for now. If
+# someone really wants it, here is the beginning of the path of pain ...
+
+download_elfutils() {
+    git clone git://sourceware.org/git/elfutils.git
+    git -C elfutils checkout 5643e037cb7a38ed5d52f50421be706ea8014e3d
+}
+
+build_libelf() {
+    cd elfutils
+
+    autoreconf -i -f
+    ./configure --enable-maintainer-mode --host=$CONFIGURE_HOST CFLAGS="-I$BUILD_DIR/zlib" LDFLAGS="-L$BUILD_DIR/zlib"
+    make
+}

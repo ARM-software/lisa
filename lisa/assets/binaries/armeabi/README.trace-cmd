@@ -1,60 +1,81 @@
-Sources of taskset available at:
-Git commit: d4319b91c9d7d69e7b954fc66819214f81501312
-Git repository: git://git.kernel.org/pub/scm/utils/util-linux/util-linux.git
+Sources of trace-cmd available at:
+Git commit: 01f8e669cb035aa911f1ee0e3f94d535cbcca78f
+Git repository: git://git.kernel.org/pub/scm/linux/kernel/git/rostedt/trace-cmd.git
 
 
 Build recipe:
 
-export ARCH=arm64
-export CONFIGURE_HOST=aarch64-linux-gnu
-export CROSS_COMPILE=aarch64-linux-gnu-
-export LISA_ARCH_ASSETS=/lisa/assets/binaries/arm64
+export ARCH=armeabi
+export CROSS_COMPILE=arm-linux-gnueabi-
+export LISA_ARCH_ASSETS=/lisa/assets/binaries/armeabi
 export LISA_HOME=''
 #! /bin/bash
 
 download() {
-    git clone git://git.kernel.org/pub/scm/utils/util-linux/util-linux.git
-    git -C util-linux checkout 448e6c3567988492d8724f26950ff167ab58d22a
+    # Official repo lacks some old version tags
+    # git clone git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
+    # So we use the personal one from Steven Rostedt
+    git clone git://git.kernel.org/pub/scm/linux/kernel/git/rostedt/trace-cmd.git
+
+    git -C trace-cmd checkout trace-cmd-v2.4.2
 }
 
+# For trace-cmd v2.8.3
+# TRACE_CMD_BIN=tracecmd/trace-cmd
+
+# For older versions of trace-cmd
+TRACE_CMD_BIN=trace-cmd
+
 build() {
-    cd util-linux
+    cd trace-cmd
 
-    ./autogen.sh
-    ./configure --host=$CONFIGURE_HOST \
-                --disable-shared \
-                --without-tinfo \
-                --without-ncurses \
-                --without-ncursesw \
-                --disable-widechar \
-                --without-python \
-                --enable-static-programs=dmesg,taskset
-    make dmesg taskset LDFLAGS='--static'
+    export PYTHON_VERS=python3
+    # trace-cmd needs explicit CC and AR from the environment to successfully
+    # cross-compile a static build
+    export CC="$CROSS_COMPILE"gcc
+    export AR="$CROSS_COMPILE"ar
+    export LD="$CROSS_COMPILE"ld
 
-    "$CROSS_COMPILE"strip dmesg taskset
+    # Disable libaudit, to limit the amount of dependencies
+    make LDFLAGS="-static" trace-cmd NO_AUDIT=yes
+    "$CROSS_COMPILE"strip "$TRACE_CMD_BIN"
 }
 
 install() {
-    cp -v util-linux/dmesg "$LISA_ARCH_ASSETS/dmesg"
-    cp -v util-linux/taskset "$LISA_ARCH_ASSETS/taskset"
+    cd trace-cmd
+    cp -v "$TRACE_CMD_BIN" "$LISA_ARCH_ASSETS/trace-cmd"
 
     source "$LISA_HOME/tools/recipes/utils.sh"
-    install_readme dmesg util-linux COPYING
-    install_readme taskset util-linux COPYING
+    install_readme trace-cmd . COPYING
 }
 
 
-The sources were distributed under the following licence (content of util-linux/COPYING):
+# Do not use libaudit unless there is a good reason, to avoid build issues in
+# non-necessary dependencies
+download_audit() {
+    git clone https://github.com/linux-audit/audit-userspace.git
+    git -C audit-userspace checkout master
+}
 
-                    GNU GENERAL PUBLIC LICENSE
-                       Version 2, June 1991
+build_audit() {
+    cd audit-userspace
+    ./autogen.sh
+    ./configure --disable-shared
+    make
+}
+
+
+The sources were distributed under the following licence (content of ./COPYING):
+
+		    GNU GENERAL PUBLIC LICENSE
+		       Version 2, June 1991
 
  Copyright (C) 1989, 1991 Free Software Foundation, Inc.,
  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  Everyone is permitted to copy and distribute verbatim copies
  of this license document, but changing it is not allowed.
 
-                            Preamble
+			    Preamble
 
   The licenses for most software are designed to take away your
 freedom to share and change it.  By contrast, the GNU General Public
@@ -104,7 +125,7 @@ patent must be licensed for everyone's free use or not licensed at all.
   The precise terms and conditions for copying, distribution and
 modification follow.
 
-                    GNU GENERAL PUBLIC LICENSE
+		    GNU GENERAL PUBLIC LICENSE
    TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
 
   0. This License applies to any program or other work which contains
@@ -303,7 +324,7 @@ make exceptions for this.  Our decision will be guided by the two goals
 of preserving the free status of all derivatives of our free software and
 of promoting the sharing and reuse of software generally.
 
-                            NO WARRANTY
+			    NO WARRANTY
 
   11. BECAUSE THE PROGRAM IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY
 FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW.  EXCEPT WHEN
@@ -325,9 +346,9 @@ YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER
 PROGRAMS), EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGES.
 
-                     END OF TERMS AND CONDITIONS
+		     END OF TERMS AND CONDITIONS
 
-            How to Apply These Terms to Your New Programs
+	    How to Apply These Terms to Your New Programs
 
   If you develop a new program, and you want it to be of the greatest
 possible use to the public, the best way to achieve this is to make it

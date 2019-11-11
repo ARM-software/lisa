@@ -1,0 +1,23 @@
+#! /bin/bash
+
+download() {
+    git clone https://github.com/akopytov/sysbench.git
+    git -C sysbench checkout master
+}
+
+build() {
+    cd sysbench
+
+    ./autogen.sh
+    ./configure --host=$CONFIGURE_HOST \
+                --without-mysql \
+                --without-pgsql \
+                --disable-shared
+
+    make LDFLAGS="-static"
+    ${CROSS_COMPILE}strip sysbench
+}
+
+install() {
+    cp -v sysbench "$LISA_ARCH_ASSETS/sysbench"
+}
