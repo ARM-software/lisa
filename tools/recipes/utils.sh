@@ -15,6 +15,9 @@ install_readme() {
     remote=$(git -C "$repo" config --get remote.origin.url)
     printf "Sources of %s available at:\nGit commit: %s\nGit repository: %s\n" "$name" "$sha1" "$remote" > "$src_info"
 
+    printf "\n\n%s\n\n" "Build host info:" >> "$src_info"
+    cat /etc/os-release >> "$src_info"
+
     printf "\n\n%s\n\n" "Build recipe:" >> "$src_info"
 
     # Dump the env var that are directly used by the recipe
