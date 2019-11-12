@@ -44,7 +44,7 @@ from lisa.wlgen.rta import RTA
 from lisa.target import Target
 
 from lisa.utils import (
-    Serializable, memoized, ArtifactPath, non_recursive_property,
+    Serializable, memoized, lru_memoized, ArtifactPath, non_recursive_property,
     update_wrapper_doc, ExekallTaggable, annotations_from_signature,
     nullcontext,
 )
@@ -1149,7 +1149,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         return self.get_cgroup_configuration(self.plat_info)
 
     @non_recursive_property
-    @memoized
+    # Only cache the trace of N bundles at a time, to avoid running out of memory
+    @lru_memoized(first_param_maxsize=10)
     def trace(self):
         """
         :returns: a :class:`lisa.trace.TraceView` cropped to fit the ``rt-app``
