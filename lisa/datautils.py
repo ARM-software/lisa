@@ -545,6 +545,74 @@ def df_window(df, window, method='inclusive', clip_window=False):
     return _data_window(df, window, method, clip_window)
 
 
+def df_window_signals(df, window, signal_cols, compress_init=False):
+    """
+    Similar to :func:`df_window` with ``method='pre'`` but guarantees that each
+    signal will have a values at the beginning of the window.
+
+    :param window: two-tuple of index values for the start and end of the
+        region to select.
+    :type window: tuple(object)
+
+    :param signal_cols: Columns that uniquely identify a signal.
+    :type signal_cols: list(str)
+
+    :param compress_init: When ``False``, the timestamps of the init value of
+        signals (right before the window) are preserved. If ``True``, they are
+        changed into values as close as possible to the beginning of the window.
+    :type compress_init: bool
+
+    .. seealso:: :func:`df_split_signals`
+    """
+
+    def signal_in_window(signal_df, window):
+        start = window[0]
+        index = signal_df.index
+        signal_start, signal_end = index[0], index[-1]
+        # Signals are encoded as transitions, so as soon as we a transition
+        # inside the window, we know that the signal is relevant
+        return signal_start <= start <= signal_end
+
+    # Get the value of each signal at the beginning of the window
+    signal_df_list = [
+        df_window(signal_df, window, method='pre')
+        for signal, signal_df in df_split_signals(df, signal_cols, align_start=False)
+        # Only consider the signal that are in the window. Signals that started
+        # after the window are irrelevant.
+        if signal_in_window(signal_df, window)
+    ]
+
+    windowed_df = df_window(df, window, method='pre')
+
+    if compress_init:
+        def make_init_df_index(init_df):
+            # Yield a sequence of numbers incrementing by the smallest amount
+            # possible
+            def smallest_increment(start, length):
+                curr = start
+                for _ in range(length):
+                    curr = np.nextafter(curr, -math.inf)
+                    yield curr
+
+            index = list(smallest_increment(windowed_df.index[0], len(init_df)))
+            index = pd.Float64Index(reversed(index))
+            return index
+    else:
+        def make_init_df_index(init_df):
+            return init_df.index
+
+    # Get the last row before the beginning the window for each signal, in
+    # timestamp order
+    init_df = pd.concat(
+        # First row of the dataframe
+        signal_df.iloc[0:1]
+        for signal_df in sorted(signal_df_list, key=lambda df: df.index[0])
+    )
+
+    init_df.index = make_init_df_index(init_df)
+    return pd.concat([init_df, windowed_df])
+
+
 def series_align_signal(ref, to_align, max_shift=None):
     """
     Align a signal to an expected reference signal using their
