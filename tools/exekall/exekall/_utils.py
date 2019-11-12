@@ -40,8 +40,10 @@ import argparse
 
 DB_FILENAME = 'VALUE_DB.pickle.xz'
 
+
 class NotSerializableError(Exception):
     pass
+
 
 def get_class_from_name(cls_name, module_map=None):
     """
@@ -63,8 +65,9 @@ def get_class_from_name(cls_name, module_map=None):
         return None
 
     mod = module_map[mod_name]
-    cls_name = cls_name[len(mod_name)+1:]
+    cls_name = cls_name[len(mod_name) + 1:]
     return _get_class_from_name(cls_name, mod)
+
 
 def _get_class_from_name(cls_name, namespace):
     if isinstance(namespace, collections.abc.Mapping):
@@ -81,11 +84,13 @@ def _get_class_from_name(cls_name, namespace):
     else:
         return obj
 
+
 def create_uuid():
     """
     Creates a UUID.
     """
     return uuid.uuid4().hex
+
 
 def get_mro(cls):
     """
@@ -98,6 +103,7 @@ def get_mro(cls):
         assert isinstance(cls, type)
         return inspect.getmro(cls)
 
+
 def get_method_class(function):
     """
     Get the class of a method by analyzing its name.
@@ -106,6 +112,7 @@ def get_method_class(function):
     if '<locals>' in cls_name:
         return None
     return eval(cls_name, function.__globals__)
+
 
 def get_name(obj, full_qual=True, qual=True, pretty=False):
     """
@@ -130,9 +137,9 @@ def get_name(obj, full_qual=True, qual=True, pretty=False):
     qual = _qual
 
     if qual:
-        _get_name = lambda x: x.__qualname__
+        def _get_name(x): return x.__qualname__
     else:
-        _get_name = lambda x: x.__name__
+        def _get_name(x): return x.__name__
 
     if obj is None:
         pretty = True
@@ -143,7 +150,7 @@ def get_name(obj, full_qual=True, qual=True, pretty=False):
             if obj == type(prettier_obj):
                 # For these types, qual=False or qual=True makes no difference
                 obj = prettier_obj
-                _get_name = lambda x: str(x)
+                def _get_name(x): return str(x)
                 break
 
     # Add the module's name in front of the name to get a fully
@@ -173,6 +180,7 @@ def get_name(obj, full_qual=True, qual=True, pretty=False):
 
     return module_name + name
 
+
 def get_toplevel_module(obj):
     """
     Return the outermost module object in which ``obj`` is defined as a tuple
@@ -184,6 +192,7 @@ def get_toplevel_module(obj):
     toplevel_module_name = module.__name__.split('.')[0]
     toplevel_module = sys.modules[toplevel_module_name]
     return toplevel_module
+
 
 def get_src_loc(obj, shorten=True):
     """
@@ -218,6 +227,7 @@ def get_src_loc(obj, shorten=True):
 
     return (str(src_file), src_line)
 
+
 def is_serializable(obj, raise_excep=False):
     """
     Try to Pickle the object to see if that raises any exception.
@@ -237,17 +247,20 @@ def is_serializable(obj, raise_excep=False):
     else:
         return True
 
+
 def once(callable_):
     """
     Call the given function at most once per set of parameters
     """
     return functools.lru_cache(maxsize=None, typed=True)(callable_)
 
+
 def remove_indices(iterable, ignored_indices):
     """
     Filter the given ``iterable`` by removing listed in ``ignored_indices``.
     """
     return [v for i, v in enumerate(iterable) if i not in ignored_indices]
+
 
 def resolve_annotations(annotations, module_vars):
     """
@@ -263,6 +276,7 @@ def resolve_annotations(annotations, module_vars):
         for param, cls in annotations.items()
     }
 
+
 def get_module_basename(path):
     """
     Get the module name of the module defined in source ``path``.
@@ -273,6 +287,7 @@ def get_module_basename(path):
     if module_name is None:
         module_name = path.name
     return module_name
+
 
 def iterate_cb(iterator, pre_hook=None, post_hook=None):
     """
@@ -295,6 +310,7 @@ def iterate_cb(iterator, pre_hook=None, post_hook=None):
 
             yield val
 
+
 def format_exception(e):
     """
     Format the traceback of the exception ``e`` in a string.
@@ -312,6 +328,7 @@ This allows sending all the output through the logging module instead of using
 :func:`print`, so it can easily be recorded to a file
 """
 
+
 class ExekallFormatter(logging.Formatter):
     """
     Custom :class:`logging.Formatter` that takes care of ``OUT`` level.
@@ -319,6 +336,7 @@ class ExekallFormatter(logging.Formatter):
     This ``OUT`` level allows using :mod:`logging` instead of :func:`print` so
     it can be redirected to a file easily.
     """
+
     def __init__(self, fmt, *args, **kwargs):
         self.default_fmt = logging.Formatter(fmt, *args, **kwargs)
         self.out_fmt = logging.Formatter('%(message)s', *args, **kwargs)
@@ -330,6 +348,7 @@ class ExekallFormatter(logging.Formatter):
         # regular levels are logged with the regular formatter
         else:
             return self.default_fmt.format(record)
+
 
 def setup_logging(log_level, debug_log_file=None, info_log_file=None, verbose=0):
     """
@@ -351,7 +370,7 @@ def setup_logging(log_level, debug_log_file=None, info_log_file=None, verbose=0)
     :type verbose: int
     """
     logging.addLevelName(LOGGING_OUT_LEVEL, 'OUT')
-    level=getattr(logging, log_level.upper())
+    level = getattr(logging, log_level.upper())
 
     verbose_formatter = ExekallFormatter('[%(name)s/%(filename)s:%(lineno)s][%(asctime)s] %(levelname)s  %(message)s')
     normal_formatter = ExekallFormatter('[%(name)s][%(asctime)s] %(levelname)s  %(message)s')
@@ -381,7 +400,9 @@ def setup_logging(log_level, debug_log_file=None, info_log_file=None, verbose=0)
     # Redirect all warnings of the "warnings" module as log entries
     logging.captureWarnings(True)
 
-EXEKALL_LOGGER  = logging.getLogger('EXEKALL')
+
+EXEKALL_LOGGER = logging.getLogger('EXEKALL')
+
 
 def out(msg):
     """
@@ -391,21 +412,26 @@ def out(msg):
     """
     EXEKALL_LOGGER.log(LOGGING_OUT_LEVEL, msg)
 
+
 def info(msg):
     """Write a log message at the INFO level."""
     EXEKALL_LOGGER.info(msg)
+
 
 def debug(msg):
     """Write a log message at the DEBUG level."""
     EXEKALL_LOGGER.debug(msg)
 
+
 def warn(msg):
     """Write a log message at the WARNING level."""
     EXEKALL_LOGGER.warning(msg)
 
+
 def error(msg):
     """Write a log message at the ERROR level."""
     EXEKALL_LOGGER.error(msg)
+
 
 def infer_mod_name(python_src):
     """
@@ -441,8 +467,8 @@ def infer_mod_name(python_src):
         for package_name in reversed(module_parents[:-1]):
             package_name = import_file(
                 pathlib.Path(package_root_parent, package_name),
-                module_name = '.'.join(package_name.parts),
-                is_package = True,
+                module_name='.'.join(package_name.parts),
+                is_package=True,
             )
 
         module_dotted_path = list(module_parents[0].parts) + [module_basename]
@@ -452,6 +478,7 @@ def infer_mod_name(python_src):
         module_name = get_module_basename(python_src)
 
     return module_name
+
 
 def find_customization_module_set(module_set):
     """
@@ -500,6 +527,7 @@ def find_customization_module_set(module_set):
 
     return customization_module_set
 
+
 def import_modules(paths_or_names, best_effort=False):
     """
     Import the modules in the given list of paths.
@@ -528,6 +556,7 @@ def import_modules(paths_or_names, best_effort=False):
         for path in paths_or_names
     ))
 
+
 def import_name_recursively(name, best_effort=False):
     """
     Import a module by its name.
@@ -555,11 +584,12 @@ def import_name_recursively(name, best_effort=False):
         for path in paths:
             yield from import_folder(pathlib.Path(path), best_effort=best_effort)
 
+
 def import_folder(path, best_effort=False):
     """
     Import all modules contained in the given folder, recurisvely.
     """
-    for python_src in glob.iglob(str(path/'**'/'*.py'), recursive=True):
+    for python_src in glob.iglob(str(path / '**' / '*.py'), recursive=True):
         try:
             yield import_file(python_src)
         except ImportError:
@@ -567,6 +597,7 @@ def import_folder(path, best_effort=False):
                 continue
             else:
                 raise
+
 
 def import_file(python_src, module_name=None, is_package=False):
     """
@@ -661,11 +692,12 @@ def import_file(python_src, module_name=None, is_package=False):
     #  Python <= v3.4 style
     else:
         module = importlib.machinery.SourceFileLoader(
-                module_name, str(python_src)).load_module()
+            module_name, str(python_src)).load_module()
 
     sys.modules[module_name] = module
     importlib.invalidate_caches()
     return module
+
 
 def flatten_seq(seq, levels=1):
     """
@@ -677,6 +709,7 @@ def flatten_seq(seq, levels=1):
         seq = list(itertools.chain.from_iterable(seq))
         return flatten_seq(seq, levels=levels - 1)
 
+
 def take_first(iterable):
     """
     Pick the first item of ``iterable``.
@@ -684,6 +717,7 @@ def take_first(iterable):
     for i in iterable:
         return i
     return NoValue
+
 
 class _NoValueType:
     """
@@ -717,6 +751,7 @@ class _NoValueType:
     def __eq__(self, other):
         return type(self) is type(other)
 
+
 NoValue = _NoValueType()
 """
 Singleton with similar purposes as ``None``.
@@ -727,6 +762,7 @@ class RestartableIter:
     """
     Wrap an iterator to give a new iterator that is restartable.
     """
+
     def __init__(self, it):
         self.values = []
 
@@ -779,13 +815,14 @@ def get_froz_val_set_set(db, uuid_seq=None, type_pattern_seq=None):
         predicate = uuid_predicate
 
     elif not uuid_seq and not type_pattern_seq:
-        predicate = lambda froz_val: True
+        def predicate(froz_val): return True
 
     else:
         def predicate(froz_val):
             return uuid_predicate(froz_val) and type_pattern_predicate(froz_val)
 
     return db.get_by_predicate(predicate, flatten=False, deduplicate=True)
+
 
 def match_base_cls(cls, pattern_list):
     """
@@ -799,6 +836,7 @@ def match_base_cls(cls, pattern_list):
             return True
 
     return False
+
 
 def match_name(name, pattern_list):
     """
@@ -824,8 +862,8 @@ def match_name(name, pattern_list):
         if not pattern.startswith('!')
     }
 
-    invert = lambda x: not x
-    identity = lambda x: x
+    def invert(x): return not x
+    def identity(x): return x
 
     def check(pattern_set, f):
         if pattern_set:
@@ -838,6 +876,7 @@ def match_name(name, pattern_list):
             return True
 
     return (check(pos_patterns, identity) and check(neg_patterns, invert))
+
 
 def get_common_base(cls_list):
     """
@@ -859,6 +898,7 @@ def get_common_base(cls_list):
 
     return functools.reduce(common, cls_list)
 
+
 def get_subclasses(cls):
     """
     Get all the (direct and indirect) subclasses of ``cls``.
@@ -867,6 +907,7 @@ def get_subclasses(cls):
     for subcls in cls.__subclasses__():
         subcls_set.update(get_subclasses(subcls))
     return subcls_set
+
 
 def get_recursive_module_set(module_set, package_set):
     """
@@ -880,6 +921,7 @@ def get_recursive_module_set(module_set, package_set):
         _get_recursive_module_set(module, recursive_module_set, package_set)
 
     return recursive_module_set
+
 
 def _get_recursive_module_set(module, module_set, package_set):
     if module in module_set:
@@ -918,6 +960,7 @@ def disable_gc():
     finally:
         gc.enable()
 
+
 def render_graphviz(expr):
     """
     Render the structure of an expression as a graphviz description or SVG.
@@ -947,6 +990,7 @@ def render_graphviz(expr):
 
         return (False, graphviz)
 
+
 def add_argument(parser, *args, help, **kwargs):
     """
     Equivalent to :meth:`argparse.ArgumentParser.add_argument`, with ``help``
@@ -955,10 +999,11 @@ def add_argument(parser, *args, help, **kwargs):
     This allows using parsers setup using raw formatters.
     """
     if help is not argparse.SUPPRESS:
-        help=textwrap.dedent(help)
+        help = textwrap.dedent(help)
         # Preserve all new lines where there are, and only wrap the other lines.
-        help='\n'.join(textwrap.fill(line) for line in help.splitlines())
+        help = '\n'.join(textwrap.fill(line) for line in help.splitlines())
     return parser.add_argument(*args, **kwargs, help=help)
+
 
 def create_adaptor_parser_group(parser, adaptor_cls):
     description = '{} custom options.\nCan only be specified *after* positional parameters.'.format(adaptor_cls.name)
@@ -971,4 +1016,4 @@ def powerset(iterable):
         powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)
     """
     s = list(iterable)
-    return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s)+1))
+    return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s) + 1))

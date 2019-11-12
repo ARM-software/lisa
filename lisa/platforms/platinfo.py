@@ -28,6 +28,7 @@ from lisa.wlgen.rta import RTA
 from devlib.target import KernelVersion, TypedKernelConfig
 from devlib.exception import TargetStableError
 
+
 def compute_capa_classes(conf):
     """
     Derive the platform's capacity classes from the given conf
@@ -37,13 +38,16 @@ def compute_capa_classes(conf):
     """
     return list(group_by_value(conf['cpu-capacities']).values())
 
+
 class KernelConfigKeyDesc(KeyDesc):
     def pretty_format(self, v):
         return '<kernel config>'
 
+
 class KernelSymbolsAddress(KeyDesc):
     def pretty_format(self, v):
         return '<symbols address>'
+
 
 class PlatformInfo(MultiSrcConf, HideExekallID):
     """
@@ -79,7 +83,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         KeyDesc('freqs', 'Dictionnary of CPU ID to list of frequencies', [IntIntListDict]),
 
         DerivedKeyDesc('capacity-classes',
-                       'Capacity classes modeled by a list of CPU IDs for each ' \
+                       'Capacity classes modeled by a list of CPU IDs for each '
                        'capacity, sorted by capacity',
                        [IntListList],
                        [['cpu-capacities']], compute_capa_classes),
@@ -104,13 +108,12 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
         if target.is_module_available('cpufreq'):
             info['freq-domains'] = list(target.cpufreq.iter_domains())
-            freqs = {cpu : target.cpufreq.list_frequencies(cpu)
-                             for cpu in range(target.number_of_cpus)}
+            freqs = {cpu: target.cpufreq.list_frequencies(cpu)
+                     for cpu in range(target.number_of_cpus)}
             # Only add the frequency info if there is any, otherwise don't
             # mislead the client code with empty frequency list
             if all(freqs.values()):
                 info['freqs'] = freqs
-
 
         if target.is_module_available('sched'):
             info['cpu-capacities'] = target.sched.get_capacities(default=1024)
@@ -138,7 +141,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         """
 
         def parse_line(line):
-            splitted = re.split('\W+', line)
+            splitted = re.split(r'\W+', line)
             addr = int(splitted[0], base=16)
             symtype = splitted[1]
             func = splitted[2]
@@ -155,11 +158,10 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             return None
 
         symbols = dict(map(parse_line, kallsyms.splitlines()))
-        if symbols.keys()== {0}:
+        if symbols.keys() == {0}:
             logger.error("kallsyms only contains null pointers")
             return None
 
         return symbols
-
 
  # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

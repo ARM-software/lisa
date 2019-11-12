@@ -43,9 +43,9 @@ little_cluster_active_states = OrderedDict([
 ])
 
 little_cluster_idle_states = OrderedDict([
-    ('WFI',              5),
-    ('cpu-sleep-0',      5),
-    ('cluster-sleep-0',  1),
+    ('WFI', 5),
+    ('cpu-sleep-0', 5),
+    ('cluster-sleep-0', 1),
 ])
 
 little_cpu_active_states = OrderedDict([
@@ -55,16 +55,19 @@ little_cpu_active_states = OrderedDict([
 ])
 
 little_cpu_idle_states = OrderedDict([
-    ('WFI',              5),
-    ('cpu-sleep-0',      0),
-    ('cluster-sleep-0',  0),
+    ('WFI', 5),
+    ('cpu-sleep-0', 0),
+    ('cluster-sleep-0', 0),
 ])
 
-littles=[0, 1]
+littles = [0, 1]
+
+
 def little_cpu_node(cpu):
     return EnergyModelNode(cpu=cpu,
                            active_states=little_cpu_active_states,
                            idle_states=little_cpu_idle_states)
+
 
 big_cluster_active_states = OrderedDict([
     (3000, ActiveState(power=30)),
@@ -72,9 +75,9 @@ big_cluster_active_states = OrderedDict([
 ])
 
 big_cluster_idle_states = OrderedDict([
-    ('WFI',              8),
-    ('cpu-sleep-0',      8),
-    ('cluster-sleep-0',  2),
+    ('WFI', 8),
+    ('cpu-sleep-0', 8),
+    ('cluster-sleep-0', 2),
 ])
 
 big_cpu_active_states = OrderedDict([
@@ -83,17 +86,19 @@ big_cpu_active_states = OrderedDict([
 ])
 
 big_cpu_idle_states = OrderedDict([
-    ('WFI',              9),
-    ('cpu-sleep-0',      0),
-    ('cluster-sleep-0',  0),
+    ('WFI', 9),
+    ('cpu-sleep-0', 0),
+    ('cluster-sleep-0', 0),
 ])
 
-bigs=[2, 3]
+bigs = [2, 3]
+
 
 def big_cpu_node(cpu):
     return EnergyModelNode(cpu=cpu,
                            active_states=big_cpu_active_states,
                            idle_states=big_cpu_idle_states)
+
 
 em = EnergyModel(
     root_node=EnergyModelRoot(children=[
@@ -117,18 +122,20 @@ em = EnergyModel(
             idle_states=['cluster-sleep-0'],
             children=[PowerDomain(idle_states=['WFI', 'cpu-sleep-0'], cpu=c)
                       for c in bigs]),
-        ]),
+    ]),
     freq_domains=[littles, bigs]
 )
 
+
 class TestInvalid(TestCase):
     """Test the sanity checks in EnerygModel setup"""
+
     def test_overlapping_freq_doms(self):
         """Can't build an EM with energy nodes overlapping freq domains"""
 
         # To make this easy we'll just use a single active state everywhere, and
         # no idle states
-        active_states={10000: ActiveState(capacity=1024, power=100)}
+        active_states = {10000: ActiveState(capacity=1024, power=100)}
 
         def cpu_node(cpu):
             return EnergyModelNode(cpu=cpu,
@@ -157,8 +164,8 @@ class TestOptimalPlacement(TestCase):
         """
         Assert that a pair of lists of lists contain the same lists in any order
         """
-        s1 = set([tuple(l) for l in l1])
-        s2 = set([tuple(l) for l in l2])
+        s1 = {tuple(l) for l in l1}
+        s2 = {tuple(l) for l in l2}
         self.assertSetEqual(s1, s2)
 
     def test_single_small(self):
@@ -172,7 +179,7 @@ class TestOptimalPlacement(TestCase):
                                                    [0, 0, 0, 350]])
 
     def test_packing(self):
-        tasks = {'task' + str(i) : 10 for i in list(range(5))}
+        tasks = {'task' + str(i): 10 for i in list(range(5))}
         placements = em.get_optimal_placements(tasks)
         total_util = sum(tasks.values())
         self.assertPlacementListEqual(placements, [[total_util, 0, 0, 0],
@@ -180,11 +187,11 @@ class TestOptimalPlacement(TestCase):
 
     def test_overutilized_single(self):
         self.assertRaises(EnergyModelCapacityError,
-                          em.get_optimal_placements, {'task0' : 401})
+                          em.get_optimal_placements, {'task0': 401})
 
     def test_capacity_margin_single(self):
         self.assertRaises(EnergyModelCapacityError,
-                          em.get_optimal_placements, {'task0' : 350},
+                          em.get_optimal_placements, {'task0': 350},
                           capacity_margin_pct=20)
 
     def test_overutilized_many(self):
@@ -195,23 +202,27 @@ class TestOptimalPlacement(TestCase):
         self.assertRaises(EnergyModelCapacityError,
                           em.get_optimal_placements, tasks)
 
+
 class TestBiggestCpus(TestCase):
     def test_biggest_cpus(self):
         self.assertEqual(em.biggest_cpus, [2, 3])
 
+
 class TestLittlestCpus(TestCase):
     def test_littlest_cpus(self):
         self.assertEqual(em.littlest_cpus, [0, 1])
+
 
 class TestMaxCap(TestCase):
     def test_max_cap(self):
         max_caps = [n.max_capacity for n in em.cpu_nodes]
         self.assertEqual(max_caps, [200, 200, 400, 400])
 
+
 class TestEnergyEst(TestCase):
     def test_all_overutilized(self):
         big_cpu = 400 * 2
-        little_cpu =  200 * 2
+        little_cpu = 200 * 2
         big_cluster = 40
         little_cluster = 20
 
@@ -219,19 +230,19 @@ class TestEnergyEst(TestCase):
 
         power = em.estimate_from_cpu_util([10000] * 4)
         exp = {
-            (0): { 'active': little_cpu, 'idle': 0},
-            (1): { 'active': little_cpu, 'idle': 0},
-            (2): { 'active': big_cpu, 'idle': 0},
-            (3): { 'active': big_cpu, 'idle': 0},
-            (0, 1): { 'active': little_cluster, 'idle': 0},
-            (2, 3): { 'active': big_cluster, 'idle': 0}
+            (0): {'active': little_cpu, 'idle': 0},
+            (1): {'active': little_cpu, 'idle': 0},
+            (2): {'active': big_cpu, 'idle': 0},
+            (3): {'active': big_cpu, 'idle': 0},
+            (0, 1): {'active': little_cluster, 'idle': 0},
+            (2, 3): {'active': big_cluster, 'idle': 0}
         }
         for k, v in power.items():
             self.assertAlmostEqual(v, power[k])
 
     def test_all_idle(self):
         self.assertEqual(sum(em.estimate_from_cpu_util([0, 0, 0, 0]).values()),
-                         0 * 4 # CPU power = 0
+                         0 * 4  # CPU power = 0
                          + 2   # big cluster power
                          + 1)  # LITTLE cluster power
 
@@ -239,11 +250,12 @@ class TestEnergyEst(TestCase):
         cpu0_util = 100 * 0.5
         self.assertEqual(
             sum(em.estimate_from_cpu_util([cpu0_util, 0, 0, 0]).values()),
-                (0.5 * 100)  # CPU0 active power
-                + (0.5 * 5)  # CPU0 idle power
-                + (0.5 * 5)  # LITTLE cluster idle power
-                + (0.5 * 10) # LITTLE cluster active power
-                + 2)         # big cluster power
+            (0.5 * 100)  # CPU0 active power
+            + (0.5 * 5)  # CPU0 idle power
+            + (0.5 * 5)  # LITTLE cluster idle power
+            + (0.5 * 10)  # LITTLE cluster active power
+            + 2)         # big cluster power
+
 
 class TestIdleStates(TestCase):
     def test_zero_util_deepest(self):
@@ -256,7 +268,7 @@ class TestIdleStates(TestCase):
 
         states = em.guess_idle_states([0, 1, 0, 0])
         self.assertEqual(states, ['cpu-sleep-0', 'WFI',
-                                  'cluster-sleep-0', 'cluster-sleep-0',])
+                                  'cluster-sleep-0', 'cluster-sleep-0', ])
 
     def test_all_cpus_used(self):
         states = em.guess_idle_states([1, 1, 1, 1])
@@ -265,6 +277,7 @@ class TestIdleStates(TestCase):
     def test_one_cpu_per_cluster(self):
         states = em.guess_idle_states([0, 1, 0, 1])
         self.assertEqual(states, ['cpu-sleep-0', 'WFI'] * 2)
+
 
 class TestFreqs(TestCase):
 
@@ -290,19 +303,25 @@ class TestFreqs(TestCase):
         self.assertEqual(em.guess_freqs([0, 110, 0, 0]),
                          [1500, 1500, 3000, 3000])
 
+
 class TestNames(TestCase):
     """Test that the default names for CPU nodes get set"""
+
     def test_names(self):
         self.assertListEqual([n.name for n in em.cpu_nodes],
                              ['cpu0', 'cpu1', 'cpu2', 'cpu3'])
 
+
 class TestCpuGroups(TestCase):
     """Test the cpu_groups property"""
+
     def test_cpu_groups(self):
         self.assertListEqual(em.cpu_groups, [[0, 1], [2, 3]])
 
+
 class TestGetCpuCapacity(TestCase):
     """Test the get_cpu_capacity method"""
+
     def test_get_cpu_capacity(self):
         for node in em.root.iter_leaves():
             [cpu] = node.cpus
@@ -310,6 +329,7 @@ class TestGetCpuCapacity(TestCase):
             for freq, active_state in node.active_states.items():
                 self.assertEqual(em.get_cpu_capacity(cpu, freq),
                                  active_state.capacity)
+
 
 class TestEstimateFromTrace(TestCase):
     def test_estimate_from_trace(self):
@@ -320,27 +340,27 @@ class TestEstimateFromTrace(TestCase):
             <idle>-0  [000] 0000.0001: cpu_frequency:   state=1000 cpu_id=1
             <idle>-0  [000] 0000.0001: cpu_frequency:   state=3000 cpu_id=2
             <idle>-0  [000] 0000.0001: cpu_frequency:   state=3000 cpu_id=3
-            """ # Set all CPUs in deepest CPU-level idle state
+            """  # Set all CPUs in deepest CPU-level idle state
             """
             <idle>-0  [000] 0000.0002: cpu_idle:        state=1 cpu_id=0
             <idle>-0  [000] 0000.0002: cpu_idle:        state=1 cpu_id=1
             <idle>-0  [000] 0000.0002: cpu_idle:        state=1 cpu_id=2
             <idle>-0  [000] 0000.0002: cpu_idle:        state=1 cpu_id=3
-            """ # Wake up cpu 0
+            """  # Wake up cpu 0
             """
             <idle>-0  [000] 0000.0005: cpu_idle:        state=4294967295 cpu_id=0
-            """ # Ramp up everybody's freqs to 2nd OPP
+            """  # Ramp up everybody's freqs to 2nd OPP
             """
             <idle>-0  [000] 0000.0010: cpu_frequency:   state=1500 cpu_id=0
             <idle>-0  [000] 0000.0010: cpu_frequency:   state=1500 cpu_id=1
             <idle>-0  [000] 0000.0010: cpu_frequency:   state=4000 cpu_id=2
             <idle>-0  [000] 0000.0010: cpu_frequency:   state=4000 cpu_id=3
-            """ # Wake up the other CPUs one by one
+            """  # Wake up the other CPUs one by one
             """
             <idle>-0  [000] 0000.0011: cpu_idle:        state=4294967295 cpu_id=1
             <idle>-0  [000] 0000.0012: cpu_idle:        state=4294967295 cpu_id=2
             <idle>-0  [000] 0000.0013: cpu_idle:        state=4294967295 cpu_id=3
-            """ # Put CPU2 into "cluster sleep" (note CPU3 is still awake)
+            """  # Put CPU2 into "cluster sleep" (note CPU3 is still awake)
             """
             <idle>-0  [000] 0000.0020: cpu_idle:        state=2 cpu_id=2
             """
@@ -370,11 +390,11 @@ class TestEstimateFromTrace(TestCase):
             }),
             # CPU0 wakes up
             (0.0005, {
-                '0': 100.0, # CPU 0 now active
+                '0': 100.0,  # CPU 0 now active
                 '1': 0.0,
                 '2': 0.0,
                 '3': 0.0,
-                '0-1': 10.0, # little cluster now active
+                '0-1': 10.0,  # little cluster now active
                 '2-3': 8.0,
             }),
             # Ramp freqs up to 2nd OPP
@@ -402,7 +422,7 @@ class TestEstimateFromTrace(TestCase):
                 '2': 400.0,
                 '3': 0.0,
                 '0-1': 15.0,
-                '2-3': 40.0, # big cluster now active
+                '2-3': 40.0,  # big cluster now active
             }),
             # Wake up CPU3
             (0.0013, {
@@ -414,7 +434,6 @@ class TestEstimateFromTrace(TestCase):
                 '2-3': 40.0,
             }),
         ]
-
 
         # We don't know the exact index that will come out of the parsing
         # (because of handle_duplicate_index). Furthermore the value of the
@@ -429,6 +448,7 @@ class TestEstimateFromTrace(TestCase):
             row = df.iloc[i]
             self.assertAlmostEqual(row.name, exp_index, places=4)
             self.assertDictEqual(row.to_dict(), exp_values)
+
 
 class TestSerialization(StorageTestCase):
     """

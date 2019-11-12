@@ -26,6 +26,7 @@ import exekall.engine as engine
 # Re-export all _utils here
 from exekall._utils import *
 
+
 def get_callable_set(module_set, verbose=False):
     """
     Get the set of callables defined in all modules of ``module_set``.
@@ -48,6 +49,7 @@ def get_callable_set(module_set, verbose=False):
         ))
 
     return callable_set
+
 
 def _get_callable_set(module, visited_obj_set, verbose):
     log_f = info if verbose else debug
@@ -115,6 +117,7 @@ def _get_callable_set(module, visited_obj_set, verbose):
             else:
                 callable_pool.add(callable_)
     return callable_pool
+
 
 def sweep_param(callable_, param, start, stop, step=1):
     """

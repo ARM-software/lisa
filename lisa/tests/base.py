@@ -55,6 +55,7 @@ from lisa.conf import (
     StrList,
 )
 
+
 def _nested_formatter(multiline):
     def sort_mapping(data):
         if isinstance(data, Mapping):
@@ -69,6 +70,7 @@ def _nested_formatter(multiline):
     if multiline:
         def format_data(data, level=0):
             idt = '\n' + ' ' * 4 * level
+
             def indent(s):
                 stripped = s.strip()
                 if '\n' in stripped:
@@ -107,6 +109,7 @@ def _nested_formatter(multiline):
 
     return format_data
 
+
 class TestMetric:
     """
     A storage class for metrics used by tests
@@ -116,6 +119,7 @@ class TestMetric:
     :param units: The data units
     :type units: str
     """
+
     def __init__(self, data, units=None):
         self.data = data
         self.units = units
@@ -141,6 +145,7 @@ class TestMetric:
     def __repr__(self):
         return '{cls}({self.data}, {self.units})'.format(
             cls=type(self).__name__, self=self)
+
 
 @enum.unique
 class Result(enum.Enum):
@@ -208,6 +213,7 @@ class ResultBundleBase:
         else:
             sys.exit(1)
 
+
 class ResultBundle(ResultBundleBase):
     """
     Bundle for storing test results
@@ -245,6 +251,7 @@ class ResultBundle(ResultBundleBase):
         >>> print(res_bundle)
         FAILED: current time=11
     """
+
     def __init__(self, result, utc_datetime=None, context=None):
         self.result = result
         self.metrics = {}
@@ -258,6 +265,7 @@ class ResultBundle(ResultBundleBase):
         """
         result = Result.PASSED if cond else Result.FAILED
         return cls(result, *args, **kwargs)
+
 
 class AggregatedResultBundle(ResultBundleBase):
     """
@@ -287,6 +295,7 @@ class AggregatedResultBundle(ResultBundleBase):
     .. note:: Metrics of aggregated bundles will always be shown, but can be
         augmented with new metrics using the usual API.
     """
+
     def __init__(self, result_bundles, name_metric=None, result=None, context=None):
         self.result_bundles = result_bundles
         self.name_metric = name_metric
@@ -453,7 +462,6 @@ class TestBundleMeta(abc.ABCMeta):
                 f = metacls.test_method(f)
                 setattr(new_cls, name, f)
 
-
         # If that class defines _from_target but not from_target, we create a
         # stub from_target and move the annotations of _from_target to
         # from_target
@@ -569,6 +577,7 @@ class TestBundleMeta(abc.ABCMeta):
             new_cls.from_target = classmethod(from_target)
 
         return new_cls
+
 
 class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMeta):
     """
@@ -722,7 +731,7 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
             return False
 
     @classmethod
-    def from_target(cls, target:Target, *, res_dir:ArtifactPath=None, **kwargs):
+    def from_target(cls, target: Target, *, res_dir: ArtifactPath = None, **kwargs):
         """
         Factory method to create a bundle using a live target
 
@@ -947,7 +956,7 @@ class DmesgTestBundle(TestBundle):
         with open(self.dmesg_path) as f:
             return list(KernelLogEntry.from_dmesg_output(f.read()))
 
-    def test_dmesg(self, level='warn', facility=None, ignored_patterns:DmesgTestConf.IgnoredPatterns=None) -> ResultBundle:
+    def test_dmesg(self, level='warn', facility=None, ignored_patterns: DmesgTestConf.IgnoredPatterns = None) -> ResultBundle:
         """
         Basic test on kernel dmesg output.
 
@@ -1012,9 +1021,9 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     NOISE_ACCOUNTING_THRESHOLDS = {
         # Idle task - ignore completely
         # note: since it has multiple comms, we need to ignore them
-        TaskID(pid=0, comm=None) : 100,
+        TaskID(pid=0, comm=None): 100,
         # Feeble boards like Juno/TC2 spend a while in sugov
-        r"^sugov:\d+$" : 5,
+        r"^sugov:\d+$": 5,
         # The mailbox controller (MHU), now threaded, creates work that sometimes
         # exceeds the 1% threshold.
         r"^irq/\d+-mhu_link$": 1.5
@@ -1230,10 +1239,10 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         duration_pct = duration_s * 100 / self.trace.time_range
 
         res = ResultBundle.from_bool(duration_s < threshold_s)
-        metric = {"pid" : pid,
+        metric = {"pid": pid,
                   "comm": comm,
                   "duration (abs)": TestMetric(duration_s, "s"),
-                  "duration (rel)" : TestMetric(duration_pct, "%")}
+                  "duration (rel)": TestMetric(duration_pct, "%")}
         res.add_metric("noisiest task", metric)
 
         return res
@@ -1254,7 +1263,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                 func,
                 added_by=':meth:`lisa.tests.base.RTATestBundle.test_noisy_tasks`',
                 description=textwrap.dedent(
-                """
+                    """
                 The returned ``ResultBundle.result`` will be changed to
                 :attr:`~lisa.tests.base.Result.UNDECIDED` if the environment was
                 too noisy:
@@ -1423,7 +1432,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         return cls.run_rtapp(*args, **kwargs)
 
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath, ftrace_coll:FtraceCollector=None) -> 'RTATestBundle':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath, ftrace_coll: FtraceCollector = None) -> 'RTATestBundle':
         """
         Factory method to create a bundle using a live target
 

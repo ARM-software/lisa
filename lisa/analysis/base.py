@@ -44,6 +44,7 @@ COLOR_CYCLES = [
 
 plt.rcParams['axes.prop_cycle'] = cycler(color=COLOR_CYCLES)
 
+
 class AnalysisHelpers(Loggable, abc.ABC):
     """
     Helper methods class for Analysis modules.
@@ -218,6 +219,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
     @classmethod
     def get_plot_methods(cls, instance=None):
         obj = instance if instance is not None else cls
+
         def predicate(f):
             if not callable(f):
                 return False
@@ -336,7 +338,6 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         plot_name=f.__name__,
                     )
 
-
                 # Allow returning an axis directly, or just update a given axis
                 if return_axis:
                     # In that case, the function takes all the kwargs
@@ -387,29 +388,29 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
     @staticmethod
     def _get_rst_header(f):
-            name = f.__name__
-            prefix = 'plot_'
-            if name.startswith(prefix):
-                name = name[len(prefix):]
-            name = name.replace('_', ' ').capitalize()
+        name = f.__name__
+        prefix = 'plot_'
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+        name = name.replace('_', ' ').capitalize()
 
-            try:
-                url = get_doc_url(f)
-                doc_link = '`[doc] <{url}>`_'.format(url=url)
-            except Exception:
-                doc_link = ''
+        try:
+            url = get_doc_url(f)
+            doc_link = '`[doc] <{url}>`_'.format(url=url)
+        except Exception:
+            doc_link = ''
 
-            return textwrap.dedent("""
+        return textwrap.dedent("""
                 {name}
                 {name_underline}
 
                 {docstring} {link}
             """).format(
-                name=name,
-                link=doc_link,
-                name_underline='=' * len(name),
-                docstring=get_short_doc(f),
-            )
+            name=name,
+            link=doc_link,
+            name_underline='=' * len(name),
+            docstring=get_short_doc(f),
+        )
 
     @classmethod
     def _get_rst_content(cls, f, args, kwargs, axis):
@@ -438,12 +439,12 @@ class AnalysisHelpers(Loggable, abc.ABC):
             fmt=fmt,
             data=b64_image,
             arguments=args_list,
-            name =f.__qualname__,
+            name=f.__qualname__,
         )
 
     @classmethod
     def _get_rst(cls, f, args, kwargs, axis):
-            return cls._get_rst_header(f) + '\n' + cls._get_rst_content(f, args, kwargs, axis)
+        return cls._get_rst_header(f) + '\n' + cls._get_rst_content(f, args, kwargs, axis)
 
     @staticmethod
     def _docutils_render(writer, rst, doctitle_xform=False):
@@ -473,6 +474,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         rst = cls._get_rst(*args, **kwargs)
         parts = cls._docutils_render(writer='html', rst=rst, doctitle_xform=True)
         return parts['whole']
+
 
 class TraceAnalysisBase(AnalysisHelpers):
     """

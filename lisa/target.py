@@ -43,10 +43,10 @@ from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc
 
 from lisa.platforms.platinfo import PlatformInfo
 
+
 class PasswordKeyDesc(KeyDesc):
     def pretty_format(self, v):
         return '<password>'
-
 
 
 # Make sure all submodules of devlib.module are imported so the classes
@@ -62,6 +62,7 @@ _DEVLIB_AVAILABLE_MODULES = {
         and getattr(cls, 'stage') != 'early'
     )
 }
+
 
 class TargetConf(SimpleMultiSrcConf, HideExekallID):
     """
@@ -139,8 +140,8 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('workdir', 'Remote target workdir', [str]),
         KeyDesc('tools', 'List of tools to install on the target', [StrList]),
         LevelKeyDesc('wait-boot', 'Wait for the target to finish booting', (
-                KeyDesc('enable', 'Enable the boot check', [bool]),
-                KeyDesc('timeout', 'Timeout of the boot check', [int]),
+            KeyDesc('enable', 'Enable the boot check', [bool]),
+            KeyDesc('timeout', 'Timeout of the boot check', [int]),
         )),
         LevelKeyDesc('devlib', 'devlib configuration', (
             # Using textual name of the Platform allows this YAML configuration
@@ -161,6 +162,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
             }
         }
     }
+
 
 class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     """
@@ -264,23 +266,22 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         if name:
             self.plat_info.add_src('target-conf', dict(name=name))
 
-
         self._installed_tools = set()
         self.target = self._init_target(
-                kind=kind,
-                name=name,
-                workdir=workdir,
-                device=device,
-                host=host,
-                port=port,
-                username=username,
-                password=password,
-                keyfile=keyfile,
-                devlib_platform=devlib_platform,
-                devlib_excluded_modules=devlib_excluded_modules,
-                wait_boot=wait_boot,
-                wait_boot_timeout=wait_boot_timeout,
-            )
+            kind=kind,
+            name=name,
+            workdir=workdir,
+            device=device,
+            host=host,
+            port=port,
+            username=username,
+            password=password,
+            keyfile=keyfile,
+            devlib_platform=devlib_platform,
+            devlib_excluded_modules=devlib_excluded_modules,
+            wait_boot=wait_boot,
+            wait_boot_timeout=wait_boot_timeout,
+        )
 
         # Initialize binary tools to deploy
         if tools:
@@ -329,7 +330,8 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         .. note:: Devlib modules are loaded on demand when accessed.
         """
-        get = lambda: getattr(self.target, attr)
+
+        def get(): return getattr(self.target, attr)
 
         try:
             return get()
@@ -356,7 +358,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         return sorted(attrs)
 
     @classmethod
-    def from_conf(cls, conf:TargetConf, res_dir:ArtifactPath=None, plat_info:PlatformInfo=None) -> 'Target':
+    def from_conf(cls, conf: TargetConf, res_dir: ArtifactPath = None, plat_info: PlatformInfo = None) -> 'Target':
         cls.get_logger().info('Target configuration:\n{}'.format(conf))
         kwargs = cls.conf_to_init_kwargs(conf)
         kwargs['res_dir'] = res_dir
@@ -586,7 +588,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             conn_settings['port'] = port or self.SSH_PORT_DEFAULT
             conn_settings['host'] = host
 
-
             # Configure password or SSH keyfile
             if keyfile:
                 conn_settings['keyfile'] = keyfile
@@ -623,10 +624,10 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         ########################################################################
 
         target = devlib_target_cls(
-            platform = devlib_platform,
-            load_default_modules = False,
-            connection_settings = conn_settings,
-            working_directory = workdir,
+            platform=devlib_platform,
+            load_default_modules=False,
+            connection_settings=conn_settings,
+            working_directory=workdir,
             connect=False,
         )
 
@@ -699,7 +700,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
             # If we were given an ArtifactPath with an existing root, we
             # preserve that root so it can be relocated as the caller wants it
-            res_dir = ArtifactPath(root, os.path.join(relative,name))
+            res_dir = ArtifactPath(root, os.path.join(relative, name))
 
             # Compute base installation path
             logger.info('Creating result directory: %s', str(res_dir))
@@ -730,7 +731,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         return res_dir
 
-
     def install_tools(self, tools):
         """
         Install tools additional to those specified in the test config 'tools'
@@ -756,7 +756,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         for tool in tools_to_install - self._installed_tools:
             self.target.install(tool)
             self._installed_tools.add(tool)
-
 
     @contextlib.contextmanager
     def freeze_userspace(self):
@@ -830,37 +829,38 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     def get_tags(self):
         return {'board': self.name}
 
+
 class Gem5SimulationPlatformWrapper(Gem5SimulationPlatform):
     def __init__(self, system, simulator, **kwargs):
-            simulator_args = copy.copy(simulator.get('args', []))
-            system_platform = system['platform']
+        simulator_args = copy.copy(simulator.get('args', []))
+        system_platform = system['platform']
 
-            # Get gem5 binary arguments
-            simulator_args.append('--listener-mode=on')
+        # Get gem5 binary arguments
+        simulator_args.append('--listener-mode=on')
 
-            simulator_args.append(system_platform['description'])
-            simulator_args.extend(system_platform.get('args', []))
+        simulator_args.append(system_platform['description'])
+        simulator_args.extend(system_platform.get('args', []))
 
-            simulator_args += ['--kernel {}'.format(system['kernel']),
-                     '--dtb {}'.format(system['dtb']),
-                     '--disk-image {}'.format(system['disk'])]
+        simulator_args += ['--kernel {}'.format(system['kernel']),
+                 '--dtb {}'.format(system['dtb']),
+                 '--disk-image {}'.format(system['disk'])]
 
-            # Quote/escape arguments and build the command line
-            gem5_args = ' '.join(shlex.quote(a) for a in simulator_args)
+        # Quote/escape arguments and build the command line
+        gem5_args = ' '.join(shlex.quote(a) for a in simulator_args)
 
-            diod_path = which('diod')
-            if diod_path is None:
-                raise RuntimeError('Failed to find "diod" on your host machine, check your installation or your PATH variable')
+        diod_path = which('diod')
+        if diod_path is None:
+            raise RuntimeError('Failed to find "diod" on your host machine, check your installation or your PATH variable')
 
-            # Setup virtio
-            # Brackets are there to let the output dir be created automatically
-            virtio_args = '--which-diod={} --workload-automation-vio={{}}'.format(diod_path)
+        # Setup virtio
+        # Brackets are there to let the output dir be created automatically
+        virtio_args = '--which-diod={} --workload-automation-vio={{}}'.format(diod_path)
 
-            super().__init__(
-                gem5_args=gem5_args,
-                gem5_bin=simulator['bin'],
-                virtio_args=virtio_args,
-                **kwargs
-            )
+        super().__init__(
+            gem5_args=gem5_args,
+            gem5_bin=simulator['bin'],
+            virtio_args=virtio_args,
+            **kwargs
+        )
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

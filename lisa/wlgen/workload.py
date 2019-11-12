@@ -25,6 +25,7 @@ from devlib.utils.misc import list_to_mask
 
 from lisa.utils import Loggable, ArtifactPath
 
+
 class Workload(Loggable):
     """
     This is pretty much a wrapper around a command to execute on a target.

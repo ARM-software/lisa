@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Configuration file for the Sphinx documentation builder.
 #
@@ -36,4 +35,3 @@ man_pages = [
     (master_doc, 'lisa', 'LISA shell commands',
      [author], 1)
 ]
-

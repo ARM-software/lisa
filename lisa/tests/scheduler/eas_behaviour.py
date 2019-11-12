@@ -36,6 +36,7 @@ from lisa.trace import requires_events
 from lisa.target import Target
 from lisa.trace import FtraceCollector
 
+
 class EASBehaviour(RTATestBundle):
     """
     Abstract class for EAS behavioural testing.
@@ -66,7 +67,7 @@ class EASBehaviour(RTATestBundle):
             raise CannotCreateError("Energy model not available")
 
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, ftrace_coll:FtraceCollector=None) -> 'EASBehaviour':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None) -> 'EASBehaviour':
         """
         Factory method to create a bundle using a live target
 
@@ -97,6 +98,7 @@ class EASBehaviour(RTATestBundle):
         util_scale = nrg_model.capacity_scale
 
         transitions = {}
+
         def add_transition(time, task, util):
             if time not in transitions:
                 transitions[time] = {task: util}
@@ -292,11 +294,10 @@ class EASBehaviour(RTATestBundle):
             return pd.Series([power[c] for c in columns], index=columns)
         return self._sort_power_df_columns(df.apply(est_power, axis=1), nrg_model)
 
-
     @requires_events('sched_switch')
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_task_placement(self, energy_est_threshold_pct=5,
-            nrg_model:EnergyModel=None, capacity_margin_pct=20) -> ResultBundle:
+            nrg_model: EnergyModel = None, capacity_margin_pct=20) -> ResultBundle:
         """
         Test that task placement was energy-efficient
 
@@ -367,6 +368,7 @@ class EASBehaviour(RTATestBundle):
             )
         return res
 
+
 class OneSmallTask(EASBehaviour):
     """
     A single 'small' task
@@ -388,6 +390,7 @@ class OneSmallTask(EASBehaviour):
 
         return rtapp_profile
 
+
 class ThreeSmallTasks(EASBehaviour):
     """
     Three 'small' tasks
@@ -395,7 +398,7 @@ class ThreeSmallTasks(EASBehaviour):
     task_prefix = "small"
 
     @EASBehaviour.test_task_placement.used_events
-    def test_task_placement(self, energy_est_threshold_pct=20, nrg_model:EnergyModel=None,
+    def test_task_placement(self, energy_est_threshold_pct=20, nrg_model: EnergyModel = None,
                             noise_threshold_pct=1, noise_threshold_ms=None,
                             capacity_margin_pct=20) -> ResultBundle:
         """
@@ -430,6 +433,7 @@ class ThreeSmallTasks(EASBehaviour):
 
         return rtapp_profile
 
+
 class TwoBigTasks(EASBehaviour):
     """
     Two 'big' tasks
@@ -451,6 +455,7 @@ class TwoBigTasks(EASBehaviour):
             )
 
         return rtapp_profile
+
 
 class TwoBigThreeSmall(EASBehaviour):
     """
@@ -486,6 +491,7 @@ class TwoBigThreeSmall(EASBehaviour):
 
         return rtapp_profile
 
+
 class EnergyModelWakeMigration(EASBehaviour):
     """
     One task per big CPU, alternating between two phases:
@@ -516,6 +522,7 @@ class EnergyModelWakeMigration(EASBehaviour):
 
         return rtapp_profile
 
+
 class RampUp(EASBehaviour):
     """
     A single task whose utilization slowly ramps up
@@ -523,7 +530,7 @@ class RampUp(EASBehaviour):
     task_name = "up"
 
     @EASBehaviour.test_task_placement.used_events
-    def test_task_placement(self, energy_est_threshold_pct=15, nrg_model:EnergyModel=None,
+    def test_task_placement(self, energy_est_threshold_pct=15, nrg_model: EnergyModel = None,
                             noise_threshold_pct=1, noise_threshold_ms=None,
                             capacity_margin_pct=20) -> ResultBundle:
         """
@@ -551,7 +558,7 @@ class RampUp(EASBehaviour):
         end_pct = cls.unscaled_utilization(plat_info, bigs[0], 70)
 
         rtapp_profile = {
-            cls.task_name : Ramp(
+            cls.task_name: Ramp(
                 start_pct=start_pct,
                 end_pct=end_pct,
                 delta_pct=5,
@@ -562,6 +569,7 @@ class RampUp(EASBehaviour):
 
         return rtapp_profile
 
+
 class RampDown(EASBehaviour):
     """
     A single task whose utilization slowly ramps down
@@ -569,7 +577,7 @@ class RampDown(EASBehaviour):
     task_name = "down"
 
     @EASBehaviour.test_task_placement.used_events
-    def test_task_placement(self, energy_est_threshold_pct=18, nrg_model:EnergyModel=None,
+    def test_task_placement(self, energy_est_threshold_pct=18, nrg_model: EnergyModel = None,
                             noise_threshold_pct=1, noise_threshold_ms=None,
                             capacity_margin_pct=20) -> ResultBundle:
         """
@@ -605,7 +613,7 @@ class RampDown(EASBehaviour):
         end_pct = cls.unscaled_utilization(plat_info, littles[0], 10)
 
         rtapp_profile = {
-            cls.task_name : Ramp(
+            cls.task_name: Ramp(
                 start_pct=start_pct,
                 end_pct=end_pct,
                 delta_pct=5,

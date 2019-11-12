@@ -29,6 +29,7 @@ from lisa.datautils import df_squash
 from lisa.platforms.platinfo import PlatformInfo
 from .utils import StorageTestCase, ASSET_DIR
 
+
 class TraceTestCase(StorageTestCase):
     traces_dir = ASSET_DIR
     events = [
@@ -80,6 +81,7 @@ class TraceTestCase(StorageTestCase):
         path = os.path.join(trace_dir, 'plat_info.yml')
         return PlatformInfo.from_yaml_map(path)
 
+
 class TestTrace(TraceTestCase):
     """Smoke tests for LISA's Trace class"""
 
@@ -113,9 +115,9 @@ class TestTrace(TraceTestCase):
 
     def test_get_task_pid_names(self):
         for pid, names in [
-                (15, ['watchdog/1']),
-                (1639, ['sshd']),
-            ]:
+            (15, ['watchdog/1']),
+            (1639, ['sshd']),
+        ]:
             self.assertEqual(self.trace.get_task_pid_names(pid), names)
 
         with self.assertRaises(KeyError):
@@ -164,7 +166,7 @@ class TestTrace(TraceTestCase):
         data = [(1, i % 2) for i in range(15, 20)]
         df = pd.DataFrame(index=index, data=data, columns=['delta', 'state'])
 
-        ## Test "standard" slice:
+        # Test "standard" slice:
 
         # The df here should be:
         # Time delta state
@@ -180,7 +182,7 @@ class TestTrace(TraceTestCase):
         self.assertEqual(head['state'].values[0], 0)
         self.assertEqual(tail['state'].values[0], 1)
 
-        ## Test slice where no event exists in the interval
+        # Test slice where no event exists in the interval
 
         # The df here should be:
         # Time delta state
@@ -191,7 +193,7 @@ class TestTrace(TraceTestCase):
         self.assertAlmostEqual(df2['delta'].values[0], 0.6)
         self.assertEqual(df2['state'].values[0], 0)
 
-        ## Test slice that matches an event's index
+        # Test slice that matches an event's index
 
         # The df here should be:
         # Time delta state
@@ -202,7 +204,7 @@ class TestTrace(TraceTestCase):
         self.assertAlmostEqual(df3['delta'].values[0], 1)
         self.assertEqual(df3['state'].values[0], 0)
 
-        ## Test slice past last event
+        # Test slice past last event
         # The df here should be:
         # Time delta state
         # 19.5  .5  1
@@ -212,11 +214,11 @@ class TestTrace(TraceTestCase):
         self.assertAlmostEqual(df4['delta'].values[0], 0.5)
         self.assertEqual(df4['state'].values[0], 1)
 
-        ## Test slice where there's no past event
+        # Test slice where there's no past event
         df5 = df_squash(df, 10, 30)
         self.assertEqual(len(df5.index), 5)
 
-        ## Test slice where that should contain nothing
+        # Test slice where that should contain nothing
         df6 = df_squash(df, 8, 9)
         self.assertEqual(len(df6.index), 0)
 
@@ -295,8 +297,8 @@ class TestTrace(TraceTestCase):
 
         df = trace.analysis.idle.df_cpus_wakeups()
 
-        exp_index=[519.021928, 519.022641, 519.022642, 519.022643, 519.022867]
-        exp_cpus= [         4,          4,          1,          2,          3]
+        exp_index = [519.021928, 519.022641, 519.022642, 519.022643, 519.022867]
+        exp_cpus = [4, 4, 1, 2, 3]
         self.assertListEqual(df.index.tolist(), exp_index)
         self.assertListEqual(df.cpu.tolist(), exp_cpus)
 
@@ -349,7 +351,7 @@ class TestTrace(TraceTestCase):
           <idle>-0 [004] 380339000000: cpu_idle:             state=1 cpu_id=4
         """)
         df = trace.analysis.frequency.df_peripheral_clock_effective_rate(clk_name='bus_clk')
-        exp_effective_rate=[ float('NaN'), 750000000, 0.0, 750000000, 100000000, 0.0]
+        exp_effective_rate = [float('NaN'), 750000000, 0.0, 750000000, 100000000, 0.0]
         effective_rate = df['effective_rate'].tolist()
         self.assertEqual(len(exp_effective_rate), len(effective_rate))
 
@@ -357,7 +359,7 @@ class TestTrace(TraceTestCase):
             if (np.isnan(e)):
                 self.assertTrue(np.isnan(r))
                 continue
-            self.assertEqual(e,r)
+            self.assertEqual(e, r)
 
     def test_df_tasks_states(self):
         df = self.trace.analysis.tasks.df_tasks_states()
@@ -366,8 +368,8 @@ class TestTrace(TraceTestCase):
         # Proxy check for detecting delta computation changes
         self.assertAlmostEqual(df.delta.sum(), 207.705551)
 
-class TestTraceView(TraceTestCase):
 
+class TestTraceView(TraceTestCase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -412,6 +414,7 @@ class TestTraceView(TraceTestCase):
 
         self.assertAlmostEqual(trace.time_range, expected_duration)
 
+
 class TestNestedTraceView(TestTraceView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -424,6 +427,7 @@ class TestNestedTraceView(TestTraceView):
 
         self.trace = self.trace[self.trace.start:self.trace.end]
 
+
 class TestTraceNoClusterData(TestTrace):
     """
     Test Trace without cluster data
@@ -431,11 +435,13 @@ class TestTraceNoClusterData(TestTrace):
     Inherits from TestTrace, so all the tests are run again but with
     no cluster info the platform dict.
     """
+
     def _get_plat_info(self, trace_name=None):
-        plat_info = super(TestTraceNoClusterData, self)._get_plat_info(trace_name)
+        plat_info = super()._get_plat_info(trace_name)
         plat_info = copy.copy(plat_info)
         plat_info.force_src('freq-domains', ['SOURCE THAT DOES NOT EXISTS'])
         return plat_info
+
 
 class TestTraceNoPlatform(TestTrace):
     """
@@ -444,6 +450,7 @@ class TestTraceNoPlatform(TestTrace):
     Inherits from TestTrace, so all the tests are run again but with
     platform=None
     """
+
     def _get_plat_info(self, trace_name=None):
         return None
 

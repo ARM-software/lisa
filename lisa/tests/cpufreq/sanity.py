@@ -22,6 +22,7 @@ from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby, nullcontext
 from lisa.analysis.tasks import TasksAnalysis
 
+
 class UserspaceSanityItem(TestBundle):
     """
     Record the number of sysbench events on a given CPU at a given frequency.
@@ -35,7 +36,7 @@ class UserspaceSanityItem(TestBundle):
         self.work = work
 
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath, cpu, freq, switch_governor=True) -> 'UserspaceSanityItem':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath, cpu, freq, switch_governor=True) -> 'UserspaceSanityItem':
         """
         Create a :class:`UserspaceSanityItem` from a live :class:`lisa.target.Target`.
 
@@ -49,7 +50,6 @@ class UserspaceSanityItem(TestBundle):
             If that has been done in advance, not doing it for every item saves substantial time.
         :type switch_governor: bool
         """
-
 
         sysbench = Sysbench(target, "sysbench", res_dir)
 
@@ -76,7 +76,7 @@ class UserspaceSanity(TestBundle):
         self.sanity_items = sanity_items
 
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None,
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None,
                      freq_count_limit=5) -> 'UserspaceSanity':
         """
         Factory method to create a bundle using a live target
@@ -97,7 +97,7 @@ class UserspaceSanity(TestBundle):
 
                 if len(freqs) > freq_count_limit:
                     freqs = freqs[::len(freqs) // freq_count_limit +
-                                    (1 if len(freqs) % 2 else 0)]
+                                  (1 if len(freqs) % 2 else 0)]
 
                 for freq in freqs:
                     item_res_dir = ArtifactPath.join(res_dir, 'CPU{}@{}'.format(cpu, freq))

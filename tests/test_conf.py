@@ -30,6 +30,7 @@ class TestMultiSrcConfBase:
     """
     A test class that exercise various APIs of MultiSrcConf
     """
+
     def test_serialization(self):
         path = os.path.join(self.res_dir, "conf.serialized.yml")
         self.conf.to_path(path)
@@ -56,11 +57,13 @@ class TestMultiSrcConfBase:
     def test_deepcopy(self):
         self.assertEqual(dict(self.conf), dict(copy.deepcopy(self.conf)))
 
+
 class TestPlatformInfo(StorageTestCase, TestMultiSrcConfBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Make copies to avoid mutating the original one
         self.conf = copy.copy(HOST_PLAT_INFO)
+
 
 class TestTargetConf(StorageTestCase, TestMultiSrcConfBase):
     def __init__(self, *args, **kwargs):
@@ -68,8 +71,10 @@ class TestTargetConf(StorageTestCase, TestMultiSrcConfBase):
         # Make copies to avoid mutating the original one
         self.conf = copy.copy(HOST_TARGET_CONF)
 
+
 def compute_derived(base_conf):
     return base_conf['foo'] + sum(base_conf['bar']) + base_conf['sublevel']['subkey']
+
 
 INTERNAL_STRUCTURE = (
     KeyDesc('foo', 'foo help', [int]),
@@ -82,10 +87,12 @@ INTERNAL_STRUCTURE = (
         [['foo'], ['bar'], ['sublevel', 'subkey']], compute_derived),
 )
 
+
 class TestConf(MultiSrcConf):
     STRUCTURE = TopLevelKeyDesc('lisa-self-test-test-conf', 'lisa self test',
         INTERNAL_STRUCTURE
     )
+
 
 class TestConfWithDefault(MultiSrcConf):
     STRUCTURE = TopLevelKeyDesc('lisa-self-test-test-conf-with-default', 'lisa self test',
@@ -95,6 +102,7 @@ class TestConfWithDefault(MultiSrcConf):
     DEFAULT_SRC = {
         'bar': [0, 1, 2],
     }
+
 
 class TestMultiSrcConf(TestMultiSrcConfBase):
     def test_add_src_one_key(self):
@@ -118,6 +126,7 @@ class TestMultiSrcConf(TestMultiSrcConfBase):
         conf.add_src('mysrc', {'multitypes': 'a'})
         conf.add_src('mysrc', {'multitypes': [1, 2]})
         conf.add_src('mysrc', {'multitypes': None})
+
 
 class TestTestConf(StorageTestCase, TestMultiSrcConf):
     def __init__(self, *args, **kwargs):
@@ -144,7 +153,7 @@ class TestTestConf(StorageTestCase, TestMultiSrcConf):
 
     def test_force_src_nested(self):
         conf = copy.deepcopy(self.conf)
-        conf.add_src('mysrc', {'bar': [6,7]})
+        conf.add_src('mysrc', {'bar': [6, 7]})
 
         # Check without any actual source
         conf.force_src_nested({
@@ -160,7 +169,7 @@ class TestTestConf(StorageTestCase, TestMultiSrcConf):
         self.assertEqual(conf['bar'], [6, 7])
 
         # Add one source that was specified earlier, and that has priority
-        conf.add_src('mysrc2', {'bar': [99,100]})
+        conf.add_src('mysrc2', {'bar': [99, 100]})
         self.assertEqual(conf['bar'], [99, 100])
 
         # Reset the source priority, so the last source added will win
@@ -168,7 +177,7 @@ class TestTestConf(StorageTestCase, TestMultiSrcConf):
         self.assertEqual(conf['bar'], [99, 100])
 
         src_map = conf.get_src_map('bar')
-        self.assertEqual(list(src_map.keys()) , ['mysrc2', 'mysrc'])
+        self.assertEqual(list(src_map.keys()), ['mysrc2', 'mysrc'])
 
 
 class TestTestConfWithDefault(StorageTestCase, TestMultiSrcConf):
@@ -187,7 +196,7 @@ class TestTestConfWithDefault(StorageTestCase, TestMultiSrcConf):
         conf = copy.deepcopy(self.conf)
         # Since there is a default value for this key, it should not impact the
         # result
-        conf_src = {'bar': [1,2]}
+        conf_src = {'bar': [1, 2]}
 
         conf.add_src('bar', conf_src, fallback=True)
 

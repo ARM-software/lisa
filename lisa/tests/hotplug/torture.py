@@ -30,8 +30,10 @@ from lisa.target_script import TargetScript
 from lisa.target import Target
 from lisa.utils import ArtifactPath
 
+
 class CPUHPSequenceError(Exception):
     pass
+
 
 class HotplugBase(TestBundle):
     def __init__(self, plat_info, target_alive, hotpluggable_cpus, live_cpus):
@@ -109,7 +111,7 @@ class HotplugBase(TestBundle):
 
     @classmethod
     def _cpuhp_script(cls, target, res_dir, sequence, sleep_min_ms,
-                             sleep_max_ms, random_gen):
+                      sleep_max_ms, random_gen):
         """
         Generate a script consisting of a random sequence of hotplugs operations
 
@@ -131,13 +133,13 @@ class HotplugBase(TestBundle):
 
             # Sleep if necessary
             if sleep_max_ms > 0:
-                sleep_dur_sec = random_gen.randint(sleep_min_ms, sleep_max_ms)/1000.0
+                sleep_dur_sec = random_gen.randint(sleep_min_ms, sleep_max_ms) / 1000.0
                 script.append('sleep {}'.format(sleep_dur_sec))
 
         return script
 
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None, seed=None,
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, seed=None,
                      nr_operations=100, sleep_min_ms=10, sleep_max_ms=100,
                      max_cpus_off=sys.maxsize) -> 'HotplugBase':
         """
@@ -209,6 +211,7 @@ class HotplugBase(TestBundle):
         res.add_metric("number of dead CPUs", len(dead_cpus))
         return res
 
+
 class HotplugTorture(HotplugBase):
 
     @classmethod
@@ -229,9 +232,9 @@ class HotplugTorture(HotplugBase):
                 plug_way = 1
             elif not cur_off_cpus:
                 # Force plug OFF if all CPUs are on
-                plug_way = 0 # Plug OFF
+                plug_way = 0  # Plug OFF
             else:
-                plug_way = random_gen.randint(0,1)
+                plug_way = random_gen.randint(0, 1)
 
             src = cur_off_cpus if plug_way else cur_on_cpus
             dst = cur_on_cpus if plug_way else cur_off_cpus

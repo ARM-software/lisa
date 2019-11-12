@@ -26,6 +26,7 @@ from lisa.utils import memoized
 from lisa.datautils import df_filter_task_ids, series_rolling_apply
 from lisa.trace import requires_events
 
+
 class StateInt(int):
     """
     An tweaked int for :class:`lisa.analysis.tasks.TaskState`
@@ -46,6 +47,7 @@ class StateInt(int):
             int(self) | int(other),
             char=(self.char + other.char))
 
+
 class TaskState(StateInt, Enum):
     """
     Represents the task state as visible in sched_switch
@@ -53,30 +55,30 @@ class TaskState(StateInt, Enum):
     * Values are extracted from include/linux/sched.h
     * Chars are extracted from fs/proc/array.c:get_task_state()
     """
-    #pylint-suppress: bad-whitespace
-    TASK_RUNNING         = 0x0000, "R", "Running"
-    TASK_INTERRUPTIBLE   = 0x0001, "S", "Sleeping"
+    # pylint-suppress: bad-whitespace
+    TASK_RUNNING = 0x0000, "R", "Running"
+    TASK_INTERRUPTIBLE = 0x0001, "S", "Sleeping"
     TASK_UNINTERRUPTIBLE = 0x0002, "D", "Disk sleep"
     # __ has a special meaning in Python so let's not do that
-    TASK_STOPPED         = 0x0004, "T", "Stopped"
-    TASK_TRACED          = 0x0008, "t", "Tracing stop"
+    TASK_STOPPED = 0x0004, "T", "Stopped"
+    TASK_TRACED = 0x0008, "t", "Tracing stop"
 
-    EXIT_DEAD            = 0x0010, "X", "Dead"
-    EXIT_ZOMBIE          = 0x0020, "Z", "Zombie"
+    EXIT_DEAD = 0x0010, "X", "Dead"
+    EXIT_ZOMBIE = 0x0020, "Z", "Zombie"
 
     # Apparently not visible in traces
     # EXIT_TRACE           = (EXIT_ZOMBIE[0] | EXIT_DEAD[0])
 
-    TASK_PARKED          = 0x0040, "P", "Parked"
-    TASK_DEAD            = 0x0080, "I", "Idle"
-    TASK_WAKEKILL        = 0x0100
-    TASK_WAKING          = 0x0200, "W", "Waking" # LISA-only char definition
-    TASK_NOLOAD          = 0x0400
-    TASK_NEW             = 0x0800
-    TASK_STATE_MAX       = 0x1000
+    TASK_PARKED = 0x0040, "P", "Parked"
+    TASK_DEAD = 0x0080, "I", "Idle"
+    TASK_WAKEKILL = 0x0100
+    TASK_WAKING = 0x0200, "W", "Waking"  # LISA-only char definition
+    TASK_NOLOAD = 0x0400
+    TASK_NEW = 0x0800
+    TASK_STATE_MAX = 0x1000
 
     # LISA-only, used to differenciate runnable (R) vs running (A)
-    TASK_ACTIVE          = 0x2000, "A", "Active"
+    TASK_ACTIVE = 0x2000, "A", "Active"
 
     @classmethod
     def list_reported_states(cls):
@@ -110,6 +112,7 @@ class TaskState(StateInt, Enum):
             res += "+"
 
         return res
+
 
 class TasksAnalysis(TraceAnalysisBase):
     """
@@ -161,7 +164,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df = self.trace.df_events('sched_wakeup')
 
         wakeups = df.groupby('pid').count()["comm"]
-        df = pd.DataFrame(wakeups).rename(columns={"comm" : "wakeups"})
+        df = pd.DataFrame(wakeups).rename(columns={"comm": "wakeups"})
         df["comm"] = df.index.map(self._get_task_pid_name)
 
         return df
@@ -258,7 +261,7 @@ class TasksAnalysis(TraceAnalysisBase):
         prev_sw_df.rename(
             columns={
                 "prev_pid": "pid",
-                "prev_state" : "curr_state",
+                "prev_state": "curr_state",
                 "prev_comm": "comm",
             },
             inplace=True
@@ -275,12 +278,12 @@ class TasksAnalysis(TraceAnalysisBase):
 
         df = all_sw_df.append(wk_df, sort=False)
         df.sort_index(inplace=True)
-        df.rename(columns={'__cpu' : 'cpu'}, inplace=True)
+        df.rename(columns={'__cpu': 'cpu'}, inplace=True)
 
         # Move the target_cpu column to the 2nd position
         columns = df.columns.to_list()
         columns = columns[:1] + ["target_cpu"] + \
-                  [col for col in columns[1:] if col != "target_cpu"]
+            [col for col in columns[1:] if col != "target_cpu"]
 
         df = df[columns]
 
@@ -307,11 +310,11 @@ class TasksAnalysis(TraceAnalysisBase):
 
             index += time.index.to_list()
             deltas += list(time.values[1:] - time.values[:-1]) + \
-                      [self.trace.end - time.values[-1]]
+                [self.trace.end - time.values[-1]]
             states += list(state.values[1:]) + [state.values[-1]]
 
         merged_df = pd.DataFrame(index=index,
-                                 data={"delta" : deltas, "next_state" : states})
+                                 data={"delta": deltas, "next_state": states})
         merged_df.sort_index(inplace=True)
 
         df["delta"] = merged_df.delta
@@ -440,7 +443,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df = df[df.curr_state == TaskState.TASK_ACTIVE]
 
         residency_df = pd.DataFrame(df.groupby("cpu")["delta"].sum())
-        residency_df.rename(columns={"delta" : "runtime"}, inplace=True)
+        residency_df.rename(columns={"delta": "runtime"}, inplace=True)
 
         cpus_present = set(residency_df.index.unique())
 
@@ -614,14 +617,14 @@ class TasksAnalysis(TraceAnalysisBase):
         """
         df = self.df_tasks_total_residency(tasks, ascending, count)
         df.T.plot.barh(ax=axis, stacked=True)
-        axis.set_title("Stacked CPU residency of [{}] selected tasks"\
+        axis.set_title("Stacked CPU residency of [{}] selected tasks"
                        .format(len(df.index)))
         axis.set_ylabel("CPU")
         axis.set_xlabel("Runtime (s)")
         axis.grid(True)
-        axis.legend(loc='upper left',ncol=5, bbox_to_anchor=(0, -.15))
+        axis.legend(loc='upper left', ncol=5, bbox_to_anchor=(0, -.15))
 
-    def _plot_cpu_heatmap(self, x, y,  xbins, colorbar_label, cmap, **kwargs):
+    def _plot_cpu_heatmap(self, x, y, xbins, colorbar_label, cmap, **kwargs):
         """
         Plot some data in a heatmap-style 2d histogram
         """

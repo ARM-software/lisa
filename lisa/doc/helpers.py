@@ -39,6 +39,7 @@ from lisa.utils import get_subclasses
 from lisa.trace import MissingTraceEventError
 from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, KeyDesc, LevelKeyDesc
 
+
 class RecursiveDirective(Directive):
     """
     Base class helping nested parsing.
@@ -95,6 +96,7 @@ class ExecDirective(RecursiveDirective):
         out = stdout.getvalue()
         return self.parse_nested(out)
 
+
 directives.register_directive('exec', ExecDirective)
 
 
@@ -142,6 +144,7 @@ class RunCommandDirective(RecursiveDirective):
         ).stdout.decode('utf-8')
 
         return self.parse_nested(out, cmd)
+
 
 directives.register_directive('run-command', RunCommandDirective)
 
@@ -301,6 +304,7 @@ def find_dead_links(content):
     }
     return errors
 
+
 def check_dead_links(filename):
     """
     Check ``filename`` for broken links, and raise an exception if there is any.
@@ -314,6 +318,6 @@ def check_dead_links(filename):
             '\n  '.join(
                 '{}: {}'.format(url, error)
                 for url, error in dead_links.items()
-        )))
+            )))
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

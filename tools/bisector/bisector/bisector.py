@@ -93,12 +93,13 @@ def mask_signals(unblock=False):
         signal.SIGHUP,
     })
 
+
 def filter_keys(mapping, remove=None, keep=None):
     return {
         k: v
         for k, v in mapping.items()
         if (
-                (remove is None or k not in remove)
+            (remove is None or k not in remove)
             and (keep is None or k in keep)
         )
     }
@@ -116,7 +117,10 @@ def natural_sort_key(s):
             return s
     return tuple(parse_int(x) for x in re.split(r'(\d+)', s))
 
+
 sig_exception_lock = threading.Lock()
+
+
 def raise_sig_exception(sig, frame):
     """Turn some signals into exceptions that can be caught by user code."""
     # Mask signals here to avoid killing the process when it is handling the
@@ -141,6 +145,7 @@ def raise_sig_exception(sig, frame):
     else:
         return
 
+
 signal.signal(signal.SIGTERM, raise_sig_exception)
 signal.signal(signal.SIGINT, raise_sig_exception)
 signal.signal(signal.SIGHUP, raise_sig_exception)
@@ -148,6 +153,7 @@ signal.signal(signal.SIGHUP, raise_sig_exception)
 # Upon catching these interrupts, the script will cleanly exit and will save
 # the current state to a report.
 SILENT_EXCEPTIONS = (KeyboardInterrupt, BrokenPipeError)
+
 
 class MLString:
     """
@@ -157,6 +163,7 @@ class MLString:
     used. Note that these methods will return a rendered string and will not
     modify the object itself.
     """
+
     def __init__(self, lines=None, empty=False):
         self._empty = empty
         self._line_list = list(lines) if lines else []
@@ -176,13 +183,14 @@ class MLString:
             filler = separator
 
         split_regex = re.compile(separator)
+
         def do_split(line):
             return (cell for cell in split_regex.split(line) if cell)
 
         # "Transpose" the list of lines into a list of columns
         table_cols = list(itertools.zip_longest(
-                *(do_split(line) for line in self._line_list),
-                fillvalue=''
+            *(do_split(line) for line in self._line_list),
+            fillvalue=''
         ))
 
         # Compute the width of each column according to the longest cell in it
@@ -234,6 +242,7 @@ class MLString:
         """Make all strings methods available."""
         return getattr(str(self), attr)
 
+
 class BisectRet(enum.Enum):
     """
     Git bisect return code as described in git bisect run documentation.
@@ -269,6 +278,7 @@ class BisectRet(enum.Enum):
         name = constructor.construct_scalar(node)
         return cls.__members__[name]
 
+
 # monkey-patch the class since class attributes defined in the class's scope
 # are post-processed by the enum.Enum metaclass. That means we use
 # register_class() instead of ruamel.yaml.yaml_object() decorator as well.
@@ -277,6 +287,7 @@ BisectRet.yaml_tag = '!git-bisect'
 # This will map to an "abort" meaning for "git bisect run"
 GENERIC_ERROR_CODE = 254
 assert GENERIC_ERROR_CODE not in (e.value for e in BisectRet)
+
 
 def parse_step_options(opts_seq):
     """
@@ -298,7 +309,7 @@ def parse_step_options(opts_seq):
     options_map = collections.OrderedDict()
 
     for opt in opts_seq:
-        step_k_v = opt.split('=',  1)
+        step_k_v = opt.split('=', 1)
 
         step_k = step_k_v[0]
         step_k = step_k.split('.', 1)
@@ -316,6 +327,7 @@ def parse_step_options(opts_seq):
 
     return options_map
 
+
 def parse_iterations(opt):
     """Parse a string representing the number of iterations to be run.
     Special value "inf" means infinite number of iterations.
@@ -332,6 +344,7 @@ def parse_iterations(opt):
 
     return i
 
+
 def parse_timeout(timeout):
     """Parse a string representing a timeout.
 
@@ -341,7 +354,7 @@ def parse_timeout(timeout):
     if timeout is None or timeout == 'inf':
         return 0
 
-    kwargs_map = {'h': 'hours', 'm': 'minutes', 's':'seconds'}
+    kwargs_map = {'h': 'hours', 'm': 'minutes', 's': 'seconds'}
     suffix = timeout[-1]
     if suffix.isdigit():
         arg_name = kwargs_map['s']
@@ -428,23 +441,28 @@ class Param(abc.ABC):
         """
         pass
 
+
 class TimeoutParam(Param):
     """Step parameter holding a timeout value."""
     type_desc = 'int or "inf"'
+
     def parse_str(self, val):
         return parse_timeout(val)
 
     def validate_val(self, val):
         return isinstance(val, numbers.Integral)
 
+
 class IterationParam(Param):
     """Step parameter holding a number of iterations."""
     type_desc = 'int or "inf"'
+
     def parse_str(self, val):
         return parse_iterations(val)
 
     def validate_val(self, val):
         return isinstance(val, numbers.Integral) or val == 'inf'
+
 
 class BoolOrStrParam(Param):
     """Step parameter holding a string."""
@@ -469,17 +487,21 @@ class BoolOrStrParam(Param):
     def validate_val(self, val):
         return isinstance(val, str) or isinstance(val, bool)
 
+
 class CommaListParam(Param):
     """Step parameter holding a comma-separated list of strings."""
     type_desc = 'comma-separated list'
+
     def parse_str(self, val):
         return val.split(',')
 
     def validate_val(self, val):
         return all(isinstance(v, str) for v in val)
 
+
 class CommaListRangesParam(CommaListParam):
     type_desc = 'comma-separated list of integer ranges'
+
     def parse_str(self, val):
         ranges = super().parse_str(val)
 
@@ -491,12 +513,13 @@ class CommaListRangesParam(CommaListParam):
                 first = spec
                 last = spec
 
-            values.extend(i for i in range(int(first), int(last)+1))
+            values.extend(i for i in range(int(first), int(last) + 1))
 
         return values
 
     def validate_val(self, val):
         return all(isinstance(v, numbers.Integral) for v in val)
+
 
 class EnvListParam(Param):
     """Step parameter holding a list of environment variables values."""
@@ -537,18 +560,22 @@ class EnvListParam(Param):
             )
         )
 
+
 class IntParam(Param):
     """Step parameter holding an integer."""
     type_desc = 'int'
+
     def parse_str(self, val):
         return int(val)
 
     def validate_val(self, val):
         return isinstance(val, numbers.Integral)
 
+
 class BoolParam(Param):
     """Step parameter holding a boolean value."""
     type_desc = 'bool'
+
     def parse_str(self, val):
         val = val.lower()
         return (
@@ -563,6 +590,7 @@ class BoolParam(Param):
     def validate_val(self, val):
         return isinstance(val, bool)
 
+
 class ChoiceOrBoolParam(Param):
     """
     Step parameter holding a boolean value or an item chosen among a predefined
@@ -572,7 +600,7 @@ class ChoiceOrBoolParam(Param):
     @property
     def type_desc(self):
         return '{choices} or bool'.format(
-            choices = ','.join(
+            choices=','.join(
                 '"{choice}"'.format(choice=choice)
                 for choice in self.choices
             )
@@ -591,21 +619,26 @@ class ChoiceOrBoolParam(Param):
     def validate_val(self, val):
         return isinstance(val, bool) or val in self.choices
 
+
 def info(msg):
     """Write a log message at the INFO level."""
     BISECTOR_LOGGER.info(msg)
+
 
 def debug(msg):
     """Write a log message at the DEBUG level."""
     BISECTOR_LOGGER.debug(msg)
 
+
 def warn(msg):
     """Write a log message at the WARNING level."""
     BISECTOR_LOGGER.warning(msg)
 
+
 def error(msg):
     """Write a log message at the ERROR level."""
     BISECTOR_LOGGER.error(msg)
+
 
 class _DefaultType:
     """
@@ -635,8 +668,10 @@ class _DefaultType:
     def __repr__(self):
         return str(self)
 
+
 # Default is a singleton like None
 Default = _DefaultType()
+
 
 class SerializableMeta(type):
     """
@@ -685,6 +720,7 @@ class SerializableMeta(type):
         # underlying dictionary for the given class only.
         cls.attr_init[attr] = val
 
+
 class Serializable(metaclass=SerializableMeta):
     """
     Base class of all serializable classes.
@@ -696,7 +732,7 @@ class Serializable(metaclass=SerializableMeta):
 
     # Default, should be overriden by subclasses
     attr_init = dict(
-        name = None,
+        name=None,
     )
     """All keys of this dictionary will be copied into fresh instance attributes
     when the class is instantiated.
@@ -788,8 +824,8 @@ class StepResult(StepResultBase):
 
         self.res_list = [
             {
-              'ret': int(ret) if ret is not None else None,
-              'log': self._format_log(log),
+                'ret': int(ret) if ret is not None else None,
+                'log': self._format_log(log),
             }
             for ret, log in res_list
         ]
@@ -819,9 +855,10 @@ class StepResult(StepResultBase):
         # double-quoted string so we just remove these white spaces before new
         # lines. This should not be an issue for the log.
         return '\n'.join(
-            line.rstrip().replace('\t', ' '*4)
+            line.rstrip().replace('\t', ' ' * 4)
             for line in log.decode().splitlines()
         )
+
 
 def terminate_process(p, kill_timeout):
     """
@@ -835,6 +872,7 @@ def terminate_process(p, kill_timeout):
             time.sleep(kill_timeout)
             p.kill()
             time.sleep(0.1)
+
 
 def read_stdout(p, timeout=None, kill_timeout=3):
     """
@@ -903,11 +941,13 @@ def read_stdout(p, timeout=None, kill_timeout=3):
 
     return (ret, b''.join(stdout_list))
 
+
 def write_stdout(txt):
     sys.stdout.buffer.write(txt)
     sys.stdout.buffer.flush()
     LOG_FILE.buffer.write(txt)
     LOG_FILE.buffer.flush()
+
 
 def call_process(cmd, *args, merge_stderr=True, **kwargs):
     """
@@ -928,6 +968,7 @@ def call_process(cmd, *args, merge_stderr=True, **kwargs):
         e.stdout = e.stdout.decode()
         raise
 
+
 def git_cleanup(repo='./'):
     """Forcefully clean and reset a git repository."""
     info('Cleaning up git worktree (git reset --hard and git clean -fdx) ...')
@@ -936,6 +977,7 @@ def git_cleanup(repo='./'):
         call_process(['git', '-C', repo, 'clean', '-fdx'])
     except subprocess.CalledProcessError as e:
         warn('Failed to clean git worktree: {e}'.format(e=e))
+
 
 @contextlib.contextmanager
 def enforce_git_cleanup(do_cleanup=True, repo='./'):
@@ -948,6 +990,7 @@ def enforce_git_cleanup(do_cleanup=True, repo='./'):
     yield
     if do_cleanup:
         git_cleanup(repo=repo)
+
 
 def get_git_sha1(repo='./', ref='HEAD', abbrev=12):
     """Get the SHA1 of given ref in the given git repository.
@@ -962,6 +1005,7 @@ def get_git_sha1(repo='./', ref='HEAD', abbrev=12):
         err = e.stdout.replace('\n', '. ')
         debug('{repo} is not a Git repository: {err}'.format(repo=repo, err=err))
         return '<commit sha1 not available>'
+
 
 def get_steps_kwarg_parsers(cls, method_name):
     """
@@ -979,6 +1023,7 @@ def get_steps_kwarg_parsers(cls, method_name):
     method = getattr(cls, method_name)
     meth_options = cls.options.get(method_name, dict())
     return meth_options
+
 
 def get_step_kwargs(step_cat, step_name, cls, method_name, user_options):
     """
@@ -1014,6 +1059,7 @@ def get_step_kwargs(step_cat, step_name, cls, method_name, user_options):
     }
 
     return kwargs
+
 
 class StepMeta(abc.ABCMeta, type(Serializable)):
     """
@@ -1066,24 +1112,27 @@ class StepMeta(abc.ABCMeta, type(Serializable)):
                     bound_args.arguments[param] = parser.parse(val)
                 except Exception as e:
                     raise ValueError('Invalid value format "{val}" for option "{param}": {e}'.format(
-                        e = e,
-                        param = param,
-                        val = val,
+                        e=e,
+                        param=param,
+                        val=val,
                     )) from e
 
             # Call the wrapped method with the preprocessed values.
             return method(*bound_args.args, **bound_args.kwargs)
         return wrapper
 
+
 class IterationCounterStack(list):
     """list subclass that can be pretty printed as dot-separated list.
     This is intended to be used for nested iteration counters.
     """
+
     def __format__(self, fmt):
         return str(self).__format__(fmt)
 
     def __str__(self):
         return '.'.join(str(i) for i in self)
+
 
 class StepABC(Serializable, metaclass=StepMeta):
     """
@@ -1092,9 +1141,9 @@ class StepABC(Serializable, metaclass=StepMeta):
     """
 
     options = dict(
-        __init__ = {},
-        report = dict(
-            verbose = BoolParam('Increase verbosity'),
+        __init__={},
+        report=dict(
+            verbose=BoolParam('Increase verbosity'),
         ),
     )
 
@@ -1138,50 +1187,50 @@ class StepBase(StepABC):
     # Class attributes will not be serialized, which makes the YAML report less
     # cluttered and limits the damages when removing attributes.
     attr_init = dict(
-        cat = '<no category>',
-        name = '<no name>',
-        shell = '/bin/bash',
-        trials = 1,
-        cmd = '',
-        timeout = parse_timeout('inf'),
+        cat='<no category>',
+        name='<no name>',
+        shell='/bin/bash',
+        trials=1,
+        cmd='',
+        timeout=parse_timeout('inf'),
         # After sending SIGTERM, wait for kill_timeout and if the process is not
         # dead yet, send SIGKILL
-        kill_timeout = 3,
-        bail_out = True,
+        kill_timeout=3,
+        bail_out=True,
         # Use systemd-run to avoid escaping daemons.
-        use_systemd_run = False,
-        env = collections.OrderedDict(),
+        use_systemd_run=False,
+        env=collections.OrderedDict(),
     )
     options = dict(
-        __init__ = dict(
-            cmd = BoolOrStrParam('shell command to be executed'),
-            shell = BoolOrStrParam('shell to execute the command in'),
-            trials = IntParam('number of times the command will be retried if it does not return 0'),
-            timeout = TimeoutParam('timeout in seconds before sending SIGTERM to the command, or "inf" for infinite timeout'),
-            kill_timeout = TimeoutParam('time to wait before sending SIGKILL after having sent SIGTERM'),
-            bail_out = BoolParam('start a new iteration if the command fails, without executing remaining steps for this iteration'),
-            use_systemd_run = BoolParam('use systemd-run to run the command. This allows cleanup of daemons spawned by the command (using cgroups), and using a private /tmp that is also cleaned up automatically'),
-            env = EnvListParam('environment variables with a list of values that will be used for each iterations, wrapping around. The string format is: VAR1=val1%val2%...%%VAR2=val1%val2%.... In YAML, it is a map of var names to list of values. A single string can be supplied instead of a list of values.'),
+        __init__=dict(
+            cmd=BoolOrStrParam('shell command to be executed'),
+            shell=BoolOrStrParam('shell to execute the command in'),
+            trials=IntParam('number of times the command will be retried if it does not return 0'),
+            timeout=TimeoutParam('timeout in seconds before sending SIGTERM to the command, or "inf" for infinite timeout'),
+            kill_timeout=TimeoutParam('time to wait before sending SIGKILL after having sent SIGTERM'),
+            bail_out=BoolParam('start a new iteration if the command fails, without executing remaining steps for this iteration'),
+            use_systemd_run=BoolParam('use systemd-run to run the command. This allows cleanup of daemons spawned by the command (using cgroups), and using a private /tmp that is also cleaned up automatically'),
+            env=EnvListParam('environment variables with a list of values that will be used for each iterations, wrapping around. The string format is: VAR1=val1%val2%...%%VAR2=val1%val2%.... In YAML, it is a map of var names to list of values. A single string can be supplied instead of a list of values.'),
         ),
-        report = dict(
-            verbose = BoolParam('increase verbosity'),
-            show_basic = BoolParam('show command exit status for all iterations'),
-            ignore_non_issue = BoolParam('consider only iteration with non-zero command exit status'),
-            iterations = CommaListRangesParam('comma-separated list of iterations to consider. Inclusive ranges can be specified with <first>-<last>'),
-            export_logs = BoolOrStrParam('export the logs to the given directory'),
+        report=dict(
+            verbose=BoolParam('increase verbosity'),
+            show_basic=BoolParam('show command exit status for all iterations'),
+            ignore_non_issue=BoolParam('consider only iteration with non-zero command exit status'),
+            iterations=CommaListRangesParam('comma-separated list of iterations to consider. Inclusive ranges can be specified with <first>-<last>'),
+            export_logs=BoolOrStrParam('export the logs to the given directory'),
         )
     )
 
     def __init__(self, name=Default, cat=Default,
-            cmd = Default,
-            shell = Default,
-            trials = Default,
-            timeout = Default,
-            kill_timeout = Default,
-            bail_out = Default,
-            use_systemd_run = Default,
-            env = Default,
-        ):
+                cmd=Default,
+                shell=Default,
+                trials=Default,
+                timeout=Default,
+                kill_timeout=Default,
+                bail_out=Default,
+                use_systemd_run=Default,
+                env=Default,
+            ):
         # Only assign the instance attribute if it is not the default coming
         # from the class attribute.
         self.cat = cat
@@ -1219,7 +1268,7 @@ class StepBase(StepABC):
         base_list = [
             base.name for base in inspect.getmro(cls)
             if issubclass(base, StepBase) and not (
-                   base is StepBase
+                base is StepBase
                 or base is cls
             )
         ]
@@ -1227,7 +1276,7 @@ class StepBase(StepABC):
             out('Inherits from: ' + ', '.join(base_list) + '\n')
 
         if cls.__doc__:
-            out(indent + textwrap.dedent(cls.__doc__).strip().replace('\n', '\n'+indent) + '\n')
+            out(indent + textwrap.dedent(cls.__doc__).strip().replace('\n', '\n' + indent) + '\n')
 
         for pretty, method_name in (
                 ('run', '__init__'),
@@ -1240,13 +1289,13 @@ class StepBase(StepABC):
             for name, param in sorted(parser_map.items(), key=lambda k_v: k_v[0]):
                 name = name.replace('_', '-')
                 opt_header = indent + '  -o {name}= ({type_desc}) '.format(
-                    name = name,
-                    type_desc = param.type_desc,
+                    name=name,
+                    type_desc=param.type_desc,
                 )
 
                 content_indent = indent * 3
-                opt_content = ('\n'+content_indent).join(
-                    textwrap.wrap(param.help, width=80-len(content_indent))
+                opt_content = ('\n' + content_indent).join(
+                    textwrap.wrap(param.help, width=80 - len(content_indent))
                 )
 
                 out(opt_header + '\n' + content_indent + opt_content + '\n')
@@ -1304,11 +1353,10 @@ class StepBase(StepABC):
                 cmd = self.cmd.encode('utf-8')
                 shell_exe = self.shell
 
-
             info('Starting (#{j}) {self.cat} step ({self.name}): {cmd_str} ...'.format(
-                self = self,
-                cmd_str = cmd_str,
-                j = j
+                self=self,
+                cmd_str=cmd_str,
+                j=j
             ))
 
             temp_env = copy.copy(env)
@@ -1328,20 +1376,20 @@ class StepBase(StepABC):
             p = None
             try:
                 p = subprocess.Popen(
-                        args = cmd,
-                        stdout = subprocess.PIPE,
-                        # It is necessary to merge stdout and
-                        # stderr to avoid garbage output with a
-                        # mix of stdout and stderr.
-                        stderr = subprocess.STDOUT,
-                        shell = shell_exe is not None,
-                        executable = shell_exe,
-                        # Unbuffered output, necessary to avoid issues in
-                        # read_stdout()
-                        bufsize = 0,
-                        close_fds = True,
-                        env = temp_env,
-                    )
+                    args=cmd,
+                    stdout=subprocess.PIPE,
+                    # It is necessary to merge stdout and
+                    # stderr to avoid garbage output with a
+                    # mix of stdout and stderr.
+                    stderr=subprocess.STDOUT,
+                    shell=shell_exe is not None,
+                    executable=shell_exe,
+                    # Unbuffered output, necessary to avoid issues in
+                    # read_stdout()
+                    bufsize=0,
+                    close_fds=True,
+                    env=temp_env,
+                )
 
                 returncode, stdout = read_stdout(p, self.timeout, self.kill_timeout)
                 timed_out = returncode is None
@@ -1365,7 +1413,6 @@ class StepBase(StepABC):
                     else:
                         terminate_process(p, self.kill_timeout)
 
-
             # Record the results
             # None returncode means it timed out
             res_list.append((returncode, stdout))
@@ -1373,8 +1420,8 @@ class StepBase(StepABC):
             # It timed out
             if timed_out:
                 info('{self.cat} step ({self.name}) timed out after {timeout}.'.format(
-                    self = self,
-                    timeout = datetime.timedelta(seconds=self.timeout),
+                    self=self,
+                    timeout=datetime.timedelta(seconds=self.timeout),
                 ))
                 if self.trials - j >= 1:
                     info('retrying (#{j}) ...'.format(j=j))
@@ -1397,8 +1444,8 @@ class StepBase(StepABC):
         last_ret = res_list[-1][0]
         if last_ret is None:
             exit_reason = 'timed out after {timeout}{trial_status}'.format(
-                timeout = datetime.timedelta(seconds=self.timeout),
-                trial_status = trial_status,
+                timeout=datetime.timedelta(seconds=self.timeout),
+                trial_status=trial_status,
             )
         else:
             exit_reason = 'exit status {last_ret}{trial_status}'.format(**locals())
@@ -1408,9 +1455,9 @@ class StepBase(StepABC):
 
     def run(self, i_stack, service_hub):
         return StepResult(
-            step = self,
-            res_list = self._run_cmd(i_stack),
-            bisect_ret = BisectRet.NA,
+            step=self,
+            res_list=self._run_cmd(i_stack),
+            bisect_ret=BisectRet.NA,
         )
 
     def _get_exported_logs_dir(self, base_dir, i_stack):
@@ -1429,12 +1476,12 @@ class StepBase(StepABC):
         return dirname
 
     def report(self, step_res_seq, service_hub,
-            verbose = False,
-            show_basic = True,
-            ignore_non_issue = False,
-            iterations = [],
-            export_logs = False
-        ):
+               verbose=False,
+               show_basic=True,
+               ignore_non_issue=False,
+               iterations=[],
+               export_logs=False
+            ):
         """Print out a report for a list of executions results created using
         the run() method.
         """
@@ -1464,8 +1511,8 @@ class StepBase(StepABC):
                         continue
 
                     log_name = 'log_{trial}_{ret}'.format(
-                        ret = ret,
-                        trial = trial,
+                        ret=ret,
+                        trial=trial,
                     )
 
                     log_path = self._get_exported_logs_dir(export_logs, i_stack)
@@ -1476,19 +1523,20 @@ class StepBase(StepABC):
                         f.write('-' * 12 + '\nExit status: ' + str(trial_res['ret']) + '\n')
 
             if (not verbose and res.ret == 0 and
-                    (res.bisect_ret == BisectRet.GOOD
-                    or res.bisect_ret == BisectRet.NA)
-                ):
+                (res.bisect_ret == BisectRet.GOOD
+                 or res.bisect_ret == BisectRet.NA)
+                    ):
                 if not ignore_non_issue:
                     out('#{i_stack: <2}: OK'.format(i_stack=i_stack))
             else:
                 out('#{i_stack: <2}: returned {ret}, bisect {res.bisect_ret.lower_name}'.format(
-                    ret = res.ret if res.ret is not None else '<timeout>',
-                    res = res,
-                    i_stack = i_stack,
+                    ret=res.ret if res.ret is not None else '<timeout>',
+                    res=res,
+                    i_stack=i_stack,
                 ))
 
         return out
+
 
 class YieldStep(StepBase):
     """
@@ -1503,23 +1551,23 @@ class YieldStep(StepBase):
     yaml_tag = '!yield-step'
 
     attr_init = dict(
-        cat = 'yield',
-        name = 'yield',
-        every_n_iterations = 1,
-        cmd = 'exit 1',
+        cat='yield',
+        name='yield',
+        every_n_iterations=1,
+        cmd='exit 1',
     )
 
     options = dict(
-        __init__ = dict(
-            every_n_iterations = IntParam('The step will be a no-op except if the iteration number can be evenly divided by that value.'),
+        __init__=dict(
+            every_n_iterations=IntParam('The step will be a no-op except if the iteration number can be evenly divided by that value.'),
             **StepBase.options['__init__']
         )
     )
 
     def __init__(self,
-            every_n_iterations = Default,
-            **kwargs
-        ):
+                every_n_iterations=Default,
+                **kwargs
+            ):
         super().__init__(**kwargs)
         self.every_n_iterations = every_n_iterations
 
@@ -1532,17 +1580,18 @@ class YieldStep(StepBase):
             ret = res_list[-1][0]
             bisect_ret = BisectRet.YIELD if ret != 0 else BisectRet.NA
             step_res = StepResult(
-                step = self,
-                res_list = res_list,
-                bisect_ret = bisect_ret,
+                step=self,
+                res_list=res_list,
+                bisect_ret=bisect_ret,
             )
         else:
             step_res = StepResult(
-                step = self,
-                res_list = [(0, b'<skipped>')],
-                bisect_ret = BisectRet.NA,
+                step=self,
+                res_list=[(0, b'<skipped>')],
+                bisect_ret=BisectRet.NA,
             )
         return step_res
+
 
 class ShellStep(StepBase):
     """
@@ -1553,9 +1602,10 @@ class ShellStep(StepBase):
     """
     yaml_tag = '!shell-step'
     attr_init = dict(
-        cat = 'shell',
-        name = 'shell',
+        cat='shell',
+        name='shell',
     )
+
 
 class TestShellStep(ShellStep):
     """
@@ -1566,8 +1616,8 @@ class TestShellStep(ShellStep):
     """
     yaml_tag = '!test-step'
     attr_init = dict(
-        cat = 'test',
-        name = 'test',
+        cat='test',
+        name='test',
     )
 
     def run(self, i_stack, service_hub):
@@ -1579,10 +1629,11 @@ class TestShellStep(ShellStep):
         bisect_ret = BisectRet.BAD if ret != 0 else BisectRet.GOOD
 
         return StepResult(
-            step = self,
-            res_list = res_list,
-            bisect_ret = bisect_ret,
+            step=self,
+            res_list=res_list,
+            bisect_ret=bisect_ret,
         )
+
 
 class BuildStep(ShellStep):
     """
@@ -1593,8 +1644,8 @@ class BuildStep(ShellStep):
     """
     yaml_tag = '!build-step'
     attr_init = dict(
-        cat = 'build',
-        name = 'build',
+        cat='build',
+        name='build',
     )
 
     def run(self, i_stack, service_hub):
@@ -1608,10 +1659,11 @@ class BuildStep(ShellStep):
             bisect_ret = BisectRet.GOOD
 
         return StepResult(
-            step = self,
-            res_list = res_list,
-            bisect_ret = bisect_ret,
+            step=self,
+            res_list=res_list,
+            bisect_ret=bisect_ret,
         )
+
 
 class FlashStep(ShellStep):
     """
@@ -1622,8 +1674,8 @@ class FlashStep(ShellStep):
     """
     yaml_tag = '!flash-step'
     attr_init = dict(
-        cat = 'flash',
-        name = 'flash',
+        cat='flash',
+        name='flash',
     )
 
     def run(self, i_stack, service_hub):
@@ -1639,10 +1691,11 @@ class FlashStep(ShellStep):
         bisect_ret = BisectRet.ABORT if all_failed else BisectRet.NA
 
         return StepResult(
-            step = self,
-            res_list = res_list,
-            bisect_ret = bisect_ret,
+            step=self,
+            res_list=res_list,
+            bisect_ret=bisect_ret,
         )
+
 
 class RebootStep(ShellStep):
     """
@@ -1653,8 +1706,8 @@ class RebootStep(ShellStep):
     """
     yaml_tag = '!reboot-step'
     attr_init = dict(
-        cat = 'boot',
-        name = 'reboot',
+        cat='boot',
+        name='reboot',
     )
 
     def run(self, i_stack, service_hub):
@@ -1669,12 +1722,13 @@ class RebootStep(ShellStep):
         bisect_ret = BisectRet.ABORT if last_boot_failed else BisectRet.GOOD
 
         res = StepResult(
-            step = self,
-            res_list = res_list,
-            bisect_ret = bisect_ret,
+            step=self,
+            res_list=res_list,
+            bisect_ret=bisect_ret,
         )
 
         return res
+
 
 class ExekallStepResult(StepResult):
     """
@@ -1686,7 +1740,7 @@ class ExekallStepResult(StepResult):
     """
     yaml_tag = '!exekall-step-result'
     attr_init = dict(
-        name = 'LISA-test',
+        name='LISA-test',
     )
 
     def __init__(self, results_path, db, **kwargs):
@@ -1726,55 +1780,55 @@ class LISATestStep(ShellStep):
     # needed without breaking the tag compat
     yaml_tag = '!exekall-LISA-test-step'
     attr_init = dict(
-        cat = 'test',
-        name = 'LISA-test',
-        compress_artifact = True,
-        upload_artifact = False,
-        delete_artifact = False,
-        prune_db = True,
-        cmd = 'lisa-test',
+        cat='test',
+        name='LISA-test',
+        compress_artifact=True,
+        upload_artifact=False,
+        delete_artifact=False,
+        prune_db=True,
+        cmd='lisa-test',
     )
 
     options = dict(
-        __init__ = dict(
-            compress_artifact = BoolParam('compress the exekall artifact directory in an archive'),
-            upload_artifact = BoolParam('upload the exekall artifact directory to Artifactorial as the execution goes, and delete the local archive.'),
-            delete_artifact = BoolParam('delete the exekall artifact directory to Artifactorial as the execution goes.'),
-            prune_db = BoolParam("Prune exekall's ValueDB so that only roots values are preserved. That allows smaller reports that are faster to load"),
+        __init__=dict(
+            compress_artifact=BoolParam('compress the exekall artifact directory in an archive'),
+            upload_artifact=BoolParam('upload the exekall artifact directory to Artifactorial as the execution goes, and delete the local archive.'),
+            delete_artifact=BoolParam('delete the exekall artifact directory to Artifactorial as the execution goes.'),
+            prune_db=BoolParam("Prune exekall's ValueDB so that only roots values are preserved. That allows smaller reports that are faster to load"),
             # Some options are not supported
             **filter_keys(StepBase.options['__init__'], remove={'trials'}),
         ),
-        report = dict(
-            verbose = StepBase.options['report']['verbose'],
-            show_basic = StepBase.options['report']['show_basic'],
-            iterations = StepBase.options['report']['iterations'],
-            show_rates = BoolParam('show percentages of failure, error, skipped, undecided and passed tests'),
-            show_dist = BoolParam('show graphical distribution of issues among iterations with a one letter code: passed=".", failed="F", error="#", skipped="s", undecided="u"'),
-            show_pass_rate = BoolParam('always show the pass rate of tests, even when there are failures or errors as well'),
-            show_details = ChoiceOrBoolParam(['msg'], 'show details of results. Use "msg" for only a brief message'),
-            show_artifact_dirs = BoolParam('show exekall artifact directory for all iterations'),
-            testcase = CommaListParam('show only the untagged test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name'),
-            result_uuid = CommaListParam('show only the test results with a UUID in the comma-separated list.'),
-            ignore_testcase = CommaListParam('completely ignore untagged test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
-            ignore_non_issue = BoolParam('consider only tests that failed or had an error'),
-            ignore_non_error = BoolParam('consider only tests that had an error'),
-            ignore_excep = CommaListParam('ignore the given comma-separated list of exceptions class name patterns that caused tests error. This will also match on base classes of the exception.'),
-            dump_artifact_dirs = BoolOrStrParam('write the list of exekall artifact directories to a file. Useful to implement garbage collection of unreferenced artifact archives'),
-            export_db = BoolOrStrParam('export a merged exekall ValueDB, merging it with existing ValueDB if the file exists', allow_empty=False),
-            export_logs = BoolOrStrParam('export the logs and artifact directory symlink to the given directory'),
-            download = BoolParam('Download the exekall artifact archives if necessary'),
-            upload_artifact = BoolParam('upload the artifact directory to Artifactorial and update the in-memory report. Following env var are needed: ARTIFACTORIAL_FOLDER set to the folder URL and ARTIFACTORIAL_TOKEN. Note: --export should be used to save the report with updated paths'),
+        report=dict(
+            verbose=StepBase.options['report']['verbose'],
+            show_basic=StepBase.options['report']['show_basic'],
+            iterations=StepBase.options['report']['iterations'],
+            show_rates=BoolParam('show percentages of failure, error, skipped, undecided and passed tests'),
+            show_dist=BoolParam('show graphical distribution of issues among iterations with a one letter code: passed=".", failed="F", error="#", skipped="s", undecided="u"'),
+            show_pass_rate=BoolParam('always show the pass rate of tests, even when there are failures or errors as well'),
+            show_details=ChoiceOrBoolParam(['msg'], 'show details of results. Use "msg" for only a brief message'),
+            show_artifact_dirs=BoolParam('show exekall artifact directory for all iterations'),
+            testcase=CommaListParam('show only the untagged test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name'),
+            result_uuid=CommaListParam('show only the test results with a UUID in the comma-separated list.'),
+            ignore_testcase=CommaListParam('completely ignore untagged test cases matching one of the patterns in the comma-separated list. * can be used to match any part of the name.'),
+            ignore_non_issue=BoolParam('consider only tests that failed or had an error'),
+            ignore_non_error=BoolParam('consider only tests that had an error'),
+            ignore_excep=CommaListParam('ignore the given comma-separated list of exceptions class name patterns that caused tests error. This will also match on base classes of the exception.'),
+            dump_artifact_dirs=BoolOrStrParam('write the list of exekall artifact directories to a file. Useful to implement garbage collection of unreferenced artifact archives'),
+            export_db=BoolOrStrParam('export a merged exekall ValueDB, merging it with existing ValueDB if the file exists', allow_empty=False),
+            export_logs=BoolOrStrParam('export the logs and artifact directory symlink to the given directory'),
+            download=BoolParam('Download the exekall artifact archives if necessary'),
+            upload_artifact=BoolParam('upload the artifact directory to Artifactorial and update the in-memory report. Following env var are needed: ARTIFACTORIAL_FOLDER set to the folder URL and ARTIFACTORIAL_TOKEN. Note: --export should be used to save the report with updated paths'),
         )
 
     )
 
     def __init__(self,
-            compress_artifact = Default,
-            upload_artifact = Default,
-            delete_artifact = Default,
-            prune_db = Default,
-            **kwargs
-        ):
+                compress_artifact=Default,
+                upload_artifact=Default,
+                delete_artifact=Default,
+                prune_db=Default,
+                **kwargs
+            ):
         kwargs['trials'] = 1
         super().__init__(**kwargs)
 
@@ -1838,6 +1892,7 @@ class LISATestStep(ShellStep):
                     froz_val.uuid
                     for froz_val in db.get_roots()
                 }
+
                 def prune_predicate(froz_val):
                     return not (
                         # Keep the root values, usually ResultBundle's. We
@@ -1857,10 +1912,10 @@ class LISATestStep(ShellStep):
                 # Create a compressed tar archive
                 info('Compressing exekall artifact directory {} ...'.format(artifact_path))
                 archive_name = shutil.make_archive(
-                    base_name = artifact_path,
-                    format = 'xztar',
-                    root_dir = os.path.join(artifact_path, '..'),
-                    base_dir = os.path.split(artifact_path)[-1],
+                    base_name=artifact_path,
+                    format='xztar',
+                    root_dir=os.path.join(artifact_path, '..'),
+                    base_dir=os.path.split(artifact_path)[-1],
                 )
                 info('exekall artifact directory {artifact_path} compressed as {archive_name}'.format(
                     artifact_path=artifact_path,
@@ -1904,39 +1959,39 @@ class LISATestStep(ShellStep):
                 os.remove(artifact_local_path)
             except Exception as e:
                 error('Could not delete local artifact {path}: {e}'.format(
-                    e = e,
-                    path = artifact_local_path,
+                    e=e,
+                    path=artifact_local_path,
                 ))
 
         return ExekallStepResult(
-            step = self,
-            res_list = res_list,
-            bisect_ret = bisect_ret,
-            results_path = artifact_path,
-            db = db,
+            step=self,
+            res_list=res_list,
+            bisect_ret=bisect_ret,
+            results_path=artifact_path,
+            db=db,
         )
 
     def report(self, step_res_seq, service_hub,
-            verbose = False,
-            show_basic = False,
-            show_rates = True,
-            show_dist = False,
-            show_details = False,
-            show_pass_rate = False,
-            show_artifact_dirs = False,
-            testcase = [],
-            result_uuid = [],
-            ignore_testcase = [],
-            iterations = [],
-            ignore_non_issue = False,
-            ignore_non_error = False,
-            ignore_excep = [],
-            dump_artifact_dirs = False,
-            export_db = False,
-            export_logs = False,
-            download = True,
-            upload_artifact = False
-        ):
+               verbose=False,
+               show_basic=False,
+               show_rates=True,
+               show_dist=False,
+               show_details=False,
+               show_pass_rate=False,
+               show_artifact_dirs=False,
+               testcase=[],
+               result_uuid=[],
+               ignore_testcase=[],
+               iterations=[],
+               ignore_non_issue=False,
+               ignore_non_error=False,
+               ignore_excep=[],
+               dump_artifact_dirs=False,
+               export_db=False,
+               export_logs=False,
+               download=True,
+               upload_artifact=False
+            ):
         """Print out a report for a list of executions artifact created using
         the run() method.
         """
@@ -1975,8 +2030,8 @@ class LISATestStep(ShellStep):
             db = step_res.db
             if not db:
                 warn("No exekall ValueDB for {step_name} step, iteration {i}".format(
-                    step_name = step_res.step.name,
-                    i = i_stack
+                    step_name=step_res.step.name,
+                    i=i_stack
                 ))
                 continue
             else:
@@ -2040,7 +2095,7 @@ class LISATestStep(ShellStep):
 
                         entry['details'] = (type_name, short_msg, msg)
                     else:
-                        val =  froz_val.value
+                        val = froz_val.value
                         result_map = {
                             Result.PASSED: 'passed',
                             Result.FAILED: 'failure',
@@ -2140,15 +2195,15 @@ class LISATestStep(ShellStep):
                 # If this is a URL, we download it
                 if download and url.scheme.startswith('http'):
                     info('Downloading {archive_path} to {archive_dst} ...'.format(
-                        archive_path = archive_path,
-                        archive_dst = archive_dst,
+                        archive_path=archive_path,
+                        archive_dst=archive_dst,
                     ))
                     try:
                         urlretrieve(archive_path, archive_dst)
                     except requests.exceptions.RequestException as e:
                         error('Could not retrieve {archive_path}: {e}'.format(
-                            archive_path = archive_path,
-                            e = e
+                            archive_path=archive_path,
+                            e=e
                         ))
 
                 # Otherwise, assume it is a file and symlink it alongside
@@ -2197,12 +2252,12 @@ class LISATestStep(ShellStep):
             }
             stats['events'] = dict()
             for issue, pretty_issue in (
-                    ('passed', 'passed'),
-                    ('skipped', 'skipped'),
-                    ('undecided', 'undecided'),
-                    ('failure', 'FAILED'),
-                    ('error', 'ERROR'),
-                ):
+                ('passed', 'passed'),
+                ('skipped', 'skipped'),
+                ('undecided', 'undecided'),
+                ('failure', 'FAILED'),
+                ('error', 'ERROR'),
+            ):
                 filtered_entry_list = [
                     entry
                     for entry in entry_list
@@ -2234,7 +2289,7 @@ class LISATestStep(ShellStep):
                                     or set(iterations_summary) == {'passed'}
                                 )
                             )
-                        # in any case, hide it we explicitly asked for
+                            # in any case, hide it we explicitly asked for
                         ) and not ignore_non_issue
                     )
                 elif issue in ('skipped', 'undecided'):
@@ -2276,7 +2331,7 @@ class LISATestStep(ShellStep):
                             msg += ' '
 
                         table_out(
-                                '   #{i_stack: <2}) UUID={uuid_} ({exception_name}) {short_msg}{results_path}{msg}'.format(
+                            '   #{i_stack: <2}) UUID={uuid_} ({exception_name}) {short_msg}{results_path}{msg}'.format(
                                 **locals()
                             ).replace('\n', '\n\t')
                         )
@@ -2294,8 +2349,8 @@ class LISATestStep(ShellStep):
                     for issue in iterations_summary
                 )
                 dist_out('{testcase_id}:\n\t{dist}\n'.format(
-                    testcase_id = testcase_id,
-                    dist = dist,
+                    testcase_id=testcase_id,
+                    dist=dist,
                 ))
 
         if show_details:
@@ -2374,6 +2429,7 @@ class LISATestStep(ShellStep):
 
         return out
 
+
 class ExekallLISATestStep(LISATestStep, Deprecated):
     """
     .. deprecated:: 1.0
@@ -2385,19 +2441,23 @@ class ExekallLISATestStep(LISATestStep, Deprecated):
     attr_init = copy.copy(LISATestStep.attr_init)
     attr_init['name'] = 'exekall-LISA-test'
 
+
 class StepNotifService:
     """Allows steps to send notifications."""
+
     def __init__(self, slave_manager):
         self.slave_manager = slave_manager
 
     def notif(self, step, msg, display_time=3):
         self.slave_manager.signal.StepNotif = (step.name, msg, display_time)
 
+
 class UploadService(abc.ABC):
     @abc.abstractmethod
     def upload(self, path):
         """Upload a file"""
         pass
+
 
 def urlretrieve(url, path):
     response = requests.get(url)
@@ -2411,8 +2471,10 @@ def urlretrieve(url, path):
     with open(path, 'wb') as f:
         f.write(response.content)
 
+
 class ArtifactorialService(UploadService):
     """Upload files to Artifactorial."""
+
     def __init__(self, url=None, token=None):
         """
         :param url: URL of the Artifactorial folder to upload to,
@@ -2459,8 +2521,8 @@ class ArtifactorialService(UploadService):
             url[2] += '/' + uploaded_link
             url = urllib.parse.urlunparse(url)
             info('{path} uploaded to {url} ...'.format(
-                path = path,
-                url = url
+                path=path,
+                url=url
             ))
             path = url
         # Return the path unmodified if it failed
@@ -2474,6 +2536,7 @@ class ArtifactorialService(UploadService):
             ))
 
         return path
+
 
 def update_json(path, mapping):
     """
@@ -2489,14 +2552,16 @@ def update_json(path, mapping):
     try:
         with open(path, 'r') as f:
             data = json.load(f)
-    except:
+    except BaseException:
         data = dict()
     data.update(mapping)
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4, sort_keys=True)
 
+
 def load_steps_list(yaml_path):
     return load_yaml(yaml_path)['steps']
+
 
 def load_yaml(yaml_path):
     """Load the sequence of steps from a YAML file."""
@@ -2516,6 +2581,7 @@ def load_yaml(yaml_path):
             return mapping
         else:
             return dict()
+
 
 def get_class(full_qual_name):
     """
@@ -2562,6 +2628,7 @@ def get_class(full_qual_name):
     cls.src_file = script_name
     return cls
 
+
 def import_file(script_name, name=None):
     if name is None:
         name = inspect.getmodulename(script_name)
@@ -2570,6 +2637,7 @@ def import_file(script_name, name=None):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
 
 def import_files(src_files):
     try:
@@ -2584,9 +2652,11 @@ def import_files(src_files):
         except (import_excep, FileNotFoundError) as e:
             pass
 
+
 def get_subclasses(cls):
     """Get the subclasses recursively."""
     return _get_subclasses(cls) - {cls}
+
 
 def _get_subclasses(cls):
     cls_set = {cls}
@@ -2594,11 +2664,13 @@ def _get_subclasses(cls):
         cls_set |= _get_subclasses(subcls)
     return cls_set
 
+
 def get_step_by_name(name):
     for cls in get_subclasses(StepBase):
         if cls.name == name:
             return cls
     raise ValueError('Could not find a class matching "{name}".'.format(name=name))
+
 
 def instantiate_step(spec, step_options):
     """
@@ -2610,7 +2682,7 @@ def instantiate_step(spec, step_options):
     # modifying the original dict.
     # Also, we replace hypens by underscore in key names for better-looking
     # yaml.
-    spec = {key.replace('-','_'): val for key, val in spec.items()}
+    spec = {key.replace('-', '_'): val for key, val in spec.items()}
     del spec['class']
 
     cls = get_class(cls_name)
@@ -2631,6 +2703,7 @@ def instantiate_step(spec, step_options):
         })
 
     return cls(**spec)
+
 
 class StepSeqResult(StepResultBase):
     """
@@ -2704,6 +2777,7 @@ class StepSeqResult(StepResultBase):
 
         return bisect_ret
 
+
 class ServiceHub:
     def __init__(self, **kwargs):
         for name, service in kwargs.items():
@@ -2723,6 +2797,7 @@ class ServiceHub:
         except AttributeError:
             return False
 
+
 class MacroStepResult(StepResultBase):
     """
     Result of the execution of a :class:`MacroStep` .
@@ -2733,7 +2808,7 @@ class MacroStepResult(StepResultBase):
 
     yaml_tag = '!macro-step-result'
     attr_init = dict(
-        name = 'macro',
+        name='macro',
     )
 
     def __init__(self, step, res_list):
@@ -2786,17 +2861,18 @@ class MacroStepResult(StepResultBase):
                 else:
                     # We only consider the iterations that returned GOOD or BAD, but
                     # we ignore UNTESTABLE and such.
-                    bad_percent = (100 * bad_cnt)/good_bad_cnt_sum
+                    bad_percent = (100 * bad_cnt) / good_bad_cnt_sum
 
                     # Carry out the statistical test to check whether it is likely
                     # that the bad_percent average is ok.
                     bisect_ret = self.step.stat_test.test(bad_percent, good_bad_cnt_sum)
         else:
             warn('No statistical test registered for macro step {self.step.name}'.format(
-                self = self,
+                self=self,
             ))
 
         return bisect_ret
+
 
 def match_step_name(name, pattern_list):
     """Find the patterns matching the step name, and return them in a list."""
@@ -2805,11 +2881,13 @@ def match_step_name(name, pattern_list):
         if fnmatch.fnmatch(name, pattern)
     ]
 
+
 class StepFilter:
     """
     Filter the steps of a :class:`MacroStep` . This allows restricting the display
     to a subset of steps.
     """
+
     def __init__(self, skip=set(), only=set()):
         self.skip = set(skip)
         self.only = set(only)
@@ -2840,6 +2918,7 @@ class StepFilter:
 
         return steps_list
 
+
 class MacroStep(StepBase):
     """
     Provide a loop-like construct to the steps definitions.
@@ -2853,32 +2932,32 @@ class MacroStep(StepBase):
     yaml_tag = '!macro-step'
 
     attr_init = dict(
-        name = 'macro',
-        cat = 'macro',
-        timeout = parse_timeout('inf'),
-        iterations = parse_iterations('inf'),
-        steps_list = [],
+        name='macro',
+        cat='macro',
+        timeout=parse_timeout('inf'),
+        iterations=parse_iterations('inf'),
+        steps_list=[],
 
-        bail_out_early = False,
+        bail_out_early=False,
     )
 
     options = dict(
-        __init__ = dict(
-            iterations = IterationParam('number of iterations'),
-            timeout = TimeoutParam('time after which no new iteration will be started'),
-            bail_out_early = BoolParam('start a new iteration when a step returned bisect status bad or untestable and skip all remaining steps'),
+        __init__=dict(
+            iterations=IterationParam('number of iterations'),
+            timeout=TimeoutParam('time after which no new iteration will be started'),
+            bail_out_early=BoolParam('start a new iteration when a step returned bisect status bad or untestable and skip all remaining steps'),
         ),
-        report = dict()
+        report=dict()
     )
 
     """Groups a set of steps in a logical sequence."""
 
     def __init__(self, *, steps=None, name=Default, cat=Default,
-            stat_test=Default, step_options=None,
-            iterations = Default,
-            timeout = Default,
-            bail_out_early = Default
-        ):
+                stat_test=Default, step_options=None,
+                iterations=Default,
+                timeout=Default,
+                bail_out_early=Default
+            ):
         if step_options is None:
             step_options = dict()
 
@@ -2941,8 +3020,8 @@ class MacroStep(StepBase):
 
             if self.timeout and elapsed_ts > self.timeout:
                 info('{self.cat} step ({self.name}) timing out after {timeout}, stopping ...'.format(
-                    self = self,
-                    timeout = datetime.timedelta(seconds=self.timeout),
+                    self=self,
+                    timeout=datetime.timedelta(seconds=self.timeout),
                 ))
                 break
             else:
@@ -2988,15 +3067,15 @@ class MacroStep(StepBase):
         end_ts = time.monotonic()
         delta_ts = end_ts - begin_ts
         info('{self.cat} step ({self.name}) iteration #{i} executed in {delta_ts}.'.format(
-            i = i_stack,
-            delta_ts = datetime.timedelta(seconds=delta_ts),
-            self = self,
+            i=i_stack,
+            delta_ts=datetime.timedelta(seconds=delta_ts),
+            self=self,
         ))
 
         return StepSeqResult(
-            step = self,
-            steps_res = step_res_list,
-            run_time = delta_ts,
+            step=self,
+            steps_res=step_res_list,
+            run_time=delta_ts,
         )
 
     def run(self, i_stack, service_hub):
@@ -3015,10 +3094,9 @@ class MacroStep(StepBase):
             i_stack.pop()
 
         return MacroStepResult(
-            step = self,
-            res_list = res_list,
+            step=self,
+            res_list=res_list,
         )
-
 
     def toplevel_run(self, report_options, slave_manager=None,
             previous_res=None, service_hub=None):
@@ -3194,8 +3272,8 @@ class MacroStep(StepBase):
             ).bisect_ret
 
             out('{step.cat}/{step.name} ({step.__class__.name}) [{bisect_ret}]'.format(
-                step = step,
-                bisect_ret = bisect_ret.name,
+                step=step,
+                bisect_ret=bisect_ret.name,
             ))
             indent = ' ' * 4
             if report_str:
@@ -3221,9 +3299,11 @@ class MacroStep(StepBase):
 
         return src_file_set
 
+
 class StatTestMeta(abc.ABCMeta, type(Serializable)):
     """Metaclass of all statistical tests."""
     pass
+
 
 class StatTestABC(Serializable, metaclass=StatTestMeta):
     """Abstract Base Class of all statistical tests."""
@@ -3237,15 +3317,18 @@ class StatTestABC(Serializable, metaclass=StatTestMeta):
         """
         pass
 
+
 class BasicStatTest(StatTestABC):
     """Basic statistical test using a threshold for the failure rate."""
 
     yaml_tag = '!bad-percentage-stat-test'
+
     def __init__(self, allowed_bad_percent=0):
         self.allowed_bad_percent = allowed_bad_percent
 
     def test(self, failure_rate, iteration_n):
         return BisectRet.GOOD if failure_rate <= self.allowed_bad_percent else BisectRet.BAD
+
 
 class BinomStatTest(BasicStatTest):
     """
@@ -3255,6 +3338,7 @@ class BinomStatTest(BasicStatTest):
     """
 
     yaml_tag = '!binomial-stat-test'
+
     def __init__(self, good_failure, good_sample_size, bad_failure, commit_n, overall_failure):
         assert good_failure < bad_failure
 
@@ -3265,7 +3349,7 @@ class BinomStatTest(BasicStatTest):
         # is:
         # bisect_failure = 1 - (1 - step_failure) ** commit_n
         # Therefore, the allowed failure rate for every bisect step is:
-        step_failure = 1 - (1 - overall_failure) ** (1/commit_n)
+        step_failure = 1 - (1 - overall_failure) ** (1 / commit_n)
 
         if step_failure > 0.5:
             raise ValueError('Risk of bisect step being wrong is higher than 0.5: {step_failure}'.format(**locals()))
@@ -3306,7 +3390,7 @@ class BinomStatTest(BasicStatTest):
         step_size = good
         worst_good = good
         direction = 0
-        error = 0.01/100
+        error = 0.01 / 100
         n = math.ceil(math.log(step_size, 2) - math.log(error, 2))
         for i in range(n):
             step_size /= 2
@@ -3318,7 +3402,7 @@ class BinomStatTest(BasicStatTest):
 
         if good <= bad:
             raise ValueError('It is impossible to reliably distinguish between good and bad distributions, since good is not know with enough accuracy. The bad failure rate must be at least {least_bad:.2f}%'.format(
-                least_bad = (1 - good) * 100,
+                least_bad=(1 - good) * 100,
             ))
 
         # We don't try to be smart here and just try every sample size until we
@@ -3339,10 +3423,10 @@ class BinomStatTest(BasicStatTest):
         self.overall_failure = overall_failure
 
         info('Using binomial test: given number of bisect steps={commit_n}, risk of bisect not converging to the right commit={overall_failure:.2f}%, expected failure rate={good_failure:.2f}%, bad failure rate={bad_failure:.2f}%'.format(
-            commit_n = commit_n,
-            overall_failure = overall_failure * 100,
-            good_failure = good_failure * 100,
-            bad_failure = bad_failure * 100,
+            commit_n=commit_n,
+            overall_failure=overall_failure * 100,
+            good_failure=good_failure * 100,
+            bad_failure=bad_failure * 100,
         ))
 
     def test(self, failure_rate, iteration_n):
@@ -3365,12 +3449,14 @@ class BinomStatTest(BasicStatTest):
         )
         return BisectRet.GOOD if pval > self.alpha else BisectRet.BAD
 
+
 def do_steps_help(cls_list):
     """Print out the help for the given steps classes."""
     for cls in cls_list:
         print(cls.help())
 
     return 0
+
 
 def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
         bail_out_early=False, inline_step_list=[], steps_path=None,
@@ -3381,16 +3467,16 @@ def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
 
     # Top level MacroStep options coming from the command line
     macro_step_options = dict(
-        name = 'main',
-        stat_test = stat_test,
-        iterations = iteration_n,
-        timeout = overall_timeout,
-        bail_out_early = bail_out_early,
-        step_options = step_options,
+        name='main',
+        stat_test=stat_test,
+        iterations=iteration_n,
+        timeout=overall_timeout,
+        bail_out_early=bail_out_early,
+        step_options=step_options,
     )
     if resume_path and not os.path.exists(resume_path):
         warn('Report {path} does not exist, starting from scratch ...'.format(
-            path = resume_path,
+            path=resume_path,
         ))
         resume_path = None
 
@@ -3425,7 +3511,7 @@ def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
 
         # Create the top level MacroStep that will run the steps in order
         macro_step = MacroStep(
-            steps = steps_list,
+            steps=steps_list,
             **macro_step_options
         )
         previous_res = None
@@ -3439,7 +3525,7 @@ def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
     )
     if overall_timeout:
         timeout_str = ' or {tmout}'.format(
-            tmout = datetime.timedelta(seconds=overall_timeout),
+            tmout=datetime.timedelta(seconds=overall_timeout),
         )
     else:
         timeout_str = ''
@@ -3451,11 +3537,10 @@ def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
     with enforce_git_cleanup(git_clean):
         report = macro_step.toplevel_run(
             report_options,
-            slave_manager = slave_manager,
-            previous_res = previous_res,
-            service_hub = service_hub,
+            slave_manager=slave_manager,
+            previous_res=previous_res,
+            service_hub=service_hub,
         )
-
 
     # Only take into account YIELD results if this is not the last iteration
     if (
@@ -3468,10 +3553,12 @@ def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
 
     return bisect_ret.value, report
 
+
 # Compute the SHA1 of the script itself, to identify the version of the tool
 # that was used to generate a given report.
 with open(__file__, 'rb') as f:
     TOOL_SHA1 = hashlib.sha1(f.read()).hexdigest()
+
 
 class ReportPreamble(Serializable):
     """
@@ -3483,7 +3570,7 @@ class ReportPreamble(Serializable):
     yaml_tag = '!report-preamble'
 
     attr_init = dict(
-        src_files = []
+        src_files=[]
     )
 
     def __init__(self, report_version, src_files):
@@ -3493,6 +3580,7 @@ class ReportPreamble(Serializable):
         self.report_version = report_version
         self.tool_sha1 = TOOL_SHA1
         self.preamble_version = 0
+
 
 def check_report_path(path, probe_file):
     def probe_open_f(open_f, path):
@@ -3526,6 +3614,7 @@ def check_report_path(path, probe_file):
     is_yaml = 'pickle' not in path.name.split('.')
     return (open_f, is_yaml)
 
+
 def disable_gc(f):
     """
     Decorator to disable garbage collection during the execution of the
@@ -3544,6 +3633,7 @@ def disable_gc(f):
             gc.enable()
 
     return wrapper
+
 
 class Report(Serializable):
     """
@@ -3566,10 +3656,9 @@ class Report(Serializable):
 
         src_files = src_files or sorted(macrostep_res.step.get_step_src_files())
         self.preamble = ReportPreamble(
-            report_version = 0,
-            src_files = src_files,
+            report_version=0,
+            src_files=src_files,
         )
-
 
     @classmethod
     def _init_yaml(cls):
@@ -3667,8 +3756,8 @@ class Report(Serializable):
             try:
                 url = upload_service.upload(self.path)
                 info('Uploaded report ({path}) to {url}'.format(
-                    path = self.path,
-                    url = url
+                    path=self.path,
+                    url=url
                 ))
             except Exception as e:
                 error('while uploading the report: ' + str(e))
@@ -3703,7 +3792,6 @@ class Report(Serializable):
                 if cls.name in macrostep_names:
                     _import_steps_from_yaml(spec['steps'])
 
-
         open_f, is_yaml = check_report_path(path, probe_file=True)
 
         def import_modules(steps_path, src_files):
@@ -3714,7 +3802,6 @@ class Report(Serializable):
             else:
                 excep = import_files(src_files)
             return excep
-
 
         # Read as YAML or Pickle depending on the filename.
         if is_yaml:
@@ -3727,7 +3814,7 @@ class Report(Serializable):
                     preamble = next(documents)
                 except Exception as e:
                     raise ValueError('Could not load the preamble in report: {path}'.format(
-                        path = path
+                        path=path
                     )) from e
 
                 # Import the modules before deserializing the report document
@@ -3757,7 +3844,7 @@ class Report(Serializable):
 
                 preamble = pickle_data['preamble']
                 excep = import_modules(steps_path, preamble.src_files)
-                report =  pickle_data['report']
+                report = pickle_data['report']
             except Exception as e:
                 if excep is not None:
                     error(excep)
@@ -3829,19 +3916,19 @@ class Report(Serializable):
             report = cls._do_load(path, steps_path)
         except (ImportError, ruamel.yaml.constructor.ConstructorError) as e:
             raise ValueError('Some steps are relying on modules that cannot be found. Use --steps to point to the steps YAML config: {e}'.format(
-                e = e,
+                e=e,
             )) from e
         except (FileNotFoundError, IsADirectoryError) as e:
             raise ValueError('Could not open the report file {e.filename}: {e.strerror}'.format(e=e)) from e
         except pickle.UnpicklingError as e:
             raise ValueError('Could not parse the pickle report {path}: {e}'.format(
-                e = e,
-                path = path,
+                e=e,
+                path=path,
             )) from e
         except (ruamel.yaml.scanner.ScannerError, ruamel.yaml.composer.ComposerError) as e:
             raise ValueError('Could not parse the YAML report {path}: {e}'.format(
-                e = e,
-                path = path,
+                e=e,
+                path=path,
             )) from e
 
         # Create the cached report if needed
@@ -3849,7 +3936,6 @@ class Report(Serializable):
             report.save(cache_filename)
 
         return report
-
 
     @property
     def bisect_ret(self):
@@ -3888,7 +3974,9 @@ class Report(Serializable):
     def __str__(self):
         return str(self.show()[0])
 
+
 Report._init_yaml()
+
 
 def ensure_dir(file_path):
     """
@@ -3899,8 +3987,10 @@ def ensure_dir(file_path):
     if dirname:
         os.makedirs(dirname, exist_ok=True)
 
+
 def format_placeholders(string, placeholder_map):
     return string.format(**placeholder_map)
+
 
 DBUS_SERVER_BUS_NAME = 'org.bisector.Server'
 "Well-known DBus name used by the monitor-server."
@@ -3912,8 +4002,10 @@ DBUS_SLAVE_BUS_NAME_TEMPLATE = 'org.bisector.Slave-{id}'
 DBUS_SLAVE_MANAGER_PATH = '/org/bisector/SlaveManager'
 "DBus path under which the :class:`DBusSlaveManager` is published by the slaves."
 
+
 def get_dbus_bus():
     return pydbus.SessionBus()
+
 
 def dbus_variant(v):
     """
@@ -3936,6 +4028,7 @@ def dbus_variant(v):
 
     return v
 
+
 def dbus_variant_dict(dct):
     """
     Build a dictionary with :class:`gi.repository.GLib.Variant` values, so it
@@ -3943,12 +4036,14 @@ def dbus_variant_dict(dct):
     """
     return {k: dbus_variant(v) for k, v in dct.items()}
 
+
 class dbus_property(property):
     """
     Like standard property decorator, except that signal_prop_change(<prop
     name>) will be called when the setter function returns, to automatically
     emit the PropertiesChanged signal.
     """
+
     def setter(self, content=True, iface=None):
         """Unlike property.setter, this is a decorator with parameters."""
         super_setter = super().setter
@@ -3976,8 +4071,10 @@ class dbus_property(property):
             return super_setter(wrapped_f)
         return _setter
 
+
 class PipeSetter:
     """Write to a pipe when an attribute is set."""
+
     def __init__(self, pipe, attrs):
         super().__setattr__('attrs', set(attrs))
         super().__setattr__('pipe', pipe)
@@ -3989,7 +4086,7 @@ class PipeSetter:
     def __setattr__(self, attr, val):
         if not attr in self.attrs:
             raise AttributeError('Attribute {attr} not settable through the pipe'.format(
-                attr = attr,
+                attr=attr,
             ))
         try:
             self.pipe.send((attr, val))
@@ -4041,7 +4138,7 @@ class DBusSlaveManager:
     """
 
     def __init__(self, desc, pid, start_ts, start_monotonic_ts, report_path, log_path,
-        path=DBUS_SLAVE_MANAGER_PATH):
+            path=DBUS_SLAVE_MANAGER_PATH):
 
         self.pause_loop = threading.Event()
         self.stop_loop = threading.Event()
@@ -4109,7 +4206,7 @@ class DBusSlaveManager:
         self._step_notif = notif_spec
 
     def publish(self, bus, bus_name_template=DBUS_SLAVE_BUS_NAME_TEMPLATE):
-        bus_name = bus_name_template.format(id = self.PID)
+        bus_name = bus_name_template.format(id=self.PID)
         try:
             # Register the object before taking ownership of the name, so that
             # if the bus name is already taken, we still expose the object using
@@ -4155,6 +4252,7 @@ class DBusSlaveManager:
 
         return True
 
+
 class DBusSlaveThread:
     def __init__(self, properties):
         self._loop = None
@@ -4163,11 +4261,11 @@ class DBusSlaveThread:
         init_done = threading.Event()
 
         thread = threading.Thread(
-            target = self.thread_main,
-            kwargs = dict(
-                init_done = init_done,
+            target=self.thread_main,
+            kwargs=dict(
+                init_done=init_done,
             ),
-            daemon = True,
+            daemon=True,
         )
         thread.start()
 
@@ -4182,7 +4280,7 @@ class DBusSlaveThread:
         # Unexpected exceptions will kill the whole process. This makes sure
         # that this dbus slave thread cannot die unexpectedly, leading to some
         # blocking reads on the pipe or similar issues.
-        except:
+        except BaseException:
             # Print the exception before killing the whole process.
             traceback.print_exc()
             os.kill(os.getpid(), signal.SIGTERM)
@@ -4252,7 +4350,7 @@ class DBusSlaveThread:
                 # not responsive.
                 slave_book.RegisterSlave(location, timeout=2)
             # Ignore failures, as the server may not be running.
-            except:
+            except BaseException:
                 pass
 
         # Register in the SlaveBook when the bus name shows up
@@ -4275,6 +4373,7 @@ class DBusSlaveThread:
             with contextlib.suppress(SILENT_EXCEPTIONS):
                 loop.run()
 
+
 def parse_slave_props(slave_props):
     props = copy.copy(slave_props)
 
@@ -4282,6 +4381,7 @@ def parse_slave_props(slave_props):
     props['RunTime'] = datetime.timedelta(seconds=props['RunTime'])
 
     return props
+
 
 def send_cmd(slave_id, slave_manager, cmd):
     info('Sending {cmd} to slave {id} ...'.format(cmd=cmd, id=slave_id))
@@ -4353,14 +4453,14 @@ def do_monitor(slave_id, args):
         if args.prop:
             try:
                 print(props[args.prop])
-            except:
+            except BaseException:
                 warn('Property {prop} not found on slave {slave_id}'.format(
-                    prop = args.prop,
-                    slave_id = slave_id
+                    prop=args.prop,
+                    slave_id=slave_id
                 ))
                 info('Available properties on slave {slave_id}: {prop}'.format(
-                    slave_id = slave_id,
-                    prop = ', '.join(props.keys())
+                    slave_id=slave_id,
+                    prop=', '.join(props.keys())
                 ))
 
         if args.status:
@@ -4391,8 +4491,8 @@ def do_monitor(slave_id, args):
                     slave_book.SetDesktopNotif(location, prop, enable)
                 except GLib.Error:
                     error('Could not set notifications for "{prop}" property on slave {location}'.format(
-                        location = location,
-                        prop = prop
+                        location=location,
+                        prop=prop
                     ))
 
         if args.report is not None:
@@ -4411,6 +4511,7 @@ def do_monitor(slave_id, args):
         if args.kill:
             send_cmd(slave_id, slave_manager, 'kill')
 
+
 def do_monitor_server(default_notif):
     bus = get_dbus_bus()
     # Make sure we can interrupt the loop
@@ -4424,6 +4525,7 @@ def do_monitor_server(default_notif):
     slave_book = DBusSlaveBook(bus, handle_name_lost, default_notif=default_notif)
 
     loop.run()
+
 
 class DBusSlaveBook:
     dbus = """
@@ -4469,7 +4571,6 @@ class DBusSlaveBook:
         # First, make the ourselves available so we can service requests right
         # after we own the bus name.
         self.bus.register_object(self.path, self, None)
-
 
         # Get the ownership of the bus name and publish the object. If it fails,
         # act like we lost the name.
@@ -4525,9 +4626,9 @@ class DBusSlaveBook:
     def SetDesktopNotif(self, location, prop, enable):
         verb = 'Enabling' if enable else 'Disabling'
         info('{verb} desktop notifications for {prop} changes for slave {location}'.format(
-            verb = verb,
-            location = location,
-            prop = prop
+            verb=verb,
+            location=location,
+            prop=prop
         ))
 
         slave_manager = self.get_slave_manager(location)
@@ -4536,8 +4637,8 @@ class DBusSlaveBook:
         if prop != 'all':
             if prop not in slave_props:
                 raise ValueError("Property {prop} not available on slave at location {location}".format(
-                    location = location,
-                    prop = prop
+                    location=location,
+                    prop=prop
                 ))
             slave_props = [prop]
 
@@ -4577,8 +4678,8 @@ class DBusSlaveBook:
                     debug('Unhandled property change {prop}'.format(prop=prop))
 
                 body = '{props[Description]}\nElapsed time: {props[RunTime]}\n\n{msg}'.format(
-                    props = props,
-                    msg = msg,
+                    props=props,
+                    msg=msg,
                 )
                 prop_set = self._desktop_notif[location]
                 if 'all' in prop_set or prop.lower() in prop_set:
@@ -4607,7 +4708,6 @@ class DBusSlaveBook:
 
         info('Registered slave {location}'.format(location=location))
 
-
     @staticmethod
     def get_slaves_manager(bus, slave_book):
         """Helper to get the list of SlaveManager out of a list of slaves
@@ -4618,11 +4718,13 @@ class DBusSlaveBook:
             in slave_book.GetSlavesLocation()
         ]
 
+
 class YAMLCLIOptionsAction(argparse.Action):
     """Custom argparse.Action that extracts command line options from a YAML
     file. Using "required=True" for any argument will break that since the
     parser needs to parse partial command lines.
     """
+
     def __call__(self, parser, args, value, option_string):
         config_path = value
         info('Loading configuration from {path} ...'.format(path=config_path))
@@ -4657,8 +4759,9 @@ class YAMLCLIOptionsAction(argparse.Action):
 
         if overriden_names:
             info('Overriding command line options: {names}'.format(
-                names = ', '.join('"'+name+'"' for name in overriden_names)
+                names=', '.join('"' + name + '"' for name in overriden_names)
             ))
+
 
 def _main(argv):
     global LOG_FILE
@@ -4683,7 +4786,6 @@ def _main(argv):
         # Allow passing CLI options through a file
         fromfile_prefix_chars='@',
     )
-
 
     subparsers = parser.add_subparsers(title='subcommands', dest='subcommand')
 
@@ -4739,8 +4841,7 @@ for --steps.  The options are inserted at the location of
 can be overriden by configuration file and what is forced by the
 command line""")
 
-    cmd_metavar = ('TRIALS#', 'TIMEOUT' ,'COMMAND')
-
+    cmd_metavar = ('TRIALS#', 'TIMEOUT', 'COMMAND')
 
     # Common options of report-aware commands
     for subparser in (run_parser, report_parser, edit_parser):
@@ -4772,17 +4873,16 @@ command line""")
 
         # TODO: replace by a Fisher exact test
         #  stat_test_group.add_argument('--stat', nargs=5,
-            #  metavar=('REFERENCE_FAILURE%', '#REFERENCE_SAMPLE_SIZE',
-                #  'BAD_FAILURE%', 'WRONG_RESULT%', '#TESTED_COMMITS'),
-            #  help="""Carry out a binomial test on the iterations results. This
-            #  overrides --iterations. The parameters are 1) reference expected
-            #  failure rate of the test in percent, 2) the sample size that gave
-            #  the reference failure rate, 3) the bad failure rate we are trying
-            #  to find the root of, 4) the probability of git bisect converging to
-            #  the wrong commit, 5) the number of commits git bisect will need to
-            #  analyze before finishing the bisect (roughly log2(number of commits
-            #  in the tested series)).""")
-
+        #  metavar=('REFERENCE_FAILURE%', '#REFERENCE_SAMPLE_SIZE',
+        #  'BAD_FAILURE%', 'WRONG_RESULT%', '#TESTED_COMMITS'),
+        #  help="""Carry out a binomial test on the iterations results. This
+        #  overrides --iterations. The parameters are 1) reference expected
+        #  failure rate of the test in percent, 2) the sample size that gave
+        #  the reference failure rate, 3) the bad failure rate we are trying
+        #  to find the root of, 4) the probability of git bisect converging to
+        #  the wrong commit, 5) the number of commits git bisect will need to
+        #  analyze before finishing the bisect (roughly log2(number of commits
+        #  in the tested series)).""")
 
         subparser.add_argument('--skip', action='append',
             default=[],
@@ -4802,7 +4902,7 @@ command line""")
         used to edit the report.""")
 
     # Options for run subcommand
-    run_parser.add_argument('--git-clean',action='store_true',
+    run_parser.add_argument('--git-clean', action='store_true',
         help="""Run git reset --hard and git clean -fdx before and after the
         steps are executed. It is useful for automated bisect to avoid
         checkout failure that leads to bisect abortion. WARNING: this will
@@ -4869,7 +4969,6 @@ command line""")
         results as they are computed if desired.
         """)
 
-
     dbus_group = run_parser.add_mutually_exclusive_group()
     dbus_group.add_argument('--dbus', dest='dbus', action='store_true',
         help="""Try enable DBus API if the necessary dependencies are installed.""")
@@ -4896,7 +4995,7 @@ command line""")
 
     # Options for step-help subcommand
     step_help_parser.add_argument('steps', nargs='*',
-        default = sorted(
+        default=sorted(
             cls.name for cls in get_subclasses(StepBase)
             if not issubclass(cls, Deprecated)
         ),
@@ -4905,7 +5004,7 @@ command line""")
     # Options for monitor subcommand
     monitor_parser.add_argument('slave_id', metavar='PID',
         default='all',
-        type = (lambda slave_id: None if slave_id == 'all' else int(slave_id)),
+        type=(lambda slave_id: None if slave_id == 'all' else int(slave_id)),
         help='Slave PID to act on or "all". Start a monitor-server before using "all".')
 
     monitor_parser.add_argument('--status', action='store_true',
@@ -4968,8 +5067,8 @@ command line""")
 
     elif args.subcommand == 'monitor':
         return do_monitor(
-            slave_id = args.slave_id,
-            args = args,
+            slave_id=args.slave_id,
+            args=args,
         )
 
     SHOW_TRACEBACK = args.debug
@@ -5016,10 +5115,10 @@ command line""")
     # Use a binomial statistical test if we can otherwise just test for an
     # acceptable threshold of bad iterations.
     if binom_stat:
-        good_failure = float(binom_stat[0])/100
+        good_failure = float(binom_stat[0]) / 100
         good_sample_size = int(binom_stat[1])
-        bad_failure = float(binom_stat[2])/100
-        overall_failure = float(binom_stat[3])/100
+        bad_failure = float(binom_stat[2]) / 100
+        overall_failure = float(binom_stat[3]) / 100
         commit_n = int(binom_stat[4])
         stat_test = BinomStatTest(good_failure, good_sample_size, bad_failure, commit_n, overall_failure)
         # The binomial test overrides the number of iterations to be able to
@@ -5074,7 +5173,7 @@ command line""")
 
         if not resume_path and os.path.exists(report_path) and not overwrite_report:
             error('File already exists, use --overwrite to overwrite: {path}'.format(
-                path = report_path,
+                path=report_path,
             ))
             return GENERIC_ERROR_CODE
 
@@ -5098,7 +5197,7 @@ command line""")
         info('PID: {pid}'.format(pid=pid))
 
         info('Steps definition: {steps}'.format(
-            steps = os.path.abspath(steps_path) if steps_path else '<command line>',
+            steps=os.path.abspath(steps_path) if steps_path else '<command line>',
         ))
 
         info('Report: {report_path}'.format(report_path=report_path))
@@ -5107,13 +5206,13 @@ command line""")
         if enable_dbus:
             debug('Enabling DBus interface ...')
             dbus_slave_thread = DBusSlaveThread(
-                properties = dict(
-                    desc = desc,
-                    pid = pid,
-                    start_ts = math.floor(datetime.datetime.now().timestamp()),
-                    start_monotonic_ts = math.floor(time.monotonic()),
-                    report_path = os.path.abspath(report_path),
-                    log_path = os.path.abspath(log_path),
+                properties=dict(
+                    desc=desc,
+                    pid=pid,
+                    start_ts=math.floor(datetime.datetime.now().timestamp()),
+                    start_monotonic_ts=math.floor(time.monotonic()),
+                    report_path=os.path.abspath(report_path),
+                    log_path=os.path.abspath(log_path),
                 )
             )
             # TODO: make a service from that
@@ -5126,19 +5225,19 @@ command line""")
 
         # Create the report and save it
         ret, report = do_run(
-            slave_manager = slave_manager,
-            iteration_n = iteration_n,
-            stat_test = stat_test,
-            steps_filter = steps_filter,
-            bail_out_early = bail_out_early,
-            inline_step_list = inline_step_list,
-            steps_path = steps_path,
-            report_options = report_options,
-            overall_timeout = overall_timeout,
-            step_options = step_options,
-            git_clean = git_clean,
-            resume_path = resume_path,
-            service_hub = service_hub,
+            slave_manager=slave_manager,
+            iteration_n=iteration_n,
+            stat_test=stat_test,
+            steps_filter=steps_filter,
+            bail_out_early=bail_out_early,
+            inline_step_list=inline_step_list,
+            steps_path=steps_path,
+            report_options=report_options,
+            overall_timeout=overall_timeout,
+            step_options=step_options,
+            git_clean=git_clean,
+            resume_path=resume_path,
+            service_hub=service_hub,
         )
 
         # Display the summary
@@ -5157,10 +5256,10 @@ command line""")
         report = Report.load(report_path, steps_path, use_cache=use_cache)
 
         out, bisect_ret = report.show(
-            service_hub = service_hub,
-            steps_filter = steps_filter,
-            stat_test = stat_test,
-            step_options = step_options,
+            service_hub=service_hub,
+            steps_filter=steps_filter,
+            stat_test=stat_test,
+            step_options=step_options,
         )
         print(out)
 
@@ -5186,8 +5285,8 @@ SHOW_TRACEBACK = True
 BISECTOR_LOGGER = logging.getLogger('BISECTOR')
 BISECTOR_FORMATTER = logging.Formatter('[%(name)s][%(asctime)s] %(levelname)s  %(message)s')
 
-def main(argv=sys.argv[1:]):
 
+def main(argv=sys.argv[1:]):
 
     BISECTOR_LOGGER.setLevel(logging.DEBUG)
 
@@ -5210,8 +5309,8 @@ def main(argv=sys.argv[1:]):
             error(
                 'Exception traceback:\n' +
                 ''.join(
-                traceback.format_exception(type(e), e, e.__traceback__)
-            ))
+                    traceback.format_exception(type(e), e, e.__traceback__)
+                ))
         # Always show the concise message
         error(e)
 
@@ -5226,6 +5325,7 @@ def main(argv=sys.argv[1:]):
         return_code = 0
 
     sys.exit(return_code)
+
 
 if __name__ == '__main__':
     print('bisector needs to be installed using pip and called through its shim, not executed directly', file=sys.stderr)

@@ -20,6 +20,7 @@ from unittest import TestCase
 
 from lisa.target import Target
 
+
 class TargetEnvCheck(TestCase):
 
     def test_cli(self):

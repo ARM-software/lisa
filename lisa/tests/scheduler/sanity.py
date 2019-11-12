@@ -22,6 +22,7 @@ from lisa.utils import ArtifactPath
 from lisa.tests.base import TestMetric, ResultBundle, TestBundle
 from lisa.wlgen.sysbench import Sysbench
 
+
 class CapacitySanity(TestBundle):
     """
     A class for making sure capacity values make sense on a given target
@@ -37,7 +38,7 @@ class CapacitySanity(TestBundle):
         self.capacity_work = capacity_work
 
     @classmethod
-    def _from_target(cls, target:Target, *, res_dir:ArtifactPath=None) -> 'CapacitySanity':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None) -> 'CapacitySanity':
         """
         Factory method to create a bundle using a live target
         """
@@ -45,7 +46,7 @@ class CapacitySanity(TestBundle):
             sysbench = Sysbench(target, "sysbench", res_dir)
 
             cpu_capacities = target.sched.get_capacities()
-            capa_work = {capa : sys.maxsize for capa in list(cpu_capacities.values())}
+            capa_work = {capa: sys.maxsize for capa in list(cpu_capacities.values())}
             for cpu in list(cpu_capacities.keys()):
                 sysbench.run(cpus=[cpu], max_duration_s=1)
                 # We could save the work done on each CPU, but we can make

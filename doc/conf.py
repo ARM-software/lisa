@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # LISA documentation build configuration file, created by
 # sphinx-quickstart on Tue Dec 13 14:20:00 2016.
@@ -46,16 +45,19 @@ for name, obj in vars(unittest).items():
     try:
         m = obj.__module__
         obj.__module__ = 'unittest' if m == 'unittest.case' else m
-    except Exception: pass
+    except Exception:
+        pass
 
 # This is a hack to prevent :ivar: docs from attempting to create a reference
 # Credit goes to https://stackoverflow.com/a/41184353/5096023
+
+
 def patched_make_field(self, types, domain, items, env=None):
     # type: (List, unicode, Tuple) -> nodes.field
     def handle_item(fieldarg, content):
         par = nodes.paragraph()
         par += addnodes.literal_strong('', fieldarg)  # Patch: this line added
-        #par.extend(self.make_xrefs(self.rolename, domain, fieldarg,
+        # par.extend(self.make_xrefs(self.rolename, domain, fieldarg,
         #                           addnodes.literal_strong))
         if fieldarg in types:
             par += nodes.Text(' (')
@@ -64,7 +66,7 @@ def patched_make_field(self, types, domain, items, env=None):
             # inconsistencies later when references are resolved
             fieldtype = types.pop(fieldarg)
             if len(fieldtype) == 1 and isinstance(fieldtype[0], nodes.Text):
-                typename = u''.join(n.astext() for n in fieldtype)
+                typename = ''.join(n.astext() for n in fieldtype)
                 par.extend(self.make_xrefs(self.typerolename, domain, typename,
                                            addnodes.literal_emphasis))
             else:
@@ -84,6 +86,7 @@ def patched_make_field(self, types, domain, items, env=None):
             bodynode += nodes.list_item('', handle_item(fieldarg, content))
     fieldbody = nodes.field_body('', bodynode)
     return nodes.field('', fieldname, fieldbody)
+
 
 TypedField.make_field = patched_make_field
 
@@ -150,8 +153,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'LISA'
-copyright = u'2017, ARM-Software'
+project = 'LISA'
+copyright = '2017, ARM-Software'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -160,7 +163,7 @@ copyright = u'2017, ARM-Software'
 try:
     git_description = subprocess.check_output(
         ['git', 'describe', '--tags', '--match=v??.??'])
-    version = re.match('v([0-9][0-9]\.[0-9][0-9]).*', git_description).group(1)
+    version = re.match(r'v([0-9][0-9]\.[0-9][0-9]).*', git_description).group(1)
 except Exception as e:
     logging.info("Couldn't set project version from git: {}".format(e))
     version = lisa.__version__
@@ -290,22 +293,22 @@ htmlhelp_basename = 'LISAdoc'
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
-# The paper size ('letterpaper' or 'a4paper').
-#'papersize': 'letterpaper',
+    # The paper size ('letterpaper' or 'a4paper').
+    # 'papersize': 'letterpaper',
 
-# The font size ('10pt', '11pt' or '12pt').
-#'pointsize': '10pt',
+    # The font size ('10pt', '11pt' or '12pt').
+    # 'pointsize': '10pt',
 
-# Additional stuff for the LaTeX preamble.
-#'preamble': '',
+    # Additional stuff for the LaTeX preamble.
+    # 'preamble': '',
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'LISA.tex', u'LISA Documentation',
-   u'ARM-Software', 'manual'),
+    ('index', 'LISA.tex', 'LISA Documentation',
+   'ARM-Software', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -334,8 +337,8 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'lisa', u'LISA Documentation',
-     [u'ARM-Software'], 1)
+    ('index', 'lisa', 'LISA Documentation',
+     ['ARM-Software'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -348,8 +351,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'LISA', u'LISA Documentation',
-   u'ARM-Software', 'LISA', 'One line description of project.',
+    ('index', 'LISA', 'LISA Documentation',
+   'ARM-Software', 'LISA', 'One line description of project.',
    'Miscellaneous'),
 ]
 
@@ -366,15 +369,15 @@ texinfo_documents = [
 #texinfo_no_detailmenu = False
 
 intersphinx_mapping = {
-    'python' : ('https://docs.python.org/3', None),
-    'pandas' : ('https://pandas.pydata.org/pandas-docs/stable/', None),
-    'matplotlib' : ('https://matplotlib.org', None),
+    'python': ('https://docs.python.org/3', None),
+    'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None),
+    'matplotlib': ('https://matplotlib.org', None),
     'numpy': ('https://docs.scipy.org/doc/numpy', None),
     # XXX: Doesn't seem to work, might be due to how devlib doc is generated
-    'wa' : ('https://devlib.readthedocs.io/en/latest/', None),
-    'trappy' : ('https://pythonhosted.org/TRAPpy', None),
-    'bart' :   ('https://pythonhosted.org/bart-py/', None),
-    'wa' : ('https://workload-automation.readthedocs.io/en/latest/', None),
+    'wa': ('https://devlib.readthedocs.io/en/latest/', None),
+    'trappy': ('https://pythonhosted.org/TRAPpy', None),
+    'bart': ('https://pythonhosted.org/bart-py/', None),
+    'wa': ('https://workload-automation.readthedocs.io/en/latest/', None),
 }
 
 #
@@ -387,8 +390,8 @@ autoclass_content = 'both'
 autodoc_member_order = 'bysource'
 
 autodoc_default_options = {
-    'show-inheritance' : '', # Show parent class
-    'undoc-members' : '',    # Show members even if they don't have docstrings
+    'show-inheritance': '',  # Show parent class
+    'undoc-members': '',    # Show members even if they don't have docstrings
 }
 autodoc_inherit_docstrings = True
 

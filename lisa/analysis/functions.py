@@ -48,7 +48,7 @@ class FunctionsAnalysis(AnalysisHelpers):
 
         # Build and keep track of the DataFrame
         self._df = pd.concat(list(frames.values()),
-                                             keys=list(frames.keys()))
+                             keys=list(frames.keys()))
 
     def get_default_plot_path(self, **kwargs):
         return super().get_default_plot_path(
@@ -100,8 +100,8 @@ class FunctionsAnalysis(AnalysisHelpers):
         available_metrics = df.columns.tolist()
         if not set(metrics).issubset(set(available_metrics)):
             msg = 'Metrics {} not supported, available metrics are {}'\
-                    .format(set(metrics) - set(available_metrics),
-                            available_metrics)
+                .format(set(metrics) - set(available_metrics),
+                        available_metrics)
             raise ValueError(msg)
 
         for metric in metrics:

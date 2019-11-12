@@ -28,6 +28,7 @@ from lisa.target import Target
 from lisa.analysis.tasks import TasksAnalysis, TaskState
 from lisa.analysis.idle import IdleAnalysis
 
+
 class MisfitMigrationBase(RTATestBundle):
     """
     Abstract class for Misfit behavioural testing
@@ -65,6 +66,7 @@ class MisfitMigrationBase(RTATestBundle):
         """
         HZ = plat_info['kernel']['config']['CONFIG_HZ']
         return ((HZ * plat_info['cpus-count']) // 10) * (1. / HZ)
+
 
 class StaggeredFinishes(MisfitMigrationBase):
     """
@@ -196,7 +198,7 @@ class StaggeredFinishes(MisfitMigrationBase):
             return state_df
 
         return df_squash(state_df, self.start_time,
-                               state_df.index[-1] + state_df.delta.values[-1], "delta")
+                         state_df.index[-1] + state_df.delta.values[-1], "delta")
 
     @requires_events('sched_switch', TasksAnalysis.df_task_states.used_events)
     def test_preempt_time(self, allowed_preempt_pct=1) -> ResultBundle:
@@ -206,7 +208,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         sdf = self.trace.df_events('sched_switch')
         task_state_dfs = {
-            task : self.trace.analysis.tasks.df_task_states(task)
+            task: self.trace.analysis.tasks.df_task_states(task)
             for task in self.rtapp_tasks
         }
 
@@ -231,8 +233,8 @@ class StaggeredFinishes(MisfitMigrationBase):
             preempt_pct = (preempt_time / self.duration) * 100
 
             res.add_metric("{} preemption".format(task), {
-                "ratio" : TestMetric(preempt_pct, "%"),
-                "time" : TestMetric(preempt_time, "seconds")})
+                "ratio": TestMetric(preempt_pct, "%"),
+                "time": TestMetric(preempt_time, "seconds")})
 
             if preempt_pct > allowed_preempt_pct:
                 res.result = Result.FAILED
@@ -295,7 +297,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
             max_time, max_cpu = max(task_idle_times)
             res.add_metric("{} max idle".format(task), data={
-                "time" : TestMetric(max_time, "seconds"), "cpu" : TestMetric(max_cpu)})
+                "time": TestMetric(max_time, "seconds"), "cpu": TestMetric(max_cpu)})
 
             if max_time > allowed_idle_time_s:
                 res.result = Result.FAILED

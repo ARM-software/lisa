@@ -191,6 +191,7 @@ class TraceView(Loggable, TraceBase):
         they are adjusted to match the given window. On top of this, this class
         mimics a regular :class:`Trace` using :func:`getattr`.
     """
+
     def __init__(self, trace, window):
         super().__init__()
 
@@ -247,7 +248,7 @@ class TraceView(Loggable, TraceBase):
 
     def get_view(self, window):
         start = self.start
-        end   = self.end
+        end = self.end
 
         if window[0]:
             start = max(start, window[0])
@@ -355,7 +356,6 @@ class Trace(Loggable, TraceBase):
         Underlying :class:`trappy.ftrace.FTrace`.
         """
         return self._ftrace
-
 
     @classmethod
     @contextlib.contextmanager
@@ -553,8 +553,8 @@ class Trace(Loggable, TraceBase):
         # Keep only the values, in appearance order according to the timestamp
         # index
         def finalize_mapping(mapping):
-            keep_values = lambda items: list(zip(*items))[1]
-            sort_by_index = lambda values: sorted(values, key=lambda index_v: index_v[0])
+            def keep_values(items): return list(zip(*items))[1]
+            def sort_by_index(values): return sorted(values, key=lambda index_v: index_v[0])
             return {
                 # Remove duplicates and only keep the first occurence of each
                 k: deduplicate(
@@ -769,7 +769,6 @@ class Trace(Loggable, TraceBase):
 
             return comm_list
 
-
         if isinstance(task, str):
             task_ids = [
                 TaskID(pid=pid, comm=task)
@@ -815,7 +814,6 @@ class Trace(Loggable, TraceBase):
 
         return task_ids[0]
 
-
     @deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=get_task_id)
     def get_task_pid(self, task):
         """
@@ -841,7 +839,7 @@ class Trace(Loggable, TraceBase):
         """
         List of all the :class:`TaskID` in the trace, sorted by PID.
         """
-        key = lambda k_v: k_v[0]
+        def key(k_v): return k_v[0]
 
         return [
             TaskID(pid=pid, comm=comm)
@@ -901,14 +899,14 @@ class Trace(Loggable, TraceBase):
         max_lcap = nrg_model['little']['cpu']['cap_max']
         max_bcap = nrg_model['big']['cpu']['cap_max']
         df['max_capacity'] = np.select(
-                [df.cpu.isin(self.plat_info['clusters']['little'])],
-                [max_lcap], max_bcap)
+            [df.cpu.isin(self.plat_info['clusters']['little'])],
+            [max_lcap], max_bcap)
         # Add LITTLE and big CPUs "tipping point" threshold
         tip_lcap = 0.8 * max_lcap
         tip_bcap = 0.8 * max_bcap
         df['tip_capacity'] = np.select(
-                [df.cpu.isin(self.plat_info['clusters']['little'])],
-                [tip_lcap], tip_bcap)
+            [df.cpu.isin(self.plat_info['clusters']['little'])],
+            [tip_lcap], tip_bcap)
 
     def _sanitize_SchedLoadAvgCpu(self):
         """
@@ -987,13 +985,13 @@ class Trace(Loggable, TraceBase):
         power_max = em_lcpu['nrg_max'] * lcpus + em_bcpu['nrg_max'] * bcpus + \
             em_lcluster['nrg_max'] + em_bcluster['nrg_max']
         logger.debug(
-            "Maximum estimated system energy: {0:d}".format(power_max))
+            "Maximum estimated system energy: {:d}".format(power_max))
 
         df = self.df_events('sched_energy_diff')
 
-        translations = {'nrg_d' : 'nrg_diff',
-                        'utl_d' : 'usage_delta',
-                        'payoff' : 'nrg_payoff'
+        translations = {'nrg_d': 'nrg_diff',
+                        'utl_d': 'usage_delta',
+                        'payoff': 'nrg_payoff'
         }
         df.rename(columns=translations, inplace=True)
 
@@ -1058,8 +1056,8 @@ class Trace(Loggable, TraceBase):
             return
 
         devlib_freq = self.df_events('cpu_frequency_devlib')
-        devlib_freq.rename(columns={'cpu_id':'cpu'}, inplace=True)
-        devlib_freq.rename(columns={'state':'frequency'}, inplace=True)
+        devlib_freq.rename(columns={'cpu_id': 'cpu'}, inplace=True)
+        devlib_freq.rename(columns={'state': 'frequency'}, inplace=True)
 
         domains = self.plat_info['freq-domains']
 
@@ -1152,6 +1150,7 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         done.
     :type check: bool
     """
+
     def __init__(self, check=True):
         self.check = check
 
@@ -1260,6 +1259,7 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
     def __str__(self):
         return self._str_internal()
 
+
 class TraceEventChecker(TraceEventCheckerBase):
     """
     Check for one single event.
@@ -1273,6 +1273,7 @@ class TraceEventChecker(TraceEventCheckerBase):
         done.
     :type check: bool
     """
+
     def __init__(self, event, check=True):
         super().__init__(check=check)
         self.event = event
@@ -1288,10 +1289,12 @@ class TraceEventChecker(TraceEventCheckerBase):
         template = '``{}``' if style == 'rst' else '{}'
         return template.format(self.event)
 
+
 class AssociativeTraceEventChecker(TraceEventCheckerBase):
     """
     Base class for associative operators like `and` and `or`
     """
+
     def __init__(self, op_str, event_checkers, check=True, prefix_str=''):
         super().__init__(check=check)
         checker_list = []
@@ -1362,6 +1365,7 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
         template = '({})' if len(self.checkers) > 1 and wrapped else '{}'
         return template.format(unwrapped_str)
 
+
 class OrTraceEventChecker(AssociativeTraceEventChecker):
     """
     Check that one of the given event checkers is satisfied.
@@ -1369,6 +1373,7 @@ class OrTraceEventChecker(AssociativeTraceEventChecker):
     :param event_checkers: Event checkers to check for
     :type event_checkers: list(TraceEventCheckerBase)
     """
+
     def __init__(self, event_checkers, **kwargs):
         super().__init__('or', event_checkers, **kwargs)
 
@@ -1391,6 +1396,7 @@ class OrTraceEventChecker(AssociativeTraceEventChecker):
                 available_events=event_set,
             )
 
+
 class OptionalTraceEventChecker(AssociativeTraceEventChecker):
     """
     Do not check anything, but exposes the information that the events may be
@@ -1399,11 +1405,13 @@ class OptionalTraceEventChecker(AssociativeTraceEventChecker):
     :param event_checkers: Event checkers that may be used
     :type event_checkers: list(TraceEventCheckerBase)
     """
+
     def __init__(self, event_checkers, **kwargs):
         super().__init__(',', event_checkers, prefix_str='optional: ', **kwargs)
 
     def check_events(self, event_set):
         return
+
 
 class AndTraceEventChecker(AssociativeTraceEventChecker):
     """
@@ -1412,6 +1420,7 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
     :param event_checkers: Event checkers to check for
     :type event_checkers: list(TraceEventCheckerBase)
     """
+
     def __init__(self, event_checkers, **kwargs):
         super().__init__('and', event_checkers, **kwargs)
 
@@ -1442,6 +1451,7 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
         )
         return rst
 
+
 def requires_events(*events, **kwargs):
     """
     Decorator for methods that require some given trace events.
@@ -1457,11 +1467,13 @@ def requires_events(*events, **kwargs):
     """
     return AndTraceEventChecker.from_events(events, **kwargs)
 
+
 def requires_one_event_of(*events, **kwargs):
     """
     Same as :func:`requires_events` with logical `OR` semantic.
     """
     return OrTraceEventChecker.from_events(events, **kwargs)
+
 
 def may_use_events(*events, **kwargs):
     """
@@ -1470,11 +1482,13 @@ def may_use_events(*events, **kwargs):
     """
     return OptionalTraceEventChecker.from_events(events, **kwargs)
 
+
 class MissingTraceEventError(RuntimeError, ValueError):
     """
     :param missing_events: The missing trace events
     :type missing_events: TraceEventCheckerBase
     """
+
     def __init__(self, missing_events, available_events=None):
         msg = "Trace is missing the following required events: {}".format(missing_events)
         if available_events:
@@ -1483,6 +1497,7 @@ class MissingTraceEventError(RuntimeError, ValueError):
 
         super().__init__(msg)
         self.missing_events = missing_events
+
 
 class FtraceConf(SimpleMultiSrcConf, HideExekallID):
     """
@@ -1557,6 +1572,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
             },
             **kwargs,
         )
+
 
 class FtraceCollector(Loggable, Configurable):
     """
@@ -1689,6 +1705,7 @@ class DmesgCollector(devlib.DmesgCollector):
     It installs the ``dmesg`` tool automatically on the target upon creation,
     so we know what version is being is used.
     """
+
     def __init__(self, target, *args, **kwargs):
         # Make sure we use the binary that is known to work
         target.install_tools(['dmesg'])

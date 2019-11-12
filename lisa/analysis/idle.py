@@ -174,7 +174,7 @@ class IdleAnalysis(TraceAnalysisBase):
             # Compute total time by integrating the square wave
             idle_time.append(series_integrate(idle_t))
 
-        idle_time_df = pd.DataFrame({'time' : idle_time}, index=available_idles)
+        idle_time_df = pd.DataFrame({'time': idle_time}, index=available_idles)
         idle_time_df.index.name = 'idle_state'
         return idle_time_df
 
@@ -232,7 +232,7 @@ class IdleAnalysis(TraceAnalysisBase):
             # Compute total time by integrating the square wave
             idle_time.append(series_integrate(idle_t))
 
-        idle_time_df = pd.DataFrame({'time' : idle_time}, index=available_idles)
+        idle_time_df = pd.DataFrame({'time': idle_time}, index=available_idles)
         idle_time_df.index.name = 'idle_state'
         return idle_time_df
 
@@ -257,7 +257,6 @@ class IdleAnalysis(TraceAnalysisBase):
         self._plot_idle_state_residency(df, axis, pct)
         axis.set_title("CPU{} idle state residency".format(cpu))
 
-
     @TraceAnalysisBase.plot_method()
     @df_cluster_idle_state_residency.used_events
     def plot_cluster_idle_state_residency(self, cluster, axis, local_fig, pct=False):
@@ -275,7 +274,6 @@ class IdleAnalysis(TraceAnalysisBase):
 
         self._plot_idle_state_residency(df, axis, pct)
         axis.set_title("CPUs {} idle state residency".format(cluster))
-
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cluster_idle_state_residency.used_events

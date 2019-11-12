@@ -121,6 +121,7 @@ class Loggable:
                 continue
             cls.get_logger().log(level, 'Local variable: {}: {}'.format(name, val))
 
+
 def get_subclasses(cls, only_leaves=False, cls_set=None):
     """Get all indirect subclasses of the class."""
     if cls_set is None:
@@ -160,6 +161,7 @@ def get_cls_name(cls, style=None):
         name = ':class:`~{}`'.format(name)
     return name
 
+
 class HideExekallID:
     """Hide the subclasses in the simplified ID format of exekall.
 
@@ -170,6 +172,7 @@ class HideExekallID:
     is fighting against.
     """
     pass
+
 
 def memoized(f):
     """
@@ -213,6 +216,7 @@ def memoized(f):
     else:
         return apply_lru(f)
 
+
 def resolve_dotted_name(name):
     """Only resolve names where __qualname__ == __name__, i.e the callable is a
     module-level name."""
@@ -220,9 +224,11 @@ def resolve_dotted_name(name):
     mod = importlib.import_module(mod_name)
     return getattr(mod, callable_name)
 
+
 def import_all_submodules(pkg):
     """Import all submodules of a given package."""
     return _import_all_submodules(pkg.__name__, pkg.__path__)
+
 
 def _import_all_submodules(pkg_name, pkg_path):
     def import_module(module_name):
@@ -239,6 +245,7 @@ def _import_all_submodules(pkg_name, pkg_path):
         in pkgutil.walk_packages(pkg_path)
     ]
 
+
 class UnknownTagPlaceholder:
     def __init__(self, tag, data, location=None):
         self.tag = tag
@@ -247,6 +254,7 @@ class UnknownTagPlaceholder:
 
     def __str__(self):
         return '<UnknownTagPlaceholder of {}>'.format(self.tag)
+
 
 class Serializable(Loggable):
     """
@@ -368,7 +376,6 @@ class Serializable(Loggable):
         kwargs = loader.construct_mapping(node, deep=True)
         return loader.make_python_instance(suffix, node, kwds=kwargs, newobj=False)
 
-
     # Allow !include to use relative paths from the current file. Since we
     # introduce a global state, we use thread-local storage.
     _included_path = threading.local()
@@ -422,7 +429,7 @@ class Serializable(Loggable):
     # memoize to avoid displaying the same message twice
     @memoized
     def _warn_missing_env(cls, varname):
-            cls.get_logger().warning('Environment variable "{}" not defined, using None value'.format(varname))
+        cls.get_logger().warning('Environment variable "{}" not defined, using None value'.format(varname))
 
     @classmethod
     def _yaml_var_constructor(cls, loader, node):
@@ -517,44 +524,44 @@ class Serializable(Loggable):
         return instance
 
     def __getstate__(self):
-       """
-       Filter the instance's attributes upon serialization.
+        """
+        Filter the instance's attributes upon serialization.
 
-       The following class attributes can be used to customize the serialized
-       content:
-           * :attr:`serialized_whitelist`: list of attribute names to
-             serialize. All other attributes will be ignored and will not be
-             saved/restored.
+        The following class attributes can be used to customize the serialized
+        content:
+            * :attr:`serialized_whitelist`: list of attribute names to
+              serialize. All other attributes will be ignored and will not be
+              saved/restored.
 
-           * :attr:`serialized_blacklist`: list of attribute names to not
-             serialize.  All other attributes will be saved/restored.
+            * :attr:`serialized_blacklist`: list of attribute names to not
+              serialize.  All other attributes will be saved/restored.
 
-           * serialized_placeholders: Map of attribute names to placeholder
-             values. These attributes will not be serialized, and the
-             placeholder value will be used upon restoration.
+            * serialized_placeholders: Map of attribute names to placeholder
+              values. These attributes will not be serialized, and the
+              placeholder value will be used upon restoration.
 
-           If both :attr:`serialized_whitelist` and
-           :attr:`serialized_blacklist` are specified,
-           :attr:`serialized_blacklist` is ignored.
-       """
+            If both :attr:`serialized_whitelist` and
+            :attr:`serialized_blacklist` are specified,
+            :attr:`serialized_blacklist` is ignored.
+        """
 
-       dct = copy.copy(self.__dict__)
-       if self.serialized_whitelist:
-           dct = {attr: dct[attr] for attr in self.serialized_whitelist}
+        dct = copy.copy(self.__dict__)
+        if self.serialized_whitelist:
+            dct = {attr: dct[attr] for attr in self.serialized_whitelist}
 
-       elif self.serialized_blacklist:
-           for attr in self.serialized_blacklist:
-               dct.pop(attr, None)
+        elif self.serialized_blacklist:
+            for attr in self.serialized_blacklist:
+                dct.pop(attr, None)
 
-       for attr, placeholder in self.serialized_placeholders.items():
-           dct.pop(attr, None)
+        for attr, placeholder in self.serialized_placeholders.items():
+            dct.pop(attr, None)
 
-       return dct
+        return dct
 
     def __setstate__(self, dct):
-       if self.serialized_placeholders:
-           dct.update(copy.deepcopy(self.serialized_placeholders))
-       self.__dict__ = dct
+        if self.serialized_placeholders:
+            dct.update(copy.deepcopy(self.serialized_placeholders))
+        self.__dict__ = dct
 
     def __copy__(self):
         """
@@ -569,7 +576,9 @@ class Serializable(Loggable):
             new.__dict__.update(self.__dict__)
             return new
 
+
 Serializable._init_yaml()
+
 
 def setup_logging(filepath='logging.conf', level=None):
     """
@@ -605,6 +614,7 @@ def setup_logging(filepath='logging.conf', level=None):
             logging.info('Using LISA logging configuration: {}'.format(filepath))
         else:
             raise FileNotFoundError('Logging configuration file not found: {}'.format(filepath))
+
 
 class ArtifactPath(str, Loggable, HideExekallID):
     """Path to a folder that can be used to store artifacts of a function.
@@ -683,6 +693,7 @@ def grouper(iterable, n, fillvalue=None):
     args = [iter(iterable)] * n
     return itertools.zip_longest(*args, fillvalue=fillvalue)
 
+
 def group_by_value(mapping, key_sort=lambda x: x):
     """
     Group a mapping by its values
@@ -707,12 +718,13 @@ def group_by_value(mapping, key_sort=lambda x: x):
     """
     if not key_sort:
         # Just conserve the order
-        key_sort = lambda x: 0
+        def key_sort(x): return 0
 
     return OrderedDict(
         (val, sorted((k for k, v in key_group), key=key_sort))
         for val, key_group in groupby(mapping.items(), key=operator.itemgetter(1))
     )
+
 
 def deduplicate(seq, keep_last=True, key=lambda x: x):
     """
@@ -736,6 +748,7 @@ def deduplicate(seq, keep_last=True, key=lambda x: x):
     )
     return list(reorder(dedup.values()))
 
+
 def get_nested_key(mapping, key_path, getitem=operator.getitem):
     """
     Get a key in a nested mapping
@@ -756,6 +769,7 @@ def get_nested_key(mapping, key_path, getitem=operator.getitem):
     for key in key_path[:-1]:
         mapping = getitem(mapping, key)
     return getitem(mapping, key_path[-1])
+
 
 def set_nested_key(mapping, key_path, val, level=None):
     """
@@ -787,6 +801,7 @@ def set_nested_key(mapping, key_path, val, level=None):
             mapping = new_level
 
     mapping[key_path[-1]] = val
+
 
 def get_call_site(levels=0, exclude_caller_module=False):
     """
@@ -841,12 +856,14 @@ def get_call_site(levels=0, exclude_caller_module=False):
 
     return (caller, filename, lineno)
 
+
 def is_running_sphinx():
     """
     Returns True if the module is imported when Sphinx is running, False
     otherwise.
     """
     return 'sphinx' in sys.modules
+
 
 def is_running_ipython():
     """
@@ -859,6 +876,7 @@ def is_running_ipython():
         return False
     else:
         return True
+
 
 def non_recursive_property(f):
     """
@@ -963,7 +981,7 @@ def update_wrapper_doc(func, added_by=None, description=None, remove_params=None
                 )
             )
         ]
-        added_names = set(desc.name for desc in added_params)
+        added_names = {desc.name for desc in added_params}
 
         if include_kwargs:
             f_var_keyword_params = []
@@ -1010,6 +1028,7 @@ DEPRECATED_MAP = {}
 """
 Global dictionary of deprecated classes, functions and so on.
 """
+
 
 def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, parameter=None):
     """
@@ -1135,7 +1154,6 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
             msg=': ' + msg if msg else '',
         )
 
-
     def decorator(obj):
         obj_name = getname(obj)
 
@@ -1222,18 +1240,18 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
             update_doc_of = return_obj
 
         extra_doc = textwrap.dedent(
-        """
+            """
         .. attention::
 
             .. deprecated:: {deprecated_in}
 
             {msg}
         """.format(
-            deprecated_in=deprecated_in if deprecated_in else '<unknown>',
-            # The documentation already creates references to the replacement,
-            # so we can avoid downloading the inventory for nothing.
-            msg=make_msg(obj, parameter, style='rst', show_doc_url=False),
-        )).strip()
+                deprecated_in=deprecated_in if deprecated_in else '<unknown>',
+                # The documentation already creates references to the replacement,
+                # so we can avoid downloading the inventory for nothing.
+                msg=make_msg(obj, parameter, style='rst', show_doc_url=False),
+            )).strip()
         doc = inspect.getdoc(update_doc_of) or ''
 
         # Update the description of the parameter in the right spot in the docstring
@@ -1252,7 +1270,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
 
             # Add the extra bits in the right block and join lines of the block
             def update_block(block):
-                if re.match(':param\s+{}'.format(re.escape(parameter)), block[0]):
+                if re.match(r':param\s+{}'.format(re.escape(parameter)), block[0]):
                     if len(block) > 1:
                         indentation = re.match(r'^(\s*)', block[-1]).group(0)
                     else:
@@ -1350,7 +1368,10 @@ def split_paragraphs(string):
 
     return para_list
 
+
 mimetypes.add_type('text/rst', '.rst')
+
+
 def guess_format(path):
     """
     Guess the file format from a `path`, using the mime types database.
@@ -1361,6 +1382,7 @@ def guess_format(path):
     mime_type = mimetypes.guess_type(path, strict=False)[0]
     guessed_format = mime_type.split('/')[1].split('.', 1)[-1].split('+')[0]
     return guessed_format
+
 
 @contextlib.contextmanager
 def nullcontext(enter_result=None):
@@ -1393,6 +1415,7 @@ class ExekallTaggable:
         """
         return {}
 
+
 def annotations_from_signature(sig):
     """
     Build a PEP484 ``__annotations__`` dictionary from a :class:`inspect.Signature`.
@@ -1407,6 +1430,7 @@ def annotations_from_signature(sig):
         annotations['return'] = sig.return_annotation
 
     return annotations
+
 
 def namedtuple(*args, module, **kwargs):
     """

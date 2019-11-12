@@ -53,6 +53,7 @@ class EnergyMeter(Loggable, Configurable):
     """
     Abstract Base Class of energy meters.
     """
+
     def __init__(self, target, res_dir=None):
         self._target = target
         res_dir = res_dir if res_dir else target.get_res_dir(
@@ -60,7 +61,6 @@ class EnergyMeter(Loggable, Configurable):
             symlink=False,
         )
         self._res_dir = res_dir
-
 
     @classmethod
     def from_conf(cls, target, conf, res_dir=None):
@@ -121,6 +121,7 @@ class EnergyMeter(Loggable, Configurable):
         """
         pass
 
+
 class HWMonConf(SimpleMultiSrcConf, HideExekallID):
     """
     Configuration class for :class:`HWMon`.
@@ -128,9 +129,10 @@ class HWMonConf(SimpleMultiSrcConf, HideExekallID):
     {generated_help}
     """
     STRUCTURE = TopLevelKeyDesc('hwmon-conf', 'HWMon Energy Meter configuration', (
-        #TODO: find a better help and maybe a better type
+        # TODO: find a better help and maybe a better type
         KeyDesc('channel-map', 'Channels to use', [Mapping]),
     ))
+
 
 class HWMon(EnergyMeter):
     """
@@ -167,7 +169,7 @@ class HWMon(EnergyMeter):
         self._channels = channel_map
         if self._channels:
             # If the user provides a channel_map then require it to be correct.
-            if not all (s in available_sites for s in list(self._channels.values())):
+            if not all(s in available_sites for s in list(self._channels.values())):
                 raise RuntimeError(
                     "Found sites {} but channel_map contains {}".format(
                         sorted(available_sites), sorted(self._channels.values())))
@@ -191,7 +193,6 @@ class HWMon(EnergyMeter):
         for channel in self._hwmon.active_channels:
             logger.info('   %s', channel.label)
 
-
     def sample(self):
         logger = self.get_logger()
         samples = self._hwmon.take_measurement()
@@ -201,14 +202,14 @@ class HWMon(EnergyMeter):
 
             if site not in self.readings:
                 self.readings[site] = {
-                        'last'  : value,
-                        'delta' : 0,
-                        'total' : 0
-                        }
+                    'last': value,
+                    'delta': 0,
+                    'total': 0
+                }
                 continue
 
             self.readings[site]['delta'] = value - self.readings[site]['last']
-            self.readings[site]['last']  = value
+            self.readings[site]['last'] = value
             self.readings[site]['total'] += self.readings[site]['delta']
 
         logger.debug('SAMPLE: %s', self.readings)
@@ -299,6 +300,7 @@ class _DevlibContinuousEnergyMeter(EnergyMeter):
                 channels_nrg[site] = series_integrate(df[site]['power'], method='trapz')
         return channels_nrg
 
+
 class AEPConf(SimpleMultiSrcConf, HideExekallID):
     """
     Configuration class for :class:`AEP`.
@@ -311,6 +313,7 @@ class AEPConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('labels', 'List of labels', [StrList]),
         KeyDesc('device-entry', 'TTY device', [StrList]),
     ))
+
 
 class AEP(_DevlibContinuousEnergyMeter):
     """
@@ -342,6 +345,7 @@ class AEP(_DevlibContinuousEnergyMeter):
         logger.info('   %s', str(self._instrument.active_channels))
         logger.debug('Results dir: %s', self._res_dir)
 
+
 class MonsoonConf(SimpleMultiSrcConf, HideExekallID):
     """
     Configuration class for :class:`Monsoon`.
@@ -353,6 +357,7 @@ class MonsoonConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('monsoon-bin', 'monsoon binary path', [str]),
         KeyDesc('tty-device', 'TTY device to use', [str]),
     ))
+
 
 class Monsoon(_DevlibContinuousEnergyMeter):
     """
@@ -370,6 +375,7 @@ class Monsoon(_DevlibContinuousEnergyMeter):
             monsoon_bin=monsoon_bin, tty_device=tty_device)
         self._instrument.reset()
 
+
 _acme_install_instructions = '''
 
   If you need to measure energy using an ACME EnergyProbe,
@@ -380,6 +386,7 @@ _acme_install_instructions = '''
   configuration file.
 
 '''
+
 
 class ACMEConf(SimpleMultiSrcConf, HideExekallID):
     """
@@ -392,6 +399,7 @@ class ACMEConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('host', 'Hostname or IP address of the ACME board', [str]),
         KeyDesc('iio-capture-bin', 'path to iio-capture binary', [str]),
     ))
+
 
 class ACME(EnergyMeter):
     """
@@ -435,7 +443,7 @@ class ACME(EnergyMeter):
             p = subprocess.call([self._iiocapturebin, '-h'], stdout=PIPE, stderr=STDOUT)
         except FileNotFoundError as e:
             logger.error('iio-capture binary [%s] not available',
-                            self._iiocapturebin)
+                         self._iiocapturebin)
             logger.warning(_acme_install_instructions)
             raise FileNotFoundError('Missing iio-capture binary') from e
 
@@ -462,7 +470,7 @@ class ACME(EnergyMeter):
             for channel in self._channels:
                 if self._iio_device(channel) in proc.cmdline():
                     logger.debug('Killing previous iio-capture for [%s]',
-                                     self._iio_device(channel))
+                                 self._iio_device(channel))
                     logger.debug(proc.cmdline())
                     proc.kill()
                     wait_for_termination = 2
@@ -479,13 +487,13 @@ class ACME(EnergyMeter):
 
             # Start a dedicated iio-capture instance for this channel
             self._iio[ch_id] = Popen(['stdbuf', '-i0', '-o0', '-e0',
-                                       self._iiocapturebin, '-n',
-                                       self._hostname, '-o',
-                                       '-c', '-f',
-                                       str(csv_file),
-                                       self._iio_device(channel)],
-                                       stdout=PIPE, stderr=STDOUT,
-                                       universal_newlines=True)
+                                      self._iiocapturebin, '-n',
+                                      self._hostname, '-o',
+                                      '-c', '-f',
+                                      str(csv_file),
+                                      self._iio_device(channel)],
+                                     stdout=PIPE, stderr=STDOUT,
+                                     universal_newlines=True)
 
         # Wait some time before to check if there is any output
         sleep(1)
@@ -497,9 +505,9 @@ class ACME(EnergyMeter):
             self._iio[ch_id].poll()
             if self._iio[ch_id].returncode:
                 logger.error('Failed to run %s for %s',
-                                 self._iiocapturebin, self._str(channel))
-                logger.warning('\n\n'\
-                    '  Make sure there are no iio-capture processes\n'\
+                             self._iiocapturebin, self._str(channel))
+                logger.warning('\n\n'
+                    '  Make sure there are no iio-capture processes\n'
                     '  connected to %s and device %s\n',
                     self._hostname, self._str(channel))
                 out, _ = self._iio[ch_id].communicate()
@@ -508,7 +516,7 @@ class ACME(EnergyMeter):
                 raise RuntimeError('iio-capture connection error')
 
         logger.debug('Started %s on %s...',
-                        self._iiocapturebin, self._str(channel))
+                     self._iiocapturebin, self._str(channel))
         self.reset_time = time.monotonic()
 
     def report(self, out_dir, out_energy='energy.json'):
@@ -539,7 +547,7 @@ class ACME(EnergyMeter):
                 # returncode not None means that iio-capture has terminated
                 # already, so there must have been an error
                 logger.error('%s terminated for %s',
-                                self._iiocapturebin, self._str(channel))
+                             self._iiocapturebin, self._str(channel))
                 out, _ = self._iio[ch_id].communicate()
                 logger.error('[%s]', out)
                 self._iio[ch_id] = None
@@ -554,7 +562,7 @@ class ACME(EnergyMeter):
             # iio-capture return "energy=value", add a simple format check
             if '=' not in out:
                 logger.error('Bad output format for %s:',
-                                self._str(channel))
+                             self._str(channel))
                 logger.error('[%s]', out)
                 continue
             else:
@@ -583,12 +591,13 @@ class ACME(EnergyMeter):
 
         # Dump energy stats
         nrg_stats_file = os.path.splitext(out_energy)[0] + \
-                        '_stats' + os.path.splitext(out_energy)[1]
+            '_stats' + os.path.splitext(out_energy)[1]
         nrg_stats_file = os.path.join(out_dir, nrg_stats_file)
         with open(nrg_stats_file, 'w') as ofile:
             json.dump(channels_stats, ofile, sort_keys=True, indent=4)
 
         return EnergyReport(channels_nrg, nrg_file, None)
+
 
 class Gem5EnergyMeterConf(SimpleMultiSrcConf, HideExekallID):
     """
@@ -599,6 +608,7 @@ class Gem5EnergyMeterConf(SimpleMultiSrcConf, HideExekallID):
     STRUCTURE = TopLevelKeyDesc('gem5-energy-meter-conf', 'Gem5 Energy Meter configuration', (
         KeyDesc('channel-map', 'Channels to use', [Mapping]),
     ))
+
 
 class Gem5EnergyMeter(_DevlibContinuousEnergyMeter):
     name = 'gem5'

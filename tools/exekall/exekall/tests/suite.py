@@ -27,6 +27,7 @@ import exekall.utils as utils
 import exekall.engine as engine
 from exekall.tests.utils import indent
 
+
 class TestResultStatus(enum.Enum):
     PASSED = 1
     "Used when the test is passing"
@@ -37,10 +38,12 @@ class TestResultStatus(enum.Enum):
     SKIPPED = 3
     "Used when a test is irrelevant."
 
+
 class TestResult(Exception):
     """
     Result of a test with some context.
     """
+
     def __init__(self, status, msg=None, expr_list=None):
         self.status = status
         self.msg = msg
@@ -129,8 +132,7 @@ class TestCaseABC(abc.ABC):
 
         return expr_list
 
-
-    def __init__(self, expr_data:engine.ExprData):
+    def __init__(self, expr_data: engine.ExprData):
         self.expr_list = self.make_expressions(
             set(self.CALLABLES),
             goal_type=self.GOAL_TYPE,
@@ -147,7 +149,7 @@ class TestCaseABC(abc.ABC):
         self.dump_expr_layout()
 
     def dump_expr_layout(self):
-        folder = self.artifact_dir/'tested_expr'
+        folder = self.artifact_dir / 'tested_expr'
         # Wipe if already exists
         with contextlib.suppress(FileNotFoundError):
             shutil.rmtree(str(folder))
@@ -155,7 +157,7 @@ class TestCaseABC(abc.ABC):
 
         for expr in self.expr_list:
             id_ = expr.get_id(qual=False)
-            with open(str(folder/'{}.dot'.format(id_)), 'w') as f:
+            with open(str(folder / '{}.dot'.format(id_)), 'w') as f:
                 f.write(expr.format_structure(graphviz=True))
 
     def get_computable_expr_list(self):
@@ -252,7 +254,6 @@ class TestCaseABC(abc.ABC):
             if check_excep:
                 self.check_excep(expr_val_list)
             yield computable_expr, expr_val_list
-
 
 
 class TestCaseBase(TestCaseABC):
@@ -377,7 +378,6 @@ class NoExcepTestCase(TestCaseBase):
             for param in params1:
                 compare_expr_val(expr_val1[param], expr_val2[param])
 
-
         for ref_list, new_list in zip(ref_list, new_list):
             TestResult.fail_if(
                 len(new_list) != len(ref_list),
@@ -385,7 +385,6 @@ class NoExcepTestCase(TestCaseBase):
             )
             for ref, new in zip(ref_list, new_list):
                 compare_expr_val(ref, new)
-
 
     VALUES_RELATIONS = []
     """
@@ -433,35 +432,44 @@ class NoExcepTestCase(TestCaseBase):
 class A:
     pass
 
+
 class B:
     pass
+
 
 class B2:
     pass
 
+
 class B3:
     pass
+
 
 def init() -> A:
     return A()
 
-def middle(a:A) -> B:
+
+def middle(a: A) -> B:
     assert type(a) is A
     return B()
 
-def middle2(a:A) -> B2:
+
+def middle2(a: A) -> B2:
     assert type(a) is A
     return B2()
 
-def middle3(b2:B2) -> B3:
+
+def middle3(b2: B2) -> B3:
     assert type(b2) is B2
     return B3()
 
-def final(b:B, b2:B2, b3:B3) -> Final:
+
+def final(b: B, b2: B2, b3: B3) -> Final:
     assert type(b) is B
     assert type(b2) is B2
     assert type(b3) is B3
     return Final()
+
 
 class SingleExprTestCase(NoExcepTestCase):
     CALLABLES = {init, middle, middle2, middle3, final}
@@ -482,7 +490,6 @@ class SingleExprTestCase(NoExcepTestCase):
         ('reusable type', ['b', 'a'], operator.is_, ['b2', 'a']),
         ('non reusable type', ['b2'], operator.is_not, ['b3', 'b2']),
     ]
-
 
     @staticmethod
     def get_tags(obj):
@@ -508,14 +515,17 @@ class SingleExprTestCase(NoExcepTestCase):
 class Bderived(B):
     pass
 
-def middle_derived(a:A) -> Bderived:
+
+def middle_derived(a: A) -> Bderived:
     assert type(a) is A
     return Bderived()
 
-def final_derived(b:B) -> Final:
+
+def final_derived(b: B) -> Final:
     assert type(b) is Bderived
     assert isinstance(b, B)
     return Final()
+
 
 class InheritanceTestCase(NoExcepTestCase):
     CALLABLES = {init, middle_derived, final_derived}
@@ -526,9 +536,11 @@ class InheritanceTestCase(NoExcepTestCase):
     # no tags used
     EXPR_VAL_ID = EXPR_ID
 
-def init_consumer(consumer:engine.Consumer) -> A:
+
+def init_consumer(consumer: engine.Consumer) -> A:
     assert callable(consumer)
     return A()
+
 
 class ConsumerTestCase(NoExcepTestCase):
     CALLABLES = {init_consumer, middle, middle2, middle3, final}
@@ -547,11 +559,13 @@ class ConsumerTestCase(NoExcepTestCase):
     EXPR_VAL_ID = EXPR_ID
 
 
-def middle_excep(a:A) -> B:
+def middle_excep(a: A) -> B:
     raise ValueError('value error')
 
-def final_excep(b:B, b2:B2) -> Final:
+
+def final_excep(b: B, b2: B2) -> Final:
     raise RuntimeError('This should never trigger, since middle_excep is supposed to fail')
+
 
 class ExceptionTestCase(TestCaseBase):
     CALLABLES = {init, middle_excep, middle2, final_excep}
@@ -585,6 +599,7 @@ class ExceptionTestCase(TestCaseBase):
                         [computable_expr]
                     )
 
+
 class CloneTestCase(NoExcepTestCase):
     CALLABLES = {init, middle, middle2, middle3, final}
 
@@ -604,9 +619,8 @@ class CloneTestCase(NoExcepTestCase):
     def get_computable_expr_list(self):
         # Make sure we clone after the last CSE is applied, so cloning is not
         # de-cloned by CSE
-        predicate = lambda expr: expr.op.callable_ in {final, middle2, middle3}
+        def predicate(expr): return expr.op.callable_ in {final, middle2, middle3}
         return [
             expr.clone_by_predicate(predicate)
             for expr in super().get_computable_expr_list()
         ]
-

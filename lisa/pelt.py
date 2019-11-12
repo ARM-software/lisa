@@ -20,7 +20,7 @@ import math
 import pandas as pd
 import numpy as np
 
-PELT_WINDOW = 1024*1024*1e-9
+PELT_WINDOW = 1024 * 1024 * 1e-9
 """
 PELT window in seconds.
 """
@@ -31,6 +31,7 @@ PELT half-life in number of windows.
 """
 
 PELT_SCALE = 1024
+
 
 def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
     """
@@ -88,7 +89,7 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
     df.dropna(inplace=True)
 
     def make_pelt_sim(init, scale, window, half_life):
-        decay = (1/2)**(1/half_life)
+        decay = (1 / 2)**(1 / half_life)
         # Alpha as defined in https://en.wikipedia.org/wiki/Moving_average
         alpha = 1 - decay
 
@@ -114,18 +115,18 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
                 first_window_fraction /= window
 
                 acc += running * first_window_fraction
-                signal = alpha * acc + (1-alpha) * signal
+                signal = alpha * acc + (1 - alpha) * signal
 
                 # Handle the windows we fully crossed
                 for _ in range(windows - 1):
-                    signal = alpha * running + (1-alpha) * signal
+                    signal = alpha * running + (1 - alpha) * signal
 
                 # Handle the current incomplete window
                 last_window_fraction = (clock % window) / window
 
                 # Extrapolate the signal as it would look with the same
                 # `running` state at the end of the current window
-                extrapolated = running * alpha + (1-alpha) * signal
+                extrapolated = running * alpha + (1 - alpha) * signal
                 # Take an value between signal and extrapolated based on the
                 # current completion of the window. This implements the same
                 # idea as introduced by kernel commit:
@@ -187,7 +188,7 @@ def pelt_settling_time(margin_pct=1, init=0, final=1024, window=PELT_WINDOW, hal
     # https://en.wikipedia.org/wiki/Low-pass_filter#Simple_infinite_impulse_response_filter
 
     # Alpha as defined in https://en.wikipedia.org/wiki/Moving_average
-    decay = (1/2)**(1/half_life)
+    decay = (1 / 2)**(1 / half_life)
     alpha = 1 - decay
     tau = window * ((1 - alpha) / alpha)
 

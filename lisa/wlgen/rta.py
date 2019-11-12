@@ -30,12 +30,14 @@ from lisa.wlgen.workload import Workload
 from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, groupby, nullcontext
 from lisa.pelt import PELT_SCALE
 
+
 class CalibrationError(RuntimeError):
     """
     Exception raised when the ``rt-app`` calibration is not consistent with the
     CPU capacities in a way or another.
     """
     pass
+
 
 class RTA(Workload):
     """
@@ -84,7 +86,7 @@ class RTA(Workload):
         if not rta_cmd:
             raise RuntimeError("No rt-app executable found on the target")
 
-        self.command = '{0:s} {1:s} 2>&1'.format(quote(rta_cmd), quote(self.remote_json))
+        self.command = '{} {} 2>&1'.format(quote(rta_cmd), quote(self.remote_json))
 
     def _late_init(self, calibration=None, tasks_names=None):
         """
@@ -197,18 +199,18 @@ class RTA(Workload):
         if too_long_tids:
             raise ValueError(
                 'Task names too long, please configure your tasks with names shorter than {} characters: {}'.format(
-                max_size, too_long_tids
-            ))
+                    max_size, too_long_tids
+                ))
 
-        invalid_tids = sorted((
+        invalid_tids = sorted(
             tid for tid in profile.keys()
             if not re.match(cls.ALLOWED_TASK_NAME_REGEX, tid)
-        ))
+        )
         if invalid_tids:
             raise ValueError(
                 'Task names not matching "{}": {}'.format(
-                cls.ALLOWED_TASK_NAME_REGEX, invalid_tids,
-            ))
+                    cls.ALLOWED_TASK_NAME_REGEX, invalid_tids,
+                ))
 
         rta_profile = {
             # Keep a stable order for tasks definition, to get stable IDs
@@ -228,7 +230,7 @@ class RTA(Workload):
             # run(as_root=True), at which point we already generated and pushed
             # the JSON
             'lock_pages': False,
-            'log_size' : 'file' if log_stats else 'disable',
+            'log_size': 'file' if log_stats else 'disable',
             'ftrace': ','.join(self.trace_events),
         }
 
@@ -258,7 +260,6 @@ class RTA(Workload):
                 if task.priority is not None:
                     task_conf['prio'] = task.priority
                 sched_descr = 'sched: {}'.format(task.sched_policy)
-
 
             logger.info('------------------------')
             logger.info('task [%s], %s', tid, sched_descr)
@@ -313,10 +314,10 @@ class RTA(Workload):
         """
 
         replacements = {
-            '__DURATION__' : duration,
-            '__PVALUE__'   : pload,
-            '__LOGDIR__'   : log_dir,
-            '__WORKDIR__'  : work_dir,
+            '__DURATION__': duration,
+            '__PVALUE__': pload,
+            '__LOGDIR__': log_dir,
+            '__WORKDIR__': work_dir,
         }
 
         json_str = template
@@ -504,7 +505,7 @@ class RTA(Workload):
         """
 
         # calibration values are inversely proportional to the CPU capacities
-        inverse_calib = {cpu: 1/calib for cpu, calib in calibrations.items()}
+        inverse_calib = {cpu: 1 / calib for cpu, calib in calibrations.items()}
 
         def compute_capa(cpu):
             # True CPU capacity for the rt-app workload, rather than for the
@@ -530,7 +531,6 @@ class RTA(Workload):
         else:
             cm = target.cpufreq.use_governor('performance')
 
-
         with cm, target.disable_idle_states():
             return cls._calibrate(target, res_dir)
 
@@ -553,7 +553,7 @@ class RTA(Workload):
         missing = sorted(prefix for prefix, task_ids in task_map.items() if not task_ids)
         if missing:
             raise RuntimeError("Missing tasks matching the following rt-app profile names: {}"
-                                .format(', '.join(missing)))
+                               .format(', '.join(missing)))
         return task_map
 
     # Mapping of Trace objects to their task map.
@@ -599,6 +599,7 @@ class RTA(Workload):
         for this task.
         """
         return self.resolve_trace_task_names(trace, self.tasks)
+
 
 class Phase(Loggable):
     """
@@ -652,14 +653,14 @@ class Phase(Loggable):
 
         # A duty-cycle of 0[%] translates to a 'sleep' phase
         if self.duty_cycle_pct == 0:
-            logger.info(' | sleep %.6f [s]', duration/1e6)
+            logger.info(' | sleep %.6f [s]', duration / 1e6)
 
             phase['loop'] = 1
             phase['sleep'] = duration
 
         # A duty-cycle of 100[%] translates to a 'run-only' phase
         elif self.duty_cycle_pct == 100:
-            logger.info(' | batch %.6f [s]', duration/1e6)
+            logger.info(' | batch %.6f [s]', duration / 1e6)
 
             phase['loop'] = 1
             phase['run'] = duration
@@ -681,11 +682,11 @@ class Phase(Loggable):
             running_time = int(period - sleep_time)
 
             logger.info(' | duration %.6f [s] (%d loops)',
-                             duration/1e6, cloops)
+                        duration / 1e6, cloops)
             logger.info(' |  period   %6d [us], duty_cycle %3d %%',
-                             period, self.duty_cycle_pct)
+                        period, self.duty_cycle_pct)
             logger.info(' |  run_time %6d [us], sleep_time %6d [us]',
-                             running_time, sleep_time)
+                        running_time, sleep_time)
 
             phase['loop'] = cloops
             phase['run'] = running_time
@@ -704,7 +705,8 @@ class Phase(Loggable):
 
         return phase
 
-class RTATask(object):
+
+class RTATask:
     """
     Base class for conveniently constructing params to :meth:`RTA.by_profile`
 
@@ -751,6 +753,7 @@ class RTATask(object):
         self.phases.extend(task.phases)
         return self
 
+
 class Ramp(RTATask):
     """
     Configure a ramp load.
@@ -780,7 +783,7 @@ class Ramp(RTATask):
     def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
                  period_ms=100, delay_s=0, loops=1, sched_policy=None,
                  priority=None, cpus=None, uclamp_min=None, uclamp_max=None):
-        super(Ramp, self).__init__(delay_s, loops, sched_policy, priority)
+        super().__init__(delay_s, loops, sched_policy, priority)
 
         if not (0 <= start_pct <= 100 and 0 <= end_pct <= 100):
             raise ValueError('start_pct and end_pct must be in [0..100] range')
@@ -789,7 +792,7 @@ class Ramp(RTATask):
         sign = +1 if start_pct <= end_pct else -1
         delta_pct = sign * abs(delta_pct)
 
-        steps = list(range(start_pct, end_pct+delta_pct, delta_pct))
+        steps = list(range(start_pct, end_pct + delta_pct, delta_pct))
 
         # clip the last step
         steps[-1] = end_pct
@@ -805,6 +808,7 @@ class Ramp(RTATask):
             phases.append(phase)
 
         self.phases = phases
+
 
 class Step(Ramp):
     """
@@ -836,8 +840,9 @@ class Step(Ramp):
                  uclamp_min=None, uclamp_max=None):
         delta_pct = abs(end_pct - start_pct)
         super().__init__(start_pct, end_pct, delta_pct, time_s,
-                                   period_ms, delay_s, loops, sched_policy,
-                                   priority, cpus, uclamp_min, uclamp_max)
+                         period_ms, delay_s, loops, sched_policy,
+                         priority, cpus, uclamp_min, uclamp_max)
+
 
 class Pulse(RTATask):
     """
@@ -875,7 +880,7 @@ class Pulse(RTATask):
     def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
                  delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None,
                  uclamp_min=None, uclamp_max=None):
-        super(Pulse, self).__init__(delay_s, loops, sched_policy, priority)
+        super().__init__(delay_s, loops, sched_policy, priority)
 
         if end_pct >= start_pct:
             raise ValueError('end_pct must be lower than start_pct')
@@ -895,6 +900,7 @@ class Pulse(RTATask):
             phases.append(phase)
 
         self.phases = phases
+
 
 class Periodic(Pulse):
     """
@@ -923,11 +929,12 @@ class Periodic(Pulse):
     def __init__(self, duty_cycle_pct=50, duration_s=1, period_ms=100,
                  delay_s=0, sched_policy=None, priority=None, cpus=None,
                  uclamp_min=None, uclamp_max=None):
-        super(Periodic, self).__init__(duty_cycle_pct, 0, duration_s,
-                                       period_ms, delay_s, 1, sched_policy,
-                                       priority, cpus,
-                                       uclamp_min=uclamp_min,
-                                       uclamp_max=uclamp_max)
+        super().__init__(duty_cycle_pct, 0, duration_s,
+                         period_ms, delay_s, 1, sched_policy,
+                         priority, cpus,
+                         uclamp_min=uclamp_min,
+                         uclamp_max=uclamp_max)
+
 
 class RunAndSync(RTATask):
     """
@@ -950,9 +957,10 @@ class RunAndSync(RTATask):
     :type cpus: list(int)
 
     """
+
     def __init__(self, barrier, time_s=1, delay_s=0, loops=1, sched_policy=None,
                  priority=None, cpus=None, uclamp_min=None, uclamp_max=None):
-        super(RunAndSync, self).__init__(delay_s, loops, sched_policy, priority)
+        super().__init__(delay_s, loops, sched_policy, priority)
 
         # This should translate into a phase containing a 'run' event and a
         # 'barrier' event

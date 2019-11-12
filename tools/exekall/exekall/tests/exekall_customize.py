@@ -20,6 +20,7 @@ from exekall.utils import flatten_seq
 from exekall.customization import AdaptorBase
 from exekall.tests.suite import TestCaseABC, TestResult, TestResultStatus
 
+
 class SelfTestAdaptor(AdaptorBase):
     name = 'exekall-self-tests'
 
