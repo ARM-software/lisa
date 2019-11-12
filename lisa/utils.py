@@ -181,37 +181,79 @@ def memoized(f):
         memoization of methods to prevent garbage collection of the instances
         they are bound to.
     """
+    return lru_memoized()(f)
 
-    def apply_lru(f):
-        # maxsize should be a power of two for better speed, see:
-        # https://docs.python.org/3/library/functools.html#functools.lru_cache
-        return functools.lru_cache(maxsize=1024, typed=True)(f)
+def lru_memoized(first_param_maxsize=None, other_params_maxsize=1024):
+    """
+    Decorator to memoize the result of a callable, based on
+    :func:`functools.lru_cache`
 
-    # We need at least one positional parameter for the WeakKeyDictionary
-    if inspect.signature(f).parameters:
-        cache_map = WeakKeyDictionary()
+    :param first_param_maxsize: Maximum number of cached values for the first
+        parameter.
+    :type first_param_maxsize: int or None
 
-        @functools.wraps(f)
-        def wrapper(first, *args, **kwargs):
-            try:
-                partial = cache_map[first]
-            except KeyError:
-                # Only keep a weak reference here for the "partial" closure
-                ref = weakref.ref(first)
+    :param other_params_maxsize: Maximum number of cached combinations of all
+        parameters except the first one.
+    :type other_params_maxsize: int or None
 
-                # This partial function does not take "first" as parameter, so
-                # that the lru_cache will not keep a reference on it
-                @apply_lru
-                def partial(*args, **kwargs):
-                    return f(ref(), *args, **kwargs)
+    .. note:: The first parameter of the callable is cached with a weak
+        reference. This suits well the method use-case, since we don't want the
+        memoization of methods to prevent garbage collection of the instances
+        they are bound to.
+    """
 
-                cache_map[first] = partial
+    def decorator(f):
+        def apply_lru(f):
+            # maxsize should be a power of two for better speed, see:
+            # https://docs.python.org/3/library/functools.html#functools.lru_cache
+            return functools.lru_cache(maxsize=other_params_maxsize, typed=True)(f)
 
-            return partial(*args, **kwargs)
+        # We need at least one positional parameter for the WeakKeyDictionary
+        if inspect.signature(f).parameters:
+            cache_map = WeakKeyDictionary()
+            insertion_counter = 0
+            insertion_order = WeakKeyDictionary()
 
-        return wrapper
-    else:
-        return apply_lru(f)
+            @functools.wraps(f)
+            def wrapper(first, *args, **kwargs):
+                nonlocal insertion_counter
+                try:
+                    partial = cache_map[first]
+                except KeyError:
+                    # Only keep a weak reference here for the "partial" closure
+                    ref = weakref.ref(first)
+
+                    # This partial function does not take "first" as parameter, so
+                    # that the lru_cache will not keep a reference on it
+                    @apply_lru
+                    def partial(*args, **kwargs):
+                        return f(ref(), *args, **kwargs)
+
+                    cache_map[first] = partial
+                    insertion_order[first] = insertion_counter
+                    insertion_counter += 1
+
+                    # Delete the caches for objects that are too old
+                    if first_param_maxsize is not None:
+                        # Make sure the content of insertion_order will not
+                        # change while iterating over it
+                        to_remove = [
+                            val
+                            for val, counter in insertion_order.items()
+                            if insertion_counter - counter > first_param_maxsize
+                        ]
+
+                        for val in to_remove:
+                            del cache_map[val]
+                            del insertion_order[val]
+
+                return partial(*args, **kwargs)
+
+            return wrapper
+        else:
+            return apply_lru(f)
+
+    return decorator
 
 def resolve_dotted_name(name):
     """Only resolve names where __qualname__ == __name__, i.e the callable is a
