@@ -508,6 +508,7 @@ def _data_window(data, window, method='inclusive', clip_window=False):
         index.get_loc(x, method=method) if x is not None else None
         for x, method in zip(window, method)
     ]
+    window = window[0], (window[1] + 1)
 
     return data.iloc[slice(*window)]
 
