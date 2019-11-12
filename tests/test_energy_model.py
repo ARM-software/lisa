@@ -19,7 +19,7 @@ from collections import OrderedDict
 from unittest import TestCase
 import os
 import shutil
-from tempfile import mkdtemp
+import tempfile
 
 from devlib.target import KernelVersion
 
@@ -366,15 +366,17 @@ class TestEstimateFromTrace(TestCase):
             """
         )
 
-        dir = mkdtemp()
-        path = os.path.join(dir, 'trace.txt')
-        with open(path, 'w') as f:
-            f.write(trace_data)
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, 'trace.txt')
+            with open(path, 'w') as f:
+                f.write(trace_data)
 
-        trace = Trace(path,
-                      events=['cpu_idle', 'cpu_frequency'],
-                      normalize_time=False)
-        shutil.rmtree(dir)
+            trace = Trace(path,
+                events=['cpu_idle', 'cpu_frequency'],
+                normalize_time=False,
+                # Disable swap since the folder is going to get removed
+                enable_swap=False,
+            )
 
         energy_df = em.estimate_from_trace(trace)
 

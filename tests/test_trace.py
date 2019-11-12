@@ -226,22 +226,12 @@ class TestTrace(TraceTestCase):
         """
         TestTrace: overutilized_time is the total time spent while system was overutilized
         """
-        events = [
-            76.402065,
-            80.402065,
-            82.001337
-        ]
-
         trace = self.trace
-        trace_end = trace.basetime + trace.time_range
-        # Last event should be extended to the trace's end
-        expected_time = (events[1] - events[0]) + (trace_end - events[2])
-        expected_pct = 100 * expected_time / trace.time_range
 
         overutilized_time = trace.analysis.status.get_overutilized_time()
+        expected_pct = overutilized_time / trace.time_range * 100
         overutilized_pct = trace.analysis.status.get_overutilized_pct()
 
-        self.assertAlmostEqual(overutilized_time, expected_time)
         self.assertAlmostEqual(overutilized_pct, expected_pct)
 
     def test_plot_cpu_idle_state_residency(self):
@@ -382,15 +372,16 @@ class TestTraceView(TraceTestCase):
 
     def test_lower_slice(self):
         view = self.trace[81:]
-        self.assertEqual(len(view.analysis.status.df_overutilized()), 1)
+        self.assertEqual(len(view.analysis.status.df_overutilized()), 2)
 
     def test_upper_slice(self):
         view = self.trace[:80.402065]
-        self.assertEqual(len(view.analysis.status.df_overutilized()), 2)
+        df = view.analysis.status.df_overutilized()
+        self.assertEqual(len(view.analysis.status.df_overutilized()), 1)
 
     def test_full_slice(self):
         view = self.trace[80:81]
-        self.assertEqual(len(view.analysis.status.df_overutilized()), 1)
+        self.assertEqual(len(view.analysis.status.df_overutilized()), 2)
 
     def test_time_range(self):
         expected_duration = 4.0

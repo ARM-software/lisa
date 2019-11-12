@@ -68,6 +68,7 @@ setup(
         # Earlier versions have broken __slots__ deserialization
         "ruamel.yaml >= 0.16.6",
         "docutils", # For the HTML output of analysis plots
+        "pyarrow", # For pandas.to_parquet() dataframe storage
 
         "ipython",
         "ipywidgets",
