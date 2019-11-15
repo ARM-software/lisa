@@ -20,6 +20,13 @@ import os
 import subprocess
 
 
+def git(repo, *args):
+    """
+    Call git in the given repo with the given arguments
+    """
+
+    return subprocess.check_output(['git', '-C', repo, *args]).decode()
+
 def find_shortest_symref(repo_path, sha1):
     """
     Find the shortest symbolic reference (branch/tag) to a Git SHA1
@@ -47,5 +54,17 @@ def find_shortest_symref(repo_path, sha1):
         raise ValueError('No symbolic reference found for SHA1 {} in {}'.format(sha1, repo_path))
 
     return min(possibles, key=len)
+
+def get_sha1(repo, ref='HEAD'):
+    """
+    Get the currently checked-out sha1 in the given repository
+    """
+    return git(repo, 'rev-list', '-1', ref).strip()
+
+def get_uncommited_patch(repo):
+    """
+    Return the patch of non commited changes, both staged and not staged yet.
+    """
+    return git(repo, 'diff', 'HEAD')
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

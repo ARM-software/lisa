@@ -15,8 +15,12 @@
 # limitations under the License.
 #
 
-version_tuple = (2, 0)
+import os
+import hashlib
 
+from lisa.git import get_sha1, get_uncommited_patch
+
+version_tuple = (2, 0)
 
 def format_version(version):
     return '.'.join(str(part) for part in version)
@@ -25,5 +29,40 @@ def format_version(version):
 def parse_version(version):
     return tuple(int(part) for part in version.split('.'))
 
-
 __version__ = format_version(version_tuple)
+
+def _compute_version_token():
+    plain_version_token = 'v{}'.format(format_version(version_tuple))
+
+    # When in devmode, use the commit SHA1 and the SHA1 of the patch of
+    # uncommitted changes
+    if int(os.getenv('LISA_DEVMODE', '0')):
+        import lisa
+        repo = list(lisa.__path__)[0]
+
+        try:
+            sha1 = get_sha1(repo)
+            patch = get_uncommited_patch(repo)
+        # Git is not installed, just use the regular version
+        except FileNotFoundError:
+            return plain_version_token
+
+        # Dirty tree
+        if patch:
+            patch_sha1 = hashlib.sha1(patch.encode()).hexdigest()
+            patch_sha1 = '-dirty-{}'.format(patch_sha1)
+        else:
+            patch_sha1 = ''
+
+        return 'git-{}{}'.format(sha1, patch_sha1)
+    else:
+        return plain_version_token
+
+VERSION_TOKEN = _compute_version_token()
+"""
+Unique token related to code version.
+
+When ``LISA_DEVMODE`` environment variable is set to 1, the git sha1 followed
+by the uncommitted patch's sha1 will be used, so that the code of LISA can
+uniquely be identified even in development state.
+"""
