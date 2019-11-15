@@ -30,7 +30,7 @@ from lisa.wlgen.rta import Periodic, Ramp, Step
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.tests.base import ResultBundle, CannotCreateError, RTATestBundle
 from lisa.utils import ArtifactPath
-from lisa.datautils import series_integrate
+from lisa.datautils import series_integrate, df_deduplicate
 from lisa.energy_model import EnergyModel
 from lisa.trace import requires_events
 from lisa.target import Target
@@ -144,7 +144,7 @@ class EASBehaviour(RTATestBundle):
         df = df[df['next_comm'].isin(tasks)]
         df = df.pivot(index=df.index, columns='next_comm').fillna(method='ffill')
         cpu_df = df['__cpu']
-        # Drop consecutive duplicates
+        cpu_df = df_deduplicate(cpu_df, keep='first', consecutives=True)
         cpu_df = cpu_df[(cpu_df.shift(+1) != cpu_df).any(axis=1)]
         return cpu_df
 

@@ -23,7 +23,7 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.datautils import df_filter_task_ids, series_rolling_apply
+from lisa.datautils import df_filter_task_ids, series_rolling_apply, df_deduplicate
 from lisa.trace import requires_events
 
 
@@ -515,6 +515,9 @@ class TasksAnalysis(TraceAnalysisBase):
           * A ``active`` column, containing ``active_value`` when the task is
             not sleeping, ``sleep_value`` otherwise.
           * A ``cpu`` column with the CPU the task was running on.
+          * A ``duration`` column containing the duration of the current sleep or activation.
+          * A ``duty_cycle`` column containing the duty cycle in ``[0...1]`` of
+            the task, updated at each pair of activation and sleep.
         """
 
         df = self.df_task_states(task)
@@ -529,8 +532,25 @@ class TasksAnalysis(TraceAnalysisBase):
             df = df[df['cpu'] == cpu]
 
         df['active'] = df['curr_state'].map(f)
+        df = df[['active', 'cpu']]
 
-        return df[['active', 'cpu']]
+        # Only keep first occurence of each adjacent duplicates, since we get
+        # events when the signal changes
+        df = df_deduplicate(df, consecutives=True, keep='first')
+
+        # Once we removed the duplicates, we can compute the time spent while sleeping or activating
+        df['duration'] = df.index.to_series().diff().shift(-1)
+
+        sleep = df[df['active'] == sleep_value]['duration']
+        active = df[df['active'] == active_value]['duration']
+        # Pair an activation time with it's following sleep time
+        active = active.reindex_like(sleep, method='ffill')
+
+        df['duty_cycle'] = active / (active + sleep)
+        df['duty_cycle'].fillna(inplace=True, method='ffill')
+        df['duty_cycle'] = df['duty_cycle'].shift(-1)
+
+        return df
 
 ###############################################################################
 # Plotting Methods
@@ -771,8 +791,8 @@ class TasksAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.plot_method()
     @df_task_activation.used_events
     def plot_task_activation(self, task, cpu=None, active_value=None,
-            sleep_value=None, alpha=None, overlay=False,
-            axis=None, local_fig=None):
+            sleep_value=None, alpha=None, overlay=False, duration=False,
+            duty_cycle=False, axis=None, local_fig=None):
         """
         Plot task activations, in a style similar to kernelshark.
 
@@ -787,15 +807,30 @@ class TasksAnalysis(TraceAnalysisBase):
             the plot to blend with existing data.
         :type task: bool
 
+        :param duration: Plot the duration of each sleep/activation.
+        :type duration: bool
+
+        :param duty_cycle: Plot the duty cycle of each pair of sleep/activation.
+        :type duty_cycle: bool
+
         .. seealso:: :meth:`df_task_activation`
         """
         # Adapt the steps height to the existing limits. This allows
         # re-using an existing axis that already contains some data.
         min_lim, max_lim = axis.get_ylim()
+        alpha_default = 0.5
+
+        df = self.df_task_activation(task, cpu=cpu)
 
         if overlay:
             active_default = max_lim / 4
-            _alpha = alpha if alpha is not None else 0.5
+            _alpha = alpha if alpha is not None else alpha_default
+        elif duty_cycle:
+            active_default = 1
+            _alpha = alpha if alpha is not None else alpha_default
+        elif duration:
+            active_default = df['duration'].max() * 1.2
+            _alpha = alpha if alpha is not None else alpha_default
         else:
             active_default = max_lim
             _alpha = alpha
@@ -803,13 +838,26 @@ class TasksAnalysis(TraceAnalysisBase):
         active_value = active_value if active_value is not None else active_default
         sleep_value = sleep_value if sleep_value is not None else 0
 
-        df = self.df_task_activation(task,
-            cpu=cpu, active_value=active_value, sleep_value=sleep_value,
-        )
+        df['active'] = df['active'].map({True: active_value, False: sleep_value})
 
         if not df.empty:
             axis.fill_between(df.index, df['active'], step='post',
                 alpha=_alpha
             )
+
+            # For some reason fill_between does not advance in the color cycler so let's do that manually.
+            self.get_next_color(axis)
+
+            if duty_cycle:
+                df['duty_cycle'].plot(ax=axis, drawstyle='steps-post', label='Duty cycle of {}'.format(task))
+
+            for active, label in (
+                    (active_value, 'Activations'),
+                    (sleep_value, 'Sleep')
+                ):
+                duration = df[df['active'] == active]['duration']
+                # Add blanks in the plot when the state is not the one we care about
+                duration = duration.reindex_like(df)
+                duration.plot(ax=axis, drawstyle='steps-post', label='{} duration of {}'.format(label, task))
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
