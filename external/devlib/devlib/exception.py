@@ -15,11 +15,17 @@
 
 class DevlibError(Exception):
     """Base class for all Devlib exceptions."""
+
+    def __init__(self, *args):
+        message = args[0] if args else None
+        self._message = message
+
     @property
     def message(self):
-        if self.args:
-            return self.args[0]
-        return str(self)
+        if self._message is not None:
+            return self._message
+        else:
+            return str(self)
 
 
 class DevlibStableError(DevlibError):
