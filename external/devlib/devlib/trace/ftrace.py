@@ -20,6 +20,7 @@ import time
 import re
 import subprocess
 import sys
+import contextlib
 from pipes import quote
 
 from devlib.trace import TraceCollector
@@ -225,6 +226,11 @@ class FtraceCollector(TraceCollector):
             tracecmd_functions = ''
 
         tracer_string = '-p {}'.format(self.tracer) if self.tracer else ''
+
+        # Ensure kallsyms contains addresses if possible, so that function the
+        # collected trace contains enough data for pretty printing
+        with contextlib.suppress(TargetStableError):
+            self.target.write_value('/proc/sys/kernel/kptr_restrict', 0)
 
         self.target.write_value(self.trace_clock_file, self.trace_clock, verify=False)
         try:
