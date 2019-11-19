@@ -239,7 +239,6 @@ def autodoc_process_analysis_plots(app, what, name, obj, options, lines, plot_co
     print('Generating plot for {}'.format(obj.__qualname__))
     rst_figure = TraceAnalysisBase.call_on_trace(obj, trace, {
         'output': 'rst',
-        'always_save': False,
         # avoid memory leaks
         'interactive': False,
         **kwargs
