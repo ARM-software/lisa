@@ -1361,7 +1361,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         return '/' + cg.name
 
     @classmethod
-    def run_rtapp(cls, target, res_dir, profile=None, ftrace_coll=None, cg_cfg=None, wipe_run_dir=True):
+    def run_rtapp(cls, target, res_dir, profile=None, ftrace_coll=None, cg_cfg=None, wipe_run_dir=True, update_cpu_capacities=None):
         """
         Run the given RTA profile on the target, and collect an ftrace trace.
 
@@ -1390,6 +1390,11 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         :param wipe_run_dir: Remove the run directory on the target after
             execution of the workload.
         :type wipe_run_dir: bool
+
+        :param update_cpu_capacities: Attempt to update the CPU capacities
+            based on the calibration values of rtapp to get the most accurate
+            reproduction of duty cycles.
+        :type update_cpu_capacities: bool
         """
 
         trace_path = ArtifactPath.join(res_dir, cls.TRACE_PATH)
@@ -1418,7 +1423,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         target.plat_info['rtapp']['calib']
 
         with wload_cm, dmesg_coll, ftrace_coll, target.freeze_userspace():
-            wload.run(cgroup=cgroup, as_root=as_root)
+            wload.run(cgroup=cgroup, as_root=as_root, update_cpu_capacities=update_cpu_capacities)
 
         ftrace_coll.get_trace(trace_path)
         dmesg_coll.get_trace(dmesg_path)

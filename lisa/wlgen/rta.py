@@ -25,6 +25,10 @@ from shlex import quote
 import copy
 import itertools
 import weakref
+from statistics import mean
+import contextlib
+
+from devlib import TargetStableError
 
 from lisa.wlgen.workload import Workload
 from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, groupby, nullcontext
@@ -110,9 +114,68 @@ class RTA(Workload):
         # Move configuration file to target
         self.target.push(self.local_json, self.remote_json)
 
-    def run(self, cpus=None, cgroup=None, background=False, as_root=False):
-        super().run(cpus, cgroup, background, as_root)
+    def run(self, cpus=None, cgroup=None, background=False, as_root=False, update_cpu_capacities=None):
         logger = self.get_logger()
+
+        if update_cpu_capacities is None:
+            update_cpu_capacities = True
+            best_effort = True
+        else:
+            best_effort = False
+
+        if update_cpu_capacities:
+            plat_info = self.target.plat_info
+            calib_map = plat_info['rtapp']['calib']
+            true_capacities = self.get_cpu_capacities_from_calibrations(calib_map)
+
+            # Average in a capacity class, since the kernel will only use one
+            # value for the whole class anyway
+            new_capacities = {}
+            for cpus in plat_info['capacity-classes']:
+                avg_capa = mean(
+                    capa
+                    for cpu, capa in true_capacities.items()
+                    if cpu in cpus
+                )
+                new_capacities.update({cpu: avg_capa for cpu in cpus})
+
+            # Make sure that the max cap is 1024 and that we use integer values
+            new_max_cap = max(new_capacities.values())
+            new_capacities = {
+                cpu: int(capa * (1024 / new_max_cap))
+                for cpu, capa in new_capacities.items()
+            }
+
+            write_kwargs = [
+                dict(
+                    path='/sys/devices/system/cpu/cpu{}/cpu_capacity'.format(cpu),
+                    value=capa,
+                    verify=True,
+                )
+                for cpu, capa in sorted(new_capacities.items())
+            ]
+
+            cm = self.target.batch_revertable_write_value(write_kwargs)
+            class _CM():
+                def __enter__(self):
+                    logger.info('Updating CPU capacities in sysfs: {}'.format(new_capacities))
+                    try:
+                        cm.__enter__()
+                    except TargetStableError as e:
+                        if best_effort:
+                            logger.warning('Could not update the CPU capacities: {}'.format(e))
+                        else:
+                            raise
+
+                def __exit__(self, *args, **kwargs):
+                    return cm.__exit__(*args, **kwargs)
+
+            capa_cm = _CM()
+        else:
+            capa_cm = nullcontext()
+
+        with capa_cm:
+            super().run(cpus, cgroup, background, as_root)
 
         if background:
             # TODO: handle background case
@@ -405,7 +468,9 @@ class RTA(Workload):
                                  res_dir=res_dir)
 
             with rta, target.freeze_userspace():
-                rta.run(as_root=target.is_rooted)
+                # Disable CPU capacities update, since that leads to infinite
+                # recursion
+                rta.run(as_root=target.is_rooted, update_cpu_capacities=False)
 
             for line in rta.output.split('\n'):
                 pload_match = re.search(pload_regexp, line)
