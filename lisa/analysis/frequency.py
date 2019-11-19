@@ -477,7 +477,6 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 self.plot_cpu_frequency_residency(domain[0],
                     pct=pct,
                     axis=local_axes,
-                    always_save=False,
                 )
                 for axis in local_axes:
                     title = axis.get_title()
@@ -532,7 +531,6 @@ class FrequencyAnalysis(TraceAnalysisBase):
                     cpu=domain[0],
                     pct=pct,
                     axis=axis,
-                    always_save=False,
                 )
 
                 title = axis.get_title()
