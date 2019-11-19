@@ -528,7 +528,7 @@ class RTA(Workload):
             logger.warning('The calibration values are not inversely proportional to the CPU capacities, the duty cycles will be up to {:.2f}% off on some CPUs: {}'.format(dispersion_pct, capa_factors_pct))
 
         if dispersion_pct > 20:
-            raise CalibrationError('The calibration values are not inversely proportional to the CPU capacities. Either rt-app calibration failed, or the rt-app busy loops has a very different instruction mix compared to the workload used to establish the CPU capacities: {}'.format(capa_factors_pct))
+            logger.warning('The calibration values are not inversely proportional to the CPU capacities. Either rt-app calibration failed, or the rt-app busy loops has a very different instruction mix compared to the workload used to establish the CPU capacities: {}'.format(capa_factors_pct))
 
         # Map of CPUs X to list of CPUs Ys that are faster than it although CPUs
         # of Ys have a smaller capacity than X
