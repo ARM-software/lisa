@@ -23,8 +23,9 @@ import pandas as pd
 
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
 from lisa.datautils import df_filter_task_ids, df_window
-from lisa.trace import TaskID, requires_events
+from lisa.trace import TaskID, requires_events, may_use_events, MissingTraceEventError
 from lisa.utils import memoized, deprecate
+from lisa.analysis.tasks import TasksAnalysis
 
 
 RefTime = namedtuple("RefTime", ['kernel', 'user'])
@@ -537,6 +538,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
     @AnalysisHelpers.plot_method()
     @df_phases.used_events
+    @may_use_events(TasksAnalysis.df_task_states.used_events)
     def plot_phases(self, task, axis, local_fig):
         """
         Draw the task's phases colored bands
@@ -545,15 +547,20 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         :type task: int or str or lisa.trace.TaskID
         """
         phases_df = self.df_phases(task)
-        loops_df = self.df_rtapp_loop(task)
 
         def end_of_phase_at(t):
             return phases_df['duration'][t]
 
-        def cpus_of_phase_at(t):
-            window = (t, end_of_phase_at(t))
-            df = df_window(loops_df, window, method='pre')
-            return sorted(int(x) for x in df['__cpu'].unique())
+        try:
+            states_df = self.trace.analysis.tasks.df_task_states(task)
+        except MissingTraceEventError:
+            def cpus_of_phase_at(t):
+                return []
+        else:
+            def cpus_of_phase_at(t):
+                window = (t, end_of_phase_at(t))
+                df = df_window(states_df, window, method='pre')
+                return sorted(int(x) for x in df['cpu'].unique())
 
         # Compute phases intervals
         bands = [
@@ -562,9 +569,13 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         ]
 
         for idx, (start, end, cpus) in enumerate(bands):
+            if cpus:
+                cpus = ' (CPUs {})'.format(', '.join(map(str, cpus)))
+            else:
+                cpus = ''
+
+            label = 'rt-app phase #{}{}'.format(idx, cpus)
             color = self.get_next_color(axis)
-            cpus = ', '.join(map(str, cpus))
-            label = 'rt-app phase #{} (CPUs: {})'.format(idx, cpus)
             axis.axvspan(start, end, alpha=0.1, facecolor=color, label=label)
 
         axis.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2,), ncol=8)
