@@ -329,7 +329,9 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
 
         axis = trace.analysis.load_tracking.plot_task_signals(task, signals=[signal_name], **kwargs)
         simulated.plot(ax=axis, drawstyle='steps-post', label='simulated {}'.format(signal_name))
-        trace.analysis.tasks.plot_task_activation(task, alpha=0.2, axis=axis, duration=True, **kwargs)
+
+        activation_axis = axis.twinx()
+        trace.analysis.tasks.plot_task_activation(task, alpha=0.2, axis=activation_axis, duration=True, **kwargs)
 
         axis.legend()
 
