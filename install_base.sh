@@ -278,8 +278,6 @@ for arg in "$@"; do
             apt_packages+=(snapd)
             install_functions+=(install_nodejs_snap)
         else
-            # node-gyp seems to be required other apt fails to install npm on
-            # some versions of ubuntu
             apt_packages+=(nodejs npm)
             pacman_packages+=(nodejs npm)
         fi
