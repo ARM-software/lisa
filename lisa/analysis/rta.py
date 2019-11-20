@@ -571,7 +571,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         if local_fig:
             task = self.trace.get_task_id(task)
-            axis.set_title("Task [{}] phases".format(task))
+            axis.set_title("Task {} phases".format(task))
 
     @AnalysisHelpers.plot_method()
     @df_rtapp_stats.used_events
@@ -612,7 +612,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         is negative the more the task is late with respect to its deadline.
         """
         task = self.trace.get_task_id(task)
-        axis.set_title('Task [{}] Performance Index'.format(task))
+        axis.set_title('Task {} Performance Index'.format(task))
         data = self.df_rtapp_stats(task)[['perf_index', ]]
         data.plot(ax=axis, drawstyle='steps-post')
         axis.set_ylim(0, 2)
@@ -629,7 +629,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         .. seealso:: :meth:`plot_perf` for metrics definition.
         """
         task = self.trace.get_task_id(task)
-        axis.set_title('Task [{}] (start) Latency and (completion) Slack'
+        axis.set_title('Task {} (start) Latency and (completion) Slack'
                        .format(task))
         data = self.df_rtapp_stats(task)[['slack', 'wu_lat']]
         data.plot(ax=axis, drawstyle='steps-post')
@@ -861,7 +861,7 @@ class PerfAnalysis(AnalysisHelpers):
         """
         Plot the performance Index
         """
-        axis.set_title('Task [{}] Performance Index'.format(task))
+        axis.set_title('Task {} Performance Index'.format(task))
         data = self.get_df(task)[['PerfIndex', ]]
         data.plot(ax=axis, drawstyle='steps-post')
         axis.set_ylim(0, 2)
@@ -871,7 +871,7 @@ class PerfAnalysis(AnalysisHelpers):
         """
         Plot the Latency/Slack and Performance data for the specified task.
         """
-        axis.set_title('Task [{}] (start) Latency and (completion) Slack'
+        axis.set_title('Task {} (start) Latency and (completion) Slack'
                 .format(task))
         data = self.get_df(task)[['Slack', 'WKPLatency']]
         data.plot(ax=axis, drawstyle='steps-post')
@@ -916,7 +916,7 @@ class PerfAnalysis(AnalysisHelpers):
             perfIndex = \frac{slack}{period - runtime}
 
         """
-        ylabel = 'perf index of "{}"'.format(task)
+        ylabel = 'perf index of {}'.format(task)
         series = self.get_df(task)['PerfIndex']
         mean = series.mean()
         self.get_logger().info('perf index of task "{}": avg={:.2f} std={:.2f}'.format(
