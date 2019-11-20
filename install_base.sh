@@ -101,7 +101,11 @@ install_nodejs_snap() {
         return 1
     else
         echo "Installing snap nodejs package ..."
-        sudo snap install node --classic --channel=8
+        # Latest LTS version available on snap:
+        # https://nodejs.org/fr/download/
+        # https://snapcraft.io/node
+        NODEJS_VERSION=12
+        sudo snap install node --classic --channel=$NODEJS_VERSION
     fi
 }
 
