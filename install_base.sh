@@ -262,13 +262,21 @@ for arg in "$@"; do
     "--install-nodejs" | "--install-all")
         # NodeJS v8+ is required, Ubuntu 16.04 LTS supports only an older version.
         # As a special case we can install it as a snap package
-        if test_os_release NAME Ubuntu && test_os_release VERSION_ID 16.04; then
+        if (
+               test_os_release NAME Ubuntu && (
+                   test_os_release VERSION_ID 16.04 ||
+                    # On Ubuntu Bionic 18.04 LTS the nodejs package is broken,
+                    # so use the one from snap instead:
+                    # https://bugs.launchpad.net/ubuntu/+source/nodejs/+bug/1794589
+                   test_os_release VERSION_ID 18.04
+                )
+        ); then
             apt_packages+=(snapd)
             install_functions+=(install_nodejs_snap)
         else
             # node-gyp seems to be required other apt fails to install npm on
             # some versions of ubuntu
-            apt_packages+=(nodejs node-gyp npm)
+            apt_packages+=(nodejs npm)
             pacman_packages+=(nodejs npm)
         fi
         handled=1;
