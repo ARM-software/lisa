@@ -30,6 +30,7 @@ from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_tu
 from lisa.wlgen.rta import RTA, Periodic, RTATask
 from lisa.trace import FtraceCollector, requires_events
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
+from lisa.analysis.tasks import TasksAnalysis
 from lisa.pelt import PELT_SCALE, simulate_pelt, pelt_settling_time
 
 UTIL_SCALE = PELT_SCALE
@@ -254,7 +255,8 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
 
         return capacity
 
-    @requires_events('sched_switch')
+    @LoadTrackingAnalysis.df_tasks_signal.used_events
+    @TasksAnalysis.df_task_activation.used_events
     def get_simulated_pelt(self, task, signal_name):
         """
         Simulate a PELT signal for a given task.
@@ -344,7 +346,6 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         return res_bundle
 
     @get_simulated_pelt.used_events
-    @requires_events('sched_load_se')
     def _test_behaviour(self, signal_name, error_margin_pct):
 
         task = self.task_name

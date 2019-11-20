@@ -37,6 +37,16 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     name = 'load_tracking'
 
+    _SCHED_PELT_SE_NAMES = [
+        'sched_pelt_se',
+        'sched_load_se',
+        'sched_load_avg_task'
+    ]
+    """
+    All the names that the per-task load tracking event ever had in various
+    kernel versions (Android, mainline etc)
+    """
+
     @classmethod
     def _columns_renaming(cls, event):
         """
@@ -61,7 +71,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         The extra columns not shared between trace event versions
         """
-        if event in ['sched_load_cfs_rq', 'sched_load_se']:
+        if event in ['sched_load_cfs_rq', 'sched_load_se', 'sched_pelt_se']:
             return ['path', 'rbl_load']
 
         if event in ['sched_load_avg_task']:
@@ -74,7 +84,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         df = df.rename(columns=self._columns_renaming(event), copy=True)
 
-        if event == 'sched_load_se':
+        if event in self._SCHED_PELT_SE_NAMES:
             df = df[df.path == "(null)"]
 
         if event == 'sched_load_cfs_rq':
@@ -137,7 +147,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         return self._df_either_event(['sched_load_cfs_rq', 'sched_load_avg_cpu'])
 
     @may_use_events(
-        requires_one_event_of('sched_load_se', 'sched_load_avg_task'),
+        requires_one_event_of(*_SCHED_PELT_SE_NAMES),
         'sched_util_est_task'
     )
     def df_tasks_signal(self, signal):
@@ -159,7 +169,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :type signal: str
         """
         if signal in ('util', 'load'):
-            df = self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
+            df = self._df_either_event(self._SCHED_PELT_SE_NAMES)
 
         elif signal in ('util_est_enqueued', 'util_est_ewma'):
             df = self._df_uniformized_signal('sched_util_est_task')
@@ -175,7 +185,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                         return capacity
 
                 return capacities[-1]
-            df = self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
+            df = self._df_either_event(_SCHED_PELT_SE_NAMES)
             df['required_capacity'] = df['util'].map(fits_capacity)
 
         else:
@@ -187,7 +197,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         return df[columns]
 
     @deprecate(replaced_by=df_tasks_signal, deprecated_in='2.0', removed_in='2.1')
-    @requires_one_event_of('sched_load_se', 'sched_load_avg_task')
+    @requires_one_event_of(*_SCHED_PELT_SE_NAMES)
     def df_tasks_signals(self):
         """
         Get the load-tracking signals for the tasks
@@ -202,7 +212,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
           * A ``required_capacity`` column (the minimum available CPU capacity
             required to run this task without being CPU-bound)
         """
-        df = self._df_either_event(['sched_load_se', 'sched_load_avg_task'])
+        df = self._df_either_event(self._SCHED_PELT_SE_NAMES)
 
         if "cpu-capacities" in self.trace.plat_info:
             df['required_capacity'] = self.df_tasks_signal('required_capacity')['required_capacity']
