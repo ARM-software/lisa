@@ -22,7 +22,7 @@ from collections import namedtuple
 import pandas as pd
 
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
-from lisa.datautils import df_filter_task_ids
+from lisa.datautils import df_filter_task_ids, df_window
 from lisa.trace import TaskID, requires_events
 from lisa.utils import memoized, deprecate
 
@@ -545,18 +545,33 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         :type task: int or str or lisa.trace.TaskID
         """
         phases_df = self.df_phases(task)
+        loops_df = self.df_rtapp_loop(task)
+
+        def end_of_phase_at(t):
+            return phases_df['duration'][t]
+
+        def cpus_of_phase_at(t):
+            window = (t, end_of_phase_at(t))
+            df = df_window(loops_df, window, method='pre')
+            return sorted(int(x) for x in df['__cpu'].unique())
 
         # Compute phases intervals
-        bands = [(t, t + phases_df['duration'][t]) for t in phases_df.index]
-        for idx, (start, end) in enumerate(bands):
+        bands = [
+            (t, end_of_phase_at(t), cpus_of_phase_at(t))
+            for t in phases_df.index
+        ]
+
+        for idx, (start, end, cpus) in enumerate(bands):
             color = self.get_next_color(axis)
-            label = 'Phase_{:02d}'.format(idx)
+            cpus = ', '.join(map(str, cpus))
+            label = 'rt-app phase #{} (CPUs: {})'.format(idx, cpus)
             axis.axvspan(start, end, alpha=0.1, facecolor=color, label=label)
+
         axis.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2,), ncol=8)
 
         if local_fig:
             task = self.trace.get_task_id(task)
-            axis.set_title("Task [{}] phases".format(task))
+            axis.set_title("Task {} phases".format(task))
 
     @AnalysisHelpers.plot_method()
     @df_rtapp_stats.used_events
@@ -597,7 +612,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         is negative the more the task is late with respect to its deadline.
         """
         task = self.trace.get_task_id(task)
-        axis.set_title('Task [{}] Performance Index'.format(task))
+        axis.set_title('Task {} Performance Index'.format(task))
         data = self.df_rtapp_stats(task)[['perf_index', ]]
         data.plot(ax=axis, drawstyle='steps-post')
         axis.set_ylim(0, 2)
@@ -614,7 +629,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         .. seealso:: :meth:`plot_perf` for metrics definition.
         """
         task = self.trace.get_task_id(task)
-        axis.set_title('Task [{}] (start) Latency and (completion) Slack'
+        axis.set_title('Task {} (start) Latency and (completion) Slack'
                        .format(task))
         data = self.df_rtapp_stats(task)[['slack', 'wu_lat']]
         data.plot(ax=axis, drawstyle='steps-post')
@@ -846,7 +861,7 @@ class PerfAnalysis(AnalysisHelpers):
         """
         Plot the performance Index
         """
-        axis.set_title('Task [{}] Performance Index'.format(task))
+        axis.set_title('Task {} Performance Index'.format(task))
         data = self.get_df(task)[['PerfIndex', ]]
         data.plot(ax=axis, drawstyle='steps-post')
         axis.set_ylim(0, 2)
@@ -856,7 +871,7 @@ class PerfAnalysis(AnalysisHelpers):
         """
         Plot the Latency/Slack and Performance data for the specified task.
         """
-        axis.set_title('Task [{}] (start) Latency and (completion) Slack'
+        axis.set_title('Task {} (start) Latency and (completion) Slack'
                 .format(task))
         data = self.get_df(task)[['Slack', 'WKPLatency']]
         data.plot(ax=axis, drawstyle='steps-post')
@@ -901,7 +916,7 @@ class PerfAnalysis(AnalysisHelpers):
             perfIndex = \frac{slack}{period - runtime}
 
         """
-        ylabel = 'perf index of "{}"'.format(task)
+        ylabel = 'perf index of {}'.format(task)
         series = self.get_df(task)['PerfIndex']
         mean = series.mean()
         self.get_logger().info('perf index of task "{}": avg={:.2f} std={:.2f}'.format(
