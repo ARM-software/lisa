@@ -33,6 +33,7 @@ from lisa.wlgen.rta import Periodic, Ramp
 from lisa.trace import FtraceCollector, requires_events
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.tasks import TaskState, TasksAnalysis
+from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.datautils import series_integrate, df_filter_task_ids
 
 from lisa.tests.scheduler.load_tracking import LoadTrackingHelpers
@@ -144,7 +145,8 @@ class UtilConvergence(UtilTrackingBase):
         filepath = os.path.join(self.res_dir, 'util_est_{}.png'.format(test))
         self.trace.analysis.rta.save_plot(ax.figure, filepath=filepath)
 
-    @requires_events('sched_util_est_task', 'sched_load_se')
+    @requires_events('sched_util_est_task')
+    @LoadTrackingAnalysis.df_tasks_signal.used_events
     @RTAEventsAnalysis.task_phase_windows.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_areas(self) -> ResultBundle:
@@ -183,7 +185,7 @@ class UtilConvergence(UtilTrackingBase):
 
         ue_df = self.trace.df_events('sched_util_est_task')
         ue_df = df_filter_task_ids(ue_df, [test_task])
-        ua_df = self.trace.df_events('sched_load_se')
+        ua_df = self.trace.analysis.load_tracking.df_tasks_signal('util')
         ua_df = df_filter_task_ids(ua_df, [test_task])
 
         failures = []
