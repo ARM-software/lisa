@@ -25,6 +25,7 @@ import itertools
 import textwrap
 import logging
 import re
+import contextlib
 
 from lisa.utils import (
     Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
@@ -1313,7 +1314,6 @@ class SimpleMultiSrcConf(MultiSrcConf):
 
         def add_help(key_desc, data):
             name = key_desc.name
-
             if isinstance(key_desc, LevelKeyDesc):
                 level_data = CommentedMap(data.get(name, {}))
 
@@ -1335,13 +1335,20 @@ class SimpleMultiSrcConf(MultiSrcConf):
                     )
                     add_help(subkey_desc, level_data)
 
-                data[name] = level_data
+                if level_data:
+                    data[name] = level_data
+                else:
+                    with contextlib.suppress(KeyError):
+                        del data[name]
 
         data = CommentedMap(self.as_yaml_map)
         data.yaml_set_start_comment(format_comment(self.STRUCTURE))
         add_help(self.STRUCTURE, data)
 
-        return self._to_path(data, path, fmt='yaml-roundtrip')
+        if data:
+            return self._to_path(data, path, fmt='yaml-roundtrip')
+        else:
+            return None
 
 
 class ConfigurableMeta(abc.ABCMeta):
