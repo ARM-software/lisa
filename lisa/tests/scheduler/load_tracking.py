@@ -541,6 +541,9 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             nr_freqs = cls.NR_FREQUENCIES - len(selected_freqs)
             for ideal_freq in interpolate(min(all_freqs), max(all_freqs), nr_freqs):
 
+                if not available_freqs:
+                    break
+
                 # Select the freq closest to ideal
                 selected_freq = min(available_freqs, key=lambda freq: abs(freq - ideal_freq))
                 available_freqs.discard(selected_freq)
