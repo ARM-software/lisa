@@ -273,18 +273,10 @@ def import_all_submodules(pkg):
 
 
 def _import_all_submodules(pkg_name, pkg_path):
-    def import_module(module_name):
-        # Load module under its right name, so explicit imports of it will hit
-        # the sys.module cache instead of importing twice, with two "version"
-        # of each classes defined inside.
-        full_name = '{}.{}'.format(pkg_name, module_name)
-        module = importlib.import_module(full_name)
-        return module
-
     return [
-        import_module(module_name)
+        importlib.import_module(module_name)
         for finder, module_name, is_pkg
-        in pkgutil.walk_packages(pkg_path)
+        in pkgutil.walk_packages(pkg_path, prefix=pkg_name + '.')
     ]
 
 
@@ -479,8 +471,9 @@ class Serializable(Loggable):
         """
         Serialize the object to a file
 
-        :param filepath: The path of the file in which the object will be dumped
-        :type filepath: str
+        :param filepath: The path of the file or file-like object in which the
+            object will be dumped.
+        :type filepath: str or io.IOBase
 
         :param fmt: Serialization format.
         :type fmt: str
@@ -507,7 +500,12 @@ class Serializable(Loggable):
         else:
             raise ValueError('Unknown format "{}"'.format(fmt))
 
-        with open(str(filepath), **kwargs) as fh:
+        if isinstance(filepath, io.IOBase):
+            cm = nullcontext(filepath)
+        else:
+            cm = open(str(filepath), **kwargs)
+
+        with cm as fh:
             dumper(instance, fh)
 
     @classmethod
