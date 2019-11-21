@@ -479,8 +479,9 @@ class Serializable(Loggable):
         """
         Serialize the object to a file
 
-        :param filepath: The path of the file in which the object will be dumped
-        :type filepath: str
+        :param filepath: The path of the file or file-like object in which the
+            object will be dumped.
+        :type filepath: str or io.IOBase
 
         :param fmt: Serialization format.
         :type fmt: str
@@ -507,7 +508,12 @@ class Serializable(Loggable):
         else:
             raise ValueError('Unknown format "{}"'.format(fmt))
 
-        with open(str(filepath), **kwargs) as fh:
+        if isinstance(filepath, io.IOBase):
+            cm = nullcontext(filepath)
+        else:
+            cm = open(str(filepath), **kwargs)
+
+        with cm as fh:
             dumper(instance, fh)
 
     @classmethod
