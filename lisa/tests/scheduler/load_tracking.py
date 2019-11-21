@@ -367,7 +367,6 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         # fact that the util signal stays high while the task sleeps
         settled_signal_mean = series_tunnel_mean(df[signal_name])
         expected_signal_mean = expected_final_util
-        expected_signal_mean = self.correct_expected_pelt(self.plat_info, cpu, expected_signal_mean)
 
         signal_mean_error_pct = abs(expected_signal_mean - settled_signal_mean) / UTIL_SCALE * 100
         res = ResultBundle.from_bool(signal_mean_error_pct < error_margin_pct)
@@ -889,7 +888,6 @@ class CPUMigrationBase(LoadTrackingBase):
 
             for i, phase in enumerate(self.reference_task.phases):
                 expected_util = expected_cpu_util[cpu][i]
-                expected_util = self.correct_expected_pelt(self.plat_info, cpu, expected_util)
                 trace_util = trace_cpu_util[cpu][i]
                 if not self.is_almost_equal(
                         trace_util,
