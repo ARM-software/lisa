@@ -273,18 +273,10 @@ def import_all_submodules(pkg):
 
 
 def _import_all_submodules(pkg_name, pkg_path):
-    def import_module(module_name):
-        # Load module under its right name, so explicit imports of it will hit
-        # the sys.module cache instead of importing twice, with two "version"
-        # of each classes defined inside.
-        full_name = '{}.{}'.format(pkg_name, module_name)
-        module = importlib.import_module(full_name)
-        return module
-
     return [
-        import_module(module_name)
+        importlib.import_module(module_name)
         for finder, module_name, is_pkg
-        in pkgutil.walk_packages(pkg_path)
+        in pkgutil.walk_packages(pkg_path, prefix=pkg_name + '.')
     ]
 
 
