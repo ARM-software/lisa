@@ -361,30 +361,26 @@ class Serializable(Loggable):
     DEFAULT_SERIALIZATION_FMT = 'yaml'
     "Default format used when serializing objects"
 
-    _yaml = YAML(typ='unsafe')
-    _roundtrip_yaml = YAML()
-
     @classmethod
-    def _init_yaml(cls):
-        """
-        Needs to be called only once when the module is imported. Since that is
-        done at module-level, there is no need to do that from user code.
-        """
-        for yaml in (cls._yaml, cls._roundtrip_yaml):
-            # If allow_unicode=True, true unicode characters will be written to the
-            # file instead of being replaced by escape sequence.
-            yaml.allow_unicode = ('utf' in cls.YAML_ENCODING)
-            yaml.default_flow_style = False
-            yaml.indent = 4
-            yaml.constructor.add_constructor('!include', functools.partial(cls._yaml_include_constructor, yaml))
-            yaml.constructor.add_constructor('!var', cls._yaml_var_constructor)
-            yaml.constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
-            yaml.constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
+    def _get_yaml(cls, typ):
+        yaml = YAML(typ=typ)
 
-            # Replace unknown tags by a placeholder object containing the data.
-            # This happens when the class was not imported at the time the object
-            # was deserialized
-            yaml.constructor.add_constructor(None, cls._yaml_unknown_tag_constructor)
+        # If allow_unicode=True, true unicode characters will be written to the
+        # file instead of being replaced by escape sequence.
+        yaml.allow_unicode = ('utf' in cls.YAML_ENCODING)
+        yaml.default_flow_style = False
+        yaml.indent = 4
+        yaml.constructor.add_constructor('!include', functools.partial(cls._yaml_include_constructor, yaml))
+        yaml.constructor.add_constructor('!var', cls._yaml_var_constructor)
+        yaml.constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
+        yaml.constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
+
+        # Replace unknown tags by a placeholder object containing the data.
+        # This happens when the class was not imported at the time the object
+        # was deserialized
+        yaml.constructor.add_constructor(None, cls._yaml_unknown_tag_constructor)
+
+        return yaml
 
     @classmethod
     def _yaml_unknown_tag_constructor(cls, loader, node):
@@ -501,10 +497,10 @@ class Serializable(Loggable):
         yaml_kwargs = dict(mode='w', encoding=cls.YAML_ENCODING)
         if fmt == 'yaml':
             kwargs = yaml_kwargs
-            dumper = cls._yaml.dump
+            dumper = cls._get_yaml('unsafe').dump
         elif fmt == 'yaml-roundtrip':
             kwargs = yaml_kwargs
-            dumper = cls._roundtrip_yaml.dump
+            dumper = cls._get_yaml('roundtrip').dump
         elif fmt == 'pickle':
             kwargs = dict(mode='wb')
             dumper = pickle.dump
@@ -516,8 +512,9 @@ class Serializable(Loggable):
 
     @classmethod
     def _to_yaml(cls, data):
+        yaml = cls._get_yaml('unsafe')
         buff = io.StringIO()
-        cls._yaml.dump(data, buff)
+        yaml.dump(data, buff)
         return buff.getvalue()
 
     def to_yaml(self):
@@ -546,13 +543,14 @@ class Serializable(Loggable):
 
     @classmethod
     def _from_path(cls, filepath, fmt):
+        yaml = cls._get_yaml('unsafe')
         filepath = str(filepath)
         if fmt is None:
             fmt = cls.DEFAULT_SERIALIZATION_FMT
 
         if fmt == 'yaml':
             kwargs = dict(mode='r', encoding=cls.YAML_ENCODING)
-            loader = cls._yaml.load
+            loader = yaml.load
         elif fmt == 'pickle':
             kwargs = dict(mode='rb')
             loader = pickle.load
@@ -617,9 +615,6 @@ class Serializable(Loggable):
             new = cls.__new__(cls)
             new.__dict__.update(self.__dict__)
             return new
-
-
-Serializable._init_yaml()
 
 
 def setup_logging(filepath='logging.conf', level=None):
