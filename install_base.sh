@@ -142,6 +142,7 @@ apt_packages=(
     build-essential
     git
     openssh-client
+    sshpass
     wget
     unzip
     kernelshark
@@ -160,6 +161,7 @@ pacman_packages=(
     coreutils
     git
     openssh
+    sshpass
     base-devel
     wget
     unzip
