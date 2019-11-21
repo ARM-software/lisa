@@ -549,7 +549,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         phases_df = self.df_phases(task)
 
         def end_of_phase_at(t):
-            return phases_df['duration'][t]
+            return t + phases_df['duration'][t]
 
         try:
             states_df = self.trace.analysis.tasks.df_task_states(task)
@@ -559,7 +559,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         else:
             def cpus_of_phase_at(t):
                 window = (t, end_of_phase_at(t))
-                df = df_window(states_df, window, method='pre')
+                df = df_window(states_df, window, method='pre', clip_window=True)
                 return sorted(int(x) for x in df['cpu'].unique())
 
         # Compute phases intervals

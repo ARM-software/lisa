@@ -65,11 +65,13 @@ def _data_refit_index(data, start, end, method):
     data = _data_window(data, (start, end), method=method, clip_window=True)
     index = data.index.to_series()
 
-    if start is not None:
-        index.iloc[0] = start
-
     if end is not None:
         index.iloc[-1] = end
+
+    # If the dataframe has one row, we want the "start" timestamp to be used
+    # rather than "end", so set iloc[0] last
+    if start is not None:
+        index.iloc[0] = start
 
     # Shallow copy is enough, we only want to replace the index and not the
     # actual data
@@ -466,10 +468,18 @@ def _data_window(data, window, method='inclusive', clip_window=False):
     index = data.index
     if clip_window:
         start, end = window
-        window = (
-            start if start >= index[0] else index[0],
-            end if end <= index[-1] else index[-1]
-        )
+
+        if start is None or start < index[0]:
+            start = index[0]
+
+        if end is None or end > index[-1]:
+            end = index[-1]
+
+        if end < start:
+            end = start
+
+        window = (start, end)
+
 
     if method == 'inclusive':
         # Default slicing behaviour of pandas' Float64Index is to be inclusive,
@@ -498,6 +508,7 @@ def _data_window(data, window, method='inclusive', clip_window=False):
         index.get_loc(x, method=method) if x is not None else None
         for x, method in zip(window, method)
     ]
+    window = window[0], (window[1] + 1)
 
     return data.iloc[slice(*window)]
 
