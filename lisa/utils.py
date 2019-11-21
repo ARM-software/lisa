@@ -500,7 +500,7 @@ class Serializable(Loggable):
             dumper = cls._get_yaml('unsafe').dump
         elif fmt == 'yaml-roundtrip':
             kwargs = yaml_kwargs
-            dumper = cls._get_yaml('roundtrip').dump
+            dumper = cls._get_yaml('rt').dump
         elif fmt == 'pickle':
             kwargs = dict(mode='wb')
             dumper = pickle.dump
