@@ -113,6 +113,9 @@ Misc commands
 * ``lisa-platinfo-extract`` - Extract a platform information file
   (:class:`lisa.platforms.platinfo.PlatformInfo`) from the target, containing
   all the knowledge of the target tests or plot functions need.
+* ``lisa-conf-cat`` - Parse a LISA YAML configuration file and pretty print it
+  on it's standard output with help for each key and values of tags computed and
+  interpolated.
 
 Environment variables
 +++++++++++++++++++++
