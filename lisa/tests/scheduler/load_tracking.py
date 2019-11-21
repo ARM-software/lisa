@@ -489,6 +489,11 @@ class Invariance(TestBundle, LoadTrackingHelpers):
     # when building the FtraceCollector
     ftrace_conf = InvarianceItem.ftrace_conf
 
+    NR_FREQUENCIES = 8
+    """
+    Maximum number of tested frequencies.
+    """
+
     def __init__(self, res_dir, plat_info, invariance_items):
         super().__init__(res_dir, plat_info)
 
@@ -522,20 +527,42 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             )
         ]
 
+        def select_freqs(cpu):
+            all_freqs = plat_info['freqs'][cpu]
+
+            def interpolate(start, stop, nr):
+                step = (stop - start) / (nr - 1)
+                return [start + i * step for i in range(nr)]
+
+            # Select the higher freq no matter what
+            selected_freqs = {max(all_freqs)}
+
+            available_freqs = set(all_freqs) - selected_freqs
+            nr_freqs = cls.NR_FREQUENCIES - len(selected_freqs)
+            for ideal_freq in interpolate(min(all_freqs), max(all_freqs), nr_freqs):
+
+                # Select the freq closest to ideal
+                selected_freq = min(available_freqs, key=lambda freq: abs(freq - ideal_freq))
+                available_freqs.discard(selected_freq)
+                selected_freqs.add(selected_freq)
+
+            return all_freqs, sorted(selected_freqs)
+
+        cpu_freqs = {
+            cpu: select_freqs(cpu)
+            for cpu in cpus
+        }
+
         logger = cls.get_logger()
-        logger.info('Selected one CPU of each capacity class: {}'.format(cpus))
-        for cpu in cpus:
-            all_freqs = target.cpufreq.list_frequencies(cpu)
-            # If we have loads of frequencies just test a cross-section so it
-            # doesn't take all day
-            freq_list = all_freqs[::len(all_freqs) // 8 + (1 if len(all_freqs) % 2 else 0)]
-            # Make sure the last one is the max freq
-            freq_list[-1] = all_freqs[-1]
+        logger.info('Will run on: {}'.format(
+            ', '.join(
+                'CPU{}@{}'.format(cpu, freq)
+                for cpu, (all_freqs, freq_list) in sorted(cpu_freqs.items())
+                for freq in freq_list
+            )
+        ))
 
-            # Make sure we have increasing frequency order, to make the logs easier
-            # to navigate
-            freq_list.sort()
-
+        for cpu, (all_freqs, freq_list) in sorted(cpu_freqs.items()):
             for freq in freq_list:
                 item_dir = ArtifactPath.join(res_dir, "{prefix}_{cpu}@{freq}".format(
                     prefix=InvarianceItem.task_prefix,
