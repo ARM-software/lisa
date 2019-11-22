@@ -255,7 +255,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             # Make a copy of the PlatformInfo so we don't modify the original
             # one we were passed when adding the target source to it
             plat_info = copy.copy(plat_info)
-            logger.info('User-defined platform information:\n%s', plat_info)
+            logger.info('User-defined platform information:\n{}'.format(plat_info))
 
         self.plat_info = plat_info
 
@@ -285,7 +285,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         # Initialize binary tools to deploy
         if tools:
-            logger.info('Tools to install: %s', tools)
+            logger.info('Tools to install: {}'.format(tools))
             self.install_tools(tools)
 
         # Autodetect information from the target, after the Target is
@@ -603,9 +603,9 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         else:
             raise ValueError('Unsupported platform type {}'.format(kind))
 
-        logger.info('%s %s target connection settings:', kind, name)
+        logger.info('{} {} target connection settings:'.format(kind, name))
         for key, val in conn_settings.items():
-            logger.info('    %s: %s', key, val)
+            logger.info('    {}: {}'.format(key, val))
 
         ########################################################################
         # Devlib Platform configuration
@@ -643,10 +643,10 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         logger.debug('Checking target connection...')
         logger.debug('Target info:')
-        logger.debug('      ABI: %s', target.abi)
-        logger.debug('     CPUs: %s', target.cpuinfo)
-        logger.debug(' clusters: %s', target.core_clusters)
-        logger.debug('  workdir: %s', target.working_directory)
+        logger.debug('      ABI: {}'.format(target.abi))
+        logger.debug('     CPUs: {}'.format(target.cpuinfo))
+        logger.debug(' clusters: {}'.format(target.core_clusters))
+        logger.debug('  workdir: {}'.format(target.working_directory))
 
         target.setup()
 
@@ -703,7 +703,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             res_dir = ArtifactPath(root, os.path.join(relative, name))
 
             # Compute base installation path
-            logger.info('Creating result directory: %s', str(res_dir))
+            logger.info('Creating result directory: {}'.format(res_dir))
 
             # It will fail if the folder already exists. In that case,
             # append_time should be used to ensure we get a unique name.
@@ -785,7 +785,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
                 @contextlib.contextmanager
                 def cm():
-                    logger.info('Freezing all tasks except: %s', ','.join(exclude))
+                    logger.info('Freezing all tasks except: {}'.format(','.join(exclude)))
                     try:
                         yield self.target.cgroups.freeze(exclude)
                     finally:
