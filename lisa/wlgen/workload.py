@@ -95,7 +95,7 @@ class Workload(Loggable):
                                       quote(wlgen_dir), quote(temp_fmt))).strip()
 
         logger = self.get_logger()
-        logger.info("Creating target's run directory: %s", self.run_dir)
+        logger.info("Creating target's run directory: {}".format(self.run_dir))
 
         res_dir = res_dir if res_dir else target.get_res_dir(
             name='{}-{}'.format(self.__class__.__qualname__, name)
@@ -169,7 +169,7 @@ class Workload(Loggable):
 
         _command = 'cd {} && {}'.format(quote(self.run_dir), _command)
 
-        logger.info("Execution start: %s", _command)
+        logger.info("Execution start: {}".format(_command))
 
         if background:
             target.background(_command, as_root=as_root)
@@ -178,7 +178,7 @@ class Workload(Loggable):
             logger.info("Execution complete")
 
             logfile = ArtifactPath.join(self.res_dir, 'output.log')
-            logger.debug('Saving stdout to %s...', logfile)
+            logger.debug('Saving stdout to {}...'.format(logfile))
 
             with open(logfile, 'w') as ofile:
                 ofile.write(self.output)

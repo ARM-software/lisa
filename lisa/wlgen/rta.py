@@ -183,7 +183,7 @@ class RTA(Workload):
 
         if not self.log_stats:
             return
-        logger.debug('Pulling logfiles to [%s]...', self.res_dir)
+        logger.debug('Pulling logfiles to: {}'.format(self.res_dir))
         for task in self.tasks:
             # RT-app appends some number to the logs, so we can't predict the
             # exact filename
@@ -298,7 +298,7 @@ class RTA(Workload):
         }
 
         if max_duration_s:
-            logger.warning('Limiting workload duration to %d [s]', max_duration_s)
+            logger.warning('Limiting workload duration to {} [s]'.format(max_duration_s))
 
         if default_policy:
             if default_policy in self.sched_policies:
@@ -306,8 +306,8 @@ class RTA(Workload):
             else:
                 raise ValueError('scheduling class {} not supported'.format(default_policy))
 
-        logger.info('Calibration value: %s', global_conf['calibration'])
-        logger.info('Default policy: %s', global_conf['default_policy'])
+        logger.info('Calibration value: {}'.format(global_conf['calibration']))
+        logger.info('Default policy: {}'.format(global_conf['default_policy']))
 
         rta_profile['global'] = global_conf
 
@@ -325,13 +325,13 @@ class RTA(Workload):
                 sched_descr = 'sched: {}'.format(task.sched_policy)
 
             logger.info('------------------------')
-            logger.info('task [%s], %s', tid, sched_descr)
+            logger.info('task [{}], {}'.format(tid, sched_descr))
 
             task_conf['delay'] = int(task.delay_s * 1e6)
-            logger.info(' | start delay: %.6f [s]', task.delay_s)
+            logger.info(' | start delay: {:.6f} [s]'.format(task.delay_s))
 
             task_conf['loop'] = task.loops
-            logger.info(' | loops count: %d', task.loops)
+            logger.info(' | loops count: {}'.format(task.loops))
 
             task_conf['phases'] = OrderedDict()
             rta_profile['tasks'][tid] = task_conf
@@ -441,7 +441,7 @@ class RTA(Workload):
         # Create calibration task
         if target.is_rooted:
             max_rtprio = int(target.execute('ulimit -Hr').split('\r')[0])
-            logger.debug('Max RT prio: %d', max_rtprio)
+            logger.debug('Max RT prio: {}'.format(max_rtprio))
 
             priority = max_rtprio if max_rtprio <= 10 else 10
             sched_policy = 'FIFO'
@@ -451,7 +451,7 @@ class RTA(Workload):
             sched_policy = None
 
         for cpu in target.list_online_cpus():
-            logger.info('CPU%d calibration...', cpu)
+            logger.info('CPU{} calibration...'.format(cpu))
 
             # RT-app will run a calibration for us, so we just need to
             # run a dummy task and read the output
@@ -477,9 +477,9 @@ class RTA(Workload):
                 if pload_match is None:
                     continue
                 pload[cpu] = int(pload_match.group(1))
-                logger.debug('>>> cpu%d: %d', cpu, pload[cpu])
+                logger.debug('>>> CPU{}: {}'.format(cpu, pload[cpu]))
 
-        logger.info('Target RT-App calibration: %s', pload)
+        logger.info('Target RT-App calibration: {}'.format(pload))
 
         plat_info = target.plat_info
 
@@ -676,7 +676,7 @@ class Phase(Loggable):
     :param period_ms: the phase period in [ms].
     :type period_ms: int
 
-    :param duty_cycle_pct: the generated load in [%].
+    :param duty_cycle_pct: the generated load in percents.
     :type duty_cycle_pct: numbers.Number
 
     :param cpus: the CPUs on which task execution is restricted during this phase.
@@ -718,14 +718,14 @@ class Phase(Loggable):
 
         # A duty-cycle of 0[%] translates to a 'sleep' phase
         if self.duty_cycle_pct == 0:
-            logger.info(' | sleep %.6f [s]', duration / 1e6)
+            logger.info(' | sleep {:.6f} [s]'.format(duration / 1e6))
 
             phase['loop'] = 1
             phase['sleep'] = duration
 
         # A duty-cycle of 100[%] translates to a 'run-only' phase
         elif self.duty_cycle_pct == 100:
-            logger.info(' | batch %.6f [s]', duration / 1e6)
+            logger.info(' | batch {:.6f} [s]'.format(duration / 1e6))
 
             phase['loop'] = 1
             phase['run'] = duration
@@ -746,12 +746,12 @@ class Phase(Loggable):
             # https://github.com/scheduler-tools/rt-app/issues/82
             running_time = int(period - sleep_time)
 
-            logger.info(' | duration %.6f [s] (%d loops)',
-                        duration / 1e6, cloops)
-            logger.info(' |  period   %6d [us], duty_cycle %3d %%',
-                        period, self.duty_cycle_pct)
-            logger.info(' |  run_time %6d [us], sleep_time %6d [us]',
-                        running_time, sleep_time)
+            logger.info(' | duration {:.6f} [s] ({} loops)'.format(
+                        duration / 1e6, cloops))
+            logger.info(' |  period   {:>3} [us], duty_cycle {:>3,.2f} %'.format(
+                        int(period), self.duty_cycle_pct))
+            logger.info(' |  run_time {:>6} [us], sleep_time {:>6} [us]'.format(
+                        int(running_time), int(sleep_time)))
 
             phase['loop'] = cloops
             phase['run'] = running_time
@@ -762,11 +762,11 @@ class Phase(Loggable):
 
         if self.uclamp_min is not None:
             phase['util_min'] = self.uclamp_min
-            logger.info(' | util_min %7d', self.uclamp_min)
+            logger.info(' | util_min {:>7}'.format(self.uclamp_min))
 
         if self.uclamp_max is not None:
             phase['util_max'] = self.uclamp_max
-            logger.info(' | util_max %7d', self.uclamp_max)
+            logger.info(' | util_max {:>7}'.format(self.uclamp_max))
 
         return phase
 

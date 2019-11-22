@@ -368,9 +368,9 @@ class FrequencyAnalysis(TraceAnalysisBase):
         if "freqs" in self.trace.plat_info:
             frequencies = self.trace.plat_info['freqs'][cpu]
         else:
-            logger.info("Estimating CPU%s frequencies from trace", cpu)
+            logger.info("Estimating CPU{} frequencies from trace".format(cpu))
             frequencies = sorted(list(df.frequency.unique()))
-            logger.debug("Estimated frequencies: %s", frequencies)
+            logger.debug("Estimated frequencies: {}".format(frequencies))
 
         avg = self.get_average_cpu_frequency(cpu)
         logger.info(

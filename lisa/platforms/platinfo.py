@@ -131,7 +131,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         try:
             return EnergyModel.from_target(target)
         except (TargetStableError, RuntimeError, ValueError) as err:
-            logger.error("Couldn't read target energy model: %s", err)
+            logger.error("Couldn't read target energy model: {}".format(err))
             return None
 
     @classmethod

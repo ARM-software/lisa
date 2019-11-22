@@ -401,7 +401,7 @@ class EnergyModel(Serializable, Loggable):
         max_cap = max(n.max_capacity for n in self.cpu_nodes)
         if max_cap != self.capacity_scale:
             logger.debug(
-                'Unusual max capacity (%s), overriding capacity_scale', max_cap)
+                'Unusual max capacity ({}), overriding capacity_scale'.format(max_cap))
             self.capacity_scale = max_cap
 
     def _cpus_with_capacity(self, cap):
@@ -725,8 +725,9 @@ class EnergyModel(Serializable, Loggable):
 
         logger = self.get_logger()
         logger.debug(
-            '%14s - Searching %d configurations for optimal task placement...',
-            'EnergyModel', num_candidates)
+            'Searching {} configurations for optimal task placement...'.format(
+            num_candidates
+        ))
 
         candidates = {}
         excluded = []
@@ -762,7 +763,7 @@ class EnergyModel(Serializable, Loggable):
         min_power = min(p for p in iter(candidates.values()))
         ret = [u for u, p in candidates.items() if p == min_power]
 
-        logger.debug('%14s - Done', 'EnergyModel')
+        logger.debug('done')
         return ret
 
     @classmethod

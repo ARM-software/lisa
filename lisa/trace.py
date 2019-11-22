@@ -343,7 +343,7 @@ class Trace(Loggable, TraceBase):
             max_cpu = max(int(self.df_events(e)['__cpu'].max())
                           for e in self.available_events)
             count = max_cpu + 1
-            self.get_logger().info("Estimated CPU count from trace: %s", count)
+            self.get_logger().info("Estimated CPU count from trace: {}".format(count))
             return count
 
     @deprecate('Direct access to underlying ftrace object is discouraged as this is now an implementation detail of that class which could change in the future',
@@ -475,8 +475,7 @@ class Trace(Loggable, TraceBase):
         :type trace_format: str
         """
         logger = self.get_logger()
-        logger.debug('Loading [sched] events from trace in [%s]...', path)
-        logger.debug('Parsing events: %s', self.events)
+        logger.debug('Parsing events {} from trace: {}'.format(self.events, path))
         if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
             logger.debug('Parsing SysTrace format...')
             trace_class = trappy.SysTrace
@@ -529,8 +528,6 @@ class Trace(Loggable, TraceBase):
             if not obj.data_frame.empty:
                 available_events.append(val)
         logger.debug('Events found on trace: {}'.format(', '.join(available_events)))
-        for evt in available_events:
-            logger.debug(' - %s', evt)
         return available_events
 
     @memoized
@@ -647,8 +644,8 @@ class Trace(Loggable, TraceBase):
         self.end = self.start + duration
         self.time_range = self.end - self.start
 
-        self.get_logger().debug('Trace contains events from %s to %s',
-                                self.start, self.end)
+        self.get_logger().debug('Trace contains events from {} to {}'.format(
+            self.start, self.end))
 
     def get_task_name_pids(self, name, ignore_fork=True):
         """
@@ -1088,12 +1085,12 @@ class Trace(Loggable, TraceBase):
                 for cpus in domains:
                     dl_freqs = dl_df[dl_df.cpu.isin(cpus)]
                     os_freqs = os_df[os_df.cpu.isin(cpus)]
-                    logger.debug("First freqs for %s:\n%s", cpus, dl_freqs)
+                    logger.debug("First freqs for {}:\n{}".format(cpus, dl_freqs))
                     # All devlib events "before" os-generated events
-                    logger.debug("Min os freq @: %s", os_freqs.index.min())
+                    logger.debug("Min os freq @: {}".format(os_freqs.index.min()))
                     if os_freqs.empty or \
                        os_freqs.index.min() > dl_freqs.index.max():
-                        logger.debug("Insert devlib freqs for %s", cpus)
+                        logger.debug("Insert devlib freqs for {}".format(cpus))
                         df = pd.concat([dl_freqs, df])
 
                 # Inject "final" devlib frequencies
@@ -1102,12 +1099,12 @@ class Trace(Loggable, TraceBase):
                 for cpus in domains:
                     dl_freqs = dl_df[dl_df.cpu.isin(cpus)]
                     os_freqs = os_df[os_df.cpu.isin(cpus)]
-                    logger.debug("Last freqs for %s:\n%s", cpus, dl_freqs)
+                    logger.debug("Last freqs for {}:\n{}".format(cpus, dl_freqs))
                     # All devlib events "after" os-generated events
-                    logger.debug("Max os freq @: %s", os_freqs.index.max())
+                    logger.debug("Max os freq @: {}".format(os_freqs.index.max()))
                     if os_freqs.empty or \
                        os_freqs.index.max() < dl_freqs.index.min():
-                        logger.debug("Append devlib freqs for %s", cpus)
+                        logger.debug("Append devlib freqs for {}".format(cpus))
                         df = pd.concat([df, dl_freqs])
 
                 df.sort_index(inplace=True)
