@@ -561,7 +561,7 @@ def series_align_signal(ref, to_align, max_shift=None):
     # The most likely shift is the index at which the correlation is
     # maximum. correlation.argmax() can vary from 0 to 2*len(to_align), so we
     # re-center it.
-    shift = correlation.argmax() - (len(to_align) - 1)
+    shift = correlation.argmax() - len(to_align)
 
     # Cap the shift value
     if max_shift is not None:
