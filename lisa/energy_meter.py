@@ -438,7 +438,7 @@ class ACME(EnergyMeter):
         logger.info('    device: {}'.format(self._hostname))
         logger.info('  channels: {}'.format(', '.join(
             self._str(channel) for channel in self._channels
-        ))
+        )))
 
         # Check if iio-capture binary is available
         try:
@@ -564,7 +564,7 @@ class ACME(EnergyMeter):
             if '=' not in out:
                 logger.error('Bad output format for {}: {}'.format(
                     self._str(channel), out
-                )
+                ))
                 continue
             else:
                 logger.debug('{}: {}'.format(self._str(channel), out))

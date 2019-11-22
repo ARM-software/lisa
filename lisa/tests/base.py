@@ -613,8 +613,8 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         given directory (which should have been created by an earlier call
         to :meth:`from_target` and then :meth:`to_dir`), and will then return
         a :class:`TestBundle`.
-      * :attr:`VERIFY_SERIALIZATION` is there to ensure both above methods remain
-        operationnal at all times.
+      * :attr:`VERIFY_SERIALIZATION` is there to ensure the instances can
+        serialized and deserialized without error.
       * ``res_dir`` parameter of ``__init__`` must be stored as an attribute
         without further processing, in order to support result directory
         relocation.
@@ -668,10 +668,12 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
     VERIFY_SERIALIZATION = True
     """
     When True, this enforces a serialization/deserialization step in
-    :meth:`from_target`. Although it adds an extra step (we end up creating
-    two :class:`TestBundle` instances), it's very valuable to ensure
-    :meth:`TestBundle.from_dir` does not get broken for some particular
-    class.
+    :meth:`from_target`.
+
+    .. note:: The deserialized instance is thrown away in order to avoid using
+        what is in effect a deepcopy of the original bundle. Using that
+        deepcopy greatly increases the memory consumption of long running
+        processes.
     """
 
     def __init__(self, res_dir, plat_info):
@@ -768,7 +770,7 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         if cls.VERIFY_SERIALIZATION:
             bundle.to_dir(res_dir)
             # Updating the res_dir breaks deserialization for some use cases
-            bundle = cls.from_dir(res_dir, update_res_dir=False)
+            cls.from_dir(res_dir, update_res_dir=False)
 
         return bundle
 
