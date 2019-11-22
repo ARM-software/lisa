@@ -1913,7 +1913,7 @@ class LISATestStep(ShellStep):
                 info('Compressing exekall artifact directory {} ...'.format(artifact_path))
                 archive_name = shutil.make_archive(
                     base_name=artifact_path,
-                    format='xztar',
+                    format='gztar',
                     root_dir=os.path.join(artifact_path, '..'),
                     base_dir=os.path.split(artifact_path)[-1],
                 )
