@@ -16,6 +16,8 @@
 #
 
 import re
+import functools
+from collections.abc import Mapping
 
 from lisa.utils import HideExekallID, group_by_value
 from lisa.conf import (
@@ -90,35 +92,92 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     ))
     """Some keys have a reserved meaning with an associated type."""
 
-    def add_target_src(self, target, rta_calib_res_dir, src='target', **kwargs):
+    def add_target_src(self, target, rta_calib_res_dir, src='target', only_missing=True, **kwargs):
+        """
+        Add source from a live :class:`lisa.target.Target`.
+
+        :param target: Target to inspect.
+        :type target: lisa.target.Target
+
+        :param rta_calib_res_dir: Result directory for rt-app calibrations.
+        :type rta_calib_res_dir: str
+
+        :param src: Named of the added source.
+        :type src: str
+
+        :param only_missing: If ``True``, only add values for the keys that are
+            not already provided by another source. This allows speeding up the
+            connection to target, at the expense of not being able to spot
+            inconsistencies between user-provided values and autodetected values.
+        :type only_missing: bool
+
+        :Variable keyword arguments: Forwarded to
+            :class:`lisa.conf.MultiSrcConf.add_src`.
+        """
         info = {
-            'nrg-model': self._nrg_model_from_target(target),
+            'nrg-model': lambda: self._nrg_model_from_target(target),
             'kernel': {
-                'version': target.kernel_version,
-                'config': target.config.typed_config,
+                'version': lambda: target.kernel_version,
+                'config': lambda: target.config.typed_config,
             },
-            'abi': target.abi,
-            'os': target.os,
+            'abi': lambda: target.abi,
+            'os': lambda: target.os,
             'rtapp': {
                 # Since it is expensive to compute, use an on-demand DeferredValue
-                'calib': DeferredValue(RTA.get_cpu_calibrations, target, rta_calib_res_dir)
+                'calib': lambda: DeferredValue(RTA.get_cpu_calibrations, target, rta_calib_res_dir)
             },
-            'cpus-count': target.number_of_cpus
+            'cpus-count': lambda: target.number_of_cpus
         }
 
-        if target.is_module_available('cpufreq'):
-            info['freq-domains'] = list(target.cpufreq.iter_domains())
-            freqs = {cpu: target.cpufreq.list_frequencies(cpu)
-                     for cpu in range(target.number_of_cpus)}
-            # Only add the frequency info if there is any, otherwise don't
-            # mislead the client code with empty frequency list
-            if all(freqs.values()):
-                info['freqs'] = freqs
+        def get_freq_domains():
+            if target.is_module_available('cpufreq'):
+                return list(target.cpufreq.iter_domains())
+            else:
+                return None
 
-        if target.is_module_available('sched'):
-            info['cpu-capacities'] = target.sched.get_capacities(default=1024)
+        info['freq-domains'] = get_freq_domains
 
-        info['kernel']['symbols-address'] = self._read_kallsyms(target)
+        def get_freqs():
+            if target.is_module_available('cpufreq'):
+                freqs = {cpu: target.cpufreq.list_frequencies(cpu)
+                        for cpu in range(target.number_of_cpus)}
+                # Only add the frequency info if there is any, otherwise don't
+                # mislead the client code with empty frequency list
+                if all(freqs.values()):
+                    return freqs
+                else:
+                    return None
+            else:
+                return None
+
+        info['freqs'] = get_freqs
+
+        def get_cpu_capacities():
+            if target.is_module_available('sched'):
+                return target.sched.get_capacities(default=1024)
+            else:
+                return None
+
+        info['cpu-capacities'] = get_cpu_capacities
+
+        info['kernel']['symbols-address'] = functools.partial(self._read_kallsyms, target)
+
+        def dfs(existing_info, new_info):
+            def evaluate(existing_info, key, val):
+                if isinstance(val, Mapping):
+                    return dfs(existing_info[key], val)
+                else:
+                    if only_missing and key in existing_info:
+                        return None
+                    else:
+                        return val()
+
+            return {
+                key: evaluate(existing_info, key, val)
+                for key, val in new_info.items()
+            }
+
+        info = dfs(self, info)
 
         return self.add_src(src, info, filter_none=True, **kwargs)
 
