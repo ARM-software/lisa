@@ -362,7 +362,7 @@ class Serializable(Loggable):
         yaml.allow_unicode = ('utf' in cls.YAML_ENCODING)
         yaml.default_flow_style = False
         yaml.indent = 4
-        yaml.constructor.add_constructor('!include', functools.partial(cls._yaml_include_constructor, yaml))
+        yaml.constructor.add_constructor('!include', functools.partial(cls._yaml_include_constructor, typ))
         yaml.constructor.add_constructor('!var', cls._yaml_var_constructor)
         yaml.constructor.add_multi_constructor('!env:', cls._yaml_env_var_constructor)
         yaml.constructor.add_multi_constructor('!call:', cls._yaml_call_constructor)
@@ -421,7 +421,7 @@ class Serializable(Loggable):
             Serializable._included_path.val = old
 
     @classmethod
-    def _yaml_include_constructor(cls, yaml, loader, node):
+    def _yaml_include_constructor(cls, typ, loader, node):
         path = loader.construct_scalar(node)
         assert isinstance(path, str)
         path = os.path.expandvars(path)
@@ -429,6 +429,9 @@ class Serializable(Loggable):
         # Paths are relative to the file that is being included
         if not os.path.isabs(path):
             path = os.path.join(Serializable._included_path.val, path)
+
+        # Since the parser is not re-entrant, create a fresh one
+        yaml = cls._get_yaml(typ)
 
         with cls._set_relative_include_root(path):
             with open(path, 'r', encoding=cls.YAML_ENCODING) as f:
