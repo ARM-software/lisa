@@ -603,9 +603,12 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         else:
             raise ValueError('Unsupported platform type {}'.format(kind))
 
-        logger.info('{} {} target connection settings:'.format(kind, name))
-        for key, val in conn_settings.items():
-            logger.info('    {}: {}'.format(key, val))
+        settings = '\n    '.join(
+            '    {}: {}'.format(key, val)
+            for key, val in conn_settings.items()
+            if key != 'password'
+        )
+        logger.info('{} {} target connection settings:\n    {}'.format(kind, name, settings))
 
         ########################################################################
         # Devlib Platform configuration
