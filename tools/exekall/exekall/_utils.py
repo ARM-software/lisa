@@ -372,8 +372,8 @@ def setup_logging(log_level, debug_log_file=None, info_log_file=None, verbose=0)
     logging.addLevelName(LOGGING_OUT_LEVEL, 'OUT')
     level = getattr(logging, log_level.upper())
 
-    verbose_formatter = ExekallFormatter('[%(name)s/%(filename)s:%(lineno)s][%(asctime)s] %(levelname)s  %(message)s')
-    normal_formatter = ExekallFormatter('[%(name)s][%(asctime)s] %(levelname)s  %(message)s')
+    verbose_formatter = ExekallFormatter('[%(asctime)s][%(name)s/%(filename)s:%(lineno)s] %(levelname)s  %(message)s')
+    normal_formatter = ExekallFormatter('[%(asctime)s][%(name)s] %(levelname)s  %(message)s')
 
     logger = logging.getLogger()
     # We do not filter anything at the logger level, only at the handler level
