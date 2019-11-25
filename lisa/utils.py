@@ -634,7 +634,7 @@ def setup_logging(filepath='logging.conf', level=None):
     logging.captureWarnings(True)
 
     if level is not None:
-        log_format = '%(asctime)s %(levelname)-8s: %(name)-12s : %(message)s'
+        log_format = '[%(asctime)s][%(name)s] %(levelname)s  %(message)s'
         logging.basicConfig(level=resolved_level, format=log_format)
     else:
         # Load the specified logfile using an absolute path
