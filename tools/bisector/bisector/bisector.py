@@ -3715,7 +3715,13 @@ class Report(Serializable):
         # characters in plain ASCII
         yaml.allow_unicode = True
         yaml.default_flow_style = True
-        yaml.indent(mapping=1, sequence=1, offset=0)
+
+        # ruamel.yaml documentation states that sequence indent less than
+        # (offset + 2) might lead to invalid output
+        # https://yaml.readthedocs.io/en/latest/detail.html#indentation-of-block-sequences
+        offset = 0
+        sequence = offset + 2
+        yaml.indent(mapping=1, sequence=sequence, offset=offset)
 
         # Dump OrderedDict as regular dictionaries, since we will reload map as
         # OrderedDict as well
