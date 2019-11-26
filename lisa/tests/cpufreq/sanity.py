@@ -16,9 +16,10 @@
 #
 import os
 
-from lisa.tests.base import Result, ResultBundle, TestBundle
+from lisa.tests.base import Result, ResultBundle, TestBundle, DmesgTestBundle
 from lisa.wlgen.sysbench import Sysbench
 from lisa.target import Target
+from lisa.trace import DmesgCollector
 from lisa.utils import ArtifactPath, groupby, nullcontext
 from lisa.analysis.tasks import TasksAnalysis
 
@@ -62,7 +63,7 @@ class UserspaceSanityItem(TestBundle):
         return cls(res_dir, target.plat_info, cpu, freq, work)
 
 
-class UserspaceSanity(TestBundle):
+class UserspaceSanity(DmesgTestBundle):
     """
     A class for making sure the userspace governor behaves sanely
 
@@ -89,8 +90,11 @@ class UserspaceSanity(TestBundle):
         """
         sanity_items = []
 
+        dmesg_path = ArtifactPath.join(res_dir, cls.DMESG_PATH)
+        dmesg_coll = DmesgCollector(target)
+
         plat_info = target.plat_info
-        with target.cpufreq.use_governor("userspace"):
+        with dmesg_coll, target.cpufreq.use_governor("userspace"):
             for domain in plat_info['freq-domains']:
                 cpu = domain[0]
                 freqs = plat_info['freqs'][cpu]
@@ -114,6 +118,7 @@ class UserspaceSanity(TestBundle):
                     )
                     sanity_items.append(item)
 
+        dmesg_coll.get_trace(dmesg_path)
         return cls(res_dir, plat_info, sanity_items)
 
     def test_performance_sanity(self) -> ResultBundle:
