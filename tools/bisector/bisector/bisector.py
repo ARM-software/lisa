@@ -2714,12 +2714,18 @@ class StepSeqResult(StepResultBase):
     """
     yaml_tag = '!step-seq-result'
 
-    def __init__(self, step, steps_res, run_time=0):
+    attr_init = dict(
+        # For backward compatibility
+        step_res_run_times={},
+    )
+
+    def __init__(self, step, steps_res, run_time=0, step_res_run_times=None):
         # self.step is not directly useful at the moment but may become useful
         # since the data stored in self is directly under control of the MacroStep.
         self.step = step
         self.steps_res = steps_res
         self.run_time = round(run_time, 6)
+        self.step_res_run_times = step_res_run_times or {}
 
     @property
     def bisect_ret(self):
@@ -3040,10 +3046,14 @@ class MacroStep(StepBase):
         info('Starting {self.cat} step ({self.name}) iteration #{i} ...'.format(i=i_stack, self=self))
 
         # Run the steps
+        step_res_run_times = {}
         begin_ts = time.monotonic()
         for step in self.steps_list:
+            step_begin_ts = time.monotonic()
             res = step.run(i_stack, service_hub)
+            step_end_ts = time.monotonic()
             step_res_list.append(res)
+            step_res_run_times[res] = step_end_ts - step_begin_ts
 
             # If the bisect must be aborted, there is no point in carrying over,
             # even when bail_out_early=False.
@@ -3076,6 +3086,7 @@ class MacroStep(StepBase):
             step=self,
             steps_res=step_res_list,
             run_time=delta_ts,
+            step_res_run_times=step_res_run_times,
         )
 
     def run(self, i_stack, service_hub):
@@ -3225,6 +3236,10 @@ class MacroStep(StepBase):
             if not macrostep_res.res_list:
                 return 'No iteration information found for {self.cat} step ({self.name}).'.format(self=self)
 
+            out('Average iteration runtime: {}\n'.format(
+                datetime.timedelta(seconds=macrostep_res.avg_run_time),
+            ))
+            step_res_run_times = {}
             for i, macrostep_i_res in enumerate(macrostep_res.res_list):
                 i += 1
                 i_stack_ = copy.copy(i_stack)
@@ -3234,6 +3249,8 @@ class MacroStep(StepBase):
                     # Ignore steps that are not part of the list
                     if not step in steps_set:
                         continue
+
+                    step_res_run_times.update(macrostep_i_res.step_res_run_times)
 
                     # Get the step result and the associated iteration number
                     step_res_map[step].append((i_stack_, step_res))
@@ -3271,7 +3288,23 @@ class MacroStep(StepBase):
                 (res[1] for res in step_res_list),
             ).bisect_ret
 
-            out('{step.cat}/{step.name} ({step.__class__.name}) [{bisect_ret}]'.format(
+            run_time_list = [
+                step_res_run_times.get(res[1])
+                for res in step_res_list
+            ]
+            run_time_list = [
+                runtime for runtime in run_time_list
+                if runtime is not None
+            ]
+            if run_time_list:
+                avg_run_time = statistics.mean(run_time_list)
+                avg_run_time = datetime.timedelta(seconds=int(avg_run_time))
+                avg_run_time = ' in {}'.format(avg_run_time)
+            else:
+                avg_run_time = ''
+
+            out('{step.cat}/{step.name} ({step.__class__.name}){avg_run_time} [{bisect_ret}]'.format(
+                avg_run_time=avg_run_time,
                 step=step,
                 bisect_ret=bisect_ret.name,
             ))
