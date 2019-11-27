@@ -131,13 +131,13 @@ class RTA(Workload):
             # Average in a capacity class, since the kernel will only use one
             # value for the whole class anyway
             new_capacities = {}
-            for cpus in plat_info['capacity-classes']:
+            for capa_class in plat_info['capacity-classes']:
                 avg_capa = mean(
                     capa
                     for cpu, capa in true_capacities.items()
-                    if cpu in cpus
+                    if cpu in capa_class
                 )
-                new_capacities.update({cpu: avg_capa for cpu in cpus})
+                new_capacities.update({cpu: avg_capa for cpu in capa_class})
 
             # Make sure that the max cap is 1024 and that we use integer values
             new_max_cap = max(new_capacities.values())
