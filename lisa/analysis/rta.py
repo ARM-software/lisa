@@ -23,7 +23,7 @@ import pandas as pd
 
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
 from lisa.datautils import df_filter_task_ids, df_window
-from lisa.trace import TaskID, requires_events, may_use_events, MissingTraceEventError
+from lisa.trace import TaskID, requires_events, requires_one_event_of, may_use_events, MissingTraceEventError
 from lisa.utils import memoized, deprecate
 from lisa.analysis.tasks import TasksAnalysis
 
@@ -55,6 +55,17 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
     name = 'rta'
 
+    RTAPP_USERSPACE_EVENTS = [
+        'rtapp_main',
+        'rtapp_task',
+        'rtapp_loop',
+        'rtapp_event',
+        'rtapp_stats',
+    ]
+    """
+    List of ftrace events rtapp is able to emit.
+    """
+
     def _task_filtered(self, df, task=None):
         if not task:
             return df
@@ -68,25 +79,25 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         return df_filter_task_ids(df, [task],
                                   pid_col='__pid', comm_col='__comm')
 
-    @memoized
-    def _get_rtapp_tasks(self):
-        task_ids = set()
-        for evt in self.trace.available_events:
-            if not evt.startswith('rtapp_'):
-                continue
-            df = self.trace.df_events(evt)
-            for pid, name in df[['__pid', '__comm']].drop_duplicates().values:
-                task_ids.add(TaskID(pid, name))
-        return sorted(task_ids)
-
     @property
+    @memoized
+    @requires_one_event_of(*RTAPP_USERSPACE_EVENTS)
     def rtapp_tasks(self):
         """
         List of :class:`lisa.trace.TaskID` of the ``rt-app`` tasks present in
         the trace.
         """
-        return self._get_rtapp_tasks()
+        task_ids = set()
+        for event in self.RTAPP_USERSPACE_EVENTS:
+            try:
+                df = self.trace.df_events(event)
+            except MissingTraceEventError:
+                continue
+            else:
+                for pid, name in df[['__pid', '__comm']].drop_duplicates().values:
+                    task_ids.add(TaskID(pid, name))
 
+        return sorted(task_ids)
 
 ###############################################################################
 # DataFrame Getter Methods
