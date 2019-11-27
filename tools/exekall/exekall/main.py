@@ -1106,6 +1106,17 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                     uuid=get_uuid_str(expr_val),
                 ))
 
+            def get_duration_str(expr_val):
+                if expr_val.duration is None:
+                    duration = ''
+                else:
+                    duration = '{:.2f}s'.format(expr_val.duration)
+
+                cumulative = expr_val.cumulative_duration
+                cumulative = ' (cumulative: {:.2f}s)'.format(cumulative) if cumulative else ''
+
+                return '{}{}'.format(duration, cumulative)
+
             # This returns an iterator
             executor = expr.execute(log_expr_val)
 
@@ -1122,7 +1133,10 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                     ),
                     )
 
-                prefix = 'Finished {uuid} '.format(uuid=get_uuid_str(result))
+                prefix = 'Finished {uuid} in {duration} '.format(
+                    uuid=get_uuid_str(result),
+                    duration=get_duration_str(result),
+                )
                 out('{prefix}{id}'.format(
                     id=result.get_id(
                         full_qual=False,

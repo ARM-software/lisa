@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import time
 import inspect
 import collections.abc
 from collections import OrderedDict
@@ -2663,32 +2664,52 @@ class Operator:
         """
         Wrap the callable in a generator suitable for execution.
         """
+
         if self.is_genfunc:
+            def add_duration(iterator):
+                while True:
+                    begin = time.monotonic()
+                    try:
+                        val = next(iterator)
+                    except StopIteration:
+                        return
+                    else:
+                        end = time.monotonic()
+                        yield (end - begin, val)
+
             @functools.wraps(self.callable_)
             def genf(*args, **kwargs):
+                duration = None
                 try:
                     has_yielded = False
-                    for res in self.callable_(*args, **kwargs):
+                    for duration, res in add_duration(self.callable_(*args, **kwargs)):
                         has_yielded = True
-                        yield (utils.create_uuid(), res, NoValue)
+                        yield (duration, utils.create_uuid(), res, NoValue)
 
                     # If no value at all were produced, we still need to yield
                     # something
                     if not has_yielded:
-                        yield (utils.create_uuid(), NoValue, NoValue)
+                        yield (duration, utils.create_uuid(), NoValue, NoValue)
 
                 except Exception as e:
-                    yield (utils.create_uuid(), NoValue, e)
+                    yield (duration, utils.create_uuid(), NoValue, e)
         else:
             @functools.wraps(self.callable_)
             def genf(*args, **kwargs):
                 uuid_ = utils.create_uuid()
+
+                begin = time.monotonic()
                 # yield one value and then return
                 try:
                     val = self.callable_(*args, **kwargs)
-                    yield (uuid_, val, NoValue)
                 except Exception as e:
-                    yield (uuid_, NoValue, e)
+                    val = NoValue
+                    excep = e
+                else:
+                    excep = NoValue
+
+                end = time.monotonic()
+                yield (end - begin, uuid_, val, excep)
 
         return genf
 
@@ -2808,22 +2829,27 @@ class PrebuiltOperator(Operator):
     def __init__(self, obj_type, obj_list, id_=None, **kwargs):
         obj_list_ = list()
         uuid_list = list()
+        duration_list = list()
         for obj in obj_list:
             # Transparently copy the UUID to avoid having multiple UUIDs
             # refering to the same actual value.
             if isinstance(obj, FrozenExprVal):
                 uuid_ = obj.uuid
+                duration = obj.duration
                 obj = obj.value
             else:
                 uuid_ = utils.create_uuid()
+                duration = None
 
             uuid_list.append(uuid_)
             obj_list_.append(obj)
+            duration_list.append(duration)
 
         # Make sure we will get all objects when using zip()
         assert len(obj_list) == len(uuid_list)
         self.obj_list = obj_list_
         self.uuid_list = uuid_list
+        self.duration_list = duration_list
         self.obj_type = obj_type
         self._id = id_
 
@@ -2853,7 +2879,7 @@ class PrebuiltOperator(Operator):
     @property
     def generator_wrapper(self):
         def genf():
-            yield from zip(self.uuid_list, self.obj_list, itertools.repeat(NoValue))
+            yield from zip(self.duration_list, self.uuid_list, self.obj_list, itertools.repeat(NoValue))
         return genf
 
 
@@ -2991,13 +3017,14 @@ class ExprValSeq:
 
         # Then compute the remaining ones
         if self.iterator:
-            for uuid_, value, excep in self.iterator:
+            for duration, uuid_, value, excep in self.iterator:
                 expr_val = ExprVal(
                     expr=self.expr,
                     param_map=self.param_map,
                     value=value,
                     excep=excep,
                     uuid=uuid_,
+                    duration=duration,
                 )
                 callback(expr_val, reused=False)
 
@@ -3185,13 +3212,38 @@ class ExprValBase(ExprHelpers):
 
     :param uuid: UUID of the :class:`ExprValBase`
     :type uuid: str
+
+    :param duration: Time it took to compute the value or the exception in
+        seconds.
+    :type duration: float or None
     """
 
-    def __init__(self, param_map, value, excep, uuid):
+    def __init__(self, param_map, value, excep, uuid, duration):
         self.param_map = param_map
         self.value = value
         self.excep = excep
         self.uuid = uuid
+        self.duration = duration
+
+    @property
+    def cumulative_duration(self):
+        """
+        Sum of the duration of all :class:`ExprValBase` that were involved in
+        the computation of that one.
+        """
+        def get_duration(expr_val):
+            return expr_val.duration or 0
+
+        def dfs(expr_val):
+            return (
+                get_duration(expr_val)
+                + sum(
+                    dfs(param_expr_val)
+                    for param_expr_val in expr_val.param_map.values()
+                )
+            )
+
+        return dfs(self)
 
     def get_by_predicate(self, predicate):
         """
@@ -3281,6 +3333,10 @@ class FrozenExprVal(ExprValBase):
     :param uuid: UUID of the :class:`ExprVal`
     :type uuid: str
 
+    :param duration: Time it took to compute the value or the exception in
+        seconds.
+    :type duration: float or None
+
     :param callable_qualname: Qualified name of the callable that was used to
         compute the value, including module name.
     :type callable_qualname: str
@@ -3312,6 +3368,8 @@ class FrozenExprVal(ExprValBase):
             correlate with logs, or deduplicate across multiple
             :class:`ValueDB`.
 
+        * - ``duration``
+          - Time it took to compute the value in seconds.
 
     Since it is a subclass of :class:`ExprValBase`, the :class:`FrozenExprVal`
     value of the parameters of the callable that was used to compute it can be
@@ -3329,10 +3387,10 @@ class FrozenExprVal(ExprValBase):
     """
 
     def __init__(self,
-                param_map, value, excep, uuid,
-                callable_qualname, callable_name, recorded_id_map,
-                tags,
-            ):
+        param_map, value, excep, uuid, duration,
+        callable_qualname, callable_name, recorded_id_map,
+        tags,
+    ):
         self.callable_qualname = callable_qualname
         self.callable_name = callable_name
         self.recorded_id_map = recorded_id_map
@@ -3341,6 +3399,7 @@ class FrozenExprVal(ExprValBase):
             param_map=param_map,
             value=value, excep=excep,
             uuid=uuid,
+            duration=duration,
         )
 
         if self.excep is not NoValue:
@@ -3493,7 +3552,8 @@ class FrozenExprVal(ExprValBase):
             callable_name=callable_name,
             recorded_id_map=recorded_id_map,
             param_map=param_map,
-            tags=expr_val.get_tags()
+            tags=expr_val.get_tags(),
+            duration=expr_val.duration,
         )
 
         return froz_val
@@ -3543,7 +3603,14 @@ class PrunedFrozVal(FrozenExprVal):
             callable_name=froz_val.callable_name,
             recorded_id_map=copy.copy(froz_val.recorded_id_map),
             tags=froz_val.get_tags(),
+            duration=froz_val.duration,
         )
+        self._cumulative_duration = froz_val.cumulative_duration
+
+    @property
+    def cumulative_duration(self):
+        return self._cumulative_duration
+
 
 
 class FrozenExprValSeq(collections.abc.Sequence):
@@ -3623,11 +3690,11 @@ class ExprVal(ExprValBase):
     """
 
     def __init__(self, expr, param_map,
-        value=NoValue, excep=NoValue, uuid=None,
+        value=NoValue, excep=NoValue, uuid=None, duration=None,
     ):
         uuid = uuid if uuid is not None else utils.create_uuid()
         self.expr = expr
-        super().__init__(param_map=param_map, value=value, excep=excep, uuid=uuid)
+        super().__init__(param_map=param_map, value=value, excep=excep, uuid=uuid, duration=duration)
 
     def get_tags(self):
         """
@@ -3714,6 +3781,7 @@ class UnEvaluatedExprVal(ExprVal):
             uuid=None,
             value=NoValue,
             excep=NoValue,
+            duration=None,
         )
 
 
