@@ -851,13 +851,14 @@ class TasksAnalysis(TraceAnalysisBase):
             if duty_cycle:
                 df['duty_cycle'].plot(ax=axis, drawstyle='steps-post', label='Duty cycle of {}'.format(task))
 
-            for active, label in (
-                    (active_value, 'Activations'),
-                    (sleep_value, 'Sleep')
-                ):
-                duration = df[df['active'] == active]['duration']
-                # Add blanks in the plot when the state is not the one we care about
-                duration = duration.reindex_like(df)
-                duration.plot(ax=axis, drawstyle='steps-post', label='{} duration of {}'.format(label, task))
+            if duration:
+                for active, label in (
+                        (active_value, 'Activations'),
+                        (sleep_value, 'Sleep')
+                    ):
+                    duration_series = df[df['active'] == active]['duration']
+                    # Add blanks in the plot when the state is not the one we care about
+                    duration_series = duration_series.reindex_like(df)
+                    duration_series.plot(ax=axis, drawstyle='steps-post', label='{} duration of {}'.format(label, task))
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
