@@ -36,7 +36,7 @@ from docutils.statemachine import ViewList
 import lisa.analysis
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
 from lisa.utils import get_subclasses
-from lisa.trace import MissingTraceEventError
+from lisa.trace import MissingTraceEventError, TraceEventCheckerBase
 from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, KeyDesc, LevelKeyDesc
 
 
@@ -194,12 +194,24 @@ def autodoc_process_test_method(app, what, name, obj, options, lines):
 
 
 def autodoc_process_analysis_events(app, what, name, obj, options, lines):
-    # Append the list of required trace events
-    if what != 'method' or not hasattr(obj, "used_events"):
-        return
+    """
+    Append the list of required trace events
+    """
 
-    events_doc = "\n:Required trace events:\n\n{}\n\n".format(obj.used_events.doc_str())
-    lines.extend(events_doc.splitlines())
+    # We look for events in the getter method of properties
+    if what == 'property':
+        obj = obj.fget
+
+    try:
+        used_events = obj.used_events
+    except AttributeError:
+        return
+    else:
+        if not isinstance(used_events, TraceEventCheckerBase):
+            return
+
+        events_doc = "\n:Required trace events:\n\n{}\n\n".format(used_events.doc_str())
+        lines.extend(events_doc.splitlines())
 
 
 class DocPlotConf(SimpleMultiSrcConf):
