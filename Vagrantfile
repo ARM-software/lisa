@@ -5,6 +5,9 @@
 Vagrant.configure(2) do |config|
   config.vm.box = "ubuntu/bionic64"
 
+  # Allow using tools like kernelshark
+  config.ssh.forward_x11 = true
+
   # Compiling pandas requires 1Gb of memory
   config.vm.provider "virtualbox" do |v|
     v.memory = 1024
