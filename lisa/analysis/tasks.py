@@ -792,7 +792,7 @@ class TasksAnalysis(TraceAnalysisBase):
     @df_task_activation.used_events
     def plot_task_activation(self, task, cpu=None, active_value=None,
             sleep_value=None, alpha=None, overlay=False, duration=False,
-            duty_cycle=False, axis=None, local_fig=None):
+            duty_cycle=False, which_cpu=False, axis=None, local_fig=None):
         """
         Plot task activations, in a style similar to kernelshark.
 
@@ -813,52 +813,102 @@ class TasksAnalysis(TraceAnalysisBase):
         :param duty_cycle: Plot the duty cycle of each pair of sleep/activation.
         :type duty_cycle: bool
 
+        :param which_cpu: If ``True``, plot the activations on each CPU in a
+            separate row like kernelshark does.
+        :type which_cpu: bool
+
         .. seealso:: :meth:`df_task_activation`
         """
         # Adapt the steps height to the existing limits. This allows
         # re-using an existing axis that already contains some data.
         min_lim, max_lim = axis.get_ylim()
-        alpha_default = 0.5
 
         df = self.df_task_activation(task, cpu=cpu)
 
         if overlay:
             active_default = max_lim / 4
-            _alpha = alpha if alpha is not None else alpha_default
-        elif duty_cycle:
-            active_default = 1
-            _alpha = alpha if alpha is not None else alpha_default
-        elif duration:
-            active_default = df['duration'].max() * 1.2
-            _alpha = alpha if alpha is not None else alpha_default
+            _alpha = alpha if alpha is not None else 0.5
         else:
             active_default = max_lim
             _alpha = alpha
 
+        if duration or duty_cycle:
+            active_default = max((
+                1 if duty_cycle else 0,
+                df['duration'].max() * 1.2 if duration else 0
+            ))
+
         active_value = active_value if active_value is not None else active_default
         sleep_value = sleep_value if sleep_value is not None else 0
 
-        df['active'] = df['active'].map({True: active_value, False: sleep_value})
-
         if not df.empty:
-            axis.fill_between(df.index, df['active'], step='post',
-                alpha=_alpha
-            )
+            color = self.get_next_color(axis)
+
+            if which_cpu:
+                cpus_count = self.trace.cpus_count
+                if overlay:
+                    level_height = max_lim / cpus_count
+                else:
+                    level_height = 1
+                    axis.set_yticks(range(cpus_count))
+                    # Reversed limits so 0 is at the top, kernelshark-style
+                    axis.set_ylim((cpus_count, 0))
+
+                for cpu in range(cpus_count):
+                    # The y tick is not reversed, so we need to change the
+                    # level manually to match kernelshark behavior
+                    if overlay:
+                        y_level = level_height * (cpus_count - cpu)
+                    else:
+                        y_level = level_height * cpu
+
+                    cpu_df = df[df['cpu'] == cpu]
+                    axis.fill_between(
+                        x=cpu_df.index,
+                        y1=y_level,
+                        y2=y_level + cpu_df['active'] * level_height,
+                        step='post',
+                        alpha=_alpha,
+                        color=color,
+                        # Avoid ugly lines striking through sleep times
+                        linewidth=0,
+                    )
+
+                if not overlay:
+                    axis.set_ylabel('CPU')
+            else:
+                axis.fill_between(
+                    x=df.index,
+                    y1=sleep_value,
+                    y2=df['active'].map({True: active_value, False: sleep_value}),
+                    step='post',
+                    alpha=_alpha,
+                    color=color,
+                    linewidth=0,
+                )
 
             # For some reason fill_between does not advance in the color cycler so let's do that manually.
             self.get_next_color(axis)
 
-            if duty_cycle:
-                df['duty_cycle'].plot(ax=axis, drawstyle='steps-post', label='Duty cycle of {}'.format(task))
+            if duty_cycle or duration:
+                if which_cpu and not overlay:
+                    duration_axis = axis.twinx()
+                else:
+                    duration_axis = axis
 
-            if duration:
-                for active, label in (
-                        (active_value, 'Activations'),
-                        (sleep_value, 'Sleep')
-                    ):
-                    duration_series = df[df['active'] == active]['duration']
-                    # Add blanks in the plot when the state is not the one we care about
-                    duration_series = duration_series.reindex_like(df)
-                    duration_series.plot(ax=axis, drawstyle='steps-post', label='{} duration of {}'.format(label, task))
+                if duty_cycle:
+                    df['duty_cycle'].plot(ax=duration_axis, drawstyle='steps-post', label='Duty cycle of {}'.format(task))
+
+                if duration:
+                    for active, label in (
+                            (True, 'Activations'),
+                            (False, 'Sleep')
+                        ):
+                        duration_series = df[df['active'] == active]['duration']
+                        # Add blanks in the plot when the state is not the one we care about
+                        duration_series = duration_series.reindex_like(df)
+                        duration_series.plot(ax=duration_axis, drawstyle='steps-post', label='{} duration of {}'.format(label, task))
+
+                duration_axis.legend()
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

@@ -34,6 +34,7 @@ doc-plot-conf:
             kwargs:
                 task: *task
                 duration: True
+                which_cpu: True
 
         LoadTrackingAnalysis.plot_task_signals:
             kwargs:
