@@ -27,6 +27,7 @@ import contextlib
 import warnings
 import itertools
 from operator import itemgetter
+from collections.abc import Sequence
 
 import numpy
 import matplotlib
@@ -37,6 +38,7 @@ from cycler import cycler as make_cycler
 
 from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython, nullcontext
 from lisa.trace import MissingTraceEventError
+from lisa.notebook import axis_link_dataframes
 
 # Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
 COLOR_CYCLES = [
@@ -66,7 +68,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         pass
 
     @classmethod
-    def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, interactive=None, **kwargs):
+    def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, interactive=None, link_dataframes=None, **kwargs):
         """
         Common helper for setting up a matplotlib plot
 
@@ -111,6 +113,18 @@ class AnalysisHelpers(Loggable, abc.ABC):
         else:
             figure = Figure(figsize=(width, height * nrows))
             axes = figure.subplots(ncols=ncols, nrows=nrows, **kwargs)
+
+        if link_dataframes:
+            if not interactive:
+                cls.get_logger().error('Dataframes can only be linked to axes in interactive widget plots')
+            else:
+                if isinstance(axes, Sequence):
+                    ax_list = axes
+                else:
+                    ax_list = [axes]
+
+                for axis in ax_list:
+                    axis_link_dataframes(axis, link_dataframes)
 
         # Needed for multirow plots to not overlap with each other
         figure.set_tight_layout(dict(h_pad=3.5))
