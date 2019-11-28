@@ -18,7 +18,8 @@
 Various utilities for interactive notebooks.
 """
 
-from ipywidgets import widgets, Output, HBox, Layout
+import functools
+from ipywidgets import widgets, Output, HBox, Layout, interact
 from IPython.display import display
 
 def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', follow_cursor=False):
@@ -115,5 +116,64 @@ def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', f
     axis.get_figure().canvas.mpl_connect('button_press_event', handler)
     display(hbox)
 
+
+def interact_tasks(trace, tasks=None, kind=None):
+    """
+    Decorator to make a block of code parametrized on a task that can be
+    selected from a dropdown.
+
+    :param trace: Trace object in use
+    :type trace: lisa.trace.Trace
+
+    :param tasks: List of tasks that are available. See ``kind`` for
+        alternative way of specifying tasks.
+    :type tasks: list(int or str or lisa.trace.TaskID) or None
+
+    :param kind: Alternatively to ``tasks``, a kind can be provided and the
+        tasks will be selected from the trace for you. It can be:
+
+            * ``rtapp`` to select all rt-app tasks
+            * ``all`` to select all tasks.
+
+    :type kind: str or None
+
+    **Example**::
+
+        trace = Trace('trace.dat')
+
+        # Allow selecting any rtapp task
+        @interact_tasks(kind='rtapp')
+        def do_plot(task):
+            trace.analysis.load_tracking.plot_task_signals(task)
+    """
+    if tasks is not None:
+        tasks = [
+            trace.get_task_id(task, update=False)
+            for task in tasks
+        ]
+    else:
+        kind = kind or 'all'
+        if kind == 'all':
+            tasks = trace.task_ids
+        elif kind == 'rtapp':
+            tasks = trace.analysis.rta.rtapp_tasks
+        else:
+            raise ValueError('Unknown task kind: {}'.format(kind))
+
+    # Map of friendly names to actual objects
+    task_map = {
+        str(task): task
+        for task in tasks
+    }
+
+    def decorator(f):
+        @functools.wraps(f)
+        @interact
+        def wrapper(task=sorted(task_map.keys())):
+            task = task_map[task]
+            return f(task)
+        return wrapper
+
+    return decorator
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
