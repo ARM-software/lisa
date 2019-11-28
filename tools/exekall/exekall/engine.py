@@ -34,7 +34,7 @@ import importlib
 import sys
 
 import exekall._utils as utils
-from exekall._utils import NoValue
+from exekall._utils import NoValue, OrderedSet, FrozenOrderedSet
 
 
 class NoOperatorError(Exception):
@@ -375,7 +375,7 @@ class ValueDB:
             sets.
         :type deduplicate: bool
         """
-        froz_val_set_set = set()
+        froz_val_set_set = OrderedSet()
 
         # When we reload instances of a class from the DB, we don't
         # want anything else to be able to produce it, since we want to
@@ -395,7 +395,7 @@ class ValueDB:
             wrapped_predicate = predicate
 
         for froz_val_seq in self.froz_val_seq_list:
-            froz_val_set = set()
+            froz_val_set = OrderedSet()
             for froz_val in itertools.chain(
                 # traverse all values, including the ones from the
                 # parameters, even when there was no value computed
@@ -404,7 +404,7 @@ class ValueDB:
             ):
                 froz_val_set.update(froz_val.get_by_predicate(wrapped_predicate))
 
-            froz_val_set_set.add(frozenset(froz_val_set))
+            froz_val_set_set.add(FrozenOrderedSet(froz_val_set))
 
         if flatten:
             return set(utils.flatten_seq(froz_val_set_set))
@@ -425,7 +425,7 @@ class ValueDB:
         subexpressions).
         """
         froz_val_set_set = {
-            frozenset(froz_val_seq)
+            FrozenOrderedSet(froz_val_seq)
             for froz_val_seq in self.froz_val_seq_list
         }
         if flatten:
@@ -1895,12 +1895,12 @@ class ClassContext:
             if isinstance(op, PrebuiltOperator)
         ))
 
-        op_map = dict()
+        op_map = OrderedDict()
         for op in op_set:
             param_map, produced = op.get_prototype()
             is_prebuilt_op = isinstance(op, PrebuiltOperator)
             if is_prebuilt_op or produced not in only_prebuilt_cls:
-                op_map.setdefault(produced, set()).add(op)
+                op_map.setdefault(produced, OrderedSet()).add(op)
         return op_map
 
     @staticmethod

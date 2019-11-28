@@ -1017,3 +1017,62 @@ def powerset(iterable):
     """
     s = list(iterable)
     return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s) + 1))
+
+class _SetBase:
+    def __init__(self, items=[]):
+        self._set = set(items)
+        self._list = list(items)
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self._set == other._set
+        elif isinstance(other, collections.abc.Sequence):
+            self._set == set(other)
+        else:
+            return False
+
+    def __contains__(self, item):
+        return item in self._set
+
+    def __iter__(self):
+        return iter(self._list)
+
+    def __len__(self):
+        return len(self._list)
+
+
+class FrozenOrderedSet(_SetBase, collections.abc.Set):
+    """
+    Like a regular ``frozenset``, but iterating over it will yield items in insertion
+    order.
+    """
+
+    def __hash__(self):
+        return functools.reduce(
+            lambda hash_, item: hash_ ^ hash(item),
+            self._list,
+            0
+        )
+
+
+class OrderedSet(_SetBase, collections.abc.MutableSet):
+    """
+    Like a regular ``set``, but iterating over it will yield items in insertion
+    order.
+    """
+    def add(self, item):
+        if item in self._set:
+            return
+        else:
+            self._set.add(item)
+            self._list.append(item)
+
+    def update(self, *sets):
+        for s in sets:
+            for x in s:
+                self.add(x)
+
+    def discard(self, item):
+        self._set.discard(item)
+        with contextlib.suppress(ValueError):
+            self._list.remove(item)
