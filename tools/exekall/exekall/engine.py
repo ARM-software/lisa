@@ -3200,14 +3200,15 @@ class ExprValBase(ExprHelpers):
 
         :type predicate: collections.abc.Callable
         """
-        return list(self._get_by_predicate(predicate))
 
-    def _get_by_predicate(self, predicate):
-        if predicate(self):
-            yield self
+        def _get_by_predicate(self, predicate):
+            if predicate(self):
+                yield self
 
-        for val in self.param_map.values():
-            yield from val._get_by_predicate(predicate)
+            for val in self.param_map.values():
+                yield from _get_by_predicate(val, predicate)
+
+        return list(_get_by_predicate(self, predicate))
 
     def get_excep(self):
         """
