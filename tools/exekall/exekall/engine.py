@@ -585,6 +585,14 @@ class CycleError(Exception):
     pass
 
 
+class AlreadyVisitedException(Exception):
+    """
+    Exception raised when a node has already been visited during a graph
+    traversal.
+    """
+    pass
+
+
 class ExprHelpers(collections.abc.Mapping):
     """
     Helper class used by all expression-like classes.
@@ -609,6 +617,44 @@ class ExprHelpers(collections.abc.Mapping):
     def __hash__(self):
         # consistent with definition of __eq__
         return id(self)
+
+    def fold(self, f, init=None, visit_once=False):
+        """
+        Fold the function ``f`` over the instance and all its parents listed in
+        ``param_map`` attribute, deep first.
+
+        :param f: Function to execute for each instance. It must take two parameters:
+
+            * as first parameter: the return value of the previous invocation
+              of ``f``. For the first call, ``init`` value is used.
+            * as second parameter: the instance of :class:`ExprHelpers` that is being visited.
+
+        :type f: collections.abc.Callable
+
+        :param init: Initial value passed to ``f``.
+        :type init: object
+
+        :param visit_once: If ``True``, each :class:`ExprHelpers` will only be
+            visited once.
+        :type visit_once: bool
+        """
+        visited = set() if visit_once else None
+        return self._fold(f, init, visited=visited)
+
+    def _fold(self, f, x, visited):
+        if visited is not None:
+            if self in visited:
+                raise AlreadyVisitedException
+            else:
+                visited.add(self)
+
+        x = f(x, self)
+
+        for param, param_expr in self.param_map.items():
+            with contextlib.suppress(AlreadyVisitedException):
+                x = param_expr._fold(f, x, visited)
+
+        return x
 
 
 class ExpressionBase(ExprHelpers):
@@ -3231,19 +3277,10 @@ class ExprValBase(ExprHelpers):
         Sum of the duration of all :class:`ExprValBase` that were involved in
         the computation of that one.
         """
-        def get_duration(expr_val):
-            return expr_val.duration or 0
+        def f(duration, expr_val):
+            return duration + (expr_val.duration or 0)
 
-        def dfs(expr_val):
-            return (
-                get_duration(expr_val)
-                + sum(
-                    dfs(param_expr_val)
-                    for param_expr_val in expr_val.param_map.values()
-                )
-            )
-
-        return dfs(self)
+        return self.fold(f, 0, visit_once=True)
 
     def get_by_predicate(self, predicate):
         """
@@ -3612,7 +3649,6 @@ class PrunedFrozVal(FrozenExprVal):
         return self._cumulative_duration
 
 
-
 class FrozenExprValSeq(collections.abc.Sequence):
     """
     Sequence of :class:`FrozenExprVal` analogous to :class:`ExprValSeq`.
@@ -3730,14 +3766,12 @@ class ExprVal(ExprValBase):
         Check that the list contains only one :class:`ExprVal` for each
         :class:`ComputableExpression`, unless it is non reusable.
         """
-        expr_map = {}
-
-        def update_map(expr_val1):
+        def update_map(expr_map, expr_val1):
             # The check does not apply for non-reusable operators, since it is
             # expected that the same expression may reference multiple values
             # of the same Expression.
             if not expr_val1.expr.op.reusable:
-                return
+                return expr_map
 
             expr_val2 = expr_map.setdefault(expr_val1.expr, expr_val1)
             # Check that there is only one ExprVal per Expression, for all
@@ -3746,10 +3780,12 @@ class ExprVal(ExprValBase):
             if expr_val2 is not expr_val1:
                 raise ValueError
 
+            return expr_map
+
+        expr_map = {}
         try:
             for expr_val in expr_val_list:
-                # DFS traversal
-                expr_val.get_by_predicate(update_map)
+                expr_val.fold(update_map, expr_map, visit_once=True)
         except ValueError:
             return False
         else:
