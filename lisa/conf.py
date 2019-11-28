@@ -26,6 +26,7 @@ import textwrap
 import logging
 import re
 import contextlib
+import pprint
 
 from lisa.utils import (
     Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
@@ -806,13 +807,56 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         This method provides a way to update the configuration, by importing a
         mapping as a new source.
         """
+        class PlaceHolder(str):
+            def __new__(cls):
+                return super().__new__(cls, '...')
+
+            def __repr__(self):
+                return str(self)
+
+        class NonEscapedValue(str):
+            def __new__(cls, value):
+                value = repr(value)
+
+                # Make sure no individual value will print to a string that is too long
+                max_len = 50
+                if len(value) > max_len:
+                    value = value[:max_len] + '...'
+
+                return super().__new__(cls, value)
+
+            def __repr__(self):
+                return self
+
+        def format_conf(conf):
+            # Make sure that mappings won't be too long
+            max_mapping_len = 10
+            key_val = sorted(conf.items())
+            if len(key_val) > max_mapping_len:
+                key_val = key_val[:max_mapping_len]
+                key_val.append((PlaceHolder(), PlaceHolder()))
+
+            def format_val(val):
+                if isinstance(val, Mapping):
+                    return format_conf(val)
+                else:
+                    return NonEscapedValue(val)
+
+            return {
+                key: format_val(val)
+                for key, val in key_val
+            }
 
         logger = self.get_logger()
         if logger.isEnabledFor(logging.DEBUG):
             caller, filename, lineno = get_call_site(1, exclude_caller_module=True)
             logger.debug('{caller} ({filename}:{lineno}) has set source "{src}":\n{conf}'.format(
                 src=src,
-                conf=conf,
+                conf=pprint.pformat(
+                    format_conf(conf),
+                    indent=4,
+                    compact=True,
+                ),
                 caller=caller if caller else '<unknown>',
                 filename=filename if filename else '<unknown>',
                 lineno=lineno if lineno else '<unknown>',
