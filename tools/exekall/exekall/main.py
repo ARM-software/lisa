@@ -33,7 +33,7 @@ import sys
 
 from exekall.customization import AdaptorBase
 import exekall.utils as utils
-from exekall.utils import NoValue, error, warn, debug, info, out, add_argument
+from exekall.utils import NoValue, error, warn, debug, info, out, add_argument, OrderedSet, FrozenOrderedSet
 import exekall.engine as engine
 
 # Create an operator for all callables that have been detected in a given
@@ -110,7 +110,7 @@ def load_from_db(db, adaptor, non_reusable_type_set, pattern_list, uuid_list, uu
         )
     )
 
-    froz_val_set_set = set()
+    froz_val_set_set = OrderedSet()
     if load_all_uuid:
         froz_val_set_set.update(
             utils.get_froz_val_set_set(db, None, pattern_list)
@@ -131,18 +131,20 @@ def load_from_db(db, adaptor, non_reusable_type_set, pattern_list, uuid_list, uu
             # only want its arguments. We load the "indirect" arguments as
             # well to ensure references to their types will be fulfilled by
             # them instead of computing new values.
-            froz_val_set_set.add(frozenset(froz_val.get_by_predicate(
-                lambda v: v is not froz_val and v.value is not NoValue
-            )))
+            froz_val_set_set.add(FrozenOrderedSet(
+                froz_val.get_by_predicate(
+                    lambda v: v is not froz_val and v.value is not NoValue
+                )
+            ))
 
     # Otherwise, reload all the root froz_val values
     else:
         froz_val_set_set.update(
-            frozenset(froz_val_seq)
+            FrozenOrderedSet(froz_val_seq)
             for froz_val_seq in db.froz_val_seq_list
         )
 
-    prebuilt_op_set = set()
+    prebuilt_op_list = OrderedSet()
 
     # Build the set of PrebuiltOperator that will inject the loaded values
     # into the tests
@@ -185,14 +187,14 @@ def load_from_db(db, adaptor, non_reusable_type_set, pattern_list, uuid_list, uu
                 with_tags=False,
             )
 
-            prebuilt_op_set.add(
+            prebuilt_op_list.add(
                 engine.PrebuiltOperator(
                     type_, froz_val_list, id_=id_,
                     non_reusable_type_set=non_reusable_type_set,
                     tags_getter=adaptor.get_tags,
                 ))
 
-    return prebuilt_op_set
+    return prebuilt_op_list
 
 
 def _main(argv):
@@ -766,6 +768,12 @@ def do_run(args, parser, run_parser, argv):
         callable_pool, non_reusable_type_set, allowed_pattern_set, adaptor,
     )
 
+    # If we load some PrebuiltOperator from the DB, we want to keep them in
+    # order so that replayed expressions will be replayed in the same order,
+    # making it much easier to correlate logs, so from now on, use an
+    # OrderedSet()
+    op_set = OrderedSet(op_set)
+
     # Load objects from an existing database
     if load_db_path_list:
         db_list = []
@@ -837,7 +845,7 @@ def do_run(args, parser, run_parser, argv):
         handle_cycle = 'ignore'
 
     # Get the callable goals, either by the callable name or the value type
-    root_op_set = {
+    root_op_set = OrderedSet([
         op for op in op_set
         if (
             utils.match_name(op.get_name(full_qual=True), callable_goal_pattern_set)
@@ -849,7 +857,7 @@ def do_run(args, parser, run_parser, argv):
             # defined in one of the files that were explicitely specified on the
             # command line.
         ) and inspect.getmodule(op.callable_) in module_set
-    }
+    ])
 
     # Build the class context from the set of Operator's that we collected
     class_ctx = engine.ClassContext.from_op_set(
@@ -865,6 +873,7 @@ def do_run(args, parser, run_parser, argv):
         non_produced_handler=handle_non_produced,
         cycle_handler=handle_cycle,
     )
+
     # First, sort with the fully qualified ID so we have the strongest stability
     # possible from one run to another
     expr_list.sort(key=lambda expr: expr.get_id(full_qual=True, with_tags=True))
