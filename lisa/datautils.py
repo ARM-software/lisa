@@ -99,26 +99,26 @@ def df_squash(df, start, end, column='delta'):
     Slice a dataframe to [start:end], and work on the time data so that it
     makes sense within the interval.
 
-    Examples to make it clearer:
+    Examples to make it clearer::
 
-    df is:
-    Time len state
-    15    1   1
-    16    1   0
-    17    1   1
-    18    1   0
-    -------------
+        df is:
+        Time len state
+        15    1   1
+        16    1   0
+        17    1   1
+        18    1   0
+        -------------
 
-    df_squash(df, 16.5, 17.5) =>
+        df_squash(df, 16.5, 17.5) =>
 
-    Time len state
-    16.5  .5   0
-    17    .5   1
+        Time len state
+        16.5  .5   0
+        17    .5   1
 
-    df_squash(df, 16.2, 16.8) =>
+        df_squash(df, 16.2, 16.8) =>
 
-    Time len state
-    16.2  .6   0
+        Time len state
+        16.2  .6   0
 
     :returns: a new df that fits the above description
     """
@@ -324,9 +324,7 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
 
         - Step: Post
 
-            Consider the following time series data
-
-            .. code::
+            Consider the following time series data::
 
                 2            *----*----*----+
                              |              |
@@ -334,8 +332,6 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
                              |
                 0  *----*----+
                    0    1    2    3    4    5    6    7
-
-            .. code::
 
                 import pandas as pd
                 a = [0, 0, 2, 2, 2, 1, 1]
@@ -350,7 +346,7 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
 
         - Step: Pre
 
-            .. code::
+            ::
 
                 2       +----*----*----*
                         |              |
@@ -358,8 +354,6 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
                         |
                 0  *----*
                    0    1    2    3    4    5    6    7
-
-            .. code::
 
                 import pandas as pd
                 a = [0, 0, 2, 2, 2, 1, 1]
