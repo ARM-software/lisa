@@ -111,35 +111,8 @@ class LISAAdaptor(AdaptorBase):
 
         # Try to build as many configurations instances from all the files we
         # are given
-        conf_cls_set = set(get_subclasses(MultiSrcConf, only_leaves=True))
-        conf_list = []
-        for conf_path in self.args.conf:
-            for conf_cls in conf_cls_set:
-                try:
-                    # Do not add the default source, to avoid overriding user
-                    # configuration with the default one.
-                    conf = conf_cls.from_yaml_map(conf_path, add_default_src=False)
-                except ValueError:
-                    continue
-                else:
-                    conf_list.append((conf, conf_path))
-
-        def keyfunc(conf_and_path):
-            cls = type(conf_and_path[0])
-            # We use the ID since classes are not comparable
-            return id(cls), cls
-
-        # Then aggregate all the conf from each type, so they just act as
-        # alternative sources.
-        for (_, conf_cls), conf_and_path_seq in groupby(conf_list, key=keyfunc):
-            conf_and_path_list = list(conf_and_path_seq)
-
-            # Get the default configuration, and stack all user-defined keys
-            conf = conf_cls()
-            for conf_src, conf_path in conf_and_path_list:
-                src = os.path.basename(conf_path)
-                conf.add_src(src, conf_src)
-
+        conf_map = MultiSrcConf.from_yaml_map_list(self.args.conf)
+        for conf_cls, conf in conf_map.items():
             op_set.add(PrebuiltOperator(
                 conf_cls, [conf],
                 non_reusable_type_set=non_reusable_type_set

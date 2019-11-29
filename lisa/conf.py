@@ -27,10 +27,14 @@ import logging
 import re
 import contextlib
 import pprint
+import os
+
+import lisa
 
 from lisa.utils import (
     Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
-    is_running_sphinx, get_cls_name, HideExekallID,
+    is_running_sphinx, get_cls_name, HideExekallID, get_subclasses, groupby,
+    import_all_submodules,
 )
 
 from ruamel.yaml.comments import CommentedMap
@@ -604,6 +608,63 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
         if len(data) == 1 and toplevel_key in data.keys():
             data = data[toplevel_key]
         return cls.from_map(data, add_default_src=add_default_src)
+
+    @classmethod
+    def from_yaml_map_list(cls, path_list, add_default_src=True):
+        """
+        Create a mapping of configuration classes to instance, by loading them
+        from the list of paths using :meth:`from_yaml_map` and merging them.
+
+        :param path_list: List of paths to YAML configuration files.
+        :type path_list: list(str)
+
+        :param add_default_src: See :meth:`from_yaml_map`.
+
+        .. note:: When merging, the configuration coming from the rightmost
+            path will win if it defines some keys that were also defined in another
+            file. Each file will be mapped to a different sources, named after
+            the basename of the file.
+        """
+        # Make sure that all modules from LISA are loaded, so that
+        # get_subclasses will be accurate.
+        import_all_submodules(lisa)
+
+        conf_cls_set = set(get_subclasses(cls, only_leaves=True))
+        conf_list = []
+        for conf_path in path_list:
+            # Try to build as many configurations instances from all the files we
+            # are given
+            for conf_cls in conf_cls_set:
+                try:
+                    # Do not add the default source, to avoid overriding user
+                    # configuration with the default one.
+                    conf = conf_cls.from_yaml_map(conf_path, add_default_src=False)
+                except ValueError:
+                    continue
+                else:
+                    conf_list.append((conf, conf_path))
+
+        def keyfunc(conf_and_path):
+            cls = type(conf_and_path[0])
+            # Sort according to class qualified name since classes are not
+            # comparable directly
+            return (cls.__module__ + '.' + cls.__qualname__), cls
+
+        # Then aggregate all the conf from each type, so they just act as
+        # alternative sources.
+        conf_map = {}
+        for (_, conf_cls), conf_and_path_seq in groupby(conf_list, key=keyfunc):
+            conf_and_path_list = list(conf_and_path_seq)
+
+            # Get the default configuration, and stack all user-defined keys
+            conf = conf_cls(add_default_src=add_default_src)
+            for conf_src, conf_path in conf_and_path_list:
+                src = os.path.basename(conf_path)
+                conf.add_src(src, conf_src)
+
+            conf_map[conf_cls] = conf
+
+        return conf_map
 
     @property
     def as_yaml_map(self):
