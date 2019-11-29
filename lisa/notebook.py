@@ -112,7 +112,6 @@ def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', f
                 'font-family': 'monospace',
             })
 
-
             # wait=True avoids flicker by waiting for new content to be ready
             # to display before clearing the previous one
             output.clear_output(wait=True)

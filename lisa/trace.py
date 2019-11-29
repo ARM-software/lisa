@@ -153,6 +153,43 @@ class TraceBase(abc.ABC):
 
         return df
 
+    def df_all_events(self, events=None):
+        """
+        Provide a dataframe with an ``info`` column containing the textual
+        human-readable representation of the events fields.
+
+        :param events: List of events to include. If ``None``, all parsed
+            events will be used.
+        :type events: list(str) or None
+        """
+        if events is None:
+            events = self.available_events
+
+        max_event_name_len = max(len(event) for event in events)
+
+        def make_info_row(row, event):
+            fields = ' '.join(
+                '{}={}'.format(key, value)
+                for key, value in row.iteritems()
+            )
+
+            return '{:<{event_name_len}}: {}'.format(event, fields, event_name_len=max_event_name_len)
+
+        def make_info_series(event):
+            df = self.df_events(event)
+            info = df.apply(make_info_row, axis=1, event=event)
+            info.name = 'info'
+            return info
+
+        series_list = [
+            make_info_series(event)
+            for event in events
+        ]
+
+        series = pd.concat(series_list)
+        series.sort_index(inplace=True)
+        return pd.DataFrame({'info': series})
+
 
 class TraceView(Loggable, TraceBase):
     """
