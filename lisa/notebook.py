@@ -22,6 +22,20 @@ import functools
 from ipywidgets import widgets, Output, HBox, Layout, interact
 from IPython.display import display
 
+class WrappingHBox(widgets.HBox):
+    """
+    HBox that will overflow on multiple lines if the content is too large to
+    fit on one line.
+    """
+    def __init__(self, *args, **kwargs):
+        layout = Layout(
+            # Overflow items to the next line rather than hiding them
+            flex_flow='row wrap',
+            # Evenly spread on one line of items
+            justify_content='space-around',
+        )
+        super().__init__(*args, layout=layout, **kwargs)
+
 def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', follow_cursor=False):
     """
     Link some dataframes to an axis displayed in the interactive matplotlib widget.

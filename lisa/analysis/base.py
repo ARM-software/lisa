@@ -26,6 +26,7 @@ import docutils.core
 import contextlib
 import warnings
 import itertools
+import weakref
 from operator import itemgetter
 from collections.abc import Sequence
 
@@ -36,9 +37,12 @@ from matplotlib.figure import Figure
 # Avoid ambiguity between function name and usual variable name
 from cycler import cycler as make_cycler
 
+from ipywidgets import widgets
+from IPython.display import display
+
 from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython, nullcontext
 from lisa.trace import MissingTraceEventError
-from lisa.notebook import axis_link_dataframes
+from lisa.notebook import axis_link_dataframes, WrappingHBox
 
 # Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
 COLOR_CYCLES = [
@@ -277,6 +281,34 @@ class AnalysisHelpers(Loggable, abc.ABC):
             for name, f in inspect.getmembers(obj, predicate=predicate)
         ]
 
+    _FIG_DATA = weakref.WeakKeyDictionary()
+    """
+    Data that are related to a matplotlib figure and that must not be duplicated by each call.gqq
+    """
+
+    @classmethod
+    def _get_fig_data(cls, fig, key):
+        return cls._FIG_DATA.setdefault(fig, {})[key]
+
+    def _set_fig_data(cls, fig, key, val):
+        cls._FIG_DATA.setdefault(fig, {})[key] = val
+
+    def _make_fig_toolbar(self, fig):
+        toolbar = WrappingHBox()
+        widget_list = []
+
+        label = 'Open in trace viewer'
+        open_button = widgets.Button(
+            description=label,
+            tooltip=label,
+            disabled=False,
+        )
+        open_button.on_click(lambda event: self.trace.show())
+        widget_list.append(open_button)
+
+        toolbar.children += tuple(widget_list)
+        return toolbar
+
     @classmethod
     def plot_method(cls, return_axis=False):
         """
@@ -419,6 +451,16 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
                 if output is None:
                     out = axis
+
+                    # Show the LISA figure toolbar
+                    if is_running_ipython():
+                        # Make sure we only add one button per figure
+                        try:
+                            toolbar = self._get_fig_data(fig, 'toolbar')
+                        except KeyError:
+                            toolbar = self._make_fig_toolbar(fig)
+                            self._set_fig_data(fig, 'toolbar', toolbar)
+                            display(toolbar)
                 else:
                     out = resolve_formatter(output)(f, args, f_kwargs, axis)
 
