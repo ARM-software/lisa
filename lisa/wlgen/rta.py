@@ -532,19 +532,22 @@ class RTA(Workload):
 
         # Map of CPUs X to list of CPUs Ys that are faster than it although CPUs
         # of Ys have a smaller capacity than X
-        faster_than_map = {
-            cpu1: sorted(
-                cpu2
-                for cpu2, pload2 in ploads2.items()
-                # CPU2 faster than CPU1
-                if pload2 < pload1
-            )
-            for (capa1, ploads1), (capa2, ploads2) in itertools.permutations(capa_ploads.items())
-            for cpu1, pload1 in ploads1.items()
-            # Only look at permutations in which CPUs of ploads1 are supposed
-            # to be faster than the one in ploads2
-            if capa1 > capa2
-        }
+        if len(capa_ploads) > 1:
+            faster_than_map = {
+                cpu1: sorted(
+                    cpu2
+                    for cpu2, pload2 in ploads2.items()
+                    # CPU2 faster than CPU1
+                    if pload2 < pload1
+                )
+                for (capa1, ploads1), (capa2, ploads2) in itertools.permutations(capa_ploads.items())
+                for cpu1, pload1 in ploads1.items()
+                # Only look at permutations in which CPUs of ploads1 are supposed
+                # to be faster than the one in ploads2
+                if capa1 > capa2
+            }
+        else:
+            faster_than_map = {}
 
         # Remove empty lists
         faster_than_map = {
