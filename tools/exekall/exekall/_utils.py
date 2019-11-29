@@ -1018,7 +1018,10 @@ def powerset(iterable):
     s = list(iterable)
     return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s) + 1))
 
-class _SetBase:
+class OrderedSetBase:
+    """
+    Base class for custom ordered sets.
+    """
     def __init__(self, items=[]):
         self._set = set(items)
         self._list = list(items)
@@ -1041,7 +1044,7 @@ class _SetBase:
         return len(self._list)
 
 
-class FrozenOrderedSet(_SetBase, collections.abc.Set):
+class FrozenOrderedSet(OrderedSetBase, collections.abc.Set):
     """
     Like a regular ``frozenset``, but iterating over it will yield items in insertion
     order.
@@ -1055,7 +1058,7 @@ class FrozenOrderedSet(_SetBase, collections.abc.Set):
         )
 
 
-class OrderedSet(_SetBase, collections.abc.MutableSet):
+class OrderedSet(OrderedSetBase, collections.abc.MutableSet):
     """
     Like a regular ``set``, but iterating over it will yield items in insertion
     order.
