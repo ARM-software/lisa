@@ -3028,7 +3028,7 @@ class ExprValSeq:
         .. seealso:: :class:`ExprValSeq` for parameters description.
         """
         iterated = [
-            (expr_val.uuid, expr_val.value, expr_val.excep)
+            (expr_val.duration, expr_val.uuid, expr_val.value, expr_val.excep)
         ]
         new = cls(
             expr=expr,
