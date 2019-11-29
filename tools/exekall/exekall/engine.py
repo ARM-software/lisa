@@ -3053,8 +3053,8 @@ class ExprValSeq:
         if not callback:
             def callback(x, reused): return None
 
-        def yielder(iteratable, reused):
-            for x in iteratable:
+        def yielder(iterable, reused):
+            for x in iterable:
                 callback(x, reused=reused)
                 yield x
 
