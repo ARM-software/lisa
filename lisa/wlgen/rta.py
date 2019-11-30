@@ -27,6 +27,7 @@ import itertools
 import weakref
 from statistics import mean
 import contextlib
+from operator import itemgetter
 
 from devlib import TargetStableError
 
@@ -312,7 +313,7 @@ class RTA(Workload):
         rta_profile['global'] = global_conf
 
         # Setup tasks parameters
-        for tid, task in sorted(profile.items(), key=lambda k_v: k_v[0]):
+        for tid, task in sorted(profile.items(), key=itemgetter(0)):
             task_conf = {}
 
             if not task.sched_policy:
@@ -492,7 +493,7 @@ class RTA(Workload):
 
         capa_ploads = {
             capacity: {cpu: pload[cpu] for cpu, capa in cpu_caps}
-            for capacity, cpu_caps in groupby(cpu_capacities.items(), lambda k_v: k_v[1])
+            for capacity, cpu_caps in groupby(cpu_capacities.items(), itemgetter(1))
         }
 
         # Find the min pload per capacity level, i.e. the fastest detected CPU.

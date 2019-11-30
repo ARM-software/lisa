@@ -26,6 +26,7 @@ import docutils.core
 import contextlib
 import warnings
 import itertools
+from operator import itemgetter
 
 import numpy
 import matplotlib
@@ -458,7 +459,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         hidden_params = {'filepath', 'axis', 'output', 'img_format', 'always_save', 'kwargs', 'colors'}
         args_list = ', '.join(
             '{}={}'.format(k, v)
-            for k, v in sorted(kwargs.items(), key=lambda k_v: k_v[0])
+            for k, v in sorted(kwargs.items(), key=itemgetter(0))
             if v is not None and k not in hidden_params
         )
 

@@ -35,6 +35,7 @@ import tempfile
 from functools import reduce, wraps
 from collections.abc import Sequence
 from collections import namedtuple
+from operator import itemgetter
 
 import numpy as np
 import pandas as pd
@@ -551,12 +552,11 @@ class Trace(Loggable, TraceBase):
         # index
         def finalize_mapping(mapping):
             def keep_values(items): return list(zip(*items))[1]
-            def sort_by_index(values): return sorted(values, key=lambda index_v: index_v[0])
             return {
                 # Remove duplicates and only keep the first occurence of each
                 k: deduplicate(
                     # Sort by index values, i.e. appearance order
-                    keep_values(sort_by_index(values)),
+                    keep_values(sorted(values, key=itemgetter(0))),
                     keep_last=False
                 )
                 for k, values in mapping.items()
@@ -836,11 +836,9 @@ class Trace(Loggable, TraceBase):
         """
         List of all the :class:`TaskID` in the trace, sorted by PID.
         """
-        def key(k_v): return k_v[0]
-
         return [
             TaskID(pid=pid, comm=comm)
-            for pid, comms in sorted(self._task_pid_map.items(), key=key)
+            for pid, comms in sorted(self._task_pid_map.items(), key=itemgetter(0))
             for comm in comms
         ]
 
