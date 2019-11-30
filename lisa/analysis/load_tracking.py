@@ -208,6 +208,20 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         columns = sorted(set(df.columns) & columns)
         return df[columns]
 
+    @df_tasks_signal.used_events
+    def df_task_signal(self, task, signal):
+        """
+        Same as :meth:`df_tasks_signal` but for one task only.
+
+        :param task: The name or PID of the task, or a tuple ``(pid, comm)``
+        :type task: str or int or tuple
+
+        :param signal: See :meth:`df_tasks_signal`.
+        """
+        task_id = self.trace.get_task_id(task, update=False)
+        df = self.df_tasks_signal(signal=signal)
+        return df_filter_task_ids(df, [task_id])
+
     @deprecate(replaced_by=df_tasks_signal, deprecated_in='2.0', removed_in='2.1')
     @requires_one_event_of(*_SCHED_PELT_SE_NAMES)
     def df_tasks_signals(self):
@@ -319,7 +333,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         return self.do_plot(plotter, nrows=len(cpus), sharex=True, **kwargs)
 
     @TraceAnalysisBase.plot_method()
-    @df_tasks_signal.used_events
+    @df_task_signal.used_events
     def plot_task_signals(self, task, axis, local_fig, signals=['util', 'load']):
         """
         Plot the task-related load-tracking signals
@@ -330,13 +344,12 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :param signals: List of signals to plot.
         :type signals: list(str)
         """
-        task_id = self.trace.get_task_id(task, update=False)
         start = self.trace.start
         end = self.trace.end
+        task = self.trace.get_task_id(task, update=False)
 
         for signal in signals:
-            df = self.df_tasks_signal(signal)
-            df = df_filter_task_ids(df, [task_id])
+            df = self.df_task_signal(task, signal)
             df = df_refit_index(df, start, end)
             df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
@@ -344,7 +357,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
-        axis.set_title('Load-tracking signals of task "{}"'.format(task))
+        axis.set_title('Load-tracking signals of task {}'.format(task))
         axis.legend()
         axis.grid(True)
         axis.set_xlim(start, end)
@@ -387,7 +400,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         return self.do_plot(plotter, height=8, **kwargs)
 
     @TraceAnalysisBase.plot_method()
-    @df_tasks_signal.used_events
+    @df_task_signal.used_events
     def plot_task_placement(self, task, axis, local_fig):
         """
         Plot the CPU placement of the task
@@ -395,13 +408,10 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :param task: The name or PID of the task, or a tuple ``(pid, comm)``
         :type task: str or int or tuple
         """
+        task_id = self.trace.get_task_id(task, update=False)
 
         # Get all utilization update events
-        df = self.df_tasks_signal('required_capacity')
-
-        task_id = self.trace.get_task_id(task, update=False)
-        df = df_filter_task_ids(df, [task_id])
-
+        df = self.df_task_signal(task_id, 'required_capacity')
         cpu_capacities = self.trace.plat_info["cpu-capacities"]
 
         def evaluate_placement(cpu, required_capacity):
