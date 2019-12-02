@@ -2858,29 +2858,28 @@ class PrebuiltOperator(Operator):
     """
 
     def __init__(self, obj_type, obj_list, id_=None, **kwargs):
-        obj_list_ = list()
-        uuid_list = list()
-        duration_list = list()
-        for obj in obj_list:
+        def make_info(obj):
             # Transparently copy the UUID to avoid having multiple UUIDs
             # refering to the same actual value.
             if isinstance(obj, FrozenExprVal):
+                value = obj.value
                 uuid_ = obj.uuid
                 duration = obj.duration
-                obj = obj.value
             else:
+                value = obj
                 uuid_ = utils.create_uuid()
                 duration = None
 
-            uuid_list.append(uuid_)
-            obj_list_.append(obj)
-            duration_list.append(duration)
+            return dict(
+                value=value,
+                uuid=uuid_,
+                duration=duration
+            )
 
-        # Make sure we will get all objects when using zip()
-        assert len(obj_list) == len(uuid_list)
-        self.obj_list = obj_list_
-        self.uuid_list = uuid_list
-        self.duration_list = duration_list
+        self.values_info = [
+            make_info(obj)
+            for obj in obj_list
+        ]
         self.obj_type = obj_type
         self._id = id_
 
@@ -2901,7 +2900,7 @@ class PrebuiltOperator(Operator):
 
     @property
     def is_genfunc(self):
-        return len(self.obj_list) > 1
+        return len(self.values_info) > 1
 
     @property
     def is_method(self):
@@ -2910,11 +2909,10 @@ class PrebuiltOperator(Operator):
     def make_expr_val_iter(self, expr, param_map):
         assert not param_map
 
-        kwargs_param = ('duration', 'uuid', 'value', 'excep')
-        for kwargs in zip(self.duration_list, self.uuid_list, self.obj_list, itertools.repeat(NoValue)):
-            kwargs = dict(zip(kwargs_param, kwargs))
+        for kwargs in self.values_info:
             yield ExprVal(
                 expr=expr,
+                excep=NoValue,
                 param_map=ExprValParamMap(),
                 **kwargs
             )
@@ -2948,7 +2946,7 @@ class ConsumerOperator(PrebuiltOperator):
 
     @property
     def consumer(self):
-        return self.obj_list[0]
+        return self.values_info[0]['value']
 
 
 class ExprDataOperator(PrebuiltOperator):
@@ -2969,7 +2967,7 @@ class ExprDataOperator(PrebuiltOperator):
 
     @property
     def data(self):
-        return self.obj_list[0]
+        return self.values_info[0]['value']
 
     @property
     def uuid_list(self):
