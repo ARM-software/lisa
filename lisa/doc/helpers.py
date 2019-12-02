@@ -138,6 +138,7 @@ class RunCommandDirective(RecursiveDirective):
         check = False if 'ignore-error' in options else True
 
         cmd = '\n'.join(self.content)
+
         out = subprocess.run(
             cmd, shell=True, check=check,
             stdout=subprocess.PIPE, stderr=stderr,
