@@ -38,6 +38,7 @@ import glob
 import textwrap
 import argparse
 import time
+import datetime
 
 DB_FILENAME = 'VALUE_DB.pickle.xz'
 
@@ -351,6 +352,12 @@ class ExekallFormatter(logging.Formatter):
             return self.default_fmt.format(record)
 
 
+LOGGING_FOMATTER_MAP = {
+    'normal': ExekallFormatter('[%(asctime)s][%(name)s] %(levelname)s  %(message)s'),
+    'verbose': ExekallFormatter('[%(asctime)s][%(name)s/%(filename)s:%(lineno)s] %(levelname)s  %(message)s'),
+}
+
+
 def setup_logging(log_level, debug_log_file=None, info_log_file=None, verbose=0):
     """
     Setup the :mod:`logging` module.
@@ -373,29 +380,27 @@ def setup_logging(log_level, debug_log_file=None, info_log_file=None, verbose=0)
     logging.addLevelName(LOGGING_OUT_LEVEL, 'OUT')
     level = getattr(logging, log_level.upper())
 
-    verbose_formatter = ExekallFormatter('[%(asctime)s][%(name)s/%(filename)s:%(lineno)s] %(levelname)s  %(message)s')
-    normal_formatter = ExekallFormatter('[%(asctime)s][%(name)s] %(levelname)s  %(message)s')
-
     logger = logging.getLogger()
     # We do not filter anything at the logger level, only at the handler level
     logger.setLevel(logging.NOTSET)
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(level)
-    formatter = verbose_formatter if verbose else normal_formatter
+    formatter = 'verbose' if verbose else 'normal'
+    formatter = LOGGING_FOMATTER_MAP[formatter]
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
     if debug_log_file:
         file_handler = logging.FileHandler(str(debug_log_file), encoding='utf-8')
         file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(verbose_formatter)
+        file_handler.setFormatter(LOGGING_FOMATTER_MAP['verbose'])
         logger.addHandler(file_handler)
 
     if info_log_file:
         file_handler = logging.FileHandler(str(info_log_file), encoding='utf-8')
         file_handler.setLevel(logging.INFO)
-        file_handler.setFormatter(normal_formatter)
+        file_handler.setFormatter(LOGGING_FOMATTER_MAP['normal'])
         logger.addHandler(file_handler)
 
     # Redirect all warnings of the "warnings" module as log entries
@@ -1035,6 +1040,48 @@ def measure_time(iterator):
             yield (end - begin, val)
 
 
+def capture_log(iterator):
+    logger = logging.getLogger()
+
+    def make_handler(level):
+        formatter = LOGGING_FOMATTER_MAP['normal']
+        string = io.StringIO()
+        handler = logging.StreamHandler(string)
+        handler.setLevel(level)
+        handler.setFormatter(formatter)
+        return (string, handler)
+
+    def setup():
+        handler_map = {
+            logging.getLevelName(level): make_handler(level)
+            for level in range(logging.NOTSET, logging.CRITICAL, 10)
+        }
+        for string, handler in handler_map.values():
+            logger.addHandler(handler)
+        return handler_map
+
+    def teardown(handler_map):
+        def extract(string, handler):
+            logger.removeHandler(handler)
+            return string.getvalue().rstrip()
+
+        return {
+            name: extract(string, handler)
+            for name, (string, handler) in handler_map.items()
+        }
+
+    while True:
+        handler_map = setup()
+        utc = utc_datetime()
+        try:
+            val = next(iterator)
+        except StopIteration:
+            return
+        else:
+            log_map = teardown(handler_map)
+            yield (utc, log_map, val)
+
+
 class OrderedSetBase:
     """
     Base class for custom ordered sets.
@@ -1096,3 +1143,10 @@ class OrderedSet(OrderedSetBase, collections.abc.MutableSet):
         self._set.discard(item)
         with contextlib.suppress(ValueError):
             self._list.remove(item)
+
+
+def utc_datetime():
+    """
+    Return a UTC :class:`datetime.datetime`.
+    """
+    return datetime.datetime.now(datetime.timezone.utc)
