@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 
-import time
 import inspect
 import collections.abc
 from collections import OrderedDict
@@ -1786,26 +1785,17 @@ class ComputableExpression(ExpressionBase):
             # successfully.
             if param_map.is_partial():
                 expr_val = ExprVal(self, param_map)
-                expr_val_seq = ExprValSeq.from_one_expr_val(
-                    self, expr_val, param_map,
-                )
+                expr_val_seq = ExprValSeq.from_one_expr_val(expr_val)
                 self.expr_val_seq_list.append(expr_val_seq)
                 yield expr_val
                 continue
 
             # If no value has been found, compute it and save the results in
             # a list.
-            param_val_map = OrderedDict(
-                # Extract the actual computed values wrapped in ExprVal
-                (param, param_expr_val.value)
-                for param, param_expr_val in param_map.items()
-            )
-
-            # Call the operators with its parameters
-            iterator = self.op.generator_wrapper(**param_val_map)
-            expr_val_seq = ExprValSeq(
-                self, iterator, param_map,
-                post_compute_cb
+            expr_val_seq = ExprValSeq.from_expr(
+                expr=self,
+                param_map=param_map,
+                post_compute_cb=post_compute_cb
             )
             self.expr_val_seq_list.append(expr_val_seq)
             yield from expr_val_seq.iter_expr_val()
@@ -2705,59 +2695,54 @@ class Operator:
         """
         return self.is_cls_method and issubclass(self.unwrapped_callable.__self__, self.value_type)
 
-    @property
-    def generator_wrapper(self):
+    def make_expr_val_iter(self, expr, param_map):
         """
-        Wrap the callable in a generator suitable for execution.
+        Make an iterator that will yield the computed :class:`ExprVal`.
         """
-
         if self.is_genfunc:
-            def add_duration(iterator):
-                while True:
-                    begin = time.monotonic()
-                    try:
-                        val = next(iterator)
-                    except StopIteration:
-                        return
-                    else:
-                        end = time.monotonic()
-                        yield (end - begin, val)
-
             @functools.wraps(self.callable_)
-            def genf(*args, **kwargs):
-                duration = None
+            def genf(**kwargs):
                 try:
                     has_yielded = False
-                    for duration, res in add_duration(self.callable_(*args, **kwargs)):
+                    for res in self.callable_(**kwargs):
                         has_yielded = True
-                        yield (duration, utils.create_uuid(), res, NoValue)
+                        yield (res, NoValue)
 
                     # If no value at all were produced, we still need to yield
                     # something
                     if not has_yielded:
-                        yield (duration, utils.create_uuid(), NoValue, NoValue)
+                        yield (NoValue, NoValue)
 
                 except Exception as e:
-                    yield (duration, utils.create_uuid(), NoValue, e)
+                    yield (NoValue, e)
         else:
             @functools.wraps(self.callable_)
-            def genf(*args, **kwargs):
-                uuid_ = utils.create_uuid()
-
-                begin = time.monotonic()
+            def genf(**kwargs):
                 # yield one value and then return
                 try:
-                    val = self.callable_(*args, **kwargs)
+                    val = self.callable_(**kwargs)
                 except Exception as e:
                     val = NoValue
                     excep = e
                 else:
                     excep = NoValue
 
-                end = time.monotonic()
-                yield (end - begin, uuid_, val, excep)
+                yield (val, excep)
 
-        return genf
+        kwargs = OrderedDict(
+            # Extract the actual computed values wrapped in ExprVal
+            (param, param_expr_val.value)
+            for param, param_expr_val in param_map.items()
+        )
+        for duration, (value, excep) in utils.measure_time(genf(**kwargs)):
+            yield ExprVal(
+                expr=expr,
+                param_map=param_map,
+                value=value,
+                excep=excep,
+                uuid=utils.create_uuid(),
+                duration=duration,
+            )
 
     def get_prototype(self):
         """
@@ -2922,11 +2907,17 @@ class PrebuiltOperator(Operator):
     def is_method(self):
         return False
 
-    @property
-    def generator_wrapper(self):
-        def genf():
-            yield from zip(self.duration_list, self.uuid_list, self.obj_list, itertools.repeat(NoValue))
-        return genf
+    def make_expr_val_iter(self, expr, param_map):
+        assert not param_map
+
+        kwargs_param = ('duration', 'uuid', 'value', 'excep')
+        for kwargs in zip(self.duration_list, self.uuid_list, self.obj_list, itertools.repeat(NoValue)):
+            kwargs = dict(zip(kwargs_param, kwargs))
+            yield ExprVal(
+                expr=expr,
+                param_map=ExprValParamMap(),
+                **kwargs
+            )
 
 
 class ConsumerOperator(PrebuiltOperator):
@@ -2997,8 +2988,8 @@ class ExprValSeq:
         values.
     :type expr: ComputableExpression
 
-    :param iterator: Iterator that yields the values. This is used when the
-        expressions are being executed.
+    :param iterator: Iterator that yields the :class:`ExprVal`. This is used
+        when the expressions are being executed.
     :type iterator: collections.abc.Iterator
 
     :param param_map: Ordered mapping of parameters name to :class:`ExprVal`
@@ -3021,19 +3012,16 @@ class ExprValSeq:
         self.post_compute_cb = post_compute_cb
 
     @classmethod
-    def from_one_expr_val(cls, expr, expr_val, param_map):
+    def from_one_expr_val(cls, expr_val):
         """
         Build an :class:`ExprValSeq` out of a single :class:`ExprVal`.
 
         .. seealso:: :class:`ExprValSeq` for parameters description.
         """
-        iterated = [
-            (expr_val.duration, expr_val.uuid, expr_val.value, expr_val.excep)
-        ]
         new = cls(
-            expr=expr,
-            iterator=iter(iterated),
-            param_map=param_map,
+            expr=expr_val.expr,
+            iterator=iter([expr_val]),
+            param_map=expr_val.param_map,
             # no post_compute_cb, since we are not really going to compute
             # anything
             post_compute_cb=None,
@@ -3042,6 +3030,22 @@ class ExprValSeq:
         for _ in new.iter_expr_val():
             pass
         return new
+
+
+    @classmethod
+    def from_expr(cls, expr, param_map, **kwargs):
+        """
+        Build an :class:`ExprValSeq` out of a single :class:`ComputableExpression`.
+
+        .. seealso:: :class:`ExprValSeq` for parameters description.
+        """
+        iterator = expr.op.make_expr_val_iter(expr, param_map)
+        return cls(
+            expr=expr,
+            iterator=iterator,
+            param_map=param_map,
+            **kwargs,
+        )
 
     def iter_expr_val(self):
         """
@@ -3063,15 +3067,7 @@ class ExprValSeq:
 
         # Then compute the remaining ones
         if self.iterator:
-            for duration, uuid_, value, excep in self.iterator:
-                expr_val = ExprVal(
-                    expr=self.expr,
-                    param_map=self.param_map,
-                    value=value,
-                    excep=excep,
-                    uuid=uuid_,
-                    duration=duration,
-                )
+            for expr_val in self.iterator:
                 callback(expr_val, reused=False)
 
                 self.expr_val_list.append(expr_val)

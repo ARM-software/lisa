@@ -37,6 +37,7 @@ import uuid
 import glob
 import textwrap
 import argparse
+import time
 
 DB_FILENAME = 'VALUE_DB.pickle.xz'
 
@@ -1017,6 +1018,22 @@ def powerset(iterable):
     """
     s = list(iterable)
     return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s) + 1))
+
+
+def measure_time(iterator):
+    """
+    Measure how long it took to yield each value of the given iterator.
+    """
+    while True:
+        begin = time.monotonic()
+        try:
+            val = next(iterator)
+        except StopIteration:
+            return
+        else:
+            end = time.monotonic()
+            yield (end - begin, val)
+
 
 class OrderedSetBase:
     """
