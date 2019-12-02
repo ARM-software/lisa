@@ -91,6 +91,8 @@ setup(
             "sphinx_rtd_theme",
             "sphinxcontrib-plantuml",
             "nbsphinx",
+            # necessary to import some modules
+            "ipython",
         ],
 
         "test": [
