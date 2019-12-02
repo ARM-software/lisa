@@ -31,6 +31,9 @@ import pickletools
 import re
 import importlib
 import sys
+import io
+import datetime
+from operator import attrgetter
 
 import exekall._utils as utils
 from exekall._utils import NoValue, OrderedSet, FrozenOrderedSet
@@ -2734,7 +2737,8 @@ class Operator:
             (param, param_expr_val.value)
             for param, param_expr_val in param_map.items()
         )
-        for duration, (value, excep) in utils.measure_time(genf(**kwargs)):
+        for utc, log_map, (duration, (value, excep)) in utils.capture_log(utils.measure_time(genf(**kwargs))):
+            log = ExprValLog(log_map=log_map, utc_datetime=utc)
             yield ExprVal(
                 expr=expr,
                 param_map=param_map,
@@ -2742,6 +2746,7 @@ class Operator:
                 excep=excep,
                 uuid=utils.create_uuid(),
                 duration=duration,
+                log=log,
             )
 
     def get_prototype(self):
@@ -2865,15 +2870,18 @@ class PrebuiltOperator(Operator):
                 value = obj.value
                 uuid_ = obj.uuid
                 duration = obj.duration
+                log = obj.log
             else:
                 value = obj
                 uuid_ = utils.create_uuid()
                 duration = None
+                log = None
 
             return dict(
                 value=value,
                 uuid=uuid_,
-                duration=duration
+                duration=duration,
+                log=log,
             )
 
         self.values_info = [
@@ -3256,14 +3264,18 @@ class ExprValBase(ExprHelpers):
     :param duration: Time it took to compute the value or the exception in
         seconds.
     :type duration: float or None
+
+    :param log: Log collected during the computation of the value.
+    :type log: ExprValLog
     """
 
-    def __init__(self, param_map, value, excep, uuid, duration):
+    def __init__(self, param_map, value, excep, uuid, duration, log):
         self.param_map = param_map
         self.value = value
         self.excep = excep
         self.uuid = uuid
         self.duration = duration
+        self.log = log
 
     @property
     def cumulative_duration(self):
@@ -3275,6 +3287,29 @@ class ExprValBase(ExprHelpers):
             return duration + (expr_val.duration or 0)
 
         return self.fold(f, 0, visit_once=True)
+
+    def get_full_log(self, level):
+        """
+        Reconstruct a consistent log output at the given level by stitching the
+        logs of all parent :class:`ExprValBase` that were involved in the
+        computation of that value.
+
+        :param level: Logging level to reconstruct.
+        :type level: str
+        """
+        def f(logs, expr_val):
+            logs.add(expr_val.log)
+            return logs
+
+        logs = self.fold(f, set(), visit_once=True)
+        logs.discard(None)
+        logs = sorted(logs, key=attrgetter('utc_datetime'))
+        level = level.upper()
+        return '\n'.join(
+            log.log_map[level]
+            for log in logs
+            if log.log_map.get(level)
+        )
 
     def get_by_predicate(self, predicate):
         """
@@ -3368,6 +3403,9 @@ class FrozenExprVal(ExprValBase):
         seconds.
     :type duration: float or None
 
+    :param log: Log collected during the computation of the value.
+    :type log: ExprValLog
+
     :param callable_qualname: Qualified name of the callable that was used to
         compute the value, including module name.
     :type callable_qualname: str
@@ -3418,7 +3456,7 @@ class FrozenExprVal(ExprValBase):
     """
 
     def __init__(self,
-        param_map, value, excep, uuid, duration,
+        param_map, value, excep, uuid, duration, log,
         callable_qualname, callable_name, recorded_id_map,
         tags,
     ):
@@ -3431,6 +3469,7 @@ class FrozenExprVal(ExprValBase):
             value=value, excep=excep,
             uuid=uuid,
             duration=duration,
+            log=log,
         )
 
         if self.excep is not NoValue:
@@ -3585,6 +3624,7 @@ class FrozenExprVal(ExprValBase):
             param_map=param_map,
             tags=expr_val.get_tags(),
             duration=expr_val.duration,
+            log=expr_val.log,
         )
 
         return froz_val
@@ -3635,6 +3675,7 @@ class PrunedFrozVal(FrozenExprVal):
             recorded_id_map=copy.copy(froz_val.recorded_id_map),
             tags=froz_val.get_tags(),
             duration=froz_val.duration,
+            log=None,
         )
         self._cumulative_duration = froz_val.cumulative_duration
 
@@ -3705,6 +3746,20 @@ class FrozenExprValSeq(collections.abc.Sequence):
             for expr_val_seq in expr_val_seq_list
         ]
 
+class ExprValLog:
+    """
+    Logging output created when computing an :class:`ExprValBase`.
+
+    :param log_map: Mapping of log level name to log content.
+    :type log_map: dict(str, str)
+
+    :param utc_datetime: UTC timestamp as a datetime object corresponding to
+        the beginning of the log.
+    :type utc_datetime: datetime.datetime
+    """
+    def __init__(self, log_map, utc_datetime):
+        self.log_map = log_map
+        self.utc_datetime = utc_datetime
 
 class ExprVal(ExprValBase):
     """
@@ -3720,11 +3775,22 @@ class ExprVal(ExprValBase):
     """
 
     def __init__(self, expr, param_map,
-        value=NoValue, excep=NoValue, uuid=None, duration=None,
+        value=NoValue,
+        excep=NoValue,
+        uuid=None,
+        duration=None,
+        log=None,
     ):
         uuid = uuid if uuid is not None else utils.create_uuid()
         self.expr = expr
-        super().__init__(param_map=param_map, value=value, excep=excep, uuid=uuid, duration=duration)
+        super().__init__(
+            param_map=param_map,
+            value=value,
+            excep=excep,
+            uuid=uuid,
+            duration=duration,
+            log=log,
+        )
 
     def get_tags(self):
         """
@@ -3812,6 +3878,7 @@ class UnEvaluatedExprVal(ExprVal):
             value=NoValue,
             excep=NoValue,
             duration=None,
+            log=None,
         )
 
 
