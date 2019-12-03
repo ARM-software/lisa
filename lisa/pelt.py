@@ -154,12 +154,11 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
     return df['pelt']
 
 
-def pelt_settling_time(margin_pct=1, init=0, final=1024, window=PELT_WINDOW, half_life=PELT_HALF_LIFE):
+def pelt_settling_time(margin=1, init=0, final=PELT_SCALE, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
     """
     Compute an approximation of the PELT settling time.
 
-    :param margin_pct: How close to the final value we want to get, as a
-        percentage of ``final``.
+    :param margin: How close to the final value we want to get, in PELT units.
     :type margin_pct: float
 
     :param init: Initial PELT value.
@@ -204,12 +203,11 @@ def pelt_settling_time(margin_pct=1, init=0, final=1024, window=PELT_WINDOW, hal
 
     # Since the equation we have is for a step response, i.e. from 0 to a final
     # value
-    if init > final:
-        init, final = final, init
-    final -= init
-
-    margin = margin_pct / 100
-    A = 1 - margin
+    delta = abs(final - init)
+    # Since margin and delta are in the same unit, we don't have to normalize
+    # them to `scale` first.
+    relative_margin = (margin / delta)
+    A = 1 - relative_margin
 
     settling_time = - tau * math.log(1 - A)
     return settling_time
