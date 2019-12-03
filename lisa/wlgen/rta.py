@@ -921,7 +921,7 @@ class Pulse(RTATask):
     initial and final load.
 
     The main difference with the 'step' class is that a pulse workload is
-    by definition a 'step down', i.e. the workload switch from an finial
+    by definition a 'step down', i.e. the workload switch from an initial
     load to a final one which is always lower than the initial one.
     Moreover, a pulse load does not generate a sleep phase in case of 0[%]
     load, i.e. the task ends as soon as the non null initial load has
@@ -929,7 +929,7 @@ class Pulse(RTATask):
 
     :param start_pct: the initial load percentage.
     :param end_pct: the final load percentage. Must be lower than ``start_pct``
-                    value. If end_pct is 0, the task end after the ``start_pct``
+                    value. If end_pct is 0, the task ends after the ``start_pct``
                     period has completed.
     :param time_s: the duration in seconds of each load step.
     :param period_ms: the period used to define the load in [ms].
@@ -951,24 +951,21 @@ class Pulse(RTATask):
                  uclamp_min=None, uclamp_max=None):
         super().__init__(delay_s, loops, sched_policy, priority)
 
-        if end_pct >= start_pct:
+        if end_pct > start_pct:
             raise ValueError('end_pct must be lower than start_pct')
 
         if not (0 <= start_pct <= 100 and 0 <= end_pct <= 100):
             raise ValueError('end_pct and start_pct must be in [0..100] range')
 
-        if end_pct >= start_pct:
-            raise ValueError('end_pct must be lower than start_pct')
+        loads = [start_pct]
+        if end_pct:
+            loads += [end_pct]
 
-        phases = []
-        for load in [start_pct, end_pct]:
-            if load == 0:
-                continue
-            phase = Phase(time_s, period_ms, load, cpus, uclamp_min=uclamp_min,
+        self.phases = [
+            Phase(time_s, period_ms, load, cpus, uclamp_min=uclamp_min,
                           uclamp_max=uclamp_max)
-            phases.append(phase)
-
-        self.phases = phases
+            for load in loads
+        ]
 
 
 class Periodic(Pulse):
