@@ -40,7 +40,7 @@ from lisa.analysis.tasks import TasksAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.trace import requires_events, may_use_events
 from lisa.trace import Trace, TaskID
-from lisa.wlgen.rta import RTA
+from lisa.wlgen.rta import RTA, Periodic
 from lisa.target import Target
 
 from lisa.utils import (
@@ -1078,7 +1078,10 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
 
         # Find when the first rtapp phase starts, and take the associated
         # sched_switch that is immediately preceding
-        rta_start = trace.analysis.rta.df_rtapp_phases_start().apply(get_first_switch, axis=1).min()
+        phase_start_df = trace.analysis.rta.df_rtapp_phases_start()
+        # The first phase is the buffer phase we don't care about
+        phase_start_df = phase_start_df[phase_start_df.index.get_level_values('phase') > 0]
+        rta_start = phase_start_df.apply(get_first_switch, axis=1).min()
 
         # Find when the last rtapp phase ends
         rta_stop = trace.analysis.rta.df_rtapp_phases_end()['Time'].max()
@@ -1410,6 +1413,27 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         trace_events = [event.replace('rtapp_', '')
                         for event in ftrace_coll.events
                         if event.startswith("rtapp_")]
+
+        # Forcefully add a buffer phase, since there is no way to convey the
+        # fact that it was added or not to the trace_window() method
+        def add_buffer(task):
+            init_duty_cycle = task.phases[0].duty_cycle_pct
+            buffer_task = Periodic(
+                duty_cycle_pct=init_duty_cycle,
+                # TODO: compute accurately the convergence time of the
+                # signal used for placement by the scheduler
+                duration_s=0.5,
+                # Use a small period to allow the util_avg to be very close
+                # to duty_cycle
+                period_ms=2,
+            )
+            # Prepend the buffer task
+            return buffer_task + task
+
+        profile = {
+            name: add_buffer(task)
+            for name, task in profile.items()
+        }
 
         wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.lower()),
                                profile, res_dir=res_dir,

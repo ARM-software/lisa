@@ -177,9 +177,13 @@ class StaggeredFinishes(MisfitMigrationBase):
         for cpu in cpus:
             profile["{}{}".format(cls.task_prefix, cpu)] = (
                 Periodic(
+                    duty_cycle_pct=0,
+                    duration_s=cls.IDLING_DELAY_S,
+                    period_ms=cls.TASK_PERIOD_MS,
+                    cpus=[cpu]
+                ) + Periodic(
                     duty_cycle_pct=100,
                     duration_s=cls.PIN_DELAY_S,
-                    delay_s=cls.IDLING_DELAY_S,
                     period_ms=cls.TASK_PERIOD_MS,
                     cpus=[cpu]
                 ) + Periodic(

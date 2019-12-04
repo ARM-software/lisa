@@ -22,7 +22,7 @@ from collections import namedtuple
 import pandas as pd
 
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
-from lisa.datautils import df_filter_task_ids, df_window
+from lisa.datautils import df_filter_task_ids, df_window, df_split_signals
 from lisa.trace import TaskID, requires_events, requires_one_event_of, may_use_events, MissingTraceEventError
 from lisa.utils import memoized, deprecate
 from lisa.analysis.tasks import TasksAnalysis
@@ -487,40 +487,23 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         :returns: A :class:`pandas.DataFrame` with index representing the
             start time of a phase and these column:
 
+                * ``phase``: the phase number.
                 * ``duration``: the measured phase duration.
         """
-        # Mark for removal all the events that are not the first 'start'
-        def keep_first_start(raw):
-            if raw.phase_loop:
-                return -1
-            if raw.event == 'end':
-                return -1
-            return 0
+        def get_duration(phase, df):
+            start = df.index[0]
+            end = df.index[-1]
+            duration = end - start
+            return (start, {'phase': phase, 'duration': duration})
 
         loops_df = self.df_rtapp_loop(task)
+        durations = sorted(
+            get_duration(cols['phase'], df)
+            for cols, df in df_split_signals(loops_df, ['phase'])
+        )
 
-        # Keep only the first 'start' and the last 'end' event
-        # Do that by first setting -1 the 'phase_loop' of all entries which are
-        # not the first 'start' event. Then drop the 'event' column so that we
-        # can drop all duplicates thus keeping only the last 'end' even for
-        # each phase.
-        phases_df = loops_df[['event', 'phase', 'phase_loop']].copy()
-        phases_df['phase_loop'] = phases_df.apply(keep_first_start, axis=1)
-        phases_df = phases_df[['phase', 'phase_loop']]
-        phases_df.drop_duplicates(keep='last', inplace=True)
-
-        # Compute deltas and keep only [start..end] intervals, by dropping
-        # instead the [end..start] internals
-        durations = phases_df.index[1:] - phases_df.index[:-1]
-        durations = durations[::2]
-
-        # Drop all 'end' events thus keeping only the first 'start' event
-        phases_df = phases_df[::2][['phase']]
-
-        # Append the duration column
-        phases_df['duration'] = durations
-
-        return phases_df[['duration']]
+        index, columns = zip(*durations)
+        return pd.DataFrame(columns, index=index)
 
     @df_phases.used_events
     def task_phase_windows(self, task):
