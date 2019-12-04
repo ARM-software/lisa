@@ -53,7 +53,7 @@ class Geekbench(ApkUiautoWorkload):
     """
     summary_metrics = ['score', 'multicore_score']
 
-    supported_versions = ['4.3.2', '4.3.1', '4.2.0', '4.0.1', '3.4.1', '3.0.0', '2']
+    supported_versions = ['4.4.0', '4.3.4', '4.3.2', '4.3.1', '4.2.0', '4.0.1', '3.4.1', '3.0.0', '2']
     package_names = ['com.primatelabs.geekbench', 'com.primatelabs.geekbench3', 'ca.primatelabs.geekbench2']
 
     begin_regex = re.compile(r'^\s*D/WebViewClassic.loadDataWithBaseURL\(\s*\d+\s*\)'
@@ -357,7 +357,7 @@ class GeekbenchCorproate(Geekbench):  # pylint: disable=too-many-ancestors
     name = "geekbench-corporate"
     is_corporate = True
     requires_network = False
-    supported_versions = ['4.1.0', '4.3.4', '5.0.0']
+    supported_versions = ['5.0.3', '5.0.1', '4.1.0', '4.3.4', '5.0.0']
     package_names = ['com.primatelabs.geekbench4.corporate', 'com.primatelabs.geekbench5.corporate']
     activity = 'com.primatelabs.geekbench.HomeActivity'
 

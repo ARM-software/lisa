@@ -23,7 +23,7 @@ from wa.utils.exec_control import (init_environment, reset_environment,
                                    activate_environment, once,
                                    once_per_class, once_per_instance)
 
-class TestClass(object):
+class MockClass(object):
 
     called = 0
 
@@ -32,7 +32,7 @@ class TestClass(object):
 
     @once
     def called_once(self):
-        TestClass.called += 1
+        MockClass.called += 1
 
     @once
     def initilize_once(self):
@@ -50,7 +50,7 @@ class TestClass(object):
         return '{}: Called={}'.format(self.__class__.__name__, self.called)
 
 
-class SubClass(TestClass):
+class SubClass(MockClass):
 
     def __init__(self):
         super(SubClass, self).__init__()
@@ -110,7 +110,7 @@ class AnotherClass(object):
         self.count += 1
 
 
-class AnotherSubClass(TestClass):
+class AnotherSubClass(MockClass):
 
     def __init__(self):
         super(AnotherSubClass, self).__init__()
@@ -142,7 +142,7 @@ class EnvironmentManagementTest(TestCase):
 
     def test_reset_current_environment(self):
         activate_environment('CURRENT_ENVIRONMENT')
-        t1 = TestClass()
+        t1 = MockClass()
         t1.initilize_once()
         assert_equal(t1.count, 1)
 
@@ -152,7 +152,7 @@ class EnvironmentManagementTest(TestCase):
 
     def test_switch_environment(self):
         activate_environment('ENVIRONMENT1')
-        t1 = TestClass()
+        t1 = MockClass()
         t1.initilize_once()
         assert_equal(t1.count, 1)
 
@@ -166,7 +166,7 @@ class EnvironmentManagementTest(TestCase):
 
     def test_reset_environment_name(self):
         activate_environment('ENVIRONMENT')
-        t1 = TestClass()
+        t1 = MockClass()
         t1.initilize_once()
         assert_equal(t1.count, 1)
 
@@ -195,7 +195,7 @@ class OnlyOnceEnvironmentTest(TestCase):
         reset_environment('TEST_ENVIRONMENT')
 
     def test_single_instance(self):
-        t1 = TestClass()
+        t1 = MockClass()
         ac = AnotherClass()
 
         t1.initilize_once()
@@ -209,8 +209,8 @@ class OnlyOnceEnvironmentTest(TestCase):
 
 
     def test_mulitple_instances(self):
-        t1 = TestClass()
-        t2 = TestClass()
+        t1 = MockClass()
+        t2 = MockClass()
 
         t1.initilize_once()
         assert_equal(t1.count, 1)
@@ -220,7 +220,7 @@ class OnlyOnceEnvironmentTest(TestCase):
 
 
     def test_sub_classes(self):
-        t1 = TestClass()
+        t1 = MockClass()
         sc = SubClass()
         ss = SubSubClass()
         asc = AnotherSubClass()
@@ -250,7 +250,7 @@ class OncePerClassEnvironmentTest(TestCase):
         reset_environment('TEST_ENVIRONMENT')
 
     def test_single_instance(self):
-        t1 = TestClass()
+        t1 = MockClass()
         ac = AnotherClass()
 
         t1.initilize_once_per_class()
@@ -264,8 +264,8 @@ class OncePerClassEnvironmentTest(TestCase):
 
 
     def test_mulitple_instances(self):
-        t1 = TestClass()
-        t2 = TestClass()
+        t1 = MockClass()
+        t2 = MockClass()
 
         t1.initilize_once_per_class()
         assert_equal(t1.count, 1)
@@ -275,7 +275,7 @@ class OncePerClassEnvironmentTest(TestCase):
 
 
     def test_sub_classes(self):
-        t1 = TestClass()
+        t1 = MockClass()
         sc1 = SubClass()
         sc2 = SubClass()
         ss1 = SubSubClass()
@@ -308,7 +308,7 @@ class OncePerInstanceEnvironmentTest(TestCase):
         reset_environment('TEST_ENVIRONMENT')
 
     def test_single_instance(self):
-        t1 = TestClass()
+        t1 = MockClass()
         ac = AnotherClass()
 
         t1.initilize_once_per_instance()
@@ -322,8 +322,8 @@ class OncePerInstanceEnvironmentTest(TestCase):
 
 
     def test_mulitple_instances(self):
-        t1 = TestClass()
-        t2 = TestClass()
+        t1 = MockClass()
+        t2 = MockClass()
 
         t1.initilize_once_per_instance()
         assert_equal(t1.count, 1)
@@ -333,7 +333,7 @@ class OncePerInstanceEnvironmentTest(TestCase):
 
 
     def test_sub_classes(self):
-        t1 = TestClass()
+        t1 = MockClass()
         sc = SubClass()
         ss = SubSubClass()
         asc = AnotherSubClass()
