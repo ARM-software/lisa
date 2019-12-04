@@ -37,6 +37,7 @@ class BareTrace(object):
         self.class_definitions = {}
         self.trace_classes = []
         self.basetime = 0
+        self.endtime = 0
 
     def get_duration(self):
         """Returns the largest time value of all classes,
