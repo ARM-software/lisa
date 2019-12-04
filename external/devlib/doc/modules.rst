@@ -322,7 +322,7 @@ FlashModule
 
     "flash"
 
-.. method:: __call__(image_bundle=None, images=None, boot_config=None)
+.. method:: __call__(image_bundle=None, images=None, boot_config=None, connect=True)
 
     Must be implemented by derived classes.
 
@@ -338,6 +338,7 @@ FlashModule
     :param boot_config: Some platforms require specifying boot arguments at the
                         time of flashing the images, rather than during each
                         reboot. For other platforms, this will be ignored.
+    :connect: Specifiy whether to try and connect to the target after flashing.
 
 
 Module Registration

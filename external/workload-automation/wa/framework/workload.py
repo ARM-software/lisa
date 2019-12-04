@@ -727,6 +727,7 @@ class PackageHandler(object):
 
     def setup(self, context):
         context.update_metadata('app_version', self.apk_info.version_name)
+        context.update_metadata('app_name', self.apk_info.package)
         self.initialize_package(context)
         self.start_activity()
         self.target.execute('am kill-all')  # kill all *background* activities

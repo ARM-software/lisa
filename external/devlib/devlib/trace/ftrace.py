@@ -161,24 +161,22 @@ class FtraceCollector(TraceCollector):
 
         # Check for function tracing support
         if self.functions:
-            if not self.target.file_exists(self.function_profile_file):
-                raise TargetStableError('Function profiling not supported. '\
-                        'A kernel build with CONFIG_FUNCTION_PROFILER enable is required')
             # Validate required functions to be traced
-            available_functions = self.target.execute(
-                    'cat {}'.format(self.available_functions_file),
-                    as_root=True).splitlines()
             selected_functions = []
             for function in self.functions:
-                if function not in available_functions:
-                    message = 'Function [{}] not available for profiling'.format(function)
+                if function not in self.available_functions:
+                    message = 'Function [{}] not available for tracing/profiling'.format(function)
                     if self.strict:
                         raise TargetStableError(message)
                     self.target.logger.warning(message)
                 else:
                     selected_functions.append(function)
 
+            # Function profiling
             if self.tracer is None:
+                if not self.target.file_exists(self.function_profile_file):
+                    raise TargetStableError('Function profiling not supported. '\
+                                            'A kernel build with CONFIG_FUNCTION_PROFILER enable is required')
                 self.function_string = _build_trace_functions(selected_functions)
                 # If function profiling is enabled we always need at least one event.
                 # Thus, if not other events have been specified, try to add at least
@@ -186,6 +184,12 @@ class FtraceCollector(TraceCollector):
                 # times.
                 if not selected_events:
                     selected_events = ['sched_wakeup_new']
+
+            # Function tracing
+            elif self.tracer == 'function':
+                self.function_string = _build_graph_functions(selected_functions, False)
+
+            # Function graphing
             elif self.tracer == 'function_graph':
                 self.function_string = _build_graph_functions(selected_functions, trace_children_functions)
 
@@ -207,6 +211,14 @@ class FtraceCollector(TraceCollector):
         List of ftrace events supported by the target's kernel.
         """
         return self.target.read_value(self.available_events_file).splitlines()
+
+    @property
+    @memoized
+    def available_functions(self):
+        """
+        List of functions whose tracing/profiling is supported by the target's kernel.
+        """
+        return self.target.read_value(self.available_functions_file).splitlines()
 
     def reset(self):
         if self.buffer_size:

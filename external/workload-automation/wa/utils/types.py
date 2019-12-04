@@ -38,7 +38,8 @@ if sys.version_info[0] == 3:
 else:
     from urllib import quote, unquote  # pylint: disable=no-name-in-module
 # pylint: disable=wrong-import-position
-from collections import defaultdict, MutableMapping
+from collections import defaultdict
+from collections.abc import MutableMapping
 from functools import total_ordering
 
 from future.utils import with_metaclass

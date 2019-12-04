@@ -75,7 +75,7 @@ class TestFTrace(BaseTestThermal):
             self.assertTrue(hasattr(trace, attr))
 
     def test_ftrace_has_no_classes_scope_dynamic(self):
-        """The FTrace() class has only dynamically registered classes with scope=custom"""
+        """The FTrace() class has dynamically registered classes with scope=all"""
 
         trace = trappy.FTrace(scope="custom")
 
@@ -87,7 +87,7 @@ class TestFTrace(BaseTestThermal):
 
         ftrace_parser = trappy.register_dynamic_ftrace("ADynamicEvent",
                                                        "a_dynamic_event")
-        trace = trappy.FTrace(scope="custom")
+        trace = trappy.FTrace(scope="all")
 
         self.assertTrue(hasattr(trace, "a_dynamic_event"))
 
@@ -483,7 +483,7 @@ class TestFTraceSched(utils_tests.SetupDirectory):
             fil.write("version = 6")
 
         with self.assertRaises(ValueError):
-            trappy.FTrace(scope="custom")
+            trappy.FTrace(scope="all")
 
         trappy.unregister_dynamic_ftrace(version_parser)
 

@@ -47,7 +47,8 @@ public class UiAutomation extends BaseUiAutomation {
     @Test
     public void setup() throws Exception{
         dismissAndroidVersionPopup();
-        setScreenOrientation(ScreenOrientation.NATURAL);
+        clearPopups();
+        setScreenOrientation(ScreenOrientation.PORTRAIT);
         loadBenchmarks();
         installBenchmark();
     }
@@ -60,6 +61,22 @@ public class UiAutomation extends BaseUiAutomation {
     @Test
     public void teardown() throws Exception{
         unsetScreenOrientation();
+    }
+
+    private void clearPopups() throws Exception{
+        UiObject permiss =
+            mDevice.findObject(new UiSelector().text("Continue"));
+        if (permiss.exists()){
+            permiss.click();
+        }
+        UiObject compat =
+            mDevice.findObject(new UiSelector().text("OK"));
+        if (compat.exists()){
+            compat.click();
+            if (compat.exists()){
+                compat.click();
+            }
+        }
     }
 
     //Swipe to benchmarks and back to initialise the app correctly

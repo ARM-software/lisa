@@ -325,7 +325,7 @@ class VersatileExpressFlashModule(FlashModule):
         self.timeout = timeout
         self.short_delay = short_delay
 
-    def __call__(self, image_bundle=None, images=None, bootargs=None):
+    def __call__(self, image_bundle=None, images=None, bootargs=None, connect=True):
         self.target.hard_reset()
         with open_serial_connection(port=self.target.platform.serial_port,
                                     baudrate=self.target.platform.baudrate,
@@ -346,7 +346,8 @@ class VersatileExpressFlashModule(FlashModule):
             msg = 'Could not deploy images to {}; got: {}'
             raise TargetStableError(msg.format(self.vemsd_mount, e))
         self.target.boot()
-        self.target.connect(timeout=30)
+        if connect:
+            self.target.connect(timeout=30)
 
     def _deploy_image_bundle(self, bundle):
         self.logger.debug('Validating {}'.format(bundle))

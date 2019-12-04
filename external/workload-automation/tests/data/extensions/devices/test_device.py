@@ -17,7 +17,7 @@
 from wa import Plugin
 
 
-class TestDevice(Plugin):
+class MockDevice(Plugin):
 
     name = 'test-device'
     kind = 'device'

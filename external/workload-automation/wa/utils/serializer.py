@@ -59,7 +59,8 @@ to specify it explicitly.
 import os
 import re
 import json as _json
-from collections import OrderedDict, Hashable
+from collections import OrderedDict
+from collections.abc import Hashable
 from datetime import datetime
 import dateutil.parser
 import yaml as _yaml  # pylint: disable=wrong-import-order

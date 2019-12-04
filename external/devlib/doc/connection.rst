@@ -119,7 +119,7 @@ Connection Types
 
 .. class:: SshConnection(host, username, password=None, keyfile=None, port=None,\
                          timeout=None, password_prompt=None, \
-                         sudo_cmd="sudo -- sh -c {}")
+                         sudo_cmd="sudo -- sh -c {}", options=None)
 
     A connection to a device on the network over SSH.
 
@@ -145,6 +145,7 @@ Connection Types
                             ``sshpass``. Set this if your version of ``sshpass``
                             uses something other than ``"[sudo] password"``.
     :param sudo_cmd: Specify the format of the command used to grant sudo access.
+    :param options: A dictionary with extra ssh configuration options.
 
 
 .. class:: TelnetConnection(host, username, password=None, port=None,\
