@@ -27,6 +27,7 @@ import inspect
 import copy
 import contextlib
 import itertools
+import subprocess
 
 from datetime import datetime
 from collections import OrderedDict, ChainMap
@@ -54,6 +55,7 @@ from lisa.conf import (
     SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc,
     StrList,
 )
+from lisa.assets import HOST_BINARIES
 
 
 def _nested_formatter(multiline):
@@ -1472,6 +1474,39 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         Has been renamed to :meth:`~lisa.tests.base.RTATestBundle.run_rtapp`, as it really is part of the public API.
         """
         return cls.run_rtapp(*args, **kwargs)
+
+    @classmethod
+    def from_target(cls, target: Target, *, res_dir: ArtifactPath = None, **kwargs):
+        test_bundle = super().from_target(target=target, res_dir=res_dir, **kwargs)
+
+        # Crop the trace around the area we are interested in to reduce its size
+        trace = test_bundle.get_trace(
+            events=test_bundle.trace_window.used_events.get_all_events(),
+            # Keep absolute timestamps that we can give to trace-cmd
+            normalize_time=False,
+        )
+        window = test_bundle.trace_window(trace)
+        margin = (0.5, 0.1)
+        window = (
+            max(window[0] - margin[0], 0),
+            window[1] + margin[1],
+        )
+        trace_path = trace.trace_path
+        split_path = '{}.split'.format(trace_path)
+        subprocess.check_call(
+            [
+                HOST_BINARIES['trace-cmd'], 'split',
+                '-i', trace_path,
+                '-o', split_path,
+                *map(str, window),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        actual_split_path = '{}.1'.format(split_path)
+        os.rename(actual_split_path, trace_path)
+
+        return test_bundle
 
     @classmethod
     def _from_target(cls, target: Target, *, res_dir: ArtifactPath, ftrace_coll: FtraceCollector = None) -> 'RTATestBundle':
