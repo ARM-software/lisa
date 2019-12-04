@@ -91,7 +91,7 @@ class FlashModule(Module):
 
     kind = 'flash'
 
-    def __call__(self, image_bundle=None, images=None, boot_config=None):
+    def __call__(self, image_bundle=None, images=None, boot_config=None, connect=True):
         raise NotImplementedError()
 
 

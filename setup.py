@@ -92,7 +92,7 @@ params = dict(
         'pandas; python_version>"3"',
     ],
     extras_require={
-        'daq': ['daqpower'],
+        'daq': ['daqpower>=2'],
         'doc': ['sphinx'],
         'monsoon': ['python-gflags'],
         'acme': ['pandas', 'numpy'],

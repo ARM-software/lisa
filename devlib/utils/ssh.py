@@ -54,7 +54,15 @@ sshpass = None
 logger = logging.getLogger('ssh')
 gem5_logger = logging.getLogger('gem5-connection')
 
-def ssh_get_shell(host, username, password=None, keyfile=None, port=None, timeout=10, telnet=False, original_prompt=None):
+def ssh_get_shell(host,
+                  username,
+                  password=None,
+                  keyfile=None,
+                  port=None,
+                  timeout=10,
+                  telnet=False,
+                  original_prompt=None,
+                  options=None):
     _check_env()
     start_time = time.time()
     while True:
@@ -63,7 +71,8 @@ def ssh_get_shell(host, username, password=None, keyfile=None, port=None, timeou
                 raise ValueError('keyfile may not be used with a telnet connection.')
             conn = TelnetPxssh(original_prompt=original_prompt)
         else:  # ssh
-            conn = pxssh.pxssh(echo=False)
+            conn = pxssh.pxssh(options=options,
+                               echo=False)
 
         try:
             if keyfile:
@@ -182,7 +191,8 @@ class SshConnection(object):
                  password_prompt=None,
                  original_prompt=None,
                  platform=None,
-                 sudo_cmd="sudo -- sh -c {}"
+                 sudo_cmd="sudo -- sh -c {}",
+                 options=None
                  ):
         self._connected_as_root = None
         self.host = host
@@ -195,7 +205,16 @@ class SshConnection(object):
         self.sudo_cmd = sanitize_cmd_template(sudo_cmd)
         logger.debug('Logging in {}@{}'.format(username, host))
         timeout = timeout if timeout is not None else self.default_timeout
-        self.conn = ssh_get_shell(host, username, password, self.keyfile, port, timeout, False, None)
+        self.options = options if options is not None else {}
+        self.conn = ssh_get_shell(host,
+                                  username,
+                                  password,
+                                  self.keyfile,
+                                  port,
+                                  timeout,
+                                  False,
+                                  None,
+                                  self.options)
         atexit.register(self.close)
 
     def push(self, source, dest, timeout=30):
@@ -247,7 +266,15 @@ class SshConnection(object):
             keyfile_string = '-i {}'.format(self.keyfile) if self.keyfile else ''
             if as_root and not self.connected_as_root:
                 command = self.sudo_cmd.format(command)
-            command = '{} {} {} {}@{} {}'.format(ssh, keyfile_string, port_string, self.username, self.host, command)
+            options = " ".join([ "-o {}={}".format(key,val)
+                                for key,val in self.options.items()])
+            command = '{} {} {} {} {}@{} {}'.format(ssh,
+                                                    options,
+                                                    keyfile_string,
+                                                    port_string,
+                                                    self.username,
+                                                    self.host,
+                                                    command)
             logger.debug(command)
             if self.password:
                 command, _ = _give_password(self.password, command)
@@ -318,7 +345,14 @@ class SshConnection(object):
         # only specify -P for scp if the port is *not* the default.
         port_string = '-P {}'.format(quote(str(self.port))) if (self.port and self.port != 22) else ''
         keyfile_string = '-i {}'.format(quote(self.keyfile)) if self.keyfile else ''
-        command = '{} -r {} {} {} {}'.format(scp, keyfile_string, port_string, quote(source), quote(dest))
+        options = " ".join(["-o {}={}".format(key,val)
+                            for key,val in self.options.items()])
+        command = '{} {} -r {} {} {} {}'.format(scp,
+                                                options,
+                                                keyfile_string,
+                                                port_string,
+                                                quote(source),
+                                                quote(dest))
         command_redacted = command
         logger.debug(command)
         if self.password:
