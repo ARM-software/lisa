@@ -137,6 +137,10 @@ class Target(object):
         return {}
 
     @property
+    def model(self):
+        return self.platform.model
+
+    @property
     def abi(self):  # pylint: disable=no-self-use
         return None
 
@@ -159,6 +163,27 @@ class Target(object):
             if corere.match(entry):
                 num_cpus += 1
         return num_cpus
+
+    @property
+    @memoized
+    def number_of_nodes(self):
+        num_nodes = 0
+        nodere = re.compile(r'^\s*node\d+\s*$')
+        output = self.execute('ls /sys/devices/system/node', as_root=self.is_rooted)
+        for entry in output.split():
+            if nodere.match(entry):
+                num_nodes += 1
+        return num_nodes
+
+    @property
+    @memoized
+    def list_nodes_cpus(self):
+        nodes_cpus = []
+        for node in range(self.number_of_nodes):
+            path = self.path.join('/sys/devices/system/node/node{}/cpulist'.format(node))
+            output = self.read_value(path)
+            nodes_cpus.append(ranges_to_list(output))
+        return nodes_cpus
 
     @property
     @memoized
@@ -961,17 +986,6 @@ class LinuxTarget(Target):
 
     @property
     @memoized
-    # There is currently no better way to do this cross platform.
-    # ARM does not have dmidecode
-    def model(self):
-        if self.file_exists("/proc/device-tree/model"):
-            raw_model = self.execute("cat /proc/device-tree/model")
-            device_model_to_return = '_'.join(raw_model.split()[:2])
-            return device_model_to_return.rstrip(' \t\r\n\0')
-        return None
-
-    @property
-    @memoized
     def system_id(self):
         return self._execute_util('get_linux_system_id').strip()
 
@@ -1141,14 +1155,6 @@ class AndroidTarget(Target):
         """
         output = self.execute('content query --uri content://settings/secure --projection value --where "name=\'android_id\'"').strip()
         return output.split('value=')[-1]
-
-    @property
-    @memoized
-    def model(self):
-        try:
-            return self.getprop(prop='ro.product.device')
-        except KeyError:
-            return None
 
     @property
     @memoized

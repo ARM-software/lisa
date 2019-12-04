@@ -78,7 +78,16 @@ class Platform(object):
 
     def _set_model_from_target(self, target):
         if target.os == 'android':
-            self.model = target.getprop('ro.product.model')
+            try:
+                self.model = target.getprop(prop='ro.product.device')
+            except KeyError:
+                self.model = target.getprop('ro.product.model')
+        elif target.file_exists("/proc/device-tree/model"):
+            # There is currently no better way to do this cross platform.
+            # ARM does not have dmidecode
+            raw_model = target.execute("cat /proc/device-tree/model")
+            device_model_to_return = '_'.join(raw_model.split()[:2])
+            return device_model_to_return.rstrip(' \t\r\n\0')
         elif target.is_rooted:
             try:
                 self.model = target.execute('dmidecode -s system-version',

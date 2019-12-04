@@ -54,7 +54,7 @@ class FastbootFlashModule(FlashModule):
     def probe(target):
         return target.os == 'android'
 
-    def __call__(self, image_bundle=None, images=None, bootargs=None):
+    def __call__(self, image_bundle=None, images=None, bootargs=None, connect=True):
         if bootargs:
             raise ValueError('{} does not support boot configuration'.format(self.name))
         self.prelude_done = False
@@ -67,7 +67,8 @@ class FastbootFlashModule(FlashModule):
             self.logger.debug('flashing {}'.format(partition))
             self._flash_image(self.target, partition, expand_path(image_path))
         fastboot_command('reboot')
-        self.target.connect(timeout=180)
+        if connect:
+            self.target.connect(timeout=180)
 
     def _validate_image_bundle(self, image_bundle):
         if not tarfile.is_tarfile(image_bundle):
