@@ -195,7 +195,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                         return capacity
 
                 return capacities[-1]
-            df = self._df_either_event(_SCHED_PELT_SE_NAMES)
+            df = self._df_either_event(self._SCHED_PELT_SE_NAMES)
             df['required_capacity'] = df['util'].map(fits_capacity)
 
         else:
