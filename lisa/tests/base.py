@@ -408,9 +408,8 @@ class TestBundleMeta(abc.ABCMeta):
     stub. The annotation is then removed from ``_from_target`` so that it is
     not picked up by exekall.
 
-    The signature of ``from_target`` is the result of merging
-    ``super().from_target`` parameters with the ones defined in
-    ``_from_target``.
+    The signature of ``from_target`` is the result of merging the original
+    ``cls.from_target`` parameters with the ones defined in ``_from_target``.
     """
     @staticmethod
     def test_method(func):
@@ -462,10 +461,11 @@ class TestBundleMeta(abc.ABCMeta):
                 f = metacls.test_method(f)
                 setattr(new_cls, name, f)
 
-        # If that class defines _from_target but not from_target, we create a
-        # stub from_target and move the annotations of _from_target to
-        # from_target
-        if '_from_target' in dct and 'from_target' not in dct:
+        # If that class defines _from_target, stub from_target and move the
+        # annotations of _from_target to from_target. If from_target was
+        # already defined on that class, it's wrapped by the stub, otherwise
+        # super().from_target is used.
+        if '_from_target' in dct:
             assert isinstance(dct['_from_target'], classmethod)
             _from_target = new_cls._from_target
 
@@ -519,10 +519,20 @@ class TestBundleMeta(abc.ABCMeta):
                     return_annotation=sig2.return_annotation
                 )
 
+            if 'from_target' in dct:
+                # Bind the classmethod object to the class
+                orig_from_target = dct['from_target']
+                def get_orig_from_target(cls):
+                    return orig_from_target.__get__(cls, cls)
+            else:
+                def get_orig_from_target(cls):
+                    return super(new_cls, cls).from_target
+
             # Make a stub that we can freely update
             @functools.wraps(_from_target.__func__)
             def from_target(cls, *args, **kwargs):
-                return super(new_cls, cls).from_target(*args, **kwargs)
+                from_target = get_orig_from_target(cls)
+                return from_target(*args, **kwargs)
 
             # Hide the fact that we wrapped the function, so exekall does not
             # get confused
