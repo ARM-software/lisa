@@ -310,7 +310,7 @@ class AcmeCapeBackend(EnergyInstrumentBackend):
 
     # pylint: disable=arguments-differ
     def get_instruments(self, target, metadir,
-                        iio_capture, host, iio_devices, buffer_size):
+                        iio_capture, host, iio_devices, buffer_size, keep_raw):
 
         #
         # Devlib's ACME instrument uses iio-capture under the hood, which can
@@ -331,7 +331,7 @@ class AcmeCapeBackend(EnergyInstrumentBackend):
         for iio_device in iio_devices:
             ret[iio_device] = AcmeCapeInstrument(
                 target, iio_capture=iio_capture, host=host,
-                iio_device=iio_device, buffer_size=buffer_size, keep_raw=self.keep_raw)
+                iio_device=iio_device, buffer_size=buffer_size, keep_raw=keep_raw)
         return ret
 
 
