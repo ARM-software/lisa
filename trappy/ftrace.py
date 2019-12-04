@@ -83,16 +83,18 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                  events=[], window=(0, None), abs_window=(0, None)):
         super(GenericFTrace, self).__init__(name)
 
-        self.class_definitions.update(self.dynamic_classes)
         self.__add_events(listify(events))
 
         if scope == "thermal":
             self.class_definitions.update(self.thermal_classes)
+            self.class_definitions.update(self.dynamic_classes)
         elif scope == "sched":
             self.class_definitions.update(self.sched_classes)
+            self.class_definitions.update(self.dynamic_classes)
         elif scope != "custom":
             self.class_definitions.update(self.thermal_classes)
             self.class_definitions.update(self.sched_classes)
+            self.class_definitions.update(self.dynamic_classes)
 
         # Sanity check on the unique words
         for cls1, cls2 in itertools.combinations(self.class_definitions.values(), 2):
@@ -208,7 +210,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         return metadata
 
     def _is_cache_valid(self, cache_metadata):
-        for key in ["md5sum", "basetime"]:
+        for key in ["md5sum", "basetime", "endtime"]:
             if key not in cache_metadata.keys():
                 warnstr = "Cache metadata is erroneous, invalidating cache"
                 warnings.warn(warnstr)
@@ -266,7 +268,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             open(self.trace_path, 'rb').read()
         ).hexdigest()
         metadata["basetime"] = self.basetime
-
+        metadata["endtime"] = self.endtime
         return metadata
 
     def _load_cache(self):
@@ -299,6 +301,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         # Additionnal metadata can be loaded by overriding this method,
         # providing it has been saved by overriding _get_extra_data_to_cache
         self.basetime = metadata["basetime"]
+        self.endtime = metadata["endtime"]
 
     def _apply_user_parameters(self):
         # Traces are read without any window consideration, so we apply
@@ -442,6 +445,8 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
 
             trace_class.append_data(timestamp, comm, pid, cpu, self.lines, data_str)
             self.lines += 1
+
+        self.endtime = timestamp
 
     def trace_hasnt_started(self):
         """Return a function that accepts a line and returns true if this line
@@ -885,7 +890,7 @@ class FTrace(GenericFTrace):
         trace-cmd then prints those events without formatting.
 
         """
-        from subprocess import check_output
+        from subprocess import check_call
 
         cmd = ["trace-cmd", "report", '-t']
 
@@ -899,20 +904,16 @@ class FTrace(GenericFTrace):
 
         cmd.append(trace_dat)
 
-        with open(os.devnull) as devnull:
+        with open(os.devnull) as devnull, NamedTemporaryFile(delete=False) as fout:
             try:
-                out = check_output(cmd, stderr=devnull)
+                check_call(cmd, stderr=devnull, stdout=fout)
             except OSError as exc:
                 if exc.errno == 2 and not exc.filename:
                     raise OSError(2, "trace-cmd not found in PATH, is it installed?")
                 else:
                     raise
 
-        tempf = NamedTemporaryFile(delete=False)
-        with tempf as fout:
-            fout.write(out)
-
-        return tempf.name
+        return fout.name
 
     def __get_raw_event_list(self):
         self.raw_events = []
