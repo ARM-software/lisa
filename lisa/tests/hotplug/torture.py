@@ -182,14 +182,16 @@ class HotplugBase(TestBundle):
 
         # We don't want a timeout but we do want to detect if/when the target
         # stops responding. So start a background shell and poll on it
-        with script.background(as_root=True):
-            try:
-                script.wait()
+        try:
+            with script.background(as_root=True) as bg:
+                while bg.poll() is None:
+                    if not script.target.check_responsive():
+                        break
 
-                target_alive = True
-                target.hotplug.online_all()
-            except TargetNotRespondingError:
-                target_alive = False
+                    sleep(0.1)
+        finally:
+            target_alive = bool(script.target.check_responsive())
+            target.hotplug.online_all()
 
         live_cpus = target.list_online_cpus() if target_alive else []
 

@@ -52,8 +52,6 @@ class TargetScript:
 
         self.commands = []
 
-        self._proc = None
-
     def execute(self, cmd):
         """
         Accumulate command for later execution.
@@ -144,38 +142,6 @@ class TargetScript:
                 pass
         """
         self._prerun_check()
-        self._proc = self.target.background(self.remote_path, as_root=as_root)
-
-        return self._proc
-
-    def wait(self, poll_sleep_s=1):
-        """
-        Wait for a script started via :meth:`background` to complete
-
-        :param poll_sleep_s: Sleep duration between poll() calls
-        :type poll_sleep_s: int
-
-        :raises: :class:`devlib.exception.TargetNotRespondingError`
-        """
-        if not self._proc:
-            raise RuntimeError('No background process currently executing')
-
-        while self._proc.poll() is None:
-            self.target.check_responsive(explode=True)
-            sleep(poll_sleep_s)
-
-    def kill(self, as_root=False):
-        """
-        Kill a script started via :meth:`background`
-
-        :param as_root: Kill the script as root
-        :type as_root: bool
-        """
-        if not self._proc:
-            raise RuntimeError('No background process currently executing')
-
-        cmd_pid = '$(pgrep -x {})'.format(self.script_name)
-        self.target.kill(cmd_pid, as_root=as_root)
-        self._proc.kill()
+        return self.target.background(self.remote_path, as_root=as_root)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
