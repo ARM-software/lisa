@@ -24,9 +24,8 @@ def main():
 
     fragments = {}
     for conf_cls, conf in sorted(conf_map.items(), key=key):
-        content = io.StringIO()
-        conf.to_yaml_map(content)
-        fragments[conf_cls.__qualname__] = content.getvalue()
+        content = conf.to_yaml_map_str()
+        fragments[conf_cls.__qualname__] = content
 
     print('\n'.join(
         '\n{}'.format(content)
