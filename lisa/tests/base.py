@@ -1168,8 +1168,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     @lru_memoized(first_param_maxsize=10)
     def trace(self):
         """
-        :returns: a :class:`lisa.trace.TraceView` cropped to fit the ``rt-app``
-            tasks.
+        :returns: a :class:`lisa.trace.TraceView` cropped to the window given
+            by :meth:`trace_window`.
 
         All events specified in ``ftrace_conf`` are parsed from the trace,
         so it is suitable for direct use in methods.
