@@ -39,17 +39,9 @@ class MisfitMigrationBase(RTATestBundle):
     @classmethod
     def _has_asym_cpucapacity(cls, target):
         """
-        :returns: Whether the target has SD_ASYM_CPUCAPACITY set on any of its sd
+        :returns: Whether the target has asymmetric CPU capacities
         """
-        # Just try to find at least one instance of that flag
-        sd_info = target.sched.get_sd_info()
-
-        for cpu, domain_node in sd_info.cpus.items():
-            for domain in domain_node.domains.values():
-                if SchedDomainFlag.SD_ASYM_CPUCAPACITY in domain.flags:
-                    return True
-
-        return False
+        return len(set(target.plat_info["cpu-capacities"].values())) > 1
 
     @classmethod
     def _get_max_lb_interval(cls, plat_info):
@@ -161,7 +153,7 @@ class StaggeredFinishes(MisfitMigrationBase):
     def check_from_target(cls, target):
         if not cls._has_asym_cpucapacity(target):
             raise CannotCreateError(
-                "Target doesn't have SD_ASYM_CPUCAPACITY on any sched_domain")
+                "Target doesn't have asymmetric CPU capacities")
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):
