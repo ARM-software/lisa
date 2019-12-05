@@ -33,7 +33,7 @@ import shlex
 import contextlib
 import tempfile
 from functools import reduce, wraps
-from collections.abc import Sequence
+from collections.abc import Iterable
 from collections import namedtuple
 from operator import itemgetter
 
@@ -451,10 +451,10 @@ class Trace(Loggable, TraceBase):
             events = sorted(proxy_cls.get_all_events())
         elif isinstance(events, str):
             events = [events]
-        elif isinstance(events, Sequence):
+        elif isinstance(events, Iterable):
             events = list(events)
         else:
-            raise ValueError('Events must be a string or a sequence of strings')
+            raise ValueError('Events must be a string or an iterable of strings')
 
         # Register devlib fake cpu_frequency events
         if 'cpu_frequency' in events:
@@ -1334,7 +1334,7 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
         Build an instance of the class, converting ``str`` to
         ``TraceEventChecker``.
 
-        :param events: Sequence of events
+        :param events: Iterable of events
         :type events: list(str or TraceEventCheckerBase)
         """
         def make_event(e):
