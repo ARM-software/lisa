@@ -836,8 +836,8 @@ def _data_deduplicate(data, keep, consecutives, cols, all_col):
 
         return data[cond]
     else:
-        if not all_cols:
-            raise ValueError("all_cols=False is not supported with consecutives=False")
+        if not all_col:
+            raise ValueError("all_col=False is not supported with consecutives=False")
 
         kwargs = dict(subset=cols) if cols else {}
         return data.drop_duplicates(keep=keep, **kwargs)
