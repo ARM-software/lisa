@@ -17,6 +17,21 @@
 #
 import os
 import stat
+import platform
+
+def _get_abi():
+    machine = platform.machine()
+    return dict(
+        x86_64='x86_64',
+        aarch64='arm64',
+        arm='arm',
+    )[machine]
+
+HOST_ABI = _get_abi()
+"""
+ABI of the machine that imported that module.
+"""
+del _get_abi
 
 ASSETS_PATH = os.path.dirname(__file__)
 """
@@ -40,6 +55,8 @@ def _get_abi_bin():
 
 ABI_BINARIES = _get_abi_bin()
 del _get_abi_bin
+
+HOST_BINARIES = ABI_BINARIES[HOST_ABI]
 
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
