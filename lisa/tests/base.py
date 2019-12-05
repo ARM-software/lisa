@@ -1448,7 +1448,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         # anything useful, it's reasonable to do it here.
         target.plat_info['rtapp']['calib']
 
-        with wload_cm, dmesg_coll, ftrace_coll, target.freeze_userspace():
+        with target.freeze_userspace(), wload_cm, dmesg_coll, ftrace_coll:
             wload.run(cgroup=cgroup, as_root=as_root, update_cpu_capacities=update_cpu_capacities)
 
         ftrace_coll.get_trace(trace_path)
