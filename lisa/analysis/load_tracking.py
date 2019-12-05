@@ -94,11 +94,13 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         df = df.rename(columns=self._columns_renaming(event), copy=True)
 
-        if event in self._SCHED_PELT_SE_NAMES:
-            df = df[df.path == "(null)"]
+        # Legacy sched_load_avg_* events don't have a `path` field.
+        if not event.startswith('sched_load_avg_'):
+            if event in self._SCHED_PELT_SE_NAMES:
+                df = df[df.path == "(null)"]
 
-        if event in self._SCHED_PELT_CFS_NAMES:
-            df = df[df.path == "/"]
+            if event in self._SCHED_PELT_CFS_NAMES:
+                df = df[df.path == "/"]
 
         to_drop = self._columns_to_drop(event)
         df.drop(columns=to_drop, inplace=True, errors='ignore')
