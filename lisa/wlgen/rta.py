@@ -480,7 +480,16 @@ class RTA(Workload):
                 pload[cpu] = int(pload_match.group(1))
                 logger.debug('>>> CPU{}: {}'.format(cpu, pload[cpu]))
 
-        logger.info('Target RT-App calibration: {}'.format(pload))
+        # Avoid circular import issue
+        from lisa.platforms.platinfo import PlatformInfo
+        snippet_plat_info = PlatformInfo({
+            'rtapp': {
+                'calib': pload,
+            },
+        })
+        logger.info('Platform info rt-app calibration configuration:\n{}'.format(
+            snippet_plat_info.to_yaml_map_str()
+        ))
 
         plat_info = target.plat_info
 

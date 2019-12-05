@@ -59,6 +59,7 @@ except ImportError:
 import lisa
 import lisa.assets
 from lisa.version import version_tuple, parse_version, format_version
+from lisa.assets import ASSETS_PATH
 
 
 # Do not infer the value using __file__, since it will break later on when
@@ -67,11 +68,6 @@ from lisa.version import version_tuple, parse_version, format_version
 LISA_HOME = os.getenv('LISA_HOME')
 """
 The detected location of your LISA installation
-"""
-
-ASSETS_PATH = os.path.dirname(lisa.assets.__file__)
-"""
-Path in which all assets the ``lisa`` package relies on are located in.
 """
 
 RESULT_DIR = 'results'

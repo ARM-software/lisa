@@ -28,6 +28,7 @@ import re
 import contextlib
 import pprint
 import os
+import io
 
 import lisa
 
@@ -685,6 +686,17 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
         :type path: str
         """
         return self._to_path(self.as_yaml_map, path, fmt='yaml')
+
+    def to_yaml_map_str(self, **kwargs):
+        """
+        Return the content of the file that would be create by
+        :meth:`to_yaml_map` in a string.
+
+        :Variable keyword arguments: Forwarded to :meth:`to_yaml_map`
+        """
+        content = io.StringIO()
+        self.to_yaml_map(content, **kwargs)
+        return content.getvalue()
 
     # Only used with Python >= 3.6, but since that is just a sanity check it
     # should be okay
