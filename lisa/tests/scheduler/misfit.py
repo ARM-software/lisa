@@ -94,6 +94,9 @@ class StaggeredFinishes(MisfitMigrationBase):
     to be long (we just have to ensure they spawn there), so arbitrary value
     """
 
+    # Let us handle things ourselves
+    _BUFFER_PHASE_DURATION_S=0
+
     IDLING_DELAY_S = 1
     """
     A somewhat arbitray delay - long enough to ensure
