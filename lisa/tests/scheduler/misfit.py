@@ -27,6 +27,7 @@ from lisa.tests.base import RTATestBundle, Result, ResultBundle, CannotCreateErr
 from lisa.target import Target
 from lisa.analysis.tasks import TasksAnalysis, TaskState
 from lisa.analysis.idle import IdleAnalysis
+from lisa.analysis.rta import RTAEventsAnalysis
 
 
 class MisfitMigrationBase(RTATestBundle):
@@ -128,29 +129,20 @@ class StaggeredFinishes(MisfitMigrationBase):
 
     @property
     @memoized
-    @requires_events('sched_switch')
+    @RTAEventsAnalysis.df_rtapp_phases_start.used_events
     def start_time(self):
         """
         The tasks don't wake up at the same exact time, find the task that is
         the last to wake up. We don't want to redefine trace_window() here
         because we still need the first wakeups to be visible.
         """
-        sdf = self.trace.df_events('sched_switch')
+        # First phase is idling time, ignore it
+        phase_df = self.trace.analysis.rta.df_rtapp_phases_start()
+        phase_df = phase_df.reset_index()
+        phase_df.set_index("Time", inplace=True)
+        phase_df.sort_index(inplace=True)
 
-        # Find out when all tasks started executing on their designated CPU
-        def get_start_time(sdf, task, profile):
-            task_cpu = profile.phases[0].cpus[0]
-
-            names = self.rtapp_tasks_map[task]
-            assert len(names) == 1
-            name = names[0]
-
-            return sdf[(sdf.next_comm == name) & (sdf["__cpu"] == task_cpu)].index[0]
-
-        return max(
-            get_start_time(sdf, task, profile)
-            for task, profile in self.rtapp_profile.items()
-        )
+        return phase_df[phase_df.phase == 1].index[-1]
 
     @classmethod
     def check_from_target(cls, target):
