@@ -220,13 +220,12 @@ class StaggeredFinishes(MisfitMigrationBase):
                 (sdf.next_comm.str.startswith(self.task_prefix))
             ]
 
-            state_df = self._trim_state_df(
-                state_df[
-                    (state_df.index.isin(preempt_sdf.index)) &
-                    # Ensure this is a preemption and not just the task ending
-                    (state_df.curr_state == TaskState.TASK_INTERRUPTIBLE)
-                ]
-            )
+            state_df = self._trim_state_df(state_df)
+            state_df = state_df[
+                (state_df.index.isin(preempt_sdf.index)) &
+                # Ensure this is a preemption and not just the task ending
+                (state_df.curr_state == TaskState.TASK_INTERRUPTIBLE)
+            ]
 
             preempt_time = state_df.delta.sum()
             preempt_pct = (preempt_time / self.duration) * 100
@@ -329,11 +328,13 @@ class StaggeredFinishes(MisfitMigrationBase):
             # This test is all about throughput: check that every time a task
             # runs on a little it's because bigs are busy
             df = self.trace.analysis.tasks.df_task_states(task)
-            task_state_dfs[task] = self._trim_state_df(df[
+            # Trim first to keep coherent deltas
+            df = self._trim_state_df(df)
+            task_state_dfs[task] = df[
                 # Task is active
                 (df.curr_state == TaskState.TASK_ACTIVE) &
                 # Task needs to be upmigrated
                 (df.cpu.isin(self.src_cpus))
-            ])
+            ]
 
         return self._test_cpus_busy(task_state_dfs, self.dst_cpus, allowed_idle_time_s)
