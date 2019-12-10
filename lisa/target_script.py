@@ -52,8 +52,6 @@ class TargetScript:
 
         self.commands = []
 
-        self._proc = None
-
     def execute(self, cmd):
         """
         Accumulate command for later execution.
@@ -106,31 +104,29 @@ class TargetScript:
         # Push it on target
         self.remote_path = self.target.install(self.local_path)
 
-    def _prerun_check(self):
+    def _run(self, runner, kwargs):
         if not self.target.file_exists(self.remote_path):
             raise FileNotFoundError('Remote script was not found on target device')
 
-    def run(self, as_root=False, timeout=None):
+        return runner(self.remote_path, **kwargs)
+
+    def run(self, **kwargs):
         """
         Run the previously pushed script
 
-        :param as_root: Execute that script as root
-        :type as_root: bool
-
-        :param timeout: Timeout (in seconds) for the execution of the script
-        :type timeout: int
+        :Variable keyword arguments: Forwarded to
+            :meth:`devlib.target.Target.background`.
 
         .. attention:: :meth:`push` must have been called beforehand
         """
-        self._prerun_check()
-        self.target.execute(self.remote_path, as_root=as_root, timeout=timeout)
+        return self._run(self.target.execute, kwargs)
 
-    def background(self, as_root=False):
+    def background(self, **kwargs):
         """
         Non-blocking variant of :meth:`run`
 
-        :param as_root: Execute that script as root
-        :type as_root: bool
+        :Variable keyword arguments: Forwarded to
+            :meth:`devlib.target.Target.background`.
 
         :returns: the :class:`subprocess.Popen` instance for the command
 
@@ -143,39 +139,6 @@ class TargetScript:
             with script.background():
                 pass
         """
-        self._prerun_check()
-        self._proc = self.target.background(self.remote_path, as_root=as_root)
-
-        return self._proc
-
-    def wait(self, poll_sleep_s=1):
-        """
-        Wait for a script started via :meth:`background` to complete
-
-        :param poll_sleep_s: Sleep duration between poll() calls
-        :type poll_sleep_s: int
-
-        :raises: :class:`devlib.exception.TargetNotRespondingError`
-        """
-        if not self._proc:
-            raise RuntimeError('No background process currently executing')
-
-        while self._proc.poll() is None:
-            self.target.check_responsive(explode=True)
-            sleep(poll_sleep_s)
-
-    def kill(self, as_root=False):
-        """
-        Kill a script started via :meth:`background`
-
-        :param as_root: Kill the script as root
-        :type as_root: bool
-        """
-        if not self._proc:
-            raise RuntimeError('No background process currently executing')
-
-        cmd_pid = '$(pgrep -x {})'.format(self.script_name)
-        self.target.kill(cmd_pid, as_root=as_root)
-        self._proc.kill()
+        return self._run(self.target.background, kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
