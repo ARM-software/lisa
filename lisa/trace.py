@@ -303,7 +303,7 @@ class Trace(Loggable, TraceBase):
                  trace_path,
                  plat_info=None,
                  events=None,
-                 normalize_time=True,
+                 normalize_time=False,
                  trace_format='FTrace',
                  plots_dir=None,
                  plots_prefix=''):

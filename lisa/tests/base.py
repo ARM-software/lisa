@@ -1049,6 +1049,13 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
       the associated task will be ignored in the noise accounting.
     """
 
+    _BUFFER_PHASE_DURATION_S = 0.5
+    """
+    Duration of the initial buffer phase; this is a phase that copies the first
+    phase of each task, and that is prepended to the relevant task - this means
+    all task in the profile get a buffer phase.
+    """
+
     @RTAEventsAnalysis.df_rtapp_phases_start.used_events
     @RTAEventsAnalysis.df_rtapp_phases_end.used_events
     @requires_events('sched_switch')
@@ -1089,8 +1096,11 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         # Find when the first rtapp phase starts, and take the associated
         # sched_switch that is immediately preceding
         phase_start_df = trace.analysis.rta.df_rtapp_phases_start()
+
         # The first phase is the buffer phase we don't care about
-        phase_start_df = phase_start_df[phase_start_df.index.get_level_values('phase') > 0]
+        if self._BUFFER_PHASE_DURATION_S:
+            phase_start_df = phase_start_df[phase_start_df.index.get_level_values('phase') > 0]
+
         rta_start = phase_start_df.apply(get_first_switch, axis=1).min()
 
         # Find when the last rtapp phase ends
@@ -1432,7 +1442,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                 duty_cycle_pct=init_duty_cycle,
                 # TODO: compute accurately the convergence time of the
                 # signal used for placement by the scheduler
-                duration_s=0.5,
+                duration_s=cls._BUFFER_PHASE_DURATION_S,
                 # Use a small period to allow the util_avg to be very close
                 # to duty_cycle
                 period_ms=2,
@@ -1440,10 +1450,12 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             # Prepend the buffer task
             return buffer_task + task
 
-        profile = {
-            name: add_buffer(task)
-            for name, task in profile.items()
-        }
+        # Don't add the buffer phase if it has a nil duration
+        if cls._BUFFER_PHASE_DURATION_S:
+            profile = {
+                name: add_buffer(task)
+                for name, task in profile.items()
+            }
 
         wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.lower()),
                                profile, res_dir=res_dir,

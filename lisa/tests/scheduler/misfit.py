@@ -27,6 +27,7 @@ from lisa.tests.base import RTATestBundle, Result, ResultBundle, CannotCreateErr
 from lisa.target import Target
 from lisa.analysis.tasks import TasksAnalysis, TaskState
 from lisa.analysis.idle import IdleAnalysis
+from lisa.analysis.rta import RTAEventsAnalysis
 
 
 class MisfitMigrationBase(RTATestBundle):
@@ -39,17 +40,9 @@ class MisfitMigrationBase(RTATestBundle):
     @classmethod
     def _has_asym_cpucapacity(cls, target):
         """
-        :returns: Whether the target has SD_ASYM_CPUCAPACITY set on any of its sd
+        :returns: Whether the target has asymmetric CPU capacities
         """
-        # Just try to find at least one instance of that flag
-        sd_info = target.sched.get_sd_info()
-
-        for cpu, domain_node in sd_info.cpus.items():
-            for domain in domain_node.domains.values():
-                if SchedDomainFlag.SD_ASYM_CPUCAPACITY in domain.flags:
-                    return True
-
-        return False
+        return len(set(target.plat_info["cpu-capacities"].values())) > 1
 
     @classmethod
     def _get_max_lb_interval(cls, plat_info):
@@ -102,6 +95,9 @@ class StaggeredFinishes(MisfitMigrationBase):
     to be long (we just have to ensure they spawn there), so arbitrary value
     """
 
+    # Let us handle things ourselves
+    _BUFFER_PHASE_DURATION_S=0
+
     IDLING_DELAY_S = 1
     """
     A somewhat arbitray delay - long enough to ensure
@@ -133,35 +129,26 @@ class StaggeredFinishes(MisfitMigrationBase):
 
     @property
     @memoized
-    @requires_events('sched_switch')
+    @RTAEventsAnalysis.df_rtapp_phases_start.used_events
     def start_time(self):
         """
         The tasks don't wake up at the same exact time, find the task that is
         the last to wake up. We don't want to redefine trace_window() here
         because we still need the first wakeups to be visible.
         """
-        sdf = self.trace.df_events('sched_switch')
+        # First phase is idling time, ignore it
+        phase_df = self.trace.analysis.rta.df_rtapp_phases_start()
+        phase_df = phase_df.reset_index()
+        phase_df.set_index("Time", inplace=True)
+        phase_df.sort_index(inplace=True)
 
-        # Find out when all tasks started executing on their designated CPU
-        def get_start_time(sdf, task, profile):
-            task_cpu = profile.phases[0].cpus[0]
-
-            names = self.rtapp_tasks_map[task]
-            assert len(names) == 1
-            name = names[0]
-
-            return sdf[(sdf.next_comm == name) & (sdf["__cpu"] == task_cpu)].index[0]
-
-        return max(
-            get_start_time(sdf, task, profile)
-            for task, profile in self.rtapp_profile.items()
-        )
+        return phase_df[phase_df.phase == 1].index[-1]
 
     @classmethod
     def check_from_target(cls, target):
         if not cls._has_asym_cpucapacity(target):
             raise CannotCreateError(
-                "Target doesn't have SD_ASYM_CPUCAPACITY on any sched_domain")
+                "Target doesn't have asymmetric CPU capacities")
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):
@@ -225,13 +212,12 @@ class StaggeredFinishes(MisfitMigrationBase):
                 (sdf.next_comm.str.startswith(self.task_prefix))
             ]
 
-            state_df = self._trim_state_df(
-                state_df[
-                    (state_df.index.isin(preempt_sdf.index)) &
-                    # Ensure this is a preemption and not just the task ending
-                    (state_df.curr_state == TaskState.TASK_INTERRUPTIBLE)
-                ]
-            )
+            state_df = self._trim_state_df(state_df)
+            state_df = state_df[
+                (state_df.index.isin(preempt_sdf.index)) &
+                # Ensure this is a preemption and not just the task ending
+                (state_df.curr_state == TaskState.TASK_INTERRUPTIBLE)
+            ]
 
             preempt_time = state_df.delta.sum()
             preempt_pct = (preempt_time / self.duration) * 100
@@ -334,11 +320,13 @@ class StaggeredFinishes(MisfitMigrationBase):
             # This test is all about throughput: check that every time a task
             # runs on a little it's because bigs are busy
             df = self.trace.analysis.tasks.df_task_states(task)
-            task_state_dfs[task] = self._trim_state_df(df[
+            # Trim first to keep coherent deltas
+            df = self._trim_state_df(df)
+            task_state_dfs[task] = df[
                 # Task is active
                 (df.curr_state == TaskState.TASK_ACTIVE) &
                 # Task needs to be upmigrated
                 (df.cpu.isin(self.src_cpus))
-            ])
+            ]
 
         return self._test_cpus_busy(task_state_dfs, self.dst_cpus, allowed_idle_time_s)
