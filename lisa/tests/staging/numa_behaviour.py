@@ -23,9 +23,10 @@ import pandas as pd
 from lisa.wlgen.rta import Periodic
 from lisa.tests.base import ResultBundle, RTATestBundle, TestMetric
 from lisa.utils import ArtifactPath
-from lisa.trace import requires_events, FtraceCollector
+from lisa.trace import FtraceCollector
 from lisa.target import Target
 from lisa.datautils import df_filter_task_ids, df_deduplicate
+from lisa.analysis.tasks import TasksAnalysis
 
 class NUMABehaviour(RTATestBundle):
     """
@@ -37,7 +38,7 @@ class NUMABehaviour(RTATestBundle):
             raise CannotCreateError(
                 "Target doesn't have at least two NUMA nodes")
 
-    @requires_events('sched_switch')
+    @TasksAnalysis.df_task_states.used_events
     def _get_task_cpu_df(self, task_id):
         """
         Get a DataFrame for task mirgrations
