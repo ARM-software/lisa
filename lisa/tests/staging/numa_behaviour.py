@@ -15,17 +15,9 @@
 # limitations under the License.
 #
 
-import os
-import os.path
-
-import pandas as pd
-
 from lisa.wlgen.rta import Periodic
-from lisa.tests.base import ResultBundle, RTATestBundle, TestMetric
-from lisa.utils import ArtifactPath
-from lisa.trace import FtraceCollector
-from lisa.target import Target
-from lisa.datautils import df_filter_task_ids, df_deduplicate
+from lisa.tests.base import ResultBundle, RTATestBundle, TestMetric, CannotCreateError
+from lisa.datautils import df_deduplicate
 from lisa.analysis.tasks import TasksAnalysis
 
 class NUMABehaviour(RTATestBundle):
