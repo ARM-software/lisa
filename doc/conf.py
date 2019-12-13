@@ -378,6 +378,7 @@ intersphinx_mapping = {
     'trappy': ('https://pythonhosted.org/TRAPpy', None),
     'bart': ('https://pythonhosted.org/bart-py/', None),
     'wa': ('https://workload-automation.readthedocs.io/en/latest/', None),
+    'ipywidgets': ('https://ipywidgets.readthedocs.io/en/latest/', None),
 }
 
 #
