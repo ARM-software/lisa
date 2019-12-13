@@ -31,6 +31,12 @@ Dataframe and Series handling utilities
 .. automodule:: lisa.datautils
    :members:
 
+Interactive notebooks utilities
+===============================
+
+.. automodule:: lisa.notebook
+   :members:
+
 PELT signals simulations
 ========================
 

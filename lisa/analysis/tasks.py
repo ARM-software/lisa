@@ -25,6 +25,7 @@ from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, df_deduplicate
 from lisa.trace import requires_events
+from lisa.pelt import PELT_SCALE
 
 
 class StateInt(int):
@@ -792,7 +793,8 @@ class TasksAnalysis(TraceAnalysisBase):
     @df_task_activation.used_events
     def plot_task_activation(self, task, cpu=None, active_value=None,
             sleep_value=None, alpha=None, overlay=False, duration=False,
-            duty_cycle=False, which_cpu=False, axis=None, local_fig=None):
+            duty_cycle=False, which_cpu=False, height_duty_cycle=False,
+            axis=None, local_fig=None):
         """
         Plot task activations, in a style similar to kernelshark.
 
@@ -816,6 +818,10 @@ class TasksAnalysis(TraceAnalysisBase):
         :param which_cpu: If ``True``, plot the activations on each CPU in a
             separate row like kernelshark does.
         :type which_cpu: bool
+
+        :param height_duty_cycle: Height of each activation's rectangle is
+            proportional to the duty cycle during that activation.
+        :type height_duty_cycle: bool
 
         .. seealso:: :meth:`df_task_activation`
         """
@@ -863,10 +869,15 @@ class TasksAnalysis(TraceAnalysisBase):
                         y_level = level_height * cpu
 
                     cpu_df = df[df['cpu'] == cpu]
+                    if height_duty_cycle:
+                        active = cpu_df['active'] * cpu_df['duty_cycle']
+                    else:
+                        active = cpu_df['active']
+
                     axis.fill_between(
                         x=cpu_df.index,
                         y1=y_level,
-                        y2=y_level + cpu_df['active'] * level_height,
+                        y2=y_level + active * level_height,
                         step='post',
                         alpha=_alpha,
                         color=color,
