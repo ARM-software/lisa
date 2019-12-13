@@ -921,8 +921,8 @@ class CPUMigrationBase(LoadTrackingBase):
                 expected_util = expected_cpu_util[cpu][i]
                 trace_util = trace_cpu_util[cpu][i]
                 if not self.is_almost_equal(
-                        trace_util,
                         expected_util,
+                        trace_util,
                         allowed_error_pct):
                     passed = False
 
