@@ -71,6 +71,9 @@ setup(
         "ruamel.yaml >= 0.15.81",
         "docutils", # For the HTML output of analysis plots
 
+        "ipython",
+        "ipywidgets",
+
         # Depdendencies that are shipped as part of the LISA repo as
         # subtree/submodule
         "devlib",
@@ -79,9 +82,7 @@ setup(
 
     extras_require={
         "notebook": [
-            "ipython",
             "jupyterlab",
-            "ipywidgets",
             "ipympl", # For %matplotlib widget under jupyter lab
             "sphobjinv", # To open intersphinx inventories
         ],
@@ -91,8 +92,6 @@ setup(
             "sphinx_rtd_theme",
             "sphinxcontrib-plantuml",
             "nbsphinx",
-            # necessary to import some modules
-            "ipython",
         ],
 
         "test": [
