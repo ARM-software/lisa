@@ -288,3 +288,6 @@ actively evaluated.
 
 .. automodule:: lisa.tests.staging.schedutil
    :members:
+
+.. automodule:: lisa.tests.staging.numa_behaviour
+   :members:
