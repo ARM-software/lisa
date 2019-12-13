@@ -450,6 +450,10 @@ def main():
             help='Keep the temporary git repo instead of removing it when the cherry picking is finished'
         )
 
+        subparser.add_argument('--delete-temp', action='store_true',
+            help='Always delete the temporary git repo, even when there is a cherry pick conflict.'
+        )
+
     # Create options
     create_parser.add_argument('--manifest', required=True,
         help='Config file'
@@ -492,6 +496,10 @@ def main():
                 conf,
                 persistent_tags, tags_suffix,
             )
+
+            if args.delete_temp:
+                info('Deleting temporary clone as requested with --delete-temp')
+                delete_temp_repo = True
 
         elif args.subcommand == 'resume':
             temp_repo = repo
