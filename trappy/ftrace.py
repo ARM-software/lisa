@@ -395,55 +395,52 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
         timestamp = 0
         for line in actual_trace:
             trace_class = self.__get_trace_class(line, cls_for_unique_word)
-            if not trace_class:
-                self.lines += 1
-                continue
-
             line = line.rstrip()
 
             fields_match = SPECIAL_FIELDS_RE.match(line)
-            if not fields_match:
-                raise FTraceParseError("Couldn't match fields in '{}'".format(line))
-            comm = fields_match.group('comm')
-            pid = int(fields_match.group('pid'))
-            cpu = int(fields_match.group('cpu'))
+            if fields_match:
+                comm = fields_match.group('comm')
+                pid = int(fields_match.group('pid'))
+                cpu = int(fields_match.group('cpu'))
 
-            # The timestamp, depending on the trace_clock configuration, can be
-            # reported either in [s].[us] or [ns] format. Let's ensure that we
-            # always generate DF which have the index expressed in:
-            #    [s].[decimals]
-            _timestamp = float(fields_match.group('timestamp'))
-            if not fields_match.group('us'):
-                _timestamp /= 1e9
+                # The timestamp, depending on the trace_clock configuration, can be
+                # reported either in [s].[us] or [ns] format. Let's ensure that we
+                # always generate DF which have the index expressed in:
+                #    [s].[decimals]
+                _timestamp = float(fields_match.group('timestamp'))
+                if not fields_match.group('us'):
+                    _timestamp /= 1e9
 
-            # Make sure that each event has a unique timestamp in the trace, so
-            # that the ordering of events is preserved when dispatching them in
-            # different dataframes, and joining the dataframes back.
-            if _timestamp > timestamp:
-                timestamp = _timestamp
-            else:
-                # nextafter will pick the next representable float value toward
-                # +inf, so that the increment is kept as small as possibly can,
-                # while ensuring correct ordering. The increment is done at
-                # around the 16th least significant digit, so as long as the
-                # timestamps are under 10e7 seconds (~115 days),
-                # nanosecond-based computation should not really see any
-                # difference. Normalized timestamps can help keeping the
-                # absolute value down.
-                timestamp = np.nextafter(timestamp, math.inf)
+                # Make sure that each event has a unique timestamp in the trace, so
+                # that the ordering of events is preserved when dispatching them in
+                # different dataframes, and joining the dataframes back.
+                if _timestamp > timestamp:
+                    timestamp = _timestamp
+                else:
+                    # nextafter will pick the next representable float value toward
+                    # +inf, so that the increment is kept as small as possibly can,
+                    # while ensuring correct ordering. The increment is done at
+                    # around the 16th least significant digit, so as long as the
+                    # timestamps are under 10e7 seconds (~115 days),
+                    # nanosecond-based computation should not really see any
+                    # difference. Normalized timestamps can help keeping the
+                    # absolute value down.
+                    timestamp = np.nextafter(timestamp, math.inf)
 
-            data_str = fields_match.group('data')
+                if not self.basetime:
+                    self.basetime = timestamp
+                    # Now that we know the basetime, we can derive max_window
+                    self.max_window = self._calc_max_window()
 
-            if not self.basetime:
-                self.basetime = timestamp
-                # Now that we know the basetime, we can derive max_window
-                self.max_window = self._calc_max_window()
+                if trace_class:
+                    data_str = fields_match.group('data')
 
-            # Remove empty arrays from the trace
-            if "={}" in data_str:
-                data_str = re.sub(r"[A-Za-z0-9_]+=\{\} ", r"", data_str)
+                    # Remove empty arrays from the trace
+                    if "={}" in data_str:
+                        data_str = re.sub(r"[A-Za-z0-9_]+=\{\} ", r"", data_str)
 
-            trace_class.append_data(timestamp, comm, pid, cpu, self.lines, data_str)
+                    trace_class.append_data(timestamp, comm, pid, cpu, self.lines, data_str)
+
             self.lines += 1
 
         self.endtime = timestamp
@@ -497,9 +494,6 @@ is part of the trace.
                                    .format(unique_word, trace_class,
                                            cls_for_unique_word[unique_word]))
             cls_for_unique_word[unique_word] = trace_class
-
-        if len(cls_for_unique_word) == 0:
-            return
 
         try:
             with io.open(trace_file, 'r', encoding='utf-8') as fin:
