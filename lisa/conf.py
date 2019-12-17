@@ -275,6 +275,13 @@ class MissingBaseKeyError(KeyError):
     pass
 
 
+class ConfigKeyError(KeyError):
+    """
+    Exception raised when a key is not found in the config instance.
+    """
+    pass
+
+
 class DerivedKeyDesc(KeyDesc):
     """
     Key descriptor describing a key derived from other keys
@@ -424,7 +431,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
                 closest_match = ', maybe you meant "{}" ?'.format(closest_match)
 
             parent = self.qualname
-            raise KeyError('Key "{key}" is not allowed in {parent}{maybe}'.format(
+            raise ConfigKeyError('Key "{key}" is not allowed in {parent}{maybe}'.format(
                 key=key,
                 parent=parent,
                 maybe=closest_match,
@@ -1117,7 +1124,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             return src_prio[0]
         else:
             key = key_desc.qualname
-            raise KeyError('Could not find any source for key "{key}"'.format(
+            raise ConfigKeyError('Could not find any source for key "{key}"'.format(
                 key=key,
             ), key)
 
@@ -1238,7 +1245,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 val = self._key_map[key][src]
             except KeyError:
                 key = key_desc.qualname
-                raise KeyError('Key "{key}" is not available from source "{src}"'.format(
+                raise ConfigKeyError('Key "{key}" is not available from source "{src}"'.format(
                     key=key,
                     src=src,
                 ), key)
@@ -1657,7 +1664,7 @@ class Configurable(abc.ABC, metaclass=ConfigurableMeta):
                 for param, key_desc in param_key_desc_map.items()
                 if param in missing_param
             )
-            raise KeyError("Missing mandatory keys: {}".format(
+            raise ConfigKeyError("Missing mandatory keys: {}".format(
                 ', '.join(missing_key_paths)
             ))
 
