@@ -576,44 +576,34 @@ class Trace(Loggable, TraceBase):
         The names or PIDs are listed in appearance order.
         """
 
-        name_to_pid = {}
-        pid_to_name = {}
-
-        # Merge the list values if the key already exists rather than
-        # overriding them
-        def update_mapping(existing, new):
-            for key, new_val in new.items():
-                existing.setdefault(key, []).extend(new_val)
 
         # Keep only the values, in appearance order according to the timestamp
         # index
-        def finalize_mapping(mapping):
-            def keep_values(items): return list(zip(*items))[1]
-            return {
-                # Remove duplicates and only keep the first occurence of each
-                k: deduplicate(
-                    # Sort by index values, i.e. appearance order
-                    keep_values(sorted(values, key=itemgetter(0))),
-                    keep_last=False
-                )
-                for k, values in mapping.items()
-            }
+        def finalize(df, key_col, value_col, key_type, value_type):
+            # Aggregate the values for each key and convert to python types
+            mapping = {}
+            grouped = df.groupby([key_col])
+            for key, index in grouped.groups.items():
+                values = df.loc[index][value_col].apply(value_type)
+                values = list(values)
+                key = key_type(key)
+                mapping[key] = values
 
-        def create_mapping(df, key_col, value_col):
-            return {
-                k: [
-                    # save the index at which that value appeared so we
-                    # conserve appearance order across events
-                    (df[df[value_col] == value].index[0], value)
-                    for value in df[df[key_col] == k][value_col].unique()
-                ]
-                for k in df[key_col].unique()
-            }
+            return mapping
 
+        mapping_df_list = []
         def load(event, name_col, pid_col):
             df = self.df_events(event)
-            update_mapping(name_to_pid, create_mapping(df, name_col, pid_col))
-            update_mapping(pid_to_name, create_mapping(df, pid_col, name_col))
+
+            # Get a Time column
+            df = df.reset_index()
+            grouped = df.groupby([name_col, pid_col])
+
+            # Get timestamp of first occurrences of each key/value combinations
+            mapping_df = grouped.first()
+            mapping_df = mapping_df[['Time']]
+            mapping_df.rename_axis(index={name_col: 'name', pid_col: 'pid'}, inplace=True)
+            mapping_df_list.append(mapping_df)
 
         if 'sched_load_avg_task' in self.available_events:
             load('sched_load_avg_task', 'comm', 'pid')
@@ -625,11 +615,19 @@ class Trace(Loggable, TraceBase):
             load('sched_switch', 'prev_comm', 'prev_pid')
             load('sched_switch', 'next_comm', 'next_pid')
 
-        if not (name_to_pid and pid_to_name):
+        if not mapping_df_list:
             raise RuntimeError('Failed to load tasks names, sched_switch, sched_wakeup, or sched_load_avg_task events are needed')
 
-        name_to_pid = finalize_mapping(name_to_pid)
-        pid_to_name = finalize_mapping(pid_to_name)
+        df = pd.concat(mapping_df_list)
+        # Sort by order of appearance
+        df.sort_values(by=['Time'], inplace=True)
+        # Remove duplicated name/pid mapping and only keep the first appearance
+        df = df.loc[~df.index.duplicated(keep='first')]
+        # explode the multindex into a "key" and "value" columns
+        df.reset_index(inplace=True)
+
+        name_to_pid = finalize(df, 'name', 'pid', str, int)
+        pid_to_name = finalize(df, 'pid', 'name', int, str)
 
         return (name_to_pid, pid_to_name)
 

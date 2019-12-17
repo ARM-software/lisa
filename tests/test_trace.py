@@ -106,7 +106,7 @@ class TestTrace(TraceTestCase):
     def test_get_task_name_pids(self):
         for name, pids in [
             ('watchdog/0', [12]),
-            ('sh', [1642, 1702, 1717, 1718]),
+            ('sh', [1642, 1702, 1714, 1717, 1718]),
         ]:
             self.assertEqual(self.trace.get_task_name_pids(name), pids)
 
