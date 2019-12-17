@@ -469,12 +469,26 @@ class SchedModule(Module):
         cpus = self.target.list_online_cpus()
 
         capacities = {}
-        sd_info = self.get_sd_info()
 
         for cpu in cpus:
             if self.has_dmips_capacity(cpu):
                 capacities[cpu] = self.get_dmips_capacity(cpu)
-            elif self.has_em(cpu, sd_info.cpus[cpu]):
+
+        missing_cpus = set(cpus).difference(capacities.keys())
+        if not missing_cpus:
+            return capacities
+
+        if not SchedProcFSData.available(self.target):
+            if default != None:
+                capacities.update({cpu : default for cpu in missing_cpus})
+                return capacities
+            else:
+                raise RuntimeError(
+                    'No capacity data for cpus {}'.format(sorted(missing_cpus)))
+
+        sd_info = self.get_sd_info()
+        for cpu in missing_cpus:
+            if self.has_em(cpu, sd_info.cpus[cpu]):
                 capacities[cpu] = self.get_em_capacity(cpu, sd_info.cpus[cpu])
             else:
                 if default != None:

@@ -48,7 +48,8 @@ AM_START_ERROR = re.compile(r"Error: Activity.*")
 # See:
 # http://developer.android.com/guide/topics/manifest/uses-sdk-element.html#ApiLevels
 ANDROID_VERSION_MAP = {
-    28: 'P',
+    29: 'Q',
+    28: 'PIE',
     27: 'OREO_MR1',
     26: 'OREO',
     25: 'NOUGAT_MR1',
