@@ -267,7 +267,7 @@ class EASBehaviour(RTATestBundle):
         """
         task_cpu_df = self._get_task_cpu_df()
         task_utils_df = self._get_expected_task_utils_df(nrg_model)
-        task_utils_df.index = [time + self.trace.start for time in task_utils_df.index]
+        task_utils_df.index += self.trace.start
         tasks = self.rtapp_tasks
 
         # Create a combined DataFrame with the utilization of a task and the CPU

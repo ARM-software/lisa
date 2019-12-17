@@ -218,13 +218,10 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
           * A ``transitions`` column (the number of frequency transitions per second)
         """
-        transitions = self.df_cpu_frequency_transitions(cpu)
-        if transitions is None:
-            return None
-
-        return transitions.apply(
-            lambda x: x / (self.trace.end - self.trace.start)
-        )
+        transitions = self.df_cpu_frequency_transitions(cpu)['transitions']
+        return pd.DataFrame(dict(
+            transitions=transitions / self.trace.time_range,
+        ))
 
     @requires_events('cpu_frequency')
     def get_average_cpu_frequency(self, cpu):
@@ -240,9 +237,8 @@ class FrequencyAnalysis(TraceAnalysisBase):
         # We can't use the pandas average because it's not weighted by
         # time spent in each frequency, so we have to craft our own.
         df = self.trace.add_events_deltas(df, inplace=False)
-        timespan = self.trace.end - self.trace.start
 
-        return (df['frequency'] * df['delta']).sum() / timespan
+        return (df['frequency'] * df['delta']).sum() / self.trace.time_range
 
     @TraceAnalysisBase.cache
     @requires_events('clock_set_rate', 'clock_enable', 'clock_disable')
