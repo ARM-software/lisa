@@ -53,17 +53,12 @@ class IdleAnalysis(TraceAnalysisBase):
         idle_df = self.trace.df_events('cpu_idle')
         cpu_df = idle_df[idle_df.cpu_id == cpu]
 
-        cpu_active = cpu_df.state.apply(
-            lambda s: 1 if s == -1 else 0
-        )
-
-        start_time = self.trace.start
-
-        if cpu_active.empty:
-            cpu_active = pd.Series([0], index=[start_time])
-        elif cpu_active.index[0] != start_time:
-            entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[start_time])
-            cpu_active = pd.concat([entry_0, cpu_active])
+        if cpu_df.empty:
+            cpu_active = pd.Series([0], index=[self.trace.start])
+        else:
+            # Turn -1 into 1 and everything else into 0
+            cpu_active = cpu_df.state.map({-1: 1})
+            cpu_active.fillna(value=0, inplace=True)
 
         return cpu_active
 
@@ -142,7 +137,7 @@ class IdleAnalysis(TraceAnalysisBase):
         idle_df = self.trace.df_events('cpu_idle')
         cpu_idle = idle_df[idle_df.cpu_id == cpu]
 
-        cpu_is_idle = self.signal_cpu_active(cpu) ^ 1
+        cpu_is_idle = self.signal_cpu_active(cpu).map({1: 0, 0: 1})
 
         # In order to compute the time spent in each idle state we
         # multiply 2 square waves:
