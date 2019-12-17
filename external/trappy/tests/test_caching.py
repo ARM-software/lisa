@@ -252,7 +252,7 @@ class TestCaching(utils_tests.SetupDirectory):
         trace_dir = os.path.dirname(trace_path)
         trace_file = os.path.basename(trace_path)
         cache_dir = '.' + trace_file + '.cache'
-        number_of_trace_categories = 35
+        number_of_trace_categories = 36
         self.assertEqual(len(os.listdir(cache_dir)), number_of_trace_categories)
 
         os.remove(os.path.join(cache_dir, 'SchedWakeup.csv'))
