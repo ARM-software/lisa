@@ -546,11 +546,11 @@ class Target(object):
     def check_responsive(self, explode=True):
         try:
             self.conn.execute('ls /', timeout=5)
-            return 1
+            return True
         except (DevlibTransientError, subprocess.CalledProcessError):
             if explode:
                 raise TargetNotRespondingError('Target {} is not responding'.format(self.conn.name))
-            return 0
+            return False
 
     # process management
 

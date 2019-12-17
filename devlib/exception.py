@@ -133,7 +133,7 @@ def get_traceback(exc=None):
     if not exc:
         return None
     tb = exc[2]
-    sio = io.BytesIO()
+    sio = io.StringIO()
     traceback.print_tb(tb, file=sio)
     del tb  # needs to be done explicitly see: http://docs.python.org/2/library/sys.html#sys.exc_info
     return sio.getvalue()
