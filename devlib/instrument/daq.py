@@ -64,7 +64,7 @@ class DaqInstrument(Instrument):
             devices = self.daq_client.list_devices()
             if device_id not in devices:
                 msg = 'Device "{}" is not found on the DAQ server. Available devices are: "{}"'
-                raise ValueError(msg.format(device_id, ', '.join(result.data)))
+                raise ValueError(msg.format(device_id, ', '.join(devices)))
         except Exception as e:
             raise HostError('Problem querying DAQ server: {}'.format(e))
 
