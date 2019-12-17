@@ -467,13 +467,6 @@ class TestFTraceSched(utils_tests.SetupDirectory):
              *args,
              **kwargs)
 
-    def test_ftrace_basetime_empty(self):
-        """Test that basetime is 0 if data frame of all data objects is empty"""
-
-        trace = trappy.FTrace(normalize_time=False)
-
-        self.assertEqual(trace.basetime, 0)
-
     def test_ftrace_unique_but_no_fields(self):
         """Test with a matching unique but no special fields"""
         version_parser = trappy.register_dynamic_ftrace("Version", "version")
@@ -482,8 +475,7 @@ class TestFTraceSched(utils_tests.SetupDirectory):
         with open("trace.txt", "a") as fil:
             fil.write("version = 6")
 
-        with self.assertRaises(ValueError):
-            trappy.FTrace(scope="all")
+        trace = trappy.FTrace(scope="all")
 
         trappy.unregister_dynamic_ftrace(version_parser)
 
@@ -493,9 +485,9 @@ class TestFTraceSched(utils_tests.SetupDirectory):
         with open("trace.txt", "a") as fil:
             fil.write("     kworker/4:1-1219  [004]   508.424826: thermal_temperature:  thermal_zone=exynos-therm id=0 temp_prev=24000 temp=24000")
 
-        trace = trappy.FTrace()
+        trace = trappy.FTrace(normalize_time=True)
 
-        self.assertEqual(trace.thermal.data_frame.index[0], 0)
+        self.assertEqual(trace.thermal.data_frame.index[0], 473.527906)
 
 @unittest.skipUnless(utils_tests.trace_cmd_installed(),
                      "trace-cmd not installed")
