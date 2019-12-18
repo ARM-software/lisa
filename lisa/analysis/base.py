@@ -37,6 +37,8 @@ from matplotlib.figure import Figure
 # Avoid ambiguity between function name and usual variable name
 from cycler import cycler as make_cycler
 
+import mplcursors
+
 from ipywidgets import widgets
 from IPython.display import display
 
@@ -461,6 +463,8 @@ class AnalysisHelpers(Loggable, abc.ABC):
                             toolbar = self._make_fig_toolbar(fig)
                             self._set_fig_data(fig, 'toolbar', toolbar)
                             display(toolbar)
+
+                        mplcursors.cursor(fig)
                 else:
                     out = resolve_formatter(output)(f, args, f_kwargs, axis)
 

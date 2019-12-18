@@ -73,6 +73,7 @@ setup(
 
         "ipython",
         "ipywidgets",
+        "mplcursors",
 
         # Depdendencies that are shipped as part of the LISA repo as
         # subtree/submodule
