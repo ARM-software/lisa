@@ -19,6 +19,9 @@ Various utilities for interactive notebooks.
 """
 
 import functools
+
+import mplcursors
+import matplotlib
 from ipywidgets import widgets, Output, HBox, Layout, interact
 from IPython.display import display
 
@@ -35,6 +38,20 @@ class WrappingHBox(widgets.HBox):
             justify_content='space-around',
         )
         super().__init__(*args, layout=layout, **kwargs)
+
+
+# Make a subclass so we can integrate better with mplcursors
+class _DataframeLinkMarker(matplotlib.lines.Line2D):
+    pass
+
+
+# Tell mplcursors that we are never selecting the marker line, so that it
+# will still show the coordinates of the data that were plotted, rather
+# than useless coordinates of the marker
+@mplcursors.compute_pick.register(_DataframeLinkMarker)
+def _(artist, event):
+    return None
+
 
 def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', follow_cursor=False):
     """
@@ -78,7 +95,10 @@ def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', f
         justify_content='space-around' if len(df_list) > 1 else 'flex-start',
     )
     hbox = widgets.HBox(output_list, layout=layout)
+
     cursor_vline = axis.axvline(color=cursor_color)
+    assert type(cursor_vline) is matplotlib.lines.Line2D
+    cursor_vline.__class__ = _DataframeLinkMarker
 
     def show_loc(loc):
         cursor_vline.set_xdata(loc)
