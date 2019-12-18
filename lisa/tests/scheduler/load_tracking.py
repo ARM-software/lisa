@@ -914,7 +914,7 @@ class CPUMigrationBase(LoadTrackingBase):
     @get_trace_cpu_util.used_events
     @_plot_util.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
-    def test_util_task_migration(self, allowed_error_pct=5) -> ResultBundle:
+    def test_util_task_migration(self, allowed_error_pct=3) -> ResultBundle:
         """
         Test that a migrated task properly propagates its utilization at the CPU level
 
