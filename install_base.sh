@@ -289,10 +289,10 @@ for arg in "$@"; do
     "--install-toolchains" | "--install-all")
         apt_packages+=(build-essential gcc-arm-linux-gnueabi gcc-aarch64-linux-gnu)
         # arm-linux-gnueabihf-gcc can be installed from the AUR
-        pacman_packages+=(base-devel aarch64-linux-gnu-gcc)
+        pacman_packages+=(base-devel aarch64-linux-gnu-gcc flex)
 
         # Build dependencies of some assets
-        apt_packages+=(autopoint autoconf libtool bison)
+        apt_packages+=(autopoint autoconf libtool bison flex)
         # gettext for autopoint
         pacman_packages+=(gettext autoconf libtool bison)
 
