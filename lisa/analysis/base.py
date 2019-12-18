@@ -28,7 +28,7 @@ import warnings
 import itertools
 import weakref
 from operator import itemgetter
-from collections.abc import Sequence
+from collections.abc import Iterable
 
 import numpy
 import matplotlib
@@ -118,15 +118,15 @@ class AnalysisHelpers(Loggable, abc.ABC):
             figure = Figure(figsize=(width, height * nrows))
             axes = figure.subplots(ncols=ncols, nrows=nrows, **kwargs)
 
+        if isinstance(axes, Iterable):
+            ax_list = axes
+        else:
+            ax_list = [axes]
+
         if link_dataframes:
             if not interactive:
                 cls.get_logger().error('Dataframes can only be linked to axes in interactive widget plots')
             else:
-                if isinstance(axes, Sequence):
-                    ax_list = axes
-                else:
-                    ax_list = [axes]
-
                 for axis in ax_list:
                     axis_link_dataframes(axis, link_dataframes)
 
