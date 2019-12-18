@@ -831,16 +831,38 @@ class CPUMigrationBase(LoadTrackingBase):
 
     def get_expected_cpu_util(self):
         """
-        Get the per-phase average CPU utilization expected from the rtapp profile
+        Get the per-phase average CPU utilization expected from the duty cycle
+        of the tasks found in the trace.
 
         :returns: A dict of the shape {cpu : {phase_id : expected_util}}
+
+        .. note:: This is more robust than just looking at the duty cycle in
+            the task profile, since rtapp might not reproduce accurately the
+            duty cycle it was asked.
         """
+        cpu_capacities = self.plat_info['cpu-capacities']
         cpu_util = {}
-        for task in self.rtapp_profile.values():
-            for phase_id, phase in enumerate(task.phases):
-                cpu = phase.cpus[0]
-                cpu_util.setdefault(cpu, {}).setdefault(phase_id, 0)
-                cpu_util[cpu][phase_id] += UTIL_SCALE * (phase.duty_cycle_pct / 100)
+        for task in self.rtapp_task_ids:
+            df = self.trace.analysis.tasks.df_task_activation(task)
+            for row in self.trace.analysis.rta.df_phases(task).itertuples():
+                phase = row.phase
+                duration = row.duration
+                start = row.Index
+                end = start + duration
+                phase_df = df_window(df, (start, end), method='pre', clip_window=True)
+
+                for cpu in self.cpus:
+                    duty_cycle = phase_df[phase_df['cpu'] == cpu]['duty_cycle']
+                    duty_cycle = duty_cycle.dropna()
+                    if duty_cycle.empty:
+                        duty_cycle = 0
+                    else:
+                        duty_cycle = series_mean(duty_cycle)
+
+
+                    cpu_util.setdefault(cpu, {}).setdefault(phase, 0)
+                    phase_util = UTIL_SCALE * duty_cycle * (cpu_capacities[cpu] / UTIL_SCALE)
+                    cpu_util[cpu][phase] += phase_util
 
         return cpu_util
 
