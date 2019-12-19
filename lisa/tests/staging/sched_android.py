@@ -190,7 +190,7 @@ class SchedTuneFreqItem(SchedTuneItemBase):
         # into a real OPP
         boost = self.boost
         target_freq = min(max_freq, max_freq * boost / 80)
-        target_freq = list(filter(lambda f: f >= target_freq, freqs))[0]
+        target_freq = sorted(list(filter(lambda f: f >= target_freq, freqs)))[0]
 
         # Get the real average frequency
         avg_freq = self.trace.analysis.frequency.get_average_cpu_frequency(cpu)
