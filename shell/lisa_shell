@@ -24,7 +24,7 @@
 ################################################################################
 
 export _DOC_ANDROID_HOME="Base folder of Android SDK installation"
-export ANDROID_HOME="$LISA_HOME/tools/android-sdk-linux"
+export ANDROID_HOME=${ANDROID_HOME:-"$LISA_HOME/tools/android-sdk-linux"}
 
 export _DOC_LISA_HOME="Base directory of LISA environment"
 
