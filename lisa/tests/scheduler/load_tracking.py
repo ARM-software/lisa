@@ -866,10 +866,6 @@ class CPUMigrationBase(LoadTrackingBase):
 
         return cpu_util
 
-    @property
-    def reference_task(self):
-        return list(self.rtapp_profile.values())[0]
-
     @LoadTrackingAnalysis.df_cpus_signal.used_events
     def get_trace_cpu_util(self):
         """
@@ -922,8 +918,8 @@ class CPUMigrationBase(LoadTrackingBase):
           expected values
         :type allowed_error_pct: float
         """
-        expected_cpu_util = self.get_expected_cpu_util()
-        trace_cpu_util = self.get_trace_cpu_util()
+        expected_util = self.get_expected_cpu_util()
+        trace_util = self.get_trace_cpu_util()
 
         passed = True
 
@@ -932,27 +928,33 @@ class CPUMigrationBase(LoadTrackingBase):
         deltas = {}
 
         for cpu in self.cpus:
-            cpu_str = "cpu{}".format(cpu)
+            expected_cpu_util = expected_util[cpu]
+            trace_cpu_util = trace_util[cpu]
 
+            cpu_str = "cpu{}".format(cpu)
             expected_metrics[cpu_str] = TestMetric({})
             trace_metrics[cpu_str] = TestMetric({})
             deltas[cpu_str] = TestMetric({})
 
-            for i, phase in enumerate(self.reference_task.phases):
-                expected_util = expected_cpu_util[cpu][i]
-                trace_util = trace_cpu_util[cpu][i]
+            for phase in sorted(trace_cpu_util.keys() & expected_cpu_util.keys()):
+                # TODO: remove that once we have named phases to skip the buffer phase
+                if phase == 0:
+                    continue
+
+                expected_phase_util = expected_cpu_util[phase]
+                trace_phase_util = trace_cpu_util[phase]
                 if not self.is_almost_equal(
-                        expected_util,
-                        trace_util,
+                        expected_phase_util,
+                        trace_phase_util,
                         allowed_error_pct):
                     passed = False
 
                 # Just some verbose metric collection...
-                phase_str = "phase{}".format(i)
-                delta = 100 * (trace_util - expected_util) / expected_util
+                phase_str = "phase{}".format(phase)
+                delta = 100 * (trace_phase_util - expected_phase_util) / expected_phase_util
 
-                expected_metrics[cpu_str].data[phase_str] = TestMetric(expected_util)
-                trace_metrics[cpu_str].data[phase_str] = TestMetric(trace_util)
+                expected_metrics[cpu_str].data[phase_str] = TestMetric(expected_phase_util)
+                trace_metrics[cpu_str].data[phase_str] = TestMetric(trace_phase_util)
                 deltas[cpu_str].data[phase_str] = TestMetric(delta, "%")
 
         res = ResultBundle.from_bool(passed)
