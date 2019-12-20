@@ -20,9 +20,9 @@
 # Script run by Travis. It is mostly a workaround for Travis inability to
 # correctly handle environment variable set in sourced scripts.
 
-commit_whitelist='496b859d1'
+commit_whitelist='496b859d1a64e5195500aa52040abafb241657ab'
 illegal_location="external/"
-illegal_commits=$(find "$illegal_location" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 git log --no-merges --oneline | grep -v "$commit_whitelist")
+illegal_commits=$(find "$illegal_location" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 git log --no-merges --format='%H %s' | grep -v "$commit_whitelist")
 
 if [[ -n "$illegal_commits" ]]; then
     echo -e "The following commits are touching $illegal_location, which is not allowed apart from updates:\n$illegal_commits"
