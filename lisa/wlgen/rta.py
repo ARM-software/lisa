@@ -341,7 +341,7 @@ class RTA(Workload):
                 phase_name = 'phase_{:0>6}'.format(pid)
 
                 logger.info(' + {}'.format(phase_name))
-                rta_profile['tasks'][tid]['phases'][phase_name] = phase.get_rtapp_repr(tid)
+                rta_profile['tasks'][tid]['phases'][phase_name] = phase.get_rtapp_repr(tid, plat_info=target.plat_info)
 
         # Generate JSON configuration on local file
         with open(self.local_json, 'w') as outfile:
@@ -693,7 +693,9 @@ class Phase(Loggable):
     :type duty_cycle_pct: numbers.Number
 
     :param cpus: the CPUs on which task execution is restricted during this phase.
-    :type cpus: list(int)
+        If unspecified, that phase will be allowed to run on any CPU,
+        regardless of the affinity of the previous phases.
+    :type cpus: list(int) or None.
 
     :param barrier_after: if provided, the name of the barrier to sync against
                           when reaching the end of this phase. Currently only
@@ -715,12 +717,16 @@ class Phase(Loggable):
         self.uclamp_min = uclamp_min
         self.uclamp_max = uclamp_max
 
-    def get_rtapp_repr(self, task_name):
+    def get_rtapp_repr(self, task_name, plat_info):
         """
         Get a dictionnary representation of the phase as expected by rt-app
 
         :param task_name: Name of the phase's task (needed for timers)
         :type task_name: str
+
+        :param plat_info: Platform info of the target that is going to be used
+            to run the phase.
+        :type plat_info: lisa.platforms.platinfo.PlatformInfo
 
         :returns: OrderedDict
         """
@@ -770,8 +776,12 @@ class Phase(Loggable):
             phase['run'] = running_time
             phase['timer'] = {'ref': task_name, 'period': period}
 
-        if self.cpus is not None:
-            phase['cpus'] = self.cpus
+        # Set the affinity to all CPUs in the system, i.e. do not set any affinity
+        if self.cpus is None:
+            cpus = list(range(plat_info['cpus-count']))
+        else:
+            cpus = self.cpus
+        phase['cpus'] = self.cpus
 
         if self.uclamp_min is not None:
             phase['util_min'] = self.uclamp_min
@@ -852,10 +862,7 @@ class Ramp(RTATask):
     :param sched_policy: the scheduler policy for this task.
     :type sched_policy: str or None
 
-    :param cpus: the list of CPUs on which task can run.
-
-        .. note:: if not specified, it can run on all CPUs
-    :type cpus: list(int)
+    :param cpus: See ``cpus`` parameter of :class:`Phase`.
     """
 
     def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
