@@ -1434,18 +1434,23 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                         for event in ftrace_coll.events
                         if event.startswith("rtapp_")]
 
-        # Forcefully add a buffer phase, since there is no way to convey the
-        # fact that it was added or not to the trace_window() method
         def add_buffer(task):
-            init_duty_cycle = task.phases[0].duty_cycle_pct
+            template_phase = task.phases[0]
             buffer_task = Periodic(
-                duty_cycle_pct=init_duty_cycle,
                 # TODO: compute accurately the convergence time of the
                 # signal used for placement by the scheduler
                 duration_s=cls._BUFFER_PHASE_DURATION_S,
                 # Use a small period to allow the util_avg to be very close
                 # to duty_cycle
                 period_ms=2,
+
+                # Mirror the duty cycle of the next phase so that task util
+                # will converge
+                duty_cycle_pct=template_phase.duty_cycle_pct,
+                # Pin to the same CPUs if any, so that we also let the runqueue
+                # signals converge and things like that, if it's going to
+                # matter later.
+                cpus=template_phase.cpus,
             )
             # Prepend the buffer task
             return buffer_task + task
