@@ -74,8 +74,7 @@ def df_split_signals(df, signal_cols, align_start=False):
     :type refit_index: bool
     """
 
-    grouped = df.groupby(signal_cols)
-    for group, index in grouped.groups.items():
+    for group, signal in df.groupby(signal_cols):
         # When only one column is looked at, the group is the value instead of
         # a tuple of values
         if len(signal_cols) < 2:
@@ -83,7 +82,6 @@ def df_split_signals(df, signal_cols, align_start=False):
         else:
             cols_val = dict(zip(signal_cols, group))
 
-        signal = grouped.get_group(group)
         if align_start:
             signal = df_refit_index(signal, start=df.index[0], method='inclusive')
         yield (cols_val, signal)
