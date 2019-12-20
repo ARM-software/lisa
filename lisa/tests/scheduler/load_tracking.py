@@ -148,9 +148,14 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
     def is_almost_equal(target, value, allowed_delta_pct):
         """
         Verify that ``value``` is reasonably close to ``target```
+
+        :returns: A tuple (bool, delta_pct)
         """
-        delta = target * allowed_delta_pct / 100
-        return target - delta <= value <= target + delta
+        delta = value - target
+        delta_pct = delta / target * 100
+        equal = abs(delta_pct) <= allowed_delta_pct
+
+        return (equal, delta_pct)
 
 
 class InvarianceItem(LoadTrackingBase, ExekallTaggable):
@@ -943,16 +948,16 @@ class CPUMigrationBase(LoadTrackingBase):
 
                 expected_phase_util = expected_cpu_util[phase]
                 trace_phase_util = trace_cpu_util[phase]
-                if not self.is_almost_equal(
+                is_equal, delta = self.is_almost_equal(
                         expected_phase_util,
                         trace_phase_util,
-                        allowed_error_pct):
+                        allowed_error_pct)
+
+                if not is_equal:
                     passed = False
 
                 # Just some verbose metric collection...
                 phase_str = "phase{}".format(phase)
-                delta = 100 * (trace_phase_util - expected_phase_util) / expected_phase_util
-
                 expected_metrics[cpu_str].data[phase_str] = TestMetric(expected_phase_util)
                 trace_metrics[cpu_str].data[phase_str] = TestMetric(trace_phase_util)
                 deltas[cpu_str].data[phase_str] = TestMetric(delta, "%")
