@@ -172,21 +172,6 @@ class RampBoostTestBase(RTATestBundle):
         analysis.save_plot(fig, filepath=os.path.join(self.res_dir, 'ramp_boost.svg'))
         return axis
 
-    @RTAEventsAnalysis.df_rtapp_phase_end.used_events
-    def trace_window(self, trace):
-        """
-        Skip the first phase in the trace, since it is heavily influenced by
-        what was immediately preceding it.
-        """
-        start, end = super().trace_window(trace)
-
-        df = trace.analysis.rta.df_rtapp_loop()
-        df = df_filter_task_ids(df, self.rtapp_task_ids, pid_col='__pid', comm_col='__comm')
-        df = df[(df['phase'] == 0) & (df['event'] == 'end')]
-        first_phase_end = df.index[0]
-
-        return (first_phase_end, end)
-
     @RTAEventsAnalysis.plot_slack_histogram.used_events
     @RTAEventsAnalysis.plot_perf_index_histogram.used_events
     @RTAEventsAnalysis.plot_latency.used_events
