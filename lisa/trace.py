@@ -1606,7 +1606,50 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
         )
 
 
-class FtraceCollector(Loggable, Configurable):
+class CollectorBase(Loggable):
+    """
+    Base class for :class:`devlib.collector.CollectorBase`-based collectors
+    using composition.
+    """
+
+    TOOLS = []
+    """
+    Sequence of tools to install on the target when using the collector.
+    """
+
+    def __init__(self, target, collector):
+        self._collector = collector
+        if self.TOOLS:
+            self.target.install_tools(self.TOOLS)
+
+    def __getattr__(self, attr):
+        return getattr(self._collector, attr)
+
+    def __enter__(self):
+        return self._collector.__enter__()
+
+    def __exit__(self, *args, **kwargs):
+        return self._collector.__exit__(*args, **kwargs)
+
+    def get_data(self, path):
+        """
+        Similar to :meth:`devlib.collector.CollectorBase.get_data` but takes
+        the path directly as a parameter in order to disallow representing an
+        invalid state where no path has been set.
+        """
+        coll = self._collector
+        coll.set_output(path)
+        return coll.get_data()
+
+    @deprecate(replaced_by='lisa.trace.CollectorBase.get_data', deprecated_in='2.0', removed_in='2.1')
+    def get_trace(self, path):
+        """
+        Deprecated alias for :meth:`get_data`.
+        """
+        return self.get_data(path)
+
+
+class FtraceCollector(CollectorBase, Configurable):
     """
     Thin wrapper around :class:`devlib.FtraceCollector`.
 
@@ -1614,6 +1657,7 @@ class FtraceCollector(Loggable, Configurable):
     """
 
     CONF_CLASS = FtraceConf
+    TOOLS = ['trace-cmd']
 
     def __init__(self, target, events=None, functions=None, buffer_size=10240, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, **kwargs):
         events = events or []
@@ -1646,19 +1690,8 @@ class FtraceCollector(Loggable, Configurable):
             tracer=tracer,
         )
 
-        self._collector = devlib.FtraceCollector(**kwargs)
-
-        # Ensure we have trace-cmd on the target
-        self.target.install_tools(['trace-cmd'])
-
-    def __getattr__(self, attr):
-        return getattr(self._collector, attr)
-
-    def __enter__(self):
-        return self._collector.__enter__()
-
-    def __exit__(self, *args, **kwargs):
-        return self._collector.__exit__(*args, **kwargs)
+        collector = devlib.FtraceCollector(**kwargs)
+        super().__init__(target, collector)
 
     def _is_kernel_event(self, event):
         """
@@ -1734,17 +1767,18 @@ class FtraceCollector(Loggable, Configurable):
         return cls.from_conf(target, conf)
 
 
-class DmesgCollector(devlib.DmesgCollector):
+class DmesgCollector(CollectorBase):
     """
-    Wrapper around :class:`devlib.trace.dmesg.DmesgCollector`.
+    Wrapper around :class:`devlib.collector.dmesg.DmesgCollector`.
 
     It installs the ``dmesg`` tool automatically on the target upon creation,
     so we know what version is being is used.
     """
 
-    def __init__(self, target, *args, **kwargs):
-        # Make sure we use the binary that is known to work
-        target.install_tools(['dmesg'])
-        super().__init__(target, *args, **kwargs)
+    TOOLS = ['dmesg']
+
+    def __init__(self, target, **kwargs):
+        collector = devlib.DmesgCollector(target, **kwargs)
+        super().__init__(target, collector)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

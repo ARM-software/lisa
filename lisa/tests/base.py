@@ -33,7 +33,7 @@ from collections import OrderedDict, ChainMap
 from collections.abc import Mapping
 from inspect import signature
 
-from devlib.trace.dmesg import KernelLogEntry
+from devlib.collector.dmesg import KernelLogEntry
 from devlib import TargetStableError
 
 from lisa.analysis.tasks import TasksAnalysis
@@ -963,7 +963,7 @@ class DmesgTestBundle(TestBundle):
     def dmesg_entries(self):
         """
         List of parsed dmesg output entries
-        :class:`devlib.trace.dmesg.KernelLogEntry`.
+        :class:`devlib.collector.dmesg.KernelLogEntry`.
         """
         with open(self.dmesg_path) as f:
             return list(KernelLogEntry.from_dmesg_output(f.read()))
