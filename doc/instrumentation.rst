@@ -1,3 +1,5 @@
+.. _instrumentation:
+
 Instrumentation
 ===============
 

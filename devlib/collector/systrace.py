@@ -19,8 +19,9 @@ import subprocess
 from shutil import copyfile
 from tempfile import NamedTemporaryFile
 
+from devlib.collector import (CollectorBase, CollectorOutput,
+                              CollectorOutputEntry)
 from devlib.exception import TargetStableError, HostError
-from devlib.trace import TraceCollector
 import devlib.utils.android
 from devlib.utils.misc import memoized
 
@@ -33,7 +34,7 @@ DEFAULT_CATEGORIES = [
     'idle'
 ]
 
-class SystraceCollector(TraceCollector):
+class SystraceCollector(CollectorBase):
     """
     A trace collector based on Systrace
 
@@ -74,9 +75,10 @@ class SystraceCollector(TraceCollector):
 
         self.categories = categories or DEFAULT_CATEGORIES
         self.buffer_size = buffer_size
+        self.output_path = None
 
         self._systrace_process = None
-        self._tmpfile = None
+        self._outfile_fh = None
 
         # Try to find a systrace binary
         self.systrace_binary = None
@@ -104,12 +106,12 @@ class SystraceCollector(TraceCollector):
         self.reset()
 
     def _build_cmd(self):
-        self._tmpfile = NamedTemporaryFile()
+        self._outfile_fh = open(self.output_path, 'w')
 
         # pylint: disable=attribute-defined-outside-init
         self.systrace_cmd = 'python2 -u {} -o {} -e {}'.format(
             self.systrace_binary,
-            self._tmpfile.name,
+            self._outfile_fh.name,
             self.target.adb_name
         )
 
@@ -122,13 +124,11 @@ class SystraceCollector(TraceCollector):
         if self._systrace_process:
             self.stop()
 
-        if self._tmpfile:
-            self._tmpfile.close()
-            self._tmpfile = None
-
     def start(self):
         if self._systrace_process:
             raise RuntimeError("Tracing is already underway, call stop() first")
+        if self.output_path is None:
+            raise RuntimeError("Output path was not set.")
 
         self.reset()
 
@@ -151,11 +151,16 @@ class SystraceCollector(TraceCollector):
         self._systrace_process.communicate('\n')
         self._systrace_process = None
 
-    def get_trace(self, outfile):
+        if self._outfile_fh:
+            self._outfile_fh.close()
+            self._outfile_fh = None
+
+    def set_output(self, output_path):
+        self.output_path = output_path
+
+    def get_data(self):
         if self._systrace_process:
             raise RuntimeError("Tracing is underway, call stop() first")
-
-        if not self._tmpfile:
-            raise RuntimeError("No tracing data available")
-
-        copyfile(self._tmpfile.name, outfile)
+        if self.output_path is None:
+            raise RuntimeError("No data collected.")
+        return CollectorOutput([CollectorOutputEntry(self.output_path, 'file')])

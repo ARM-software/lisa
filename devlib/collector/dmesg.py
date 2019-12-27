@@ -18,7 +18,8 @@ import re
 from itertools import takewhile
 from datetime import timedelta
 
-from devlib.trace import TraceCollector
+from devlib.collector import (CollectorBase, CollectorOutput,
+                              CollectorOutputEntry)
 
 
 class KernelLogEntry(object):
@@ -121,7 +122,7 @@ class KernelLogEntry(object):
         )
 
 
-class DmesgCollector(TraceCollector):
+class DmesgCollector(CollectorBase):
     """
     Dmesg output collector.
 
@@ -151,6 +152,7 @@ class DmesgCollector(TraceCollector):
 
     def __init__(self, target, level=LOG_LEVELS[-1], facility='kern'):
         super(DmesgCollector, self).__init__(target)
+        self.output_path = None
 
         if level not in self.LOG_LEVELS:
             raise ValueError('level needs to be one of: {}'.format(
@@ -195,6 +197,12 @@ class DmesgCollector(TraceCollector):
 
         self.dmesg_out = self.target.execute(cmd)
 
-    def get_trace(self, outfile):
-        with open(outfile, 'wt') as f:
+    def set_output(self, output_path):
+        self.output_path = output_path
+
+    def get_data(self):
+        if self.output_path is None:
+            raise RuntimeError("Output path was not set.")
+        with open(self.output_path, 'wt') as f:
             f.write(self.dmesg_out + '\n')
+        return CollectorOutput([CollectorOutputEntry(self.output_path, 'file')])

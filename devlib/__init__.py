@@ -45,10 +45,11 @@ from devlib.derived import DerivedMeasurements, DerivedMetric
 from devlib.derived.energy import DerivedEnergyMeasurements
 from devlib.derived.fps import DerivedGfxInfoStats, DerivedSurfaceFlingerStats
 
-from devlib.trace.ftrace import FtraceCollector
-from devlib.trace.perf import PerfCollector
-from devlib.trace.serial_trace import SerialTraceCollector
-from devlib.trace.dmesg import DmesgCollector
+from devlib.collector.ftrace import FtraceCollector
+from devlib.collector.perf import PerfCollector
+from devlib.collector.serial_trace import SerialTraceCollector
+from devlib.collector.dmesg import DmesgCollector
+from devlib.collector.logcat import LogcatCollector
 
 from devlib.host import LocalConnection
 from devlib.utils.android import AdbConnection
