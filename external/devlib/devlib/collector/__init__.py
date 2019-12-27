@@ -15,12 +15,14 @@
 
 import logging
 
+from devlib.utils.types import caseless_string
 
-class TraceCollector(object):
+class CollectorBase(object):
 
     def __init__(self, target):
         self.target = target
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.output_path = None
 
     def reset(self):
         pass
@@ -31,6 +33,12 @@ class TraceCollector(object):
     def stop(self):
         pass
 
+    def set_output(self, output_path):
+        self.output_path = output_path
+
+    def get_data(self):
+        return CollectorOutput()
+
     def __enter__(self):
         self.reset()
         self.start()
@@ -39,5 +47,29 @@ class TraceCollector(object):
     def __exit__(self, exc_type, exc_value, traceback):
         self.stop()
 
-    def get_trace(self, outfile):
-        pass
+class CollectorOutputEntry(object):
+
+    path_kinds = ['file', 'directory']
+
+    def __init__(self, path, path_kind):
+        self.path = path
+
+        path_kind = caseless_string(path_kind)
+        if path_kind not in self.path_kinds:
+            msg = '{} is not a valid path_kind [{}]'
+            raise ValueError(msg.format(path_kind, ' '.join(self.path_kinds)))
+        self.path_kind = path_kind
+
+    def __str__(self):
+        return self.path
+
+    def __repr__(self):
+        return '<{} ({})>'.format(self.path, self.path_kind)
+
+    def __fspath__(self):
+        """Allow using with os.path operations"""
+        return self.path
+
+
+class CollectorOutput(list):
+    pass

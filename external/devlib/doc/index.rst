@@ -19,6 +19,7 @@ Contents:
    target
    modules
    instrumentation
+   collectors
    derived_measurements
    platform
    connection

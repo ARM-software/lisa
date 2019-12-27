@@ -19,13 +19,14 @@ import sys
 import threading
 import time
 
-from devlib.trace import TraceCollector
+from devlib.collector import (CollectorBase, CollectorOutput,
+                              CollectorOutputEntry)
 from devlib.exception import WorkerThreadError
 
 
 class ScreenCapturePoller(threading.Thread):
 
-    def __init__(self, target, period, output_path=None, timeout=30):
+    def __init__(self, target, period, timeout=30):
         super(ScreenCapturePoller, self).__init__()
         self.target = target
         self.logger = logging.getLogger('screencapture')
@@ -36,11 +37,16 @@ class ScreenCapturePoller(threading.Thread):
         self.last_poll = 0
         self.daemon = True
         self.exc = None
+        self.output_path = None
+
+    def set_output(self, output_path):
         self.output_path = output_path
 
     def run(self):
         self.logger.debug('Starting screen capture polling')
         try:
+            if self.output_path is None:
+                raise RuntimeError("Output path was not set.")
             while True:
                 if self.stop_signal.is_set():
                     break
@@ -66,24 +72,33 @@ class ScreenCapturePoller(threading.Thread):
         self.target.capture_screen(os.path.join(self.output_path, "screencap_{ts}.png"))
 
 
-class ScreenCaptureCollector(TraceCollector):
+class ScreenCaptureCollector(CollectorBase):
 
-    def __init__(self, target, output_path=None, period=None):
+    def __init__(self, target, period=None):
         super(ScreenCaptureCollector, self).__init__(target)
         self._collecting = False
-        self.output_path = output_path
+        self.output_path = None
         self.period = period
         self.target = target
-        self._poller = ScreenCapturePoller(self.target, self.period,
-                                           self.output_path)
+
+    def set_output(self, output_path):
+        self.output_path = output_path
 
     def reset(self):
-        pass
+        self._poller = ScreenCapturePoller(self.target, self.period)
+
+    def get_data(self):
+        if self.output_path is None:
+            raise RuntimeError("No data collected.")
+        return CollectorOutput([CollectorOutputEntry(self.output_path, 'directory')])
 
     def start(self):
         """
         Start collecting the screenshots
         """
+        if self.output_path is None:
+            raise RuntimeError("Output path was not set.")
+        self._poller.set_output(self.output_path)
         self._poller.start()
         self._collecting = True
 

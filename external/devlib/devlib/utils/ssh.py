@@ -299,6 +299,12 @@ class SshConnection(object):
                 return True
         return False
 
+    def wait_for_device(self, timeout=30):
+        return
+
+    def reboot_bootloader(self, timeout=30):
+        raise NotImplementedError()
+
     def _execute_and_wait_for_prompt(self, command, timeout=None, as_root=False, strip_colors=True, log=True):
         self.conn.prompt(0.1)  # clear an existing prompt if there is one.
         if as_root and self.connected_as_root:
@@ -633,6 +639,19 @@ class Gem5Connection(TelnetConnection):
 
         # Delete the lock file
         os.remove(self.lock_file_name)
+
+    def wait_for_device(self, timeout=30):
+        """
+        Wait for Gem5 to be ready for interation with a timeout.
+        """
+        for _ in attempts(timeout):
+            if self.ready:
+                return
+            time.sleep(1)
+        raise TimeoutError('Gem5 is not ready for interaction')
+
+    def reboot_bootloader(self, timeout=30):
+        raise NotImplementedError()
 
     # Functions only to be called by the Gem5 connection itself
     def _connect_gem5_platform(self, platform):
