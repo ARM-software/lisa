@@ -238,8 +238,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         // Create a selector so that we can search for siblings of the desired
         // book that contains a "free" or "purchased" book identifier
         UiObject label =
-            mDevice.findObject(new UiSelector().fromParent(new UiSelector()
-                                               .description(String.format("Book: " + bookTitle))
+            mDevice.findObject(new UiSelector().description(String.format("Book: " + bookTitle))
                                                .className("android.widget.TextView"))
                                                .resourceId("com.android.vending:id/li_label")
                                                .descriptionMatches("^(Purchased|Free)$"));

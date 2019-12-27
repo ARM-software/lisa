@@ -47,35 +47,36 @@ class SerialMon(Instrument):
     def __init__(self, target, **kwargs):
         super(SerialMon, self).__init__(target, **kwargs)
         self._collector = SerialTraceCollector(target, self.serial_port, self.baudrate)
-        self._collector.reset()
 
-    def start_logging(self, context):
+    def start_logging(self, context, filename="serial.log"):
+        outpath = os.path.join(context.output_directory, filename)
+        self._collector.set_output(outpath)
+        self._collector.reset()
         self.logger.debug("Acquiring serial port ({})".format(self.serial_port))
         if self._collector.collecting:
             self.stop_logging(context)
         self._collector.start()
 
-    def stop_logging(self, context, filename="serial.log", identifier="job"):
+    def stop_logging(self, context, identifier="job"):
         self.logger.debug("Releasing serial port ({})".format(self.serial_port))
         if self._collector.collecting:
             self._collector.stop()
-
-            outpath = os.path.join(context.output_directory, filename)
-            self._collector.get_trace(outpath)
-            context.add_artifact("{}_serial_log".format(identifier),
-                                 outpath, kind="log")
+            data = self._collector.get_data()
+            for l in data:
+                context.add_artifact("{}_serial_log".format(identifier),
+                                     l.path, kind="log")
 
     def on_run_start(self, context):
-        self.start_logging(context)
+        self.start_logging(context, "preamble_serial.log")
 
     def before_job_queue_execution(self, context):
-        self.stop_logging(context, "preamble_serial.log", "preamble")
+        self.stop_logging(context, "preamble")
 
     def after_job_queue_execution(self, context):
-        self.start_logging(context)
+        self.start_logging(context, "postamble_serial.log")
 
     def on_run_end(self, context):
-        self.stop_logging(context, "postamble_serial.log", "postamble")
+        self.stop_logging(context, "postamble")
 
     def on_job_start(self, context):
         self.start_logging(context)

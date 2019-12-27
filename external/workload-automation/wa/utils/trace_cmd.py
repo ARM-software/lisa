@@ -17,7 +17,7 @@ import re
 import logging
 from itertools import chain
 
-from devlib.trace.ftrace import TRACE_MARKER_START, TRACE_MARKER_STOP
+from devlib.collector.ftrace import TRACE_MARKER_START, TRACE_MARKER_STOP
 
 from wa.utils.misc import isiterable
 from wa.utils.types import numeric

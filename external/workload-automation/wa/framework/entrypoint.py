@@ -72,9 +72,11 @@ def split_joined_options(argv):
 
 # Instead of presenting an obscure error due to a version mismatch explicitly warn the user.
 def check_devlib_version():
-    if not installed_devlib_version or installed_devlib_version < required_devlib_version:
-        msg = 'WA requires Devlib version >={}. Please update the currently installed version {}'
-        raise HostError(msg.format(format_version(required_devlib_version), devlib.__version__))
+    if not installed_devlib_version or installed_devlib_version[:-1] <= required_devlib_version[:-1]:
+        # Check the 'dev' field separately to account for comparing with release versions.
+        if installed_devlib_version.dev and installed_devlib_version.dev < required_devlib_version.dev:
+            msg = 'WA requires Devlib version >={}. Please update the currently installed version {}'
+            raise HostError(msg.format(format_version(required_devlib_version), devlib.__version__))
 
 
 # If the default encoding is not UTF-8 warn the user as this may cause compatibility issues

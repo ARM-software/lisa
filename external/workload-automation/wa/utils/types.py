@@ -782,11 +782,8 @@ class ParameterDict(dict):
 
     def update(self, *args, **kwargs):
         for d in list(args) + [kwargs]:
-            if isinstance(d, ParameterDict):
-                dict.update(self, d)
-            else:
-                for k, v in d.items():
-                    self[k] = v
+            for k, v in d:
+                self[k] = v
 
 
 class cpu_mask(object):
