@@ -2,6 +2,68 @@
 What's New in Workload Automation
 =================================
 
+***********
+Version 3.2
+***********
+
+.. warning:: This release only supports Python 3.5+. Python 2 support has now
+             been dropped.
+
+Fixes/Improvements
+==================
+
+Framework:
+----------
+    - ``TargetInfo`` now tracks installed modules and will ensure the cache is
+      also updated on module change.
+    - Migrated the build scripts for uiauto based workloads to Python 3.
+    - Uiauto applications now target SDK version 28 to prevent PlayProtect
+      blocking the installation of the automation apks on some devices.
+    - The workload metadata now includes the apk package name if applicable.
+
+Instruments:
+------------
+    - ``energy_instruments`` will now have their ``teardown`` method called
+      correctly.
+    - ``energy_instruments``: Added a ``keep_raw`` parameter to control whether
+      raw files generated during execution should be deleted upon teardown.
+    - Update relevant instruments to make use of the new devlib collector
+      interface, for more information please see the
+      `devlib documentation <https://devlib.readthedocs.io/en/latest/collectors.html>`_.
+
+Output Processors:
+------------------
+    - ``postgres``: If initialisation fails then the output processor will no
+      longer attempt to reconnect at a later point during the run.
+    - ``postgres``: Will now ensure that the connection to the database is
+      re-established if it is dropped e.g. due to a long expecting workload.
+    - ``postgres``: Change the type of the ``hostid`` field to ``Bigint`` to
+      allow a larger range of ids.
+    - ``postgres``: Bump schema version to 1.5.
+    - ``perf``: Added support for the ``simpleperf`` profiling tool for android
+      devices.
+    - ``perf``: Added support for the perf ``record`` command.
+    - ``cpustates``: Improve handling of situations where cpufreq and/or cpuinfo
+      data is unavailable.
+
+Workloads:
+----------
+    - ``adodereader``: Now support apk version 19.7.1.10709.
+    - ``antutu``: Supports dismissing of popup asking to create a shortcut on
+      the homescreen.
+    - ``gmail``: Now supports apk version 2019.05.26.252424914.
+    - ``googlemaps``: Now supports apk version 10.19.1.
+    - ``googlephotos``: Now supports apk version 4.28.0.
+    - ``geekbench``: Added support for versions 4.3.4, 4.4.0 and 4.4.2.
+    - ``geekbench-corporate``: Added support for versions 5.0.1 and 5.0.3.
+    - ``pcmark``: Now locks device orientation to portrait to increase
+      compatibility.
+    - ``pcmark``: Supports dismissing new Android 10 permission warnings.
+
+Other:
+------
+    - Improve documentation to help debugging module installation errors.
+
 *************
 Version 3.1.4
 *************
@@ -74,7 +136,7 @@ Other:
     - Changed shorthand of installing all of WA extras to `all` as per
       the documentation.
     - Upgraded the Dockerfile to use Ubuntu 18.10 and Python 3.
-    - Restricted maxium versions of ``numpy`` and ``pandas`` for Python 2.7.
+    - Restricted maximum versions of ``numpy`` and ``pandas`` for Python 2.7.
 
 
 *************
