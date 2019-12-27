@@ -118,7 +118,7 @@ class UserspaceSanity(DmesgTestBundle):
                     )
                     sanity_items.append(item)
 
-        dmesg_coll.get_trace(dmesg_path)
+        dmesg_coll.get_data(dmesg_path)
         return cls(res_dir, plat_info, sanity_items)
 
     def test_performance_sanity(self) -> ResultBundle:

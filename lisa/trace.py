@@ -464,7 +464,7 @@ class Trace(Loggable, TraceBase):
             cm = cm_func()
 
         with cm as path:
-            ftrace_coll.get_trace(path)
+            ftrace_coll.get_data(path)
             trace = cls(
                 path,
                 events=events,

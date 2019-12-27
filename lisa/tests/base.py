@@ -1473,8 +1473,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         with target.freeze_userspace(), wload_cm, dmesg_coll, ftrace_coll:
             wload.run(cgroup=cgroup, as_root=as_root, update_cpu_capacities=update_cpu_capacities)
 
-        ftrace_coll.get_trace(trace_path)
-        dmesg_coll.get_trace(dmesg_path)
+        ftrace_coll.get_data(trace_path)
+        dmesg_coll.get_data(dmesg_path)
         return trace_path
 
     # Keep compat with existing code
