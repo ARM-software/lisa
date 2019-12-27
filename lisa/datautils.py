@@ -27,7 +27,7 @@ import scipy.signal
 from lisa.utils import TASK_COMM_MAX_LEN
 
 
-def series_refit_index(series, start=None, end=None, method='pre'):
+def series_refit_index(series, start=None, end=None, method='inclusive'):
     """
     Slice a series using :func:`series_window` and ensure we have a value at
     exactly the specified boundaries.
@@ -51,7 +51,7 @@ def series_refit_index(series, start=None, end=None, method='pre'):
     return _data_refit_index(series, start, end, method=method)
 
 
-def df_refit_index(df, start=None, end=None, method='pre'):
+def df_refit_index(df, start=None, end=None, method='inclusive'):
     """
     Same as :func:`series_refit_index` but acting on :class:`pandas.DataFrame`
     """

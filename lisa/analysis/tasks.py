@@ -23,7 +23,7 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.datautils import df_filter_task_ids, series_rolling_apply, df_deduplicate
+from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate
 from lisa.trace import requires_events
 from lisa.pelt import PELT_SCALE
 
@@ -575,16 +575,18 @@ class TasksAnalysis(TraceAnalysisBase):
         if "freq-domains" in self.trace.plat_info:
             # If we are aware of frequency domains, use one color per domain
             for domain in self.trace.plat_info["freq-domains"]:
-                df = sw_df[sw_df["__cpu"].isin(domain)]["__cpu"]
+                series = sw_df[sw_df["__cpu"].isin(domain)]["__cpu"]
+                series = series_refit_index(series, self.trace.start, self.trace.end)
 
-                if df.empty:
+                if series.empty:
                     # Cycle the colours to stay consistent
                     self.cycle_colors(axis, 1)
                 else:
-                    df.plot(ax=axis, style='+',
+                    series.plot(ax=axis, style='+',
                             label="Task running in domain {}".format(domain))
         else:
-            sw_df["__cpu"].plot(ax=axis, style='+')
+            series = series_refit_index(sw_df['__cpu'], self.trace.start, self.trace.end)
+            series.plot(ax=axis, style='+')
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
         if self.trace.has_events(plot_overutilized.used_events):
@@ -597,7 +599,6 @@ class TasksAnalysis(TraceAnalysisBase):
         axis.set_ylabel('CPUs')
         axis.grid(True)
         axis.legend()
-        axis.set_xlim(self.trace.start, self.trace.end)
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_task_total_residency.used_events
@@ -658,7 +659,6 @@ class TasksAnalysis(TraceAnalysisBase):
 
         _, _, _, img = axis.hist2d(x, y, bins=[xbins, nr_cpus])
         fig.colorbar(img, label=colorbar_label)
-
         return fig, axis
 
     @TraceAnalysisBase.plot_method()
@@ -688,14 +688,13 @@ class TasksAnalysis(TraceAnalysisBase):
                                       lambda x: x.count() / (window if per_sec else 1),
                                       window, window_float_index=False, center=True)
 
+        series = series_refit_index(series, self.trace.start, self.trace.end)
         series.plot(ax=axis, legend=False)
 
         if per_sec:
             axis.set_title("Number of task wakeups per second ({}s windows)".format(window))
         else:
             axis.set_title("Number of task wakeups within {}s windows".format(window))
-
-        axis.set_xlim(self.trace.start, self.trace.end)
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup")
@@ -714,6 +713,7 @@ class TasksAnalysis(TraceAnalysisBase):
         """
 
         df = self.trace.df_events("sched_wakeup")
+        df = df_refit_index(df, self.trace.start, self.trace.end)
 
         fig, axis = self._plot_cpu_heatmap(
             df.index, df.target_cpu, xbins, "Number of wakeups",
@@ -722,8 +722,6 @@ class TasksAnalysis(TraceAnalysisBase):
         )
 
         axis.set_title("Tasks wakeups over time")
-        axis.set_xlim(self.trace.start, self.trace.end)
-
         return axis
 
     @TraceAnalysisBase.plot_method()
@@ -753,14 +751,13 @@ class TasksAnalysis(TraceAnalysisBase):
                                       lambda x: x.count() / (window if per_sec else 1),
                                       window, window_float_index=False, center=True)
 
+        series = series_refit_index(series, self.trace.start, self.trace.end)
         series.plot(ax=axis, legend=False)
 
         if per_sec:
             axis.set_title("Number of task forks per second ({}s windows)".format(window))
         else:
             axis.set_title("Number of task forks within {}s windows".format(window))
-
-        axis.set_xlim(self.trace.start, self.trace.end)
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup_new")
@@ -777,6 +774,7 @@ class TasksAnalysis(TraceAnalysisBase):
         """
 
         df = self.trace.df_events("sched_wakeup_new")
+        df = df_refit_index(df, self.trace.start, self.trace.end)
 
         fig, axis = self._plot_cpu_heatmap(
             df.index, df.target_cpu, xbins, "Number of forks",
@@ -785,8 +783,6 @@ class TasksAnalysis(TraceAnalysisBase):
         )
 
         axis.set_title("Tasks forks over time")
-        axis.set_xlim(self.trace.start, self.trace.end)
-
         return axis
 
     @TraceAnalysisBase.plot_method()
