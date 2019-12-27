@@ -29,7 +29,7 @@ import numpy as np
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.trace import requires_events
-from lisa.datautils import series_integrate, df_refit_index, series_deduplicate
+from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate
 
 
 class FrequencyAnalysis(TraceAnalysisBase):
@@ -304,6 +304,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
             # Plot frequency information (effective rate)
             eff_rate = freq['effective_rate'].dropna()
+            eff_rate = series_refit_index(eff_rate, start, end)
             if len(eff_rate) > 0 and eff_rate.max() > 0:
                 rate_axis_lib = max(rate_axis_lib, eff_rate.max())
                 eff_rate.plot(style=['b-'], ax=freq_axis, drawstyle='steps-post', alpha=1.0, label="Effective rate (with on/off)")
@@ -312,7 +313,6 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 logger.warning('No effective frequency events to plot')
 
             freq_axis.set_ylim(0, rate_axis_lib * 1.1)
-            freq_axis.set_xlim(start, end)
             freq_axis.set_xlabel('')
             freq_axis.grid(True)
             freq_axis.legend()
@@ -388,7 +388,6 @@ class FrequencyAnalysis(TraceAnalysisBase):
             plot_overutilized(axis=axis)
 
         axis.set_ylim(frequencies[0] * 0.9, frequencies[-1] * 1.1)
-        axis.set_xlim(self.trace.start, self.trace.end)
 
         axis.set_ylabel('Frequency (Hz)')
         axis.set_xlabel('Time')
@@ -415,7 +414,6 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 self.plot_cpu_frequencies(domain[0], axis=axis)
 
                 axis.set_title('Frequencies of CPUS {}'.format(domain))
-                axis.set_xlim(self.trace.start, self.trace.end)
 
         return self.do_plot(plotter, nrows=len(domains), sharex=True, **kwargs)
 

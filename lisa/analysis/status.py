@@ -21,6 +21,7 @@
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
+from lisa.datautils import df_refit_index
 
 
 class StatusAnalysis(TraceAnalysisBase):
@@ -86,6 +87,7 @@ class StatusAnalysis(TraceAnalysisBase):
         """
 
         df = self.df_overutilized()
+        df = df_refit_index(df, self.trace.start, self.trace.end)
 
         # Compute intervals in which the system is reported to be overutilized
         bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]
@@ -106,6 +108,5 @@ class StatusAnalysis(TraceAnalysisBase):
 
         if local_fig:
             axis.set_title("System-wide overutilized status")
-            axis.set_xlim(self.trace.start, self.trace.end)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

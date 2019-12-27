@@ -22,7 +22,7 @@ from devlib.utils.misc import list_to_mask, mask_to_list
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.trace import requires_events
-from lisa.datautils import df_refit_index
+from lisa.datautils import df_refit_index, series_refit_index
 
 
 class ThermalAnalysis(TraceAnalysisBase):
@@ -152,7 +152,8 @@ class ThermalAnalysis(TraceAnalysisBase):
 
         tz_name = df.thermal_zone.unique()[0]
 
-        df.temp.plot(drawstyle="steps-post", ax=axis,
+        series = series_refit_index(df['temp'], start, end)
+        series.plot(drawstyle="steps-post", ax=axis,
                      label="Thermal zone \"{}\"".format(tz_name))
 
         axis.legend()
@@ -161,7 +162,6 @@ class ThermalAnalysis(TraceAnalysisBase):
             axis.grid(True)
             axis.set_title("Temperature evolution")
             axis.set_ylabel("Temperature (°C.10e3)")
-            axis.set_xlim(start, end)
 
     @TraceAnalysisBase.plot_method()
     @df_cpufreq_cooling_state.used_events
@@ -181,7 +181,8 @@ class ThermalAnalysis(TraceAnalysisBase):
         df = df_refit_index(df, start, end)
         cdev_name = "CPUs {}".format(mask_to_list(df.cpus.unique()[0]))
 
-        df.cdev_state.plot(drawstyle="steps-post", ax=axis,
+        series = series_refit_index(df['cdev_state'], start, end)
+        series.plot(drawstyle="steps-post", ax=axis,
                            label="\"{}\"".format(cdev_name))
 
         axis.legend()
@@ -191,7 +192,6 @@ class ThermalAnalysis(TraceAnalysisBase):
             axis.set_title("cpufreq cooling devices status")
             axis.yaxis.set_major_locator(MaxNLocator(integer=True))
             axis.grid(axis='y')
-            axis.set_xlim(start, end)
 
     @TraceAnalysisBase.plot_method()
     def plot_dev_freq_cooling_states(self, device, axis, local_fig):
@@ -207,7 +207,7 @@ class ThermalAnalysis(TraceAnalysisBase):
         df = self.df_devfreq_cooling_state([device])
         df = df_refit_index(df, start, end)
 
-        df.cdev_state.plot(drawstyle="steps-post", ax=axis,
+        df['cdev_state'].plot(drawstyle="steps-post", ax=axis,
                            label="Device \"{}\"".format(device))
 
         axis.legend()
@@ -217,7 +217,6 @@ class ThermalAnalysis(TraceAnalysisBase):
             axis.set_title("devfreq cooling devices status")
             axis.yaxis.set_major_locator(MaxNLocator(integer=True))
             axis.grid(axis='y')
-            axis.set_xlim(start, end)
 
 ###############################################################################
 # Utility Methods

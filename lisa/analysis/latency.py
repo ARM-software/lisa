@@ -21,6 +21,7 @@ import numpy as np
 from lisa.analysis.base import TraceAnalysisBase, COLOR_CYCLES
 from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.utils import memoized
+from lisa.datautils import df_refit_index
 
 
 class LatencyAnalysis(TraceAnalysisBase):
@@ -194,24 +195,23 @@ class LatencyAnalysis(TraceAnalysisBase):
         axis.axhline(threshold_ms / 1e3, linestyle='--', color=self.LATENCY_THRESHOLD_COLOR,
                      label="{}ms threshold".format(threshold_ms))
 
-        if wakeup:
-            df = self.df_latency_wakeup(task)
-            if df.empty:
-                self.get_logger().warning("No data to plot for wakeups")
-            else:
-                df.plot(ax=axis, style='+', label="Wakeup")
+        for do_plot, name, label, df_getter in (
+            (wakeup, 'wakeup', 'Wakeup', self.df_latency_wakeup),
+            (preempt, 'preempt', 'Preemption', self.df_latency_preemption),
+        ):
+            if not do_plot:
+                continue
 
-        if preempt:
-            df = self.df_latency_preemption(task)
+            df = df_getter(task)
+            df = df_refit_index(df, self.trace.start, self.trace.end)
             if df.empty:
-                self.get_logger().warning("No data to plot for preemption")
+                self.get_logger().warning("No data to plot for {}".format(name))
             else:
-                df.plot(ax=axis, style='+', label="Preemption")
+                df.plot(ax=axis, style='+', label=label)
 
         axis.set_title('Latencies of task "{}"'.format(task))
         axis.set_ylabel("Latency (s)")
         axis.legend()
-        axis.set_xlim(self.trace.start, self.trace.end)
 
     def _get_cdf(self, data, threshold):
         """
@@ -327,6 +327,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         prt_df = self.df_latency_preemption(task)
 
         def plot_bands(df, column, label):
+            df = df_refit_index(df, self.trace.start, self.trace.end)
             bands = [(t, df[column][t]) for t in df.index]
             color = self.get_next_color(axis)
             for idx, (start, duration) in enumerate(bands):
@@ -340,7 +341,6 @@ class LatencyAnalysis(TraceAnalysisBase):
         plot_bands(wkl_df, "wakeup_latency", "Wakeup latencies")
         plot_bands(prt_df, "preempt_latency", "Preemption latencies")
         axis.legend()
-        axis.set_xlim(self.trace.start, self.trace.end)
 
     @TraceAnalysisBase.plot_method()
     @df_activations.used_events
@@ -353,7 +353,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         """
 
         wkp_df = self.df_activations(task)
-
+        wkp_df = df_refit_index(wkp_df, self.trace.start, self.trace.end)
         wkp_df.plot(style='+', logy=False, ax=axis)
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
@@ -361,8 +361,6 @@ class LatencyAnalysis(TraceAnalysisBase):
             plot_overutilized(axis=axis)
 
         axis.set_title('Activation intervals of task "{}"'.format(task))
-
-        axis.set_xlim(self.trace.start, self.trace.end)
 
     @TraceAnalysisBase.plot_method()
     @df_runtimes.used_events
@@ -374,6 +372,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         :type task: int or str or tuple(int, str)
         """
         df = self.df_runtimes(task)
+        df = df_refit_index(df, self.trace.start, self.trace.end)
 
         df.plot(style='+', ax=axis)
 
@@ -382,8 +381,6 @@ class LatencyAnalysis(TraceAnalysisBase):
             plot_overutilized(axis=axis)
 
         axis.set_title('Per-activation runtimes of task "{}"'.format(task))
-
-        axis.set_xlim(self.trace.start, self.trace.end)
 
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

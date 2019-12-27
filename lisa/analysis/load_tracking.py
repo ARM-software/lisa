@@ -24,7 +24,7 @@ from lisa.analysis.base import TraceAnalysisBase
 from lisa.analysis.status import StatusAnalysis
 from lisa.trace import requires_one_event_of, may_use_events
 from lisa.utils import deprecate
-from lisa.datautils import df_refit_index, df_filter_task_ids
+from lisa.datautils import df_refit_index, series_refit_index, df_filter_task_ids
 
 
 class LoadTrackingAnalysis(TraceAnalysisBase):
@@ -327,7 +327,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                     plot_overutilized(axis=axis)
 
                 axis.set_ylim(0, 1100)
-                axis.set_xlim(start, end)
                 axis.legend()
 
         return self.do_plot(plotter, nrows=len(cpus), sharex=True, **kwargs)
@@ -360,7 +359,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         axis.set_title('Load-tracking signals of task {}'.format(task))
         axis.legend()
         axis.grid(True)
-        axis.set_xlim(start, end)
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_tasks_signal.used_events
@@ -393,7 +391,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             if local_fig:
                 axis.set_title(task_name)
                 axis.set_ylim(0, 1100)
-                axis.set_xlim(start, end)
                 axis.set_ylabel('Utilization')
                 axis.set_xlabel('Time (s)')
 
@@ -430,7 +427,9 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 row["required_capacity"]), axis=1)
 
         for stat in df["placement"].unique():
-            df[df.placement == stat]["cpu"].plot(ax=axis, style="+", label=stat)
+            series = df[df.placement == stat]["cpu"]
+            series = series_refit_index(series, self.trace.start, self.trace.end)
+            series.plot(ax=axis, style="+", label=stat)
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
         if self.trace.has_events(plot_overutilized.used_events):
@@ -438,7 +437,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         axis.set_title("Utilization vs placement of task \"{}\"".format(task))
 
-        axis.set_xlim(self.trace.start, self.trace.end)
         axis.grid(True)
         axis.legend()
 
