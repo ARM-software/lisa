@@ -959,4 +959,98 @@ def df_deduplicate(df, keep, consecutives, cols=None, all_col=True):
     """
     return _data_deduplicate(df, keep=keep, consecutives=consecutives, cols=cols, all_col=all_col)
 
+class SignalDesc:
+    """
+    Define a signal to be used by various signal-oriented APIs.
+
+    :param event: Name of the event that this signal is represented by.
+    :type event: str
+
+    :param fields: Fields that identify multiple signals multiplexed into one
+        event. For example, a `frequency` signal would have a ``cpu_frequency``
+        event and a ``cpu`` field since ``cpu_frequency`` multiplexes the
+        signals for all CPUs.
+    :type fields: list(str)
+    """
+
+    def __init__(self, event, fields):
+        self.event = event
+        self.fields = sorted(fields)
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+    def __hash__(self):
+        return hash(self.event) ^ hash(tuple(self.fields))
+
+    @classmethod
+    def from_event(cls, event, fields=None):
+        """
+        Return list of :class:`SignalDesc` for the given event.
+
+        The hand-coded list is used first, and then some generic heuristics are
+        used to detect per-cpu and per-task signals.
+        """
+        try:
+            return cls._SIGNALS_MAP[event]
+        except KeyError:
+            if not fields:
+                return [cls(event, fields=[])]
+            else:
+                fields = set(fields)
+                default_field_sets = [
+                    {'comm', 'pid'},
+                    {'cpu'},
+                ]
+
+                return [
+                    cls(event, fields=field_set)
+                    for field_set in default_field_sets
+                    # if fields is a superset of field_set
+                    if fields > field_set
+                ]
+
+# Defined outside SignalDesc as it references SignalDesc itself
+_SIGNALS = [
+    SignalDesc('sched_switch', ['next_comm', 'next_pid']),
+    SignalDesc('sched_wakeup', ['target_cpu']),
+    SignalDesc('sched_wakeup', ['comm', 'pid']),
+    SignalDesc('sched_waking', ['comm', 'pid']),
+    # Not relevant for now, to be enabled if someone needs it
+    # SignalDesc('sched_waking', ['cpu']),
+
+    SignalDesc('cpu_idle', ['cpu_id']),
+    SignalDesc('cpu_frequency', ['cpu']),
+    SignalDesc('sched_compute_energy', ['comm', 'pid']),
+
+    SignalDesc('sched_load_se', ['__comm', '__pid']),
+    SignalDesc('sched_util_est_task', ['comm', 'pid']),
+    SignalDesc('sched_util_est_cpu', ['cpu']),
+    SignalDesc('sched_load_cfs_rq', ['path']),
+    SignalDesc('sched_pelt_irq', ['cpu']),
+    SignalDesc('sched_pelt_rt', ['cpu']),
+    SignalDesc('sched_pelt_dl', ['cpu']),
+
+    SignalDesc('uclamp_util_se', ['pid', 'comm']),
+    SignalDesc('uclamp_util_cfs', ['cpu']),
+
+    SignalDesc('sched_overutilized', []),
+    SignalDesc('sched_process_wait', ['comm', 'pid']),
+
+    SignalDesc('schedutil_em_boost', ['cpu']),
+
+    SignalDesc('thermal_temperature', ['id']),
+    SignalDesc('thermal_zone_trip', ['id']),
+]
+"""
+List of predefined :class:`SignalDesc`.
+"""
+
+SignalDesc._SIGNALS_MAP = {
+    event: list(signal_descs)
+    for event, signal_descs in groupby(_SIGNALS, key=attrgetter('event'))
+}
+
+
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
