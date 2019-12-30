@@ -94,7 +94,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
           * An ``activation_interval`` column (the time since the last activation).
         """
-        wkp_df = self.trace.analysis.tasks.df_task_states(task)
+        wkp_df = self.trace.analysis.tasks.df_task_states(task).copy()
         wkp_df = wkp_df[wkp_df.curr_state == TaskState.TASK_WAKING]
 
         index = wkp_df.index.to_frame()

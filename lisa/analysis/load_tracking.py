@@ -408,7 +408,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         task_id = self.trace.get_task_id(task, update=False)
 
         # Get all utilization update events
-        df = self.df_task_signal(task_id, 'required_capacity')
+        df = self.df_task_signal(task_id, 'required_capacity').copy()
         cpu_capacities = self.trace.plat_info["cpu-capacities"]
 
         def evaluate_placement(cpu, required_capacity):
