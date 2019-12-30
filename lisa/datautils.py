@@ -493,18 +493,32 @@ def _data_window(data, window, method='inclusive', clip_window=False):
     index = data.index
     if clip_window:
         start, end = window
+        first = index[0]
+        last = index[-1]
 
-        if start is None or start < index[0]:
-            start = index[0]
+        # Fill placeholders
+        if start is None:
+            start = first
+        if end is None:
+            end = last
 
-        if end is None or end > index[-1]:
-            end = index[-1]
+        # Window is on the left
+        if start <= first and end <= first:
+            start = first
+            end = first
+        # Window is on the rigth
+        elif start >= last and end >= last:
+            start = last
+            end = last
+        # Overlapping window
+        else:
+            if start <= first:
+                start = first
 
-        if end < start:
-            end = start
+            if end >= last:
+                end = last
 
         window = (start, end)
-
 
     if method == 'inclusive':
         # Default slicing behaviour of pandas' Float64Index is to be inclusive,
