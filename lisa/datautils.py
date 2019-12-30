@@ -46,6 +46,10 @@ def series_refit_index(series, start=None, end=None, method='inclusive'):
         suitable for signals where all the value changes have a corresponding
         row without any fixed sample-rate constraints. If they have been
         downsampled, ``nearest`` might be a better choice.).
+
+    .. note:: If the series only contains one row after windowing, the row will
+        be duplicated so that we can have a start and end index. This also
+        allows plotting such series, which would otherwise be impossible.
     """
 
     return _data_refit_index(series, start, end, method=method)
@@ -94,19 +98,24 @@ def _data_refit_index(data, start, end, method):
         return data
 
     data = _data_window(data, (start, end), method=method, clip_window=True)
+
+    # When there is only one row, create a second one so we can have both a
+    # start and end row.
+    if len(data) == 1:
+        data = pd.concat([data, data])
+    else:
+        # Shallow copy is enough, we only want to replace the index and not the
+        # actual data
+        data = data.copy(deep=False)
+
     index = data.index.to_series()
+
+    if start is not None:
+        index.iloc[0] = start
 
     if end is not None:
         index.iloc[-1] = end
 
-    # If the dataframe has one row, we want the "start" timestamp to be used
-    # rather than "end", so set iloc[0] last
-    if start is not None:
-        index.iloc[0] = start
-
-    # Shallow copy is enough, we only want to replace the index and not the
-    # actual data
-    data = data.copy(deep=False)
     data.index = index
     return data
 
