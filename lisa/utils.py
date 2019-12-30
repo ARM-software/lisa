@@ -17,6 +17,7 @@
 
 import hashlib
 import zlib
+import time
 import re
 import abc
 import copy
@@ -1516,6 +1517,62 @@ def namedtuple(*args, module, **kwargs):
     Augmented.__module__ = module
     return Augmented
 
+class _TimeMeasure:
+    def __init__(self, start, stop):
+        self.start = start
+        self.stop = stop
+        self.nested_delta = 0
+
+    @property
+    def delta(self):
+        return self.stop - self.start
+
+    @property
+    def exclusive_delta(self):
+        return self.stop - self.start - self.nested_delta
+
+_measure_time_stack = threading.local()
+
+@contextlib.contextmanager
+def measure_time(clock=time.monotonic):
+    """
+    Context manager to measure time in seconds.
+
+    :param clock: Clock to use.
+    :type clock: collections.abc.Callable
+
+    **Example**::
+
+        with measure_time() as measure:
+            ...
+        print(measure.start, measure.stop, measure.exclusive_delta, measure.exclusive_delta)
+
+    .. note:: The ``exclusive_delta`` discount the time spent in nested
+        ``measure_time`` context managers.
+    """
+    try:
+        stack = _measure_time_stack.stack
+    except AttributeError:
+        stack = []
+        _measure_time_stack.stack = stack
+
+    measure = _TimeMeasure(0, 0)
+    stack.append(measure)
+
+    start = clock()
+    try:
+        yield measure
+    finally:
+        stop = clock()
+        measure.start = start
+        measure.stop = stop
+        stack.pop()
+        try:
+            parent_measure = stack[-1]
+        except IndexError:
+            pass
+        else:
+            parent_measure.nested_delta += measure.delta
 
 
 def checksum(file_, method):
