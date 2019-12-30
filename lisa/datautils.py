@@ -73,18 +73,20 @@ def df_split_signals(df, signal_cols, align_start=False):
         the yielded dataframes so that they all start at the same index.
     :type refit_index: bool
     """
+    if not signal_cols:
+        yield ({}, df)
+    else:
+        for group, signal in df.groupby(signal_cols):
+            # When only one column is looked at, the group is the value instead of
+            # a tuple of values
+            if len(signal_cols) < 2:
+                cols_val = {signal_cols[0]: group}
+            else:
+                cols_val = dict(zip(signal_cols, group))
 
-    for group, signal in df.groupby(signal_cols):
-        # When only one column is looked at, the group is the value instead of
-        # a tuple of values
-        if len(signal_cols) < 2:
-            cols_val = {signal_cols[0]: group}
-        else:
-            cols_val = dict(zip(signal_cols, group))
-
-        if align_start:
-            signal = df_refit_index(signal, start=df.index[0], method='inclusive')
-        yield (cols_val, signal)
+            if align_start:
+                signal = df_refit_index(signal, start=df.index[0], method='inclusive')
+            yield (cols_val, signal)
 
 
 def _data_refit_index(data, start, end, method):
