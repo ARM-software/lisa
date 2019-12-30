@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+import hashlib
+import zlib
 import re
 import abc
 import copy
@@ -1513,5 +1515,45 @@ def namedtuple(*args, module, **kwargs):
     Augmented.__doc__ = type_.__doc__
     Augmented.__module__ = module
     return Augmented
+
+
+
+def checksum(file_, method):
+    """
+    Compute a checksum on a given file-like object.
+
+    :param file_: File-like object, as returned by ``open()`` for example.
+    :type file_: io.IOBase
+
+    :param method: Checksum to use. Can be any of ``md5``, ``sha256``,
+        ``crc32``.
+    :type method: str
+
+    The file is read block by block to avoid clogging the memory with a huge
+    read.
+    """
+    if method in ('md5', 'sha256'):
+        h = getattr(hashlib, method)()
+        update = lambda data: h.update(data)
+        result = lambda: h.hexdigest()
+        chunk_size = h.block_size
+    elif method == 'crc32':
+        crc32_state = 0
+        def update(data):
+            nonlocal crc32_state
+            crc32_state = zlib.crc32(data, crc32_state) & 0xffffffff
+        result = lambda: hex(crc32_state)
+        chunk_size = 1 * 1024 * 1024
+    else:
+        raise ValueError('Unsupported method: {}'.format(method))
+
+    while True:
+        chunk = file_.read(chunk_size)
+        if not chunk:
+            break
+        update(chunk)
+
+    return result()
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
