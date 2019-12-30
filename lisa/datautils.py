@@ -94,10 +94,10 @@ def df_split_signals(df, signal_cols, align_start=False):
 
 
 def _data_refit_index(data, start, end, method):
+    data = _data_window(data, (start, end), method=method, clip_window=True)
+
     if data.empty:
         return data
-
-    data = _data_window(data, (start, end), method=method, clip_window=True)
 
     # When there is only one row, create a second one so we can have both a
     # start and end row.
