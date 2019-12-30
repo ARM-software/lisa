@@ -27,6 +27,7 @@ import contextlib
 import warnings
 import itertools
 import weakref
+import copy
 from operator import itemgetter
 from collections.abc import Iterable
 
@@ -42,8 +43,8 @@ import mplcursors
 from ipywidgets import widgets
 from IPython.display import display
 
-from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython, nullcontext
-from lisa.trace import MissingTraceEventError
+from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython, nullcontext, measure_time
+from lisa.trace import MissingTraceEventError, PandasDataDesc
 from lisa.notebook import axis_link_dataframes, WrappingHBox
 
 # Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
@@ -640,6 +641,59 @@ class TraceAnalysisBase(AnalysisHelpers):
 
     def __init__(self, trace):
         self.trace = trace
+
+    @classmethod
+    def cache(cls, f):
+        """
+        Decorator to enable caching of the output of dataframe getter function
+        in the trace cache.
+
+        This will write the dataframe to the swap as well, so processing can be
+        skipped completely when possible.
+        """
+        sig = inspect.signature(f)
+        ignored_kwargs = {
+            # self
+            list(sig.parameters.keys())[0],
+        }
+
+        @functools.wraps(f)
+        def wrapper(self, *args, **kwargs):
+            # Express the arguments as kwargs-only
+            params = sig.bind(self, *args, **kwargs)
+            params.apply_defaults()
+            kwargs = dict(params.arguments)
+
+            trace = self.trace
+            spec = dict(
+                module=f.__module__,
+                func=f.__qualname__,
+                # Include the trace window in the spec since that influences
+                # what the analysis was seeing
+                trace_state=trace.trace_state,
+                # Make a deepcopy as it is critical that the PandasDataDesc is
+                # not modified under the hood once inserted in the cache
+                kwargs=copy.deepcopy({
+                    k: v
+                    for k, v in kwargs.items()
+                    if k not in ignored_kwargs
+                }),
+            )
+            pd_desc = PandasDataDesc(spec=spec)
+
+            cache = trace._cache
+            write_swap = trace._write_swap
+            try:
+                df = cache.fetch(pd_desc)
+            except KeyError:
+                with measure_time() as measure:
+                    df = f(**kwargs)
+                compute_cost = measure.exclusive_delta
+                cache.insert(pd_desc, df, compute_cost=compute_cost, write_swap=write_swap)
+
+            return df
+
+        return wrapper
 
     @classmethod
     def get_all_events(cls):
