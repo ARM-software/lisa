@@ -492,6 +492,9 @@ def _data_window(data, window, method='inclusive', clip_window=False):
 
     index = data.index
     if clip_window:
+        if data.empty:
+            return data
+
         start, end = window
         first = index[0]
         last = index[-1]
