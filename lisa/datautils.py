@@ -18,13 +18,15 @@
 import functools
 import operator
 import math
+import itertools
+from operator import attrgetter
 
 import numpy as np
 import pandas as pd
 import scipy.integrate
 import scipy.signal
 
-from lisa.utils import TASK_COMM_MAX_LEN
+from lisa.utils import TASK_COMM_MAX_LEN, groupby
 
 
 def series_refit_index(series, start=None, end=None, method='inclusive'):
@@ -571,7 +573,7 @@ def df_window(df, window, method='pre', clip_window=True):
     return _data_window(df, window, method, clip_window)
 
 
-def df_window_signals(df, window, signal_cols, compress_init=False):
+def df_window_signals(df, window, signal_cols_list, compress_init=False, clip_window=True):
     """
     Similar to :func:`df_window` with ``method='pre'`` but guarantees that each
     signal will have a values at the beginning of the window.
@@ -580,16 +582,24 @@ def df_window_signals(df, window, signal_cols, compress_init=False):
         region to select.
     :type window: tuple(object)
 
-    :param signal_cols: Columns that uniquely identify a signal.
-    :type signal_cols: list(str)
+    :param signal_cols_list: List of columns that uniquely identify a signal.
+    :type signal_cols_list: list(list(str))
 
     :param compress_init: When ``False``, the timestamps of the init value of
         signals (right before the window) are preserved. If ``True``, they are
         changed into values as close as possible to the beginning of the window.
     :type compress_init: bool
 
+    :param clip_window: See :func:`df_window`
+
     .. seealso:: :func:`df_split_signals`
     """
+
+    def before(x):
+        return np.nextafter(x, -math.inf)
+
+    def make_empty_df():
+        return pd.DataFrame(columns=df.columns)
 
     def signal_in_window(signal_df, window):
         start = window[0]
@@ -599,16 +609,45 @@ def df_window_signals(df, window, signal_cols, compress_init=False):
         # inside the window, we know that the signal is relevant
         return signal_start <= start <= signal_end
 
+    windowed_df = df_window(df, window, method='pre', clip_window=clip_window)
+
+    # Split the extra rows that the method='pre' gave in a separate dataframe,
+    # so we make sure we don't end up with duplication in init_df
+    extra_window = (
+        windowed_df.index[0],
+        window[0],
+    )
+    if extra_window[0] >= extra_window[1]:
+        extra_df = make_empty_df()
+    else:
+        extra_df = df_window(windowed_df, extra_window, method='pre')
+
+    # This time around, exclude anything before window[0] since it will be provided by extra_df
+    try:
+        # Make sure we don't get any extra rows on the right, since we want the
+        # "pre" method overall
+        _window = (window[0], windowed_df.index[-1])
+        windowed_df = df_window(windowed_df, _window, method='post', clip_window=True)
+    # The windowed_df did not contain any row in the given window, all the
+    # actual data are in extra_df
+    except KeyError:
+        windowed_df = make_empty_df()
+
+    def window_signal(signal_df):
+        df = df_window(signal_df, window, method='pre', clip_window=clip_window)
+        return df
+
     # Get the value of each signal at the beginning of the window
     signal_df_list = [
-        df_window(signal_df, window, method='pre')
-        for signal, signal_df in df_split_signals(df, signal_cols, align_start=False)
+        window_signal(signal_df)
+        for signal, signal_df in itertools.chain.from_iterable(
+            df_split_signals(df, signal_cols, align_start=False)
+            for signal_cols in signal_cols_list
+        )
         # Only consider the signal that are in the window. Signals that started
         # after the window are irrelevant.
         if signal_in_window(signal_df, window)
     ]
-
-    windowed_df = df_window(df, window, method='pre')
 
     if compress_init:
         def make_init_df_index(init_df):
@@ -617,10 +656,18 @@ def df_window_signals(df, window, signal_cols, compress_init=False):
             def smallest_increment(start, length):
                 curr = start
                 for _ in range(length):
-                    curr = np.nextafter(curr, -math.inf)
+                    curr = before(curr)
                     yield curr
 
-            index = list(smallest_increment(windowed_df.index[0], len(init_df)))
+
+            # If windowed_df is empty, we take the last bit right before the
+            # beginning of the window
+            try:
+                start = windowed_df.index[0]
+            except IndexError:
+                start = extra_df.index[-1]
+
+            index = list(smallest_increment(start, len(init_df)))
             index = pd.Float64Index(reversed(index))
             return index
     else:
@@ -630,10 +677,16 @@ def df_window_signals(df, window, signal_cols, compress_init=False):
     # Get the last row before the beginning the window for each signal, in
     # timestamp order
     init_df = pd.concat(
-        # First row of the dataframe
-        signal_df.iloc[0:1]
-        for signal_df in sorted(signal_df_list, key=lambda df: df.index[0])
+        [extra_df] + [
+            # First row of the dataframe
+            signal_df.iloc[0:1]
+            for signal_df in sorted(signal_df_list, key=lambda df: df.index[0])
+        ]
     )
+    # Remove duplicated indices, meaning we selected the same row multiple
+    # times because it's part of multiple signals
+    init_df = init_df.loc[~init_df.index.duplicated(keep='first')]
+    init_df.sort_index(inplace=True)
 
     init_df.index = make_init_df_index(init_df)
     return pd.concat([init_df, windowed_df])
