@@ -456,7 +456,7 @@ def series_mean(y, x=None, **kwargs):
     return integral / (x.max() - x.min())
 
 
-def series_window(series, window, method='inclusive', clip_window=False):
+def series_window(series, window, method='inclusive', clip_window=True):
     """
     Select a portion of a :class:`pandas.Series`
 
@@ -552,7 +552,7 @@ def _data_window(data, window, method='inclusive', clip_window=False):
     return data.iloc[slice(*window)]
 
 
-def df_window(df, window, method='inclusive', clip_window=False):
+def df_window(df, window, method='inclusive', clip_window=True):
     """
     Same as :func:`series_window` but acting on a :class:`pandas.DataFrame`
     """
