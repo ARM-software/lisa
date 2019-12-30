@@ -803,9 +803,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         """
         Context manager that lets you disable all idle states
         """
-        # This assumes that freq domains are tied to "idle domains"
-        # We'll have to change this if this assumption no longer holds true
-
         logger = self.get_logger()
         logger.info('Disabling idle states for all domains')
 
@@ -818,13 +815,13 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             @contextlib.contextmanager
             def cm():
                 try:
-                    for domain in self.target.cpufreq.iter_domains():
-                        cpuidle.disable_all(domain[0])
+                    for cpu in range(self.plat_info['cpus-count']):
+                        cpuidle.disable_all(cpu)
                     yield
                 finally:
                     logger.info('Re-enabling idle states for all domains')
-                    for domain in self.target.cpufreq.iter_domains():
-                        cpuidle.enable_all(domain[0])
+                    for cpu in range(self.plat_info['cpus-count']):
+                        cpuidle.enable_all(cpu)
 
         with cm() as x:
             yield x
