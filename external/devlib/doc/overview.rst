@@ -6,8 +6,7 @@ There are currently four target interfaces:
 
 - :class:`LinuxTarget` for interacting with Linux devices over SSH.
 - :class:`AndroidTarget` for interacting with Android devices over adb.
-- :class:`ChromeOsTarget`: for interacting with ChromeOS devices over SSH, and
-                           their Android containers over adb.
+- :class:`ChromeOsTarget`: for interacting with ChromeOS devices over SSH, and their Android containers over adb.
 - :class:`LocalLinuxTarget`: for interacting with the local Linux host.
 
 They all work in more-or-less the same way, with the major difference being in
@@ -240,17 +239,17 @@ complete. Retrying it or bailing out is therefore a responsability of the caller
 The hierarchy is as follows:
 
 - :class:`DevlibError`
-   
+
    - :class:`WorkerThreadError`
    - :class:`HostError`
    - :class:`TargetError`
-      
+
       - :class:`TargetStableError`
       - :class:`TargetTransientError`
       - :class:`TargetNotRespondingError`
-   
+
    - :class:`DevlibStableError`
-      
+
       - :class:`TargetStableError`
 
    - :class:`DevlibTransientError`
@@ -307,12 +306,22 @@ has been successfully installed on a target, you can use ``has()`` method, e.g.
 
 Please see the modules documentation for more detail.
 
+Instruments and Collectors
+--------------------------
 
-Measurement and Trace
----------------------
+You can retrieve multiple types of data from a target. There are two categories
+of classes that allow for this:
 
-You can collected traces (currently, just ftrace) using
-:class:`TraceCollector`\ s. For example
+
+- An :class:`Instrument` which may be used to collect measurements (such as power) from
+  targets that support it. Please see the
+  :ref:`instruments documentation <Instrumentation>` for more details.
+
+- A :class:`Collector` may be used to collect arbitary data from a ``Target`` varying
+  from screenshots to trace data. Please see the
+  :ref:`collectors documentation <collector>` for more details.
+
+An example workflow using :class:`FTraceCollector` is as follows:
 
 .. code:: python
 
@@ -326,23 +335,19 @@ You can collected traces (currently, just ftrace) using
    # As a context manager, clear ftrace buffer using trace.reset(),
    # start trace collection using trace.start(), then stop it Using
    # trace.stop(). Using a context manager brings the guarantee that
-   # tracing will stop even if an exception occurs, including 
+   # tracing will stop even if an exception occurs, including
    # KeyboardInterrupt (ctr-C) and SystemExit (sys.exit)
    with trace:
       # Perform the operations you want to trace here...
       import time; time.sleep(5)
 
    # extract the trace file from the target into a local file
-   trace.get_trace('/tmp/trace.bin')
+   trace.get_data('/tmp/trace.bin')
 
    # View trace file using Kernelshark (must be installed on the host).
    trace.view('/tmp/trace.bin')
 
    # Convert binary trace into text format. This would normally be done
-   # automatically during get_trace(), unless autoreport is set to False during
+   # automatically during get_data(), unless autoreport is set to False during
    # instantiation of the trace collector.
    trace.report('/tmp/trace.bin', '/tmp/trace.txt')
-
-In a similar way, :class:`Instrument` instances may be used to collect
-measurements (such as power) from targets that support it. Please see
-instruments documentation for more details.

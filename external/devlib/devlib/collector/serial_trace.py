@@ -17,11 +17,12 @@ import shutil
 from tempfile import NamedTemporaryFile
 from pexpect.exceptions import TIMEOUT
 
-from devlib.trace import TraceCollector
+from devlib.collector import (CollectorBase, CollectorOutput,
+                              CollectorOutputEntry)
 from devlib.utils.serial_port import get_connection
 
 
-class SerialTraceCollector(TraceCollector):
+class SerialTraceCollector(CollectorBase):
 
     @property
     def collecting(self):
@@ -32,33 +33,35 @@ class SerialTraceCollector(TraceCollector):
         self.serial_port = serial_port
         self.baudrate = baudrate
         self.timeout = timeout
+        self.output_path - None
 
         self._serial_target = None
         self._conn = None
-        self._tmpfile = None
+        self._outfile_fh = None
         self._collecting = False
 
     def reset(self):
         if self._collecting:
             raise RuntimeError("reset was called whilst collecting")
 
-        if self._tmpfile:
-            self._tmpfile.close()
-            self._tmpfile = None
+        if self._outfile_fh:
+            self._outfile_fh.close()
+            self._outfile_fh = None
 
     def start(self):
         if self._collecting:
             raise RuntimeError("start was called whilst collecting")
+        if self.output_path is None:
+            raise RuntimeError("Output path was not set.")
 
-
-        self._tmpfile = NamedTemporaryFile()
+        self._outfile_fh = open(self.output_path, 'w')
         start_marker = "-------- Starting serial logging --------\n"
-        self._tmpfile.write(start_marker.encode('utf-8'))
+        self._outfile_fh.write(start_marker.encode('utf-8'))
 
         self._serial_target, self._conn = get_connection(port=self.serial_port,
                                                          baudrate=self.baudrate,
                                                          timeout=self.timeout,
-                                                         logfile=self._tmpfile,
+                                                         logfile=self._outfile_fh,
                                                          init_dtr=0)
         self._collecting = True
 
@@ -78,17 +81,19 @@ class SerialTraceCollector(TraceCollector):
         del self._conn
 
         stop_marker = "-------- Stopping serial logging --------\n"
-        self._tmpfile.write(stop_marker.encode('utf-8'))
+        self._outfile_fh.write(stop_marker.encode('utf-8'))
+        self._outfile_fh.flush()
+        self._outfile_fh.close()
+        self._outfile_fh = None
 
         self._collecting = False
 
-    def get_trace(self, outfile):
+    def set_output(self, output_path):
+        self.output_path = output_path
+
+    def get_data(self):
         if self._collecting:
-            raise RuntimeError("get_trace was called whilst collecting")
-
-        self._tmpfile.flush()
-
-        shutil.copy(self._tmpfile.name, outfile)
-
-        self._tmpfile.close()
-        self._tmpfile = None
+            raise RuntimeError("get_data was called whilst collecting")
+        if self.output_path is None:
+            raise RuntimeError("No data collected.")
+        return CollectorOutput([CollectorOutputEntry(self.output_path, 'file')])

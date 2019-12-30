@@ -19,7 +19,7 @@ import csv
 import os
 import re
 
-from devlib.trace.perf import PerfCollector
+from devlib.collector.perf import PerfCollector
 
 from wa import Instrument, Parameter
 from wa.utils.types import list_or_string, list_of_strs, numeric
@@ -109,6 +109,7 @@ class PerfInstrument(Instrument):
     def __init__(self, target, **kwargs):
         super(PerfInstrument, self).__init__(target, **kwargs)
         self.collector = None
+        self.outdir = None
 
     def initialize(self, context):
         self.collector = PerfCollector(self.target,
@@ -121,6 +122,8 @@ class PerfInstrument(Instrument):
                                        self.force_install)
 
     def setup(self, context):
+        self.outdir = os.path.join(context.output_directory, self.perf_type)
+        self.collector.set_output(self.outdir)
         self.collector.reset()
 
     def start(self, context):
@@ -131,33 +134,32 @@ class PerfInstrument(Instrument):
 
     def update_output(self, context):
         self.logger.info('Extracting reports from target...')
-        outdir = os.path.join(context.output_directory, self.perf_type)
-        self.collector.get_trace(outdir)
+        self.collector.get_data()
 
         if self.perf_type == 'perf':
-            self._process_perf_output(context, outdir)
+            self._process_perf_output(context)
         else:
-            self._process_simpleperf_output(context, outdir)
+            self._process_simpleperf_output(context)
 
     def teardown(self, context):
         self.collector.reset()
 
-    def _process_perf_output(self, context, outdir):
+    def _process_perf_output(self, context):
         if self.command == 'stat':
-            self._process_perf_stat_output(context, outdir)
+            self._process_perf_stat_output(context)
         elif self.command == 'record':
-            self._process_perf_record_output(context, outdir)
+            self._process_perf_record_output(context)
 
-    def _process_simpleperf_output(self, context, outdir):
+    def _process_simpleperf_output(self, context):
         if self.command == 'stat':
-            self._process_simpleperf_stat_output(context, outdir)
+            self._process_simpleperf_stat_output(context)
         elif self.command == 'record':
-            self._process_simpleperf_record_output(context, outdir)
+            self._process_simpleperf_record_output(context)
 
-    def _process_perf_stat_output(self, context, outdir):
-        for host_file in os.listdir(outdir):
+    def _process_perf_stat_output(self, context):
+        for host_file in os.listdir(self.outdir):
             label = host_file.split('.out')[0]
-            host_file_path = os.path.join(outdir, host_file)
+            host_file_path = os.path.join(self.outdir, host_file)
             context.add_artifact(label, host_file_path, 'raw')
             with open(host_file_path) as fh:
                 in_results_section = False
@@ -187,15 +189,15 @@ class PerfInstrument(Instrument):
         metric = '{}_{}'.format(label, match.group(3))
         context.add_metric(metric, count, classifiers=classifiers)
 
-    def _process_perf_record_output(self, context, outdir):
-        for host_file in os.listdir(outdir):
+    def _process_perf_record_output(self, context):
+        for host_file in os.listdir(self.outdir):
             label, ext = os.path.splitext(host_file)
-            context.add_artifact(label, os.path.join(outdir, host_file), 'raw')
+            context.add_artifact(label, os.path.join(self.outdir, host_file), 'raw')
             column_headers = []
             column_header_indeces = []
             event_type = ''
             if ext == '.rpt':
-                with open(os.path.join(outdir, host_file)) as fh:
+                with open(os.path.join(self.outdir, host_file)) as fh:
                     for line in fh:
                         words = line.split()
                         if not words:
@@ -221,12 +223,12 @@ class PerfInstrument(Instrument):
             event_type = event_type.strip("'")
         return event_type
 
-    def _process_simpleperf_stat_output(self, context, outdir):
+    def _process_simpleperf_stat_output(self, context):
         labels = []
-        for host_file in os.listdir(outdir):
+        for host_file in os.listdir(self.outdir):
             labels.append(host_file.split('.out')[0])
         for opts, label in zip(self.optionstring, labels):
-            stat_file = os.path.join(outdir, '{}{}'.format(label, '.out'))
+            stat_file = os.path.join(self.outdir, '{}{}'.format(label, '.out'))
             if '--csv' in opts:
                 self._process_simpleperf_stat_from_csv(stat_file, context, label)
             else:
@@ -257,16 +259,16 @@ class PerfInstrument(Instrument):
                     metric = '{}_{}'.format(label, metric)
                     context.add_metric(metric, count, 'count', classifiers={'scaled from(%)': scaled_percentage})
 
-    def _process_simpleperf_record_output(self, context, outdir):
-        for host_file in os.listdir(outdir):
+    def _process_simpleperf_record_output(self, context):
+        for host_file in os.listdir(self.outdir):
             label, ext = os.path.splitext(host_file)
-            context.add_artifact(label, os.path.join(outdir, host_file), 'raw')
+            context.add_artifact(label, os.path.join(self.outdir, host_file), 'raw')
             if ext != '.rpt':
                 continue
             column_headers = []
             column_header_indeces = []
             event_type = ''
-            with open(os.path.join(outdir, host_file)) as fh:
+            with open(os.path.join(self.outdir, host_file)) as fh:
                 for line in fh:
                     words = line.split()
                     if not words:

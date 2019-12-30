@@ -15,7 +15,7 @@
 
 import os
 
-from devlib.trace.screencapture import ScreenCaptureCollector
+from devlib.collector.screencapture import ScreenCaptureCollector
 
 from wa import Instrument, Parameter
 
@@ -47,8 +47,9 @@ class ScreenCaptureInstrument(Instrument):
         output_path = os.path.join(context.output_directory, "screen-capture")
         os.mkdir(output_path)
         self.collector = ScreenCaptureCollector(self.target,
-                                                output_path,
                                                 self.period)
+        self.collector.set_output(output_path)
+        self.collector.reset()
 
     def start(self, context):  # pylint: disable=unused-argument
         self.collector.start()

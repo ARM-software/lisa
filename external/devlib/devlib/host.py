@@ -109,6 +109,12 @@ class LocalConnection(object):
     def cancel_running_command(self):
         pass
 
+    def wait_for_device(self, timeout=30):
+        return
+
+    def reboot_bootloader(self, timeout=30):
+        raise NotImplementedError()
+
     def _get_password(self):
         if self.password:
             return self.password

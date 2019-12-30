@@ -16,14 +16,16 @@
 import os
 import shutil
 
-from devlib.trace import TraceCollector
+from devlib.collector import (CollectorBase, CollectorOutput,
+                              CollectorOutputEntry)
 from devlib.utils.android import LogcatMonitor
 
-class LogcatCollector(TraceCollector):
+class LogcatCollector(CollectorBase):
 
     def __init__(self, target, regexps=None):
         super(LogcatCollector, self).__init__(target)
         self.regexps = regexps
+        self.output_path = None
         self._collecting = False
         self._prev_log = None
         self._monitor = None
@@ -45,12 +47,14 @@ class LogcatCollector(TraceCollector):
         """
         Start collecting logcat lines
         """
+        if self.output_path is None:
+            raise RuntimeError("Output path was not set.")
         self._monitor = LogcatMonitor(self.target, self.regexps)
         if self._prev_log:
             # Append new data collection to previous collection
             self._monitor.start(self._prev_log)
         else:
-            self._monitor.start()
+            self._monitor.start(self.output_path)
 
         self._collecting = True
 
@@ -65,9 +69,10 @@ class LogcatCollector(TraceCollector):
         self._collecting = False
         self._prev_log = self._monitor.logfile
 
-    def get_trace(self, outfile):
-        """
-        Output collected logcat lines to designated file
-        """
-        # copy self._monitor.logfile to outfile
-        shutil.copy(self._monitor.logfile, outfile)
+    def set_output(self, output_path):
+        self.output_path = output_path
+
+    def get_data(self):
+        if self.output_path is None:
+            raise RuntimeError("No data collected.")
+        return CollectorOutput([CollectorOutputEntry(self.output_path, 'file')])

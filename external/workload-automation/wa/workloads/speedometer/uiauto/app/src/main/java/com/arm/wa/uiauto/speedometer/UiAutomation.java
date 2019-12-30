@@ -110,6 +110,8 @@ public class UiAutomation extends BaseUiAutomation {
         menu.click();
         UiObject closetabs =
             mDevice.findObject(new UiSelector().textContains("Close all tabs"));
-        closetabs.click();
+        if (closetabs.exists()){
+            closetabs.click();
+        }
     }
 }

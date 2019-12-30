@@ -33,7 +33,7 @@ from collections import OrderedDict, ChainMap
 from collections.abc import Mapping
 from inspect import signature
 
-from devlib.trace.dmesg import KernelLogEntry
+from devlib.collector.dmesg import KernelLogEntry
 from devlib import TargetStableError
 
 from lisa.analysis.tasks import TasksAnalysis
@@ -963,7 +963,7 @@ class DmesgTestBundle(TestBundle):
     def dmesg_entries(self):
         """
         List of parsed dmesg output entries
-        :class:`devlib.trace.dmesg.KernelLogEntry`.
+        :class:`devlib.collector.dmesg.KernelLogEntry`.
         """
         with open(self.dmesg_path) as f:
             return list(KernelLogEntry.from_dmesg_output(f.read()))
@@ -1473,8 +1473,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         with target.freeze_userspace(), wload_cm, dmesg_coll, ftrace_coll:
             wload.run(cgroup=cgroup, as_root=as_root, update_cpu_capacities=update_cpu_capacities)
 
-        ftrace_coll.get_trace(trace_path)
-        dmesg_coll.get_trace(dmesg_path)
+        ftrace_coll.get_data(trace_path)
+        dmesg_coll.get_data(dmesg_path)
         return trace_path
 
     # Keep compat with existing code
