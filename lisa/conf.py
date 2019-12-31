@@ -1669,6 +1669,11 @@ class Configurable(abc.ABC, metaclass=ConfigurableMeta):
 class GenericContainerMetaBase(type):
     """
     Base class for the metaclass of generic containers.
+
+    They are parameterized with the ``type_`` class attribute, and classes can
+    also be created by indexing on classes with :class:`GenericContainerBase`
+    metaclass. The ``type_`` class attribute will be set with what is passed as
+    the key.
     """
     def __instancecheck__(cls, instance):
         try:
@@ -1677,6 +1682,22 @@ class GenericContainerMetaBase(type):
             return False
         else:
             return True
+
+    def __getitem__(self, type_):
+        class NewClass(self):
+            _type = type_
+
+        types = type_ if isinstance(type_, Sequence) else [type_]
+
+        name = '{}[{}]'.format(
+            self.__name__,
+            ','.join(type_.__name__ for type_ in types)
+        )
+        NewClass.__name__ = name
+        NewClass.__qualname__ = name
+        NewClass.__module__ = self.__module__
+
+        return NewClass
 
 
 class GenericContainerBase:
