@@ -21,7 +21,7 @@ from collections.abc import Mapping
 
 from lisa.utils import HideExekallID, group_by_value
 from lisa.conf import (
-    DeferredValue, TypedDict, TypedList,
+    DeferredValue, TypedDict, TypedList, SortedTypedList,
     MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, DerivedKeyDesc
 )
 from lisa.energy_model import EnergyModel
@@ -49,6 +49,10 @@ class KernelConfigKeyDesc(KeyDesc):
 class KernelSymbolsAddress(KeyDesc):
     def pretty_format(self, v):
         return '<symbols address>'
+
+
+CPUIdList = SortedTypedList[int]
+FreqList = SortedTypedList[int]
 
 
 class PlatformInfo(MultiSrcConf, HideExekallID):
@@ -81,13 +85,12 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
         KeyDesc('freq-domains',
                 'Frequency domains modeled by a list of CPU IDs for each domain',
-                [TypedList[TypedList[int]]]),
-        KeyDesc('freqs', 'Dictionnary of CPU ID to list of frequencies', [TypedDict[int, TypedList[int]]]),
+                [TypedList[CPUIdList]]),
+        KeyDesc('freqs', 'Dictionnary of CPU ID to list of frequencies', [TypedDict[int, FreqList]]),
 
         DerivedKeyDesc('capacity-classes',
-                       'Capacity classes modeled by a list of CPU IDs for each '
-                       'capacity, sorted by capacity',
-                       [TypedList[TypedList[int]]],
+                       'Capacity classes modeled by a list of CPU IDs for each capacity, sorted by capacity',
+                       [TypedList[CPUIdList]],
                        [['cpu-capacities']], compute_capa_classes),
     ))
     """Some keys have a reserved meaning with an associated type."""
