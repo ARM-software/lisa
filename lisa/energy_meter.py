@@ -39,8 +39,7 @@ import devlib
 from lisa.utils import Loggable, get_subclasses, ArtifactPath, HideExekallID
 from lisa.datautils import series_integrate
 from lisa.conf import (
-    SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable,
-    StrList, FloatList
+    SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable, TypedList,
 )
 from lisa.target import Target
 
@@ -310,9 +309,9 @@ class AEPConf(SimpleMultiSrcConf, HideExekallID):
     """
     STRUCTURE = TopLevelKeyDesc('aep-conf', 'AEP Energy Meter configuration', (
         KeyDesc('channel-map', 'Channels to use', [Mapping]),
-        KeyDesc('resistor-values', 'Resistor values', [FloatList]),
-        KeyDesc('labels', 'List of labels', [StrList]),
-        KeyDesc('device-entry', 'TTY device', [StrList]),
+        KeyDesc('resistor-values', 'Resistor values', [TypedList[float]]),
+        KeyDesc('labels', 'List of labels', [TypedList[str]]),
+        KeyDesc('device-entry', 'TTY device', [TypedList[str]]),
     ))
 
 

@@ -39,7 +39,7 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 import lisa.assets
 from lisa.wlgen.rta import RTA
 from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, ASSETS_PATH, setup_logging, ArtifactPath, nullcontext, ExekallTaggable
-from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrList, Configurable
+from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, TypedList, Configurable
 
 from lisa.platforms.platinfo import PlatformInfo
 
@@ -138,7 +138,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('device', 'ADB device. Takes precedence over "host"', [str, None]),
         KeyDesc('keyfile', 'SSH private key file', [str, None]),
         KeyDesc('workdir', 'Remote target workdir', [str]),
-        KeyDesc('tools', 'List of tools to install on the target', [StrList]),
+        KeyDesc('tools', 'List of tools to install on the target', [TypedList[str]]),
         LevelKeyDesc('wait-boot', 'Wait for the target to finish booting', (
             KeyDesc('enable', 'Enable the boot check', [bool]),
             KeyDesc('timeout', 'Timeout of the boot check', [int]),
@@ -151,7 +151,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
                 KeyDesc('class', 'Name of the class to use', [str]),
                 KeyDesc('args', 'Keyword arguments to build the Platform object', [Mapping]),
             )),
-            KeyDesc('excluded-modules', 'List of devlib modules to *not* load', [StrList]),
+            KeyDesc('excluded-modules', 'List of devlib modules to *not* load', [TypedList[str]]),
         ))
     ))
 

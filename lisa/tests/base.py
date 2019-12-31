@@ -51,8 +51,7 @@ from lisa.utils import (
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
 from lisa.conf import (
-    SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc,
-    StrList,
+    SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, TypedList,
 )
 
 
@@ -938,7 +937,7 @@ class DmesgTestConf(SimpleMultiSrcConf):
     {generated_help}
     """
     STRUCTURE = TopLevelKeyDesc('dmesg-test-conf', 'Dmesg test configuration', (
-        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries content to be whitelisted', [StrList]),
+        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries content to be whitelisted', [TypedList[str]]),
     ))
 
 

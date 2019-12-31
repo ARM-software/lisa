@@ -1770,35 +1770,4 @@ class TypedList(GenericContainerBase, list, metaclass=GenericSequenceMeta):
     pass
 
 
-class IntIntDict(TypedDict):
-    _type = (int, int)
-
-
-class IntList(TypedList):
-    _type = int
-
-
-class FloatList(TypedList):
-    _type = float
-
-
-class IntIntListDict(TypedDict):
-    _type = (int, IntList)
-
-
-class IntListList(TypedList):
-    _type = IntList
-
-
-class StrList(TypedList):
-    _type = str
-
-
-class StrIntListDict(TypedDict):
-    _type = (str, IntList)
-
-
-class IntStrDict(TypedDict):
-    _type = (int, str)
-
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
