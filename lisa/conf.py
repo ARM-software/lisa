@@ -1762,10 +1762,29 @@ class GenericSequenceMeta(GenericContainerMetaBase, type(Sequence)):
                     type_=type_.__qualname__
                 ), i)
 
+class GenericSortedSequenceMeta(GenericSequenceMeta):
+    def instancecheck(cls, instance):
+        super().instancecheck(instance)
+        for i, (x, y) in enumerate(zip(instance, instance[1:])):
+            if x > y:
+                raise TypeError('Item #{i} "{x}" is higher than the next item "{y}", but the list must be sorted'.format(
+                    i=i,
+                    x=x,
+                    y=y
+                ))
+
 
 class TypedList(GenericContainerBase, list, metaclass=GenericSequenceMeta):
     """
     Subclass of list providing keys and values type check.
+    """
+    pass
+
+
+class SortedTypedList(GenericContainerBase, list, metaclass=GenericSortedSequenceMeta):
+    """
+    Subclass of list providing keys and values type check, and also check the
+    list is sorted in ascending order.
     """
     pass
 
