@@ -798,11 +798,10 @@ def get_nested_key(mapping, key_path, getitem=operator.getitem):
         :func:`operator.getitem`.
     :type getitem: collections.abc.Callable
     """
-    if not key_path:
-        return mapping
-    for key in key_path[:-1]:
+    for key in key_path:
         mapping = getitem(mapping, key)
-    return getitem(mapping, key_path[-1])
+
+    return mapping
 
 
 def set_nested_key(mapping, key_path, val, level=None):
