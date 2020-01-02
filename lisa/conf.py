@@ -35,7 +35,7 @@ import lisa
 from lisa.utils import (
     Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
     is_running_sphinx, get_cls_name, HideExekallID, get_subclasses, groupby,
-    import_all_submodules,
+    import_all_submodules, memoized,
 )
 
 from ruamel.yaml.comments import CommentedMap
@@ -762,7 +762,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
     def __init__(self, conf=None, src='user', add_default_src=True):
         self._nested_init(
-            structure=self.STRUCTURE,
+            key_desc_path=[],
             src_prio=[]
         )
         if conf is not None:
@@ -776,11 +776,11 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     def get_help(cls, *args, **kwargs):
         return cls.STRUCTURE.get_help(*args, **kwargs)
 
-    def _nested_init(self, structure, src_prio):
+    def _nested_init(self, key_desc_path, src_prio):
         """Called to initialize nested instances of the class for nested
         configuration levels."""
-        self._structure = structure
-        "Structure of that level of configuration"
+        self._key_desc_path = key_desc_path
+        "Path in the structure of that level of configuration"
         # Make a copy to avoid sharing it with the parent
         self._src_prio = copy.copy(src_prio)
         "List of sources in priority order (1st item is highest prio)"
@@ -795,9 +795,16 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         for key, key_desc in self._structure.items():
             if isinstance(key_desc, LevelKeyDesc):
                 self._sublevel_map[key] = self._nested_new(
-                    structure=key_desc,
+                    key_desc_path=key_desc.path,
                     src_prio=self._src_prio,
                 )
+
+    @property
+    def _structure(self):
+        # The first level in the path is the top-level key, which must be
+        # skipped
+        path = self._key_desc_path[1:]
+        return get_nested_key(self.STRUCTURE, path)
 
     @classmethod
     def _nested_new(cls, *args, **kwargs):
@@ -814,9 +821,6 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
         # make a shallow copy of the attributes
         attr_set = set(self.__dict__.keys())
-        # we do not duplicate the structure, since it is a readonly bit of
-        # configuration. That would break parent links in it
-        attr_set -= {'_structure'}
         for attr in attr_set:
             new.__dict__[attr] = copy.copy(self.__dict__[attr])
 
@@ -1665,6 +1669,11 @@ class Configurable(abc.ABC, metaclass=ConfigurableMeta):
 class GenericContainerMetaBase(type):
     """
     Base class for the metaclass of generic containers.
+
+    They are parameterized with the ``type_`` class attribute, and classes can
+    also be created by indexing on classes with :class:`GenericContainerBase`
+    metaclass. The ``type_`` class attribute will be set with what is passed as
+    the key.
     """
     def __instancecheck__(cls, instance):
         try:
@@ -1673,6 +1682,22 @@ class GenericContainerMetaBase(type):
             return False
         else:
             return True
+
+    def __getitem__(self, type_):
+        class NewClass(self):
+            _type = type_
+
+        types = type_ if isinstance(type_, Sequence) else [type_]
+
+        name = '{}[{}]'.format(
+            self.__name__,
+            ','.join(type_.__name__ for type_ in types)
+        )
+        NewClass.__name__ = name
+        NewClass.__qualname__ = name
+        NewClass.__module__ = self.__module__
+
+        return NewClass
 
 
 class GenericContainerBase:
@@ -1737,6 +1762,17 @@ class GenericSequenceMeta(GenericContainerMetaBase, type(Sequence)):
                     type_=type_.__qualname__
                 ), i)
 
+class GenericSortedSequenceMeta(GenericSequenceMeta):
+    def instancecheck(cls, instance):
+        super().instancecheck(instance)
+        for i, (x, y) in enumerate(zip(instance, instance[1:])):
+            if x > y:
+                raise TypeError('Item #{i} "{x}" is higher than the next item "{y}", but the list must be sorted'.format(
+                    i=i,
+                    x=x,
+                    y=y
+                ))
+
 
 class TypedList(GenericContainerBase, list, metaclass=GenericSequenceMeta):
     """
@@ -1745,35 +1781,12 @@ class TypedList(GenericContainerBase, list, metaclass=GenericSequenceMeta):
     pass
 
 
-class IntIntDict(TypedDict):
-    _type = (int, int)
+class SortedTypedList(GenericContainerBase, list, metaclass=GenericSortedSequenceMeta):
+    """
+    Subclass of list providing keys and values type check, and also check the
+    list is sorted in ascending order.
+    """
+    pass
 
-
-class IntList(TypedList):
-    _type = int
-
-
-class FloatList(TypedList):
-    _type = float
-
-
-class IntIntListDict(TypedDict):
-    _type = (int, IntList)
-
-
-class IntListList(TypedList):
-    _type = IntList
-
-
-class StrList(TypedList):
-    _type = str
-
-
-class StrIntListDict(TypedDict):
-    _type = (str, IntList)
-
-
-class IntStrDict(TypedDict):
-    _type = (int, str)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

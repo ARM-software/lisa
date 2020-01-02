@@ -21,7 +21,7 @@ from collections.abc import Mapping
 
 from lisa.utils import HideExekallID, group_by_value
 from lisa.conf import (
-    DeferredValue, IntIntDict, IntListList, IntIntListDict, IntStrDict,
+    DeferredValue, TypedDict, TypedList, SortedTypedList,
     MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, DerivedKeyDesc
 )
 from lisa.energy_model import EnergyModel
@@ -51,6 +51,10 @@ class KernelSymbolsAddress(KeyDesc):
         return '<symbols address>'
 
 
+CPUIdList = SortedTypedList[int]
+FreqList = SortedTypedList[int]
+
+
 class PlatformInfo(MultiSrcConf, HideExekallID):
     """
     Platform-specific information made available to tests.
@@ -64,16 +68,16 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     # we need.
     STRUCTURE = TopLevelKeyDesc('platform-info', 'Platform-specific information', (
         LevelKeyDesc('rtapp', 'RTapp configuration', (
-            KeyDesc('calib', 'RTapp calibration dictionary', [IntIntDict]),
+            KeyDesc('calib', 'RTapp calibration dictionary', [TypedDict[int,int]]),
         )),
 
         LevelKeyDesc('kernel', 'Kernel-related information', (
             KeyDesc('version', '', [KernelVersion]),
             KernelConfigKeyDesc('config', '', [TypedKernelConfig]),
-            KernelSymbolsAddress('symbols-address', 'Dictionary of addresses to symbol names extracted from /proc/kallsyms', [IntStrDict]),
+            KernelSymbolsAddress('symbols-address', 'Dictionary of addresses to symbol names extracted from /proc/kallsyms', [TypedDict[int,str]]),
         )),
         KeyDesc('nrg-model', 'Energy model object', [EnergyModel]),
-        KeyDesc('cpu-capacities', 'Dictionary of CPU ID to capacity value', [IntIntDict]),
+        KeyDesc('cpu-capacities', 'Dictionary of CPU ID to capacity value', [TypedDict[int,int]]),
         KeyDesc('abi', 'ABI, e.g. "arm64"', [str]),
         KeyDesc('os', 'OS being used, e.g. "linux"', [str]),
         KeyDesc('name', 'Free-form name of the board', [str]),
@@ -81,13 +85,12 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
         KeyDesc('freq-domains',
                 'Frequency domains modeled by a list of CPU IDs for each domain',
-                [IntListList]),
-        KeyDesc('freqs', 'Dictionnary of CPU ID to list of frequencies', [IntIntListDict]),
+                [TypedList[CPUIdList]]),
+        KeyDesc('freqs', 'Dictionnary of CPU ID to list of frequencies', [TypedDict[int, FreqList]]),
 
         DerivedKeyDesc('capacity-classes',
-                       'Capacity classes modeled by a list of CPU IDs for each '
-                       'capacity, sorted by capacity',
-                       [IntListList],
+                       'Capacity classes modeled by a list of CPU IDs for each capacity, sorted by capacity',
+                       [TypedList[CPUIdList]],
                        [['cpu-capacities']], compute_capa_classes),
     ))
     """Some keys have a reserved meaning with an associated type."""

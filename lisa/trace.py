@@ -46,7 +46,7 @@ from devlib.target import KernelVersion
 
 from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate, nullcontext
 from lisa.platforms.platinfo import PlatformInfo
-from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, StrList, Configurable
+from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, TypedList, Configurable
 
 
 class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
@@ -1539,8 +1539,8 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
     {generated_help}
     """
     STRUCTURE = TopLevelKeyDesc('ftrace-conf', 'FTrace configuration', (
-        KeyDesc('events', 'FTrace events to trace', [StrList]),
-        KeyDesc('functions', 'FTrace functions to trace', [StrList]),
+        KeyDesc('events', 'FTrace events to trace', [TypedList[str]]),
+        KeyDesc('functions', 'FTrace functions to trace', [TypedList[str]]),
         KeyDesc('buffer-size', 'FTrace buffer size', [int]),
         KeyDesc('trace-clock', 'Clock used while tracing (see "trace_clock" in ftrace.txt kernel doc)', [str, None]),
         KeyDesc('saved-cmdlines-nr', 'Number of saved cmdlines with associated PID while tracing', [int]),
