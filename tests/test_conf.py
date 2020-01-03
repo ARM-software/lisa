@@ -20,7 +20,7 @@ import os
 import copy
 from unittest import TestCase
 
-from lisa.conf import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, IntList, DerivedKeyDesc
+from lisa.conf import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, TypedList, DerivedKeyDesc
 from .utils import StorageTestCase, HOST_PLAT_INFO, HOST_TARGET_CONF
 
 """ A test suite for the MultiSrcConf subclasses."""
@@ -78,8 +78,8 @@ def compute_derived(base_conf):
 
 INTERNAL_STRUCTURE = (
     KeyDesc('foo', 'foo help', [int]),
-    KeyDesc('bar', 'bar help', [IntList]),
-    KeyDesc('multitypes', 'multitypes help', [IntList, str, None]),
+    KeyDesc('bar', 'bar help', [TypedList[int]]),
+    KeyDesc('multitypes', 'multitypes help', [TypedList[int], str, None]),
     LevelKeyDesc('sublevel', 'sublevel help', (
         KeyDesc('subkey', 'subkey help', [int]),
     )),
