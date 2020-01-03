@@ -19,6 +19,7 @@ from collections import OrderedDict, namedtuple
 import json
 import os
 import re
+import copy
 
 from lisa.wlgen.rta import RTA, Periodic, Ramp, Step, RunAndSync
 
@@ -77,6 +78,9 @@ class TestRTAProfile(RTABase):
         phases = list(conf['tasks']['test']['phases'].values())
         self.assertEqual(len(phases), len(exp_phases), 'Wrong number of phases')
         for phase, exp_phase in zip(phases, exp_phases):
+            if 'cpus' not in exp_phase:
+                exp_phase = copy.copy(exp_phase)
+                exp_phase['cpus'] = sorted(range(self.target.plat_info['cpus-count']))
             self.assertDictEqual(phase, exp_phase)
 
         # Try running the workload and check that it produces the expected log
