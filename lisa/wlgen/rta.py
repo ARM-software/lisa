@@ -781,7 +781,7 @@ class Phase(Loggable):
             cpus = list(range(plat_info['cpus-count']))
         else:
             cpus = self.cpus
-        phase['cpus'] = self.cpus
+        phase['cpus'] = cpus
 
         if self.uclamp_min is not None:
             phase['util_min'] = self.uclamp_min
