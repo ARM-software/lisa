@@ -695,7 +695,7 @@ class Phase(Loggable):
     :param cpus: the CPUs on which task execution is restricted during this phase.
         If unspecified, that phase will be allowed to run on any CPU,
         regardless of the affinity of the previous phases.
-    :type cpus: list(int) or None.
+    :type cpus: list(int) or None
 
     :param barrier_after: if provided, the name of the barrier to sync against
                           when reaching the end of this phase. Currently only
