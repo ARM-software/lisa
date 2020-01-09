@@ -1776,6 +1776,7 @@ class DmesgCollector(CollectorBase):
     """
 
     TOOLS = ['dmesg']
+    LOG_LEVELS = devlib.DmesgCollector.LOG_LEVELS
 
     def __init__(self, target, **kwargs):
         collector = devlib.DmesgCollector(target, **kwargs)
