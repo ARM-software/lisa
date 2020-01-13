@@ -857,21 +857,41 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         return new
 
     def __copy__(self):
-        """Shallow copy of the nested configuration tree, without
-        duplicating the leaf values."""
+        """
+        Shallow copy of the nested configuration tree, without duplicating the
+        leaf values.
+         """
         cls = type(self)
         new = cls.__new__(cls)
-        new.__dict__ = copy.copy(self.__dict__)
 
-        # make a shallow copy of the attributes
-        attr_set = set(self.__dict__.keys())
-        for attr in attr_set:
-            new.__dict__[attr] = copy.copy(self.__dict__[attr])
+        # This is eather going to be fixed up by the caller of __copy__ if we
+        # are in a recursive copy, or left as it is if that's either the root,
+        # or the highest sublevel that was copied (in case someone copies a
+        # part of a larger conf).
+        new._parent = self._parent
 
-        # Do the same with sublevels
+        not_copied = {'_parent', '_sublevel_map'}
+
+        # make a shallow copy of the attributes so we don't end up sharing
+        # metadata
+        new.__dict__.update(
+            (key, copy.copy(val))
+            for key, val in self.__dict__.items()
+            if key not in not_copied
+        )
+
+        # Do the same with sublevels recursively, since we consider the nested
+        # levels as one "meta object". It's not really a deepcopy either, since
+        # we don't copy the values themselves.
+        def copy_sublevel(sublevel):
+            new_sublevel = copy.copy(sublevel)
+            # Fixup the parent
+            new_sublevel._parent = new
+            return new_sublevel
+
         new._sublevel_map = {
-            key: sublevel.__copy__()
-            for key, sublevel in new._sublevel_map.items()
+            key: copy_sublevel(sublevel)
+            for key, sublevel in self._sublevel_map.items()
         }
 
         return new
