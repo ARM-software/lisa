@@ -293,7 +293,8 @@ class DerivedKeyDesc(KeyDesc):
 
     :param base_key_paths: List of paths to the keys this key is derived from.
         The paths in the form of a list of string are relative to the current
-        level, and cannot reference any level above the current one.
+        level. To reference a level above the current one, use the special key
+        ``..``.
     :type base_key_paths: list(list(str))
 
     :param compute: Function used to compute the value of the key. It takes a
@@ -329,8 +330,40 @@ class DerivedKeyDesc(KeyDesc):
         conf = get_nested_key(conf, path[:-1], getitem=conf.__class__._quiet_get_key)
         return conf.resolve_src(path[-1])
 
+    @staticmethod
+    def _resolve_key_path(key_path):
+        def should_skip(n, key):
+            if key == '..':
+                n += 1
+                skip = True
+            elif n:
+                skip = True
+                n -= 1
+            else:
+                skip = False
+
+            return (n, skip)
+
+        # Traverse the path in opposit order so we can know if a component needs to
+        # be removed based on previous components
+        key_path = list(reversed(key_path))
+
+        n = 0
+        skip_list = []
+        for key in key_path:
+            n, skip = should_skip(n, key)
+            skip_list.append(skip)
+
+        resolved = [
+            key for key, skip in zip(key_path, skip_list)
+            if not skip
+        ]
+        return list(reversed(resolved))
+
     def _get_base_key_qualname(self, key_path):
-        return self.parent.qualname + '/' + '/'.join(key_path)
+        path = self.parent.path + key_path
+        path = self._resolve_key_path(path)
+        return '/'.join(path)
 
     def _get_base_conf(self, conf):
         try:
@@ -770,7 +803,8 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     def __init__(self, conf=None, src='user', add_default_src=True):
         self._nested_init(
             key_desc_path=[],
-            src_prio=[]
+            src_prio=[],
+            parent=None,
         )
         if conf is not None:
             self.add_src(src, conf)
@@ -783,7 +817,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     def get_help(cls, *args, **kwargs):
         return cls.STRUCTURE.get_help(*args, **kwargs)
 
-    def _nested_init(self, key_desc_path, src_prio):
+    def _nested_init(self, key_desc_path, src_prio, parent):
         """Called to initialize nested instances of the class for nested
         configuration levels."""
         self._key_desc_path = key_desc_path
@@ -797,6 +831,8 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         "Key/value map of leaf values"
         self._sublevel_map = {}
         "Key/sublevel map of nested configuration objects"
+        self._parent = parent
+        "Parent instance of configuration"
 
         # Build the tree of objects for nested configuration mappings
         for key, key_desc in self._structure.items():
@@ -804,6 +840,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 self._sublevel_map[key] = self._nested_new(
                     key_desc_path=key_desc.path,
                     src_prio=self._src_prio,
+                    parent=self,
                 )
 
     @property
@@ -1205,6 +1242,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         """
         Get the value of the given key. It returns a deepcopy of the value.
 
+        The special key ``..`` can be used to refer to the parent in the
+        hierarchy.
+
         :param key: name of the key to lookup
         :type key: str
 
@@ -1221,6 +1261,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         .. note:: Using the indexing operator ``self[key]`` is preferable in
             most cases , but this method provides more parameters.
         """
+        if key == '..':
+            return self._parent
+
         key_desc = self._structure[key]
 
         if isinstance(key_desc, LevelKeyDesc):
