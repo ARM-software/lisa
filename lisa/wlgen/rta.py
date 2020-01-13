@@ -32,7 +32,7 @@ from operator import itemgetter
 from devlib import TargetStableError
 
 from lisa.wlgen.workload import Workload
-from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, groupby, nullcontext
+from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, group_by_value, nullcontext
 from lisa.pelt import PELT_SCALE
 
 
@@ -475,8 +475,8 @@ class RTA(Workload):
             return pload
 
         capa_ploads = {
-            capacity: {cpu: pload[cpu] for cpu, capa in cpu_caps}
-            for capacity, cpu_caps in groupby(orig_capacities.items(), itemgetter(1))
+            capacity: {cpu: pload[cpu] for cpu in cpus}
+            for capacity, cpus in group_by_value(orig_capacities).items()
         }
 
         # Find the min pload per capacity level, i.e. the fastest detected CPU.
@@ -590,9 +590,7 @@ class RTA(Workload):
         # value for the whole class anyway
         new_capacities = {}
         # Group the CPUs by original capacity
-        for capa, items in groupby(orig_capacities.items(), key=itemgetter(1)):
-            capa_class, _ = zip(*items)
-
+        for capa, capa_class in group_by_value(orig_capacities).items():
             avg_capa = mean(
                 capa
                 for cpu, capa in rtapp_capacities.items()
