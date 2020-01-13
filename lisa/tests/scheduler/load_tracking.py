@@ -148,9 +148,14 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
     def is_almost_equal(target, value, allowed_delta_pct):
         """
         Verify that ``value``` is reasonably close to ``target```
+
+        :returns: A tuple (bool, delta_pct)
         """
-        delta = target * allowed_delta_pct / 100
-        return target - delta <= value <= target + delta
+        delta = value - target
+        delta_pct = delta / target * 100
+        equal = abs(delta_pct) <= allowed_delta_pct
+
+        return (equal, delta_pct)
 
 
 class InvarianceItem(LoadTrackingBase, ExekallTaggable):
@@ -831,22 +836,40 @@ class CPUMigrationBase(LoadTrackingBase):
 
     def get_expected_cpu_util(self):
         """
-        Get the per-phase average CPU utilization expected from the rtapp profile
+        Get the per-phase average CPU utilization expected from the duty cycle
+        of the tasks found in the trace.
 
         :returns: A dict of the shape {cpu : {phase_id : expected_util}}
+
+        .. note:: This is more robust than just looking at the duty cycle in
+            the task profile, since rtapp might not reproduce accurately the
+            duty cycle it was asked.
         """
+        cpu_capacities = self.plat_info['cpu-capacities']
         cpu_util = {}
-        for task in self.rtapp_profile.values():
-            for phase_id, phase in enumerate(task.phases):
-                cpu = phase.cpus[0]
-                cpu_util.setdefault(cpu, {}).setdefault(phase_id, 0)
-                cpu_util[cpu][phase_id] += UTIL_SCALE * (phase.duty_cycle_pct / 100)
+        for task in self.rtapp_task_ids:
+            df = self.trace.analysis.tasks.df_task_activation(task)
+            for row in self.trace.analysis.rta.df_phases(task).itertuples():
+                phase = row.phase
+                duration = row.duration
+                start = row.Index
+                end = start + duration
+                phase_df = df_window(df, (start, end), method='pre', clip_window=True)
+
+                for cpu in self.cpus:
+                    duty_cycle = phase_df[phase_df['cpu'] == cpu]['duty_cycle']
+                    duty_cycle = duty_cycle.dropna()
+                    if duty_cycle.empty:
+                        duty_cycle = 0
+                    else:
+                        duty_cycle = series_mean(duty_cycle)
+
+
+                    cpu_util.setdefault(cpu, {}).setdefault(phase, 0)
+                    phase_util = UTIL_SCALE * duty_cycle * (cpu_capacities[cpu] / UTIL_SCALE)
+                    cpu_util[cpu][phase] += phase_util
 
         return cpu_util
-
-    @property
-    def reference_task(self):
-        return list(self.rtapp_profile.values())[0]
 
     @LoadTrackingAnalysis.df_cpus_signal.used_events
     def get_trace_cpu_util(self):
@@ -856,22 +879,21 @@ class CPUMigrationBase(LoadTrackingBase):
         :returns: A dict of the shape {cpu : {phase_id : trace_util}}
         """
         df = self.trace.analysis.load_tracking.df_cpus_signal('util')
-        phase_start = self.trace.start
-        cpu_util = {}
+        tasks = self.rtapp_task_ids_map.keys()
+        task = sorted(task for task in tasks if task.startswith('migr'))[0]
+        task = self.rtapp_task_ids_map[task][0]
 
-        for i, phase in enumerate(self.reference_task.phases):
-            # Start looking at signals once they should've converged
-            start = phase_start + UTIL_CONVERGENCE_TIME_S
-            # Trim the end a bit, otherwise we could have one or two events
-            # from the next phase
-            end = phase_start + phase.duration_s * .9
-            phase_df = df[start:end]
+        cpu_util = {}
+        for row in self.trace.analysis.rta.df_phases(task).itertuples():
+            phase = row.phase
+            duration = row.duration
+            start = row.Index
+            end = start + duration
+            phase_df = df_window(df, (start, end), method='pre', clip_window=True)
 
             for cpu in self.cpus:
-                util = phase_df[phase_df.cpu == cpu].util
-                cpu_util.setdefault(cpu, {})[i] = series_tunnel_mean(util)
-
-            phase_start += phase.duration_s
+                util = phase_df[phase_df['cpu'] == cpu]['util']
+                cpu_util.setdefault(cpu, {})[phase] = series_tunnel_mean(util)
 
         return cpu_util
 
@@ -893,7 +915,7 @@ class CPUMigrationBase(LoadTrackingBase):
     @get_trace_cpu_util.used_events
     @_plot_util.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
-    def test_util_task_migration(self, allowed_error_pct=5) -> ResultBundle:
+    def test_util_task_migration(self, allowed_error_pct=3) -> ResultBundle:
         """
         Test that a migrated task properly propagates its utilization at the CPU level
 
@@ -901,8 +923,8 @@ class CPUMigrationBase(LoadTrackingBase):
           expected values
         :type allowed_error_pct: float
         """
-        expected_cpu_util = self.get_expected_cpu_util()
-        trace_cpu_util = self.get_trace_cpu_util()
+        expected_util = self.get_expected_cpu_util()
+        trace_util = self.get_trace_cpu_util()
 
         passed = True
 
@@ -911,27 +933,33 @@ class CPUMigrationBase(LoadTrackingBase):
         deltas = {}
 
         for cpu in self.cpus:
-            cpu_str = "cpu{}".format(cpu)
+            expected_cpu_util = expected_util[cpu]
+            trace_cpu_util = trace_util[cpu]
 
+            cpu_str = "cpu{}".format(cpu)
             expected_metrics[cpu_str] = TestMetric({})
             trace_metrics[cpu_str] = TestMetric({})
             deltas[cpu_str] = TestMetric({})
 
-            for i, phase in enumerate(self.reference_task.phases):
-                expected_util = expected_cpu_util[cpu][i]
-                trace_util = trace_cpu_util[cpu][i]
-                if not self.is_almost_equal(
-                        expected_util,
-                        trace_util,
-                        allowed_error_pct):
+            for phase in sorted(trace_cpu_util.keys() & expected_cpu_util.keys()):
+                # TODO: remove that once we have named phases to skip the buffer phase
+                if phase == 0:
+                    continue
+
+                expected_phase_util = expected_cpu_util[phase]
+                trace_phase_util = trace_cpu_util[phase]
+                is_equal, delta = self.is_almost_equal(
+                        expected_phase_util,
+                        trace_phase_util,
+                        allowed_error_pct)
+
+                if not is_equal:
                     passed = False
 
                 # Just some verbose metric collection...
-                phase_str = "phase{}".format(i)
-                delta = 100 * (trace_util - expected_util) / expected_util
-
-                expected_metrics[cpu_str].data[phase_str] = TestMetric(expected_util)
-                trace_metrics[cpu_str].data[phase_str] = TestMetric(trace_util)
+                phase_str = "phase{}".format(phase)
+                expected_metrics[cpu_str].data[phase_str] = TestMetric(expected_phase_util)
+                trace_metrics[cpu_str].data[phase_str] = TestMetric(trace_phase_util)
                 deltas[cpu_str].data[phase_str] = TestMetric(delta, "%")
 
         res = ResultBundle.from_bool(passed)
