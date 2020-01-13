@@ -1400,7 +1400,6 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         :type eval_deferred: bool
         """
         out = []
-        idt_style = ' '
 
         # We add the derived keys when pretty-printing, for the sake of
         # completeness. This will not honor eval_deferred for base keys.
