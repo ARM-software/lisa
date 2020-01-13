@@ -454,7 +454,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         except KeyError:
             try:
                 closest_match = difflib.get_close_matches(
-                    word=key,
+                    word=str(key),
                     possibilities=self._key_map.keys(),
                     n=1,
                 )[0]
