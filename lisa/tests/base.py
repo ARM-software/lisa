@@ -1332,7 +1332,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         else:
             capacity_scale = 1024
 
-        return int((plat_info["cpu-capacities"][cpu] / capacity_scale) * utilization_pct)
+        return int((plat_info["cpu-capacities"]['rtapp'][cpu] / capacity_scale) * utilization_pct)
 
     @classmethod
     @abc.abstractmethod

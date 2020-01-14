@@ -42,7 +42,7 @@ class MisfitMigrationBase(RTATestBundle):
         """
         :returns: Whether the target has asymmetric CPU capacities
         """
-        return len(set(target.plat_info["cpu-capacities"].values())) > 1
+        return len(set(target.plat_info["cpu-capacities"]['orig'].values())) > 1
 
     @classmethod
     def _get_max_lb_interval(cls, plat_info):

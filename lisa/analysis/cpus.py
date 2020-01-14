@@ -78,8 +78,12 @@ class CpusAnalysis(TraceAnalysisBase):
         :param cpu: The CPU
         :type cpu: int
         """
-        if "cpu-capacities" in self.trace.plat_info:
-            axis.axhline(self.trace.plat_info["cpu-capacities"][cpu],
+        try:
+            orig_capacities = self.trace.plat_info['cpu-capacities']['orig']
+        except KeyError:
+            pass
+        else:
+            axis.axhline(orig_capacities[cpu],
                          color=self.get_next_color(axis),
                          linestyle='--', label="orig_capacity")
 

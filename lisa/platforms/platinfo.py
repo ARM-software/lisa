@@ -17,9 +17,10 @@
 
 import re
 import functools
+import contextlib
 from collections.abc import Mapping
 
-from lisa.utils import HideExekallID, group_by_value
+from lisa.utils import HideExekallID, group_by_value, memoized
 from lisa.conf import (
     DeferredValue, TypedDict, TypedList, SortedTypedList,
     MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, DerivedKeyDesc
@@ -38,7 +39,24 @@ def compute_capa_classes(conf):
     This is intended for the creation of the ``capacity-classes`` key of
     :class:`PlatformInfo`.
     """
-    return list(group_by_value(conf['cpu-capacities']).values())
+    return list(group_by_value(conf['cpu-capacities']['orig']).values())
+
+
+def compute_rtapp_capacities(conf):
+    """
+    Compute the capacities that will be used for rtapp.
+
+    If the CPU capacities are not writeable on the target, the orig capacities
+    will be used, otherwise the capacities adjusted with rtapp calibration will
+    be used.
+    """
+    writeable = conf['writeable']
+    orig_capacities = conf['orig']
+
+    rtapp_calib = conf['..']['rtapp']['calib']
+    rtapp_capacities = RTA.get_cpu_capacities_from_calibrations(orig_capacities, rtapp_calib)
+
+    return rtapp_capacities if writeable else orig_capacities
 
 
 class KernelConfigKeyDesc(KeyDesc):
@@ -53,6 +71,7 @@ class KernelSymbolsAddress(KeyDesc):
 
 CPUIdList = SortedTypedList[int]
 FreqList = SortedTypedList[int]
+CPUCapacities = TypedDict[int,int]
 
 
 class PlatformInfo(MultiSrcConf, HideExekallID):
@@ -77,7 +96,17 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             KernelSymbolsAddress('symbols-address', 'Dictionary of addresses to symbol names extracted from /proc/kallsyms', [TypedDict[int,str]]),
         )),
         KeyDesc('nrg-model', 'Energy model object', [EnergyModel]),
-        KeyDesc('cpu-capacities', 'Dictionary of CPU ID to capacity value', [TypedDict[int,int]]),
+        LevelKeyDesc('cpu-capacities', 'Dictionaries of CPU ID to capacity value', (
+            KeyDesc('writeable', 'Whether the CPU capacities can be updated by writing in sysfs on this platform', [bool]),
+            KeyDesc('orig', 'Default capacity value as exposed by the kernel', [CPUCapacities]),
+            DerivedKeyDesc(
+                'rtapp',
+                'CPU capacities adjusted with rtapp calibration values, for accurate duty cycle reproduction',
+                [CPUCapacities],
+                [['..', 'rtapp', 'calib'], ['orig'], ['writeable']],
+                compute_rtapp_capacities,
+            ),
+        )),
         KeyDesc('abi', 'ABI, e.g. "arm64"', [str]),
         KeyDesc('os', 'OS being used, e.g. "linux"', [str]),
         KeyDesc('name', 'Free-form name of the board', [str]),
@@ -91,7 +120,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         DerivedKeyDesc('capacity-classes',
                        'Capacity classes modeled by a list of CPU IDs for each capacity, sorted by capacity',
                        [TypedList[CPUIdList]],
-                       [['cpu-capacities']], compute_capa_classes),
+                       [['cpu-capacities', 'orig']], compute_capa_classes),
     ))
     """Some keys have a reserved meaning with an associated type."""
 
@@ -155,13 +184,36 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
         info['freqs'] = get_freqs
 
-        def get_cpu_capacities():
+        @memoized
+        def get_orig_capacities():
             if target.is_module_available('sched'):
                 return target.sched.get_capacities(default=1024)
             else:
                 return None
 
-        info['cpu-capacities'] = get_cpu_capacities
+        def get_writeable_capacities():
+            orig_capacities = get_orig_capacities()
+            cpu = 0
+            path = '/sys/devices/system/cpu/cpu{}/cpu_capacity'.format(cpu)
+            capa = orig_capacities[cpu]
+            test_capa = capa - 1 if capa > 1 else capa + 1
+
+            try:
+                target.write_value(path, test_capa, verify=True)
+            except TargetStableError:
+                writeable = False
+            else:
+                writeable = True
+            finally:
+                with contextlib.suppress(TargetStableError):
+                    target.write_value(path, capa)
+
+            return writeable
+
+        info['cpu-capacities'] = {
+            'writeable': get_writeable_capacities,
+            'orig': get_orig_capacities,
+        }
 
         info['kernel']['symbols-address'] = functools.partial(self._read_kallsyms, target)
 

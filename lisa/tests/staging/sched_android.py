@@ -262,7 +262,7 @@ class SchedTunePlacementItem(SchedTuneItemBase):
 
         # Find CPUs without enough capacity to meet the boost
         boost = self.boost
-        cpu_caps = self.plat_info['cpu-capacities']
+        cpu_caps = self.plat_info['cpu-capacities']['rtapp']
         ko_cpus = list(filter(lambda x: (cpu_caps[x] / 10.24) < boost, cpu_caps))
 
         # Count how much time was spend on wrong CPUs

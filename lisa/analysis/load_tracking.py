@@ -189,7 +189,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         elif signal == 'required_capacity':
             # Add a column which represents the max capacity of the smallest
             # CPU which can accomodate the task utilization
-            capacities = sorted(self.trace.plat_info["cpu-capacities"].values())
+            capacities = sorted(self.trace.plat_info["cpu-capacities"]['orig'].values())
 
             def fits_capacity(util):
                 for capacity in capacities:
@@ -240,7 +240,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         df = self._df_either_event(self._SCHED_PELT_SE_NAMES)
 
-        if "cpu-capacities" in self.trace.plat_info:
+        if "orig" in self.trace.plat_info['cpu-capacities']:
             df['required_capacity'] = self.df_tasks_signal('required_capacity')['required_capacity']
         return df
 
@@ -409,7 +409,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         # Get all utilization update events
         df = self.df_task_signal(task_id, 'required_capacity').copy()
-        cpu_capacities = self.trace.plat_info["cpu-capacities"]
+        cpu_capacities = self.trace.plat_info["cpu-capacities"]['orig']
 
         def evaluate_placement(cpu, required_capacity):
             capacity = cpu_capacities[cpu]

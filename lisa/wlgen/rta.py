@@ -117,41 +117,36 @@ class RTA(Workload):
 
     def run(self, cpus=None, cgroup=None, background=False, as_root=False, update_cpu_capacities=None):
         logger = self.get_logger()
-
-        if update_cpu_capacities is None:
-            update_cpu_capacities = True
-            best_effort = True
-        else:
-            best_effort = False
+        plat_info = self.target.plat_info
+        writeable_capacities = plat_info['cpu-capacities']['writeable']
+        rtapp_capacities = plat_info['cpu-capacities']['rtapp']
 
         if update_cpu_capacities:
-            new_capacities = self.target.plat_info['cpu-capacities']
+            if not writeable_capacities:
+                raise ValueError('CPU capacities are not writeable on this target, please use update_cpu_capacities=False or None')
+        # If left to None, we update if possible
+        elif update_cpu_capacities is None:
+            update_cpu_capacities = writeable_capacities
+            if not writeable_capacities:
+                logger.warning('CPU capacities will not be updated on this platform')
+
+        if update_cpu_capacities:
+            logger.info('Will update CPU capacities in sysfs: {}'.format(rtapp_capacities))
+
             write_kwargs = [
                 dict(
                     path='/sys/devices/system/cpu/cpu{}/cpu_capacity'.format(cpu),
                     value=capa,
                     verify=True,
                 )
-                for cpu, capa in sorted(new_capacities.items())
+                for cpu, capa in sorted(rtapp_capacities.items())
             ]
-
-            cm = self.target.batch_revertable_write_value(write_kwargs)
-            class _CM():
-                def __enter__(self):
-                    logger.info('Updating CPU capacities in sysfs: {}'.format(new_capacities))
-                    try:
-                        cm.__enter__()
-                    except TargetStableError as e:
-                        if best_effort:
-                            logger.warning('Could not update the CPU capacities: {}'.format(e))
-                        else:
-                            raise
-
-                def __exit__(self, *args, **kwargs):
-                    return cm.__exit__(*args, **kwargs)
-
-            capa_cm = _CM()
+            capa_cm = self.target.batch_revertable_write_value(write_kwargs)
         else:
+            # Spit out some warning in case we are not going to update the
+            # capacities, so we know what to expect
+            orig_capacities = plat_info['cpu-capacities']['orig']
+            RTA.warn_capacities_mismatch(orig_capacities, rtapp_capacities)
             capa_cm = nullcontext()
 
         with capa_cm:
@@ -475,7 +470,7 @@ class RTA(Workload):
         # Sanity check calibration values for asymmetric systems if we have
         # access to capacities
         try:
-            orig_capacities = plat_info['cpu-capacities']
+            orig_capacities = plat_info['cpu-capacities']['orig']
         except KeyError:
             return pload
 
@@ -504,7 +499,7 @@ class RTA(Workload):
 
         # Check that the CPU capacities seen by rt-app are similar to the one
         # the kernel uses
-        orig_capacities = plat_info['cpu-capacities']
+        orig_capacities = plat_info['cpu-capacities']['orig']
         true_capacities = cls.get_cpu_capacities_from_calibrations(orig_capacities, pload)
         cls.warn_capacities_mismatch(orig_capacities, true_capacities)
 
