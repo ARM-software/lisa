@@ -16,18 +16,11 @@
 #
 
 import os
-from collections import OrderedDict
-import itertools
 import functools
-from statistics import mean
-
-import matplotlib.pyplot as plt
-import pylab as pl
 
 from devlib.target import KernelVersion
 
-from lisa.tests.base import (TestMetric, Result, ResultBundle, TestBundle,
-                             RTATestBundle, CannotCreateError)
+from lisa.tests.base import ResultBundle, RTATestBundle
 from lisa.target import Target
 from lisa.utils import ArtifactPath, memoized, namedtuple
 from lisa.wlgen.rta import Periodic, Ramp
