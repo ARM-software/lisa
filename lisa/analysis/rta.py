@@ -250,6 +250,56 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         return df
 
+    @df_rtapp_loop.used_events
+    def df_phases(self, task):
+        """
+        Get phases actual start times and durations
+
+        :param task: the rt-app task to filter for
+        :type task: int or str or lisa.trace.TaskID
+
+        :returns: A :class:`pandas.DataFrame` with index representing the
+            start time of a phase and these column:
+
+                * ``phase``: the phase number.
+                * ``duration``: the measured phase duration.
+        """
+        def get_duration(phase, df):
+            start = df.index[0]
+            end = df.index[-1]
+            duration = end - start
+            return (start, {'phase': phase, 'duration': duration})
+
+        loops_df = self.df_rtapp_loop(task)
+        durations = sorted(
+            get_duration(cols['phase'], df)
+            for cols, df in df_split_signals(loops_df, ['phase'])
+        )
+
+        index, columns = zip(*durations)
+        return pd.DataFrame(columns, index=index)
+
+    @df_phases.used_events
+    def task_phase_windows(self, task):
+        """
+        Yield the phases of the specified task.
+
+        :param task: the rt-app task to filter for
+        :type task: int or str or lisa.trace.TaskID
+
+        Yield :class: `namedtuple` reporting:
+
+            * `id` : the iteration ID
+            * `start` : the iteration start time
+            * `end` : the iteration end time
+
+        :return: Generator yielding :class:`PhaseWindow` with
+            start end end timestamps.
+        """
+        for idx, phase in enumerate(self.df_phases(task).itertuples()):
+            yield PhaseWindow(idx, phase.Index,
+                              phase.Index + phase.duration)
+
     @memoized
     @_get_rtapp_phases.used_events
     def df_rtapp_phases_start(self, task=None):
@@ -372,7 +422,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         return PhaseWindow(phase, phase_start, phase_end)
 
-    @task_phase_window.used_events
+    @df_phases.used_events
     def task_phase_at(self, task, timestamp):
         """
         Return the :class:`PhaseWindow` for the specified
@@ -386,19 +436,22 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         :returns: the ID of the phase corresponding to the specified timestamp.
         """
-        # Last phase is special, compute end time as start + duration
-        last_phase_end = self.df_phases(task).index[-1]
-        last_phase_end += float(self.df_phases(task).iloc[-1].values)
+        df = self.df_phases(task)
+
+        def get_info(row):
+            start = row.name
+            end = start + row['duration']
+            phase = row['phase']
+            return (phase, start, end)
+
+        _, _, last_phase_end = get_info(df.iloc[-1])
         if timestamp > last_phase_end:
-            raise ValueError('Passed timestamp ({}) is after last phase end ({})'.format(
+            raise ValueError('timestamp={} is after last phase end: {}'.format(
                 timestamp, last_phase_end))
 
-        phase_id = len(self.df_phases(task)) - \
-            len(self.df_phases(task)[timestamp:]) - 1
-        if phase_id < 0:
-            raise ValueError('negative phase ID')
-
-        return self.task_phase_window(task, phase_id)
+        i = df.index.get_loc(timestamp, method='ffill')
+        phase_id, phase_start, phase_end = get_info(df.iloc[i])
+        return PhaseWindow(phase_id, phase_start, phase_end)
 
     ###########################################################################
     # rtapp_phase events related methods
@@ -475,56 +528,6 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         df = self._get_stats()
         return self._task_filtered(df, task)
 
-    @memoized
-    @df_rtapp_loop.used_events
-    def df_phases(self, task):
-        """
-        Get phases actual start times and durations
-
-        :param task: the rt-app task to filter for
-        :type task: int or str or lisa.trace.TaskID
-
-        :returns: A :class:`pandas.DataFrame` with index representing the
-            start time of a phase and these column:
-
-                * ``phase``: the phase number.
-                * ``duration``: the measured phase duration.
-        """
-        def get_duration(phase, df):
-            start = df.index[0]
-            end = df.index[-1]
-            duration = end - start
-            return (start, {'phase': phase, 'duration': duration})
-
-        loops_df = self.df_rtapp_loop(task)
-        durations = sorted(
-            get_duration(cols['phase'], df)
-            for cols, df in df_split_signals(loops_df, ['phase'])
-        )
-
-        index, columns = zip(*durations)
-        return pd.DataFrame(columns, index=index)
-
-    @df_phases.used_events
-    def task_phase_windows(self, task):
-        """
-        Yield the phases of the specified task.
-
-        :param task: the rt-app task to filter for
-        :type task: int or str or lisa.trace.TaskID
-
-        Yield :class: `namedtuple` reporting:
-
-            * `id` : the iteration ID
-            * `start` : the iteration start time
-            * `end` : the iteration end time
-
-        :return: Generator yielding :class:`PhaseWindow` with
-            start end end timestamps.
-        """
-        for idx, phase in enumerate(self.df_phases(task).itertuples()):
-            yield PhaseWindow(idx, phase.Index,
-                              phase.Index + phase.duration)
 
 ###############################################################################
 # Plotting Methods
