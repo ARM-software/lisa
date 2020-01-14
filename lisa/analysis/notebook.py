@@ -24,7 +24,6 @@ import operator
 
 import __main__ as main
 
-from lisa.utils import memoized
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
 from lisa.datautils import df_refit_index, df_filter

@@ -152,6 +152,7 @@ class TasksAnalysis(TraceAnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
+    @TraceAnalysisBase.cache
     @requires_events('sched_wakeup')
     def df_tasks_wakeups(self):
         """
@@ -170,6 +171,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return df
 
+    @TraceAnalysisBase.cache
     @df_tasks_wakeups.used_events
     def df_top_wakeup(self, min_wakeups=100):
         """
@@ -186,6 +188,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return df
 
+    @TraceAnalysisBase.cache
     @requires_events('sched_switch')
     def df_rt_tasks(self, min_prio=100):
         """
@@ -225,7 +228,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return rt_tasks
 
-    @memoized
+    @TraceAnalysisBase.cache
     @requires_events('sched_switch', 'sched_wakeup')
     def df_tasks_states(self):
         """
@@ -321,6 +324,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return df
 
+    @TraceAnalysisBase.cache
     @df_tasks_states.used_events
     def df_task_states(self, task, stringify=False):
         """
@@ -394,6 +398,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return df
 
+    @TraceAnalysisBase.cache
     @df_tasks_states.used_events
     def df_tasks_runtime(self):
         """
@@ -422,6 +427,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return df
 
+    @TraceAnalysisBase.cache
     @df_task_states.used_events
     def df_task_total_residency(self, task):
         """
@@ -488,6 +494,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return res_df[:count]
 
+    @TraceAnalysisBase.cache
     @df_task_states.used_events
     def df_task_activation(self, task, cpu=None, active_value=1, sleep_value=0):
         """

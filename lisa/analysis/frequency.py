@@ -86,7 +86,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 if not (ref.equals(col) or ref[:-1].equals(col.shift()[1:])):
                     raise ValueError('Frequencies of CPUs in the freq domain {} are not coherent'.format(cpus))
 
-    @memoized
+    @TraceAnalysisBase.cache
     @requires_events('cpu_frequency', 'cpu_idle')
     def _get_frequency_residency(self, cpus):
         """
@@ -178,6 +178,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
             if cpu in domain:
                 return self._get_frequency_residency(tuple(domain))
 
+    @TraceAnalysisBase.cache
     @requires_events('cpu_frequency')
     def df_cpu_frequency_transitions(self, cpu):
         """
@@ -204,6 +205,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         return pd.DataFrame(transitions)
 
+    @TraceAnalysisBase.cache
     @df_cpu_frequency_transitions.used_events
     def df_cpu_frequency_transition_rate(self, cpu):
         """
@@ -242,6 +244,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         return (df['frequency'] * df['delta']).sum() / timespan
 
+    @TraceAnalysisBase.cache
     @requires_events('clock_set_rate', 'clock_enable', 'clock_disable')
     def df_peripheral_clock_effective_rate(self, clk_name):
         rate_df = self.trace.df_events('clock_set_rate')

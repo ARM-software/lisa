@@ -19,7 +19,6 @@
 
 import pandas as pd
 
-from lisa.utils import memoized
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
 
@@ -35,6 +34,7 @@ class CpusAnalysis(TraceAnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
+    @TraceAnalysisBase.cache
     @requires_events('sched_switch')
     def df_context_switches(self):
         """

@@ -20,9 +20,6 @@ import operator
 
 import pandas as pd
 
-from trappy.utils import handle_duplicate_index
-
-from lisa.utils import memoized
 from lisa.datautils import series_integrate
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
@@ -42,7 +39,6 @@ class IdleAnalysis(TraceAnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
-    @memoized
     @requires_events('cpu_idle')
     def signal_cpu_active(self, cpu):
         """
@@ -69,8 +65,7 @@ class IdleAnalysis(TraceAnalysisBase):
             entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[start_time])
             cpu_active = pd.concat([entry_0, cpu_active])
 
-        # Fix sequences of wakeup/sleep events reported with the same index
-        return handle_duplicate_index(cpu_active)
+        return cpu_active
 
     @signal_cpu_active.used_events
     def signal_cluster_active(self, cluster):
@@ -106,6 +101,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
         return cluster_active
 
+    @TraceAnalysisBase.cache
     @requires_events('cpu_idle')
     def df_cpus_wakeups(self):
         """"
@@ -129,6 +125,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
         return pd.DataFrame({'cpu': sr}).sort_index()
 
+    @TraceAnalysisBase.cache
     @requires_events("cpu_idle")
     def df_cpu_idle_state_residency(self, cpu):
         """
@@ -178,6 +175,7 @@ class IdleAnalysis(TraceAnalysisBase):
         idle_time_df.index.name = 'idle_state'
         return idle_time_df
 
+    @TraceAnalysisBase.cache
     @requires_events('cpu_idle')
     def df_cluster_idle_state_residency(self, cluster):
         """

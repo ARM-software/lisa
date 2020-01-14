@@ -158,6 +158,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         return self._df_either_event(self._SCHED_PELT_CFS_NAMES)
 
+    @TraceAnalysisBase.cache
     @may_use_events(
         requires_one_event_of(*_SCHED_PELT_SE_NAMES),
         'sched_util_est_task'
@@ -208,6 +209,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         columns = sorted(set(df.columns) & columns)
         return df[columns]
 
+    @TraceAnalysisBase.cache
     @df_tasks_signal.used_events
     def df_task_signal(self, task, signal):
         """
@@ -244,6 +246,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             df['required_capacity'] = self.df_tasks_signal('required_capacity')['required_capacity']
         return df
 
+    @TraceAnalysisBase.cache
     @df_tasks_signal.used_events
     def df_top_big_tasks(self, util_threshold, min_samples=100):
         """

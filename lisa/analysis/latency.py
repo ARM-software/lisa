@@ -20,7 +20,6 @@ import numpy as np
 
 from lisa.analysis.base import TraceAnalysisBase, COLOR_CYCLES
 from lisa.analysis.tasks import TaskState, TasksAnalysis
-from lisa.utils import memoized
 from lisa.datautils import df_refit_index
 
 
@@ -41,6 +40,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
+    @TraceAnalysisBase.cache
     @TasksAnalysis.df_task_states.used_events
     def df_latency_wakeup(self, task):
         """
@@ -62,6 +62,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         df.rename(columns={'delta': 'wakeup_latency'}, inplace=True)
         return df
 
+    @TraceAnalysisBase.cache
     @TasksAnalysis.df_task_states.used_events
     def df_latency_preemption(self, task):
         """
@@ -82,6 +83,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         df.rename(columns={'delta': 'preempt_latency'}, inplace=True)
         return df
 
+    @TraceAnalysisBase.cache
     @TasksAnalysis.df_task_states.used_events
     def df_activations(self, task):
         """
@@ -102,6 +104,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         return wkp_df[["activation_interval"]]
 
+    @TraceAnalysisBase.cache
     @TasksAnalysis.df_task_states.used_events
     def df_runtimes(self, task):
         """

@@ -24,7 +24,7 @@ import pandas as pd
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
 from lisa.datautils import df_filter_task_ids, df_window, df_split_signals
 from lisa.trace import TaskID, requires_events, requires_one_event_of, may_use_events, MissingTraceEventError
-from lisa.utils import memoized, deprecate
+from lisa.utils import deprecate, memoized
 from lisa.analysis.tasks import TasksAnalysis
 
 
@@ -137,6 +137,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         return self.trace.df_events('rtapp_main')
 
     @property
+    @memoized
     @df_rtapp_main.used_events
     def rtapp_window(self):
         """
@@ -150,6 +151,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
             df[df.event == 'end'].index.values[0])
 
     @property
+    @memoized
     @df_rtapp_main.used_events
     def rtapp_reftime(self):
         """
@@ -170,6 +172,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
     # rtapp_task events related methods
     ###########################################################################
 
+    @TraceAnalysisBase.cache
     @requires_events('rtapp_task')
     def df_rtapp_task(self, task=None):
         """
@@ -200,6 +203,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
     # rtapp_loop events related methods
     ###########################################################################
 
+    @TraceAnalysisBase.cache
     @requires_events('rtapp_loop')
     def df_rtapp_loop(self, task=None):
         """
@@ -229,6 +233,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         df = self.trace.df_events('rtapp_loop')
         return self._task_filtered(df, task)
 
+    @TraceAnalysisBase.cache
     @df_rtapp_loop.used_events
     def _get_rtapp_phases(self, event, task):
         df = self.df_rtapp_loop(task)
@@ -250,6 +255,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         return df
 
+    @TraceAnalysisBase.cache
     @df_rtapp_loop.used_events
     def df_phases(self, task):
         """
@@ -319,7 +325,6 @@ class RTAEventsAnalysis(TraceAnalysisBase):
             yield PhaseWindow(idx, phase.Index,
                               phase.Index + phase.duration)
 
-    @memoized
     @_get_rtapp_phases.used_events
     def df_rtapp_phases_start(self, task=None):
         """
@@ -338,7 +343,6 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         """
         return self._get_rtapp_phases('start', task)
 
-    @memoized
     @_get_rtapp_phases.used_events
     def df_rtapp_phases_end(self, task=None):
         """
@@ -357,6 +361,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         """
         return self._get_rtapp_phases('end', task)
 
+    @TraceAnalysisBase.cache
     @df_rtapp_phases_start.used_events
     def _get_task_phase(self, event, task, phase):
         task = self.trace.get_task_id(task)
@@ -405,6 +410,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         """
         return self._get_task_phase('end', task, phase)
 
+    @memoized
     @df_rtapp_task.used_events
     def tasks_window(self, task):
         """
@@ -419,6 +425,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         return (start_time, end_time)
 
+    @memoized
     @df_rtapp_phases_start.used_events
     def task_phase_window(self, task, phase):
         """
@@ -505,7 +512,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
     # rtapp_stats events related methods
     ###########################################################################
 
-    @memoized
+    @TraceAnalysisBase.cache
     @requires_events('rtapp_stats')
     def _get_stats(self):
         df = self.trace.df_events('rtapp_stats').copy(deep=True)
@@ -573,7 +580,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
             def cpus_of_phase_at(t):
                 end = t + phases_df['duration'][t]
                 window = (t, end)
-                df = df_window(states_df, window, method='pre', clip_window=True)
+                df = df_window(states_df, window, method='pre')
                 return sorted(int(x) for x in df['cpu'].unique())
 
         def make_band(row):
