@@ -29,6 +29,7 @@ import contextlib
 import pprint
 import os
 import io
+import functools
 
 import lisa
 
@@ -293,7 +294,8 @@ class DerivedKeyDesc(KeyDesc):
 
     :param base_key_paths: List of paths to the keys this key is derived from.
         The paths in the form of a list of string are relative to the current
-        level, and cannot reference any level above the current one.
+        level. To reference a level above the current one, use the special key
+        ``..``.
     :type base_key_paths: list(list(str))
 
     :param compute: Function used to compute the value of the key. It takes a
@@ -321,22 +323,60 @@ class DerivedKeyDesc(KeyDesc):
         self._help = val
 
     @staticmethod
-    def _get_base_key_val(conf, path):
-        return get_nested_key(conf, path, getitem=conf.__class__._quiet_get_key)
+    def make_get_key(conf, **kwargs):
+        f = conf.__class__.get_key
+        return functools.partial(f, **kwargs)
 
-    @staticmethod
-    def _get_base_key_src(conf, path):
-        conf = get_nested_key(conf, path[:-1], getitem=conf.__class__._quiet_get_key)
+    @classmethod
+    def _get_base_key_val(cls, conf, path, eval_deferred=True):
+        get_key = cls.make_get_key(conf, quiet=True, eval_deferred=eval_deferred)
+        return get_nested_key(conf, path, getitem=get_key)
+
+    @classmethod
+    def _get_base_key_src(cls, conf, path):
+        get_key = cls.make_get_key(conf, quiet=True)
+        conf = get_nested_key(conf, path[:-1], getitem=get_key)
         return conf.resolve_src(path[-1])
 
-    def _get_base_key_qualname(self, key_path):
-        return self.parent.qualname + '/' + '/'.join(key_path)
+    def _resolve_key_path(self, key_path):
+        def should_skip(n, key):
+            if key == '..':
+                n += 1
+                skip = True
+            elif n:
+                skip = True
+                n -= 1
+            else:
+                skip = False
 
-    def _get_base_conf(self, conf):
+            return (n, skip)
+
+        # Traverse the path in opposit order so we can know if a component needs to
+        # be removed based on previous components
+        key_path = self.parent.path + key_path
+        key_path = list(reversed(key_path))
+
+        n = 0
+        skip_list = []
+        for key in key_path:
+            n, skip = should_skip(n, key)
+            skip_list.append(skip)
+
+        resolved = [
+            key for key, skip in zip(key_path, skip_list)
+            if not skip
+        ]
+        return list(reversed(resolved))
+
+    def _get_base_key_qualname(self, key_path):
+        path = self._resolve_key_path(key_path)
+        return '/'.join(path)
+
+    def _get_base_conf(self, conf, eval_deferred=True):
         try:
             base_conf = {}
             for key_path in self._base_key_paths:
-                val = self._get_base_key_val(conf, key_path)
+                val = self._get_base_key_val(conf, key_path, eval_deferred=eval_deferred)
                 set_nested_key(base_conf, key_path, val)
             return base_conf
         except KeyError as e:
@@ -346,18 +386,43 @@ class DerivedKeyDesc(KeyDesc):
                 msg=e.args[0],
             )) from e
 
+    def get_non_evaluated_base_keys(self, conf):
+        """
+        Get the :class:`KeyDescBase` of base keys that have a :class:`DeferredValue`
+        value.
+        """
+        def get_key_desc(path):
+            path = self._resolve_key_path(path)[1:]
+            return get_nested_key(conf.STRUCTURE, path)
+
+        bases = {
+            get_key_desc(key_path): self._get_base_key_val(conf, key_path, eval_deferred=False)
+            for key_path in self._base_key_paths
+        }
+
+        return [
+            key_desc
+            for key_desc, val in bases.items()
+            if isinstance(val, DeferredValue)
+        ]
+
     def can_be_computed(self, conf):
         try:
-            self._get_base_conf(conf)
+            self._get_base_conf(conf, eval_deferred=False)
         except MissingBaseKeyError:
             return False
         else:
             return True
 
-    def compute_val(self, conf):
-        base_conf = self._get_base_conf(conf)
-        val = self._compute(base_conf)
-        self.validate_val(val)
+    def compute_val(self, conf, eval_deferred=True):
+        # If there is non evaluated base, transitively return a closure rather
+        # than computing now.
+        if not eval_deferred and self.get_non_evaluated_base_keys(conf):
+            val = DeferredValue(self.compute_val, conf=conf, eval_deferred=True)
+        else:
+            base_conf = self._get_base_conf(conf)
+            val = self._compute(base_conf)
+            self.validate_val(val)
         return val
 
     def get_src(self, conf):
@@ -421,7 +486,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         except KeyError:
             try:
                 closest_match = difflib.get_close_matches(
-                    word=key,
+                    word=str(key),
                     possibilities=self._key_map.keys(),
                     n=1,
                 )[0]
@@ -770,7 +835,8 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     def __init__(self, conf=None, src='user', add_default_src=True):
         self._nested_init(
             key_desc_path=[],
-            src_prio=[]
+            src_prio=[],
+            parent=None,
         )
         if conf is not None:
             self.add_src(src, conf)
@@ -783,7 +849,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     def get_help(cls, *args, **kwargs):
         return cls.STRUCTURE.get_help(*args, **kwargs)
 
-    def _nested_init(self, key_desc_path, src_prio):
+    def _nested_init(self, key_desc_path, src_prio, parent):
         """Called to initialize nested instances of the class for nested
         configuration levels."""
         self._key_desc_path = key_desc_path
@@ -797,6 +863,8 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         "Key/value map of leaf values"
         self._sublevel_map = {}
         "Key/sublevel map of nested configuration objects"
+        self._parent = parent
+        "Parent instance of configuration"
 
         # Build the tree of objects for nested configuration mappings
         for key, key_desc in self._structure.items():
@@ -804,6 +872,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 self._sublevel_map[key] = self._nested_new(
                     key_desc_path=key_desc.path,
                     src_prio=self._src_prio,
+                    parent=self,
                 )
 
     @property
@@ -820,21 +889,41 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         return new
 
     def __copy__(self):
-        """Shallow copy of the nested configuration tree, without
-        duplicating the leaf values."""
+        """
+        Shallow copy of the nested configuration tree, without duplicating the
+        leaf values.
+         """
         cls = type(self)
         new = cls.__new__(cls)
-        new.__dict__ = copy.copy(self.__dict__)
 
-        # make a shallow copy of the attributes
-        attr_set = set(self.__dict__.keys())
-        for attr in attr_set:
-            new.__dict__[attr] = copy.copy(self.__dict__[attr])
+        # This is eather going to be fixed up by the caller of __copy__ if we
+        # are in a recursive copy, or left as it is if that's either the root,
+        # or the highest sublevel that was copied (in case someone copies a
+        # part of a larger conf).
+        new._parent = self._parent
 
-        # Do the same with sublevels
+        not_copied = {'_parent', '_sublevel_map'}
+
+        # make a shallow copy of the attributes so we don't end up sharing
+        # metadata
+        new.__dict__.update(
+            (key, copy.copy(val))
+            for key, val in self.__dict__.items()
+            if key not in not_copied
+        )
+
+        # Do the same with sublevels recursively, since we consider the nested
+        # levels as one "meta object". It's not really a deepcopy either, since
+        # we don't copy the values themselves.
+        def copy_sublevel(sublevel):
+            new_sublevel = copy.copy(sublevel)
+            # Fixup the parent
+            new_sublevel._parent = new
+            return new_sublevel
+
         new._sublevel_map = {
-            key: sublevel.__copy__()
-            for key, sublevel in new._sublevel_map.items()
+            key: copy_sublevel(sublevel)
+            for key, sublevel in self._sublevel_map.items()
         }
 
         return new
@@ -1197,13 +1286,12 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
         return state
 
-    def _quiet_get_key(self, *args, **kwargs):
-        kwargs['quiet'] = True
-        return self.get_key(*args, **kwargs)
-
     def get_key(self, key, src=None, eval_deferred=True, quiet=False):
         """
         Get the value of the given key. It returns a deepcopy of the value.
+
+        The special key ``..`` can be used to refer to the parent in the
+        hierarchy.
 
         :param key: name of the key to lookup
         :type key: str
@@ -1221,6 +1309,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         .. note:: Using the indexing operator ``self[key]`` is preferable in
             most cases , but this method provides more parameters.
         """
+        if key == '..':
+            return self._parent
+
         key_desc = self._structure[key]
 
         if isinstance(key_desc, LevelKeyDesc):
@@ -1234,7 +1325,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                     src=src,
                 ), key)
 
-            val = key_desc.compute_val(self)
+            val = key_desc.compute_val(self, eval_deferred=eval_deferred)
             src = self.resolve_src(key)
         else:
             # Compute the source to use for that key
@@ -1309,13 +1400,23 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         :type eval_deferred: bool
         """
         out = []
-        idt_style = ' '
 
         # We add the derived keys when pretty-printing, for the sake of
         # completeness. This will not honor eval_deferred for base keys.
         def derived_items():
             for key in self._get_derived_key_names():
-                yield key, self.get_key(key, quiet=True)
+                non_eval_base_qualnames = self._structure[key].get_non_evaluated_base_keys(self)
+                if non_eval_base_qualnames and not eval_deferred:
+                    val = '<depends on lazy keys: {}>'.format(
+                        ', '.join(
+                            base_key.qualname
+                            for base_key in non_eval_base_qualnames
+                        )
+                    )
+                else:
+                    val = self.get_key(key, quiet=True)
+
+                yield key, val
 
         for k, v in itertools.chain(
             self.items(eval_deferred=eval_deferred),

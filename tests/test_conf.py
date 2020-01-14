@@ -20,7 +20,7 @@ import os
 import copy
 from unittest import TestCase
 
-from lisa.conf import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, TypedList, DerivedKeyDesc
+from lisa.conf import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, TypedList, DerivedKeyDesc, DeferredValue
 from .utils import StorageTestCase, HOST_PLAT_INFO, HOST_TARGET_CONF
 
 """ A test suite for the MultiSrcConf subclasses."""
@@ -149,6 +149,22 @@ class TestTestConf(StorageTestCase, TestMultiSrcConf):
                 'subkey': 42
             }
         })
+        self.assertEqual(conf['derived'], 46)
+
+    def test_derived_with_deferred_base(self):
+        conf = copy.deepcopy(self.conf)
+        conf.add_src('mysrc', {
+            'foo': DeferredValue(lambda: 1),
+            'bar': [1, 2],
+            'sublevel': {
+                'subkey': 42
+            }
+        })
+        # Check that the value we get is transitively a DeferredValue
+        val = conf.get_key('derived', eval_deferred=False)
+        self.assertIsInstance(val, DeferredValue)
+
+        # Regular access will evaluate all the bases
         self.assertEqual(conf['derived'], 46)
 
     def test_force_src_nested(self):
