@@ -18,6 +18,7 @@
 import os
 from collections import OrderedDict
 import itertools
+import functools
 from statistics import mean
 
 import matplotlib.pyplot as plt
@@ -34,7 +35,7 @@ from lisa.trace import FtraceCollector, requires_events
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
-from lisa.datautils import series_integrate, df_filter_task_ids
+from lisa.datautils import df_window, series_mean, df_filter_task_ids
 
 from lisa.tests.scheduler.load_tracking import LoadTrackingHelpers
 
@@ -67,7 +68,7 @@ class UtilTrackingBase(RTATestBundle, LoadTrackingHelpers):
 
 
 PhaseStats = namedtuple("PhaseStats", [
-    'start', 'end', 'area_util', 'area_enqueued', 'area_ewma'],
+    'start', 'end', 'mean_util', 'mean_enqueued', 'mean_ewma'],
     module=__name__,
 )
 
@@ -149,20 +150,20 @@ class UtilConvergence(UtilTrackingBase):
     @LoadTrackingAnalysis.df_tasks_signal.used_events
     @RTAEventsAnalysis.task_phase_windows.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
-    def test_areas(self) -> ResultBundle:
+    def test_means(self) -> ResultBundle:
         """
         Test signals are properly "dominated".
 
-        The integral of `util_est_enqueued` is expected to be always not
+        The mean of `util_est_enqueued` is expected to be always not
         smaller than that of `util_avg`, since this last is subject to decays
         while the first not.
 
-        The integral of `util_est_enqueued` is expected to be always greater or
-        equal than the integral of `util_avg`, since this `util_avg` is subject
+        The mean of `util_est_enqueued` is expected to be always greater or
+        equal than the mean of `util_avg`, since this `util_avg` is subject
         to decays while `util_est_enqueued` not.
 
         On fast-ramp systems, the `util_est_ewma` signal is never smaller then
-        the `util_est_enqueued`, thus his integral is expected to be bigger.
+        the `util_est_enqueued`, thus his mean is expected to be bigger.
 
         On non fast-ramp systems instead, the `util_est_ewma` is expected to be
         smaller then `util_est_enqueued` in ramp-up phases, or bigger in
@@ -194,18 +195,20 @@ class UtilConvergence(UtilTrackingBase):
             if phase.id == 0:
                 continue
 
-            phase_df = ue_df[phase.start:phase.end]
-            area_enqueued = series_integrate(phase_df.util_est_enqueued)
-            area_ewma = series_integrate(phase_df.util_est_ewma)
+            apply_phase_window = functools.partial(df_window, window=(phase.start, phase.end))
 
-            phase_df = ua_df[phase.start:phase.end]
-            area_util = series_integrate(phase_df.util)
+            ue_phase_df = apply_phase_window(ue_df)
+            mean_enqueued = series_mean(ue_phase_df['util_est_enqueued'])
+            mean_ewma = series_mean(ue_phase_df['util_est_ewma'])
+
+            ua_phase_df = apply_phase_window(ua_df)
+            mean_util = series_mean(ua_phase_df['util'])
 
             metrics[phase.id] = PhaseStats(phase.start, phase.end,
-                                           area_util, area_enqueued, area_ewma)
+                                           mean_util, mean_enqueued, mean_ewma)
 
             phase_name = "phase {}".format(phase.id)
-            if area_enqueued < area_util:
+            if mean_enqueued < mean_util:
                 failure_reasons[phase_name] = 'Enqueued smaller then Util Average'
                 failures.append(phase.start)
                 continue
@@ -214,7 +217,7 @@ class UtilConvergence(UtilTrackingBase):
             if self.fast_ramp:
 
                 # STABLE, DOWN and UP:
-                if area_ewma < area_enqueued:
+                if mean_ewma < mean_enqueued:
                     failure_reasons[phase_name] = 'NO_FAST_RAMP: EWMA smaller then Enqueued'
                     failures.append(phase.start)
                     continue
@@ -223,22 +226,22 @@ class UtilConvergence(UtilTrackingBase):
             else:
 
                 # STABLE: ewma ramping up
-                if phase.id == 1 and area_ewma > area_enqueued:
+                if phase.id == 1 and mean_ewma > mean_enqueued:
                     failure_reasons[phase_name] = 'FAST_RAMP(STABLE): EWMA bigger then Enqueued'
                     failures.append(phase.start)
 
                 # DOWN: ewma ramping down
-                elif phase.id <= 5 and area_ewma < area_enqueued:
+                elif phase.id <= 5 and mean_ewma < mean_enqueued:
                     failure_reasons[phase_name] = 'FAST_RAMP(DOWN): EWMA smaller then Enqueued'
                     failures.append(phase.start)
 
                 # UP: ewma ramping up
-                elif phase.id >= 4 and area_ewma > area_enqueued:
+                elif phase.id >= 4 and mean_ewma > mean_enqueued:
                     failure_reasons[phase_name] = 'FAST_RAMP(UP): EWMA bigger then Enqueued'
                     failures.append(phase.start)
 
         # Plot signals to support debugging analysis
-        self._plot_signals(test_task, 'areas', failures)
+        self._plot_signals(test_task, 'means', failures)
 
         bundle = ResultBundle.from_bool(not failure_reasons)
         bundle.add_metric("fast ramp", self.fast_ramp)
