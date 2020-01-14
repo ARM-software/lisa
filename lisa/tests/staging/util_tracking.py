@@ -288,14 +288,13 @@ class UtilConvergence(UtilTrackingBase):
         df = self.trace.df_events('sched_util_est_task')
         df = df_filter_task_ids(df, [test_task])
 
-        # Define a time interval to correlate relative trace events.
-        def restrict(df, time, delta=1e-3):
-            return df[time - delta:time + delta]
-
         failures = []
         for idx, activation in enumerate(activations):
-            avg, enq, ewma = restrict(df, activation)[[
-                'util_avg', 'util_est_enqueued', 'util_est_ewma']].iloc[-1]
+            # Get the value of signals at their first update after the activation
+            row = df_window(df, (activation, None), method='post').iloc[0]
+            avg = row['util_avg']
+            enq = row['util_est_enqueued']
+            ewma = row['util_est_ewma']
 
             metrics[idx + 1] = ActivationSignals(activation, avg, enq, ewma)
 
