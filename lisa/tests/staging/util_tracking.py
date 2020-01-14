@@ -231,12 +231,12 @@ class UtilConvergence(UtilTrackingBase):
                     failures.append(phase.start)
 
                 # DOWN: ewma ramping down
-                elif phase.id <= 4 and mean_ewma < mean_enqueued:
+                elif phase.id <= 5 and mean_ewma < mean_enqueued:
                     failure_reasons[phase_name] = 'FAST_RAMP(DOWN): EWMA smaller then Enqueued'
                     failures.append(phase.start)
 
                 # UP: ewma ramping up
-                elif phase.id >= 5 and mean_ewma > mean_enqueued:
+                elif phase.id >= 6 and mean_ewma > mean_enqueued:
                     failure_reasons[phase_name] = 'FAST_RAMP(UP): EWMA bigger then Enqueued'
                     failures.append(phase.start)
 
@@ -331,13 +331,13 @@ class UtilConvergence(UtilTrackingBase):
                     failures.append(activation)
 
                 # DOWN: ewma ramping down
-                elif phase.id <= 4 and enq > ewma:
+                elif phase.id <= 5 and enq > ewma:
                     failure_reasons[idx] = 'enqueued({}) bigger than ewma({}) @ {}'\
                         .format(enq, ewma, activation)
                     failures.append(activation)
 
                 # UP: ewma ramping up
-                elif phase.id >= 5 and enq < ewma:
+                elif phase.id >= 6 and enq < ewma:
                     failure_reasons[idx] = 'enqueued({}) smaller than ewma({}) @ {}'\
                         .format(enq, ewma, activation)
                     failures.append(activation)
