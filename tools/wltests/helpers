@@ -228,12 +228,16 @@ adb_flash_modules() {
 	fi
 
 	c_info "Pushing kernel modules..."
-	$ADB shell rm -rf /vendor/lib/modules/*; ERROR=$?
-	if [[ $ERROR -ne 0 ]]; then
-		c_error "Failed to remove /vendor/lib/modules/"
-		return $EIO
-	fi
-	for m in $MODULES_FOLDER/*.ko; do
+	MODULE_FILES="$(find $MODULES_FOLDER -type f -name *.ko)"
+
+	for m in ${MODULE_FILES}; do
+		$ADB shell rm -rf /vendor/lib/modules/$(basename $m); ERROR=$?
+		if [[ $ERROR -ne 0 ]]; then
+			c_error "Failed to remove /vendor/lib/modules/$(basename $m)"
+			return $EIO
+		fi
+	done
+	for m in ${MODULE_FILES}; do
 		$ADB push $m /vendor/lib/modules/; ERROR=$?
 		if [[ $ERROR -ne 0 ]]; then
 			c_error "Failed to flash $m"
