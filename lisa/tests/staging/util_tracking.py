@@ -237,14 +237,12 @@ class UtilConvergence(UtilTrackingBase):
                     failure_reasons[phase_name] = 'FAST_RAMP(UP): EWMA bigger then Enqueued'
                     failures.append(phase.start)
 
+        # Plot signals to support debugging analysis
+        self._plot_signals(test_task, 'areas', failures)
+
         bundle = ResultBundle.from_bool(not failure_reasons)
         bundle.add_metric("fast ramp", self.fast_ramp)
         bundle.add_metric("phases stats", metrics)
-        if not failure_reasons:
-            return bundle
-
-        # Plot signals to support debugging analysis
-        self._plot_signals(test_task, 'areas', failures)
         bundle.add_metric("failure reasons", failure_reasons)
 
         return bundle
