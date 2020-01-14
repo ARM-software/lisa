@@ -1501,6 +1501,10 @@ def namedtuple(*args, module, **kwargs):
             self._tuple = type_(*args, **kwargs)
 
         def __getattr__(self, attr):
+            # Avoid infinite loop when deserializing instances
+            if attr in self.__slots__:
+                raise AttributeError
+
             return getattr(self._tuple, attr)
 
         def __hash__(self):

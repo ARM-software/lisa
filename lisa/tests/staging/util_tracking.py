@@ -16,18 +16,11 @@
 #
 
 import os
-from collections import OrderedDict
-import itertools
 import functools
-from statistics import mean
-
-import matplotlib.pyplot as plt
-import pylab as pl
 
 from devlib.target import KernelVersion
 
-from lisa.tests.base import (TestMetric, Result, ResultBundle, TestBundle,
-                             RTATestBundle, CannotCreateError)
+from lisa.tests.base import ResultBundle, RTATestBundle
 from lisa.target import Target
 from lisa.utils import ArtifactPath, memoized, namedtuple
 from lisa.wlgen.rta import Periodic, Ramp
@@ -67,14 +60,14 @@ class UtilTrackingBase(RTATestBundle, LoadTrackingHelpers):
         return cls(res_dir, plat_info)
 
 
-PhaseStats = namedtuple("PhaseStats", [
-    'start', 'end', 'mean_util', 'mean_enqueued', 'mean_ewma'],
+PhaseStats = namedtuple("PhaseStats",
+    ['start', 'end', 'mean_util', 'mean_enqueued', 'mean_ewma', 'issue'],
     module=__name__,
 )
 
 
 ActivationSignals = namedtuple("ActivationSignals", [
-    'time', 'util_avg', 'util_est_enqueued', 'util_est_ewma'],
+    'time', 'util_avg', 'util_est_enqueued', 'util_est_ewma', 'issue'],
     module=__name__,
 )
 
@@ -181,16 +174,15 @@ class UtilConvergence(UtilTrackingBase):
         failure_reasons = {}
         metrics = {}
 
-        # We have only two task: the main 'rt-app' task and our 'test_task'
-        test_task = self.trace.analysis.rta.rtapp_tasks[-1]
+        task = self.rtapp_task_ids_map['test'][0]
 
         ue_df = self.trace.df_events('sched_util_est_task')
-        ue_df = df_filter_task_ids(ue_df, [test_task])
+        ue_df = df_filter_task_ids(ue_df, [task])
         ua_df = self.trace.analysis.load_tracking.df_tasks_signal('util')
-        ua_df = df_filter_task_ids(ua_df, [test_task])
+        ua_df = df_filter_task_ids(ua_df, [task])
 
         failures = []
-        for phase in self.trace.analysis.rta.task_phase_windows(test_task):
+        for phase in self.trace.analysis.rta.task_phase_windows(task):
             # TODO: remove that once we have named phases to skip the buffer phase
             if phase.id == 0:
                 continue
@@ -204,50 +196,56 @@ class UtilConvergence(UtilTrackingBase):
             ua_phase_df = apply_phase_window(ua_df)
             mean_util = series_mean(ua_phase_df['util'])
 
-            metrics[phase.id] = PhaseStats(phase.start, phase.end,
-                                           mean_util, mean_enqueued, mean_ewma)
+            def make_issue(msg):
+                return msg.format(
+                    avg='util_avg={}'.format(mean_util),
+                    enq='util_est_enqueud={}'.format(mean_enqueued),
+                    ewma='util_est_ewma={}'.format(mean_ewma),
+                )
 
-            phase_name = "phase {}".format(phase.id)
+            issue = None
             if mean_enqueued < mean_util:
-                failure_reasons[phase_name] = 'Enqueued smaller then Util Average'
-                failures.append(phase.start)
-                continue
+                issue = make_issue('{enq} smaller than {avg}')
 
             # Running on FastRamp kernels:
-            if self.fast_ramp:
+            elif self.fast_ramp:
 
                 # STABLE, DOWN and UP:
                 if mean_ewma < mean_enqueued:
-                    failure_reasons[phase_name] = 'NO_FAST_RAMP: EWMA smaller then Enqueued'
-                    failures.append(phase.start)
-                    continue
+                    issue = make_issue('no fast ramp: {ewma} smaller than {enq}')
 
             # Running on (legacy) non FastRamp kernels:
             else:
 
                 # STABLE: ewma ramping up
                 if phase.id == 1 and mean_ewma > mean_enqueued:
-                    failure_reasons[phase_name] = 'FAST_RAMP(STABLE): EWMA bigger then Enqueued'
-                    failures.append(phase.start)
+                    issue = make_issue('fast ramp, stable: {ewma} bigger than {enq}')
 
                 # DOWN: ewma ramping down
-                elif phase.id <= 4 and mean_ewma < mean_enqueued:
-                    failure_reasons[phase_name] = 'FAST_RAMP(DOWN): EWMA smaller then Enqueued'
-                    failures.append(phase.start)
+                elif phase.id <= 5 and mean_ewma < mean_enqueued:
+                    issue = make_issue('fast ramp, down: {ewma} smaller than {enq}')
 
                 # UP: ewma ramping up
-                elif phase.id >= 5 and mean_ewma > mean_enqueued:
-                    failure_reasons[phase_name] = 'FAST_RAMP(UP): EWMA bigger then Enqueued'
-                    failures.append(phase.start)
+                elif phase.id >= 6 and mean_ewma > mean_enqueued:
+                    issue = make_issue('fast ramp, up: {ewma} bigger than {enq}')
+
+            metrics[phase.id] = PhaseStats(
+                phase.start, phase.end, mean_util, mean_enqueued, mean_ewma, issue
+            )
+
+        failures = [
+            (phase, stat)
+            for phase, stat in metrics.items()
+            if stat.issue
+        ]
 
         # Plot signals to support debugging analysis
-        self._plot_signals(test_task, 'means', failures)
+        self._plot_signals(task, 'means', sorted(stat.start for phase, stat in failures))
 
-        bundle = ResultBundle.from_bool(not failure_reasons)
+        bundle = ResultBundle.from_bool(not failures)
         bundle.add_metric("fast ramp", self.fast_ramp)
-        bundle.add_metric("phases stats", metrics)
-        bundle.add_metric("failure reasons", failure_reasons)
-
+        bundle.add_metric("phases", metrics)
+        bundle.add_metric("failures", sorted(phase for phase, stat in failures))
         return bundle
 
     @requires_events('sched_util_est_task')
@@ -273,78 +271,78 @@ class UtilConvergence(UtilTrackingBase):
             * UP: periodic ramp-up task, to slowly increase `util_avg`
 
         """
-        failure_reasons = {}
         metrics = {}
 
-        # We have only two task: the main 'rt-app' task and our 'test_task'
-        test_task = self.trace.analysis.rta.rtapp_tasks[-1]
+        task = self.rtapp_task_ids_map['test'][0]
 
         # Get list of task's activations
-        df = self.trace.analysis.tasks.df_task_states(test_task)
+        df = self.trace.analysis.tasks.df_task_states(task)
         activations = df[(df.curr_state == TaskState.TASK_WAKING) &
                          (df.next_state == TaskState.TASK_ACTIVE)].index
 
         # Check task signals at each activation
         df = self.trace.df_events('sched_util_est_task')
-        df = df_filter_task_ids(df, [test_task])
+        df = df_filter_task_ids(df, [task])
 
-        # Define a time interval to correlate relative trace events.
-        def restrict(df, time, delta=1e-3):
-            return df[time - delta:time + delta]
 
-        failures = []
         for idx, activation in enumerate(activations):
-            avg, enq, ewma = restrict(df, activation)[[
-                'util_avg', 'util_est_enqueued', 'util_est_ewma']].iloc[-1]
+            # Get the value of signals at their first update after the activation
+            row = df_window(df, (activation, None), method='post').iloc[0]
+            avg = row['util_avg']
+            enq = row['util_est_enqueued']
+            ewma = row['util_est_ewma']
+            def make_issue(msg):
+                return msg.format(
+                    avg='util_avg={}'.format(avg),
+                    enq='util_est_enqueud={}'.format(enq),
+                    ewma='util_est_ewma={}'.format(ewma),
+                )
 
-            metrics[idx + 1] = ActivationSignals(activation, avg, enq, ewma)
+            issue = None
 
             # UtilEst is not updated when within 1% of previous activation
             if 1.01 * enq < avg:
-                failure_reasons[idx] = 'enqueued({}) smaller than util_avg({}) @ {}'\
-                    .format(enq, avg, activation)
-                failures.append(activation)
-                continue
+                issue = make_issue('{enq} smaller than {avg}')
 
             # Running on FastRamp kernels:
-            if self.fast_ramp:
+            elif self.fast_ramp:
 
-                # STABLE, DOWN and UP:
+                # ewma stable, down and up
                 if enq > ewma:
-                    failure_reasons[idx] = 'enqueued({}) bigger than ewma({}) @ {}'\
-                        .format(enq, ewma, activation)
-                    failures.append(activation)
-                    continue
+                    issue = make_issue('{enq} bigger than {ewma}')
 
             # Running on (legacy) non FastRamp kernels:
             else:
 
-                phase = self.trace.analysis.rta.task_phase_at(test_task, activation)
+                phase = self.trace.analysis.rta.task_phase_at(task, activation)
                 # TODO: remove that once we have named phases to skip the buffer phase
                 if phase.id == 0:
                     continue
 
-                # STABLE: ewma ramping up
+                # ewma stable
                 if phase.id == 1 and enq < ewma:
-                    failure_reasons[idx] = 'enqueued({}) smaller than ewma({}) @ {}'\
-                        .format(enq, ewma, activation)
-                    failures.append(activation)
+                    issue = make_issue('stable: {enq} smaller than {ewma}')
 
-                # DOWN: ewma ramping down
-                elif phase.id <= 4 and enq > ewma:
-                    failure_reasons[idx] = 'enqueued({}) bigger than ewma({}) @ {}'\
-                        .format(enq, ewma, activation)
-                    failures.append(activation)
+                # ewma ramping down
+                elif phase.id <= 5 and enq > ewma:
+                    issue = make_issue('ramp down: {enq} bigger than {ewma}')
 
-                # UP: ewma ramping up
-                elif phase.id >= 5 and enq < ewma:
-                    failure_reasons[idx] = 'enqueued({}) smaller than ewma({}) @ {}'\
-                        .format(enq, ewma, activation)
-                    failures.append(activation)
+                # ewma ramping up
+                elif phase.id >= 6 and enq < ewma:
+                    issue = make_issue('ramp up: {enq} smaller than {ewma}')
 
-        self._plot_signals(test_task, 'activations', failures)
+            metrics[idx] = ActivationSignals(activation, avg, enq, ewma, issue)
 
-        bundle = ResultBundle.from_bool(not failure_reasons)
-        bundle.add_metric("signals", metrics)
-        bundle.add_metric("failure reasons", failure_reasons)
+        failures = [
+            (idx, activation_signals)
+            for idx, activation_signals in metrics.items()
+            if activation_signals.issue
+        ]
+
+        bundle = ResultBundle.from_bool(not failures)
+        bundle.add_metric("failures", sorted(idx for idx, activation in failures))
+        bundle.add_metric("activations", metrics)
+
+        failures_time = [activation.time for idx, activation in failures]
+        self._plot_signals(task, 'activations', failures_time)
         return bundle
