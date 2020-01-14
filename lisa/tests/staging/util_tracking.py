@@ -296,7 +296,7 @@ class UtilConvergence(UtilTrackingBase):
             enq = row['util_est_enqueued']
             ewma = row['util_est_ewma']
 
-            metrics[idx + 1] = ActivationSignals(activation, avg, enq, ewma)
+            metrics[idx] = ActivationSignals(activation, avg, enq, ewma)
 
             # UtilEst is not updated when within 1% of previous activation
             if 1.01 * enq < avg:
