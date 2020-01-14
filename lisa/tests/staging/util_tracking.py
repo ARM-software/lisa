@@ -190,6 +190,10 @@ class UtilConvergence(UtilTrackingBase):
 
         failures = []
         for phase in self.trace.analysis.rta.task_phase_windows(test_task):
+            # TODO: remove that once we have named phases to skip the buffer phase
+            if phase.id == 0:
+                continue
+
             phase_df = ue_df[phase.start:phase.end]
             area_enqueued = series_integrate(phase_df.util_est_enqueued)
             area_ewma = series_integrate(phase_df.util_est_ewma)
@@ -219,22 +223,19 @@ class UtilConvergence(UtilTrackingBase):
             else:
 
                 # STABLE: ewma ramping up
-                if phase.id == 0 and area_ewma > area_enqueued:
+                if phase.id == 1 and area_ewma > area_enqueued:
                     failure_reasons[phase_name] = 'FAST_RAMP(STABLE): EWMA bigger then Enqueued'
                     failures.append(phase.start)
-                    continue
 
                 # DOWN: ewma ramping down
-                if 0 < phase.id < 5 and area_ewma < area_enqueued:
+                elif phase.id <= 5 and area_ewma < area_enqueued:
                     failure_reasons[phase_name] = 'FAST_RAMP(DOWN): EWMA smaller then Enqueued'
                     failures.append(phase.start)
-                    continue
 
                 # UP: ewma ramping up
-                if phase.id > 4 and area_ewma > area_enqueued:
+                elif phase.id >= 4 and area_ewma > area_enqueued:
                     failure_reasons[phase_name] = 'FAST_RAMP(UP): EWMA bigger then Enqueued'
                     failures.append(phase.start)
-                    continue
 
         bundle = ResultBundle.from_bool(failure_reasons)
         bundle.add_metric("fast ramp", self.fast_ramp)
@@ -318,27 +319,27 @@ class UtilConvergence(UtilTrackingBase):
             else:
 
                 phase = self.trace.analysis.rta.task_phase_at(test_task, activation)
+                # TODO: remove that once we have named phases to skip the buffer phase
+                if phase.id == 0:
+                    continue
 
                 # STABLE: ewma ramping up
-                if phase.id == 0 and enq < ewma:
+                if phase.id == 1 and enq < ewma:
                     failure_reasons[idx] = 'enqueued({}) smaller than ewma({}) @ {}'\
                         .format(enq, ewma, activation)
                     failures.append(activation)
-                    continue
 
                 # DOWN: ewma ramping down
-                if 0 < phase.id < 5 and enq > ewma:
+                elif phase.id <= 5 and enq > ewma:
                     failure_reasons[idx] = 'enqueued({}) bigger than ewma({}) @ {}'\
                         .format(enq, ewma, activation)
                     failures.append(activation)
-                    continue
 
                 # UP: ewma ramping up
-                if phase.id > 4 and enq < ewma:
+                elif phase.id >= 5 and enq < ewma:
                     failure_reasons[idx] = 'enqueued({}) smaller than ewma({}) @ {}'\
                         .format(enq, ewma, activation)
                     failures.append(activation)
-                    continue
 
         self._plot_signals(test_task, 'activations', failures)
 
