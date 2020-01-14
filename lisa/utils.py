@@ -1487,6 +1487,10 @@ def namedtuple(*args, module, **kwargs):
     type_.__module__ = module
 
     class Augmented(Mapping):
+        # We need to record inner tuple type here so that we have a stable name
+        # for the class, otherwise pickle will choke on it
+        _type = type_
+
         # Keep an efficient representation to avoid adding too much overhead on
         # top of the inner tuple
         __slots__ = ['_tuple']
@@ -1515,6 +1519,10 @@ def namedtuple(*args, module, **kwargs):
     Augmented.__name__ = type_.__name__
     Augmented.__doc__ = type_.__doc__
     Augmented.__module__ = module
+
+    # Fixup the inner namedtuple, so it can be pickled
+    Augmented._type.__name__ = '_type'
+    Augmented._type.__qualname__ = '{}.{}'.format(Augmented.__qualname__, Augmented._type.__name__)
     return Augmented
 
 class _TimeMeasure:
