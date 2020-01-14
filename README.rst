@@ -36,11 +36,9 @@ There are two "entry points" for running LISA:
    ready-made LISA use-cases.
 
 -  Via the automated test framework. This framework allows the
-   development of automated pass/fail regression tests for kernel
-   behaviour. The `BART <https://github.com/ARM-software/trappy>`__
-   toolkit provides additional domain-specific test assertions for this
-   use-case. LISA provides some ready-made automated tests under the
-   ``lisa/tests/`` directory.
+   development of automated pass/fail regression tests for kernel behaviour.
+   LISA provides some ready-made automated tests under the ``lisa/tests/``
+   directory.
 
 Motivations
 ===========
@@ -66,7 +64,7 @@ Documentation
 
 You should find everything on
 `ReadTheDocs <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/>`__.
-Here are some noteworthy sections: 
+Here are some noteworthy sections:
 
    * `Installation <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/setup.html>`__
    * `Kernel tests <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/kernel_tests.html>`__
