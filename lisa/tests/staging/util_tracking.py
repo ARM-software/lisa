@@ -237,7 +237,7 @@ class UtilConvergence(UtilTrackingBase):
                     failure_reasons[phase_name] = 'FAST_RAMP(UP): EWMA bigger then Enqueued'
                     failures.append(phase.start)
 
-        bundle = ResultBundle.from_bool(failure_reasons)
+        bundle = ResultBundle.from_bool(not failure_reasons)
         bundle.add_metric("fast ramp", self.fast_ramp)
         bundle.add_metric("phases stats", metrics)
         if not failure_reasons:
