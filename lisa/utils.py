@@ -15,6 +15,9 @@
 # limitations under the License.
 #
 
+import hashlib
+import zlib
+import time
 import re
 import abc
 import copy
@@ -1513,5 +1516,101 @@ def namedtuple(*args, module, **kwargs):
     Augmented.__doc__ = type_.__doc__
     Augmented.__module__ = module
     return Augmented
+
+class _TimeMeasure:
+    def __init__(self, start, stop):
+        self.start = start
+        self.stop = stop
+        self.nested_delta = 0
+
+    @property
+    def delta(self):
+        return self.stop - self.start
+
+    @property
+    def exclusive_delta(self):
+        return self.stop - self.start - self.nested_delta
+
+_measure_time_stack = threading.local()
+
+@contextlib.contextmanager
+def measure_time(clock=time.monotonic):
+    """
+    Context manager to measure time in seconds.
+
+    :param clock: Clock to use.
+    :type clock: collections.abc.Callable
+
+    **Example**::
+
+        with measure_time() as measure:
+            ...
+        print(measure.start, measure.stop, measure.exclusive_delta, measure.exclusive_delta)
+
+    .. note:: The ``exclusive_delta`` discount the time spent in nested
+        ``measure_time`` context managers.
+    """
+    try:
+        stack = _measure_time_stack.stack
+    except AttributeError:
+        stack = []
+        _measure_time_stack.stack = stack
+
+    measure = _TimeMeasure(0, 0)
+    stack.append(measure)
+
+    start = clock()
+    try:
+        yield measure
+    finally:
+        stop = clock()
+        measure.start = start
+        measure.stop = stop
+        stack.pop()
+        try:
+            parent_measure = stack[-1]
+        except IndexError:
+            pass
+        else:
+            parent_measure.nested_delta += measure.delta
+
+
+def checksum(file_, method):
+    """
+    Compute a checksum on a given file-like object.
+
+    :param file_: File-like object, as returned by ``open()`` for example.
+    :type file_: io.IOBase
+
+    :param method: Checksum to use. Can be any of ``md5``, ``sha256``,
+        ``crc32``.
+    :type method: str
+
+    The file is read block by block to avoid clogging the memory with a huge
+    read.
+    """
+    if method in ('md5', 'sha256'):
+        h = getattr(hashlib, method)()
+        update = lambda data: h.update(data)
+        result = lambda: h.hexdigest()
+        chunk_size = h.block_size
+    elif method == 'crc32':
+        crc32_state = 0
+        def update(data):
+            nonlocal crc32_state
+            crc32_state = zlib.crc32(data, crc32_state) & 0xffffffff
+        result = lambda: hex(crc32_state)
+        chunk_size = 1 * 1024 * 1024
+    else:
+        raise ValueError('Unsupported method: {}'.format(method))
+
+    while True:
+        chunk = file_.read(chunk_size)
+        if not chunk:
+            break
+        update(chunk)
+
+    return result()
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

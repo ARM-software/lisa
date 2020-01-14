@@ -26,6 +26,7 @@ import contextlib
 
 from lisa.utils import get_short_doc
 from lisa.trace import Trace, MissingTraceEventError
+from lisa.conf import ConfigKeyError
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.platforms.platinfo import PlatformInfo
 
@@ -103,7 +104,7 @@ def handle_plot_excep(exit_on_error=True):
         yield
     except MissingTraceEventError as e:
         excep_msg = str(e)
-    except KeyError as e:
+    except ConfigKeyError as e:
         excep_msg = 'Please specify --platinfo with the "{}" filled in'.format(e.args[1])
     else:
         excep_msg = None
