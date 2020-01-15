@@ -323,7 +323,7 @@ class TraceCmdParser(object):
                         continue
 
                 body_parser = EVENT_PARSER_MAP.get(event_name, default_body_parser)
-                if isinstance(body_parser, (str, re._pattern_type)):  # pylint: disable=protected-access
+                if isinstance(body_parser, (str, re.Pattern)):  # pylint: disable=protected-access
                     body_parser = regex_body_parser(body_parser)
                 yield TraceCmdEvent(parser=body_parser, **match.groupdict())
 

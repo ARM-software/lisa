@@ -78,15 +78,20 @@ def get_path_matches(resource, files):
     return matches
 
 
+# pylint: disable=too-many-return-statements
 def get_from_location(basepath, resource):
     if resource.kind == 'file':
         path = os.path.join(basepath, resource.path)
         if os.path.exists(path):
             return path
     elif resource.kind == 'executable':
-        path = os.path.join(basepath, 'bin', resource.abi, resource.filename)
-        if os.path.exists(path):
-            return path
+        bin_dir = os.path.join(basepath, 'bin', resource.abi)
+        if not os.path.exists(bin_dir):
+            return None
+        for entry in os.listdir(bin_dir):
+            path = os.path.join(bin_dir, entry)
+            if resource.match(path):
+                return path
     elif resource.kind == 'revent':
         path = os.path.join(basepath, 'revent_files')
         if os.path.exists(path):
