@@ -227,6 +227,8 @@ class FtraceCollector(CollectorBase):
             self._set_buffer_size()
         self.target.execute('{} reset'.format(self.target_binary),
                             as_root=True, timeout=TIMEOUT)
+        if self.functions:
+            self.target.write_value(self.function_profile_file, 0, verify=False)
         self._reset_needed = False
 
     def start(self):
@@ -290,7 +292,7 @@ class FtraceCollector(CollectorBase):
     def stop(self):
         # Disable kernel function profiling
         if self.functions and self.tracer is None:
-            self.target.execute('echo 1 > {}'.format(self.function_profile_file),
+            self.target.execute('echo 0 > {}'.format(self.function_profile_file),
                                 as_root=True)
         if 'cpufreq' in self.target.modules:
             self.logger.debug('Trace CPUFreq frequencies')
