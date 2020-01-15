@@ -25,7 +25,9 @@ from pipes import quote
 from devlib.exception import TargetTransientError, TargetStableError
 from devlib.utils.misc import check_output
 
+
 PACKAGE_BIN_DIRECTORY = os.path.join(os.path.dirname(__file__), 'bin')
+
 
 # pylint: disable=redefined-outer-name
 def kill_children(pid, signal=signal.SIGKILL):
@@ -34,9 +36,11 @@ def kill_children(pid, signal=signal.SIGKILL):
             kill_children(cpid, signal)
             os.kill(cpid, signal)
 
+
 class LocalConnection(object):
 
     name = 'local'
+    host = 'localhost'
 
     @property
     def connected_as_root(self):
