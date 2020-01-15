@@ -211,9 +211,11 @@ def regex(value):
 
 def version_tuple(v):
     """
-    Converts a version string into a tuple of ints that can be used for natural comparison.
+    Converts a version string into a tuple of strings that can be used for
+    natural comparison allowing delimeters of "-" and ".".
     """
-    return tuple(map(int, (v.split("."))))
+    v = v.replace('-', '.')
+    return tuple(map(str, (v.split("."))))
 
 
 __counters = defaultdict(int)

@@ -368,8 +368,10 @@ class PowerStateTimeline(object):
             if frequency is None:
                 if idle_state == -1:
                     row.append('Running (unknown kHz)')
-                elif idle_state is None or not self.idle_state_names[cpu_idx]:
+                elif idle_state is None:
                     row.append('unknown')
+                elif not self.idle_state_names[cpu_idx]:
+                    row.append('idle[{}]'.format(idle_state))
                 else:
                     row.append(self.idle_state_names[cpu_idx][idle_state])
             else:  # frequency is not None

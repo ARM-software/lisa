@@ -212,7 +212,7 @@ class CpufreqModule(Module):
 
     @memoized
     def list_frequencies(self, cpu):
-        """Returns a list of frequencies supported by the cpu or an empty list
+        """Returns a sorted list of frequencies supported by the cpu or an empty list
         if not could be found."""
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
@@ -234,7 +234,7 @@ class CpufreqModule(Module):
                 raise
 
             available_frequencies = list(map(int, reversed([f for f, _ in zip(out_iter, out_iter)])))
-        return available_frequencies
+        return sorted(available_frequencies)
 
     @memoized
     def get_max_available_frequency(self, cpu):
