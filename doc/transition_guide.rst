@@ -1,3 +1,24 @@
+****************
+Breaking changes
+****************
+
+Here is a list of commits introducing breaking changes in LISA:
+
+.. exec::
+
+    from lisa.utils import LISA_HOME
+    from lisa.git import find_commits, log
+
+    pattern = 'BREAK'
+
+    repo = LISA_HOME
+    commits = find_commits(repo, grep=pattern)
+    for sha1 in commits:
+        commit_log = log(repo, ref=sha1, format='%cd%n%H%n%B')
+        entry = '.. code-block:: text\n\n  {}\n'.format(commit_log.replace('\n', '\n  '))
+        print(entry)
+
+
 ******************************
 Transitioning from LISA legacy
 ******************************
