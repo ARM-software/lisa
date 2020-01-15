@@ -67,4 +67,43 @@ def get_uncommited_patch(repo):
     """
     return git(repo, 'diff', 'HEAD')
 
+def find_commits(repo, ref='HEAD', grep=None):
+    """
+    Find git commits.
+
+    :returns: List of matching commits' SHA1.
+
+    :param ref: Git reference passed to ``git log``
+    :type ref: str
+
+    :param grep: Passed to ``git log --grep``
+    :type grep: str or None
+    """
+    opts = []
+    if grep:
+        opts += ['--grep', grep]
+
+    commits = git(repo, 'log', '--format=%H', *opts, ref, '--')
+    return commits.splitlines()
+
+def log(repo, ref='HEAD', format=None, commits_nr=1):
+    """
+    Run git log and collect its output unmodified.
+
+    :param format: Format string passed to ``git log --format``.
+    :type format: str or None
+
+    :param commits_nr: Number of commits to display. ``None`` means no limit.
+    :type commits_nr: int or None
+    """
+    opts = []
+    if format:
+        opts += ['--format={}'.format(format)]
+
+    if commits_nr is not None:
+        opts += ['-n{}'.format(commits_nr)]
+
+    return git(repo, 'log', *opts, ref, '--')
+
+
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
