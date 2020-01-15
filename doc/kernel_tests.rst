@@ -226,6 +226,17 @@ Load tracking tests
    :members:
    :private-members: _from_target
 
+|
+
+.. inheritance-diagram:: lisa.tests.scheduler.util_tracking
+   :top-classes: lisa.tests.base.TestBundle
+   :parts: 1
+
+|
+
+.. automodule:: lisa.tests.scheduler.util_tracking
+   :members:
+
 Misfit tests
 ------------
 
@@ -281,9 +292,6 @@ Those are tests that have been merged into LISA but whose behaviour are being
 actively evaluated.
 
 .. automodule:: lisa.tests.staging.sched_android
-   :members:
-
-.. automodule:: lisa.tests.staging.util_tracking
    :members:
 
 .. automodule:: lisa.tests.staging.schedutil
