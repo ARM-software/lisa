@@ -103,13 +103,13 @@ class LoadTrackingHelpers:
         """
 
         calib = plat_info['rtapp']['calib']
-        cpu_capacities = plat_info['cpu-capacities']
+        rtapp_capacities = plat_info['cpu-capacities']['rtapp']
+        orig_capacities = plat_info['cpu-capacities']['orig']
 
         # Correct the signal mean to what it should have been if rt-app
         # workload was exactly the same as the one used to establish CPU
         # capacities
-        true_capacities = RTA.get_cpu_capacities_from_calibrations(calib)
-        return signal_value * cpu_capacities[cpu] / true_capacities[cpu]
+        return signal_value * orig_capacities[cpu] / rtapp_capacities[cpu]
 
 
 class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
@@ -253,7 +253,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
 
     @staticmethod
     def _get_freq_capa(cpu, freq, plat_info):
-        capacity = plat_info['cpu-capacities'][cpu]
+        capacity = plat_info['cpu-capacities']['rtapp'][cpu]
         # Scale the capacity linearly according to the frequency
         max_freq = max(plat_info['freqs'][cpu])
         capacity *= freq / max_freq
@@ -301,7 +301,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
             clock = df['update_time'] * 1e-9
         except KeyError:
             if any(
-                self.plat_info['cpu-capacities'][cpu] != UTIL_SCALE
+                self.plat_info['cpu-capacities']['rtapp'][cpu] != UTIL_SCALE
                 for phase in self.wlgen_task.phases
                 for cpu in phase.cpus
             ):
@@ -315,7 +315,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         # Since load is now CPU invariant in recent kernel versions, we don't
         # rescale it back. To match the old behavior, that line is
         # needed:
-        #  df['simulated'] /= self.plat_info['cpu-capacities'][cpu] / UTIL_SCALE
+        #  df['simulated'] /= self.plat_info['cpu-capacities']['rtapp'][cpu] / UTIL_SCALE
         kernel_version = self.plat_info['kernel']['version']
         if (
             signal_name == 'load'
@@ -812,7 +812,7 @@ class CPUMigrationBase(LoadTrackingBase):
         super().check_from_target(target)
 
         try:
-            target.plat_info["cpu-capacities"]
+            target.plat_info["cpu-capacities"]['rtapp']
         except KeyError as e:
             raise CannotCreateError(str(e))
 
@@ -845,7 +845,7 @@ class CPUMigrationBase(LoadTrackingBase):
             the task profile, since rtapp might not reproduce accurately the
             duty cycle it was asked.
         """
-        cpu_capacities = self.plat_info['cpu-capacities']
+        cpu_capacities = self.plat_info['cpu-capacities']['rtapp']
         cpu_util = {}
         for task in self.rtapp_task_ids:
             df = self.trace.analysis.tasks.df_task_activation(task)

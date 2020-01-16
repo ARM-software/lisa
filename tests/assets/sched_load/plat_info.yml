@@ -2,12 +2,13 @@ platform-info:
     conf:
         abi: arm64
         cpu-capacities:
-            0: 446
-            1: 1024
-            2: 1024
-            3: 446
-            4: 446
-            5: 446
+            orig:
+                0: 446
+                1: 1024
+                2: 1024
+                3: 446
+                4: 446
+                5: 446
         cpus-count: 6
         freq-domains:
         -   - 0

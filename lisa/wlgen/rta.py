@@ -32,7 +32,7 @@ from operator import itemgetter
 from devlib import TargetStableError
 
 from lisa.wlgen.workload import Workload
-from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, groupby, nullcontext
+from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, group_by_value, nullcontext
 from lisa.pelt import PELT_SCALE
 
 
@@ -117,35 +117,21 @@ class RTA(Workload):
 
     def run(self, cpus=None, cgroup=None, background=False, as_root=False, update_cpu_capacities=None):
         logger = self.get_logger()
-
-        if update_cpu_capacities is None:
-            update_cpu_capacities = True
-            best_effort = True
-        else:
-            best_effort = False
+        plat_info = self.target.plat_info
+        writeable_capacities = plat_info['cpu-capacities']['writeable']
+        rtapp_capacities = plat_info['cpu-capacities']['rtapp']
 
         if update_cpu_capacities:
-            plat_info = self.target.plat_info
-            calib_map = plat_info['rtapp']['calib']
-            true_capacities = self.get_cpu_capacities_from_calibrations(calib_map)
+            if not writeable_capacities:
+                raise ValueError('CPU capacities are not writeable on this target, please use update_cpu_capacities=False or None')
+        # If left to None, we update if possible
+        elif update_cpu_capacities is None:
+            update_cpu_capacities = writeable_capacities
+            if not writeable_capacities:
+                logger.warning('CPU capacities will not be updated on this platform')
 
-            # Average in a capacity class, since the kernel will only use one
-            # value for the whole class anyway
-            new_capacities = {}
-            for capa_class in plat_info['capacity-classes']:
-                avg_capa = mean(
-                    capa
-                    for cpu, capa in true_capacities.items()
-                    if cpu in capa_class
-                )
-                new_capacities.update({cpu: avg_capa for cpu in capa_class})
-
-            # Make sure that the max cap is 1024 and that we use integer values
-            new_max_cap = max(new_capacities.values())
-            new_capacities = {
-                cpu: int(capa * (1024 / new_max_cap))
-                for cpu, capa in new_capacities.items()
-            }
+        if update_cpu_capacities:
+            logger.info('Will update CPU capacities in sysfs: {}'.format(rtapp_capacities))
 
             write_kwargs = [
                 dict(
@@ -153,26 +139,14 @@ class RTA(Workload):
                     value=capa,
                     verify=True,
                 )
-                for cpu, capa in sorted(new_capacities.items())
+                for cpu, capa in sorted(rtapp_capacities.items())
             ]
-
-            cm = self.target.batch_revertable_write_value(write_kwargs)
-            class _CM():
-                def __enter__(self):
-                    logger.info('Updating CPU capacities in sysfs: {}'.format(new_capacities))
-                    try:
-                        cm.__enter__()
-                    except TargetStableError as e:
-                        if best_effort:
-                            logger.warning('Could not update the CPU capacities: {}'.format(e))
-                        else:
-                            raise
-
-                def __exit__(self, *args, **kwargs):
-                    return cm.__exit__(*args, **kwargs)
-
-            capa_cm = _CM()
+            capa_cm = self.target.batch_revertable_write_value(write_kwargs)
         else:
+            # Spit out some warning in case we are not going to update the
+            # capacities, so we know what to expect
+            orig_capacities = plat_info['cpu-capacities']['orig']
+            RTA.warn_capacities_mismatch(orig_capacities, rtapp_capacities)
             capa_cm = nullcontext()
 
         with capa_cm:
@@ -496,13 +470,13 @@ class RTA(Workload):
         # Sanity check calibration values for asymmetric systems if we have
         # access to capacities
         try:
-            cpu_capacities = plat_info['cpu-capacities']
+            orig_capacities = plat_info['cpu-capacities']['orig']
         except KeyError:
             return pload
 
         capa_ploads = {
-            capacity: {cpu: pload[cpu] for cpu, capa in cpu_caps}
-            for capacity, cpu_caps in groupby(cpu_capacities.items(), itemgetter(1))
+            capacity: {cpu: pload[cpu] for cpu in cpus}
+            for capacity, cpus in group_by_value(orig_capacities).items()
         }
 
         # Find the min pload per capacity level, i.e. the fastest detected CPU.
@@ -525,14 +499,36 @@ class RTA(Workload):
 
         # Check that the CPU capacities seen by rt-app are similar to the one
         # the kernel uses
-        true_capacities = cls.get_cpu_capacities_from_calibrations(pload)
+        orig_capacities = plat_info['cpu-capacities']['orig']
+        true_capacities = cls.get_cpu_capacities_from_calibrations(orig_capacities, pload)
+        cls.warn_capacities_mismatch(orig_capacities, true_capacities)
+
+        return pload
+
+    @classmethod
+    def warn_capacities_mismatch(cls, orig_capacities, new_capacities):
+        """
+        Compare ``orig_capacities`` and ``new_capacities`` and log warnings if
+        they are not consistent.
+
+        :param orig_capacities: Original CPU capacities, as a map of CPU to capacity.
+        :type orig_capacities: dict(int, int)
+
+        :param new_capacities: New CPU capacities, as a map of CPU to capacity.
+        :type new_capacities: dict(int, int)
+        """
+        logger = cls.get_logger()
+        capacities = {
+            cpu: (orig_capacities[cpu], new_capacities[cpu])
+            for cpu in orig_capacities.keys() & new_capacities.keys()
+        }
+        logger.info('CPU capacities according to rt-app workload: {}'.format(new_capacities))
+
         capa_factors_pct = {
-            cpu: true_capacities[cpu] / cpu_capacities[cpu] * 100
-            for cpu in cpu_capacities.keys()
+            cpu: new / orig * 100
+            for cpu, (orig, new) in capacities.items()
         }
         dispersion_pct = max(abs(100 - factor) for factor in capa_factors_pct.values())
-
-        logger.info('CPU capacities according to rt-app workload: {}'.format(true_capacities))
 
         if dispersion_pct > 2:
             logger.warning('The calibration values are not inversely proportional to the CPU capacities, the duty cycles will be up to {:.2f}% off on some CPUs: {}'.format(dispersion_pct, capa_factors_pct))
@@ -541,20 +537,15 @@ class RTA(Workload):
             logger.warning('The calibration values are not inversely proportional to the CPU capacities. Either rt-app calibration failed, or the rt-app busy loops has a very different instruction mix compared to the workload used to establish the CPU capacities: {}'.format(capa_factors_pct))
 
         # Map of CPUs X to list of CPUs Ys that are faster than it although CPUs
-        # of Ys have a smaller capacity than X
-        if len(capa_ploads) > 1:
+        # of Ys have a smaller orig capacity than X
+        if len(capacities) > 1:
             faster_than_map = {
                 cpu1: sorted(
                     cpu2
-                    for cpu2, pload2 in ploads2.items()
-                    # CPU2 faster than CPU1
-                    if pload2 < pload1
+                    for cpu2, (orig2, new2) in capacities.items()
+                    if new2 > new1 and orig2 < orig1
                 )
-                for (capa1, ploads1), (capa2, ploads2) in itertools.permutations(capa_ploads.items())
-                for cpu1, pload1 in ploads1.items()
-                # Only look at permutations in which CPUs of ploads1 are supposed
-                # to be faster than the one in ploads2
-                if capa1 > capa2
+                for cpu1, (orig1, new1) in capacities.items()
             }
         else:
             faster_than_map = {}
@@ -569,14 +560,16 @@ class RTA(Workload):
         if faster_than_map:
             raise CalibrationError('Some CPUs of higher capacities are slower than other CPUs of smaller capacities: {}'.format(faster_than_map))
 
-        return pload
-
     @classmethod
-    def get_cpu_capacities_from_calibrations(cls, calibrations):
+    def get_cpu_capacities_from_calibrations(cls, orig_capacities, calibrations):
         """
         Compute the CPU capacities out of the rt-app calibration values.
 
         :returns: A mapping of CPU to capacity.
+
+        :param orig_capacities: Original capacities as a mapping of CPU ID to
+            capacity.
+        :type orig_capacities: dict(int, int)
 
         :param calibrations: Mapping of CPU to pload value.
         :type calibrations: dict
@@ -591,7 +584,29 @@ class RTA(Workload):
             # the kernel
             return inverse_calib[cpu] / max(inverse_calib.values()) * PELT_SCALE
 
-        return {cpu: compute_capa(cpu) for cpu in calibrations.keys()}
+        rtapp_capacities =  {cpu: compute_capa(cpu) for cpu in calibrations.keys()}
+
+        # Average in a capacity class, since the kernel will only use one
+        # value for the whole class anyway
+        new_capacities = {}
+        # Group the CPUs by original capacity
+        for capa, capa_class in group_by_value(orig_capacities).items():
+            avg_capa = mean(
+                capa
+                for cpu, capa in rtapp_capacities.items()
+                if cpu in capa_class
+            )
+            new_capacities.update({cpu: avg_capa for cpu in capa_class})
+
+        # Make sure that the max cap is 1024 and that we use integer values
+        new_max_cap = max(new_capacities.values())
+        new_capacities = {
+            cpu: int(capa * (1024 / new_max_cap))
+            for cpu, capa in new_capacities.items()
+        }
+
+        return new_capacities
+
 
     @classmethod
     def get_cpu_calibrations(cls, target, res_dir=None):
