@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import math
 import json
 import logging
 import os
@@ -601,10 +602,11 @@ class RTA(Workload):
         # Make sure that the max cap is 1024 and that we use integer values
         new_max_cap = max(new_capacities.values())
         new_capacities = {
-            cpu: int(capa * (1024 / new_max_cap))
+            # Make sure the max cap will be 1024 and not 1023 due to rounding
+            # errors
+            cpu: math.ceil(capa / new_max_cap * 1024)
             for cpu, capa in new_capacities.items()
         }
-
         return new_capacities
 
 
