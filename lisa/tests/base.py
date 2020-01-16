@@ -1439,10 +1439,11 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                 # TODO: compute accurately the convergence time of the
                 # signal used for placement by the scheduler
                 duration_s=cls._BUFFER_PHASE_DURATION_S,
-                # Use a small period to allow the util_avg to be very close
-                # to duty_cycle
-                period_ms=2,
-
+                # Using a small period to allow the util_avg to be very close
+                # to duty_cycle, but that also makes the duty_cycle converge to
+                # a wrong value (rtapp looses fidelity with small periods,
+                # maybe due to tracing overhead)
+                period_ms=template_phase.period_ms,
                 # Mirror the duty cycle of the next phase so that task util
                 # will converge
                 duty_cycle_pct=template_phase.duty_cycle_pct,

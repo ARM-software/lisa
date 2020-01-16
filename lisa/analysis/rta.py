@@ -545,9 +545,6 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         """
         phases_df = self.df_phases(task)
 
-        def end_of_phase_at(t):
-            return t + phases_df['duration'][t]
-
         try:
             states_df = self.trace.analysis.tasks.df_task_states(task)
         except MissingTraceEventError:
@@ -555,23 +552,27 @@ class RTAEventsAnalysis(TraceAnalysisBase):
                 return []
         else:
             def cpus_of_phase_at(t):
-                window = (t, end_of_phase_at(t))
+                end = t + phases_df['duration'][t]
+                window = (t, end)
                 df = df_window(states_df, window, method='pre', clip_window=True)
                 return sorted(int(x) for x in df['cpu'].unique())
 
-        # Compute phases intervals
-        bands = [
-            (t, end_of_phase_at(t), cpus_of_phase_at(t))
-            for t in phases_df.index
-        ]
+        def make_band(row):
+            t = row.name
+            end = t + row['duration']
+            phase = int(row['phase'])
+            return (phase, t, end, cpus_of_phase_at(t))
 
-        for idx, (start, end, cpus) in enumerate(bands):
+        # Compute phases intervals
+        bands = phases_df.apply(make_band, axis=1)
+
+        for phase, start, end, cpus in bands:
             if cpus:
                 cpus = ' (CPUs {})'.format(', '.join(map(str, cpus)))
             else:
                 cpus = ''
 
-            label = 'rt-app phase #{}{}'.format(idx, cpus)
+            label = 'rt-app phase #{}{}'.format(phase, cpus)
             color = self.get_next_color(axis)
             axis.axvspan(start, end, alpha=0.1, facecolor=color, label=label)
 

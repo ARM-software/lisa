@@ -49,9 +49,11 @@ def series_refit_index(series, start=None, end=None, method='inclusive'):
         row without any fixed sample-rate constraints. If they have been
         downsampled, ``nearest`` might be a better choice.).
 
-    .. note:: If the series only contains one row after windowing, the row will
-        be duplicated so that we can have a start and end index. This also
-        allows plotting such series, which would otherwise be impossible.
+    .. note:: If ``end`` is past the end of the data, the last row will
+        be duplicated so that we can have a start and end index at the right
+        location, without moving the point at which the transition to the last
+        value happened. This also allows plotting series with only one item
+        using matplotlib, which would otherwise be impossible.
     """
 
     return _data_refit_index(series, start, end, method=method)
@@ -96,15 +98,17 @@ def df_split_signals(df, signal_cols, align_start=False):
 
 
 def _data_refit_index(data, start, end, method):
+    duplicate_last = end > data.index[-1]
     data = _data_window(data, (start, end), method=method, clip_window=True)
 
     if data.empty:
         return data
 
-    # When there is only one row, create a second one so we can have both a
-    # start and end row.
-    if len(data) == 1:
-        data = pd.concat([data, data])
+    # When the end is after the end of the data, duplicate the last row so we
+    # can push it to the right as much as we want without changing the point at
+    # which the transition to that value happened
+    if duplicate_last:
+        data = data.append(data.iloc[-1:])
     else:
         # Shallow copy is enough, we only want to replace the index and not the
         # actual data
