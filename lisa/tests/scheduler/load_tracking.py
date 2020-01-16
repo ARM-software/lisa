@@ -899,11 +899,12 @@ class CPUMigrationBase(LoadTrackingBase):
 
     @LoadTrackingAnalysis.plot_task_signals.used_events
     def _plot_util(self):
-        analysis = self.trace.analysis.load_tracking
+        trace = self.trace
+        analysis = trace.analysis.load_tracking
         fig, axes = analysis.setup_plot(nrows=len(self.rtapp_tasks))
         for task, axis in zip(self.rtapp_tasks, axes):
             analysis.plot_task_signals(task, signals=['util'], axis=axis)
-            self.trace.analysis.rta.plot_phases(task, axis=axis)
+            trace.analysis.rta.plot_phases(task, axis=axis)
 
         filepath = ArtifactPath.join(self.res_dir, 'tasks_util.png')
         analysis.save_plot(fig, filepath=filepath)
