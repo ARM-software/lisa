@@ -20,13 +20,15 @@ import os
 import itertools
 from statistics import mean
 
+import pandas as pd
+
 from lisa.tests.base import (
     TestMetric, Result, ResultBundle, AggregatedResultBundle, TestBundle,
     RTATestBundle, CannotCreateError
 )
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby, ExekallTaggable
-from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_tunnel_mean
+from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_tunnel_mean, series_refit_index
 from lisa.wlgen.rta import RTA, Periodic, RTATask
 from lisa.trace import FtraceCollector, requires_events
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
@@ -905,6 +907,30 @@ class CPUMigrationBase(LoadTrackingBase):
         for task, axis in zip(self.rtapp_tasks, axes):
             analysis.plot_task_signals(task, signals=['util'], axis=axis)
             trace.analysis.rta.plot_phases(task, axis=axis)
+
+            activation_axis = axis.twinx()
+            trace.analysis.tasks.plot_task_activation(task, duty_cycle=True, overlay=True, alpha=0.2, axis=activation_axis)
+
+            df_activations = trace.analysis.tasks.df_task_activation(task)
+            df_util = analysis.df_task_signal(task, 'util')
+            def compute_means(row):
+                start = row.name
+                end = start + row['duration']
+                phase_activations = df_window(df_activations, (start, end))
+                phase_util = df_window(df_util, (start, end))
+                series = pd.Series({
+                    'Phase duty cycle average': series_mean(phase_activations['duty_cycle']),
+                    'Phase util tunnel average': series_tunnel_mean(phase_util['util']),
+                })
+                return series
+
+            df_means = trace.analysis.rta.df_phases(task).apply(compute_means, axis=1)
+            df_means = series_refit_index(df_means, trace.start, trace.end)
+            df_means['Phase duty cycle average'].plot(drawstyle='steps-post', ax=activation_axis)
+            df_means['Phase util tunnel average'].plot(drawstyle='steps-post', ax=axis)
+            activation_axis.legend()
+            axis.legend()
+
 
         filepath = ArtifactPath.join(self.res_dir, 'tasks_util.png')
         analysis.save_plot(fig, filepath=filepath)
