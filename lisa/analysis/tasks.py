@@ -23,7 +23,7 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate
+from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals
 from lisa.trace import requires_events
 from lisa.pelt import PELT_SCALE
 
@@ -302,10 +302,7 @@ class TasksAnalysis(TraceAnalysisBase):
         deltas = []
         states = []
 
-        pids = df.pid.unique()
-
-        for pid in pids:
-            df_slice = df[df.pid == pid]
+        for col, df_slice in df_split_signals(df, ['pid']):
             time = df_slice.Time
             state = df_slice.curr_state
 
