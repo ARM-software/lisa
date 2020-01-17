@@ -30,6 +30,8 @@ import pprint
 import os
 import io
 import functools
+import threading
+import weakref
 
 import lisa
 
@@ -269,16 +271,24 @@ class KeyDesc(KeyDescBase):
         return str(v)
 
 
-class MissingBaseKeyError(KeyError):
+class ConfigKeyError(KeyError):
+    """
+    Exception raised when a key is not found in the config instance.
+    """
+    pass
+
+
+class MissingBaseKeyError(ConfigKeyError):
     """
     Exception raised when a base key needed to compute a derived key is missing.
     """
     pass
 
 
-class ConfigKeyError(KeyError):
+class KeyComputationRecursionError(ConfigKeyError):
     """
-    Exception raised when a key is not found in the config instance.
+    Raised when :meth:`DerivedKeyDesc.compute_val` is reentered while computing
+    a given key on a configuration instance.
     """
     pass
 
@@ -308,6 +318,17 @@ class DerivedKeyDesc(KeyDesc):
         super().__init__(name=name, help=help, classinfo=classinfo, newtype=newtype)
         self._base_key_paths = base_key_paths
         self._compute = compute
+        self._compute_stack_tls = threading.local()
+
+    def _get_compute_stack(self, conf):
+        try:
+            stack = self._compute_stack_tls.stack
+        except AttributeError:
+            stack = weakref.WeakKeyDictionary()
+            self._compute_stack_tls.stack = stack
+
+        key = conf._as_hashable
+        return stack.setdefault(key, [])
 
     @property
     def help(self):
@@ -415,14 +436,26 @@ class DerivedKeyDesc(KeyDesc):
             return True
 
     def compute_val(self, conf, eval_deferred=True):
-        # If there is non evaluated base, transitively return a closure rather
-        # than computing now.
-        if not eval_deferred and self.get_non_evaluated_base_keys(conf):
-            val = DeferredValue(self.compute_val, conf=conf, eval_deferred=True)
+        stack = self._get_compute_stack(conf)
+
+        if stack:
+            key = self.qualname
+            raise KeyComputationRecursionError('Recursion error while computing derived key: {}'.format(key), key)
         else:
-            base_conf = self._get_base_conf(conf)
-            val = self._compute(base_conf)
-            self.validate_val(val)
+            stack.append(self)
+
+        try:
+            # If there is non evaluated base, transitively return a closure rather
+            # than computing now.
+            if not eval_deferred and self.get_non_evaluated_base_keys(conf):
+                val = DeferredValue(self.compute_val, conf=conf, eval_deferred=True)
+            else:
+                base_conf = self._get_base_conf(conf)
+                val = self._compute(base_conf)
+                self.validate_val(val)
+        finally:
+            stack.pop()
+
         return val
 
     def get_src(self, conf):
@@ -789,6 +822,26 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
 
         super().__init_subclass__(**kwargs)
 
+class _HashableMultiSrcConf:
+    """
+    Dummy wrapper to :class:`MultiSrcConf` that is hashable, each wrapper
+    instance being equal to other instances wrapping the same configuration
+    instance.
+
+    This allows using configuration as keys for instance-oriented usages like
+    indexing in dictionaries to hold instance-related information.
+
+    .. warning:: Python does not implement ``__hash__`` for mutable containers
+        for good reasons, make sure you understand why before using this class.
+    """
+    def __init__(self, conf):
+        self.conf = conf
+
+    def __hash__(self):
+        return id(self.conf)
+
+    def __eq__(self, other):
+        return self.conf is other.conf
 
 class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     """
@@ -865,6 +918,11 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         "Key/sublevel map of nested configuration objects"
         self._parent = parent
         "Parent instance of configuration"
+        self._as_hashable = _HashableMultiSrcConf(self)
+        """
+        Hashable proxy, mostly designed to allow instance-oriented lookup in
+        mappings. DO NOT USE IT FOR OTHER PURPOSES. You have been warned.
+        """
 
         # Build the tree of objects for nested configuration mappings
         for key, key_desc in self._structure.items():
@@ -902,7 +960,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         # part of a larger conf).
         new._parent = self._parent
 
-        not_copied = {'_parent', '_sublevel_map'}
+        not_copied = {'_parent', '_sublevel_map', '_as_hashable'}
 
         # make a shallow copy of the attributes so we don't end up sharing
         # metadata
@@ -925,6 +983,8 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             key: copy_sublevel(sublevel)
             for key, sublevel in self._sublevel_map.items()
         }
+
+        new._as_hashable = _HashableMultiSrcConf(new)
 
         return new
 
