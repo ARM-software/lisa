@@ -119,7 +119,6 @@ class RTA(Workload):
         logger = self.get_logger()
         plat_info = self.target.plat_info
         writeable_capacities = plat_info['cpu-capacities']['writeable']
-        rtapp_capacities = plat_info['cpu-capacities']['rtapp']
 
         if update_cpu_capacities:
             if not writeable_capacities:
@@ -131,6 +130,7 @@ class RTA(Workload):
                 logger.warning('CPU capacities will not be updated on this platform')
 
         if update_cpu_capacities:
+            rtapp_capacities = plat_info['cpu-capacities']['rtapp']
             logger.info('Will update CPU capacities in sysfs: {}'.format(rtapp_capacities))
 
             write_kwargs = [
@@ -143,10 +143,18 @@ class RTA(Workload):
             ]
             capa_cm = self.target.batch_revertable_write_value(write_kwargs)
         else:
-            # Spit out some warning in case we are not going to update the
-            # capacities, so we know what to expect
-            orig_capacities = plat_info['cpu-capacities']['orig']
-            RTA.warn_capacities_mismatch(orig_capacities, rtapp_capacities)
+            # There might not be any rtapp calibration available, specifically
+            # when we are being called to run the calibration workload.
+            try:
+                rtapp_capacities = plat_info['cpu-capacities']['rtapp']
+                orig_capacities = plat_info['cpu-capacities']['orig']
+            except KeyError:
+                pass
+            else:
+                # Spit out some warning in case we are not going to update the
+                # capacities, so we know what to expect
+                RTA.warn_capacities_mismatch(orig_capacities, rtapp_capacities)
+
             capa_cm = nullcontext()
 
         with capa_cm:
