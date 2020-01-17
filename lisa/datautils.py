@@ -468,7 +468,13 @@ def series_mean(y, x=None, **kwargs):
     x = _resolve_x(y, x)
     integral = series_integrate(y, x, **kwargs)
 
-    return integral / (x.max() - x.min())
+    if len(y) > 1:
+        mean = integral / (x.max() - x.min())
+    # If there is only one data item, the mean is equal to it.
+    else:
+        mean = integral
+
+    return mean
 
 
 def series_window(series, window, method='pre', clip_window=True):

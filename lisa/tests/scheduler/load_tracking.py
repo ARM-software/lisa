@@ -851,24 +851,31 @@ class CPUMigrationBase(LoadTrackingBase):
         cpu_util = {}
         for task in self.rtapp_task_ids:
             df = self.trace.analysis.tasks.df_task_activation(task)
+
             for row in self.trace.analysis.rta.df_phases(task).itertuples():
                 phase = row.phase
                 duration = row.duration
                 start = row.Index
                 end = start + duration
-                phase_df = df_window(df, (start, end), method='pre', clip_window=True)
+                # Use method='exclusive' as we only want what is strictly
+                # inside the window of the phase we are looking at
+                phase_df = df_window(df, (start, end), method='exclusive', clip_window=True)
 
                 for cpu in self.cpus:
-                    duty_cycle = phase_df[phase_df['cpu'] == cpu]['duty_cycle']
-                    duty_cycle = duty_cycle.dropna()
-                    if duty_cycle.empty:
+                    cpu_phase_df = phase_df[phase_df['cpu'] == cpu].dropna()
+                    if cpu_phase_df.empty:
                         duty_cycle = 0
+                        cpu_residency = 0
                     else:
-                        duty_cycle = series_mean(duty_cycle)
+                        duty_cycle = series_mean(cpu_phase_df['duty_cycle'])
+                        cpu_residency = cpu_phase_df.index[-1] - cpu_phase_df.index[0]
 
+                    phase_util = UTIL_SCALE * duty_cycle * (cpu_capacities[cpu] / UTIL_SCALE)
+                    # Pro-rata with the time spent on that CPU, so we get
+                    # the correct average.
+                    phase_util *= cpu_residency / duration
 
                     cpu_util.setdefault(cpu, {}).setdefault(phase, 0)
-                    phase_util = UTIL_SCALE * duty_cycle * (cpu_capacities[cpu] / UTIL_SCALE)
                     cpu_util[cpu][phase] += phase_util
 
         return cpu_util

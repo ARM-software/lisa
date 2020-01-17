@@ -264,6 +264,19 @@ class RTAEventsAnalysis(TraceAnalysisBase):
                 * ``phase``: the phase number.
                 * ``duration``: the measured phase duration.
         """
+        # Trace windowing can cut the trace anywhere, so we need to remove the
+        # partial loops records to avoid confusion
+        def filter_partial_loop(df):
+            # Get rid of the end of a previous loop
+            if not df.empty and df['event'].iloc[0] == 'end':
+                df = df.iloc[1:]
+
+            # Get rid of the beginning of a new loop at the end
+            if not df.empty and df['event'].iloc[-1] == 'start':
+                df = df.iloc[:-1]
+
+            return df
+
         def get_duration(phase, df):
             start = df.index[0]
             end = df.index[-1]
@@ -271,9 +284,15 @@ class RTAEventsAnalysis(TraceAnalysisBase):
             return (start, {'phase': phase, 'duration': duration})
 
         loops_df = self.df_rtapp_loop(task)
-        durations = sorted(
-            get_duration(cols['phase'], df)
+
+        phases_df_list = [
+            (cols['phase'], filter_partial_loop(df))
             for cols, df in df_split_signals(loops_df, ['phase'])
+        ]
+        durations = sorted(
+            get_duration(phase, df)
+            for phase, df in phases_df_list
+            if not df.empty
         )
 
         index, columns = zip(*durations)
