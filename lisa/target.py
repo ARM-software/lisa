@@ -780,7 +780,11 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     @contextlib.contextmanager
     def freeze_userspace(self):
         """
-        Context manager that lets you freeze the userspace
+        Context manager that lets you freeze the userspace.
+
+        .. note:: A number of situations prevent from freezing anything. When
+            that happens, a warning is logged but no exception is raised, so
+            it's a best-effort approach.
         """
         logger = self.get_logger()
         if not self.is_rooted:
