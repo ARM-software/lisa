@@ -46,7 +46,7 @@ class BatchRebaseManifest(SimpleMultiSrcConf):
     {generated_help}
     """
     STRUCTURE = TopLevelKeyDesc('rebase-conf', 'Batch rebase configuration', (
-        KeyDesc('topics', 'List of topics. Each topic is described by a mapping with "name", "remote", "base" and "tip" git references keys.', [list]),
+        KeyDesc('topics', 'List of topics. Each topic is described by a mapping with "name", "remote", "base" and "tip" git references keys. Also, a tag can be added between topics with "action: tag" key and "name: tag-name".', [list]),
         KeyDesc('remotes', 'Git remotes. Keys are remote name, values are a mapping with an "url" key', [Mapping]),
         KeyDesc('rr-cache', 'Path to git rr-cache. Relative paths are relative to that manifest file', [str]),
         LevelKeyDesc('base', 'Base branche spec', [
@@ -214,10 +214,11 @@ def do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, branch, 
 def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
     git = make_git_func(repo)
 
-    def add_tag(name):
-        tag_name = 'topic-{name}-{suffix}'.format(
+    def add_tag(name, prefix='topic-', suffix=tags_suffix):
+        tag_name = '{prefix}{name}{suffix}'.format(
             name=name,
-            suffix=tags_suffix,
+            prefix=prefix,
+            suffix='-{}'.format(suffix) if suffix else '',
         )
         # Force create the tag
         git(['tag', '-f', tag_name])
@@ -258,65 +259,77 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
 
     # Cherry pick topic branches in the specified order
     for topic in topics:
+        action = topic.get('action', 'cherry-pick')
         name = topic['name']
-        base = topic['base']
-        tip = topic['tip']
-        remote = topic['remote']
 
-        # Fetch the topic base and tip
-        for ref in (base, tip):
-            git(['fetch', remote, ref])
-
-        range_ref = 'refs/remotes/{remote}/{base}..refs/remotes/{remote}/{tip}'.format(
-            remote=remote,
-            base=base,
-            tip=tip
-        )
-
-        nr_commits = int(
-            git(['rev-list', '--count', range_ref], capture=True).decode('utf-8')
-        )
-        info('Cherry-picking topic "{name}" from {remote} ({nr_commits} commits)\nremote: {remote}\nbase: {base}\ntip: {tip}\n'.format(
-            name=name,
-            remote=remote,
-            base=base,
-            tip=tip,
-            nr_commits=nr_commits,
-        ))
-
-
-        if not cherry_pick_ref(repo, range_ref):
-            # Save the current state for later resumption
-            conf['resume'].add_src(
-                'conflict',
-                {
-                    'conflict-topic': name,
-                    'persistent-refs': sorted(persistent_refs),
-                    'tags': {
-                        'persistent': persistent_tags,
-                        'suffix': tags_suffix,
-                    }
-                },
-            )
-            info(textwrap.dedent("""
-                A conflict occured while cherry-picking topic "{topic}" ({range_ref})
-                In order to fix it, please:
-                    1. Resolve the conflict in:
-                    {repo}
-                    Make sure modified files are committed.
-
-                    2. Run:
-                    batch-rebase resume {repo}
-                """.format(
-                    topic=name,
-                    repo=repo,
-                    range_ref=range_ref,
-                )).strip())
-            return (True, persistent_refs)
-
-        tag_name = add_tag(name)
-        if persistent_tags:
+        if action == 'tag':
+            suffix = topic.get('suffix', tags_suffix)
+            tag_name = add_tag(name, prefix='', suffix=suffix)
+            info('Added a tag: {}'.format(tag_name))
             persistent_refs.add(tag_name)
+
+        elif action == 'cherry-pick':
+            base = topic['base']
+            tip = topic['tip']
+            remote = topic['remote']
+
+            # Fetch the topic base and tip
+            for ref in (base, tip):
+                git(['fetch', remote, ref])
+
+            range_ref = 'refs/remotes/{remote}/{base}..refs/remotes/{remote}/{tip}'.format(
+                remote=remote,
+                base=base,
+                tip=tip
+            )
+
+            nr_commits = int(
+                git(['rev-list', '--count', range_ref], capture=True).decode('utf-8')
+            )
+            info('Cherry-picking topic "{name}" from {remote} ({nr_commits} commits)\nremote: {remote}\nbase: {base}\ntip: {tip}\n'.format(
+                name=name,
+                remote=remote,
+                base=base,
+                tip=tip,
+                nr_commits=nr_commits,
+            ))
+
+
+            if not cherry_pick_ref(repo, range_ref):
+                # Save the current state for later resumption
+                conf['resume'].add_src(
+                    'conflict',
+                    {
+                        'conflict-topic': name,
+                        'persistent-refs': sorted(persistent_refs),
+                        'tags': {
+                            'persistent': persistent_tags,
+                            'suffix': tags_suffix,
+                        }
+                    },
+                )
+                info(textwrap.dedent("""
+                    A conflict occured while cherry-picking topic "{topic}" ({range_ref})
+                    In order to fix it, please:
+                        1. Resolve the conflict in:
+                        {repo}
+                        Make sure modified files are committed.
+
+                        2. Run:
+                        batch-rebase resume {repo}
+                    """.format(
+                        topic=name,
+                        repo=repo,
+                        range_ref=range_ref,
+                    )).strip())
+                return (True, persistent_refs)
+
+            tag_name = add_tag(name)
+            if persistent_tags:
+                persistent_refs.add(tag_name)
+
+        else:
+            raise ValueError('Unknown action: {}'.format(action))
 
     return (False, persistent_refs)
 
@@ -413,6 +426,12 @@ def main():
                     remote: myremote
                     base: mybase
                     tip: mytip
+
+               # Add a tag between topics
+                -
+                    action: tag
+                    name: mytag
+
                 -
                     name: bar
                     remote: myremote
