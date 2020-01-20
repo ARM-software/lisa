@@ -62,9 +62,19 @@ class DeferredValue:
         self.callback = callback
         self.args = args
         self.kwargs = kwargs
+        self._is_computing = False
 
-    def __call__(self):
-        return self.callback(*self.args, **self.kwargs)
+    def __call__(self, key_desc=None):
+        # Make sure we don't reenter the callback, to avoid infinite loops.
+        if self._is_computing:
+            key = key_desc.qualname if key_desc else '<unknown>'
+            raise KeyComputationRecursionError('Recursion error while computing deferred value for key: {}'.format(key), key)
+
+        self._is_computing = True
+        try:
+            return self.callback(*self.args, **self.kwargs)
+        finally:
+            self._is_computing = False
 
     def __str__(self):
         return '<lazy value of {}>'.format(self.callback.__qualname__)
@@ -285,10 +295,11 @@ class MissingBaseKeyError(ConfigKeyError):
     pass
 
 
-class KeyComputationRecursionError(ConfigKeyError):
+class KeyComputationRecursionError(ConfigKeyError, RecursionError):
     """
     Raised when :meth:`DerivedKeyDesc.compute_val` is reentered while computing
-    a given key on a configuration instance.
+    a given key on a configuration instance, or when a :class:`DeferredValue`
+    callback is reentered.
     """
     pass
 
@@ -1281,7 +1292,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         key_desc = self._structure[key]
         val = self._key_map[key][src]
         if isinstance(val, DeferredValue):
-            val = val()
+            val = val(key_desc=key_desc)
             key_desc.validate_val(val)
             self._key_map[key][src] = val
         return val

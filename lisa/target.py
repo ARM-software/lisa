@@ -32,13 +32,14 @@ import inspect
 import abc
 
 import devlib
+from devlib.exception import TargetStableError
 from devlib.utils.misc import which
 from devlib import Platform
 from devlib.platform.gem5 import Gem5SimulationPlatform
 
 import lisa.assets
 from lisa.wlgen.rta import RTA
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, ASSETS_PATH, setup_logging, ArtifactPath, nullcontext, ExekallTaggable
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, ASSETS_PATH, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, TypedList, Configurable
 
 from lisa.platforms.platinfo import PlatformInfo
@@ -278,10 +279,18 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             password=password,
             keyfile=keyfile,
             devlib_platform=devlib_platform,
-            devlib_excluded_modules=devlib_excluded_modules,
             wait_boot=wait_boot,
             wait_boot_timeout=wait_boot_timeout,
         )
+
+        devlib_excluded_modules = set(devlib_excluded_modules)
+        # Sorry, can't let you do that. Messing with cgroups in a systemd
+        # system is pretty bad idea.
+        if self._uses_systemd:
+            logger.warning('Will not load cgroups devlib module: target is using systemd, which already uses cgroups')
+            devlib_excluded_modules.add('cgroups')
+
+        self._devlib_loadable_modules = _DEVLIB_AVAILABLE_MODULES - devlib_excluded_modules
 
         # Initialize binary tools to deploy
         if tools:
@@ -297,6 +306,18 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         self.plat_info.add_target_src(self, rta_calib_res_dir, fallback=True)
 
         logger.info('Effective platform information:\n{}'.format(self.plat_info))
+
+    @property
+    @memoized
+    def _uses_systemd(self):
+        try:
+            # Check if systemd is being used, according to:
+            # https://www.freedesktop.org/software/systemd/man/sd_booted.html
+            self.execute('test -d /run/systemd/system/', check_exit_code=True)
+        except TargetStableError:
+            return False
+        else:
+            return True
 
     def is_module_available(self, module):
         """
@@ -549,7 +570,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
     def _init_target(self, kind, name, workdir, device, host,
             port, username, password, keyfile,
-            devlib_platform, devlib_excluded_modules,
+            devlib_platform,
             wait_boot, wait_boot_timeout,
     ):
         """
@@ -617,10 +638,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         if not devlib_platform:
             devlib_platform = devlib.platform.Platform()
 
-        ########################################################################
-        # Devlib modules configuration
-        ########################################################################
-        self._devlib_loadable_modules = _DEVLIB_AVAILABLE_MODULES - set(devlib_excluded_modules)
 
         ########################################################################
         # Create devlib Target object
@@ -763,16 +780,20 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     @contextlib.contextmanager
     def freeze_userspace(self):
         """
-        Context manager that lets you freeze the userspace
+        Context manager that lets you freeze the userspace.
+
+        .. note:: A number of situations prevent from freezing anything. When
+            that happens, a warning is logged but no exception is raised, so
+            it's a best-effort approach.
         """
         logger = self.get_logger()
         if not self.is_rooted:
             logger.warning('Could not freeze userspace: target is not rooted')
             cm = nullcontext
+        elif not self.is_module_available('cgroups'):
+            logger.warning('Could not freeze userspace: "cgroups" devlib module is necessary')
+            cm = nullcontext
         else:
-            if not self.is_module_available('cgroups'):
-                raise RuntimeError('Could not freeze userspace: "cgroups" devlib module is necessary')
-
             controllers = [s.name for s in self.target.cgroups.list_subsystems()]
             if 'freezer' not in controllers:
                 logger.warning('Could not freeze userspace: freezer cgroup controller not available on the target')
