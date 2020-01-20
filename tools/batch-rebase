@@ -31,7 +31,7 @@ import textwrap
 import logging
 import contextlib
 
-from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, StrList
+from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, TypedList
 
 def info(msg):
     logging.info(msg)
@@ -55,7 +55,7 @@ class BatchRebaseManifest(SimpleMultiSrcConf):
         ]),
         LevelKeyDesc('resume', 'Internal state used for resuming after a conflict', [
             KeyDesc('conflict-topic', 'Topic where the conflict happened', [str]),
-            KeyDesc('persistent-refs', 'List of references that needs to be pushed back to the main repo', [StrList]),
+            KeyDesc('persistent-refs', 'List of references that needs to be pushed back to the main repo', [TypedList[str]]),
             LevelKeyDesc('tags', 'Topic branch tags', [
                 KeyDesc('persistent', 'whether tags should be pushed back or not', [bool]),
                 KeyDesc('suffix', 'suffix to use for tags, or None', [str]),
