@@ -1493,11 +1493,7 @@ def namedtuple(*args, module, **kwargs):
 
         # Keep an efficient representation to avoid adding too much overhead on
         # top of the inner tuple
-        # TODO: ruamel.yaml currently does not handle deserialization of
-        # __slots__ due to a bug:
-        # https://bitbucket.org/ruamel/yaml/issues/329/typo-in-constructorpy-prevents-loading
-        # Restore the __slots__ once the bug is fixed
-        # __slots__ = ['_tuple']
+        __slots__ = ['_tuple']
 
         def __init__(self, *args, **kwargs):
             # This inner tuple attribute is read-only, DO NOT UPDATE IT OR IT
@@ -1506,7 +1502,7 @@ def namedtuple(*args, module, **kwargs):
 
         def __getattr__(self, attr):
             # Avoid infinite loop when deserializing instances
-            if attr in {'_tuple'}:
+            if attr in self.__slots__:
                 raise AttributeError
 
             return getattr(self._tuple, attr)
