@@ -68,7 +68,8 @@ setup(
         "pandas >= 0.23.0",
         "numpy",
         "scipy",
-        "ruamel.yaml >= 0.15.81",
+        # Earlier versions have broken __slots__ deserialization
+        "ruamel.yaml >= 0.16.6",
         "docutils", # For the HTML output of analysis plots
 
         "ipython",
