@@ -898,6 +898,10 @@ class CPUMigrationBase(LoadTrackingBase):
             duration = row.duration
             start = row.Index
             end = start + duration
+            # Ignore the first quarter of the util signal of each phase, since
+            # it's impacted by the phase change, and util can be affected
+            # (rtapp does some bookkeeping at the beginning of phases)
+            start += duration / 4
             phase_df = df_window(df, (start, end), method='pre', clip_window=True)
 
             for cpu in self.cpus:
