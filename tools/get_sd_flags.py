@@ -16,7 +16,6 @@
 # limitations under the License.
 
 from lisa.target import Target
-from devlib.module.sched import SchedDomain
 
 target = Target.from_cli()
 
