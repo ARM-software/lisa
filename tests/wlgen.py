@@ -19,6 +19,7 @@
 
 import os
 import shutil
+import tempfile
 from unittest import TestCase
 
 from devlib import LocalLinuxTarget, Platform
@@ -37,9 +38,10 @@ class TestTarget(LocalLinuxTarget):
 
     def __init__(self):
         self.execute_calls = []
+        working_directory = tempfile.mkdtemp()
         super().__init__(platform=Platform(),
-                         working_directory='/tmp/devlib-target',
-                         executables_directory='/tmp/devlib-target/bin',
+                         working_directory=working_directory,
+                         executables_directory=os.path.join(working_directory, 'bin'),
                          load_default_modules=False,
                          connection_settings={'unrooted': True})
 
