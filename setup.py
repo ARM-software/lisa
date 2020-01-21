@@ -18,9 +18,6 @@
 
 from setuptools import setup, find_namespace_packages
 
-import importlib
-import distutils.cmd
-import distutils.log
 
 with open('README.rst', 'r') as fh:
     long_description = fh.read()
