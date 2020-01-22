@@ -17,6 +17,7 @@ import os
 
 from wa import Command
 from wa import discover_wa_outputs
+from wa.framework.configuration.core import Status
 from wa.framework.exception import CommandError
 from wa.framework.output import RunOutput
 from wa.framework.output_processor import ProcessorManager
@@ -57,8 +58,9 @@ class ProcessCommand(Command):
                                  """)
         self.parser.add_argument('-f', '--force', action='store_true',
                                  help="""
-                                 Run processors that have already been
-                                 run. By default these will be skipped.
+                                 Run processors that have already been run. By
+                                 default these will be skipped. Also, forces
+                                 processing of in-progress runs.
                                  """)
         self.parser.add_argument('-r', '--recursive', action='store_true',
                                  help="""
@@ -80,6 +82,11 @@ class ProcessCommand(Command):
 
         pc = ProcessContext()
         for run_output in output_list:
+            if run_output.status < Status.OK and not args.force:
+                msg = 'Skipping {} as it has not completed -- {}'
+                self.logger.info(msg.format(run_output.basepath, run_output.status))
+                continue
+
             pc.run_output = run_output
             pc.target_info = run_output.target_info
 
@@ -112,6 +119,12 @@ class ProcessCommand(Command):
             pm.initialize(pc)
 
             for job_output in run_output.jobs:
+                if job_output.status < Status.OK or job_output.status in [Status.SKIPPED, Status.ABORTED]:
+                    msg = 'Skipping job {} {} iteration {} -- {}'
+                    self.logger.info(msg.format(job_output.id, job_output.label,
+                                                job_output.iteration, job_output.status))
+                    continue
+
                 pc.job_output = job_output
                 pm.enable_all()
                 if not args.force:
@@ -142,5 +155,6 @@ class ProcessCommand(Command):
             pm.export_run_output(pc)
             pm.finalize(pc)
 
+            run_output.write_info()
             run_output.write_result()
             self.logger.info('Done.')

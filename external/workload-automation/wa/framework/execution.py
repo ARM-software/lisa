@@ -249,6 +249,11 @@ class ExecutionContext(object):
     def add_event(self, message):
         self.output.add_event(message)
 
+    def add_classifier(self, name, value, overwrite=False):
+        self.output.add_classifier(name, value, overwrite)
+        if self.current_job:
+            self.current_job.add_classifier(name, value, overwrite)
+
     def add_metadata(self, key, *args, **kwargs):
         self.output.add_metadata(key, *args, **kwargs)
 
