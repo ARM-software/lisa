@@ -284,6 +284,13 @@ methods
     :return: A list of `str` labels of workloads that were part of this run.
 
 
+.. method:: RunOutput.add_classifier(name, value, overwrite=False)
+
+   Add a classifier to the run as a whole. If a classifier with the specified
+   ``name`` already exists, a``ValueError`` will be raised, unless
+   `overwrite=True` is specified.
+
+
 :class:`RunDatabaseOutput`
 ---------------------------
 
@@ -402,7 +409,7 @@ artifacts, metadata, and configuration. It has the following attributes:
 methods
 ~~~~~~~
 
-.. method:: RunOutput.get_artifact(name)
+.. method:: JobOutput.get_artifact(name)
 
     Return the :class:`Artifact` specified by ``name`` associated with this job.
 
@@ -410,7 +417,7 @@ methods
     :return: The :class:`Artifact` with that name
     :raises HostError: If the artifact with the specified name does not exist.
 
-.. method:: RunOutput.get_artifact_path(name)
+.. method:: JobOutput.get_artifact_path(name)
 
     Return the path to the file backing the artifact specified by ``name``,
     associated with this job.
@@ -419,12 +426,19 @@ methods
     :return: The path to the artifact
     :raises HostError: If the artifact with the specified name does not exist.
 
-.. method:: RunOutput.get_metric(name)
+.. method:: JobOutput.get_metric(name)
 
    Return the :class:`Metric` associated with this job with the specified
    `name`.
 
    :return: The :class:`Metric` object for the metric with the specified name.
+
+.. method:: JobOutput.add_classifier(name, value, overwrite=False)
+
+   Add a classifier to the job. The classifier will be propagated to all
+   existing artifacts and metrics, as well as those added afterwards. If a
+   classifier with the specified ``name`` already exists, a ``ValueError`` will
+   be raised, unless `overwrite=True` is specified.
 
 
 :class:`JobDatabaseOutput`

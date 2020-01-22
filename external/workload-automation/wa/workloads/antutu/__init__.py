@@ -14,25 +14,40 @@
 #
 import re
 
-from wa import ApkUiautoWorkload, WorkloadError
+from wa import ApkUiautoWorkload, WorkloadError, Parameter
 
 
 class Antutu(ApkUiautoWorkload):
 
     name = 'antutu'
     package_names = ['com.antutu.ABenchMark']
-    regex_matches = [re.compile(r'CPU Maths Score (.+)'),
-                     re.compile(r'CPU Common Score (.+)'),
-                     re.compile(r'CPU Multi Score (.+)'),
-                     re.compile(r'GPU Marooned Score (.+)'),
-                     re.compile(r'GPU Coastline Score (.+)'),
-                     re.compile(r'GPU Refinery Score (.+)'),
-                     re.compile(r'Data Security Score (.+)'),
-                     re.compile(r'Data Processing Score (.+)'),
-                     re.compile(r'Image Processing Score (.+)'),
-                     re.compile(r'User Experience Score (.+)'),
-                     re.compile(r'RAM Score (.+)'),
-                     re.compile(r'ROM Score (.+)')]
+    regex_matches_v7 = [re.compile(r'CPU Maths Score (.+)'),
+                        re.compile(r'CPU Common Score (.+)'),
+                        re.compile(r'CPU Multi Score (.+)'),
+                        re.compile(r'GPU Marooned Score (.+)'),
+                        re.compile(r'GPU Coastline Score (.+)'),
+                        re.compile(r'GPU Refinery Score (.+)'),
+                        re.compile(r'Data Security Score (.+)'),
+                        re.compile(r'Data Processing Score (.+)'),
+                        re.compile(r'Image Processing Score (.+)'),
+                        re.compile(r'User Experience Score (.+)'),
+                        re.compile(r'RAM Score (.+)'),
+                        re.compile(r'ROM Score (.+)')]
+    regex_matches_v8 = [re.compile(r'CPU Mathematical Operations Score (.+)'),
+                        re.compile(r'CPU Common Algorithms Score (.+)'),
+                        re.compile(r'CPU Multi-Core Score (.+)'),
+                        re.compile(r'GPU Terracotta Score (.+)'),
+                        re.compile(r'GPU Coastline Score (.+)'),
+                        re.compile(r'GPU Refinery Score (.+)'),
+                        re.compile(r'Data Security Score (.+)'),
+                        re.compile(r'Data Processing Score (.+)'),
+                        re.compile(r'Image Processing Score (.+)'),
+                        re.compile(r'User Experience Score (.+)'),
+                        re.compile(r'RAM Access Score (.+)'),
+                        re.compile(r'ROM APP IO Score (.+)'),
+                        re.compile(r'ROM Sequential Read Score (.+)'),
+                        re.compile(r'ROM Sequential Write Score (.+)'),
+                        re.compile(r'ROM Random Access Score (.+)')]
     description = '''
     Executes Antutu 3D, UX, CPU and Memory tests
 
@@ -40,16 +55,31 @@ class Antutu(ApkUiautoWorkload):
     1. Open Antutu application
     2. Execute Antutu benchmark
 
-    Known working APK version: 7.0.4
+    Known working APK version: 8.0.4
     '''
 
-    def update_output(self, context):
-        super(Antutu, self).update_output(context)
-        expected_results = len(self.regex_matches)
+    supported_versions = ['7.0.4', '7.2.0', '8.0.4', '8.1.9']
+
+    parameters = [
+        Parameter('version', kind=str, allowed_values=supported_versions, override=True,
+                  description=(
+                      '''Specify the version of Antutu to be run.
+                      If not specified, the latest available version will be used.
+                      ''')
+                  )
+    ]
+
+    def setup(self, context):
+        self.gui.uiauto_params['version'] = self.version
+        super(Antutu, self).setup(context)
+
+    def extract_scores(self, context, regex_version):
+        #pylint: disable=no-self-use
+        expected_results = len(regex_version)
         logcat_file = context.get_artifact_path('logcat')
         with open(logcat_file) as fh:
             for line in fh:
-                for regex in self.regex_matches:
+                for regex in regex_version:
                     match = regex.search(line)
                     if match:
                         try:
@@ -61,4 +91,11 @@ class Antutu(ApkUiautoWorkload):
                         expected_results -= 1
         if expected_results > 0:
             msg = "The Antutu workload has failed. Expected {} scores, Detected {} scores."
-            raise WorkloadError(msg.format(len(self.regex_matches), expected_results))
+            raise WorkloadError(msg.format(len(regex_version), expected_results))
+
+    def update_output(self, context):
+        super(Antutu, self).update_output(context)
+        if self.version.startswith('8'):
+            self.extract_scores(context, self.regex_matches_v8)
+        if self.version.startswith('7'):
+            self.extract_scores(context, self.regex_matches_v7)
