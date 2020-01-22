@@ -218,6 +218,20 @@ def version_tuple(v):
     return tuple(map(str, (v.split("."))))
 
 
+def module_name_set(l):
+    """
+    Converts a list of target modules into a set of module names, disregarding
+    any configuration that may be present.
+    """
+    modules = set()
+    for m in l:
+        if m and isinstance(m, dict):
+            modules.update({k for k in m.keys()})
+        else:
+            modules.add(m)
+    return modules
+
+
 __counters = defaultdict(int)
 
 

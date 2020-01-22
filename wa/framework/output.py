@@ -165,6 +165,9 @@ class Output(object):
         artifact = self.get_artifact(name)
         return self.get_path(artifact.path)
 
+    def add_classifier(self, name, value, overwrite=False):
+        self.result.add_classifier(name, value, overwrite)
+
     def add_metadata(self, key, *args, **kwargs):
         self.result.add_metadata(key, *args, **kwargs)
 
@@ -409,6 +412,21 @@ class Result(Podable):
             if artifact.name == name:
                 return artifact
         raise HostError('Artifact "{}" not found'.format(name))
+
+    def add_classifier(self, name, value, overwrite=False):
+        if name in self.classifiers and not overwrite:
+            raise ValueError('Cannot overwrite "{}" classifier.'.format(name))
+        self.classifiers[name] = value
+
+        for metric in self.metrics:
+            if name in metric.classifiers and not overwrite:
+                raise ValueError('Cannot overwrite "{}" classifier; clashes with {}.'.format(name, metric))
+            metric.classifiers[name] = value
+
+        for artifact in self.artifacts:
+            if name in artifact.classifiers and not overwrite:
+                raise ValueError('Cannot overwrite "{}" classifier; clashes with {}.'.format(name, artifact))
+            artifact.classifiers[name] = value
 
     def add_metadata(self, key, *args, **kwargs):
         force = kwargs.pop('force', False)

@@ -65,7 +65,7 @@ public class UiAutomation extends BaseUiAutomation {
 
     private void clearPopups() throws Exception{
         UiObject permiss =
-            mDevice.findObject(new UiSelector().text("Continue"));
+            mDevice.findObject(new UiSelector().textMatches("(?i)Continue"));
         if (permiss.exists()){
             permiss.click();
         }

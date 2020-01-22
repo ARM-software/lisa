@@ -26,6 +26,7 @@ from wa.framework.target.descriptor import (get_target_description,
                                             instantiate_assistant)
 from wa.framework.target.info import get_target_info, get_target_info_from_cache, cache_target_info
 from wa.framework.target.runtime_parameter_manager import RuntimeParameterManager
+from wa.utils.types import module_name_set
 
 
 class TargetManager(object):
@@ -100,7 +101,7 @@ class TargetManager(object):
             # If module configuration has changed form when the target info
             # was previously cached, it is possible additional info will be
             # available, so should re-generate the cache.
-            if set(info.modules) != set(self.target.modules):
+            if module_name_set(info.modules) != module_name_set(self.target.modules):
                 info = get_target_info(self.target)
                 cache_target_info(info, overwrite=True)
 
