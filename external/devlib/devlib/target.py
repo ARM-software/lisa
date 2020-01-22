@@ -167,13 +167,18 @@ class Target(object):
     @property
     @memoized
     def number_of_nodes(self):
-        num_nodes = 0
-        nodere = re.compile(r'^\s*node\d+\s*$')
-        output = self.execute('ls /sys/devices/system/node', as_root=self.is_rooted)
-        for entry in output.split():
-            if nodere.match(entry):
-                num_nodes += 1
-        return num_nodes
+        cmd = 'cd /sys/devices/system/node && {busybox} find . -maxdepth 1'.format(busybox=quote(self.busybox))
+        try:
+            output = self.execute(cmd, as_root=self.is_rooted)
+        except TargetStableError:
+            return 1
+        else:
+            nodere = re.compile(r'^\./node\d+\s*$')
+            num_nodes = 0
+            for entry in output.splitlines():
+                if nodere.match(entry):
+                    num_nodes += 1
+            return num_nodes
 
     @property
     @memoized
@@ -1507,15 +1512,18 @@ class AndroidTarget(Target):
         self._ensure_executables_directory_is_writable()
         self.remove(on_device_executable, as_root=self.needs_su)
 
-    def dump_logcat(self, filepath, filter=None, append=False, timeout=30):  # pylint: disable=redefined-builtin
+    def dump_logcat(self, filepath, filter=None, logcat_format=None, append=False,
+                    timeout=30):  # pylint: disable=redefined-builtin
         op = '>>' if append else '>'
         filtstr = ' -s {}'.format(quote(filter)) if filter else ''
+        formatstr = ' -v {}'.format(quote(logcat_format)) if logcat_format else ''
+        logcat_opts = '-d' + formatstr + filtstr
         if isinstance(self.conn, AdbConnection):
-            command = 'logcat -d{} {} {}'.format(filtstr, op, quote(filepath))
+            command = 'logcat {} {} {}'.format(logcat_opts, op, quote(filepath))
             adb_command(self.adb_name, command, timeout=timeout)
         else:
             dev_path = self.get_workpath('logcat')
-            command = 'logcat -d{} {} {}'.format(filtstr, op, quote(dev_path))
+            command = 'logcat {} {} {}'.format(logcat_opts, op, quote(dev_path))
             self.execute(command, timeout=timeout)
             self.pull(dev_path, filepath)
             self.remove(dev_path)
