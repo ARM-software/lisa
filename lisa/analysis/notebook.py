@@ -26,7 +26,7 @@ import __main__ as main
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
-from lisa.datautils import df_refit_index, df_filter
+from lisa.datautils import df_refit_index, df_filter, SignalDesc
 
 
 class NotebookAnalysis(TraceAnalysisBase):
@@ -89,7 +89,9 @@ class NotebookAnalysis(TraceAnalysisBase):
         :type field: str
 
         :param filter_columns: Pre-filter the dataframe using
-            :func:`lisa.datautils.df_filter`
+            :func:`lisa.datautils.df_filter`. Also, a signal will be inferred
+            from the column names being used and will be passed to
+            :meth:`lisa.trace.Trace.df_events`.
         :type filter_columns: dict or None
 
         :param filter_f: Function used to filter the dataframe of the event.
@@ -98,7 +100,12 @@ class NotebookAnalysis(TraceAnalysisBase):
         :type filter_f: collections.abc.Callable
         """
         trace = self.trace
-        df = trace.df_events(event)
+        if filter_columns:
+            signals = [SignalDesc(event, sorted(filter_columns.keys()))]
+        else:
+            signals = None
+
+        df = trace.df_events(event, signals=signals)
 
         if filter_columns:
             df = df_filter(df, filter_columns)
