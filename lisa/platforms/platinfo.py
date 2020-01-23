@@ -23,7 +23,8 @@ from collections.abc import Mapping
 from lisa.utils import HideExekallID, group_by_value, memoized
 from lisa.conf import (
     DeferredValue, TypedDict, TypedList, SortedTypedList,
-    MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, DerivedKeyDesc
+    MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, DerivedKeyDesc,
+    ConfigKeyError,
 )
 from lisa.energy_model import EnergyModel
 from lisa.wlgen.rta import RTA
@@ -215,7 +216,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             'orig': get_orig_capacities,
         }
 
-        info['kernel']['symbols-address'] = functools.partial(self._read_kallsyms, target)
+        info['kernel']['symbols-address'] = lambda: DeferredValue(self._read_kallsyms, target)
 
         def dfs(existing_info, new_info):
             def evaluate(existing_info, key, val):
@@ -268,13 +269,11 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             with target.revertable_write_value('/proc/sys/kernel/kptr_restrict', '0'):
                 kallsyms = target.read_value('/proc/kallsyms')
         except TargetStableError as e:
-            logger.error("Couldn't read /proc/kallsyms: {}".format(e))
-            return None
+            raise ConfigKeyError("Couldn't read /proc/kallsyms: {}".format(e))
 
         symbols = dict(map(parse_line, kallsyms.splitlines()))
         if symbols.keys() == {0}:
-            logger.error("kallsyms only contains null pointers")
-            return None
+            raise ConfigKeyError("kallsyms only contains null pointers")
 
         return symbols
 
