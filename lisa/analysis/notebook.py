@@ -95,7 +95,7 @@ class NotebookAnalysis(TraceAnalysisBase):
 
         :param filter_f: Function used to filter the dataframe of the event.
             The function must take a dataframe as only parameter and return
-            a filtered dataframe. It is applied after ``field_values`` filter.
+            a filtered dataframe. It is applied after ``filter_columns`` filter.
         :type filter_f: collections.abc.Callable
         """
         trace = self.trace
