@@ -1710,9 +1710,11 @@ class Trace(Loggable, TraceBase):
             signals_init = pd_desc['signals_init']
             compress_signals_init = pd_desc['compress_signals_init']
             cols_list = pd_desc['signals']
+            signals = [SignalDesc(event, cols) for cols in cols_list]
+
             with measure_time() as measure:
-                if signals_init and cols_list:
-                    df = df_window_signals(df, window, cols_list, compress_init=compress_signals_init)
+                if signals_init and signals:
+                    df = df_window_signals(df, window, signals, compress_init=compress_signals_init)
                 else:
                     df = df_window(df, window, method='pre')
 

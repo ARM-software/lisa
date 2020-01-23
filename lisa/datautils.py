@@ -583,7 +583,7 @@ def df_window(df, window, method='pre', clip_window=True):
     return _data_window(df, window, method, clip_window)
 
 
-def df_window_signals(df, window, signal_cols_list, compress_init=False, clip_window=True):
+def df_window_signals(df, window, signals, compress_init=False, clip_window=True):
     """
     Similar to :func:`df_window` with ``method='pre'`` but guarantees that each
     signal will have a values at the beginning of the window.
@@ -592,8 +592,9 @@ def df_window_signals(df, window, signal_cols_list, compress_init=False, clip_wi
         region to select.
     :type window: tuple(object)
 
-    :param signal_cols_list: List of columns that uniquely identify a signal.
-    :type signal_cols_list: list(list(str))
+    :param signals: List of :class:`SignalDesc` describing the signals to
+        fixup.
+    :type signals: list(SignalDesc)
 
     :param compress_init: When ``False``, the timestamps of the init value of
         signals (right before the window) are preserved. If ``True``, they are
@@ -651,8 +652,8 @@ def df_window_signals(df, window, signal_cols_list, compress_init=False, clip_wi
     signal_df_list = [
         window_signal(signal_df)
         for signal, signal_df in itertools.chain.from_iterable(
-            df_split_signals(df, signal_cols, align_start=False)
-            for signal_cols in signal_cols_list
+            df_split_signals(df, signal.fields, align_start=False)
+            for signal in signals
         )
         # Only consider the signal that are in the window. Signals that started
         # after the window are irrelevant.
