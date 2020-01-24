@@ -1087,8 +1087,9 @@ class OrderedSetBase:
     Base class for custom ordered sets.
     """
     def __init__(self, items=[]):
-        self._set = set(items)
+        # Make sure to iterate over items only once, in case it's a generator
         self._list = list(items)
+        self._set = set(self._list)
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -1113,13 +1114,23 @@ class FrozenOrderedSet(OrderedSetBase, collections.abc.Set):
     Like a regular ``frozenset``, but iterating over it will yield items in insertion
     order.
     """
-
-    def __hash__(self):
-        return functools.reduce(
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._hash = functools.reduce(
             lambda hash_, item: hash_ ^ hash(item),
             self._list,
             0
         )
+
+    def __hash__(self):
+        return self._hash
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            if hash(self) != hash(other):
+                return False
+
+        return super().__eq__(other)
 
 
 class OrderedSet(OrderedSetBase, collections.abc.MutableSet):
