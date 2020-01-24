@@ -66,7 +66,7 @@ def df_refit_index(df, start=None, end=None, method='inclusive'):
     return _data_refit_index(df, start, end, method=method)
 
 
-def df_split_signals(df, signal_cols, align_start=False):
+def df_split_signals(df, signal_cols, align_start=False, window=None):
     """
     Yield subset of ``df`` that only contain one signal, along with the signal
     identification values.
@@ -77,13 +77,23 @@ def df_split_signals(df, signal_cols, align_start=False):
     :param signal_cols: Columns that uniquely identify a signal.
     :type signal_cols: list(str)
 
-    :param align_start: If ``True``, :func:`df_refit_index` will be applied on
-        the yielded dataframes so that they all start at the same index.
-    :type refit_index: bool
+    :param window: Apply :func:`df_refit_index` on the yielded dataframes with
+        the given window.
+    :type window: tuple(float or None, float or None) or None
+
+    :param align_start: If ``True``, same as ``window=(df.index[0], None)``.
+        This makes sure all yielded signals start at the same index as the
+        original dataframe.
+    :type align_start: bool
     """
     if not signal_cols:
         yield ({}, df)
     else:
+        if align_start:
+            if window is not None:
+                raise ValueError('align_start=True cannot be used with window != None')
+            window = (df.index[0], None)
+
         for group, signal in df.groupby(signal_cols):
             # When only one column is looked at, the group is the value instead of
             # a tuple of values
@@ -92,8 +102,8 @@ def df_split_signals(df, signal_cols, align_start=False):
             else:
                 cols_val = dict(zip(signal_cols, group))
 
-            if align_start:
-                signal = df_refit_index(signal, start=df.index[0], method='inclusive')
+            if window:
+                signal = df_refit_index(signal, start=window[0], end=window[1], method='inclusive')
             yield (cols_val, signal)
 
 
