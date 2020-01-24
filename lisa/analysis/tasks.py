@@ -479,14 +479,14 @@ class TasksAnalysis(TraceAnalysisBase):
         :type count: int
         """
         if tasks is None:
-            tasks = list(self.trace.get_tasks().keys())
+            task_ids = self.trace.task_ids
+        else:
+            task_ids = itertools.chain.from_iterable(
+                self.trace.get_task_ids(task)
+                for task in tasks
+            )
+
         res_df = pd.DataFrame()
-
-        task_ids = itertools.chain.from_iterable(
-            self.trace.get_task_ids(task)
-            for task in tasks
-        )
-
         for task_id in task_ids:
             mapping = {'runtime': str(task_id)}
             _df = self.trace.analysis.tasks.df_task_total_residency(task_id).T.rename(index=mapping)
