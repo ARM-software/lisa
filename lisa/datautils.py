@@ -29,7 +29,7 @@ import scipy.signal
 from lisa.utils import TASK_COMM_MAX_LEN, groupby
 
 
-def series_refit_index(series, start=None, end=None, method='inclusive'):
+def series_refit_index(series, start=None, end=None, window=None, method='inclusive'):
     """
     Slice a series using :func:`series_window` and ensure we have a value at
     exactly the specified boundaries.
@@ -43,6 +43,11 @@ def series_refit_index(series, start=None, end=None, method='inclusive'):
     :param end: Last index value to find in the returned series.
     :type end: object
 
+    :param window: ``window=(start, end)`` is the same as
+        ``start=start, end=end``. These parameters styles are mutually
+        exclusive.
+    :type window: tuple(float or None, float or None) or None
+
     :param method: Windowing method used to select the first and last values of
         the series using :func:`series_window`. Defaults to ``pre``, which is
         suitable for signals where all the value changes have a corresponding
@@ -55,15 +60,24 @@ def series_refit_index(series, start=None, end=None, method='inclusive'):
         value happened. This also allows plotting series with only one item
         using matplotlib, which would otherwise be impossible.
     """
+    window = _make_window(start, end, window)
+    return _data_refit_index(series, window, method=method)
 
-    return _data_refit_index(series, start, end, method=method)
 
-
-def df_refit_index(df, start=None, end=None, method='inclusive'):
+def df_refit_index(df, start=None, end=None, window=None, method='inclusive'):
     """
     Same as :func:`series_refit_index` but acting on :class:`pandas.DataFrame`
     """
-    return _data_refit_index(df, start, end, method=method)
+    window = _make_window(start, end, window)
+    return _data_refit_index(df, window, method=method)
+
+def _make_window(start, end, window):
+    if window is not None and (start, end) != (None, None):
+        raise ValueError('window != None cannot be used along with start and end parameters')
+    elif window is None:
+        return (start, end)
+    else:
+        return window
 
 
 def df_split_signals(df, signal_cols, align_start=False, window=None):
@@ -107,9 +121,10 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
             yield (cols_val, signal)
 
 
-def _data_refit_index(data, start, end, method):
+def _data_refit_index(data, window, method):
+    start, end = window
     duplicate_last = end > data.index[-1]
-    data = _data_window(data, (start, end), method=method, clip_window=True)
+    data = _data_window(data, window, method=method, clip_window=True)
 
     if data.empty:
         return data
