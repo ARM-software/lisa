@@ -116,6 +116,15 @@ class TraceBase(abc.ABC):
         """
         return self.end - self.start
 
+    @property
+    def window(self):
+        """
+        Same as ``(trace.start, trace.end)``.
+
+        This is handy to pass to functions expecting a window tuple.
+        """
+        return (self.start, self.end)
+
     @abc.abstractmethod
     def get_view(self, window, **kwargs):
         """
