@@ -19,6 +19,7 @@ import functools
 import operator
 import math
 import itertools
+import warnings
 from operator import attrgetter
 
 import numpy as np
@@ -72,9 +73,15 @@ def df_refit_index(df, start=None, end=None, window=None, method='inclusive'):
     return _data_refit_index(df, window, method=method)
 
 def _make_window(start, end, window):
-    if window is not None and (start, end) != (None, None):
+    uses_separated = (start, end) != (None, None)
+
+    if uses_separated:
+        warnings.warn('start and end df_refit_index() parameters are deprecated, please use window=', DeprecationWarning, stacklevel=3)
+
+    if window is not None and uses_separated:
         raise ValueError('window != None cannot be used along with start and end parameters')
-    elif window is None:
+
+    if window is None:
         return (start, end)
     else:
         return window
