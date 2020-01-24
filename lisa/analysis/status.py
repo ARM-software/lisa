@@ -65,7 +65,7 @@ class StatusAnalysis(TraceAnalysisBase):
         """
         Return the time spent in overutilized state.
         """
-        df = self.trace.analysis.status.df_overutilized()
+        df = self.df_overutilized()
         return df[df['overutilized'] == 1]['len'].sum()
 
     def get_overutilized_pct(self):
