@@ -23,7 +23,7 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals
+from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta
 from lisa.trace import requires_events
 from lisa.pelt import PELT_SCALE
 
@@ -413,11 +413,14 @@ class TasksAnalysis(TraceAnalysisBase):
         df = self.df_tasks_states()
 
         runtimes = {}
-        for pid in df.pid.unique():
-            runtimes[pid] = df[
-                (df.pid == pid) &
-                (df.curr_state == TaskState.TASK_ACTIVE)
-            ].delta.sum()
+        # Make sure to only look at the relevant portion of the dataframe with
+        # the window, since we are going to make a time-based sum
+        for cols, pid_df in df_split_signals(df, ['pid'], window=self.trace.window):
+            pid = cols['pid']
+            # Recompute the delta so it's consistent with the time slice
+            pid_df = df_add_delta(pid_df)
+            pid_df = pid_df[pid_df['curr_state'] == TaskState.TASK_ACTIVE]
+            runtimes[pid] = pid_df['delta'].sum(skipna=True)
 
         df = pd.DataFrame.from_dict(runtimes, orient="index", columns=["runtime"])
 
@@ -544,7 +547,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df = df_deduplicate(df, consecutives=True, keep='first')
 
         # Once we removed the duplicates, we can compute the time spent while sleeping or activating
-        df['duration'] = df.index.to_series().diff().shift(-1)
+        df_add_delta(df, col='duration', inplace=True)
 
         sleep = df[df['active'] == sleep_value]['duration']
         active = df[df['active'] == active_value]['duration']
