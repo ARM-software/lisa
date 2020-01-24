@@ -995,6 +995,57 @@ def df_deduplicate(df, keep, consecutives, cols=None, all_col=True):
     """
     return _data_deduplicate(df, keep=keep, consecutives=consecutives, cols=cols, all_col=all_col)
 
+
+def df_add_delta(df, col='delta', src_col=None, window=None, inplace=False):
+    """
+    Add a column containing the delta of the given other column.
+
+    :param df: The dataframe to act on.
+    :type df: pandas.DataFrame
+
+    :param col: The name of the column to add.
+    :type col: str
+
+    :param src_col: Name of the column to compute the delta of. If ``None``,
+        the index is used.
+    :type src_col: str or None
+
+    :param window: Optionally, a window. It will be used to compute the correct
+        delta of the last row. If ``inplace=False``, the dataframe will be
+        pre-filtered using :func:`df_refit_index`. This implies that the last
+        row will have a NaN delta, but will be suitable e.g. for plotting, and
+        aggregation functions that ignore delta such as
+        :meth:`pandas.DataFrame.sum`.
+    :type window: tuple(float or None, float or None) or None
+
+    :param inplace: If ``True``, ``df`` is modified inplace to add the column
+    :type inplace: bool
+    """
+
+    use_refit_index = window and not inplace
+
+    if use_refit_index:
+        df = df_refit_index(df, window=window)
+
+    src = df[src_col] if src_col else df.index.to_series()
+    delta = src.diff().shift(-1)
+
+    # When use_refit_index=True, the last delta will already be sensible
+    if not use_refit_index and window:
+        start, end = window
+        if end is not None:
+            new_end = end - src.iloc[-1]
+            new_end = new_end if new_end > 0 else 0
+            delta.iloc[-1] = new_end
+
+    if not inplace:
+        df = df.copy()
+
+    df[col] = delta
+
+    return df
+
+
 class SignalDesc:
     """
     Define a signal to be used by various signal-oriented APIs.
