@@ -1087,8 +1087,9 @@ class OrderedSetBase:
     Base class for custom ordered sets.
     """
     def __init__(self, items=[]):
-        self._set = set(items)
+        # Make sure to iterate over items only once, in case it's a generator
         self._list = list(items)
+        self._set = set(self._list)
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
