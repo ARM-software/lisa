@@ -447,6 +447,8 @@ class TasksAnalysis(TraceAnalysisBase):
         cpus = set(range(self.trace.cpus_count))
 
         df = self.df_task_states(task)
+        # Get the correct delta for the window we want.
+        df = df_add_delta(df, window=self.trace.window)
         df = df[df.curr_state == TaskState.TASK_ACTIVE]
 
         residency_df = pd.DataFrame(df.groupby("cpu")["delta"].sum())
