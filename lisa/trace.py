@@ -52,7 +52,7 @@ import lisa.utils
 from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate, nullcontext, measure_time, checksum
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, TypedList, Configurable
-from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc
+from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta
 from lisa.version import VERSION_TOKEN
 
 
@@ -143,6 +143,11 @@ class TraceBase(abc.ABC):
 
         return self.get_view((window.start, window.stop))
 
+    @deprecate('Prefer adding delta once signals have been extracted from the event dataframe for correctness',
+        deprecated_in='2.0',
+        removed_in='2.1',
+        replaced_by=df_add_delta,
+    )
     def add_events_deltas(self, df, col_name='delta', inplace=True):
         """
         Store the time between each event in a new dataframe column
@@ -176,18 +181,7 @@ class TraceBase(abc.ABC):
             raise RuntimeError("Column {} is already present in the dataframe".
                                format(col_name))
 
-        if not inplace:
-            df = df.copy()
-
-        df[col_name] = df.index
-
-        if not df.empty:
-            df[col_name] = df[col_name].diff().shift(-1)
-            # Fix the last event, which will have a NaN duration
-            # Set duration to trace_end - last_event
-            df.loc[df.index[-1], col_name] = self.end - df.index[-1]
-
-        return df
+        return df_add_delta(df, col=col_name, inplace=inplace, window=self.window)
 
     def df_all_events(self, events=None):
         """
