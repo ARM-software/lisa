@@ -113,7 +113,7 @@ class NotebookAnalysis(TraceAnalysisBase):
         if filter_f:
             df = filter_f(df)
 
-        df = df_refit_index(df, trace.start, trace.end)
+        df = df_refit_index(df, window=trace.window)
         df[[field]].plot(ax=axis, drawstyle='steps-post')
 
 

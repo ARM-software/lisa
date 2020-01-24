@@ -89,7 +89,7 @@ class StatusAnalysis(TraceAnalysisBase):
         """
 
         df = self.df_overutilized()
-        df = df_refit_index(df, self.trace.start, self.trace.end)
+        df = df_refit_index(df, window=self.trace.window)
 
         # Compute intervals in which the system is reported to be overutilized
         bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]

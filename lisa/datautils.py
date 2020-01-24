@@ -117,7 +117,7 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
                 cols_val = dict(zip(signal_cols, group))
 
             if window:
-                signal = df_refit_index(signal, start=window[0], end=window[1], method='inclusive')
+                signal = df_refit_index(signal, window=window, method='inclusive')
             yield (cols_val, signal)
 
 

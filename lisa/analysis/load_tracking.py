@@ -297,8 +297,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :type signals: list(str)
         """
         cpus = cpus or list(range(self.trace.cpus_count))
-        start = self.trace.start
-        end = self.trace.end
+        window = self.trace.window
 
         def plotter(axes, local_fig):
             axes = axes if len(cpus) > 1 else itertools.repeat(axes)
@@ -309,7 +308,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 for signal in signals:
                     df = self.df_cpus_signal(signal)
                     df = df[df['cpu'] == cpu]
-                    df = df_refit_index(df, start, end)
+                    df = df_refit_index(df, window=window)
                     df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
                 self.trace.analysis.cpus.plot_orig_capacity(cpu, axis=axis)
@@ -320,7 +319,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                     df = df[df["__cpu"] == cpu]
                     if len(df):
                         data = df[['capacity', 'tip_capacity']]
-                        data = df_refit_index(data, start, end)
+                        data = df_refit_index(data, window=window)
                         data.plot(ax=axis, style=['m', '--y'],
                                   drawstyle='steps-post')
 
@@ -346,13 +345,12 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :param signals: List of signals to plot.
         :type signals: list(str)
         """
-        start = self.trace.start
-        end = self.trace.end
+        window = self.trace.window
         task = self.trace.get_task_id(task, update=False)
 
         for signal in signals:
             df = self.df_task_signal(task, signal)
-            df = df_refit_index(df, start, end)
+            df = df_refit_index(df, window=window)
             df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
@@ -372,13 +370,12 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :param task: The name or PID of the task, or a tuple ``(pid, comm)``
         :type task: str or int or tuple
         """
-        start = self.trace.start
-        end = self.trace.end
+        window = self.trace.window
 
         task_ids = self.trace.get_task_ids(task)
         df = self.df_tasks_signal('required_capacity')
         df = df_filter_task_ids(df, task_ids)
-        df = df_refit_index(df, start, end)
+        df = df_refit_index(df, window=window)
 
         # Build task names (there could be multiple, during the task lifetime)
         task_name = 'Task ({})'.format(', '.join(map(str, task_ids)))
@@ -431,7 +428,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         for stat in df["placement"].unique():
             series = df[df.placement == stat]["cpu"]
-            series = series_refit_index(series, self.trace.start, self.trace.end)
+            series = series_refit_index(series, window=self.trace.window)
             series.plot(ax=axis, style="+", label=stat)
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized

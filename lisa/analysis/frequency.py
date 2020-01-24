@@ -274,15 +274,15 @@ class FrequencyAnalysis(TraceAnalysisBase):
         """
 
         logger = self.get_logger()
-        start = self.trace.start
-        end = self.trace.end
+        window = self.trace.window
+        start, end = window
 
         def plotter(axis, local_fig):
             freq_axis, state_axis = axis
             freq_axis.get_figure().suptitle('Peripheral frequency', y=.97, fontsize=16, horizontalalignment='center')
 
             freq = self.df_peripheral_clock_effective_rate(clk)
-            freq = df_refit_index(freq, start, end)
+            freq = df_refit_index(freq, window=window)
 
             # Plot frequency information (set rate)
             freq_axis.set_title("Clock frequency for " + clk)
@@ -298,7 +298,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
             # Plot frequency information (effective rate)
             eff_rate = freq['effective_rate'].dropna()
-            eff_rate = series_refit_index(eff_rate, start, end)
+            eff_rate = series_refit_index(eff_rate, window=window)
             if len(eff_rate) > 0 and eff_rate.max() > 0:
                 rate_axis_lib = max(rate_axis_lib, eff_rate.max())
                 eff_rate.plot(style=['b-'], ax=freq_axis, drawstyle='steps-post', alpha=1.0, label="Effective rate (with on/off)")
@@ -370,7 +370,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         logger.info(
             "Average frequency for CPU{} : {:.3f} GHz".format(cpu, avg / 1e6))
 
-        df = df_refit_index(df, self.trace.start, self.trace.end)
+        df = df_refit_index(df, window=self.trace.window)
         df['frequency'].plot(ax=axis, drawstyle='steps-post')
 
         if average and avg > 0:

@@ -585,7 +585,7 @@ class TasksAnalysis(TraceAnalysisBase):
             # If we are aware of frequency domains, use one color per domain
             for domain in self.trace.plat_info["freq-domains"]:
                 series = sw_df[sw_df["__cpu"].isin(domain)]["__cpu"]
-                series = series_refit_index(series, self.trace.start, self.trace.end)
+                series = series_refit_index(series, window=self.trace.window)
 
                 if series.empty:
                     # Cycle the colours to stay consistent
@@ -594,7 +594,7 @@ class TasksAnalysis(TraceAnalysisBase):
                     series.plot(ax=axis, style='+',
                             label="Task running in domain {}".format(domain))
         else:
-            series = series_refit_index(sw_df['__cpu'], self.trace.start, self.trace.end)
+            series = series_refit_index(sw_df['__cpu'], window=self.trace.window)
             series.plot(ax=axis, style='+')
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
@@ -697,7 +697,7 @@ class TasksAnalysis(TraceAnalysisBase):
                                       lambda x: x.count() / (window if per_sec else 1),
                                       window, window_float_index=False, center=True)
 
-        series = series_refit_index(series, self.trace.start, self.trace.end)
+        series = series_refit_index(series, window=self.trace.window)
         series.plot(ax=axis, legend=False)
 
         if per_sec:
@@ -722,7 +722,7 @@ class TasksAnalysis(TraceAnalysisBase):
         """
 
         df = self.trace.df_events("sched_wakeup")
-        df = df_refit_index(df, self.trace.start, self.trace.end)
+        df = df_refit_index(df, window=self.trace.window)
 
         fig, axis = self._plot_cpu_heatmap(
             df.index, df.target_cpu, xbins, "Number of wakeups",
@@ -760,7 +760,7 @@ class TasksAnalysis(TraceAnalysisBase):
                                       lambda x: x.count() / (window if per_sec else 1),
                                       window, window_float_index=False, center=True)
 
-        series = series_refit_index(series, self.trace.start, self.trace.end)
+        series = series_refit_index(series, window=self.trace.window)
         series.plot(ax=axis, legend=False)
 
         if per_sec:
@@ -783,7 +783,7 @@ class TasksAnalysis(TraceAnalysisBase):
         """
 
         df = self.trace.df_events("sched_wakeup_new")
-        df = df_refit_index(df, self.trace.start, self.trace.end)
+        df = df_refit_index(df, window=self.trace.window)
 
         fig, axis = self._plot_cpu_heatmap(
             df.index, df.target_cpu, xbins, "Number of forks",
