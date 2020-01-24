@@ -29,7 +29,7 @@ import numpy as np
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.trace import requires_events
-from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate
+from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean
 
 
 class FrequencyAnalysis(TraceAnalysisBase):
@@ -110,8 +110,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         cluster_freqs = freq_df[freq_df.cpu == cpus[0]]
 
         # Compute TOTAL Time
-        cluster_freqs = self.trace.add_events_deltas(
-            cluster_freqs, col_name="total_time", inplace=False)
+        cluster_freqs = df_add_delta(cluster_freqs, col="total_time", window=self.trace.window)
         time_df = cluster_freqs[["total_time", "frequency"]].groupby(["frequency"]).sum()
 
         # Compute ACTIVE Time
@@ -233,12 +232,8 @@ class FrequencyAnalysis(TraceAnalysisBase):
         """
         df = self.trace.df_events('cpu_frequency')
         df = df[df.cpu == cpu]
-
-        # We can't use the pandas average because it's not weighted by
-        # time spent in each frequency, so we have to craft our own.
-        df = self.trace.add_events_deltas(df, inplace=False)
-
-        return (df['frequency'] * df['delta']).sum() / self.trace.time_range
+        freq = series_refit_index(df['frequency'], window=self.trace.window)
+        return series_mean(freq)
 
     @TraceAnalysisBase.cache
     @requires_events('clock_set_rate', 'clock_enable', 'clock_disable')
