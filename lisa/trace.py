@@ -1926,6 +1926,11 @@ class Trace(Loggable, TraceBase):
         # explode the multindex into a "key" and "value" columns
         df.reset_index(inplace=True)
 
+        # <idle> is invented by trace-cmd, no event field contain this value,
+        # so it's useless (and actually harmful, since it will introduce a task
+        # that cannot be found in that trace)
+        df = df[df['name'] != '<idle>']
+
         name_to_pid = finalize(df, 'name', 'pid', str, int)
         pid_to_name = finalize(df, 'pid', 'name', int, str)
 
