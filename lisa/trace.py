@@ -2333,12 +2333,6 @@ class Trace(Loggable, TraceBase):
 
         return df
 
-    @_sanitize_event('sched_overutilized')
-    def _sanitize_overutilized(self, event, df, aspects):
-        """ Add a column with overutilized status duration. """
-        self.add_events_deltas(df, 'len')
-        return df
-
     @_sanitize_event('thermal_power_cpu_limit')
     @_sanitize_event('thermal_power_cpu_get_power')
     def _sanitize_thermal_power_cpu(self, event, df, aspects):

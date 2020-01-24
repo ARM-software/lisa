@@ -21,7 +21,7 @@
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
-from lisa.datautils import df_refit_index
+from lisa.datautils import df_refit_index, df_add_delta
 
 
 class StatusAnalysis(TraceAnalysisBase):
@@ -50,10 +50,12 @@ class StatusAnalysis(TraceAnalysisBase):
         """
         # Build sequence of overutilization "bands"
         df = self.trace.df_events('sched_overutilized')
-
+        df = df_add_delta(df, col='len', window=self.trace.window)
+        # Ignore the last line added by df_refit_index() with a NaN len
+        df = df.iloc[:-1]
         # Remove duplicated index events, keep only last event which is the
         # only one with a non null length
-        df = df[df.len != 0]
+        df = df[df['len'] != 0]
         # This filtering can also be achieved by removing events happening at
         # the same time, but perhaps this filtering is more complex
         # df = df.reset_index()\
