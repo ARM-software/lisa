@@ -170,13 +170,19 @@ class KeyDesc(KeyDescBase):
         If the key is not present in the configuration object, the getter will
         return ``None``.
     :type newtype: str or None
+
+    :param deepcopy_val: If ``True``, the values will be deepcopied upon
+        lookup. This prevents accidental modification of mutable types (like
+        lists) by the user.
+    :type deepcopy_val: bool
     """
 
-    def __init__(self, name, help, classinfo, newtype=None):
+    def __init__(self, name, help, classinfo, newtype=None, deepcopy_val=True):
         super().__init__(name=name, help=help)
         # isinstance's style classinfo
         self.classinfo = tuple(classinfo)
         self._newtype = newtype
+        self.deepcopy_val = deepcopy_val
 
     @property
     def newtype(self):
@@ -1430,7 +1436,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         if isinstance(val, DeferredValue):
             return val
         else:
-            return copy.deepcopy(val)
+            if key_desc.deepcopy_val:
+                val = copy.deepcopy(val)
+            return val
 
     def get_nested_key(self, key, *args, **kwargs):
         """

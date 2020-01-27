@@ -94,7 +94,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         LevelKeyDesc('kernel', 'Kernel-related information', (
             KeyDesc('version', '', [KernelVersion]),
             KernelConfigKeyDesc('config', '', [TypedKernelConfig]),
-            KernelSymbolsAddress('symbols-address', 'Dictionary of addresses to symbol names extracted from /proc/kallsyms', [TypedDict[int,str]]),
+            KernelSymbolsAddress('symbols-address', 'Dictionary of addresses to symbol names extracted from /proc/kallsyms', [TypedDict[int,str]], deepcopy_val=False),
         )),
         KeyDesc('nrg-model', 'Energy model object', [EnergyModel]),
         LevelKeyDesc('cpu-capacities', 'Dictionaries of CPU ID to capacity value', (
