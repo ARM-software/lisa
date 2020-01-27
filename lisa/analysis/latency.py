@@ -59,7 +59,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         df = df[(df.curr_state == TaskState.TASK_WAKING) &
                 (df.next_state == TaskState.TASK_ACTIVE)][["delta"]]
 
-        df.rename(columns={'delta': 'wakeup_latency'}, inplace=True)
+        df = df.rename(columns={'delta': 'wakeup_latency'}, copy=False)
         return df
 
     @TraceAnalysisBase.cache
@@ -80,7 +80,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         df = df[(df.curr_state == TaskState.TASK_RUNNING) &
                 (df.next_state == TaskState.TASK_ACTIVE)][["delta"]]
 
-        df.rename(columns={'delta': 'preempt_latency'}, inplace=True)
+        df = df.rename(columns={'delta': 'preempt_latency'}, copy=False)
         return df
 
     @TraceAnalysisBase.cache
@@ -237,11 +237,11 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         if wakeup:
             wkp_df = self.df_latency_wakeup(task)
-            wkp_df.rename(columns={'wakeup_latency': 'latency'}, inplace=True)
+            wkp_df = wkp_df.rename(columns={'wakeup_latency': 'latency'}, copy=False)
 
         if preempt:
             prt_df = self.df_latency_preemption(task)
-            prt_df.rename(columns={'preempt_latency': 'latency'}, inplace=True)
+            prt_df = prt_df.rename(columns={'preempt_latency': 'latency'}, copy=False)
 
         if wakeup and preempt:
             df = wkp_df.append(prt_df)
