@@ -318,7 +318,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                     df = self.trace.df_events('cpu_capacity')
                     df = df[df["__cpu"] == cpu]
                     if len(df):
-                        data = df[['capacity', 'tip_capacity']]
+                        data = df[['capacity']]
                         data = df_refit_index(data, window=window)
                         data.plot(ax=axis, style=['m', '--y'],
                                   drawstyle='steps-post')

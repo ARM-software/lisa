@@ -2209,31 +2209,6 @@ class Trace(Loggable, TraceBase):
             return f
         return decorator
 
-    @_sanitize_event('cpu_capacity')
-    def _sanitize_cpu_capacity(self, event, df, aspects):
-        """
-        Add more columns to cpu_capacity data frame if the energy model is
-        available and the platform is big.LITTLE.
-        """
-        if 'nrg-model' not in self.plat_info:
-            return df
-
-        # Add column with LITTLE and big CPUs max capacities
-        nrg_model = self.plat_info['nrg-model']
-        max_lcap = nrg_model['little']['cpu']['cap_max']
-        max_bcap = nrg_model['big']['cpu']['cap_max']
-        df['max_capacity'] = np.select(
-            [df.cpu.isin(self.plat_info['clusters']['little'])],
-            [max_lcap], max_bcap)
-        # Add LITTLE and big CPUs "tipping point" threshold
-        tip_lcap = 0.8 * max_lcap
-        tip_bcap = 0.8 * max_bcap
-        df['tip_capacity'] = np.select(
-            [df.cpu.isin(self.plat_info['clusters']['little'])],
-            [tip_lcap], tip_bcap)
-
-        return df
-
     @_sanitize_event('sched_load_avg_cpu')
     def _sanitize_load_avg_cpu(self, event, df, aspects):
         """
@@ -2289,46 +2264,8 @@ class Trace(Loggable, TraceBase):
     @_sanitize_event('sched_energy_diff')
     def _sanitize_energy_diff(self, event, df, aspects):
         """
-        If a energy model is provided, some signals are added to the
-        sched_energy_diff trace event data frame.
-
-        Also convert between existing field name formats for sched_energy_diff
+        Convert between existing field name formats for sched_energy_diff
         """
-        if 'nrg-model' not in self.plat_info:
-            return df
-
-        logger = self.get_logger()
-        nrg_model = self.plat_info['nrg-model']
-        em_lcluster = nrg_model['little']['cluster']
-        em_bcluster = nrg_model['big']['cluster']
-        em_lcpu = nrg_model['little']['cpu']
-        em_bcpu = nrg_model['big']['cpu']
-        lcpus = len(self.plat_info['clusters']['little'])
-        bcpus = len(self.plat_info['clusters']['big'])
-        SCHED_LOAD_SCALE = 1024
-
-        power_max = em_lcpu['nrg_max'] * lcpus + em_bcpu['nrg_max'] * bcpus + \
-            em_lcluster['nrg_max'] + em_bcluster['nrg_max']
-        logger.debug(
-            "Maximum estimated system energy: {:d}".format(power_max))
-
-        df = self.df_events('sched_energy_diff')
-
-        df['nrg_diff_pct'] = SCHED_LOAD_SCALE * df['nrg_d'] / power_max
-
-        # Tag columns by usage_delta
-        ccol = df['utl_d']
-        df['usage_delta_group'] = np.select(
-            [ccol < 150, ccol < 400, ccol < 600],
-            ['< 150', '< 400', '< 600'], '>= 600')
-
-        # Tag columns by nrg_payoff
-        ccol = df['payoff']
-        df['nrg_payoff_group'] = np.select(
-            [ccol > 2e9, ccol > 0, ccol > -2e9],
-            ['Optimal Accept', 'SchedTune Accept', 'SchedTune Reject'],
-            'Suboptimal Reject')
-
         if aspects['rename_cols']:
             translations = {'nrg_d': 'nrg_diff',
                             'utl_d': 'usage_delta',
