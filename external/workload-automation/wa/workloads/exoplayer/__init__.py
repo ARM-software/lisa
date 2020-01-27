@@ -36,7 +36,7 @@ from devlib.utils.android import grant_app_permissions
 
 # Regexps for benchmark synchronization
 REGEXPS = {
-    'start': '.*Displayed com.google.android.exoplayer2.demo/.PlayerActivity',
+    'start': '.*(Displayed|START).*com.google.android.exoplayer2.demo/.PlayerActivity',
     'duration': '.*period \[(?P<duration>[0-9]+.*)\]',
     'end': '.*state \[.+, .+, E\]',
     'dropped_frames': '.*droppedFrames \[(?P<session_time>[0-9]+\.[0-9]+), (?P<count>[0-9]+)\]'
