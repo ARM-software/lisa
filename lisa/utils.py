@@ -1355,7 +1355,7 @@ def _get_doc_url(obj_name):
     inv = sphobjinv.Inventory(url=inv_url)
 
     for inv_obj in inv.objects:
-        if inv_obj.name == obj_name:
+        if inv_obj.name == obj_name and inv_obj.domain == "py":
             doc_page = inv_obj.uri.replace('$', inv_obj.name)
             doc_url = urllib.parse.urljoin(doc_base_url, doc_page)
             return doc_url
