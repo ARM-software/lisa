@@ -31,6 +31,7 @@ from lisa.utils import ArtifactPath
 from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
+from lisa.analysis.tasks import TaskState
 
 
 class RampBoostTestBase(RTATestBundle):
@@ -77,6 +78,7 @@ class RampBoostTestBase(RTATestBundle):
         """
         trace = self.trace
         cpu = self.cpu
+        task = self.rtapp_task_ids[0]
 
         # schedutil_df also has a 'util' column that would conflict
         schedutil_df = trace.df_events('schedutil_em')[['cpu', 'cost_margin', 'base_freq']]
@@ -107,10 +109,20 @@ class RampBoostTestBase(RTATestBundle):
 
         schedutil_df['base_cost'] = schedutil_df.apply(compute_base_cost, axis=1)
 
+        task_active = trace.analysis.tasks.df_task_states(task)['curr_state']
+        task_active = task_active.apply(lambda state: int(state == TaskState.TASK_ACTIVE))
+        task_active = task_active.reindex(schedutil_df.index, method='ffill')
+        # Assume task active == CPU active, since there is only one task
+        assert len(self.rtapp_task_ids) == 1
+        cpu_active_df = pd.DataFrame({'cpu_active': task_active})
+        cpu_active_df['cpu'] = cpu
+        cpu_active_df.dropna(inplace=True)
+
         df_list = [
             schedutil_df,
             trace.analysis.load_tracking.df_cpus_signal('util'),
             trace.analysis.load_tracking.df_cpus_signal('util_est_enqueued'),
+            cpu_active_df,
         ]
 
         df = df_merge(df_list, filter_columns={'cpu': cpu})
@@ -136,7 +148,10 @@ class RampBoostTestBase(RTATestBundle):
             (df['util'].diff() >= 0) &
 
             # util_avg > util_est_enqueued
-            (df['util'] > df['util_est_enqueued'])
+            (df['util'] > df['util_est_enqueued']) &
+
+            # CPU is not idle
+            (df['cpu_active'])
         )
         df['boost_points'] = boost_points
 
