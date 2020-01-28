@@ -334,13 +334,11 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
     def _plot_pelt(self, task, signal_name, simulated, test_name):
         trace = self.trace
 
-        kwargs = dict(interactive=False)
-
-        axis = trace.analysis.load_tracking.plot_task_signals(task, signals=[signal_name], **kwargs)
+        axis = trace.analysis.load_tracking.plot_task_signals(task, signals=[signal_name])
         simulated.plot(ax=axis, drawstyle='steps-post', label='simulated {}'.format(signal_name))
 
         activation_axis = axis.twinx()
-        trace.analysis.tasks.plot_task_activation(task, alpha=0.2, axis=activation_axis, duration=True, **kwargs)
+        trace.analysis.tasks.plot_task_activation(task, alpha=0.2, axis=activation_axis, duration=True)
 
         axis.legend()
 

@@ -159,7 +159,7 @@ class RampBoostTestBase(RTATestBundle):
     def _plot_test_boost(self, df):
         task = self.rtapp_tasks[0]
         analysis = self.trace.analysis.frequency
-        fig, axis = analysis.setup_plot(interactive=False)
+        fig, axis = analysis.setup_plot()
         df['cost_margin'].plot(ax=axis, drawstyle='steps-post', color='r')
         df['boost_points'].astype('int', copy=False).plot(ax=axis, drawstyle='steps-post', color='black')
         df['expected_cost_margin'].plot(ax=axis, drawstyle='steps-post', color='blue')
