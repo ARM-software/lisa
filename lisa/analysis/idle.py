@@ -53,12 +53,9 @@ class IdleAnalysis(TraceAnalysisBase):
         idle_df = self.trace.df_events('cpu_idle')
         cpu_df = idle_df[idle_df.cpu_id == cpu]
 
-        if cpu_df.empty:
-            cpu_active = pd.Series([0], index=[self.trace.start])
-        else:
-            # Turn -1 into 1 and everything else into 0
-            cpu_active = cpu_df.state.map({-1: 1})
-            cpu_active.fillna(value=0, inplace=True)
+        # Turn -1 into 1 and everything else into 0
+        cpu_active = cpu_df.state.map({-1: 1})
+        cpu_active.fillna(value=0, inplace=True)
 
         return cpu_active
 
