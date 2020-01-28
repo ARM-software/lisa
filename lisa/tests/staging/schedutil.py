@@ -263,7 +263,7 @@ class LargeStepUp(RampBoostTestBase):
         # boards. This helps having predictable execution.
         with target.disable_idle_states():
             with target.cpufreq.use_governor("schedutil"):
-                cls._run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
+                cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
 
         return cls(res_dir, plat_info, cpu, nr_steps)
 
