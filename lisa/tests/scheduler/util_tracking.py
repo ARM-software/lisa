@@ -132,8 +132,8 @@ class UtilConvergence(UtilTrackingBase):
 
     def _plot_signals(self, task, test, failures):
         signals = ['util', 'util_est_enqueued', 'util_est_ewma']
-        ax = self.trace.analysis.load_tracking.plot_task_signals(task, signals=signals, interactive=False)
-        ax = self.trace.analysis.rta.plot_phases(task, axis=ax, interactive=False)
+        ax = self.trace.analysis.load_tracking.plot_task_signals(task, signals=signals)
+        ax = self.trace.analysis.rta.plot_phases(task, axis=ax)
         for start in failures:
             ax.axvline(start, alpha=0.5, color='r')
         filepath = os.path.join(self.res_dir, 'util_est_{}.png'.format(test))
