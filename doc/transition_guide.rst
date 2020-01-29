@@ -18,6 +18,17 @@ Here is a list of commits introducing breaking changes in LISA:
         entry = '.. code-block:: text\n\n  {}\n'.format(commit_log.replace('\n', '\n  '))
         print(entry)
 
+***************
+Deprecated APIs
+***************
+
+Here is a list of deprecated APIs in LISA, sorted by version in which they will
+be removed:
+
+.. exec::
+
+    from lisa.doc.helpers import get_deprecated_table
+    print(get_deprecated_table())
 
 ******************************
 Transitioning from LISA legacy
