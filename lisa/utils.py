@@ -713,10 +713,19 @@ class ArtifactPath(str, Loggable, HideExekallID):
         return joined
 
 
-def groupby(iterable, key=None):
+def groupby(iterable, key=None, reverse=False):
+    """
+    Equivalent of :func:`itertools.groupby`, with a pre-sorting so it works as
+    expected.
+
+    :param iterable: Iterable to group.
+
+    :param key: Forwarded to :func:`sorted`
+    :param reverse: Forwarded to :func:`sorted`
+    """
     # We need to sort before feeding to groupby, or it will fail to establish
     # the groups as expected.
-    iterable = sorted(iterable, key=key)
+    iterable = sorted(iterable, key=key, reverse=reverse)
     return itertools.groupby(iterable, key=key)
 
 
