@@ -142,8 +142,45 @@ class AnalysisHelpers(Loggable, abc.ABC):
         """
         Context manager to set a cycler on an axis (and the default cycler as
         well), and then restore the default cycler.
+
+        .. note:: The given cycler is merged with the original cycler. The
+            given cycler will override any key of the original cycler, and the
+            number of values will be adjusted to the maximum size of the two.
+            This way of merging allows decoupling the length of all keys.
         """
         orig_cycler = plt.rcParams['axes.prop_cycle']
+
+        # Get the maximum value length among all cyclers involved
+        values_len = max(
+            len(values)
+            for values in itertools.chain(
+                orig_cycler.by_key().values(),
+                cycler.by_key().values()
+            )
+        )
+
+        # We can only add together cyclers with the same number of values for
+        # each key, so cycle through the provided values, up to the right
+        # length
+        def pad_values(values):
+            values = itertools.cycle(values)
+            values = itertools.islice(values, 0, values_len)
+            return list(values)
+
+        def pad_cycler(cycler):
+            keys = cycler.by_key()
+            return {
+                key: pad_values(values)
+                for key, values in keys.items()
+            }
+
+        # Merge the 2 cyclers together, so we still get the original values of
+        # the keys not overridden by the given cycler
+        parameters ={
+            **pad_cycler(orig_cycler),
+            **pad_cycler(cycler)
+        }
+        cycler = make_cycler(**parameters)
 
         def set_cycler(cycler):
             plt.rcParams['axes.prop_cycle'] = cycler
@@ -346,6 +383,12 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 :param colors: List of color names to use for the plots.
                 :type colors: list(str) or None
 
+                :param linestyles: List of linestyle to use for the plots.
+                :type linestyles: list(str) or None
+
+                :param markers: List of marker to use for the plots.
+                :type markers: list(str) or None
+
                 :param filepath: Path of the file to save the figure in. If
                     `None`, no file is saved.
                 :type filepath: str or None
@@ -372,7 +415,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 remove_params=['local_fig'],
                 include_kwargs=True,
             )
-            def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=False, colors=None, **kwargs):
+            def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=False, colors=None, linestyles=None, markers=None, **kwargs):
 
                 # Bind the function to the instance, so we avoid having "self"
                 # showing up in the signature, which breaks parameter
@@ -414,11 +457,22 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         plot_name=f.__name__,
                     )
 
-                if colors:
-                    cycler = make_cycler(color=colors)
+                cyclers = dict(
+                    color=colors,
+                    linestyle=linestyles,
+                    marker=markers,
+                )
+                cyclers = {
+                    name: value
+                    for name, value in cyclers.items()
+                    if value
+                }
+                if cyclers:
+                    cycler = make_cycler(**cyclers)
                     set_cycler = lambda axis: cls.set_axis_cycler(axis, cycler)
                 else:
                     set_cycler = lambda axis: nullcontext()
+
                 # Allow returning an axis directly, or just update a given axis
                 if return_axis:
                     # In that case, the function takes all the kwargs
@@ -516,7 +570,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         fmt = 'png'
         b64_image = cls._get_base64_image(axis, fmt=fmt)
 
-        hidden_params = {'filepath', 'axis', 'output', 'img_format', 'always_save', 'kwargs', 'colors'}
+        hidden_params = {'filepath', 'axis', 'output', 'img_format', 'always_save', 'kwargs', 'colors', 'linestyles', 'markers'}
         args_list = ', '.join(
             '{}={}'.format(k, v)
             for k, v in sorted(kwargs.items(), key=itemgetter(0))
