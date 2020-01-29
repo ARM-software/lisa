@@ -1378,10 +1378,16 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         if not cfg:
             return None
 
+        try:
+            cgroups = target.cgroups
+        except AttributeError:
+            raise CannotCreateError('cgroups are not available on this target')
+
         kind = cfg['controller']
-        if kind not in target.cgroups.controllers:
+        try:
+            ctrl = cgroups.controllers[kind]
+        except KeyError:
             raise CannotCreateError('"{}" cgroup controller unavailable'.format(kind))
-        ctrl = target.cgroups.controllers[kind]
 
         cg = ctrl.cgroup(cfg['name'])
         cg.set(**cfg['attributes'])
