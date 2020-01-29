@@ -26,18 +26,22 @@ import re
 from collections.abc import Mapping
 from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
-
+from operator import itemgetter
 
 from docutils.parsers.rst import Directive, directives
 from docutils.parsers.rst.directives import flag
 from docutils import nodes
 from docutils.statemachine import ViewList
 
+from sphinx.util.nodes import nested_parse_with_titles
+
+import lisa
 import lisa.analysis
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
-from lisa.utils import get_subclasses
+from lisa.utils import get_subclasses, import_all_submodules, DEPRECATED_MAP, get_sphinx_name, groupby
 from lisa.trace import MissingTraceEventError, TraceEventCheckerBase
 from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, KeyDesc, LevelKeyDesc
+from lisa.version import format_version
 
 
 class RecursiveDirective(Directive):
@@ -67,7 +71,7 @@ class RecursiveDirective(Directive):
         else:
             txt = ViewList(txt.splitlines(), source)
             node = nodes.Element()
-            self.state.nested_parse(txt, self.content_offset, node)
+            nested_parse_with_titles(self.state, txt, node)
             return node.children
 
 
@@ -331,5 +335,98 @@ def check_dead_links(filename):
                 '{}: {}'.format(url, error)
                 for url, error in dead_links.items()
             )))
+
+
+def get_deprecated_map():
+    """
+    Get the mapping of deprecated names with some metadata.
+    """
+
+    # Import everything there is to import, so the map is fully populated
+    import_all_submodules(lisa)
+    return DEPRECATED_MAP
+
+def get_deprecated_table():
+    """
+    Get a reStructuredText tables with titles for all the deprecated names in
+    :mod:`lisa`.
+    """
+
+    def indent(string, level=1):
+        idt = ' ' * 4
+        return string.replace('\n', '\n' + idt * level)
+
+    def make_entry(entry):
+        msg = entry.get('msg') or ''
+        removed_in = entry.get('removed_in')
+        if removed_in is None:
+            removed_in = ''
+        else:
+            removed_in = '*Removed in: {}*\n\n'.format(format_version(removed_in))
+
+        name = get_sphinx_name(entry['obj'], style='rst')
+        replaced_by = entry.get('replaced_by')
+        if replaced_by is None:
+            replaced_by = ''
+        else:
+            replaced_by = '*Replaced by:* {}\n\n'.format(get_sphinx_name(replaced_by, style='rst'))
+
+        return "* - {name}{msg}{replaced_by}{removed_in}".format(
+            name=indent(name + '\n\n'),
+            msg=indent(msg + '\n\n' if msg else ''),
+            replaced_by=indent(replaced_by),
+            removed_in=indent(removed_in),
+        )
+
+    def make_table(entries, removed_in):
+        entries = '\n'.join(
+            make_entry(entry)
+            for entry in sorted(entries, key=itemgetter('name'))
+        )
+        if removed_in:
+            if removed_in > lisa.version.version_tuple:
+                remove = 'to be removed'
+            else:
+                remove = 'removed'
+            removed_in = ' {} in {}'.format(remove, format_version(removed_in))
+        else:
+            removed_in = ''
+
+        table = ".. list-table:: Deprecated names{removed_in}\n    :align: left\n    :width: 100%{entries}".format(
+            entries=indent('\n\n' + entries),
+            removed_in=removed_in,
+        )
+        header = 'Deprecated names{}'.format(removed_in)
+        header += '\n' + '+' * len(header)
+
+        return header + '\n\n' + table
+
+    entries = [
+        {'name': name, **info}
+        for name, info in get_deprecated_map().items()
+    ]
+
+    unspecified_removal = [
+        entry
+        for entry in entries
+        if not entry['removed_in']
+    ]
+
+    other_entries = [
+        entry
+        for entry in entries
+        if entry not in unspecified_removal
+    ]
+
+    tables = []
+    tables.append(make_table(unspecified_removal, removed_in=None))
+    tables.extend(
+        make_table(entries, removed_in=removed_in)
+        for removed_in, entries in groupby(other_entries, itemgetter('removed_in'), reverse=True)
+    )
+
+    return '\n\n'.join(tables)
+
+
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

@@ -713,10 +713,19 @@ class ArtifactPath(str, Loggable, HideExekallID):
         return joined
 
 
-def groupby(iterable, key=None):
+def groupby(iterable, key=None, reverse=False):
+    """
+    Equivalent of :func:`itertools.groupby`, with a pre-sorting so it works as
+    expected.
+
+    :param iterable: Iterable to group.
+
+    :param key: Forwarded to :func:`sorted`
+    :param reverse: Forwarded to :func:`sorted`
+    """
     # We need to sort before feeding to groupby, or it will fail to establish
     # the groups as expected.
-    iterable = sorted(iterable, key=key)
+    iterable = sorted(iterable, key=key, reverse=reverse)
     return itertools.groupby(iterable, key=key)
 
 
@@ -1103,48 +1112,6 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
                 # Once all getters/setter/deleters are set, apply the decorator
                 foo = deprecate()(foo)
     """
-
-    # RestructuredText Sphinx role
-    def getrole(obj):
-        if isinstance(obj, type):
-            return 'class'
-        elif callable(obj):
-            if '<locals>' in obj.__qualname__:
-                return 'code'
-            elif '.' in obj.__qualname__:
-                return 'meth'
-            else:
-                return 'func'
-        else:
-            return 'code'
-
-    def getname(obj, style=None, abbrev=False):
-        if isinstance(obj, (staticmethod, classmethod)):
-            obj = obj.__func__
-        elif isinstance(obj, property):
-            obj = obj.fget
-
-        try:
-            mod = obj.__module__ + '.'
-        except AttributeError:
-            mod = ''
-
-        try:
-            qualname = obj.__qualname__
-        except AttributeError:
-            qualname = str(obj)
-
-        name = mod + qualname
-
-        if style == 'rst':
-            return ':{}:`{}{}{}`'.format(
-                getrole(obj),
-                '~' if abbrev else '',
-                mod, qualname
-            )
-        else:
-            return name
-
     def get_meth_stacklevel(func_name):
         # Special methods are usually called from another module, so
         # make sure the warning filters set on lisa will pick these up.
@@ -1165,7 +1132,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
                     doc_url = ' (see: {})'.format(get_doc_url(replaced_by))
 
             replacement_msg = ', use {} instead{}'.format(
-                getname(replaced_by, style=style), doc_url,
+                get_sphinx_name(replaced_by, style=style), doc_url,
             )
         else:
             replacement_msg = ''
@@ -1177,7 +1144,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
         else:
             removal_msg = ''
 
-        name = getname(deprecated_obj, style=style, abbrev=True)
+        name = get_sphinx_name(deprecated_obj, style=style, abbrev=True)
         if parameter:
             if style == 'rst':
                 parameter = '``{}``'.format(parameter)
@@ -1191,7 +1158,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
         )
 
     def decorator(obj):
-        obj_name = getname(obj)
+        obj_name = get_sphinx_name(obj)
 
         if removed_in and current_version >= removed_in:
             raise DeprecationWarning('{name} was marked as being removed in version {removed_in} but is still present in current version {version}'.format(
@@ -1624,5 +1591,62 @@ def checksum(file_, method):
 
     return result()
 
+
+
+def get_sphinx_role(obj):
+    """
+    Return the reStructuredText Sphinx role of a given object.
+    """
+    if isinstance(obj, type):
+        return 'class'
+    elif callable(obj):
+        if '<locals>' in obj.__qualname__:
+            return 'code'
+        elif '.' in obj.__qualname__:
+            return 'meth'
+        else:
+            return 'func'
+    else:
+        return 'code'
+
+def get_sphinx_name(obj, style=None, abbrev=False):
+    """
+    Get a Sphinx-friendly name of an object.
+
+    :param obj: The object to take the name from
+    :type obj: object or type
+
+    :param style: If ``rst``, a reStructuredText reference will be returned.
+        Otherwise a bare name is returned.
+    :type style: str or None
+
+    :param abbrev: If ``True``, a short name will be used with ``style='rst'``.
+    :type abbrev: bool
+    """
+    if isinstance(obj, (staticmethod, classmethod)):
+        obj = obj.__func__
+    elif isinstance(obj, property):
+        obj = obj.fget
+
+    try:
+        mod = obj.__module__ + '.'
+    except AttributeError:
+        mod = ''
+
+    try:
+        qualname = obj.__qualname__
+    except AttributeError:
+        qualname = str(obj)
+
+    name = mod + qualname
+
+    if style == 'rst':
+        return ':{}:`{}{}{}`'.format(
+            get_sphinx_role(obj),
+            '~' if abbrev else '',
+            mod, qualname
+        )
+    else:
+        return name
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

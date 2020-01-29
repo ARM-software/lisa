@@ -1639,7 +1639,7 @@ class CollectorBase(Loggable):
         coll.set_output(path)
         return coll.get_data()
 
-    @deprecate(replaced_by='lisa.trace.CollectorBase.get_data', deprecated_in='2.0', removed_in='2.1')
+    @deprecate(replaced_by=get_data, deprecated_in='2.0', removed_in='2.1')
     def get_trace(self, path):
         """
         Deprecated alias for :meth:`get_data`.
