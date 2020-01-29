@@ -33,6 +33,7 @@ from docutils.parsers.rst.directives import flag
 from docutils import nodes
 from docutils.statemachine import ViewList
 
+from sphinx.util.nodes import nested_parse_with_titles
 import lisa.analysis
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
 from lisa.utils import get_subclasses
@@ -67,7 +68,7 @@ class RecursiveDirective(Directive):
         else:
             txt = ViewList(txt.splitlines(), source)
             node = nodes.Element()
-            self.state.nested_parse(txt, self.content_offset, node)
+            nested_parse_with_titles(self.state, txt, node)
             return node.children
 
 
