@@ -1572,6 +1572,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         derived_keys = set(self._get_derived_key_names())
         return sorted(regular_keys | derived_keys)
 
+    def _repr_pretty_(self, p, cycle):
+        "Pretty print instances in Jupyter notebooks"
+        p.text(self.pretty_format())
 
 class SimpleMultiSrcConf(MultiSrcConf):
     """
