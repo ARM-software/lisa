@@ -197,6 +197,10 @@ class ResultBundleBase:
 
         return self.result.name + metrics_str
 
+    def _repr_pretty_(self, p, cycle):
+        "Pretty print instances in Jupyter notebooks"
+        p.text(self.pretty_format())
+
     def add_metric(self, name, data, units=None):
         """
         Lets you append several test :class:`TestMetric` to the bundle.
