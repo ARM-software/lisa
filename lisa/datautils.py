@@ -1055,6 +1055,30 @@ def df_add_delta(df, col='delta', src_col=None, window=None, inplace=False):
     return df
 
 
+def series_combine(series_list, func, fill_value=None):
+    """
+    Same as :meth:`pandas.Series.combine` on a list of series rather than just
+    two.
+    """
+    return _data_combine(series_list, func, fill_value)
+
+
+def df_combine(series_list, func, fill_value=None):
+    """
+    Same as :meth:`pandas.DataFrame.combine` on a list of series rather than just
+    two.
+    """
+    return _data_combine(series_list, func, fill_value)
+
+
+def _data_combine(datas, func, fill_value=None):
+    state = datas[0]
+    for data in datas[1:]:
+        state = state.combine(data, func=func, fill_value=fill_value)
+
+    return state
+
+
 class SignalDesc:
     """
     Define a signal to be used by various signal-oriented APIs.
