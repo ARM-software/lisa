@@ -1121,8 +1121,9 @@ _SIGNALS = [
 
     SignalDesc('sched_load_se', ['__comm', '__pid']),
     SignalDesc('sched_util_est_task', ['comm', 'pid']),
+
     SignalDesc('sched_util_est_cpu', ['cpu']),
-    SignalDesc('sched_load_cfs_rq', ['path']),
+    SignalDesc('sched_load_cfs_rq', ['path', 'cpu']),
     SignalDesc('sched_pelt_irq', ['cpu']),
     SignalDesc('sched_pelt_rt', ['cpu']),
     SignalDesc('sched_pelt_dl', ['cpu']),
