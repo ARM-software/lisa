@@ -526,9 +526,11 @@ def series_window(series, window, method='pre', clip_window=True):
 
     :param method: Choose how edges are handled:
 
-        * `inclusive`: corresponds to default pandas float slicing behaviour.
+        * `inclusive`: When no exact match is found, include both the previous
+            and next values around the window.
         * `exclusive`: When no exact match is found, only index values within
-            the range are selected
+            the range are selected. This is the default pandas float slicing
+            behavior.
         * `nearest`: When no exact match is found, take the nearest index value.
         * `pre`: When no exact match is found, take the previous index value.
         * `post`: When no exact match is found, take the next index value.
@@ -577,14 +579,14 @@ def _data_window(data, window, method, clip_window):
         window = (start, end)
 
     if method == 'inclusive':
-        # Default slicing behaviour of pandas' Float64Index is to be inclusive,
-        # so we can use that knowledge to enable a fast path for common needs.
-        if isinstance(data.index, pd.Float64Index):
-            return data[slice(*window)]
-
         method = ('ffill', 'bfill')
 
     elif method == 'exclusive':
+        # Default slicing behaviour of pandas' Float64Index is to be exclusive,
+        # so we can use that knowledge to enable a fast path.
+        if isinstance(data.index, pd.Float64Index):
+            return data[slice(*window)]
+
         method = ('bfill', 'ffill')
 
     elif method == 'nearest':
