@@ -28,7 +28,7 @@ import numpy as np
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.trace import requires_events
+from lisa.trace import requires_events, CPU
 from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean
 
 
@@ -340,7 +340,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @requires_events('cpu_frequency')
-    def plot_cpu_frequencies(self, cpu, axis, local_fig, average=True):
+    def plot_cpu_frequencies(self, cpu: CPU, axis, local_fig, average=True):
         """
         Plot frequency for the specified CPU
 
@@ -413,7 +413,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_cpu_frequency_residency.used_events
-    def plot_cpu_frequency_residency(self, cpu, pct=False, **kwargs):
+    def plot_cpu_frequency_residency(self, cpu: CPU, pct=False, **kwargs):
         """
         Plot per-CPU frequency residency.
 
@@ -479,7 +479,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_cpu_frequency_transitions.used_events
-    def plot_cpu_frequency_transitions(self, cpu, axis, local_fig, pct=False):
+    def plot_cpu_frequency_transitions(self, cpu: CPU, axis, local_fig, pct=False):
         """
         Plot frequency transitions count of the specified CPU
 

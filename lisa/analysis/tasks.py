@@ -24,7 +24,7 @@ import pandas as pd
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta
-from lisa.trace import requires_events
+from lisa.trace import requires_events, TaskID
 from lisa.pelt import PELT_SCALE
 
 
@@ -568,7 +568,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @requires_events('sched_switch')
-    def plot_task_residency(self, task, axis, local_fig):
+    def plot_task_residency(self, task: TaskID, axis, local_fig):
         """
         Plot on which CPUs the task ran on over time
 
@@ -611,7 +611,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_task_total_residency.used_events
-    def plot_task_total_residency(self, task, **kwargs):
+    def plot_task_total_residency(self, task: TaskID, **kwargs):
         """
         Plot a task's total time spent on each CPU
 
@@ -796,7 +796,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_task_activation.used_events
-    def plot_task_activation(self, task, cpu=None, active_value=None,
+    def plot_task_activation(self, task: TaskID, cpu=None, active_value=None,
             sleep_value=None, alpha=None, overlay=False, duration=False,
             duty_cycle=False, which_cpu=False, height_duty_cycle=False,
             axis=None, local_fig=None):

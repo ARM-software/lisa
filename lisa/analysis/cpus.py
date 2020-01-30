@@ -20,7 +20,7 @@
 import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.trace import requires_events
+from lisa.trace import requires_events, CPU
 
 
 class CpusAnalysis(TraceAnalysisBase):
@@ -71,7 +71,7 @@ class CpusAnalysis(TraceAnalysisBase):
         axis.grid()
 
     @TraceAnalysisBase.plot_method()
-    def plot_orig_capacity(self, cpu, axis, local_fig):
+    def plot_orig_capacity(self, cpu: CPU, axis, local_fig):
         """
         Plot the orig capacity of a CPU onto a given axis
 

@@ -562,7 +562,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
     @AnalysisHelpers.plot_method()
     @df_phases.used_events
     @may_use_events(TasksAnalysis.df_task_states.used_events)
-    def plot_phases(self, task, axis, local_fig):
+    def plot_phases(self, task: TaskID, axis, local_fig):
         """
         Draw the task's phases colored bands
 
@@ -610,7 +610,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
     @AnalysisHelpers.plot_method()
     @df_rtapp_stats.used_events
-    def plot_perf(self, task, axis, local_fig):
+    def plot_perf(self, task: TaskID, axis, local_fig):
         r"""
         Plot the performance index.
 
@@ -654,7 +654,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
     @AnalysisHelpers.plot_method()
     @df_rtapp_stats.used_events
-    def plot_latency(self, task, axis, local_fig):
+    def plot_latency(self, task: TaskID, axis, local_fig):
         """
         Plot the Latency/Slack and Performance data for the specified task.
 
@@ -671,7 +671,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
     @AnalysisHelpers.plot_method()
     @df_rtapp_stats.used_events
-    def plot_slack_histogram(self, task, axis, local_fig, bins=30):
+    def plot_slack_histogram(self, task: TaskID, axis, local_fig, bins=30):
         """
         Plot the slack histogram.
 
@@ -695,7 +695,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
     @AnalysisHelpers.plot_method()
     @df_rtapp_stats.used_events
-    def plot_perf_index_histogram(self, task, axis, local_fig, bins=30):
+    def plot_perf_index_histogram(self, task: TaskID, axis, local_fig, bins=30):
         """
         Plot the perf index histogram.
 
@@ -892,7 +892,7 @@ class PerfAnalysis(AnalysisHelpers):
         )
 
     @AnalysisHelpers.plot_method()
-    def plot_perf(self, task, axis, local_fig):
+    def plot_perf(self, task: TaskID, axis, local_fig):
         """
         Plot the performance Index
         """
@@ -902,7 +902,7 @@ class PerfAnalysis(AnalysisHelpers):
         axis.set_ylim(0, 2)
 
     @AnalysisHelpers.plot_method()
-    def plot_latency(self, task, axis, local_fig):
+    def plot_latency(self, task: TaskID, axis, local_fig):
         """
         Plot the Latency/Slack and Performance data for the specified task.
         """
@@ -912,7 +912,7 @@ class PerfAnalysis(AnalysisHelpers):
         data.plot(ax=axis, drawstyle='steps-post')
 
     @AnalysisHelpers.plot_method()
-    def plot_slack_histogram(self, task, axis, local_fig, bins=30):
+    def plot_slack_histogram(self, task: TaskID, axis, local_fig, bins=30):
         """
         Plot the slack histogram.
 
@@ -934,7 +934,7 @@ class PerfAnalysis(AnalysisHelpers):
             axis.set_title(ylabel)
 
     @AnalysisHelpers.plot_method()
-    def plot_perf_index_histogram(self, task, axis, local_fig, bins=30):
+    def plot_perf_index_histogram(self, task: TaskID, axis, local_fig, bins=30):
         r"""
         Plot the perf index histogram.
 

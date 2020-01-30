@@ -21,6 +21,7 @@ import numpy as np
 from lisa.analysis.base import TraceAnalysisBase, COLOR_CYCLES
 from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.datautils import df_refit_index
+from lisa.trace import TaskID
 
 
 class LatencyAnalysis(TraceAnalysisBase):
@@ -177,7 +178,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_latency_wakeup.used_events
-    def plot_latencies(self, task, axis, local_fig, wakeup=True, preempt=True,
+    def plot_latencies(self, task: TaskID, axis, local_fig, wakeup=True, preempt=True,
             threshold_ms=1):
         """
         Plot the latencies of a task over time
@@ -252,7 +253,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @_get_latencies_df.used_events
-    def plot_latencies_cdf(self, task, axis, local_fig, wakeup=True, preempt=True,
+    def plot_latencies_cdf(self, task: TaskID, axis, local_fig, wakeup=True, preempt=True,
             threshold_ms=1):
         """
         Plot the latencies Cumulative Distribution Function of a task
@@ -287,7 +288,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @_get_latencies_df.used_events
-    def plot_latencies_histogram(self, task, axis, local_fig, wakeup=True,
+    def plot_latencies_histogram(self, task: TaskID, axis, local_fig, wakeup=True,
             preempt=True, threshold_ms=1, bins=64):
         """
         Plot the latencies histogram of a task
@@ -318,7 +319,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_latency_wakeup.used_events
-    def plot_latency_bands(self, task, axis, local_fig):
+    def plot_latency_bands(self, task: TaskID, axis, local_fig):
         """
         Draw the task wakeup/preemption latencies as colored bands
 
@@ -347,7 +348,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_activations.used_events
-    def plot_activations(self, task, axis, local_fig):
+    def plot_activations(self, task: TaskID, axis, local_fig):
         """
         Plot the :meth:`lisa.analysis.latency.LatencyAnalysis.df_activations` of a task
 
@@ -367,7 +368,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_runtimes.used_events
-    def plot_runtimes(self, task, axis, local_fig):
+    def plot_runtimes(self, task: TaskID, axis, local_fig):
         """
         Plot the :meth:`lisa.analysis.latency.LatencyAnalysis.df_runtimes` of a task
 

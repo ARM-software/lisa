@@ -21,7 +21,7 @@ from devlib.utils.misc import list_to_mask, mask_to_list
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.trace import requires_events
+from lisa.trace import requires_events, CPU
 from lisa.datautils import df_refit_index, series_refit_index
 
 
@@ -166,7 +166,7 @@ class ThermalAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_cpufreq_cooling_state.used_events
-    def plot_cpu_cooling_states(self, cpu, axis, local_fig):
+    def plot_cpu_cooling_states(self, cpu: CPU, axis, local_fig):
         """
         Plot the state evolution of a cpufreq cooling device
 

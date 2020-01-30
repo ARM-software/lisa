@@ -22,7 +22,7 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.analysis.status import StatusAnalysis
-from lisa.trace import requires_one_event_of, may_use_events
+from lisa.trace import requires_one_event_of, may_use_events, TaskID
 from lisa.utils import deprecate
 from lisa.datautils import df_refit_index, series_refit_index, df_filter_task_ids
 
@@ -335,7 +335,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_task_signal.used_events
-    def plot_task_signals(self, task, axis, local_fig, signals=['util', 'load']):
+    def plot_task_signals(self, task: TaskID, axis, local_fig, signals=['util', 'load']):
         """
         Plot the task-related load-tracking signals
 
@@ -363,7 +363,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_tasks_signal.used_events
-    def plot_task_required_capacity(self, task, **kwargs):
+    def plot_task_required_capacity(self, task: TaskID, **kwargs):
         """
         Plot the minimum required capacity of a task
 
@@ -398,7 +398,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_task_signal.used_events
-    def plot_task_placement(self, task, axis, local_fig):
+    def plot_task_placement(self, task: TaskID, axis, local_fig):
         """
         Plot the CPU placement of the task
 

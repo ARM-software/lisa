@@ -22,7 +22,7 @@ import pandas as pd
 
 from lisa.datautils import series_integrate
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.trace import requires_events
+from lisa.trace import requires_events, CPU
 
 
 class IdleAnalysis(TraceAnalysisBase):
@@ -233,7 +233,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_cpu_idle_state_residency.used_events
-    def plot_cpu_idle_state_residency(self, cpu, axis, local_fig, pct=False):
+    def plot_cpu_idle_state_residency(self, cpu: CPU, axis, local_fig, pct=False):
         """
         Plot the idle state residency of a CPU
 
