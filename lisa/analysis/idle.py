@@ -19,8 +19,9 @@ from functools import reduce
 import operator
 
 import pandas as pd
+import numpy as np
 
-from lisa.datautils import series_integrate
+from lisa.datautils import series_integrate, df_split_signals, series_combine, df_add_delta, df_refit_index
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, CPU
 
@@ -117,7 +118,6 @@ class IdleAnalysis(TraceAnalysisBase):
 
         return pd.DataFrame({'cpu': sr}).sort_index()
 
-    @TraceAnalysisBase.cache
     @requires_events("cpu_idle")
     def df_cpu_idle_state_residency(self, cpu):
         """
@@ -132,42 +132,23 @@ class IdleAnalysis(TraceAnalysisBase):
           * A ``time`` column (The time spent in the idle state)
         """
         idle_df = self.trace.df_events('cpu_idle')
-        cpu_idle = idle_df[idle_df.cpu_id == cpu]
+        idle_df = idle_df[idle_df['cpu_id'] == cpu]
 
-        cpu_is_idle = self.signal_cpu_active(cpu).map({1: 0, 0: 1})
+        # Ensure accurate time-based sum of state deltas
+        idle_df = df_refit_index(idle_df, window=self.trace.window)
 
-        # In order to compute the time spent in each idle state we
-        # multiply 2 square waves:
-        # - cpu_idle
-        # - idle_state, square wave of the form:
-        #     idle_state[t] == 1 if at time t CPU is in idle state i
-        #     idle_state[t] == 0 otherwise
-        available_idles = sorted(idle_df.state.unique())
-        # Remove non-idle state from availables
-        available_idles = available_idles[1:]
-        cpu_idle = cpu_idle.join(cpu_is_idle.to_frame(name='is_idle'),
-                                 how='outer')
-        cpu_idle.fillna(method='ffill', inplace=True)
+        # For each state, sum the time spent in it
+        idle_df = df_add_delta(idle_df)
 
-        # Extend the last cpu_idle event to the end of the time window under
-        # consideration
-        final_entry = pd.DataFrame([cpu_idle.iloc[-1]], index=[self.trace.end])
-        cpu_idle = cpu_idle.append(final_entry)
+        residency = {
+            cols['state']: state_df['delta'].sum()
+            for cols, state_df in df_split_signals(idle_df, ['state'])
 
-        idle_time = []
-        for i in available_idles:
-            idle_state = cpu_idle.state.apply(
-                lambda x: 1 if x == i else 0
-            )
-            idle_t = cpu_idle.is_idle * idle_state
-            # Compute total time by integrating the square wave
-            idle_time.append(series_integrate(idle_t))
+        }
+        df = pd.DataFrame.from_dict(residency, orient='index', columns=['time'])
+        df.index.name = 'idle_state'
+        return df
 
-        idle_time_df = pd.DataFrame({'time': idle_time}, index=available_idles)
-        idle_time_df.index.name = 'idle_state'
-        return idle_time_df
-
-    @TraceAnalysisBase.cache
     @requires_events('cpu_idle')
     def df_cluster_idle_state_residency(self, cluster):
         """
@@ -182,50 +163,38 @@ class IdleAnalysis(TraceAnalysisBase):
           * A ``time`` column (The time spent in the idle state)
         """
         idle_df = self.trace.df_events('cpu_idle')
+
+        # Create a dataframe with a column per CPU
+        cols = {
+            cpu: group['state']
+            for cpu, group in idle_df.groupby('cpu_id', group_keys=False)
+            if cpu in cluster
+        }
+        cpus_df = pd.DataFrame(cols, index=idle_df.index)
+        cpus_df.fillna(method='ffill', inplace=True)
+
+        # Ensure accurate time-based sum of state deltas. This will extrapolate
+        # the known cluster_state both to the left and the right.
+        cpus_df = df_refit_index(cpus_df, window=self.trace.window)
+
         # Each core in a cluster can be in a different idle state, but the
         # cluster lies in the idle state with lowest ID, that is the shallowest
         # idle state among the idle states of its CPUs
-        cl_idle = idle_df[idle_df.cpu_id == cluster[0]].state.to_frame(
-            name=cluster[0])
-        for cpu in cluster[1:]:
-            cl_idle = cl_idle.join(
-                idle_df[idle_df.cpu_id == cpu].state.to_frame(name=cpu),
-                how='outer'
-            )
-        cl_idle.fillna(method='ffill', inplace=True)
-        cl_idle = pd.DataFrame(cl_idle.min(axis=1), columns=['state'])
+        cluster_state = cpus_df.min(axis='columns')
+        cluster_state.name = 'cluster_state'
+        df = cluster_state.to_frame()
 
-        # Build a square wave of the form:
-        #     cl_is_idle[t] == 1 if all CPUs in the cluster are reported
-        #                      to be idle by cpufreq at time t
-        #     cl_is_idle[t] == 0 otherwise
-        cl_is_idle = self.signal_cluster_active(cluster) ^ 1
+        # For each state transition, sum the time spent in it
+        df_add_delta(df, inplace=True)
 
-        # In order to compute the time spent in each idle state frequency we
-        # multiply 2 square waves:
-        # - cluster_is_idle
-        # - idle_state, square wave of the form:
-        #     idle_state[t] == 1 if at time t cluster is in idle state i
-        #     idle_state[t] == 0 otherwise
-        available_idles = sorted(idle_df.state.unique())
-        # Remove non-idle state from availables
-        available_idles = available_idles[1:]
-        cl_idle = cl_idle.join(cl_is_idle.to_frame(name='is_idle'),
-                               how='outer')
-        cl_idle.fillna(method='ffill', inplace=True)
-        idle_time = []
-        for i in available_idles:
-            idle_state = cl_idle.state.apply(
-                lambda x: 1 if x == i else 0
-            )
-            idle_t = cl_idle.is_idle * idle_state
-            # Compute total time by integrating the square wave
-            idle_time.append(series_integrate(idle_t))
+        # For each cluster state, take the sum of the delta column.
+        # The resulting dataframe is indexed by group keys (cluster_state).
+        residency = df.groupby('cluster_state')['delta'].sum()
+        residency.name = 'time'
 
-        idle_time_df = pd.DataFrame({'time': idle_time}, index=available_idles)
-        idle_time_df.index.name = 'idle_state'
-        return idle_time_df
-
+        residency = residency.to_frame()
+        residency.index.name = 'idle_state'
+        return residency
 
 ###############################################################################
 # Plotting Methods
