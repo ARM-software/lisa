@@ -67,7 +67,7 @@ class ThermalAnalysis(TraceAnalysisBase):
           * A ``cdev_state`` column (The cooling device state index)
 
         """
-        df = self.trace.df_events("cpu_out_power")
+        df = self.trace.df_events("thermal_power_cpu_limit")
         df = df[['cpus', 'freq', 'cdev_state']]
 
         if cpus is not None:
