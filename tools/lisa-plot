@@ -278,14 +278,19 @@ Available plots:
 
         plot_methods.add(f)
 
-    events = set()
-    for f in plot_methods:
-        with contextlib.suppress(AttributeError):
-            events.update(f.used_events.get_all_events())
+    # If best effort is used, we don't want to trigger exceptions ahead of
+    # time. Let it fail for individual plot methods instead, so the trace can
+    # be used for the other events
+    if args.best_effort:
+        events = None
+    else:
+        events = set()
+        for f in plot_methods:
+            with contextlib.suppress(AttributeError):
+                events.update(f.used_events.get_all_events())
 
-    events = sorted(events)
-
-    print('Parsing trace events: {}'.format(', '.join(events)))
+        events = sorted(events)
+        print('Parsing trace events: {}'.format(', '.join(events)))
 
     trace = Trace(args.trace, plat_info=plat_info, events=events, normalize_time=args.normalize_time, write_swap=True)
     if args.window:
