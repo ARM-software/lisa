@@ -21,7 +21,7 @@
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
-from lisa.datautils import df_refit_index, df_add_delta
+from lisa.datautils import df_refit_index, df_add_delta, df_deduplicate
 
 
 class StatusAnalysis(TraceAnalysisBase):
@@ -53,14 +53,8 @@ class StatusAnalysis(TraceAnalysisBase):
         df = df_add_delta(df, col='len', window=self.trace.window)
         # Ignore the last line added by df_refit_index() with a NaN len
         df = df.iloc[:-1]
-        # Remove duplicated index events, keep only last event which is the
-        # only one with a non null length
-        df = df[df['len'] != 0]
-        # This filtering can also be achieved by removing events happening at
-        # the same time, but perhaps this filtering is more complex
-        # df = df.reset_index()\
-        #         .drop_duplicates(subset='Time', keep='last')\
-        #         .set_index('Time')
+        # Remove duplicated index events
+        df = df_deduplicate(df, keep='last', consecutives=True)
         return df[['len', 'overutilized']]
 
     def get_overutilized_time(self):
