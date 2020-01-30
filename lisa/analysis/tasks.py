@@ -585,12 +585,12 @@ class TasksAnalysis(TraceAnalysisBase):
             # If we are aware of frequency domains, use one color per domain
             for domain in self.trace.plat_info["freq-domains"]:
                 series = sw_df[sw_df["__cpu"].isin(domain)]["__cpu"]
-                series = series_refit_index(series, window=self.trace.window)
 
                 if series.empty:
                     # Cycle the colours to stay consistent
                     self.cycle_colors(axis, 1)
                 else:
+                    series = series_refit_index(series, window=self.trace.window)
                     series.plot(ax=axis, style='+',
                             label="Task running in domain {}".format(domain))
         else:
