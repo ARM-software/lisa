@@ -20,6 +20,7 @@
 import shutil
 import uuid
 import sys
+import re
 import gc
 import math
 import abc
@@ -49,14 +50,14 @@ import devlib
 from devlib.target import KernelVersion
 
 import lisa.utils
-from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate, nullcontext, measure_time, checksum
+from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate, nullcontext, measure_time, checksum, FromString
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, TypedList, Configurable
 from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta
 from lisa.version import VERSION_TOKEN
 
 
-class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
+class TaskID(namedtuple('TaskID', ('pid', 'comm')), FromString):
     """
     Unique identifier of a logical task in a :class:`Trace`.
 
@@ -85,6 +86,33 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
             out = str(self.comm if self.comm is not None else self.pid)
 
         return '[{}]'.format(out)
+
+    _STR_PARSE_REGEX = re.compile(r'\[?([0-9]+):([a-zA-Z0-9_-]+)\]?')
+
+    @classmethod
+    def _from_str(cls, string):
+        try:
+            pid = int(string)
+            comm = None
+        except ValueError:
+            match = cls._STR_PARSE_REGEX.match(string)
+            if match:
+                pid = int(match.group(1))
+                comm = match.group(2)
+            else:
+                pid = None
+                comm = string
+
+        return cls(pid=pid, comm=comm)
+
+
+class CPU(int, FromString):
+    """
+    Speciliazed int representing a CPU.
+    """
+    @classmethod
+    def _from_str(cls, string):
+        return cls(string)
 
 
 class TraceBase(abc.ABC):
