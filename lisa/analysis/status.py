@@ -83,24 +83,25 @@ class StatusAnalysis(TraceAnalysisBase):
         """
 
         df = self.df_overutilized()
-        df = df_refit_index(df, window=self.trace.window)
+        if not df.empty:
+            df = df_refit_index(df, window=self.trace.window)
 
-        # Compute intervals in which the system is reported to be overutilized
-        bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]
+            # Compute intervals in which the system is reported to be overutilized
+            bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]
 
-        color = self.get_next_color(axis)
-        label = "Overutilized"
-        for (start, delta, overutilized) in bands:
-            if not overutilized:
-                continue
+            color = self.get_next_color(axis)
+            label = "Overutilized"
+            for (start, delta, overutilized) in bands:
+                if not overutilized:
+                    continue
 
-            end = start + delta
-            axis.axvspan(start, end, alpha=0.2, facecolor=color, label=label)
+                end = start + delta
+                axis.axvspan(start, end, alpha=0.2, facecolor=color, label=label)
 
-            if label:
-                label = None
+                if label:
+                    label = None
 
-        axis.legend()
+            axis.legend()
 
         if local_fig:
             axis.set_title("System-wide overutilized status")
