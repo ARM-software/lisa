@@ -587,7 +587,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_task_total_residency.used_events
-    def plot_task_total_residency(self, task: TaskID, **kwargs):
+    def plot_task_total_residency(self, task: TaskID, axis=None, **kwargs):
         """
         Plot a task's total time spent on each CPU
 
@@ -603,7 +603,7 @@ class TasksAnalysis(TraceAnalysisBase):
             axis.set_ylabel("Runtime (s)")
             axis.grid(True)
 
-        return self.do_plot(plotter, height=8, **kwargs)
+        return self.do_plot(plotter, height=8, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method()
     @df_tasks_total_residency.used_events
@@ -689,7 +689,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup")
-    def plot_tasks_wakeups_heatmap(self, xbins=100, colormap=None, **kwargs):
+    def plot_tasks_wakeups_heatmap(self, xbins=100, colormap=None, axis=None, **kwargs):
         """
         Plot tasks wakeups heatmap
 
@@ -751,7 +751,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup_new")
-    def plot_tasks_forks_heatmap(self, xbins=100, colormap=None, **kwargs):
+    def plot_tasks_forks_heatmap(self, xbins=100, colormap=None, axis=None, **kwargs):
         """
         :param xbins: Number of x-axis bins, i.e. in how many slices should
           time be arranged

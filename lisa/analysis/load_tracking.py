@@ -287,7 +287,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         'cpu_capacity',
     )
     @df_cpus_signal.used_events
-    def plot_cpus_signals(self, cpus=None, signals=['util', 'load'], **kwargs):
+    def plot_cpus_signals(self, cpus=None, signals=['util', 'load'], axis=None, **kwargs):
         """
         Plot the CPU-related load-tracking signals
 
@@ -332,7 +332,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 axis.set_ylim(0, 1100)
                 axis.legend()
 
-        return self.do_plot(plotter, nrows=len(cpus), sharex=True, **kwargs)
+        return self.do_plot(plotter, nrows=len(cpus), sharex=True, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method()
     @df_task_signal.used_events
@@ -364,7 +364,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_tasks_signal.used_events
-    def plot_task_required_capacity(self, task: TaskID, **kwargs):
+    def plot_task_required_capacity(self, task: TaskID, axis=None, **kwargs):
         """
         Plot the minimum required capacity of a task
 
@@ -395,7 +395,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 axis.set_ylabel('Utilization')
                 axis.set_xlabel('Time (s)')
 
-        return self.do_plot(plotter, height=8, **kwargs)
+        return self.do_plot(plotter, height=8, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method()
     @df_task_signal.used_events

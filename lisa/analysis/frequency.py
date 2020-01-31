@@ -273,7 +273,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_peripheral_clock_effective_rate.used_events
-    def plot_peripheral_clock(self, clk, **kwargs):
+    def plot_peripheral_clock(self, clk, axis=None, **kwargs):
         """
         Plot the frequency of a particular peripheral clock
 
@@ -344,7 +344,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
             state_axis.set_xlabel('seconds')
             state_axis.set_xlim(start, end)
 
-        return self.do_plot(plotter, height=8, nrows=2, **kwargs)
+        return self.do_plot(plotter, height=8, nrows=2, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method()
     @requires_events('cpu_frequency')
@@ -400,7 +400,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cpu_frequencies.used_events
-    def plot_domain_frequencies(self, **kwargs):
+    def plot_domain_frequencies(self, axis=None, **kwargs):
         """
         Plot frequency trend for all frequency domains.
 
@@ -417,11 +417,11 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
                 axis.set_title('Frequencies of CPUS {}'.format(domain))
 
-        return self.do_plot(plotter, nrows=len(domains), sharex=True, **kwargs)
+        return self.do_plot(plotter, nrows=len(domains), sharex=True, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_cpu_frequency_residency.used_events
-    def plot_cpu_frequency_residency(self, cpu: CPU, pct=False, **kwargs):
+    def plot_cpu_frequency_residency(self, cpu: CPU, pct=False, axis=None, **kwargs):
         """
         Plot per-CPU frequency residency.
 
@@ -457,11 +457,11 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 axis.set_ylabel("Frequency (Hz)")
                 axis.grid(True)
 
-        return self.do_plot(plotter, nrows=2, **kwargs)
+        return self.do_plot(plotter, nrows=2, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cpu_frequency_residency.used_events
-    def plot_domain_frequency_residency(self, pct=False, **kwargs):
+    def plot_domain_frequency_residency(self, pct=False, axis=None, **kwargs):
         """
         Plot the frequency residency for all frequency domains.
 
@@ -483,7 +483,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
                     axis.set_title(title.replace(
                         "CPU{}".format(domain[0]), "CPUs {}".format(domain)))
 
-        return self.do_plot(plotter, nrows=2 * len(domains), sharex=True, **kwargs)
+        return self.do_plot(plotter, nrows=2 * len(domains), sharex=True, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method()
     @df_cpu_frequency_transitions.used_events
@@ -518,7 +518,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cpu_frequency_transitions.used_events
-    def plot_domain_frequency_transitions(self, pct=False, **kwargs):
+    def plot_domain_frequency_transitions(self, pct=False, axis=None, **kwargs):
         """
         Plot frequency transitions count for all frequency domains
 
@@ -539,6 +539,6 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 axis.set_title(title.replace("CPU{}".format(domain[0]),
                                              "CPUs {}".format(domain)))
 
-        return self.do_plot(plotter, nrows=len(domains), **kwargs)
+        return self.do_plot(plotter, nrows=len(domains), axis=axis, **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

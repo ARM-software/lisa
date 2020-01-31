@@ -236,7 +236,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cluster_idle_state_residency.used_events
-    def plot_clusters_idle_state_residency(self, pct=False, **kwargs):
+    def plot_clusters_idle_state_residency(self, pct=False, axis=None, **kwargs):
         """
         Plot the idle state residency of all clusters
 
@@ -252,7 +252,7 @@ class IdleAnalysis(TraceAnalysisBase):
             for axis, cluster in zip(axes, clusters):
                 self.plot_cluster_idle_state_residency(cluster, pct=pct, axis=axis)
 
-        return self.do_plot(plotter, nrows=len(clusters), sharex=True, **kwargs)
+        return self.do_plot(plotter, nrows=len(clusters), sharex=True, axis=axis, **kwargs)
 
 ###############################################################################
 # Utility Methods
