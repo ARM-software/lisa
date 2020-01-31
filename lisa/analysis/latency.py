@@ -177,6 +177,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_latency_wakeup.used_events
+    @df_latency_preemption.used_events
     def plot_latencies(self, task: TaskID, axis, local_fig, wakeup=True, preempt=True,
             threshold_ms=1):
         """
@@ -231,6 +232,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         return df, above, below
 
     @df_latency_wakeup.used_events
+    @df_latency_preemption.used_events
     def _get_latencies_df(self, task, wakeup, preempt):
         wkp_df = None
         prt_df = None
@@ -318,6 +320,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_latency_wakeup.used_events
+    @df_latency_preemption.used_events
     def plot_latency_bands(self, task: TaskID, axis, local_fig):
         """
         Draw the task wakeup/preemption latencies as colored bands
