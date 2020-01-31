@@ -296,7 +296,7 @@ Available plots:
     if args.window:
         trace = trace.get_view(args.window)
 
-    for plot_name, file_path in plot_spec_list:
+    for plot_name, file_path in sorted(plot_spec_list):
         f = flat_plot_map[plot_name]
         dirname = os.path.dirname(file_path)
         if dirname:
