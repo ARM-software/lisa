@@ -207,10 +207,10 @@ class LatencyAnalysis(TraceAnalysisBase):
                 continue
 
             df = df_getter(task)
-            df = df_refit_index(df, window=self.trace.window)
             if df.empty:
                 self.get_logger().warning("No data to plot for {}".format(name))
             else:
+                df = df_refit_index(df, window=self.trace.window)
                 df.plot(ax=axis, style='+', label=label)
 
         axis.set_title('Latencies of task "{}"'.format(task))
@@ -333,6 +333,9 @@ class LatencyAnalysis(TraceAnalysisBase):
         prt_df = self.df_latency_preemption(task)
 
         def plot_bands(df, column, label):
+            if df.empty:
+                return
+
             df = df_refit_index(df, window=self.trace.window)
             bands = [(t, df[column][t]) for t in df.index]
             color = self.get_next_color(axis)
