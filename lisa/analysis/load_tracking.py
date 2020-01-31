@@ -17,6 +17,7 @@
 
 """ Scheduler load tracking analysis module """
 
+import operator
 import itertools
 import pandas as pd
 
@@ -24,7 +25,7 @@ from lisa.analysis.base import TraceAnalysisBase
 from lisa.analysis.status import StatusAnalysis
 from lisa.trace import requires_one_event_of, may_use_events, TaskID
 from lisa.utils import deprecate
-from lisa.datautils import df_refit_index, series_refit_index, df_filter_task_ids
+from lisa.datautils import df_refit_index, series_refit_index, df_filter_task_ids, df_split_signals
 
 
 class LoadTrackingAnalysis(TraceAnalysisBase):
@@ -411,34 +412,32 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         df = self.df_task_signal(task_id, 'required_capacity').copy()
         cpu_capacities = self.trace.plat_info["cpu-capacities"]['orig']
 
-        def evaluate_placement(cpu, required_capacity):
-            capacity = cpu_capacities[cpu]
+        df['capacity'] = df['cpu'].map(cpu_capacities)
 
-            if capacity < required_capacity:
-                return "CPU capacity < required capacity"
-            elif capacity == required_capacity:
-                return "CPU capacity == required capacity"
-            else:
-                return "CPU capacity > required capacity"
+        def add_placement(df, comp, comp_str):
+            placement = "CPU capacity {} required capacity".format(comp_str)
+            condition = comp(df['capacity'], df['required_capacity'])
+            df.loc[condition, 'placement'] = placement
 
-        df["placement"] = df.apply(
-            lambda row: evaluate_placement(
-                row["cpu"],
-                row["required_capacity"]), axis=1)
+        add_placement(df, operator.lt, '<')
+        add_placement(df, operator.gt, '>')
+        add_placement(df, operator.eq, '==')
 
-        for stat in df["placement"].unique():
-            series = df[df.placement == stat]["cpu"]
+        for cols, placement_df in df_split_signals(df, ['placement']):
+            placement = cols['placement']
+            series = df["cpu"]
             series = series_refit_index(series, window=self.trace.window)
-            series.plot(ax=axis, style="+", label=stat)
+            series.plot(ax=axis, style="+", label=placement)
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
         if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
-        axis.set_title("Utilization vs placement of task \"{}\"".format(task))
+        if local_fig:
+            axis.set_title('Utilization vs placement of task "{}"'.format(task))
 
-        axis.grid(True)
-        axis.legend()
+            axis.grid(True)
+            axis.legend()
 
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
