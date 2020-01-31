@@ -1140,7 +1140,7 @@ _SIGNALS = [
     SignalDesc('cpu_frequency', ['cpu']),
     SignalDesc('sched_compute_energy', ['comm', 'pid']),
 
-    SignalDesc('sched_load_se', ['__comm', '__pid']),
+    SignalDesc('sched_load_se', ['comm', 'pid']),
     SignalDesc('sched_util_est_task', ['comm', 'pid']),
 
     SignalDesc('sched_util_est_cpu', ['cpu']),
