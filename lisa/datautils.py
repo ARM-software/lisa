@@ -578,6 +578,9 @@ def _data_window(data, window, method, clip_window):
 
         window = (start, end)
 
+    if window[0] > window[1]:
+        raise KeyError('The window starts after its end: {}'.format(window))
+
     if method == 'inclusive':
         method = ('ffill', 'bfill')
 
@@ -646,14 +649,6 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
     def make_empty_df():
         return pd.DataFrame(columns=df.columns)
 
-    def signal_in_window(signal_df, window):
-        start = window[0]
-        index = signal_df.index
-        signal_start, signal_end = index[0], index[-1]
-        # Signals are encoded as transitions, so as soon as we a transition
-        # inside the window, we know that the signal is relevant
-        return signal_start <= start <= signal_end
-
     windowed_df = df_window(df, window, method='pre', clip_window=clip_window)
 
     # Split the extra rows that the method='pre' gave in a separate dataframe,
@@ -667,20 +662,25 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
     else:
         extra_df = df_window(windowed_df, extra_window, method='pre')
 
-    # This time around, exclude anything before window[0] since it will be provided by extra_df
+    # This time around, exclude anything before extra_window[1] since it will be provided by extra_df
     try:
-        # Make sure we don't get any extra rows on the right, since we want the
-        # "pre" method overall
-        _window = (window[0], windowed_df.index[-1])
-        windowed_df = df_window(windowed_df, _window, method='post', clip_window=True)
+        # Right boundary is exact, so failure can only happen if left boundary
+        # is after the start of the dataframe, or if the window starts after its end.
+        _window = (extra_window[1], windowed_df.index[-1])
+        windowed_df = df_window(windowed_df, _window, method='post', clip_window=False)
     # The windowed_df did not contain any row in the given window, all the
     # actual data are in extra_df
     except KeyError:
         windowed_df = make_empty_df()
+    else:
+        # Make sure we don't include the left boundary
+        if windowed_df.index[0] == _window[0]:
+            windowed_df = windowed_df.iloc[1:]
 
     def window_signal(signal_df):
-        df = df_window(signal_df, window, method='pre', clip_window=clip_window)
-        return df
+        # Get the row immediately preceding the window start
+        loc = signal_df.index.get_loc(window[0], method='ffill')
+        return signal_df.iloc[loc:loc + 1]
 
     # Get the value of each signal at the beginning of the window
     signal_df_list = [
@@ -691,7 +691,7 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
         )
         # Only consider the signal that are in the window. Signals that started
         # after the window are irrelevant.
-        if signal_in_window(signal_df, window)
+        if not signal_df.empty and signal_df.index[0] <= window[0]
     ]
 
     if compress_init:
@@ -721,17 +721,11 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
 
     # Get the last row before the beginning the window for each signal, in
     # timestamp order
-    init_df = pd.concat(
-        [extra_df] + [
-            # First row of the dataframe
-            signal_df.iloc[0:1]
-            for signal_df in sorted(signal_df_list, key=lambda df: df.index[0])
-        ]
-    )
+    init_df = pd.concat([extra_df] + signal_df_list)
+    init_df.sort_index(inplace=True)
     # Remove duplicated indices, meaning we selected the same row multiple
     # times because it's part of multiple signals
     init_df = init_df.loc[~init_df.index.duplicated(keep='first')]
-    init_df.sort_index(inplace=True)
 
     init_df.index = make_init_df_index(init_df)
     return pd.concat([init_df, windowed_df])
