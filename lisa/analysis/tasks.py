@@ -23,7 +23,7 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta
+from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window
 from lisa.trace import requires_events, TaskID
 from lisa.pelt import PELT_SCALE
 
@@ -642,6 +642,12 @@ class TasksAnalysis(TraceAnalysisBase):
             **kwargs
         )
 
+        # According to this thread, passing Pandas object upsets matplotlib for
+        # some reasons, so we pass numpy arrays instead:
+        # https://stackoverflow.com/questions/34128232/keyerror-when-trying-to-plot-or-histogram-pandas-data-in-matplotlib
+        x = x.values
+        y = y.values
+
         _, _, _, img = axis.hist2d(x, y, bins=[xbins, nr_cpus])
         fig.colorbar(img, label=colorbar_label)
         return fig, axis
@@ -683,8 +689,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup")
-    def plot_tasks_wakeups_heatmap(self, xbins=100, colormap=None, axis=None,
-            local_fig=None, **kwargs):
+    def plot_tasks_wakeups_heatmap(self, xbins=100, colormap=None, **kwargs):
         """
         Plot tasks wakeups heatmap
 
@@ -698,15 +703,15 @@ class TasksAnalysis(TraceAnalysisBase):
         """
 
         df = self.trace.df_events("sched_wakeup")
-        df = df_refit_index(df, window=self.trace.window)
+        df = df_window(df, window=self.trace.window, method='exclusive', clip_window=False)
 
         fig, axis = self._plot_cpu_heatmap(
             df.index, df.target_cpu, xbins, "Number of wakeups",
             cmap=colormap,
             **kwargs,
         )
-
         axis.set_title("Tasks wakeups over time")
+
         return axis
 
     @TraceAnalysisBase.plot_method()
@@ -746,8 +751,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup_new")
-    def plot_tasks_forks_heatmap(self, xbins=100, colormap=None, axis=None,
-            local_fig=None, **kwargs):
+    def plot_tasks_forks_heatmap(self, xbins=100, colormap=None, **kwargs):
         """
         :param xbins: Number of x-axis bins, i.e. in how many slices should
           time be arranged
@@ -759,7 +763,7 @@ class TasksAnalysis(TraceAnalysisBase):
         """
 
         df = self.trace.df_events("sched_wakeup_new")
-        df = df_refit_index(df, window=self.trace.window)
+        df = df_window(df, window=self.trace.window, method='exclusive', clip_window=False)
 
         fig, axis = self._plot_cpu_heatmap(
             df.index, df.target_cpu, xbins, "Number of forks",
