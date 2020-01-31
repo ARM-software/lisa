@@ -356,7 +356,7 @@ class TestTrace(TraceTestCase):
 
         self.assertEqual(len(df), 4780)
         # Proxy check for detecting delta computation changes
-        self.assertAlmostEqual(df.delta.sum(), 207.705551)
+        self.assertAlmostEqual(df.delta.sum(), 134.568219)
 
 
 class TestTraceView(TraceTestCase):

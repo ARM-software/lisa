@@ -238,6 +238,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
           * A ``cpu`` column (the CPU where the task was on)
           * A ``pid`` column (the PID of the task)
+          * A ``comm`` column (the name of the task)
           * A ``target_cpu`` column (the CPU where the task has been scheduled).
             Will be ``NaN`` for non-wakeup events
           * A ``curr_state`` column (the current task state, see :class:`~TaskState`)
@@ -284,45 +285,20 @@ class TasksAnalysis(TraceAnalysisBase):
         df.sort_index(inplace=True)
         df.rename(columns={'__cpu': 'cpu'}, inplace=True)
 
-        # Move the target_cpu column to the 2nd position
-        columns = df.columns.to_list()
-        columns = columns[:1] + ["target_cpu"] + \
-            [col for col in columns[1:] if col != "target_cpu"]
+        def make_pid_df(df):
+            # For each PID, add the time it spent in each state
+            df = df_add_delta(df)
+            df['next_state'] = df['curr_state'].shift(-1)
+            return df
 
-        df = df[columns]
+        df = pd.concat(
+            make_pid_df(pid_df)
+            for col, pid_df in df_split_signals(df, ['pid'])
+        )
+        df.sort_index(inplace=True)
 
-        ######################################################
-        # B) Compute the deltas for each PID
-        ######################################################
+        return df[['pid', 'comm', 'target_cpu', 'cpu', 'curr_state', 'next_state', 'delta']]
 
-        # We have duplicate index values (timestamps) in there, so to make
-        # merging easier use an integer indexing instead.
-        df.reset_index(inplace=True)
-
-        # To speed up the sorting, we'll append all of the values sequentially
-        # and just sort them once at the very end
-        index = []
-        deltas = []
-        states = []
-
-        for col, df_slice in df_split_signals(df, ['pid']):
-            time = df_slice.Time
-            state = df_slice.curr_state
-
-            index += time.index.to_list()
-            deltas += list(time.values[1:] - time.values[:-1]) + \
-                [self.trace.end - time.values[-1]]
-            states += list(state.values[1:]) + [state.values[-1]]
-
-        merged_df = pd.DataFrame(index=index,
-                                 data={"delta": deltas, "next_state": states})
-        merged_df.sort_index(inplace=True)
-
-        df["delta"] = merged_df.delta
-        df["next_state"] = merged_df.next_state
-        df.set_index("Time", inplace=True)
-
-        return df
 
     @TraceAnalysisBase.cache
     @df_tasks_states.used_events
