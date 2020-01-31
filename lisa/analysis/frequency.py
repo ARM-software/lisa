@@ -29,7 +29,7 @@ import numpy as np
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.trace import requires_events, CPU
-from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean
+from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window
 
 
 class FrequencyAnalysis(TraceAnalysisBase):
@@ -191,8 +191,16 @@ class FrequencyAnalysis(TraceAnalysisBase):
           * A ``transitions`` column (the number of frequency transitions)
         """
 
-        freq_df = self.trace.df_events('cpu_frequency')
-        cpu_freqs = freq_df[freq_df.cpu == cpu].frequency
+        freq_df = self.trace.df_events('cpu_frequency', signals_init=False)
+        # Since we want to count the number of events appearing inside the
+        # window, make sure we don't get anything outside it
+        freq_df = df_window(
+            freq_df,
+            window=self.trace.window,
+            method='exclusive',
+            clip_window=False,
+        )
+        cpu_freqs = freq_df[freq_df.cpu == cpu]['frequency']
 
         # Remove possible duplicates (example: when devlib sets trace markers
         # a cpu_frequency event is triggered that can generate a duplicate)
@@ -495,7 +503,9 @@ class FrequencyAnalysis(TraceAnalysisBase):
         if pct:
             df = df * 100 / df.sum()
 
-        df["transitions"].plot.barh(ax=axis)
+        if not df.empty:
+            df["transitions"].plot.barh(ax=axis)
+
         axis.set_title('Frequency transitions of CPU{}'.format(cpu))
 
         if pct:

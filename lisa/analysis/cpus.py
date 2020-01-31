@@ -21,6 +21,7 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, CPU
+from lisa.datautils import df_window
 
 
 class CpusAnalysis(TraceAnalysisBase):
@@ -44,7 +45,16 @@ class CpusAnalysis(TraceAnalysisBase):
 
           * A ``context_switch_cnt`` column (the number of context switch per CPU)
         """
-        sched_df = self.trace.df_events('sched_switch')
+        # Since we want to count the number of context switches, we don't want
+        # all tasks to appear
+        sched_df = self.trace.df_events('sched_switch', signals_init=False)
+        # Make sure to only get the switches inside the window
+        sched_df = df_window(
+            sched_df,
+            method='exclusive',
+            window=self.trace.window,
+            clip_window=False,
+        )
         cpus = list(range(self.trace.cpus_count))
         ctx_sw_df = pd.DataFrame(
             [len(sched_df[sched_df['__cpu'] == cpu]) for cpu in cpus],
