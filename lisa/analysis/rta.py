@@ -301,8 +301,12 @@ class RTAEventsAnalysis(TraceAnalysisBase):
             if not df.empty
         )
 
-        index, columns = zip(*durations)
-        return pd.DataFrame(columns, index=index)
+        if durations:
+            index, columns = zip(*durations)
+            return pd.DataFrame(columns, index=index)
+        else:
+            return pd.DataFrame()
+
 
     @df_phases.used_events
     def task_phase_windows(self, task):
