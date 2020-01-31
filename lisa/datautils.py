@@ -129,6 +129,9 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
 
 
 def _data_refit_index(data, window, method):
+    if data.empty:
+        raise ValueError('Cannot refit the index of an empty dataframe or series')
+
     start, end = window
     duplicate_last = end > data.index[-1]
     data = _data_window(data, window, method=method, clip_window=True)
