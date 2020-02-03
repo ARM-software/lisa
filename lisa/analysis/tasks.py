@@ -23,7 +23,7 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window
+from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates
 from lisa.trace import requires_events, TaskID
 from lisa.pelt import PELT_SCALE
 
@@ -245,6 +245,13 @@ class TasksAnalysis(TraceAnalysisBase):
           * A ``delta`` column (the duration for which the task will remain in
             this state)
           * A ``next_state`` column (the next task state)
+
+
+        .. warning:: Since ``sched_switch`` event multiplexes the update to two
+            PIDs at the same time, the resulting dataframe would contain
+            duplicated indices, breaking some Pandas functions. In order to
+            avoid that, the duplicated timestamps are updated with the minimum
+            increment possible to remove duplication.
         """
         ######################################################
         # A) Assemble the sched_switch and sched_wakeup events
@@ -284,6 +291,11 @@ class TasksAnalysis(TraceAnalysisBase):
         df = all_sw_df.append(wk_df, sort=False)
         df.sort_index(inplace=True)
         df.rename(columns={'__cpu': 'cpu'}, inplace=True)
+
+        # Since sched_switch is split in two df (next and prev), we end up with
+        # duplicated indices. Avoid that by incrementing them by the minimum
+        # amount possible
+        df = df_update_duplicates(df, col=None, inplace=True)
 
         def make_pid_df(df):
             # For each PID, add the time it spent in each state

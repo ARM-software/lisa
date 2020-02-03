@@ -1002,6 +1002,65 @@ def df_deduplicate(df, keep, consecutives, cols=None, all_col=True):
     return _data_deduplicate(df, keep=keep, consecutives=consecutives, cols=cols, all_col=all_col)
 
 
+def df_update_duplicates(df, col=None, func=None, inplace=False):
+    """
+    Update a given column to avoid duplicated values.
+
+    :param df: Dataframe to act on.
+    :type df: pandas.DataFrame
+
+    :param col: Column to update. If ``None``, the index is used.
+    :type col: str or None
+
+    :param func: The function used to update the column. It must take a
+        :class:`pandas.Series` of duplicated entries to update as parameters,
+        and return a new :class:`pandas.Series`. The function will be called as
+        long as there are remaining duplicates. If ``None``, the column is
+        assumed to be floating point and duplicated values will be incremented
+        by the smallest amount possible.
+    :type func: collections.abc.Callable
+
+    :param inplace: If ``True``, the passed dataframe will be modified.
+    :type inplace: bool
+    """
+
+    def increment(series):
+        return pd.Series(np.nextafter(series.values, math.inf), index=series.index)
+
+    def get_duplicated(series):
+        # Keep the first, so we update the second duplicates
+        locs = series.duplicated(keep='first')
+        return locs, series.loc[locs]
+
+    def copy(series):
+        return series.copy() if inplace else series
+
+    use_index = col is None
+    # Indices already gets copied with to_series()
+    use_copy = inplace and not use_index
+
+    series = df.index.to_series() if use_index else df[col]
+    series = series.copy() if use_copy else series
+    func = func if func else increment
+
+    # Update the values until there is no more duplication
+    duplicated_locs, duplicated = get_duplicated(series)
+    while duplicated_locs.any():
+        updated = func(duplicated)
+        # Change the values at the points of duplication. Otherwise, take the
+        # initial value
+        series.loc[duplicated_locs] = updated
+        duplicated_locs, duplicated = get_duplicated(series)
+
+    df = df if inplace else df.copy()
+    if use_index:
+        df.index = series
+    else:
+        df[col] = series
+
+    return df
+
+
 def df_add_delta(df, col='delta', src_col=None, window=None, inplace=False):
     """
     Add a column containing the delta of the given other column.
