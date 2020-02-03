@@ -16,6 +16,7 @@
 #
 
 from enum import Enum
+from collections import defaultdict
 import itertools
 
 import numpy as np
@@ -228,30 +229,21 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return rt_tasks
 
-    @TraceAnalysisBase.cache
     @requires_events('sched_switch', 'sched_wakeup')
-    def df_tasks_states(self):
+    def _df_tasks_states(self, tasks=None, return_one_df=False):
         """
-        DataFrame of all tasks state updates events
+        Compute tasks states for all tasks.
 
-        :returns: a :class:`pandas.DataFrame` with:
+        :param tasks: If specified, states of these tasks only will be yielded.
+            The :class:`lisa.trace.TaskID` must have a ``pid`` field specified,
+            since the task state is per-PID.
+        :type tasks: list(lisa.trace.TaskID) or list(int)
 
-          * A ``cpu`` column (the CPU where the task was on)
-          * A ``pid`` column (the PID of the task)
-          * A ``comm`` column (the name of the task)
-          * A ``target_cpu`` column (the CPU where the task has been scheduled).
-            Will be ``NaN`` for non-wakeup events
-          * A ``curr_state`` column (the current task state, see :class:`~TaskState`)
-          * A ``delta`` column (the duration for which the task will remain in
-            this state)
-          * A ``next_state`` column (the next task state)
-
-
-        .. warning:: Since ``sched_switch`` event multiplexes the update to two
-            PIDs at the same time, the resulting dataframe would contain
-            duplicated indices, breaking some Pandas functions. In order to
-            avoid that, the duplicated timestamps are updated with the minimum
-            increment possible to remove duplication.
+        :param return_one_df: If ``True``, a single dataframe is returned with
+            new extra columns. If ``False``, a generator is returned that
+            yields tuples of ``(TaskID, task_df)``. Each ``task_df`` contains
+            the new columns.
+        :type return_one_df: bool
         """
         ######################################################
         # A) Assemble the sched_switch and sched_wakeup events
@@ -292,28 +284,121 @@ class TasksAnalysis(TraceAnalysisBase):
         df.sort_index(inplace=True)
         df.rename(columns={'__cpu': 'cpu'}, inplace=True)
 
-        # Since sched_switch is split in two df (next and prev), we end up with
-        # duplicated indices. Avoid that by incrementing them by the minimum
-        # amount possible
-        df = df_update_duplicates(df, col=None, inplace=True)
+        # Restrict the set of data we will process to a given set of tasks
+        if tasks is not None:
+            def resolve_task(task):
+                """
+                Get a TaskID for each task, and only update existing TaskID if
+                they lack a PID field, since that's what we care about in that
+                function.
+                """
+                try:
+                    do_update = task.pid is None
+                except AttributeError:
+                    do_update = False
 
-        def make_pid_df(df):
-            # For each PID, add the time it spent in each state
-            df = df_add_delta(df)
-            df['next_state'] = df['curr_state'].shift(-1)
+                return self.trace.get_task_id(task, update=do_update)
+
+            tasks = list(map(resolve_task, tasks))
+            df = df_filter_task_ids(df, tasks)
+
+        # Return a unique dataframe with new columns added
+        if return_one_df:
+            df.sort_index(inplace=True)
+            df.index.name = 'Time'
+            df.reset_index(inplace=True)
+
+            # Since sched_switch is split in two df (next and prev), we end up with
+            # duplicated indices. Avoid that by incrementing them by the minimum
+            # amount possible.
+            df = df_update_duplicates(df, col='Time', inplace=True)
+
+            grouped = df.groupby('pid', sort=False)
+            new_columns = dict(
+                next_state=grouped['curr_state'].shift(-1),
+                # GroupBy.transform() will run the function on each group, and
+                # concatenate the resulting series to create a new column.
+                # Note: We actually need transform() to chain 2 operations on
+                # the group, otherwise the first operation returns a final
+                # Series, and the 2nd is not applied on groups
+                delta=grouped['Time'].transform(lambda time: time.diff().shift(-1)),
+            )
+            df = df.assign(**new_columns)
+            df.set_index('Time', inplace=True)
+
             return df
 
-        df = pd.concat(
-            make_pid_df(pid_df)
-            for col, pid_df in df_split_signals(df, ['pid'])
-        )
-        df.sort_index(inplace=True)
+        # Return a generator yielding (TaskID, task_df) tuples
+        else:
+            def make_pid_df(pid_df):
+                # Even though the initial dataframe contains duplicated indices due to
+                # using both prev_pid and next_pid in sched_switch event, we should
+                # never end up with prev_pid == next_pid, so task-specific dataframes
+                # are expected to be free from duplicated timestamps.
+                # assert not df.index.duplicated().any()
 
-        return df[['pid', 'comm', 'target_cpu', 'cpu', 'curr_state', 'next_state', 'delta']]
+                # Copy the df to add new columns
+                pid_df = pid_df.copy(deep=False)
 
+                # For each PID, add the time it spent in each state
+                pid_df['delta'] = pid_df.index.to_series().diff().shift(-1)
+                pid_df['next_state'] = pid_df['curr_state'].shift(-1)
+                return pid_df
+
+            signals = df_split_signals(df, ['pid'])
+            return (
+                (TaskID(pid=col['pid'], comm=None), make_pid_df(pid_df))
+                for col, pid_df in signals
+            )
+
+    @staticmethod
+    def _reorder_tasks_states_columns(df):
+        """
+        Reorder once at the end of computation, since doing it for each tasks'
+        dataframe turned out to be very costly
+        """
+        order = ['pid', 'comm', 'target_cpu', 'cpu', 'curr_state', 'next_state', 'delta']
+        cols = set(order)
+        available_cols = set(df.columns)
+        displayed_cols = [
+            col
+            for col in order
+            if col in (available_cols & cols)
+        ]
+        extra_cols = sorted(available_cols - cols)
+
+        col_list = displayed_cols + extra_cols
+        return df[col_list]
 
     @TraceAnalysisBase.cache
-    @df_tasks_states.used_events
+    @_df_tasks_states.used_events
+    def df_tasks_states(self):
+        """
+        DataFrame of all tasks state updates events
+
+        :returns: a :class:`pandas.DataFrame` with:
+
+          * A ``cpu`` column (the CPU where the task was on)
+          * A ``pid`` column (the PID of the task)
+          * A ``comm`` column (the name of the task)
+          * A ``target_cpu`` column (the CPU where the task has been scheduled).
+            Will be ``NaN`` for non-wakeup events
+          * A ``curr_state`` column (the current task state, see :class:`~TaskState`)
+          * A ``delta`` column (the duration for which the task will remain in
+            this state)
+          * A ``next_state`` column (the next task state)
+
+        .. warning:: Since ``sched_switch`` event multiplexes the update to two
+            PIDs at the same time, the resulting dataframe would contain
+            duplicated indices, breaking some Pandas functions. In order to
+            avoid that, the duplicated timestamps are updated with the minimum
+            increment possible to remove duplication.
+        """
+        df = self._df_tasks_states(return_one_df=True)
+        return self._reorder_tasks_states_columns(df)
+
+    @TraceAnalysisBase.cache
+    @_df_tasks_states.used_events
     def df_task_states(self, task, stringify=False):
         """
         DataFrame of task's state updates events
@@ -334,16 +419,14 @@ class TasksAnalysis(TraceAnalysisBase):
           * A ``delta`` column (the duration for which the task will remain in
             this state)
         """
-        task_id = self.trace.get_task_id(task, update=False)
-        df = self.df_tasks_states()
-
-        df = df_filter_task_ids(df, [task_id])
-        df = df.drop(columns=["pid", "comm"])
+        tasks_df = list(self._df_tasks_states(tasks=[task]))
+        task_id, task_df = tasks_df[0]
+        task_df = task_df.drop(columns=["pid", "comm"])
 
         if stringify:
-            self.stringify_df_task_states(df, ["curr_state", "next_state"], inplace=True)
+            self.stringify_df_task_states(task_df, ["curr_state", "next_state"], inplace=True)
 
-        return df
+        return self._reorder_tasks_states_columns(task_df)
 
     @classmethod
     def stringify_task_state_series(cls, series):
@@ -387,7 +470,7 @@ class TasksAnalysis(TraceAnalysisBase):
         return df
 
     @TraceAnalysisBase.cache
-    @df_tasks_states.used_events
+    @_df_tasks_states.used_events
     def df_tasks_runtime(self):
         """
         DataFrame of the time each task spent in TASK_ACTIVE (:class:`TaskState`)
@@ -398,23 +481,24 @@ class TasksAnalysis(TraceAnalysisBase):
           * A ``comm`` column (the name of the task)
           * A ``runtime`` column (the time that task spent running)
         """
-        df = self.df_tasks_states()
 
         runtimes = {}
-        # Make sure to only look at the relevant portion of the dataframe with
-        # the window, since we are going to make a time-based sum
-        for cols, pid_df in df_split_signals(df, ['pid'], window=self.trace.window):
-            pid = cols['pid']
-            # Recompute the delta so it's consistent with the time slice
+        for task, pid_df in self._df_tasks_states():
+            pid = task.pid
+            # Make sure to only look at the relevant portion of the dataframe
+            # with the window, since we are going to make a time-based sum
+            pid_df = df_refit_index(pid_df, window=self.trace.window)
             pid_df = df_add_delta(pid_df)
+            # Resolve the comm to the last name of the PID in that window
+            comms = pid_df['comm'].unique()
+            comm = comms[-1]
             pid_df = pid_df[pid_df['curr_state'] == TaskState.TASK_ACTIVE]
-            runtimes[pid] = pid_df['delta'].sum(skipna=True)
+            runtimes[pid] = (pid_df['delta'].sum(skipna=True), comm)
 
-        df = pd.DataFrame.from_dict(runtimes, orient="index", columns=["runtime"])
+        df = pd.DataFrame.from_dict(runtimes, orient="index", columns=["runtime", 'comm'])
 
         df.index.name = "pid"
         df.sort_values(by="runtime", ascending=False, inplace=True)
-        df.insert(0, "comm", df.index.map(self._get_task_pid_name))
 
         return df
 
