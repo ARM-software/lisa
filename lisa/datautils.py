@@ -1130,11 +1130,14 @@ class SignalDesc:
 # Defined outside SignalDesc as it references SignalDesc itself
 _SIGNALS = [
     SignalDesc('sched_switch', ['next_comm', 'next_pid']),
+    SignalDesc('sched_switch', ['prev_comm', 'prev_pid']),
+
+    SignalDesc('sched_waking', ['target_cpu']),
+    SignalDesc('sched_waking', ['comm', 'pid']),
     SignalDesc('sched_wakeup', ['target_cpu']),
     SignalDesc('sched_wakeup', ['comm', 'pid']),
-    SignalDesc('sched_waking', ['comm', 'pid']),
-    # Not relevant for now, to be enabled if someone needs it
-    # SignalDesc('sched_waking', ['cpu']),
+    SignalDesc('sched_wakeup_new', ['target_cpu']),
+    SignalDesc('sched_wakeup_new', ['comm', 'pid']),
 
     SignalDesc('cpu_idle', ['cpu_id']),
     SignalDesc('cpu_frequency', ['cpu']),
