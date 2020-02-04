@@ -561,7 +561,12 @@ class TasksAnalysis(TraceAnalysisBase):
         res_df = pd.DataFrame()
         for task_id in task_ids:
             mapping = {'runtime': str(task_id)}
-            _df = self.trace.analysis.tasks.df_task_total_residency(task_id).T.rename(index=mapping)
+            try:
+                _df = self.trace.analysis.tasks.df_task_total_residency(task_id).T.rename(index=mapping)
+            # Not all tasks may be available, e.g. tasks outside the TraceView
+            # window
+            except Exception:
+                continue
             res_df = res_df.append(_df)
 
         res_df['Total'] = res_df.iloc[:, :].sum(axis=1)
