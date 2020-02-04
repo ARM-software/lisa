@@ -1920,7 +1920,7 @@ class Trace(Loggable, TraceBase):
             return mapping
 
         mapping_df_list = []
-        def load(event, name_col, pid_col):
+        def _load(event, name_col, pid_col):
             df = self.df_events(event)
 
             # Get a Time column
@@ -1933,18 +1933,31 @@ class Trace(Loggable, TraceBase):
             mapping_df.rename_axis(index={name_col: 'name', pid_col: 'pid'}, inplace=True)
             mapping_df_list.append(mapping_df)
 
-        if 'sched_load_avg_task' in self.available_events:
-            load('sched_load_avg_task', 'comm', 'pid')
+        def load(event, *args, **kwargs):
+            # All events have a __comm and __pid columns, so use it as well
+            _load(event, '__comm', '__pid')
+            _load(event, *args, **kwargs)
 
-        if 'sched_wakeup' in self.available_events:
-            load('sched_wakeup', '__comm', '__pid')
+        # Import here to avoid circular dependency
+        from lisa.analysis.load_tracking import LoadTrackingAnalysis
+        # All events with a "comm" and "pid" column
+        events = {
+            'sched_wakeup',
+            'sched_wakeup_new',
+            *LoadTrackingAnalysis._SCHED_PELT_SE_NAMES,
+        }
+        for event in events:
+            # Test each event independently, to make sure they will be parsed
+            # if necessary
+            if event in self.available_events:
+                load(event, 'comm', 'pid')
 
         if 'sched_switch' in self.available_events:
             load('sched_switch', 'prev_comm', 'prev_pid')
             load('sched_switch', 'next_comm', 'next_pid')
 
         if not mapping_df_list:
-            raise RuntimeError('Failed to load tasks names, sched_switch, sched_wakeup, or sched_load_avg_task events are needed')
+            raise MissingTraceEventError(sorted(events) + ['sched_switch'], available_events=self.available_events)
 
         df = pd.concat(mapping_df_list)
         # Sort by order of appearance
