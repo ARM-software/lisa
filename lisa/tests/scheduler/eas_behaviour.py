@@ -27,6 +27,7 @@ from devlib.target import KernelVersion
 
 from lisa.wlgen.rta import Periodic, Ramp, Step
 from lisa.analysis.rta import RTAEventsAnalysis
+from lisa.analysis.tasks import TasksAnalysis
 from lisa.tests.base import ResultBundle, CannotCreateError, RTATestBundle
 from lisa.utils import ArtifactPath
 from lisa.datautils import series_integrate, df_deduplicate
@@ -34,6 +35,8 @@ from lisa.energy_model import EnergyModel
 from lisa.trace import requires_events
 from lisa.target import Target
 from lisa.trace import FtraceCollector
+from lisa.pelt import PELT_SCALE
+from lisa.datautils import df_refit_index
 
 
 class EASBehaviour(RTATestBundle):
@@ -84,48 +87,61 @@ class EASBehaviour(RTATestBundle):
 
         return cls(res_dir, plat_info)
 
-    def _get_expected_task_utils_df(self, nrg_model):
+    @RTAEventsAnalysis.df_phases.used_events
+    def _get_expected_task_utils_df(self):
         """
-        Get a DataFrame with the *expected* utilization of each task over time
+        Get a DataFrame with the *expected* utilization of each task over time.
 
         :param nrg_model: EnergyModel used to computed the expected utilization
         :type nrg_model: EnergyModel
 
         :returns: A Pandas DataFrame with a column for each task, showing how
                   the utilization of that task varies over time
+
+        .. note:: The timestamps to match the beginning and end of each rtapp
+            phase are taken from the trace.
         """
-        util_scale = nrg_model.capacity_scale
-
-        transitions = {}
-
-        def add_transition(time, task, util):
-            if time not in transitions:
-                transitions[time] = {task: util}
-            else:
-                transitions[time][task] = util
-
         tasks_map = self.rtapp_tasks_map
 
-        # First we'll build a dict D {time: {task_name: util}} where D[t][n] is
-        # the expected utilization of task n from time t.
-        for task, params in self.rtapp_profile.items():
+        def task_util(task, wlgen_task):
             task_list = tasks_map[task]
             assert len(task_list) == 1
             task = task_list[0]
-            # time = self.get_start_time(experiment) + params.get('delay', 0)
-            time = params.delay_s
-            add_transition(time, task, 0)
-            for _ in range(params.loops):
-                for phase in params.phases:
-                    util = (phase.duty_cycle_pct * util_scale / 100)
-                    add_transition(time, task, util)
-                    time += phase.duration_s
-            add_transition(time, task, 0)
 
-        index = sorted(transitions.keys())
-        df = pd.DataFrame([transitions[k] for k in index], index=index)
-        return df.fillna(method='ffill')
+            df = self.trace.analysis.rta.df_phases(task)
+            phases = wlgen_task.phases
 
+            duty_cycles = {
+                i: phase.duty_cycle_pct
+                for i, phase in enumerate(phases)
+            }
+
+            # TODO: remove that once we have named phases to skip the buffer phase
+            # Shift by one to take into account the buffer phase
+            duty_cycles = {
+                i+1: duty_cycle
+                for i, duty_cycle in duty_cycles.items()
+            }
+            # The buffer phase inherits its duty cycle from the next phase
+            duty_cycles[0] = duty_cycles[1]
+
+            expected_util = df['phase'].map(duty_cycles)
+            expected_util *= PELT_SCALE / 100
+            return task, expected_util
+
+        cols = dict(
+            task_util(task, wlgen_task)
+            for task, wlgen_task in self.rtapp_profile.items()
+        )
+        df = pd.DataFrame(cols)
+        df.fillna(method='ffill', inplace=True)
+        df.dropna(inplace=True)
+
+        # Ensure the index is refitted so that integrals work as expected
+        df = df_refit_index(df, window=self.trace.window)
+        return df
+
+    @TasksAnalysis.df_task_activation.used_events
     def _get_task_cpu_df(self):
         """
         Get a DataFrame mapping task names to the CPU they ran on
@@ -137,15 +153,20 @@ class EASBehaviour(RTATestBundle):
         :returns: A Pandas DataFrame with a column for each task, showing the
                   CPU that the task was "on" at each moment in time
         """
-        tasks = self.rtapp_tasks
+        def task_cpu(task):
+            return task.comm, self.trace.analysis.tasks.df_task_activation(task=task)['cpu']
 
-        df = self.trace.df_events('sched_switch')[['next_comm', '__cpu']]
-        df = df[df['next_comm'].isin(tasks)]
-        df = df.pivot(index=df.index, columns='next_comm').fillna(method='ffill')
-        cpu_df = df['__cpu']
-        cpu_df = df_deduplicate(cpu_df, keep='first', consecutives=True)
-        cpu_df = cpu_df[(cpu_df.shift(+1) != cpu_df).any(axis=1)]
-        return cpu_df
+        df = pd.DataFrame(dict(
+            task_cpu(task_ids[0])
+            for task, task_ids in self.rtapp_task_ids_map.items()
+        ))
+        df.fillna(method='ffill', inplace=True)
+        df.dropna(inplace=True)
+        df = df_deduplicate(df, consecutives=True, keep='first')
+
+        # Ensure the index is refitted so that integrals work as expected
+        df = df_refit_index(df, window=self.trace.window)
+        return df
 
     def _sort_power_df_columns(self, df, nrg_model):
         """
@@ -203,6 +224,7 @@ class EASBehaviour(RTATestBundle):
         filepath = ArtifactPath.join(self.res_dir, 'expected_placement.png')
         analysis.save_plot(fig, filepath=filepath)
 
+    @_get_expected_task_utils_df.used_events
     def _get_expected_power_df(self, nrg_model, capacity_margin_pct):
         """
         Estimate *optimal* power usage over time
@@ -225,7 +247,7 @@ class EASBehaviour(RTATestBundle):
                   "power" column with the sum of other columns. Shows the
                   estimated *optimal* power over time.
         """
-        task_utils_df = self._get_expected_task_utils_df(nrg_model)
+        task_utils_df = self._get_expected_task_utils_df()
 
         data = []
         index = []
@@ -249,6 +271,8 @@ class EASBehaviour(RTATestBundle):
 
         return res_df
 
+    @_get_task_cpu_df.used_events
+    @_get_expected_task_utils_df.used_events
     def _get_estimated_power_df(self, nrg_model):
         """
         Considering only the task placement, estimate power usage over time
@@ -267,8 +291,7 @@ class EASBehaviour(RTATestBundle):
                   the estimated power over time.
         """
         task_cpu_df = self._get_task_cpu_df()
-        task_utils_df = self._get_expected_task_utils_df(nrg_model)
-        task_utils_df.index += self.trace.start
+        task_utils_df = self._get_expected_task_utils_df()
         tasks = self.rtapp_tasks
 
         # Create a combined DataFrame with the utilization of a task and the CPU
@@ -280,7 +303,7 @@ class EASBehaviour(RTATestBundle):
 
         df = pd.concat([task_utils_df, task_cpu_df],
                        axis=1, keys=['utils', 'cpus'])
-        df = df.sort_index().fillna(method='ffill')
+        df = df.sort_index().fillna(method='ffill').dropna()
 
         # Now make a DataFrame with the estimated power at each moment.
         def est_power(row):
@@ -293,9 +316,11 @@ class EASBehaviour(RTATestBundle):
             power = nrg_model.estimate_from_cpu_util(cpu_utils)
             columns = list(power.keys())
             return pd.Series([power[c] for c in columns], index=columns)
+
         return self._sort_power_df_columns(df.apply(est_power, axis=1), nrg_model)
 
-    @requires_events('sched_switch')
+    @_get_expected_power_df.used_events
+    @_get_estimated_power_df.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_task_placement(self, energy_est_threshold_pct=5,
             nrg_model: EnergyModel = None, capacity_margin_pct=20) -> ResultBundle:
