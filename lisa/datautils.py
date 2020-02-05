@@ -546,6 +546,8 @@ def series_window(series, window, method='pre', clip_window=True):
 def _data_window(data, window, method, clip_window):
     """
     ``data`` can either be a :class:`pandas.DataFrame` or :class:`pandas.Series`
+
+    .. warning:: This function assumes ``data`` has a sorted index.
     """
 
     index = data.index
@@ -608,12 +610,51 @@ def _data_window(data, window, method, clip_window):
         raise ValueError('Slicing method not supported: {}'.format(method))
 
     window = [
-        index.get_loc(x, method=method) if x is not None else None
+        _get_loc(index, x, method=method) if x is not None else None
         for x, method in zip(window, method)
     ]
     window = window[0], (window[1] + 1)
 
     return data.iloc[slice(*window)]
+
+
+def _get_loc(index, x, method):
+    """
+    Emulate :func:`pandas.Index.get_loc` behavior with the much faster
+    :func:`pandas.Index.searchsorted`.
+
+    .. warning:: Passing a non-sorted index will destroy performance.
+    """
+
+    # Not a lot of use for nearest, so fall back on the slow but easy to use get_loc()
+    #
+    # Also, if the index is not sorted, we need to fall back on the slow path
+    # as well. Checking is_monotonic is cheap so it's ok to do it here.
+    if method == 'nearest' or not index.is_monotonic:
+        return index.get_loc(x, method=method)
+    else:
+        if index.empty:
+            raise KeyError(x)
+        # get_loc() also raises an exception in these case
+        elif method == 'ffill' and x < index[0]:
+            raise KeyError(x)
+        elif method == 'bfill' and x > index[-1]:
+            raise KeyError(x)
+
+        loc = index.searchsorted(x)
+        try:
+            val_at_loc = index[loc]
+        # We are getting an index past the end. This is fine since we already
+        # checked correct bounds before
+        except IndexError:
+            return loc - 1
+
+        if val_at_loc == x:
+            return loc
+        elif val_at_loc < x:
+            return loc if method == 'ffill' else loc + 1
+        else:
+            return loc - 1 if method == 'ffill' else loc
 
 
 def df_window(df, window, method='pre', clip_window=True):
@@ -682,7 +723,7 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
 
     def window_signal(signal_df):
         # Get the row immediately preceding the window start
-        loc = signal_df.index.get_loc(window[0], method='ffill')
+        loc = _get_loc(signal_df.index, window[0], method='ffill')
         return signal_df.iloc[loc:loc + 1]
 
     # Get the value of each signal at the beginning of the window
