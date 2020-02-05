@@ -21,7 +21,6 @@ from math import isnan
 import abc
 
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from itertools import chain
 from devlib.target import KernelVersion
@@ -173,10 +172,13 @@ class EASBehaviour(RTATestBundle):
         :param nrg_model: EnergyModel used to get the CPU from
         :type nrg_model: EnergyModel
         """
-
-        fig, ax = plt.subplots(
-            len(nrg_model.cpus), 1, figsize=(16, 1.8 * len(nrg_model.cpus))
+        analysis = self.trace.analysis.tasks
+        fig, ax = analysis.setup_plot(
+            nrows=len(nrg_model.cpus),
+            ncols=1,
+            height=1.8,
         )
+
         fig.suptitle('Per-CPU expected utilization')
 
         for cpu in nrg_model.cpus:
@@ -198,9 +200,8 @@ class EASBehaviour(RTATestBundle):
 
                 prev = time
 
-        figname = ArtifactPath.join(self.res_dir, 'expected_placement.png')
-        plt.savefig(figname, bbox_inches='tight')
-        plt.close()
+        filepath = ArtifactPath.join(self.res_dir, 'expected_placement.png')
+        analysis.save_plot(fig, filepath=filepath)
 
     def _get_expected_power_df(self, nrg_model, capacity_margin_pct):
         """
