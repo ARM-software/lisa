@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import re
 import functools
 import operator
 import math
@@ -24,12 +25,69 @@ from operator import attrgetter
 
 import numpy as np
 import pandas as pd
+import pandas.api.extensions
 import scipy.integrate
 import scipy.signal
 
 from lisa.utils import TASK_COMM_MAX_LEN, groupby
 
 
+class DataAccessor:
+    """
+    Proxy class that allows extending the :cls:`pandas.DataFrame` API.
+
+    **Example**::
+
+        # Define and register a dataframe accessor
+        @DataFrameAccessor.register_accessor
+        def df_foobar(df, baz):
+            ...
+
+        df = pandas.DataFrame()
+        # Use the accessor with the "lisa" proxy
+        df.lisa.foobar(baz=1)
+    """
+    def __init__(self, data):
+        self.data = data
+
+    @classmethod
+    def register_accessor(cls, f):
+        """
+        Decorator to register an accessor function.
+
+        The accessor name will be the name of the function, without the
+        ``series_`` or ``df_`` prefix.
+        """
+        name = re.sub(r'^(?:df|series)_(.*)', r'\1', f.__name__)
+        cls.FUNCTIONS[name] = f
+        return f
+
+    def __getattr__(self, attr):
+        try:
+            f = self.FUNCTIONS[attr]
+        except KeyError:
+            raise AttributeError('Unknown method name: {}'.format(attr))
+
+        meth = f.__get__(self.data, self.__class__)
+        return meth
+
+    def __dir__(self):
+        attrs = set(super().__dir__())
+        attrs |= self.FUNCTIONS.keys()
+        return sorted(attrs)
+
+
+@pandas.api.extensions.register_dataframe_accessor('lisa')
+class DataFrameAccessor(DataAccessor):
+    FUNCTIONS = {}
+
+
+@pandas.api.extensions.register_series_accessor('lisa')
+class SeriesAccessor(DataAccessor):
+    FUNCTIONS = {}
+
+
+@SeriesAccessor.register_accessor
 def series_refit_index(series, start=None, end=None, window=None, method='inclusive'):
     """
     Slice a series using :func:`series_window` and ensure we have a value at
@@ -65,6 +123,7 @@ def series_refit_index(series, start=None, end=None, window=None, method='inclus
     return _data_refit_index(series, window, method=method)
 
 
+@DataFrameAccessor.register_accessor
 def df_refit_index(df, start=None, end=None, window=None, method='inclusive'):
     """
     Same as :func:`series_refit_index` but acting on :class:`pandas.DataFrame`
@@ -87,6 +146,7 @@ def _make_window(start, end, window):
         return window
 
 
+@DataFrameAccessor.register_accessor
 def df_split_signals(df, signal_cols, align_start=False, window=None):
     """
     Yield subset of ``df`` that only contain one signal, along with the signal
@@ -161,6 +221,7 @@ def _data_refit_index(data, window, method):
     return data
 
 
+@DataFrameAccessor.register_accessor
 def df_squash(df, start, end, column='delta'):
     """
     Slice a dataframe of deltas in [start:end] and ensure we have
@@ -261,6 +322,7 @@ def df_squash(df, start, end, column='delta'):
     return res_df
 
 
+@DataFrameAccessor.register_accessor
 def df_filter(df, filter_columns):
     """
     Filter the content of a dataframe.
@@ -344,6 +406,7 @@ def _resolve_x(y, x):
     return x
 
 
+@SeriesAccessor.register_accessor
 def series_derivate(y, x=None, order=1):
     """
     Compute a derivative of a :class:`pandas.Series` with respect to another
@@ -370,6 +433,7 @@ def series_derivate(y, x=None, order=1):
     return y
 
 
+@SeriesAccessor.register_accessor
 def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
     """
     Compute the integral of `y` with respect to `x`.
@@ -483,6 +547,7 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
         raise ValueError('Unsupported integration method: {}'.format(method))
 
 
+@SeriesAccessor.register_accessor
 def series_mean(y, x=None, **kwargs):
     r"""
     Compute the average of `y` by integrating with respect to `x` and dividing
@@ -512,6 +577,7 @@ def series_mean(y, x=None, **kwargs):
     return mean
 
 
+@SeriesAccessor.register_accessor
 def series_window(series, window, method='pre', clip_window=True):
     """
     Select a portion of a :class:`pandas.Series`
@@ -657,6 +723,7 @@ def _get_loc(index, x, method):
             return loc - 1 if method == 'ffill' else loc
 
 
+@DataFrameAccessor.register_accessor
 def df_window(df, window, method='pre', clip_window=True):
     """
     Same as :func:`series_window` but acting on a :class:`pandas.DataFrame`
@@ -664,6 +731,7 @@ def df_window(df, window, method='pre', clip_window=True):
     return _data_window(df, window, method, clip_window)
 
 
+@DataFrameAccessor.register_accessor
 def df_window_signals(df, window, signals, compress_init=False, clip_window=True):
     """
     Similar to :func:`df_window` with ``method='pre'`` but guarantees that each
@@ -777,6 +845,7 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
     return pd.concat([init_df, windowed_df])
 
 
+@SeriesAccessor.register_accessor
 def series_align_signal(ref, to_align, max_shift=None):
     """
     Align a signal to an expected reference signal using their
@@ -837,6 +906,7 @@ def series_align_signal(ref, to_align, max_shift=None):
     return ref, to_align.shift(-shift)
 
 
+@DataFrameAccessor.register_accessor
 def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=False, comm_max_len=TASK_COMM_MAX_LEN):
     """
     Filter a dataframe using a list of :class:`lisa.trace.TaskID`
@@ -884,6 +954,7 @@ def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=Fals
     return df[tasks_filter]
 
 
+@SeriesAccessor.register_accessor
 def series_local_extremum(series, kind):
     """
     Returns a series of local extremum.
@@ -905,6 +976,7 @@ def series_local_extremum(series, kind):
     return series.iloc[ilocs]
 
 
+@SeriesAccessor.register_accessor
 def series_tunnel_mean(series):
     """
     Compute the average between the mean of local maximums and local minimums
@@ -922,6 +994,7 @@ def series_tunnel_mean(series):
     return (maxs_mean - mins_mean) / 2 + mins_mean
 
 
+@SeriesAccessor.register_accessor
 def series_rolling_apply(series, func, window, window_float_index=True, center=False):
     """
     Apply a function on a rolling window of a series.
@@ -1007,6 +1080,7 @@ def _data_deduplicate(data, keep, consecutives, cols, all_col):
         return data.drop_duplicates(keep=keep, **kwargs)
 
 
+@SeriesAccessor.register_accessor
 def series_deduplicate(series, keep, consecutives):
     """
     Remove duplicate values in a :class:`pandas.Series`.
@@ -1030,6 +1104,7 @@ def series_deduplicate(series, keep, consecutives):
     return _data_deduplicate(series, keep=keep, consecutives=consecutives, cols=None, all_col=None)
 
 
+@DataFrameAccessor.register_accessor
 def df_deduplicate(df, keep, consecutives, cols=None, all_col=True):
     """
     Same as :func:`series_deduplicate` but for :class:`pandas.DataFrame`.
@@ -1045,6 +1120,7 @@ def df_deduplicate(df, keep, consecutives, cols=None, all_col=True):
     return _data_deduplicate(df, keep=keep, consecutives=consecutives, cols=cols, all_col=all_col)
 
 
+@DataFrameAccessor.register_accessor
 def df_update_duplicates(df, col=None, func=None, inplace=False):
     """
     Update a given column to avoid duplicated values.
@@ -1104,6 +1180,7 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
     return df
 
 
+@DataFrameAccessor.register_accessor
 def df_add_delta(df, col='delta', src_col=None, window=None, inplace=False):
     """
     Add a column containing the delta of the given other column.
@@ -1273,7 +1350,5 @@ SignalDesc._SIGNALS_MAP = {
     event: list(signal_descs)
     for event, signal_descs in groupby(_SIGNALS, key=attrgetter('event'))
 }
-
-
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
