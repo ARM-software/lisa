@@ -691,7 +691,9 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
         return np.nextafter(x, -math.inf)
 
     def make_empty_df():
-        return pd.DataFrame(columns=df.columns)
+        empty = pd.DataFrame(columns=df.columns)
+        empty.index.name = df.index.name
+        return empty
 
     windowed_df = df_window(df, window, method='pre', clip_window=clip_window)
 
