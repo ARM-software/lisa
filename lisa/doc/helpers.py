@@ -392,7 +392,7 @@ def get_deprecated_table():
         else:
             removed_in = ''
 
-        table = ".. list-table:: Deprecated names{removed_in}\n    :align: left\n    :width: 100%{entries}".format(
+        table = ".. list-table:: Deprecated names{removed_in}\n    :align: left{entries}".format(
             entries=indent('\n\n' + entries),
             removed_in=removed_in,
         )
