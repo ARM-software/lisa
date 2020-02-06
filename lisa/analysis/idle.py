@@ -109,7 +109,7 @@ class IdleAnalysis(TraceAnalysisBase):
         """
         cpus = list(range(self.trace.cpus_count))
 
-        sr = pd.Series()
+        sr = pd.Series(dtype='float64')
         for cpu in cpus:
             cpu_sr = self.signal_cpu_active(cpu)
             cpu_sr = cpu_sr[cpu_sr == 1]
