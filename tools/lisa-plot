@@ -294,7 +294,26 @@ Available plots:
 
     trace = Trace(args.trace, plat_info=plat_info, events=events, normalize_time=args.normalize_time, write_swap=True)
     if args.window:
-        trace = trace.get_view(args.window)
+        window = args.window
+        def clip(l, x, r):
+            if x < l:
+                return l
+            elif x > r:
+                return r
+            else:
+                return x
+
+        window = (
+            clip(trace.window[0], window[0], trace.window[1]),
+            clip(trace.window[0], window[1], trace.window[1]),
+        )
+        # There is no overlap between trace and user window, reset to trace
+        # window
+        if window[0] == window[1]:
+            print('Window {} does not overlap with trace time range, maybe you forgot --normalize-time ?'.format(tuple(args.window)))
+            window = trace.window
+
+        trace = trace.get_view(window)
 
     for plot_name, file_path in sorted(plot_spec_list):
         f = flat_plot_map[plot_name]
