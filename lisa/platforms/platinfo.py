@@ -194,22 +194,26 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
 
         def get_writeable_capacities():
             orig_capacities = get_orig_capacities()
-            cpu = 0
-            path = '/sys/devices/system/cpu/cpu{}/cpu_capacity'.format(cpu)
-            capa = orig_capacities[cpu]
-            test_capa = capa - 1 if capa > 1 else capa + 1
 
-            try:
-                target.write_value(path, test_capa, verify=True)
-            except TargetStableError:
-                writeable = False
+            if orig_capacities is None:
+                return None
             else:
-                writeable = True
-            finally:
-                with contextlib.suppress(TargetStableError):
-                    target.write_value(path, capa)
+                cpu = 0
+                path = '/sys/devices/system/cpu/cpu{}/cpu_capacity'.format(cpu)
+                capa = orig_capacities[cpu]
+                test_capa = capa - 1 if capa > 1 else capa + 1
 
-            return writeable
+                try:
+                    target.write_value(path, test_capa, verify=True)
+                except TargetStableError:
+                    writeable = False
+                else:
+                    writeable = True
+                finally:
+                    with contextlib.suppress(TargetStableError):
+                        target.write_value(path, capa)
+
+                return writeable
 
         info['cpu-capacities'] = {
             'writeable': get_writeable_capacities,
