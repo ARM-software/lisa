@@ -1282,9 +1282,9 @@ class Trace(Loggable, TraceBase):
     :param trace_path: File containing the trace
     :type trace_path: str
 
-    :param events: events to be parsed (all the events used by analysis by
-        default)
-    :type events: list(str)
+    :param events: events to be parsed. Since events can be loaded on-demand,
+        that is optional but still recommended to improve trace parsing speed.
+    :type events: list(str) or None
 
     :param plat_info: Platform info describing the target that this trace was
         collected on.
@@ -1327,7 +1327,10 @@ class Trace(Loggable, TraceBase):
     :ivar start: The timestamp of the first trace event in the trace
     :ivar end: The timestamp of the last trace event in the trace
     :ivar time_range: Maximum timespan for all collected events
-    :ivar available_events: List of events available in the parsed trace
+    :ivar window: Conveniency tuple of ``(start, end)``.
+    :ivar available_events: Events available in the parsed trace, exposed as
+        some kind of set-ish smart container. Querying for event might trigger
+        the parsing of it.
     """
 
     def __init__(self,
