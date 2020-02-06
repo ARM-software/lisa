@@ -19,6 +19,7 @@ import functools
 import operator
 import math
 import itertools
+import warnings
 from operator import attrgetter
 
 import numpy as np
@@ -29,7 +30,7 @@ import scipy.signal
 from lisa.utils import TASK_COMM_MAX_LEN, groupby
 
 
-def series_refit_index(series, start=None, end=None, method='inclusive'):
+def series_refit_index(series, start=None, end=None, window=None, method='inclusive'):
     """
     Slice a series using :func:`series_window` and ensure we have a value at
     exactly the specified boundaries.
@@ -43,6 +44,11 @@ def series_refit_index(series, start=None, end=None, method='inclusive'):
     :param end: Last index value to find in the returned series.
     :type end: object
 
+    :param window: ``window=(start, end)`` is the same as
+        ``start=start, end=end``. These parameters styles are mutually
+        exclusive.
+    :type window: tuple(float or None, float or None) or None
+
     :param method: Windowing method used to select the first and last values of
         the series using :func:`series_window`. Defaults to ``pre``, which is
         suitable for signals where all the value changes have a corresponding
@@ -55,18 +61,33 @@ def series_refit_index(series, start=None, end=None, method='inclusive'):
         value happened. This also allows plotting series with only one item
         using matplotlib, which would otherwise be impossible.
     """
+    window = _make_window(start, end, window)
+    return _data_refit_index(series, window, method=method)
 
-    return _data_refit_index(series, start, end, method=method)
 
-
-def df_refit_index(df, start=None, end=None, method='inclusive'):
+def df_refit_index(df, start=None, end=None, window=None, method='inclusive'):
     """
     Same as :func:`series_refit_index` but acting on :class:`pandas.DataFrame`
     """
-    return _data_refit_index(df, start, end, method=method)
+    window = _make_window(start, end, window)
+    return _data_refit_index(df, window, method=method)
+
+def _make_window(start, end, window):
+    uses_separated = (start, end) != (None, None)
+
+    if uses_separated:
+        warnings.warn('start and end df_refit_index() parameters are deprecated, please use window=', DeprecationWarning, stacklevel=3)
+
+    if window is not None and uses_separated:
+        raise ValueError('window != None cannot be used along with start and end parameters')
+
+    if window is None:
+        return (start, end)
+    else:
+        return window
 
 
-def df_split_signals(df, signal_cols, align_start=False):
+def df_split_signals(df, signal_cols, align_start=False, window=None):
     """
     Yield subset of ``df`` that only contain one signal, along with the signal
     identification values.
@@ -77,13 +98,23 @@ def df_split_signals(df, signal_cols, align_start=False):
     :param signal_cols: Columns that uniquely identify a signal.
     :type signal_cols: list(str)
 
-    :param align_start: If ``True``, :func:`df_refit_index` will be applied on
-        the yielded dataframes so that they all start at the same index.
-    :type refit_index: bool
+    :param window: Apply :func:`df_refit_index` on the yielded dataframes with
+        the given window.
+    :type window: tuple(float or None, float or None) or None
+
+    :param align_start: If ``True``, same as ``window=(df.index[0], None)``.
+        This makes sure all yielded signals start at the same index as the
+        original dataframe.
+    :type align_start: bool
     """
     if not signal_cols:
         yield ({}, df)
     else:
+        if align_start:
+            if window is not None:
+                raise ValueError('align_start=True cannot be used with window != None')
+            window = (df.index[0], None)
+
         for group, signal in df.groupby(signal_cols):
             # When only one column is looked at, the group is the value instead of
             # a tuple of values
@@ -92,14 +123,18 @@ def df_split_signals(df, signal_cols, align_start=False):
             else:
                 cols_val = dict(zip(signal_cols, group))
 
-            if align_start:
-                signal = df_refit_index(signal, start=df.index[0], method='inclusive')
+            if window:
+                signal = df_refit_index(signal, window=window, method='inclusive')
             yield (cols_val, signal)
 
 
-def _data_refit_index(data, start, end, method):
+def _data_refit_index(data, window, method):
+    if data.empty:
+        raise ValueError('Cannot refit the index of an empty dataframe or series')
+
+    start, end = window
     duplicate_last = end > data.index[-1]
-    data = _data_window(data, (start, end), method=method, clip_window=True)
+    data = _data_window(data, window, method=method, clip_window=True)
 
     if data.empty:
         return data
@@ -133,7 +168,7 @@ def df_squash(df, start, end, column='delta'):
 
     The input dataframe is expected to have a "column" which reports
     the time delta between consecutive rows, as for example dataframes
-    generated by add_events_deltas().
+    generated by :func:`df_add_delta`.
 
     The returned dataframe is granted to have an initial and final
     event at the specified "start" ("end") index values, which values
@@ -494,9 +529,11 @@ def series_window(series, window, method='pre', clip_window=True):
 
     :param method: Choose how edges are handled:
 
-        * `inclusive`: corresponds to default pandas float slicing behaviour.
+        * `inclusive`: When no exact match is found, include both the previous
+            and next values around the window.
         * `exclusive`: When no exact match is found, only index values within
-            the range are selected
+            the range are selected. This is the default pandas float slicing
+            behavior.
         * `nearest`: When no exact match is found, take the nearest index value.
         * `pre`: When no exact match is found, take the previous index value.
         * `post`: When no exact match is found, take the next index value.
@@ -509,6 +546,8 @@ def series_window(series, window, method='pre', clip_window=True):
 def _data_window(data, window, method, clip_window):
     """
     ``data`` can either be a :class:`pandas.DataFrame` or :class:`pandas.Series`
+
+    .. warning:: This function assumes ``data`` has a sorted index.
     """
 
     index = data.index
@@ -544,15 +583,18 @@ def _data_window(data, window, method, clip_window):
 
         window = (start, end)
 
-    if method == 'inclusive':
-        # Default slicing behaviour of pandas' Float64Index is to be inclusive,
-        # so we can use that knowledge to enable a fast path for common needs.
-        if isinstance(data.index, pd.Float64Index):
-            return data[slice(*window)]
+    if window[0] > window[1]:
+        raise KeyError('The window starts after its end: {}'.format(window))
 
+    if method == 'inclusive':
         method = ('ffill', 'bfill')
 
     elif method == 'exclusive':
+        # Default slicing behaviour of pandas' Float64Index is to be exclusive,
+        # so we can use that knowledge to enable a fast path.
+        if isinstance(data.index, pd.Float64Index):
+            return data[slice(*window)]
+
         method = ('bfill', 'ffill')
 
     elif method == 'nearest':
@@ -568,12 +610,51 @@ def _data_window(data, window, method, clip_window):
         raise ValueError('Slicing method not supported: {}'.format(method))
 
     window = [
-        index.get_loc(x, method=method) if x is not None else None
+        _get_loc(index, x, method=method) if x is not None else None
         for x, method in zip(window, method)
     ]
     window = window[0], (window[1] + 1)
 
     return data.iloc[slice(*window)]
+
+
+def _get_loc(index, x, method):
+    """
+    Emulate :func:`pandas.Index.get_loc` behavior with the much faster
+    :func:`pandas.Index.searchsorted`.
+
+    .. warning:: Passing a non-sorted index will destroy performance.
+    """
+
+    # Not a lot of use for nearest, so fall back on the slow but easy to use get_loc()
+    #
+    # Also, if the index is not sorted, we need to fall back on the slow path
+    # as well. Checking is_monotonic is cheap so it's ok to do it here.
+    if method == 'nearest' or not index.is_monotonic:
+        return index.get_loc(x, method=method)
+    else:
+        if index.empty:
+            raise KeyError(x)
+        # get_loc() also raises an exception in these case
+        elif method == 'ffill' and x < index[0]:
+            raise KeyError(x)
+        elif method == 'bfill' and x > index[-1]:
+            raise KeyError(x)
+
+        loc = index.searchsorted(x)
+        try:
+            val_at_loc = index[loc]
+        # We are getting an index past the end. This is fine since we already
+        # checked correct bounds before
+        except IndexError:
+            return loc - 1
+
+        if val_at_loc == x:
+            return loc
+        elif val_at_loc < x:
+            return loc if method == 'ffill' else loc + 1
+        else:
+            return loc - 1 if method == 'ffill' else loc
 
 
 def df_window(df, window, method='pre', clip_window=True):
@@ -583,7 +664,7 @@ def df_window(df, window, method='pre', clip_window=True):
     return _data_window(df, window, method, clip_window)
 
 
-def df_window_signals(df, window, signal_cols_list, compress_init=False, clip_window=True):
+def df_window_signals(df, window, signals, compress_init=False, clip_window=True):
     """
     Similar to :func:`df_window` with ``method='pre'`` but guarantees that each
     signal will have a values at the beginning of the window.
@@ -592,8 +673,9 @@ def df_window_signals(df, window, signal_cols_list, compress_init=False, clip_wi
         region to select.
     :type window: tuple(object)
 
-    :param signal_cols_list: List of columns that uniquely identify a signal.
-    :type signal_cols_list: list(list(str))
+    :param signals: List of :class:`SignalDesc` describing the signals to
+        fixup.
+    :type signals: list(SignalDesc)
 
     :param compress_init: When ``False``, the timestamps of the init value of
         signals (right before the window) are preserved. If ``True``, they are
@@ -609,15 +691,9 @@ def df_window_signals(df, window, signal_cols_list, compress_init=False, clip_wi
         return np.nextafter(x, -math.inf)
 
     def make_empty_df():
-        return pd.DataFrame(columns=df.columns)
-
-    def signal_in_window(signal_df, window):
-        start = window[0]
-        index = signal_df.index
-        signal_start, signal_end = index[0], index[-1]
-        # Signals are encoded as transitions, so as soon as we a transition
-        # inside the window, we know that the signal is relevant
-        return signal_start <= start <= signal_end
+        empty = pd.DataFrame(columns=df.columns)
+        empty.index.name = df.index.name
+        return empty
 
     windowed_df = df_window(df, window, method='pre', clip_window=clip_window)
 
@@ -632,31 +708,36 @@ def df_window_signals(df, window, signal_cols_list, compress_init=False, clip_wi
     else:
         extra_df = df_window(windowed_df, extra_window, method='pre')
 
-    # This time around, exclude anything before window[0] since it will be provided by extra_df
+    # This time around, exclude anything before extra_window[1] since it will be provided by extra_df
     try:
-        # Make sure we don't get any extra rows on the right, since we want the
-        # "pre" method overall
-        _window = (window[0], windowed_df.index[-1])
-        windowed_df = df_window(windowed_df, _window, method='post', clip_window=True)
+        # Right boundary is exact, so failure can only happen if left boundary
+        # is after the start of the dataframe, or if the window starts after its end.
+        _window = (extra_window[1], windowed_df.index[-1])
+        windowed_df = df_window(windowed_df, _window, method='post', clip_window=False)
     # The windowed_df did not contain any row in the given window, all the
     # actual data are in extra_df
     except KeyError:
         windowed_df = make_empty_df()
+    else:
+        # Make sure we don't include the left boundary
+        if windowed_df.index[0] == _window[0]:
+            windowed_df = windowed_df.iloc[1:]
 
     def window_signal(signal_df):
-        df = df_window(signal_df, window, method='pre', clip_window=clip_window)
-        return df
+        # Get the row immediately preceding the window start
+        loc = _get_loc(signal_df.index, window[0], method='ffill')
+        return signal_df.iloc[loc:loc + 1]
 
     # Get the value of each signal at the beginning of the window
     signal_df_list = [
         window_signal(signal_df)
         for signal, signal_df in itertools.chain.from_iterable(
-            df_split_signals(df, signal_cols, align_start=False)
-            for signal_cols in signal_cols_list
+            df_split_signals(df, signal.fields, align_start=False)
+            for signal in signals
         )
         # Only consider the signal that are in the window. Signals that started
         # after the window are irrelevant.
-        if signal_in_window(signal_df, window)
+        if not signal_df.empty and signal_df.index[0] <= window[0]
     ]
 
     if compress_init:
@@ -686,17 +767,11 @@ def df_window_signals(df, window, signal_cols_list, compress_init=False, clip_wi
 
     # Get the last row before the beginning the window for each signal, in
     # timestamp order
-    init_df = pd.concat(
-        [extra_df] + [
-            # First row of the dataframe
-            signal_df.iloc[0:1]
-            for signal_df in sorted(signal_df_list, key=lambda df: df.index[0])
-        ]
-    )
+    init_df = pd.concat([extra_df] + signal_df_list)
+    init_df.sort_index(inplace=True)
     # Remove duplicated indices, meaning we selected the same row multiple
     # times because it's part of multiple signals
     init_df = init_df.loc[~init_df.index.duplicated(keep='first')]
-    init_df.sort_index(inplace=True)
 
     init_df.index = make_init_df_index(init_df)
     return pd.concat([init_df, windowed_df])
@@ -969,6 +1044,140 @@ def df_deduplicate(df, keep, consecutives, cols=None, all_col=True):
     """
     return _data_deduplicate(df, keep=keep, consecutives=consecutives, cols=cols, all_col=all_col)
 
+
+def df_update_duplicates(df, col=None, func=None, inplace=False):
+    """
+    Update a given column to avoid duplicated values.
+
+    :param df: Dataframe to act on.
+    :type df: pandas.DataFrame
+
+    :param col: Column to update. If ``None``, the index is used.
+    :type col: str or None
+
+    :param func: The function used to update the column. It must take a
+        :class:`pandas.Series` of duplicated entries to update as parameters,
+        and return a new :class:`pandas.Series`. The function will be called as
+        long as there are remaining duplicates. If ``None``, the column is
+        assumed to be floating point and duplicated values will be incremented
+        by the smallest amount possible.
+    :type func: collections.abc.Callable
+
+    :param inplace: If ``True``, the passed dataframe will be modified.
+    :type inplace: bool
+    """
+
+    def increment(series):
+        return pd.Series(np.nextafter(series.values, math.inf), index=series.index)
+
+    def get_duplicated(series):
+        # Keep the first, so we update the second duplicates
+        locs = series.duplicated(keep='first')
+        return locs, series.loc[locs]
+
+    def copy(series):
+        return series.copy() if inplace else series
+
+    use_index = col is None
+    # Indices already gets copied with to_series()
+    use_copy = inplace and not use_index
+
+    series = df.index.to_series() if use_index else df[col]
+    series = series.copy() if use_copy else series
+    func = func if func else increment
+
+    # Update the values until there is no more duplication
+    duplicated_locs, duplicated = get_duplicated(series)
+    while duplicated_locs.any():
+        updated = func(duplicated)
+        # Change the values at the points of duplication. Otherwise, take the
+        # initial value
+        series.loc[duplicated_locs] = updated
+        duplicated_locs, duplicated = get_duplicated(series)
+
+    df = df if inplace else df.copy()
+    if use_index:
+        df.index = series
+    else:
+        df[col] = series
+
+    return df
+
+
+def df_add_delta(df, col='delta', src_col=None, window=None, inplace=False):
+    """
+    Add a column containing the delta of the given other column.
+
+    :param df: The dataframe to act on.
+    :type df: pandas.DataFrame
+
+    :param col: The name of the column to add.
+    :type col: str
+
+    :param src_col: Name of the column to compute the delta of. If ``None``,
+        the index is used.
+    :type src_col: str or None
+
+    :param window: Optionally, a window. It will be used to compute the correct
+        delta of the last row. If ``inplace=False``, the dataframe will be
+        pre-filtered using :func:`df_refit_index`. This implies that the last
+        row will have a NaN delta, but will be suitable e.g. for plotting, and
+        aggregation functions that ignore delta such as
+        :meth:`pandas.DataFrame.sum`.
+    :type window: tuple(float or None, float or None) or None
+
+    :param inplace: If ``True``, ``df`` is modified inplace to add the column
+    :type inplace: bool
+    """
+
+    use_refit_index = window and not inplace
+
+    if use_refit_index:
+        df = df_refit_index(df, window=window)
+
+    src = df[src_col] if src_col else df.index.to_series()
+    delta = src.diff().shift(-1)
+
+    # When use_refit_index=True, the last delta will already be sensible
+    if not use_refit_index and window:
+        start, end = window
+        if end is not None:
+            new_end = end - src.iloc[-1]
+            new_end = new_end if new_end > 0 else 0
+            delta.iloc[-1] = new_end
+
+    if not inplace:
+        df = df.copy()
+
+    df[col] = delta
+
+    return df
+
+
+def series_combine(series_list, func, fill_value=None):
+    """
+    Same as :meth:`pandas.Series.combine` on a list of series rather than just
+    two.
+    """
+    return _data_combine(series_list, func, fill_value)
+
+
+def df_combine(series_list, func, fill_value=None):
+    """
+    Same as :meth:`pandas.DataFrame.combine` on a list of series rather than just
+    two.
+    """
+    return _data_combine(series_list, func, fill_value)
+
+
+def _data_combine(datas, func, fill_value=None):
+    state = datas[0]
+    for data in datas[1:]:
+        state = state.combine(data, func=func, fill_value=fill_value)
+
+    return state
+
+
 class SignalDesc:
     """
     Define a signal to be used by various signal-oriented APIs.
@@ -1023,20 +1232,24 @@ class SignalDesc:
 # Defined outside SignalDesc as it references SignalDesc itself
 _SIGNALS = [
     SignalDesc('sched_switch', ['next_comm', 'next_pid']),
+    SignalDesc('sched_switch', ['prev_comm', 'prev_pid']),
+
+    SignalDesc('sched_waking', ['target_cpu']),
+    SignalDesc('sched_waking', ['comm', 'pid']),
     SignalDesc('sched_wakeup', ['target_cpu']),
     SignalDesc('sched_wakeup', ['comm', 'pid']),
-    SignalDesc('sched_waking', ['comm', 'pid']),
-    # Not relevant for now, to be enabled if someone needs it
-    # SignalDesc('sched_waking', ['cpu']),
+    SignalDesc('sched_wakeup_new', ['target_cpu']),
+    SignalDesc('sched_wakeup_new', ['comm', 'pid']),
 
     SignalDesc('cpu_idle', ['cpu_id']),
     SignalDesc('cpu_frequency', ['cpu']),
     SignalDesc('sched_compute_energy', ['comm', 'pid']),
 
-    SignalDesc('sched_load_se', ['__comm', '__pid']),
+    SignalDesc('sched_load_se', ['comm', 'pid']),
     SignalDesc('sched_util_est_task', ['comm', 'pid']),
+
     SignalDesc('sched_util_est_cpu', ['cpu']),
-    SignalDesc('sched_load_cfs_rq', ['path']),
+    SignalDesc('sched_load_cfs_rq', ['path', 'cpu']),
     SignalDesc('sched_pelt_irq', ['cpu']),
     SignalDesc('sched_pelt_rt', ['cpu']),
     SignalDesc('sched_pelt_dl', ['cpu']),

@@ -20,7 +20,7 @@ import pandas as pd
 from devlib.module.sched import SchedDomain, SchedDomainFlag
 
 from lisa.utils import memoized, ArtifactPath
-from lisa.datautils import df_squash
+from lisa.datautils import df_squash, df_add_delta
 from lisa.trace import Trace, FtraceConf, FtraceCollector, requires_events
 from lisa.wlgen.rta import Periodic
 from lisa.tests.base import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
@@ -240,7 +240,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         active_df = pd.DataFrame(
             self.trace.analysis.idle.signal_cpu_active(cpu), columns=['state']
         )
-        self.trace.add_events_deltas(active_df)
+        df_add_delta(active_df, inplace=True, window=self.trace.window)
         return active_df
 
     @_get_active_df.used_events

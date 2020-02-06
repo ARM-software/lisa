@@ -19,9 +19,9 @@
 
 import pandas as pd
 
-from lisa.utils import memoized
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.trace import requires_events
+from lisa.trace import requires_events, CPU
+from lisa.datautils import df_window
 
 
 class CpusAnalysis(TraceAnalysisBase):
@@ -35,6 +35,7 @@ class CpusAnalysis(TraceAnalysisBase):
 # DataFrame Getter Methods
 ###############################################################################
 
+    @TraceAnalysisBase.cache
     @requires_events('sched_switch')
     def df_context_switches(self):
         """
@@ -44,7 +45,16 @@ class CpusAnalysis(TraceAnalysisBase):
 
           * A ``context_switch_cnt`` column (the number of context switch per CPU)
         """
-        sched_df = self.trace.df_events('sched_switch')
+        # Since we want to count the number of context switches, we don't want
+        # all tasks to appear
+        sched_df = self.trace.df_events('sched_switch', signals_init=False)
+        # Make sure to only get the switches inside the window
+        sched_df = df_window(
+            sched_df,
+            method='exclusive',
+            window=self.trace.window,
+            clip_window=False,
+        )
         cpus = list(range(self.trace.cpus_count))
         ctx_sw_df = pd.DataFrame(
             [len(sched_df[sched_df['__cpu'] == cpu]) for cpu in cpus],
@@ -71,7 +81,7 @@ class CpusAnalysis(TraceAnalysisBase):
         axis.grid()
 
     @TraceAnalysisBase.plot_method()
-    def plot_orig_capacity(self, cpu, axis, local_fig):
+    def plot_orig_capacity(self, cpu: CPU, axis, local_fig):
         """
         Plot the orig capacity of a CPU onto a given axis
 

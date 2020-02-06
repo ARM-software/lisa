@@ -934,7 +934,7 @@ class CPUMigrationBase(LoadTrackingBase):
                 return series
 
             df_means = trace.analysis.rta.df_phases(task).apply(compute_means, axis=1)
-            df_means = series_refit_index(df_means, trace.start, trace.end)
+            df_means = series_refit_index(df_means, window=trace.window)
             df_means['Phase duty cycle average'].plot(drawstyle='steps-post', ax=activation_axis)
             df_means['Phase util tunnel average'].plot(drawstyle='steps-post', ax=axis)
             activation_axis.legend()

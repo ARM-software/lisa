@@ -226,7 +226,9 @@ class DocPlotConf(SimpleMultiSrcConf):
     {generated_help}
     """
     STRUCTURE = TopLevelKeyDesc('doc-plot-conf', 'Plot methods configuration', (
-        KeyDesc('plots', 'Mapping of function qualnames to their settings', [Mapping]),
+        # Avoid deepcopy of the value, since it contains a Trace object that we
+        # don't want to duplicate for speed reasons
+        KeyDesc('plots', 'Mapping of function qualnames to their settings', [Mapping], deepcopy_val=False),
     ))
 
 

@@ -17,14 +17,15 @@
 
 """ Scheduler load tracking analysis module """
 
+import operator
 import itertools
 import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.analysis.status import StatusAnalysis
-from lisa.trace import requires_one_event_of, may_use_events
+from lisa.trace import requires_one_event_of, may_use_events, TaskID
 from lisa.utils import deprecate
-from lisa.datautils import df_refit_index, series_refit_index, df_filter_task_ids
+from lisa.datautils import df_refit_index, series_refit_index, df_filter_task_ids, df_split_signals
 
 
 class LoadTrackingAnalysis(TraceAnalysisBase):
@@ -158,6 +159,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         return self._df_either_event(self._SCHED_PELT_CFS_NAMES)
 
+    @TraceAnalysisBase.cache
     @may_use_events(
         requires_one_event_of(*_SCHED_PELT_SE_NAMES),
         'sched_util_est_task'
@@ -208,6 +210,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         columns = sorted(set(df.columns) & columns)
         return df[columns]
 
+    @TraceAnalysisBase.cache
     @df_tasks_signal.used_events
     def df_task_signal(self, task, signal):
         """
@@ -244,6 +247,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             df['required_capacity'] = self.df_tasks_signal('required_capacity')['required_capacity']
         return df
 
+    @TraceAnalysisBase.cache
     @df_tasks_signal.used_events
     def df_top_big_tasks(self, util_threshold, min_samples=100):
         """
@@ -283,7 +287,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         'cpu_capacity',
     )
     @df_cpus_signal.used_events
-    def plot_cpus_signals(self, cpus=None, signals=['util', 'load'], **kwargs):
+    def plot_cpus_signals(self, cpus=None, signals=['util', 'load'], axis=None, **kwargs):
         """
         Plot the CPU-related load-tracking signals
 
@@ -294,8 +298,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :type signals: list(str)
         """
         cpus = cpus or list(range(self.trace.cpus_count))
-        start = self.trace.start
-        end = self.trace.end
+        window = self.trace.window
 
         def plotter(axes, local_fig):
             axes = axes if len(cpus) > 1 else itertools.repeat(axes)
@@ -306,7 +309,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 for signal in signals:
                     df = self.df_cpus_signal(signal)
                     df = df[df['cpu'] == cpu]
-                    df = df_refit_index(df, start, end)
+                    df = df_refit_index(df, window=window)
                     df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
                 self.trace.analysis.cpus.plot_orig_capacity(cpu, axis=axis)
@@ -316,8 +319,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                     df = self.trace.df_events('cpu_capacity')
                     df = df[df["__cpu"] == cpu]
                     if len(df):
-                        data = df[['capacity', 'tip_capacity']]
-                        data = df_refit_index(data, start, end)
+                        data = df[['capacity']]
+                        data = df_refit_index(data, window=window)
                         data.plot(ax=axis, style=['m', '--y'],
                                   drawstyle='steps-post')
 
@@ -329,11 +332,11 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 axis.set_ylim(0, 1100)
                 axis.legend()
 
-        return self.do_plot(plotter, nrows=len(cpus), sharex=True, **kwargs)
+        return self.do_plot(plotter, nrows=len(cpus), sharex=True, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method()
     @df_task_signal.used_events
-    def plot_task_signals(self, task, axis, local_fig, signals=['util', 'load']):
+    def plot_task_signals(self, task: TaskID, axis, local_fig, signals=['util', 'load']):
         """
         Plot the task-related load-tracking signals
 
@@ -343,13 +346,12 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :param signals: List of signals to plot.
         :type signals: list(str)
         """
-        start = self.trace.start
-        end = self.trace.end
+        window = self.trace.window
         task = self.trace.get_task_id(task, update=False)
 
         for signal in signals:
             df = self.df_task_signal(task, signal)
-            df = df_refit_index(df, start, end)
+            df = df_refit_index(df, window=window)
             df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
@@ -362,20 +364,19 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_tasks_signal.used_events
-    def plot_task_required_capacity(self, task, **kwargs):
+    def plot_task_required_capacity(self, task: TaskID, axis=None, **kwargs):
         """
         Plot the minimum required capacity of a task
 
         :param task: The name or PID of the task, or a tuple ``(pid, comm)``
         :type task: str or int or tuple
         """
-        start = self.trace.start
-        end = self.trace.end
+        window = self.trace.window
 
         task_ids = self.trace.get_task_ids(task)
         df = self.df_tasks_signal('required_capacity')
         df = df_filter_task_ids(df, task_ids)
-        df = df_refit_index(df, start, end)
+        df = df_refit_index(df, window=window)
 
         # Build task names (there could be multiple, during the task lifetime)
         task_name = 'Task ({})'.format(', '.join(map(str, task_ids)))
@@ -394,11 +395,11 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 axis.set_ylabel('Utilization')
                 axis.set_xlabel('Time (s)')
 
-        return self.do_plot(plotter, height=8, **kwargs)
+        return self.do_plot(plotter, height=8, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method()
     @df_task_signal.used_events
-    def plot_task_placement(self, task, axis, local_fig):
+    def plot_task_placement(self, task: TaskID, axis, local_fig):
         """
         Plot the CPU placement of the task
 
@@ -411,34 +412,32 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         df = self.df_task_signal(task_id, 'required_capacity').copy()
         cpu_capacities = self.trace.plat_info["cpu-capacities"]['orig']
 
-        def evaluate_placement(cpu, required_capacity):
-            capacity = cpu_capacities[cpu]
+        df['capacity'] = df['cpu'].map(cpu_capacities)
 
-            if capacity < required_capacity:
-                return "CPU capacity < required capacity"
-            elif capacity == required_capacity:
-                return "CPU capacity == required capacity"
-            else:
-                return "CPU capacity > required capacity"
+        def add_placement(df, comp, comp_str):
+            placement = "CPU capacity {} required capacity".format(comp_str)
+            condition = comp(df['capacity'], df['required_capacity'])
+            df.loc[condition, 'placement'] = placement
 
-        df["placement"] = df.apply(
-            lambda row: evaluate_placement(
-                row["cpu"],
-                row["required_capacity"]), axis=1)
+        add_placement(df, operator.lt, '<')
+        add_placement(df, operator.gt, '>')
+        add_placement(df, operator.eq, '==')
 
-        for stat in df["placement"].unique():
-            series = df[df.placement == stat]["cpu"]
-            series = series_refit_index(series, self.trace.start, self.trace.end)
-            series.plot(ax=axis, style="+", label=stat)
+        for cols, placement_df in df_split_signals(df, ['placement']):
+            placement = cols['placement']
+            series = df["cpu"]
+            series = series_refit_index(series, window=self.trace.window)
+            series.plot(ax=axis, style="+", label=placement)
 
         plot_overutilized = self.trace.analysis.status.plot_overutilized
         if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
-        axis.set_title("Utilization vs placement of task \"{}\"".format(task))
+        if local_fig:
+            axis.set_title('Utilization vs placement of task "{}"'.format(task))
 
-        axis.grid(True)
-        axis.legend()
+            axis.grid(True)
+            axis.legend()
 
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

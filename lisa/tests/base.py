@@ -1194,7 +1194,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         match a different folder structure.
         """
         trace = self.get_trace(events=self.ftrace_conf["events"])
-        return trace.get_view(self.trace_window(trace))
+        return trace.get_view(self.trace_window(trace), clear_base_cache=True)
 
     @TasksAnalysis.df_tasks_runtime.used_events
     def test_noisy_tasks(self, noise_threshold_pct=None, noise_threshold_ms=None):

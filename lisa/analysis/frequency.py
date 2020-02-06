@@ -28,8 +28,8 @@ import numpy as np
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.trace import requires_events
-from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate
+from lisa.trace import requires_events, CPU
+from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window
 
 
 class FrequencyAnalysis(TraceAnalysisBase):
@@ -86,7 +86,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 if not (ref.equals(col) or ref[:-1].equals(col.shift()[1:])):
                     raise ValueError('Frequencies of CPUs in the freq domain {} are not coherent'.format(cpus))
 
-    @memoized
+    @TraceAnalysisBase.cache
     @requires_events('cpu_frequency', 'cpu_idle')
     def _get_frequency_residency(self, cpus):
         """
@@ -110,8 +110,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         cluster_freqs = freq_df[freq_df.cpu == cpus[0]]
 
         # Compute TOTAL Time
-        cluster_freqs = self.trace.add_events_deltas(
-            cluster_freqs, col_name="total_time", inplace=False)
+        cluster_freqs = df_add_delta(cluster_freqs, col="total_time", window=self.trace.window)
         time_df = cluster_freqs[["total_time", "frequency"]].groupby(["frequency"]).sum()
 
         # Compute ACTIVE Time
@@ -178,6 +177,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
             if cpu in domain:
                 return self._get_frequency_residency(tuple(domain))
 
+    @TraceAnalysisBase.cache
     @requires_events('cpu_frequency')
     def df_cpu_frequency_transitions(self, cpu):
         """
@@ -191,8 +191,16 @@ class FrequencyAnalysis(TraceAnalysisBase):
           * A ``transitions`` column (the number of frequency transitions)
         """
 
-        freq_df = self.trace.df_events('cpu_frequency')
-        cpu_freqs = freq_df[freq_df.cpu == cpu].frequency
+        freq_df = self.trace.df_events('cpu_frequency', signals_init=False)
+        # Since we want to count the number of events appearing inside the
+        # window, make sure we don't get anything outside it
+        freq_df = df_window(
+            freq_df,
+            window=self.trace.window,
+            method='exclusive',
+            clip_window=False,
+        )
+        cpu_freqs = freq_df[freq_df.cpu == cpu]['frequency']
 
         # Remove possible duplicates (example: when devlib sets trace markers
         # a cpu_frequency event is triggered that can generate a duplicate)
@@ -204,6 +212,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         return pd.DataFrame(transitions)
 
+    @TraceAnalysisBase.cache
     @df_cpu_frequency_transitions.used_events
     def df_cpu_frequency_transition_rate(self, cpu):
         """
@@ -216,13 +225,10 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
           * A ``transitions`` column (the number of frequency transitions per second)
         """
-        transitions = self.df_cpu_frequency_transitions(cpu)
-        if transitions is None:
-            return None
-
-        return transitions.apply(
-            lambda x: x / (self.trace.end - self.trace.start)
-        )
+        transitions = self.df_cpu_frequency_transitions(cpu)['transitions']
+        return pd.DataFrame(dict(
+            transitions=transitions / self.trace.time_range,
+        ))
 
     @requires_events('cpu_frequency')
     def get_average_cpu_frequency(self, cpu):
@@ -234,14 +240,10 @@ class FrequencyAnalysis(TraceAnalysisBase):
         """
         df = self.trace.df_events('cpu_frequency')
         df = df[df.cpu == cpu]
+        freq = series_refit_index(df['frequency'], window=self.trace.window)
+        return series_mean(freq)
 
-        # We can't use the pandas average because it's not weighted by
-        # time spent in each frequency, so we have to craft our own.
-        df = self.trace.add_events_deltas(df, inplace=False)
-        timespan = self.trace.end - self.trace.start
-
-        return (df['frequency'] * df['delta']).sum() / timespan
-
+    @TraceAnalysisBase.cache
     @requires_events('clock_set_rate', 'clock_enable', 'clock_disable')
     def df_peripheral_clock_effective_rate(self, clk_name):
         rate_df = self.trace.df_events('clock_set_rate')
@@ -271,7 +273,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_peripheral_clock_effective_rate.used_events
-    def plot_peripheral_clock(self, clk, **kwargs):
+    def plot_peripheral_clock(self, clk, axis=None, **kwargs):
         """
         Plot the frequency of a particular peripheral clock
 
@@ -280,15 +282,15 @@ class FrequencyAnalysis(TraceAnalysisBase):
         """
 
         logger = self.get_logger()
-        start = self.trace.start
-        end = self.trace.end
+        window = self.trace.window
+        start, end = window
 
         def plotter(axis, local_fig):
             freq_axis, state_axis = axis
             freq_axis.get_figure().suptitle('Peripheral frequency', y=.97, fontsize=16, horizontalalignment='center')
 
             freq = self.df_peripheral_clock_effective_rate(clk)
-            freq = df_refit_index(freq, start, end)
+            freq = df_refit_index(freq, window=window)
 
             # Plot frequency information (set rate)
             freq_axis.set_title("Clock frequency for " + clk)
@@ -304,7 +306,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
             # Plot frequency information (effective rate)
             eff_rate = freq['effective_rate'].dropna()
-            eff_rate = series_refit_index(eff_rate, start, end)
+            eff_rate = series_refit_index(eff_rate, window=window)
             if len(eff_rate) > 0 and eff_rate.max() > 0:
                 rate_axis_lib = max(rate_axis_lib, eff_rate.max())
                 eff_rate.plot(style=['b-'], ax=freq_axis, drawstyle='steps-post', alpha=1.0, label="Effective rate (with on/off)")
@@ -342,11 +344,11 @@ class FrequencyAnalysis(TraceAnalysisBase):
             state_axis.set_xlabel('seconds')
             state_axis.set_xlim(start, end)
 
-        return self.do_plot(plotter, height=8, nrows=2, **kwargs)
+        return self.do_plot(plotter, height=8, nrows=2, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method()
     @requires_events('cpu_frequency')
-    def plot_cpu_frequencies(self, cpu, axis, local_fig, average=True):
+    def plot_cpu_frequencies(self, cpu: CPU, axis, local_fig, average=True):
         """
         Plot frequency for the specified CPU
 
@@ -376,7 +378,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         logger.info(
             "Average frequency for CPU{} : {:.3f} GHz".format(cpu, avg / 1e6))
 
-        df = df_refit_index(df, self.trace.start, self.trace.end)
+        df = df_refit_index(df, window=self.trace.window)
         df['frequency'].plot(ax=axis, drawstyle='steps-post')
 
         if average and avg > 0:
@@ -398,7 +400,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cpu_frequencies.used_events
-    def plot_domain_frequencies(self, **kwargs):
+    def plot_domain_frequencies(self, axis=None, **kwargs):
         """
         Plot frequency trend for all frequency domains.
 
@@ -415,11 +417,11 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
                 axis.set_title('Frequencies of CPUS {}'.format(domain))
 
-        return self.do_plot(plotter, nrows=len(domains), sharex=True, **kwargs)
+        return self.do_plot(plotter, nrows=len(domains), sharex=True, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_cpu_frequency_residency.used_events
-    def plot_cpu_frequency_residency(self, cpu, pct=False, **kwargs):
+    def plot_cpu_frequency_residency(self, cpu: CPU, pct=False, axis=None, **kwargs):
         """
         Plot per-CPU frequency residency.
 
@@ -455,11 +457,11 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 axis.set_ylabel("Frequency (Hz)")
                 axis.grid(True)
 
-        return self.do_plot(plotter, nrows=2, **kwargs)
+        return self.do_plot(plotter, nrows=2, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cpu_frequency_residency.used_events
-    def plot_domain_frequency_residency(self, pct=False, **kwargs):
+    def plot_domain_frequency_residency(self, pct=False, axis=None, **kwargs):
         """
         Plot the frequency residency for all frequency domains.
 
@@ -481,11 +483,11 @@ class FrequencyAnalysis(TraceAnalysisBase):
                     axis.set_title(title.replace(
                         "CPU{}".format(domain[0]), "CPUs {}".format(domain)))
 
-        return self.do_plot(plotter, nrows=2 * len(domains), sharex=True, **kwargs)
+        return self.do_plot(plotter, nrows=2 * len(domains), sharex=True, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method()
     @df_cpu_frequency_transitions.used_events
-    def plot_cpu_frequency_transitions(self, cpu, axis, local_fig, pct=False):
+    def plot_cpu_frequency_transitions(self, cpu: CPU, axis, local_fig, pct=False):
         """
         Plot frequency transitions count of the specified CPU
 
@@ -501,7 +503,9 @@ class FrequencyAnalysis(TraceAnalysisBase):
         if pct:
             df = df * 100 / df.sum()
 
-        df["transitions"].plot.barh(ax=axis)
+        if not df.empty:
+            df["transitions"].plot.barh(ax=axis)
+
         axis.set_title('Frequency transitions of CPU{}'.format(cpu))
 
         if pct:
@@ -514,7 +518,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cpu_frequency_transitions.used_events
-    def plot_domain_frequency_transitions(self, pct=False, **kwargs):
+    def plot_domain_frequency_transitions(self, pct=False, axis=None, **kwargs):
         """
         Plot frequency transitions count for all frequency domains
 
@@ -535,6 +539,6 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 axis.set_title(title.replace("CPU{}".format(domain[0]),
                                              "CPUs {}".format(domain)))
 
-        return self.do_plot(plotter, nrows=len(domains), **kwargs)
+        return self.do_plot(plotter, nrows=len(domains), axis=axis, **kwargs)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

@@ -21,7 +21,7 @@ from devlib.utils.misc import list_to_mask, mask_to_list
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.trace import requires_events
+from lisa.trace import requires_events, CPU
 from lisa.datautils import df_refit_index, series_refit_index
 
 
@@ -51,6 +51,7 @@ class ThermalAnalysis(TraceAnalysisBase):
 
         return df
 
+    @TraceAnalysisBase.cache
     @requires_events("thermal_power_cpu_limit")
     def df_cpufreq_cooling_state(self, cpus=None):
         """
@@ -66,7 +67,7 @@ class ThermalAnalysis(TraceAnalysisBase):
           * A ``cdev_state`` column (The cooling device state index)
 
         """
-        df = self.trace.df_events("cpu_out_power")
+        df = self.trace.df_events("thermal_power_cpu_limit")
         df = df[['cpus', 'freq', 'cdev_state']]
 
         if cpus is not None:
@@ -77,6 +78,7 @@ class ThermalAnalysis(TraceAnalysisBase):
 
         return df
 
+    @TraceAnalysisBase.cache
     @requires_events("thermal_power_devfreq_limit")
     def df_devfreq_cooling_state(self, devices=None):
         """
@@ -143,16 +145,15 @@ class ThermalAnalysis(TraceAnalysisBase):
         :param thermal_zone_id: ID of the zone
         :type thermal_zone_id: int
         """
-        start = self.trace.start
-        end = self.trace.end
+        window = self.trace.window
 
         df = self.df_thermal_zones_temperature()
         df = df[df.id == thermal_zone_id]
-        df = df_refit_index(df, start, end)
+        df = df_refit_index(df, window=window)
 
         tz_name = df.thermal_zone.unique()[0]
 
-        series = series_refit_index(df['temp'], start, end)
+        series = series_refit_index(df['temp'], window=window)
         series.plot(drawstyle="steps-post", ax=axis,
                      label="Thermal zone \"{}\"".format(tz_name))
 
@@ -165,7 +166,7 @@ class ThermalAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_cpufreq_cooling_state.used_events
-    def plot_cpu_cooling_states(self, cpu, axis, local_fig):
+    def plot_cpu_cooling_states(self, cpu: CPU, axis, local_fig):
         """
         Plot the state evolution of a cpufreq cooling device
 
@@ -174,14 +175,13 @@ class ThermalAnalysis(TraceAnalysisBase):
           belongs to the cluster.
         :type cpu: int
         """
-        start = self.trace.start
-        end = self.trace.end
+        window = self.trace.window
 
         df = self.df_cpufreq_cooling_state([cpu])
-        df = df_refit_index(df, start, end)
+        df = df_refit_index(df, window=window)
         cdev_name = "CPUs {}".format(mask_to_list(df.cpus.unique()[0]))
 
-        series = series_refit_index(df['cdev_state'], start, end)
+        series = series_refit_index(df['cdev_state'], window=window)
         series.plot(drawstyle="steps-post", ax=axis,
                            label="\"{}\"".format(cdev_name))
 
@@ -201,11 +201,8 @@ class ThermalAnalysis(TraceAnalysisBase):
         :param device: The devfreq devices to consider
         :type device: str
         """
-        start = self.trace.start
-        end = self.trace.end
-
         df = self.df_devfreq_cooling_state([device])
-        df = df_refit_index(df, start, end)
+        df = df_refit_index(df, window=self.trace.window)
 
         df['cdev_state'].plot(drawstyle="steps-post", ax=axis,
                            label="Device \"{}\"".format(device))

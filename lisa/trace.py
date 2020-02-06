@@ -17,39 +17,47 @@
 
 """ Trace Parser Module """
 
+import shutil
+import uuid
+import sys
+import re
+import gc
+import math
 import abc
 import copy
-import numbers
+import io
 import os
 import os.path
-import sys
 import json
 import warnings
-import operator
-import logging
-import webbrowser
 import inspect
 import shlex
 import contextlib
 import tempfile
 from functools import reduce, wraps
-from collections.abc import Iterable
+from collections.abc import Iterable, Set, Mapping, Sequence
 from collections import namedtuple
 from operator import itemgetter
+from numbers import Number, Integral, Real
+import multiprocessing
 
 import numpy as np
 import pandas as pd
+import pyarrow.lib
 
 import trappy
 import devlib
 from devlib.target import KernelVersion
 
-from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate, nullcontext
+import lisa.utils
+from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate, nullcontext, measure_time, checksum, FromString
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, TypedList, Configurable
+from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta
+from lisa.version import VERSION_TOKEN
 
 
-class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
+class TaskID(namedtuple('TaskID', ('pid', 'comm')), FromString):
     """
     Unique identifier of a logical task in a :class:`Trace`.
 
@@ -79,6 +87,33 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
 
         return '[{}]'.format(out)
 
+    _STR_PARSE_REGEX = re.compile(r'\[?([0-9]+):([a-zA-Z0-9_-]+)\]?')
+
+    @classmethod
+    def _from_str(cls, string):
+        try:
+            pid = int(string)
+            comm = None
+        except ValueError:
+            match = cls._STR_PARSE_REGEX.match(string)
+            if match:
+                pid = int(match.group(1))
+                comm = match.group(2)
+            else:
+                pid = None
+                comm = string
+
+        return cls(pid=pid, comm=comm)
+
+
+class CPU(int, FromString):
+    """
+    Speciliazed int representing a CPU.
+    """
+    @classmethod
+    def _from_str(cls, string):
+        return cls(string)
+
 
 class TraceBase(abc.ABC):
     """
@@ -91,10 +126,39 @@ class TraceBase(abc.ABC):
         from lisa.analysis.proxy import AnalysisProxy
         self.analysis = AnalysisProxy(self)
 
+    @property
+    def trace_state(self):
+        """
+        State of the trace object that might impact the output of dataframe
+        getter functions like :meth:`Trace.df_events`.
+
+        It must be hashable and serializable to JSON, so that it can be
+        recorded when analysis methods results are cached to the swap.
+        """
+        return None
+
+    @property
+    def time_range(self):
+        """
+        Duration of that trace.
+        """
+        return self.end - self.start
+
+    @property
+    def window(self):
+        """
+        Same as ``(trace.start, trace.end)``.
+
+        This is handy to pass to functions expecting a window tuple.
+        """
+        return (self.start, self.end)
+
     @abc.abstractmethod
-    def get_view(self, window):
+    def get_view(self, window, **kwargs):
         """
         Get a view on a trace cropped time-wise to fit in ``window``
+
+        :Variable keyword arguments: Forwarded to the contructor of the view.
         """
         pass
 
@@ -107,6 +171,11 @@ class TraceBase(abc.ABC):
 
         return self.get_view((window.start, window.stop))
 
+    @deprecate('Prefer adding delta once signals have been extracted from the event dataframe for correctness',
+        deprecated_in='2.0',
+        removed_in='2.1',
+        replaced_by=df_add_delta,
+    )
     def add_events_deltas(self, df, col_name='delta', inplace=True):
         """
         Store the time between each event in a new dataframe column
@@ -140,18 +209,7 @@ class TraceBase(abc.ABC):
             raise RuntimeError("Column {} is already present in the dataframe".
                                format(col_name))
 
-        if not inplace:
-            df = df.copy()
-
-        df[col_name] = df.index
-
-        if not df.empty:
-            df[col_name] = df[col_name].diff().shift(-1)
-            # Fix the last event, which will have a NaN duration
-            # Set duration to trace_end - last_event
-            df.loc[df.index[-1], col_name] = self.end - df.index[-1]
-
-        return df
+        return df_add_delta(df, col=col_name, inplace=inplace, window=self.window)
 
     def df_all_events(self, events=None):
         """
@@ -163,7 +221,7 @@ class TraceBase(abc.ABC):
         :type events: list(str) or None
         """
         if events is None:
-            events = self.available_events
+            events = sorted(self.available_events)
 
         max_event_name_len = max(len(event) for event in events)
 
@@ -198,6 +256,11 @@ class TraceView(Loggable, TraceBase):
     :param trace: The trace to trim
     :type trace: Trace
 
+    :param clear_base_cache: Clear the cache of the base ``trace`` for non-raw
+        data. This can release memory if the base trace is not going to be used
+        anymore, apart as a data server for the view.
+    :type clear_base_cache: bool
+
     :param window: The time window to base this view on
     :type window: tuple(float, float)
 
@@ -230,61 +293,46 @@ class TraceView(Loggable, TraceBase):
         mimics a regular :class:`Trace` using :func:`getattr`.
     """
 
-    def __init__(self, trace, window):
+    def __init__(self, trace, window, clear_base_cache=False):
         super().__init__()
-
         self.base_trace = trace
 
-        t_min = window[0]
-        t_max = window[1]
+        # evict all the non-raw dataframes from the base cache, as they are
+        # unlikely to be used anymore.
+        if clear_base_cache:
+            self.base_trace._cache.clear_all_events(raw=False)
 
-        df_list = [
-            trace.df_events(event)
-            for event in trace.available_events
-        ]
+        t_min, t_max = window
+        self.start = t_min if t_min is not None else self.base_trace.start
+        self.end = t_max if t_max is not None else self.base_trace.end
 
-        if t_min is not None:
-            start = self.base_trace.end
-            for df in df_list:
-                df = df[t_min:]
-                if not df.empty:
-                    start = min(start, df.index[0])
-            t_min = start
-        else:
-            t_min = self.base_trace.start
-
-        if t_max is not None:
-            end = self.base_trace.start
-            for df in df_list:
-                df = df[:t_max]
-                if not df.empty:
-                    end = max(end, df.index[-1])
-            t_max = end
-        else:
-            t_max = self.base_trace.end
-
-        self.start = t_min
-        self.end = t_max
-        self.time_range = t_max - t_min
+    @property
+    def trace_state(self):
+        return (self.start, self.end, self.base_trace.trace_state)
 
     def __getattr__(self, name):
         return getattr(self.base_trace, name)
 
-    def df_events(self, event):
+    def df_events(self, event, **kwargs):
         """
         Get a dataframe containing all occurrences of the specified trace event
-        in the parsed trace.
+        in the sliced trace.
 
         :param event: Trace event name
         :type event: str
+
+        :Variable keyword arguments: Forwarded to
+            :meth:`lisa.trace.Trace.df_events`.
         """
-        df = self.base_trace.df_events(event)
-        if not df.empty:
-            df = df[self.start:self.end]
+        try:
+            window = kwargs['window']
+        except KeyError:
+            window = (self.start, self.end)
+        kwargs['window'] = window
 
-        return df
+        return self.base_trace.df_events(event, **kwargs)
 
-    def get_view(self, window):
+    def get_view(self, window, **kwargs):
         start = self.start
         end = self.end
 
@@ -294,7 +342,937 @@ class TraceView(Loggable, TraceBase):
         if window[1]:
             end = min(end, window[1])
 
-        return self.base_trace.get_view((start, end))
+        return self.base_trace.get_view(window=(start, end), **kwargs)
+
+# One might be tempted to make that a subclass of collections.abc.Set: don't.
+# The problem is that Set expects new instances to be created by passing an
+# iterable to __init__(), but that container cannot be randomly instanciated
+# with values, it is tied to a Trace.
+class _AvailableTraceEventsSet:
+    """
+    Smart container that uses demand event loading on the trace to check
+    whether an event is present or not.
+
+    This container can be iterated over to get the current available events,
+    and supports membership tests using ``in``.
+    """
+    def __init__(self, trace):
+        self._trace = trace
+
+    def __contains__(self, event):
+
+        def check_event(event, raw):
+            # Try to parse the event in case it was not parsed already
+            if event not in self._trace._parsed_events:
+                with contextlib.suppress(MissingTraceEventError):
+                    self._trace.df_events(event=event, raw=raw)
+
+            return self._trace._parsed_events[event]
+
+        # Check for raw first, as it's more likely to already be parsed
+        try:
+            return check_event(event, raw=True)
+        # not there yet ? Maybe it's sometimes only available as non-raw,
+        # like cpu_frequency
+        except KeyError:
+            return check_event(event, raw=None)
+
+    @property
+    def _available_events(self):
+        return {
+            event
+            for event, available in self._trace._parsed_events.items()
+            if available
+        }
+
+    def __iter__(self):
+        return iter(self._available_events)
+
+    def __len__(self):
+        return len(self._available_events)
+
+    def __str__(self):
+        return str(self._available_events)
+
+
+class PandasDataDesc(Mapping):
+    """
+    Pandas data descriptor.
+
+    :param spec: Specification of the data as a key/value mapping.
+
+    This holds all the information needed to uniquely identify a
+    :class:`pandas.DataFrame` or :class:`pandas.Series`. It is used to manage
+    the cache and swap.
+
+    It implements the :class:`collections.abc.Mapping` interface, so
+    specification keys can be accessed directly like from a dict.
+
+    .. note:: Once introduced in a container, instances must not be modified,
+        directly or indirectly.
+
+    :ivar normal_form: Normal form of the descriptor. Equality is implemented
+        by comparing this attribute.
+    :vartype normal_form: PandasDataDescNF
+    """
+
+    def __init__(self, spec):
+        self.spec = spec
+        self.normal_form = PandasDataDescNF.from_spec(self.spec)
+
+    def __getitem__(self, key):
+        return self.spec[key]
+
+    def __iter__(self):
+        return iter(self.spec)
+
+    def __len__(self):
+        return len(self.spec)
+
+    @classmethod
+    def from_kwargs(cls, **kwargs):
+        """
+        Build a :class:`PandasDataDesc` with the specifications as keyword
+        arguments.
+        """
+        return cls(spec=kwargs)
+
+    def __repr__(self):
+        return '{}({})'.format(
+            self.__class__.__name__,
+            ', '.join(
+                '{}={!r}'.format(key, val)
+                for key, val in self.__dict__.items()
+            )
+        )
+
+    def __eq__(self, other):
+        return self.normal_form == other.normal_form
+
+    def __hash__(self):
+        return hash(self.normal_form)
+
+
+class PandasDataDescNF:
+    """
+    Normal form of :class:`PandasDataDesc`.
+
+    The normal form of the descriptor allows removing any possible differences
+    in shape of values, and is serializable to JSON. The serialization is
+    allowed to destroy some information (type mainly), as long as it does make
+    two descriptors wrongly equal.
+    """
+    def __init__(self, nf):
+        self._nf = nf
+        # Since it's going to be inserted in dict for sure, precompute the hash
+        # once and for all.
+        self._hash = hash(self._nf)
+
+    @classmethod
+    def from_spec(cls, spec):
+        """
+        Build from a spec that can include any kind of Python objects.
+        """
+        nf = tuple(sorted(
+            (key, cls._coerce(val))
+            for key, val in spec.items()
+        ))
+        return cls(nf=nf)
+
+    @classmethod
+    def _coerce(cls, val):
+        "Coerce data to a normal form that must be hashable"
+        if isinstance(val, Integral):
+            val = int(val)
+        elif isinstance(val, Real):
+            val = float(val)
+        elif isinstance(val, (type(None), str, Number)):
+            pass
+        elif isinstance(val, Mapping):
+            val = tuple(
+                (cls._coerce(key), cls._coerce(val))
+                for key, val in sorted(val.items())
+            )
+            val = ('mapping', val)
+        elif isinstance(val, Set):
+            val = tuple(map(cls._coerce, sorted(val)))
+            val = ('set', val)
+        elif isinstance(val, Sequence):
+            val = tuple(map(cls._coerce, val))
+            val = ('sequence', val)
+        # In other cases save the name of the type along the value to make
+        # sure we are not going to compare apple and oranges in the future
+        else:
+            type_name = '{}.{}'.format(
+                val.__class__.__module__,
+                val.__class__.__qualname__
+            )
+            val = (type_name, val)
+
+        return val
+
+    def __str__(self):
+        return str(self._nf)
+
+    def __eq__(self, other):
+        return self._nf == other._nf
+
+    def __hash__(self):
+        return self._hash
+
+    def to_json_map(self):
+        return dict(self._nf)
+
+    @classmethod
+    def _coerce_json(cls, x):
+        """
+        JSON converts the original tuples into lists, so we need to convert it
+        back.
+        """
+        if isinstance(x, str):
+            return x
+        elif isinstance(x, Sequence):
+            return tuple(map(cls._coerce_json, x))
+        else:
+            return x
+
+    @classmethod
+    def from_json_map(cls, mapping):
+        """
+        Build from a mapping that was created using :meth:`to_json_map`.
+
+        JSON does not preserve tuples for example, so they need to be converted
+        back.
+        """
+        nf = tuple(sorted(
+            (key, cls._coerce_json(val))
+            for key, val in mapping.items()
+        ))
+        return cls(nf=nf)
+
+class PandasDataSwapEntry:
+    """
+    Entry in the pandas data swap area of :class:`Trace`.
+
+    :param pd_desc_nf: Normal form descriptor describing what the entry
+        contains.
+    :type pd_desc_nf: PandasDataDescNF
+
+    :param name: Name of the entry. If ``None``, a random UUID will be
+        generated.
+    :type name: str or None
+    """
+
+    META_EXTENSION = '.meta'
+    """
+    Extension used by the metadata file of the swap entry in the swap.
+    """
+
+    def __init__(self, pd_desc_nf, name=None):
+        self.pd_desc_nf = pd_desc_nf
+        self.name = name or uuid.uuid4().hex
+
+    @property
+    def meta_filename(self):
+        """
+        Filename of the metadata file in the swap.
+        """
+        return '{}{}'.format(self.name, self.META_EXTENSION)
+
+    @property
+    def data_filename(self):
+        """
+        Filename of the pandas data file in the swap.
+        """
+        return '{}{}'.format(self.name, TraceCache.DATAFRAME_SWAP_EXTENSION)
+
+    def to_json_map(self):
+        """
+        Return a mapping suitable for JSON serialization.
+        """
+        return {
+            'version-token': VERSION_TOKEN,
+            'name': self.name,
+            'desc': self.pd_desc_nf.to_json_map(),
+        }
+
+    @classmethod
+    def from_json_map(cls, mapping):
+        """
+        Create an instance with a mapping created using :meth:`to_json_map`.
+        """
+        if mapping['version-token'] != VERSION_TOKEN:
+            raise TraceCacheSwapVersionError('Version token differ')
+
+        pd_desc_nf = PandasDataDescNF.from_json_map(mapping['desc'])
+        name = mapping['name']
+        return cls(pd_desc_nf=pd_desc_nf, name=name)
+
+    def to_path(self, path):
+        """
+        Save the swap entry metadata to the given ``path``.
+        """
+        data = self.to_json_map()
+        with open(path, 'w') as f:
+            json.dump(data, f)
+            f.write('\n')
+
+    @classmethod
+    def from_path(cls, path):
+        """
+        Load the swap entry metadata from the given ``path``.
+        """
+        with open(path) as f:
+            mapping = json.load(f)
+
+        return cls.from_json_map(mapping)
+
+
+class TraceCacheSwapVersionError(ValueError):
+    """
+    Exception raised when the swap entry was created by another version of LISA
+    than the one loading it.
+    """
+    pass
+
+
+class TraceCache:
+    """
+    Cache of a :class:`Trace`.
+
+    :param max_mem_size: Maximum amount of memory to use in bytes. If the data
+        hold in memory exceed that size, they will be evicted to the swap if
+        possible and if it would be faster to reload them from swap rather than
+        recomputing them. If there is no swap area, the data is just discarded.
+    :type max_mem_size: int or None
+
+    :param max_swap_size: Maximum amount of swap to use in bytes. When the
+        amount of data saved to the swap exceeds that threshold, older files
+        are discarded.
+    :type max_swap_size: int or None
+
+    :param swap_dir: Folder to use as swap area.
+    :type swap_dir: str or None
+
+    :param trace_path: Absolute path of the trace file.
+    :type trace_path: str or None
+
+    :param trace_md5: MD5 checksum of the trace file, to invalidate the cache
+        if the file changed.
+    :type trace_md5: str or None
+
+    :param metadata: Metadata mapping to store in the swap area.
+    :type metadata: dict or None
+
+    :param swap_content: Initial content of the swap area.
+    :type swap_content: dict(PandasDataDescNF, PandasDataSwapEntry) or None
+
+    The cache manages both the :class:`pandas.DataFrame` and
+    :class:`pandas.Series` generated in memory and a swap area used to evict
+    them, and to reload them quickly.
+    """
+
+    INIT_SWAP_COST = 1e-7
+    """
+    Somewhat arbitrary number, must be small enough so that we write at
+    least one dataset to the cache, which will allow us getting a better
+    estimation. If the value is too high from the start, we will never
+    write anything, and the value will never have a chance to re-adjust.
+    """
+
+    TRACE_META_FILENAME = 'trace.meta'
+    """
+    Name of the trace metadata file in the swap area.
+    """
+
+    DATAFRAME_SWAP_FORMAT = 'parquet'
+    """
+    Data storage format used to swap.
+    """
+
+    DATAFRAME_SWAP_EXTENSION = '.{}'.format(DATAFRAME_SWAP_FORMAT)
+    """
+    File extension of the data swap format.
+    """
+
+    def __init__(self, max_mem_size=None, trace_path=None, trace_md5=None, swap_dir=None, max_swap_size=None, swap_content=None, metadata=None):
+        self._cache = {}
+        self._data_cost = {}
+        self._swap_content = swap_content or {}
+        self._pd_desc_swap_filename = {}
+        self.swap_cost = self.INIT_SWAP_COST
+        self.swap_dir = swap_dir
+        self.max_swap_size = max_swap_size if max_swap_size is not None else math.inf
+        self._swap_size = self._get_swap_size()
+
+        self.max_mem_size = max_mem_size if max_mem_size is not None else math.inf
+        self._data_mem_swap_ratio = 7
+        self._metadata = metadata or {}
+
+        self.trace_path = os.path.abspath(trace_path)
+        self._trace_md5 = trace_md5
+
+    @property
+    @memoized
+    def _swap_size_overhead(self):
+        def make_df(nr_col):
+            return pd.DataFrame({
+                str(x): []
+                for x in range(nr_col)
+            })
+
+        def get_size(nr_col):
+            df = make_df(nr_col)
+            buffer = io.BytesIO()
+            self._write_data(df, buffer)
+            return buffer.getbuffer().nbytes
+
+        size0 = get_size(0)
+        size1 = get_size(1)
+
+        file_overhead = size0
+        col_overhead = size1 - size0
+        assert col_overhead > 0
+
+        return (file_overhead, col_overhead)
+
+    def _unbias_swap_size(self, data, size):
+        """
+        Remove the fixed size overhead of the file format being used, assuming
+        a non-compressible overhead per file and per column.
+
+        .. note:: This model seems to work pretty well for parquet format.
+        """
+        file_overhead, col_overhead = self._swap_size_overhead
+        # DataFrame
+        try:
+            nr_columns = data.shape[1]
+        # Series
+        except IndexError:
+            nr_columns = 1
+
+        size = size - file_overhead - nr_columns * col_overhead
+        return size
+
+    @property
+    def trace_md5(self):
+        md5 = self._trace_md5
+        if md5 is None:
+            with open(self.trace_path, 'rb') as f:
+                md5 = checksum(f, 'md5')
+            self._trace_md5 = md5
+
+        return md5
+
+    def update_metadata(self, metadata):
+        """
+        Update the metadata mapping with the given ``metadata`` mapping and
+        write it back to the swap area.
+        """
+        self._metadata.update(metadata)
+        self.to_swap_dir()
+
+    def get_metadata(self, key):
+        """
+        Get the value of the given metadata ``key``.
+        """
+        return self._metadata[key]
+
+    def to_json_map(self):
+        """
+        Returns a dictionary suitable for JSON serialization.
+        """
+
+        if self.swap_dir:
+            trace_path = os.path.relpath(self.trace_path, self.swap_dir)
+        else:
+            trace_path = os.path.abspath(self.trace_path)
+
+        return {
+            'version-token': VERSION_TOKEN,
+            'metadata': self._metadata,
+            'trace-path': trace_path,
+            'trace-md5': self.trace_md5,
+        }
+
+    def to_path(self, path):
+        """
+        Write the persistent state to the given ``path``.
+        """
+        mapping = self.to_json_map()
+        with open(path, 'w') as f:
+            json.dump(mapping, f)
+            f.write('\n')
+
+    @classmethod
+    def _from_swap_dir(cls, swap_dir, trace_path=None, metadata=None, **kwargs):
+        metapath = os.path.join(swap_dir, cls.TRACE_META_FILENAME)
+
+        with open(metapath) as f:
+            mapping = json.load(f)
+
+        if mapping['version-token'] != VERSION_TOKEN:
+            raise TraceCacheSwapVersionError('Version token differ')
+
+        swap_trace_path = mapping['trace-path']
+        swap_trace_path = os.path.join(swap_dir, swap_trace_path)
+
+        metadata = metadata or {}
+
+        try:
+            with open(swap_trace_path, 'rb') as f:
+                new_md5 = checksum(f, 'md5')
+        except FileNotFoundError:
+            new_md5 = None
+
+        if trace_path and not os.path.samefile(swap_trace_path, trace_path):
+            invalid_swap = True
+        else:
+            if new_md5 is None:
+                invalid_swap = True
+            else:
+                old_md5 = mapping['trace-md5']
+                invalid_swap = (old_md5 != new_md5)
+
+        if invalid_swap:
+            # Remove the invalid swap and create a fresh directory
+            shutil.rmtree(swap_dir)
+            os.makedirs(swap_dir)
+            swap_content = None
+        else:
+            def load_swap_content(swap_dir):
+                swap_entry_filenames = {
+                    filename
+                    for filename in os.listdir(swap_dir)
+                    if filename.endswith(PandasDataSwapEntry.META_EXTENSION)
+                }
+
+                for filename in swap_entry_filenames:
+                    path = os.path.join(swap_dir, filename)
+                    try:
+                        swap_entry = PandasDataSwapEntry.from_path(path)
+                    # If there is any issue with that entry, just ignore it
+                    except Exception:
+                        continue
+                    else:
+                        yield (swap_entry.pd_desc_nf, swap_entry)
+
+            swap_content = dict(load_swap_content(swap_dir))
+
+            metadata_ = mapping['metadata']
+            metadata = {**metadata_, **metadata}
+
+        return cls(swap_content=swap_content, swap_dir=swap_dir, metadata=metadata, trace_path=trace_path, trace_md5=new_md5, **kwargs)
+
+    def to_swap_dir(self):
+        """
+        Write the persistent state to the swap area if any, no-op otherwise.
+        """
+        if self.swap_dir:
+            path = os.path.join(self.swap_dir, self.TRACE_META_FILENAME)
+            self.to_path(path)
+
+    @classmethod
+    def from_swap_dir(cls, swap_dir, **kwargs):
+        """
+        Reload the persistent state from the given ``swap_dir``.
+
+        :Variable keyword arguments: Forwarded to :class:`TraceCache`.
+        """
+        if swap_dir:
+            try:
+                return cls._from_swap_dir(swap_dir=swap_dir, **kwargs)
+            except (FileNotFoundError, TraceCacheSwapVersionError, json.decoder.JSONDecodeError):
+                pass
+
+        return cls(swap_dir=swap_dir, **kwargs)
+
+    def _estimate_data_swap_cost(self, data):
+        return self._estimate_data_swap_size(data) * self.swap_cost
+
+    def _estimate_data_swap_size(self, data):
+        return self._data_mem_usage(data) * self._data_mem_swap_ratio
+
+    def _update_ewma(self, attr, new, alpha=0.25, override=False):
+        old = getattr(self, attr)
+        if override:
+            updated = new
+        else:
+            updated = (1 - alpha) * old + alpha * new
+
+        setattr(self, attr, updated)
+
+    def _update_data_swap_size_estimation(self, data, size):
+        size = self._unbias_swap_size(data, size)
+
+        # If size < 0, the dataframe is so small that it's basically just noise
+        if size > 0:
+            mem_usage = self._data_mem_usage(data)
+            if mem_usage:
+                self._update_ewma('_data_mem_swap_ratio', size / mem_usage)
+
+    def _data_mem_usage(self, data):
+        mem = data.memory_usage()
+        try:
+            return mem.sum()
+        except AttributeError:
+            return mem
+
+    def _should_evict_to_swap(self, pd_desc, data):
+        # If we don't have any cost info, assume it is expensive to compute
+        compute_cost = self._data_cost.get(pd_desc, math.inf)
+        swap_cost = self._estimate_data_swap_cost(data)
+        return swap_cost <= compute_cost
+
+    def _swap_path_of(self, pd_desc):
+        if self.swap_dir:
+            pd_desc_nf = pd_desc.normal_form
+            swap_entry = self._swap_content[pd_desc_nf]
+            filename = swap_entry.data_filename
+            return os.path.join(self.swap_dir, filename)
+        else:
+            raise ValueError('Swap dir is not setup')
+
+    def _update_swap_cost(self, data, swap_cost, mem_usage, swap_size):
+        unbiased_swap_size = self._unbias_swap_size(data, swap_size)
+        # Take out from the swap cost the time it took to write the overhead
+        # that comes with the file format, assuming the cost is
+        # proportional to amount of data written in the swap.
+        swap_cost *= unbiased_swap_size / swap_size
+
+        new_cost = swap_cost / mem_usage
+
+        override = self.swap_cost == self.INIT_SWAP_COST
+        # EWMA to keep a relatively stable cost
+        self._update_ewma('swap_cost', new_cost, override=override)
+
+    def _is_written_to_swap(self, pd_desc):
+        return pd_desc.normal_form in self._swap_content
+
+    @classmethod
+    def _write_data(cls, data, path):
+        if cls.DATAFRAME_SWAP_FORMAT == 'parquet':
+            # Snappy compression seems very fast
+            data.to_parquet(path, compression='snappy', index=True)
+        else:
+            raise ValueError('Dataframe swap format "{}" not handled'.format(cls.DATAFRAME_SWAP_FORMAT))
+
+    def _write_swap(self, pd_desc, data):
+        if not self.swap_dir:
+            return
+        else:
+            if self._is_written_to_swap(pd_desc):
+                return
+
+            pd_desc_nf = pd_desc.normal_form
+            swap_entry = PandasDataSwapEntry(pd_desc_nf)
+
+            df_path = os.path.join(self.swap_dir, swap_entry.data_filename)
+
+            # If that would make the swap dir too large, try to do some cleanup
+            if self._estimate_data_swap_size(data) + self._swap_size > self.max_swap_size:
+                self.scrub_swap()
+
+            # Write the Parquet file and update the write speed
+            with measure_time() as measure:
+                self._write_data(data, df_path)
+
+            # Update the swap
+            swap_entry_path = os.path.join(self.swap_dir, swap_entry.meta_filename)
+            swap_entry.to_path(swap_entry_path)
+            self._swap_content[swap_entry.pd_desc_nf] = swap_entry
+
+            # Assume that reading from the swap will take as much time as
+            # writing to it. We cannot do better anyway, but that should
+            # mostly bias to keeping things in memory if possible.
+            swap_cost = measure.exclusive_delta
+            data_swapped_size = os.stat(df_path).st_size
+
+            mem_usage = self._data_mem_usage(data)
+            if mem_usage:
+                self._update_swap_cost(data, swap_cost, mem_usage, data_swapped_size)
+            self._swap_size += data_swapped_size
+            self._update_data_swap_size_estimation(data, data_swapped_size)
+            self.scrub_swap()
+
+    def _get_swap_size(self):
+        if self.swap_dir:
+            return sum(
+                dir_entry.stat().st_size
+                for dir_entry in os.scandir(self.swap_dir)
+            )
+        else:
+            return 0
+
+    def scrub_swap(self):
+        """
+        Scrub the swap area to remove old files if the storage size limit is exceeded.
+        """
+        # TODO: Load the file information from __init__ by discovering the swap
+        # area's content to avoid doing it each time here
+        if self._swap_size > self.max_swap_size and self.swap_dir:
+            stats = {
+                dir_entry.name: dir_entry.stat()
+                for dir_entry in os.scandir(self.swap_dir)
+            }
+
+            data_files = {
+                swap_entry.data_filename: swap_entry
+                for swap_entry in self._swap_content.values()
+            }
+
+            # Get rid of stale files that are not referenced by any swap entry
+            metadata_files = {
+                swap_entry.meta_filename
+                for swap_entry in self._swap_content.values()
+            }
+            metadata_files.add(self.TRACE_META_FILENAME)
+            non_stale_files = data_files.keys() | metadata_files
+            stale_files = stats.keys() - non_stale_files
+            for filename in stale_files:
+                del stats[filename]
+                path = os.path.join(self.swap_dir, filename)
+                os.unlink(path)
+
+            def by_mtime(path_stat):
+                path, stat = path_stat
+                return stat.st_mtime
+
+            # Sort by modification time, so we discard the oldest caches
+            total_size = 0
+            discarded_swap_entries = set()
+            for filename, stat in sorted(stats.items(), key=by_mtime):
+                total_size += stat.st_size
+                if total_size > self.max_swap_size:
+                    try:
+                        swap_entry = data_files[filename]
+                    # That was not a data file
+                    except KeyError:
+                        continue
+                    else:
+                        discarded_swap_entries.add(swap_entry)
+
+            # Update the swap content
+            for swap_entry in discarded_swap_entries:
+                del self._swap_content[swap_entry.pd_desc_nf]
+                del stats[swap_entry.data_filename]
+
+                for filename in (swap_entry.meta_filename, swap_entry.data_filename):
+                    path = os.path.join(self.swap_dir, filename)
+                    os.unlink(path)
+
+            self._swap_size = sum(
+                stats[swap_entry.data_filename].st_size
+                for swap_entry in self._swap_content.values()
+            )
+
+    def fetch(self, pd_desc, insert=True):
+        """
+        Fetch an entry from the cache or the swap.
+
+        :param pd_desc: Descriptor to look for.
+        :type pd_desc: PandasDataDesc
+
+        :param insert: If ``True`` and if the fetch succeeds by loading the
+            swap, the data is inserted in the cache.
+        :type insert: bool
+        """
+        try:
+            return self._cache[pd_desc]
+        except KeyError as e:
+            try:
+                path = self._swap_path_of(pd_desc)
+            # If there is no swap, bail out
+            except (ValueError, KeyError):
+                raise e
+            else:
+                # Try to load the dataframe from that path
+                try:
+                    if self.DATAFRAME_SWAP_FORMAT == 'parquet':
+                        data = pd.read_parquet(path)
+                    else:
+                        raise ValueError('Dataframe swap format "{}" not handled'.format(self.DATAFRAME_SWAP_FORMAT))
+                except (OSError, pyarrow.lib.ArrowIOError):
+                    raise e
+                else:
+                    if insert:
+                        # We have no idea of the cost of something coming from
+                        # the cache
+                        self.insert(pd_desc, data, write_swap=False, compute_cost=None)
+
+                    return data
+
+    def insert(self, pd_desc, data, compute_cost=None, write_swap=False, force_write_swap=False):
+        """
+        Insert an entry in the cache.
+
+        :param pd_desc: Descriptor of the data to insert.
+        :type pd_desc: PandasDataDesc
+
+        :param data: Pandas data to insert.
+        :type data: pandas.DataFrame or pandas.Series
+
+        :param compute_cost: Time spent to compute the data in seconds.
+        :type compute_cost: float or None
+
+        :param write_swap: If ``True``, the data will be written to the swap as
+            well so it can be quickly reloaded. Note that it will be subject to
+            cost evaluation, so it might not result in anything actually
+            written.
+        :type write_swap: bool
+
+        :param force_write_swap: If ``True``, bypass the computation vs swap
+            cost comparison.
+        :type force_write_swap: bool
+        """
+        self._cache[pd_desc] = data
+        if compute_cost is not None:
+            self._data_cost[pd_desc] = compute_cost
+
+        if write_swap:
+            self.write_swap(pd_desc, force=force_write_swap)
+
+        self._scrub_mem()
+
+    def _scrub_mem(self):
+        if self.max_mem_size == math.inf:
+            return
+
+        mem_usage = sum(
+            self._data_mem_usage(data)
+            for data in self._cache.values()
+        )
+
+        if mem_usage > self.max_mem_size:
+
+            # Make sure garbage collection occurred recently, to get the most
+            # accurate refcount possible
+            gc.collect()
+            refcounts = {
+                pd_desc: sys.getrefcount(data)
+                for pd_desc, data in self._cache.items()
+            }
+            min_refcount = min(refcounts.values())
+
+            # Low retention score means it's more likely to be evicted
+            def retention_score(pd_desc_and_data):
+                pd_desc, data = pd_desc_and_data
+
+                # If we don't know the computation cost, assume it can be evicted cheaply
+                compute_cost = self._data_cost.get(pd_desc, 0)
+
+                if not compute_cost:
+                    score = 0
+                else:
+                    swap_cost = self._estimate_data_swap_cost(data)
+                    # If it's already written back, make it cheaper to evict since
+                    # the eviction itself is going to be cheap
+                    if self._is_written_to_swap(pd_desc):
+                        swap_cost /= 2
+
+                    if swap_cost:
+                        score = compute_cost / swap_cost
+                    else:
+                        score = 0
+
+                # Assume that more references to an object implies it will
+                # stay around for longer. Therefore, it's less interesting to
+                # remove it from this cache and pay the cost of reading/writing it to
+                # swap, since the memory will not be freed anyway.
+                #
+                # Normalize to the minimum refcount, so that the _cache and other
+                # structures where references are stored are discounted for sure.
+                return (refcounts[pd_desc] - min_refcount + 1) * score
+
+            new_mem_usage = 0
+            for pd_desc, data in sorted(self._cache.items(), key=retention_score):
+                new_mem_usage += self._data_mem_usage(data)
+                if new_mem_usage > self.max_mem_size:
+                    self.evict(pd_desc)
+
+    def evict(self, pd_desc):
+        """
+        Evict the given descriptor from memory.
+
+        :param pd_desc: Descriptor to evict.
+        :type pd_desc: PandasDataDesc
+
+        If it would be cheaper to reload the data than to recompute them, they
+        will be written to the swap area.
+        """
+        self.write_swap(pd_desc)
+
+        try:
+            del self._cache[pd_desc]
+        except KeyError:
+            pass
+
+    def write_swap(self, pd_desc, force=False):
+        """
+        Write the given descriptor to the swap area if that would be faster to
+        reload the data rather than recomputing it. If the descriptor is not in
+        the cache or if there is no swap area, ignore it.
+
+        :param pd_desc: Descriptor of the data to write to swap.
+        :type pd_desc: PandasDataDesc
+
+        :param force: If ``True``, bypass the compute vs swap cost comparison.
+        :type force: bool
+        """
+        try:
+            data = self._cache[pd_desc]
+        except KeyError:
+            pass
+        else:
+            if force or self._should_evict_to_swap(pd_desc, data):
+                self._write_swap(pd_desc, data)
+
+    def write_swap_all(self):
+        """
+        Attempt to write all cached data to the swap.
+        """
+        for pd_desc in self._cache.keys():
+            self.write_swap(pd_desc)
+
+    def clear_event(self, event, raw=None):
+        """
+        Clear cache entries referencing a given event.
+
+        :param event: Event to clear.
+        :type event: str
+
+        :param raw: If ``True``, only clear entries that refer to raw data. If
+            ``False``, only clear entries that refer to non-raw data. If
+            ``None``, ignore whether the descriptor is about raw data or not.
+        :type raw: bool or None
+        """
+        self._cache = {
+            pd_desc: data
+            for pd_desc, data in self._cache.items()
+            if not (
+                pd_desc.get('event') == event
+                and (
+                    raw is None
+                    or pd_desc.get('raw') == raw
+                )
+            )
+        }
+
+    def clear_all_events(self, raw=None):
+        """
+        Same as :meth:`clear_event` but works on all events at once.
+        """
+        self._cache = {
+            pd_desc: data
+            for pd_desc, data in self._cache.items()
+            if (
+                # Cache entries can be associated to something else than events
+                'event' not in pd_desc or
+                # Either we care about raw and we check, or blanket clear
+                raw is None or
+                pd_desc.get('raw') == raw
+            )
+        }
 
 
 class Trace(Loggable, TraceBase):
@@ -306,14 +1284,11 @@ class Trace(Loggable, TraceBase):
 
     :param events: events to be parsed (all the events used by analysis by
         default)
-    :type events: str or list(str)
+    :type events: list(str)
 
-    :param platform: a dictionary containing information about the target
-        platform
-    :type platform: dict
-
-    :param window: time window to consider when parsing the trace
-    :type window: tuple(int, int)
+    :param plat_info: Platform info describing the target that this trace was
+        collected on.
+    :type plat_info: lisa.platforms.platinfo.PlatformInfo
 
     :param normalize_time: Make the first timestamp in the trace 0 instead
         of the system timestamp that was captured when tracing.
@@ -322,13 +1297,32 @@ class Trace(Loggable, TraceBase):
     :param trace_format: format of the trace. Possible values are:
         - FTrace
         - SysTrace
-    :type trace_format: str
+    :type trace_format: str or None
 
     :param plots_dir: directory where to save plots
     :type plots_dir: str
 
-    :param plots_prefix: prefix for plots file names
-    :type plots_prefix: str
+
+    :param max_mem_size: Maximum memory usage to be used for dataframe cache.
+        Note that the peak memory usage can exceed that, as the cache can not
+        forcefully evict an object from memory (it can only drop references to it).
+        When ``None``, use illimited amount of memory.
+    :type max_mem_size: int or None
+
+    :param swap_dir: Swap directory used to store dataframes evicted from the
+        cache. When ``None``, a hidden directory along the trace file is used.
+    :type swap_dir: str or None
+
+    :param enable_swap: If ``True``, the on-disk swap is enabled.
+    :type enable_swap: bool
+
+    :param max_swap_size: Maximum size of the swap directory. When ``None``,
+        the max size is the size of the trace file.
+    :type max_swap_size: int or None
+
+    :param write_swap: Default value used for :meth:`df_events` ``write_swap``
+        parameter.
+    :type write_swap: bool
 
     :ivar start: The timestamp of the first trace event in the trace
     :ivar end: The timestamp of the last trace event in the trace
@@ -337,38 +1331,88 @@ class Trace(Loggable, TraceBase):
     """
 
     def __init__(self,
-                 trace_path,
-                 plat_info=None,
-                 events=None,
-                 normalize_time=False,
-                 trace_format='FTrace',
-                 plots_dir=None,
-                 plots_prefix=''):
+        trace_path,
+        plat_info=None,
+        events=None,
+        normalize_time=False,
+        trace_format=None,
+        plots_dir=None,
+        sanitization_functions=None,
 
+        max_mem_size=None,
+        swap_dir=None,
+        enable_swap=True,
+        max_swap_size=None,
+        write_swap=True,
+    ):
         super().__init__()
 
-        logger = self.get_logger()
+        sanitization_functions = sanitization_functions or {}
+        self._sanitization_functions = {
+            **self._SANITIZATION_FUNCTIONS,
+            **sanitization_functions,
+        }
 
-        if plat_info is None:
-            plat_info = PlatformInfo()
+        if enable_swap:
+            if swap_dir is None:
+                basename = os.path.basename(trace_path)
+                swap_dir = os.path.join(
+                    os.path.dirname(trace_path),
+                    '.{}.lisa-swap'.format(basename)
+                )
+                try:
+                    os.makedirs(swap_dir, exist_ok=True)
+                except OSError:
+                    swap_dir = None
+
+            if max_swap_size is None:
+                trace_size = os.stat(trace_path).st_size
+                max_swap_size = trace_size
+        else:
+            swap_dir = None
+            max_swap_size = None
+
+        self._cache = TraceCache.from_swap_dir(
+            trace_path=trace_path,
+            swap_dir=swap_dir,
+            max_swap_size=max_swap_size,
+            max_mem_size=max_mem_size,
+        )
+        # Initial scrub of the swap to discard unwanted data, honoring the
+        # max_swap_size right from the beginning
+        self._cache.scrub_swap()
+        self._cache.to_swap_dir()
+
+        self._write_swap = write_swap
+        self.normalize_time = normalize_time
+        self.trace_path = trace_path
+        self._trace_format = trace_format
 
         # The platform information used to run the experiments
+        if plat_info is None:
+            plat_info = PlatformInfo()
         self.plat_info = plat_info
 
-        self.normalize_time = normalize_time
-
-        proxy_cls = type(self.analysis)
-        self.events = self._process_events(events, proxy_cls)
-
-        # Path to the trace file
-        self.trace_path = trace_path
-
-        # By default, use the trace dir to save plots
+        self.available_events = _AvailableTraceEventsSet(self)
         self.plots_dir = plots_dir if plots_dir else os.path.dirname(trace_path)
 
-        self.plots_prefix = plots_prefix
+        try:
+            self._parsed_events = self._cache.get_metadata('parsed-events')
+        except KeyError:
+            self._parsed_events = {}
 
-        self._parse_trace(self.trace_path, trace_format, normalize_time)
+        if isinstance(events, str):
+            raise ValueError('Events passed to Trace(events=...) must be a list of strings, not a string.')
+
+        events = events if events is not None else []
+        self.events = events
+        # Pre-load the selected events
+        if events:
+            self._load_raw_df_map(events, write_swap=True, allow_missing_events=True)
+
+    @property
+    def trace_state(self):
+        return (self.normalize_time,)
 
     @property
     @memoized
@@ -383,17 +1427,6 @@ class Trace(Loggable, TraceBase):
             count = max_cpu + 1
             self.get_logger().info("Estimated CPU count from trace: {}".format(count))
             return count
-
-    @deprecate('Direct access to underlying ftrace object is discouraged as this is now an implementation detail of that class which could change in the future',
-        deprecated_in='2.0',
-        removed_in='2.1'
-    )
-    @property
-    def ftrace(self):
-        """
-        Underlying :class:`trappy.ftrace.FTrace`.
-        """
-        return self._ftrace
 
     @classmethod
     @contextlib.contextmanager
@@ -469,104 +1502,399 @@ class Trace(Loggable, TraceBase):
                 path,
                 events=events,
                 plat_info=plat_info,
+                # Disable swap if the folder is going to disappear
+                enable_swap=True if filepath else False,
                 **kwargs
             )
 
         proxy.base_trace = trace
 
-    @staticmethod
-    def _process_events(events, proxy_cls):
-        """
-        Process the `events` parameter of :meth:`Trace.__init__`.
-
-        :param events: single event name or list of events names
-        :type events: str or list(str)
-        """
-        # Merge all the events that we expect to see, plus all the ones that
-        # can be useful to any analysis method
-        if events is None:
-            events = sorted(proxy_cls.get_all_events())
-        elif isinstance(events, str):
-            events = [events]
-        elif isinstance(events, Iterable):
-            events = list(events)
-        else:
-            raise ValueError('Events must be a string or an iterable of strings')
-
-        # Register devlib fake cpu_frequency events
-        if 'cpu_frequency' in events:
-            events.append('cpu_frequency_devlib')
-
-        return events
-
-    def _parse_trace(self, path, trace_format, normalize_time):
-        """
-        Internal method in charge of performing the actual parsing of the
-        trace.
-
-        :param path: path to the trace file
-        :type path: str
-
-        :param trace_format: format of the trace. Possible values are:
-            - FTrace
-            - SysTrace
-        :type trace_format: str
-        """
+    def _get_trace(self, events):
         logger = self.get_logger()
-        logger.debug('Parsing events {} from trace: {}'.format(self.events, path))
-        if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
-            logger.debug('Parsing SysTrace format...')
+        path = self.trace_path
+        events = set(events)
+
+        if self._trace_format is None:
+            if path.endswith('html'):
+                trace_format = 'SySTrace'
+            else:
+                trace_format = 'FTrace'
+        else:
+            trace_format = self._trace_format
+
+        # Trappy chokes on some events for some reason, so make the user aware
+        # of it and carry on
+        mishandled_events = {'thermal_power_cpu_limit'}
+        mishandled_events &= events
+        if mishandled_events:
+            logger.debug('A bug in Trappy prevents from loading these events: {}'.format(sorted(mishandled_events)))
+            events -= mishandled_events
+
+
+        logger.debug('Parsing {} events from {}: {}'.format(trace_format, path, sorted(events)))
+        if trace_format == 'Systems':
             trace_class = trappy.SysTrace
-        elif trace_format.upper() == 'FTRACE':
-            logger.debug('Parsing FTrace format...')
+        elif trace_format == 'FTrace':
             trace_class = trappy.FTrace
         else:
-            raise ValueError("Unknown trace format {}".format(trace_format))
+            raise ValueError('Unknown trace format: {}'.format(trace_format))
 
-        # Make sure event names are not unicode strings
-        self._ftrace = trace_class(path, scope="custom", events=self.events,
-                                  normalize_time=normalize_time)
+        # Since we handle the cache in lisa.trace.Trace, we do not need to duplicate it
+        trace_class.disable_cache = True
+        internal_trace = trace_class(
+            path,
+            scope="custom",
+            events=sorted(events),
+            normalize_time=False,
+        )
 
         # trappy sometimes decides to be "clever" and overrules the path to be
         # used, even though it was specifically asked for a given file path
-        assert path == self._ftrace.trace_path
+        assert path == internal_trace.trace_path
 
-        # Check for events available on the parsed trace
-        self.available_events = self._check_available_events()
-        if not self.available_events:
-            raise ValueError('The trace does not contain useful events')
+        # Since we got a trace here, use it to get basetime/endtime as well
+        self._get_time_range(internal_trace=internal_trace)
+        return internal_trace
 
-        self.basetime = self._ftrace.basetime
-
-        self._compute_timespan()
-
-        # Setup internal data reference to interesting events/dataframes
-        self._sanitize_SchedLoadAvgCpu()
-        self._sanitize_SchedLoadAvgTask()
-        self._sanitize_SchedCpuCapacity()
-        self._sanitize_SchedBoostCpu()
-        self._sanitize_SchedBoostTask()
-        self._sanitize_SchedEnergyDiff()
-        self._sanitize_SchedOverutilized()
-        self._sanitize_CpuFrequency()
-        self._sanitize_ThermalPowerCpu()
-        self._sanitize_funcgraph()
-
-    def _check_available_events(self, key=""):
+    @property
+    @memoized
+    def basetime(self):
         """
-        Internal method used to build a list of available events.
-
-        :param key: key to be used for TRAPpy filtering
-        :type key: str
+        First absolute timestamp available in the trace.
         """
-        logger = self.get_logger()
-        available_events = []
-        for val in self._ftrace.get_filters(key):
-            obj = getattr(self._ftrace, val)
-            if not obj.data_frame.empty:
-                available_events.append(val)
-        logger.debug('Events found on trace: {}'.format(', '.join(available_events)))
-        return available_events
+        return self._get_time_range()[0]
+
+    @property
+    @memoized
+    def endtime(self):
+        """
+        Timestamp of when the tracing stopped.
+
+        .. note:: With some parsers, that might be the timestamp of the last
+            recorded event instead if the trace end timestamp was not recorded.
+        """
+        return self._get_time_range()[1]
+
+    def _get_time_range(self, internal_trace=None):
+        try:
+            basetime = self._cache.get_metadata('basetime')
+            endtime = self._cache.get_metadata('endtime')
+        except KeyError:
+            if internal_trace is None:
+                internal_trace = self._get_trace(events=[])
+
+            basetime = internal_trace.basetime
+            endtime = internal_trace.endtime
+            self._cache.update_metadata({
+                'basetime': basetime,
+                'endtime': endtime,
+            })
+
+        return (basetime, endtime)
+
+    def df_events(self, event, raw=None, rename_cols=True, window=None, signals=None, signals_init=True, compress_signals_init=False, write_swap=None):
+        """
+        Get a dataframe containing all occurrences of the specified trace event
+        in the parsed trace.
+
+        :param event: Trace event name
+        :type event: str
+
+        :param rename_cols: If ``True``, some columns will be renamed for
+            consistency.
+        :type rename_cols: bool
+
+        :param window: Return a dataframe sliced to fit the given window (in
+            seconds). Note that ``signals_init=True`` will result in including
+            more rows than what you might expect.
+        :type window: tuple(float, float)
+
+        :param signals: List of signals to fixup if ``signals_init == True``.
+            If left to ``None``, :meth:`lisa.datautils.SignalDesc.from_event`
+            will be used to infer a list of default signals.
+        :type signals: list(SignalDesc)
+
+        :param signals_init: If ``True``, an initial value is provided for each
+            signal that is multiplexed in that dataframe.
+            .. seealso::
+
+                :class:`lisa.datautils.SignalDesc` and
+                :func:`lisa.datautils.df_window_signals`.
+        :type signals_init: bool
+
+        :param compress_signals_init: Give a timestamp very close to the
+            beginning of the sliced dataframe to rows that are added by
+            ``signals_init``. This allows keeping a very close time span
+            without introducing duplicate indices.
+        :type compress_signals_init: bool
+
+        :param write_swap: If ``True``, the dataframe will be written to the
+            swap area when meeting the following conditions:
+
+                * This trace has a swap directory
+                * Computing the dataframe takes more time than the estimated
+                  time it takes to write it to the cache.
+        :type write_swap: bool
+        """
+
+        sanitization_f = self._sanitization_functions.get(event)
+
+        # Make sure no `None` value flies around in the cache, since it's
+        # not uniquely identifying a dataframe
+        orig_raw = raw
+        if raw is None:
+            if sanitization_f:
+                raw = False
+            else:
+                raw = True
+
+        if raw:
+            sanitization_f = None
+        elif orig_raw == False and not sanitization_f:
+            raise ValueError('Sanitized dataframe for {} does not exist, please pass raw=True or raw=None'.format(event))
+
+        if raw:
+            # Make sure all raw descriptors are made the same way, to avoid
+            # missed sharing opportunities
+            spec = self._make_raw_pd_desc_spec(event)
+        else:
+            spec = dict(
+                event=event,
+                raw=raw,
+                trace_state=self.trace_state,
+            )
+
+        if window is not None:
+            signals = signals if signals else SignalDesc.from_event(event)
+            cols_list = [
+                signal_desc.fields
+                for signal_desc in signals
+            ]
+            spec.update(
+                window=window,
+                signals=cols_list,
+                signals_init=signals_init,
+                compress_signals_init=compress_signals_init,
+            )
+
+        if not raw:
+            spec.update(
+                rename_cols=rename_cols,
+                sanitization=sanitization_f.__qualname__ if sanitization_f else None,
+            )
+
+        pd_desc = PandasDataDesc(spec=spec)
+
+        try:
+            df = self._cache.fetch(pd_desc, insert=True)
+        except KeyError:
+            df = self._load_df(pd_desc, sanitization_f=sanitization_f, write_swap=write_swap)
+
+        if df.empty:
+            raise MissingTraceEventError(
+                TraceEventChecker(event),
+                available_events=self.available_events,
+            )
+
+        return df
+
+    def _make_raw_pd_desc(self, event):
+        spec = self._make_raw_pd_desc_spec(event)
+        return PandasDataDesc(spec=spec)
+
+    def _make_raw_pd_desc_spec(self, event):
+        return dict(
+            event=event,
+            raw=True,
+            trace_state=self.trace_state,
+        )
+
+    def _load_df(self, pd_desc, sanitization_f=None, write_swap=None):
+        raw = pd_desc['raw']
+        event = pd_desc['event']
+
+        if write_swap is None:
+            write_swap = self._write_swap
+
+        df = self._load_raw_df_map([event], write_swap=True)[event]
+
+        if sanitization_f:
+            # Evict the raw dataframe once we got the sanitized version, since
+            # we are unlikely to reuse it again
+            self._cache.evict(self._make_raw_pd_desc(event))
+
+            # We can ask to sanitize various aspects of the dataframe.
+            # Adding a new aspect can be done without modifying existing
+            # sanitization functions, as long as the default is the
+            # previous behavior
+            aspects = dict(
+                rename_cols=pd_desc['rename_cols'],
+            )
+            with measure_time() as measure:
+                df = sanitization_f(self, event, df, aspects=aspects)
+            sanitization_time = measure.exclusive_delta
+        else:
+            sanitization_time = 0
+
+        window = pd_desc.get('window')
+        if window is not None:
+            signals_init = pd_desc['signals_init']
+            compress_signals_init = pd_desc['compress_signals_init']
+            cols_list = pd_desc['signals']
+            signals = [SignalDesc(event, cols) for cols in cols_list]
+
+            with measure_time() as measure:
+                if signals_init and signals:
+                    df = df_window_signals(df, window, signals, compress_init=compress_signals_init)
+                else:
+                    df = df_window(df, window, method='pre')
+
+            windowing_time = measure.exclusive_delta
+        else:
+            windowing_time = 0
+
+        compute_cost = sanitization_time + windowing_time
+        self._cache.insert(pd_desc, df, compute_cost=compute_cost, write_swap=write_swap)
+        # If the raw event did not exist but a sanitized version does (like
+        # cpu_frequency), we need to update it here as well
+        self._parsed_events[event] = not df.empty
+
+        return df
+
+    def _load_raw_df_map(self, events, write_swap, allow_missing_events=False):
+        insert_kwargs = dict(
+            write_swap=write_swap,
+            # For raw dataframe, always write in the swap area if asked for
+            # since parsing cost is known to be high
+            force_write_swap=True,
+        )
+
+        # Get the raw dataframe from the cache if possible
+        def try_from_cache(event):
+            pd_desc = self._make_raw_pd_desc(event)
+            try:
+                # The caller is responsible of inserting in the cache if
+                # necessary
+                df = self._cache.fetch(pd_desc, insert=False)
+            except KeyError:
+                return None
+            else:
+                self._cache.insert(pd_desc, df, **insert_kwargs)
+                return df
+
+        from_cache = {
+            event: try_from_cache(event)
+            for event in events
+        }
+
+        from_cache = {
+            event: df
+            for event, df in from_cache.items()
+            if df is not None
+        }
+
+        # Load the remaining events from the trace directly
+        events_to_load = sorted(set(events) - from_cache.keys())
+        from_trace = self._parse_raw_events(events_to_load)
+
+        for event, df in from_trace.items():
+            pd_desc = self._make_raw_pd_desc(event)
+            self._cache.insert(pd_desc, df, **insert_kwargs)
+
+        df_map = {**from_cache, **from_trace}
+        missing_events = set(events) - df_map.keys()
+        if missing_events:
+            if allow_missing_events:
+                self.get_logger().warning('Events {} not found in the trace: {}'.format(
+                    ', '.join(sorted(missing_events)),
+                    self.trace_path,
+                ))
+            else:
+                raise MissingTraceEventError(missing_events)
+
+        return df_map
+
+    def _parse_raw_events_df(self, events):
+        internal_trace = self._get_trace(events)
+
+        mapping = {}
+        for event in events:
+            try:
+                df = getattr(internal_trace, event).data_frame
+            # If some events could not be parsed
+            except AttributeError:
+                continue
+            else:
+                # The dataframe cache will service future requests as needed, so we
+                # can release the memory here
+                delattr(internal_trace, event)
+
+                # If the dataframe is empty, that event may not even exist at
+                # all
+                if df.empty:
+                    continue
+                else:
+                    if self.normalize_time:
+                        df.index -= self.basetime
+
+                    mapping[event] = df
+
+        return mapping
+
+    def _parse_raw_events(self, events):
+        if not events:
+            return {}
+
+        def chunk_list(l, nr_chunks):
+            l_len = len(l)
+            n = l_len // nr_chunks
+            if not n:
+                return l
+            else:
+                return [
+                    l[i:i + n]
+                    for i in range(0, l_len, n)
+                ]
+
+        nr_processes = os.cpu_count()
+        parallel_parse = len(events) > 2
+        # Parallel parsing with Trappy just slows things down at the moment so
+        # disable it until we can experiment with other parsers which might
+        # exhibit different behaviors
+        parallel_parse = False
+        if parallel_parse:
+            chunked_events = chunk_list(events, nr_processes)
+            df_map = {}
+            with multiprocessing.Pool(processes=nr_processes) as pool:
+                for df_map_ in pool.map(self._parse_raw_events_df, chunked_events):
+                    df_map.update({
+                        event: df
+                        for event, df in df_map_.items()
+                    })
+        else:
+            df_map = self._parse_raw_events_df(events)
+
+        # remember the events that we tried to parse and that turned out to not be available
+        self._parsed_events.update({
+            event: not df.empty
+            for event, df in df_map.items()
+            # Only update the state if the event was not there, since it could
+            # have been made available by a sanitization function
+            if event not in self._parsed_events
+        })
+
+        # If for one reason or another we end up not having a dataframe at all
+        self._parsed_events.update({
+            event: False
+            for event in (set(events) - df_map.keys())
+            if event not in self._parsed_events
+        })
+
+        self._cache.update_metadata({
+            'parsed-events': self._parsed_events,
+        })
+
+        return df_map
 
     @memoized
     def _get_task_maps(self):
@@ -592,7 +1920,7 @@ class Trace(Loggable, TraceBase):
             return mapping
 
         mapping_df_list = []
-        def load(event, name_col, pid_col):
+        def _load(event, name_col, pid_col):
             df = self.df_events(event)
 
             # Get a Time column
@@ -605,18 +1933,31 @@ class Trace(Loggable, TraceBase):
             mapping_df.rename_axis(index={name_col: 'name', pid_col: 'pid'}, inplace=True)
             mapping_df_list.append(mapping_df)
 
-        if 'sched_load_avg_task' in self.available_events:
-            load('sched_load_avg_task', 'comm', 'pid')
+        def load(event, *args, **kwargs):
+            # All events have a __comm and __pid columns, so use it as well
+            _load(event, '__comm', '__pid')
+            _load(event, *args, **kwargs)
 
-        if 'sched_wakeup' in self.available_events:
-            load('sched_wakeup', '__comm', '__pid')
+        # Import here to avoid circular dependency
+        from lisa.analysis.load_tracking import LoadTrackingAnalysis
+        # All events with a "comm" and "pid" column
+        events = {
+            'sched_wakeup',
+            'sched_wakeup_new',
+            *LoadTrackingAnalysis._SCHED_PELT_SE_NAMES,
+        }
+        for event in events:
+            # Test each event independently, to make sure they will be parsed
+            # if necessary
+            if event in self.available_events:
+                load(event, 'comm', 'pid')
 
         if 'sched_switch' in self.available_events:
             load('sched_switch', 'prev_comm', 'prev_pid')
             load('sched_switch', 'next_comm', 'next_pid')
 
         if not mapping_df_list:
-            raise RuntimeError('Failed to load tasks names, sched_switch, sched_wakeup, or sched_load_avg_task events are needed')
+            raise MissingTraceEventError(sorted(events) + ['sched_switch'], available_events=self.available_events)
 
         df = pd.concat(mapping_df_list)
         # Sort by order of appearance
@@ -625,6 +1966,11 @@ class Trace(Loggable, TraceBase):
         df = df.loc[~df.index.duplicated(keep='first')]
         # explode the multindex into a "key" and "value" columns
         df.reset_index(inplace=True)
+
+        # <idle> is invented by trace-cmd, no event field contain this value,
+        # so it's useless (and actually harmful, since it will introduce a task
+        # that cannot be found in that trace)
+        df = df[df['name'] != '<idle>']
 
         name_to_pid = finalize(df, 'name', 'pid', str, int)
         pid_to_name = finalize(df, 'pid', 'name', int, str)
@@ -657,30 +2003,24 @@ class Trace(Loggable, TraceBase):
             else:
                 return True
         else:
-            return set(events).issubset(set(self.available_events))
+            # Check each event independently in case they have not been parsed
+            # yet.
+            return all(
+                event in self.available_events
+                for event in self.available_events
+            )
 
-    def get_view(self, window):
-        return TraceView(self, window)
+    def get_view(self, window, **kwargs):
+        return TraceView(self, window, **kwargs)
 
-    def _compute_timespan(self):
-        """
-        Compute time axis range, considering all the parsed events.
-        """
-        start = []
-        end = []
-        for event in self.available_events:
-            df = self.df_events(event)
-            start.append(df.index[0])
-            end.append(df.index[-1])
+    @property
+    def start(self):
+        return 0 if self.normalize_time else self.basetime
 
-        duration = max(end) - min(start)
-
-        self.start = 0 if self.normalize_time else self.basetime
-        self.end = self.start + duration
-        self.time_range = self.end - self.start
-
-        self.get_logger().debug('Trace contains events from {} to {}'.format(
-            self.start, self.end))
+    @property
+    def end(self):
+        time_range = self.endtime - self.basetime
+        return self.start + time_range
 
     def get_task_name_pids(self, name, ignore_fork=True):
         """
@@ -806,7 +2146,7 @@ class Trace(Loggable, TraceBase):
                 TaskID(pid=pid, comm=task)
                 for pid in comm_to_pid(task)
             ]
-        elif isinstance(task, numbers.Number):
+        elif isinstance(task, Number):
             task_ids = [
                 TaskID(pid=task, comm=comm)
                 for comm in pid_to_comm(task)
@@ -888,222 +2228,139 @@ class Trace(Loggable, TraceBase):
         In both cases the native viewer is assumed to be available in the host
         machine.
         """
-        if isinstance(self._ftrace, trappy.FTrace):
-            return os.popen("kernelshark {}".format(shlex.quote(self.trace_path)))
-        if isinstance(self._ftrace, trappy.SysTrace):
-            return webbrowser.open(self.trace_path)
+        path = self.trace_path
+        if path.endswith('.dat'):
+            cmd = 'kernelshark'
+        else:
+            cmd = 'xdg-open'
 
-    def df_events(self, event):
-        """
-        Get a dataframe containing all occurrences of the specified trace event
-        in the parsed trace.
-
-        :param event: Trace event name
-        :type event: str
-        """
-
-        if event not in self.available_events:
-            raise MissingTraceEventError(
-                TraceEventChecker(event),
-                available_events=self.available_events,
-            )
-
-        return getattr(self._ftrace, event).data_frame
+        return os.popen("{} {}".format(
+            cmd,
+            shlex.quote(path)
+        ))
 
 ###############################################################################
 # Trace Events Sanitize Methods
 ###############################################################################
-    def _sanitize_SchedCpuCapacity(self):
-        """
-        Add more columns to cpu_capacity data frame if the energy model is
-        available and the platform is big.LITTLE.
-        """
-        if not self.has_events('cpu_capacity') \
-           or 'nrg-model' not in self.plat_info:
-            return
 
-        df = self.df_events('cpu_capacity')
+    _SANITIZATION_FUNCTIONS = {}
+    def _sanitize_event(event, mapping=_SANITIZATION_FUNCTIONS):
+        def decorator(f):
+            mapping[event] = f
+            return f
+        return decorator
 
-        # Add column with LITTLE and big CPUs max capacities
-        nrg_model = self.plat_info['nrg-model']
-        max_lcap = nrg_model['little']['cpu']['cap_max']
-        max_bcap = nrg_model['big']['cpu']['cap_max']
-        df['max_capacity'] = np.select(
-            [df.cpu.isin(self.plat_info['clusters']['little'])],
-            [max_lcap], max_bcap)
-        # Add LITTLE and big CPUs "tipping point" threshold
-        tip_lcap = 0.8 * max_lcap
-        tip_bcap = 0.8 * max_bcap
-        df['tip_capacity'] = np.select(
-            [df.cpu.isin(self.plat_info['clusters']['little'])],
-            [tip_lcap], tip_bcap)
-
-    def _sanitize_SchedLoadAvgCpu(self):
+    @_sanitize_event('sched_load_avg_cpu')
+    def _sanitize_load_avg_cpu(self, event, df, aspects):
         """
         If necessary, rename certain signal names from v5.0 to v5.1 format.
         """
-        if not self.has_events('sched_load_avg_cpu'):
-            return
-        df = self.df_events('sched_load_avg_cpu')
-        if 'utilization' in df:
+        if aspects['rename_cols'] and 'utilization' in df:
             df.rename(columns={'utilization': 'util_avg'}, inplace=True)
             df.rename(columns={'load': 'load_avg'}, inplace=True)
 
-    def _sanitize_SchedLoadAvgTask(self):
+        return df
+
+    @_sanitize_event('sched_load_avg_task')
+    def _sanitize_load_avg_task(self, event, df, aspects):
         """
         If necessary, rename certain signal names from v5.0 to v5.1 format.
         """
-        if not self.has_events('sched_load_avg_task'):
-            return
-        df = self.df_events('sched_load_avg_task')
-        if 'utilization' in df:
+        if aspects['rename_cols'] and 'utilization' in df:
             df.rename(columns={'utilization': 'util_avg'}, inplace=True)
             df.rename(columns={'load': 'load_avg'}, inplace=True)
             df.rename(columns={'avg_period': 'period_contrib'}, inplace=True)
             df.rename(columns={'runnable_avg_sum': 'load_sum'}, inplace=True)
             df.rename(columns={'running_avg_sum': 'util_sum'}, inplace=True)
 
-    def _sanitize_SchedBoostCpu(self):
+        return df
+
+    @_sanitize_event('sched_boost_cpu')
+    def _sanitize_boost_cpu(self, event, df, aspects):
         """
         Add a boosted utilization signal as the sum of utilization and margin.
 
         Also, if necessary, rename certain signal names from v5.0 to v5.1
         format.
         """
-        if not self.has_events('sched_boost_cpu'):
-            return
-        df = self.df_events('sched_boost_cpu')
-        if 'usage' in df:
+        if aspects['rename_cols'] and 'usage' in df:
             df.rename(columns={'usage': 'util'}, inplace=True)
         df['boosted_util'] = df['util'] + df['margin']
+        return df
 
-    def _sanitize_SchedBoostTask(self):
+    @_sanitize_event('sched_boost_task')
+    def _sanitize_boost_task(self, event, df, aspects):
         """
         Add a boosted utilization signal as the sum of utilization and margin.
 
         Also, if necessary, rename certain signal names from v5.0 to v5.1
         format.
         """
-        if not self.has_events('sched_boost_task'):
-            return
-        df = self.df_events('sched_boost_task')
-        if 'utilization' in df:
+        if aspects['rename_cols'] and 'utilization' in df:
             # Convert signals name from to v5.1 format
             df.rename(columns={'utilization': 'util'}, inplace=True)
         df['boosted_util'] = df['util'] + df['margin']
+        return df
 
-    def _sanitize_SchedEnergyDiff(self):
+    @_sanitize_event('sched_energy_diff')
+    def _sanitize_energy_diff(self, event, df, aspects):
         """
-        If a energy model is provided, some signals are added to the
-        sched_energy_diff trace event data frame.
-
-        Also convert between existing field name formats for sched_energy_diff
+        Convert between existing field name formats for sched_energy_diff
         """
-        logger = self.get_logger()
-        if not self.has_events('sched_energy_diff') \
-           or 'nrg-model' not in self.plat_info:
-            return
-        nrg_model = self.plat_info['nrg-model']
-        em_lcluster = nrg_model['little']['cluster']
-        em_bcluster = nrg_model['big']['cluster']
-        em_lcpu = nrg_model['little']['cpu']
-        em_bcpu = nrg_model['big']['cpu']
-        lcpus = len(self.plat_info['clusters']['little'])
-        bcpus = len(self.plat_info['clusters']['big'])
-        SCHED_LOAD_SCALE = 1024
+        if aspects['rename_cols']:
+            translations = {'nrg_d': 'nrg_diff',
+                            'utl_d': 'usage_delta',
+                            'payoff': 'nrg_payoff'
+            }
+            df.rename(columns=translations, inplace=True)
 
-        power_max = em_lcpu['nrg_max'] * lcpus + em_bcpu['nrg_max'] * bcpus + \
-            em_lcluster['nrg_max'] + em_bcluster['nrg_max']
-        logger.debug(
-            "Maximum estimated system energy: {:d}".format(power_max))
+        return df
 
-        df = self.df_events('sched_energy_diff')
+    @_sanitize_event('thermal_power_cpu_limit')
+    @_sanitize_event('thermal_power_cpu_get_power')
+    def _sanitize_thermal_power_cpu(self, event, df, aspects):
 
-        translations = {'nrg_d': 'nrg_diff',
-                        'utl_d': 'usage_delta',
-                        'payoff': 'nrg_payoff'
-        }
-        df.rename(columns=translations, inplace=True)
+        def f(mask):
+            # Replace '00000000,0000000f' format in more usable int
+            return int(mask.replace(',', ''), 16)
 
-        df['nrg_diff_pct'] = SCHED_LOAD_SCALE * df.nrg_diff / power_max
+        df['cpus'] = df['cpus'].apply(f)
+        return df
 
-        # Tag columns by usage_delta
-        ccol = df.usage_delta
-        df['usage_delta_group'] = np.select(
-            [ccol < 150, ccol < 400, ccol < 600],
-            ['< 150', '< 400', '< 600'], '>= 600')
-
-        # Tag columns by nrg_payoff
-        ccol = df.nrg_payoff
-        df['nrg_payoff_group'] = np.select(
-            [ccol > 2e9, ccol > 0, ccol > -2e9],
-            ['Optimal Accept', 'SchedTune Accept', 'SchedTune Reject'],
-            'Suboptimal Reject')
-
-    def _sanitize_SchedOverutilized(self):
-        """ Add a column with overutilized status duration. """
-        if not self.has_events('sched_overutilized'):
-            return
-
-        df = self.df_events('sched_overutilized')
-        self.add_events_deltas(df, 'len')
-
-    def _sanitize_ThermalPowerCpu(self):
-        self._sanitize_ThermalPowerCpuGetPower()
-        self._sanitize_ThermalPowerCpuLimit()
-
-    def _sanitize_ThermalPowerCpuMask(self, mask):
-        # Replace '00000000,0000000f' format in more usable int
-        return int(mask.replace(',', ''), 16)
-
-    def _sanitize_ThermalPowerCpuGetPower(self):
-        if not self.has_events('thermal_power_cpu_get_power'):
-            return
-
-        df = self.df_events('thermal_power_cpu_get_power')
-
-        df['cpus'] = df['cpus'].apply(
-            self._sanitize_ThermalPowerCpuMask
-        )
-
-    def _sanitize_ThermalPowerCpuLimit(self):
-        if not self.has_events('thermal_power_cpu_limit'):
-            return
-
-        df = self.df_events('thermal_power_cpu_limit')
-
-        df['cpus'] = df['cpus'].apply(
-            self._sanitize_ThermalPowerCpuMask
-        )
-
-    def _sanitize_CpuFrequency(self):
+    @_sanitize_event('cpu_frequency')
+    def _sanitize_cpu_frequency(self, event, df, aspects):
         """
         Rename some columns and add fake devlib frequency events
         """
         logger = self.get_logger()
-        if not self.has_events('cpu_frequency_devlib') \
-           or 'freq-domains' not in self.plat_info:
-            return
+        if 'freq-domains' not in self.plat_info:
+            return df
 
-        devlib_freq = self.df_events('cpu_frequency_devlib')
-        devlib_freq.rename(columns={'cpu_id': 'cpu'}, inplace=True)
-        devlib_freq.rename(columns={'state': 'frequency'}, inplace=True)
+        try:
+            devlib_freq = self.df_events('cpu_frequency_devlib')
+        except MissingTraceEventError:
+            devlib_freq = pd.DataFrame()
+
+        if aspects['rename_cols']:
+            names = {
+                'cpu_id': 'cpu',
+                'state': 'frequency'
+            }
+            devlib_freq.rename(columns=names, inplace=True)
+            df.rename(columns=names, inplace=True)
 
         domains = self.plat_info['freq-domains']
 
         # devlib always introduces fake cpu_frequency events, in case the
         # OS has not generated cpu_frequency envets there are the only
         # frequency events to report
-        if not self.has_events('cpu_frequency'):
-            # Register devlib injected events as 'cpu_frequency' events
-            self._ftrace.cpu_frequency.data_frame = devlib_freq
-            df = devlib_freq
+        if df.empty:
             self.available_events.append('cpu_frequency')
+            return devlib_freq
 
         # make sure fake cpu_frequency events are never interleaved with
         # OS generated events
         else:
-            df = self.df_events('cpu_frequency')
             if not devlib_freq.empty:
 
                 # Frequencies injection is done in a per-cluster based.
@@ -1142,29 +2399,23 @@ class Trace(Loggable, TraceBase):
 
                 df.sort_index(inplace=True)
 
-            self._ftrace.cpu_frequency.data_frame = df
+            return df
 
-    def _sanitize_funcgraph(self):
+    @_sanitize_event('funcgraph_entry')
+    @_sanitize_event('funcgraph_exit')
+    def _sanitize_funcgraph(self, event, df, aspects):
         """
         Resolve the kernel function names.
         """
-
-        events = [
-            event
-            for event in ('funcgraph_entry', 'funcgraph_exit')
-            if self.has_events(event)
-        ]
-        if not events:
-            return
 
         try:
             addr_map = self.plat_info['kernel']['symbols-address']
         except KeyError as e:
             self.get_logger().warning('Missing symbol addresses, function names will not be resolved: {}'.format(e))
+            return df
         else:
-            for event in events:
-                df = self.df_events(event)
-                df['func_name'] = df['func'].map(addr_map)
+            df['func_name'] = df['func'].map(addr_map)
+            return df
 
 
 class TraceEventCheckerBase(abc.ABC, Loggable):
@@ -1248,8 +2499,7 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
                 except AttributeError:
                     pass
                 else:
-                    available_events = set(trace.available_events)
-                    checker.check_events(available_events)
+                    checker.check_events(trace.available_events)
 
                 return f(self, *args, **kwargs)
 

@@ -21,7 +21,7 @@
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
-from lisa.datautils import df_refit_index
+from lisa.datautils import df_refit_index, df_add_delta, df_deduplicate
 
 
 class StatusAnalysis(TraceAnalysisBase):
@@ -50,22 +50,18 @@ class StatusAnalysis(TraceAnalysisBase):
         """
         # Build sequence of overutilization "bands"
         df = self.trace.df_events('sched_overutilized')
-
-        # Remove duplicated index events, keep only last event which is the
-        # only one with a non null length
-        df = df[df.len != 0]
-        # This filtering can also be achieved by removing events happening at
-        # the same time, but perhaps this filtering is more complex
-        # df = df.reset_index()\
-        #         .drop_duplicates(subset='Time', keep='last')\
-        #         .set_index('Time')
+        df = df_add_delta(df, col='len', window=self.trace.window)
+        # Ignore the last line added by df_refit_index() with a NaN len
+        df = df.iloc[:-1]
+        # Remove duplicated index events
+        df = df_deduplicate(df, keep='last', consecutives=True)
         return df[['len', 'overutilized']]
 
     def get_overutilized_time(self):
         """
         Return the time spent in overutilized state.
         """
-        df = self.trace.analysis.status.df_overutilized()
+        df = self.df_overutilized()
         return df[df['overutilized'] == 1]['len'].sum()
 
     def get_overutilized_pct(self):
@@ -87,24 +83,25 @@ class StatusAnalysis(TraceAnalysisBase):
         """
 
         df = self.df_overutilized()
-        df = df_refit_index(df, self.trace.start, self.trace.end)
+        if not df.empty:
+            df = df_refit_index(df, window=self.trace.window)
 
-        # Compute intervals in which the system is reported to be overutilized
-        bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]
+            # Compute intervals in which the system is reported to be overutilized
+            bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]
 
-        color = self.get_next_color(axis)
-        label = "Overutilized"
-        for (start, delta, overutilized) in bands:
-            if not overutilized:
-                continue
+            color = self.get_next_color(axis)
+            label = "Overutilized"
+            for (start, delta, overutilized) in bands:
+                if not overutilized:
+                    continue
 
-            end = start + delta
-            axis.axvspan(start, end, alpha=0.2, facecolor=color, label=label)
+                end = start + delta
+                axis.axvspan(start, end, alpha=0.2, facecolor=color, label=label)
 
-            if label:
-                label = None
+                if label:
+                    label = None
 
-        axis.legend()
+            axis.legend()
 
         if local_fig:
             axis.set_title("System-wide overutilized status")
