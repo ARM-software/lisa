@@ -79,8 +79,12 @@ class TaskState(StateInt, Enum):
     TASK_NEW = 0x0800
     TASK_STATE_MAX = 0x1000
 
-    # LISA-only, used to differenciate runnable (R) vs running (A)
+    # LISA synthetic states
+
+    # Used to differenciate runnable (R) vs running (A)
     TASK_ACTIVE = 0x2000, "A", "Active"
+    # Used when the task state is unknown
+    TASK_UNKNOWN = -1, "U", "Unknown"
 
     @classmethod
     def list_reported_states(cls):
@@ -315,7 +319,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
             grouped = df.groupby('pid', sort=False)
             new_columns = dict(
-                next_state=grouped['curr_state'].shift(-1),
+                next_state=grouped['curr_state'].shift(-1, fill_value=TaskState.TASK_UNKNOWN),
                 # GroupBy.transform() will run the function on each group, and
                 # concatenate the resulting series to create a new column.
                 # Note: We actually need transform() to chain 2 operations on
@@ -342,7 +346,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
                 # For each PID, add the time it spent in each state
                 pid_df['delta'] = pid_df.index.to_series().diff().shift(-1)
-                pid_df['next_state'] = pid_df['curr_state'].shift(-1)
+                pid_df['next_state'] = pid_df['curr_state'].shift(-1, fill_value=TaskState.TASK_UNKNOWN)
                 return pid_df
 
             signals = df_split_signals(df, ['pid'])
