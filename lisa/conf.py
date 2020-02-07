@@ -1873,6 +1873,9 @@ class GenericContainerMetaBase(type):
         else:
             return True
 
+    # Fully memoize the function so that this always holds:
+    # assert Container[Foo] is Container[Foo]
+    @functools.lru_cache(maxsize=None, typed=True)
     def __getitem__(self, type_):
         class NewClass(self):
             _type = type_
