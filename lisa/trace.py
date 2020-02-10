@@ -1970,10 +1970,17 @@ class Trace(Loggable, TraceBase):
         # explode the multindex into a "key" and "value" columns
         df.reset_index(inplace=True)
 
-        # <idle> is invented by trace-cmd, no event field contain this value,
-        # so it's useless (and actually harmful, since it will introduce a task
-        # that cannot be found in that trace)
-        df = df[df['name'] != '<idle>']
+        forbidden_names = {
+            # <idle> is invented by trace-cmd, no event field contain this
+            # value, so it's useless (and actually harmful, since it will
+            # introduce a task that cannot be found in that trace)
+            '<idle>',
+            # This name appears when trace-cmd could not resolve the task name.
+            # Ignore it since it's not a valid name, and we probably managed
+            # to resolve it by looking at more events anyway.
+            '<...>',
+        }
+        df = df[~df['name'].isin(forbidden_names)]
 
         name_to_pid = finalize(df, 'name', 'pid', str, int)
         pid_to_name = finalize(df, 'pid', 'name', int, str)
