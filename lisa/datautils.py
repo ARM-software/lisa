@@ -34,7 +34,7 @@ from lisa.utils import TASK_COMM_MAX_LEN, groupby
 
 class DataAccessor:
     """
-    Proxy class that allows extending the :cls:`pandas.DataFrame` API.
+    Proxy class that allows extending the :class:`pandas.DataFrame` API.
 
     **Example**::
 
