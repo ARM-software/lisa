@@ -208,6 +208,7 @@ a synthetic type will be created for types.
 
 """
 
+import ast
 import copy
 import inspect
 import itertools
@@ -215,7 +216,10 @@ import contextlib
 from operator import attrgetter
 from collections.abc import Mapping, MutableMapping, Sequence, Iterable
 
+from devlib.utils.misc import ranges_to_list
+
 from lisa.utils import deduplicate
+from lisa.conf import TypedList
 
 class TypeClassMeta(type):
     """
@@ -656,6 +660,106 @@ class _EmptyTypeClass:
 # the typeclass
 class _EmptyTypeClass(TypeClass):
     pass
+
+
+class FromString(TypeClass):
+    """
+    Build values by parsing a string.
+    """
+
+    @TypeClass.required
+    @classmethod
+    def from_str(cls, string):
+        pass
+
+
+class BuiltinFromStringInstance(FromString, types=(int, float, TypedList[float])):
+    """
+    Parse the following types from a string:
+        * ``int``
+        * ``float``
+        * ``str``
+
+    Plus all the :class:`lisa.conf.TypedList` subtypes of the above types.
+    """
+    @classmethod
+    def from_str(cls, string):
+        val = ast.literal_eval(string)
+        if not isinstance(val, cls):
+            raise ValueError('Value "{}" is of type {} but should be of type {}'.format(
+                val, type(val).__qualname__, cls.__qualname__
+            ))
+        return val
+
+
+class BoolFromStringInstance(FromString, types=bool):
+    """
+    Parse boolean from a string.
+    """
+    @classmethod
+    def from_str(cls, string):
+        """
+        Accepted formats (case insensitive):
+
+            * ``0``, ``n``, ``false``
+            * ``1``, ``y``, ``true``
+        """
+        string = string.lower().strip()
+        if string in ('0', 'n', 'false'):
+            return False
+        elif string in ('1', 'y', 'true'):
+            return True
+        else:
+            raise ValueError('Cannot parse string as a boolean: {}'.format(string))
+
+
+class IntListFromStringInstance(FromString, types=TypedList[int]):
+    """
+    Instance of :class:`lisa.typeclass.FromString` for :class:`int` type.
+    """
+    @classmethod
+    def from_str(cls, string):
+        """
+        Accepts following inputs:
+
+            * ``0``: a single integer
+            * ``4-0``: and inclusive range of integers
+            * ``1,2,10,55-99``: a comma separated list of the previous formats
+        """
+        return ranges_to_list(string)
+
+
+class StrFromStringInstance(FromString, types=str):
+    """
+    Instance of :class:`lisa.typeclass.FromString` for :class:`str` type.
+    """
+    @classmethod
+    def from_str(cls, string):
+        return string
+
+
+class StrListFromStringInstance(FromString, types=TypedList[str]):
+    """
+    Instance of :class:`lisa.typeclass.FromString` for :class:`str` type.
+    """
+    @classmethod
+    def from_str(cls, string):
+        """
+        The accepted format is a comma-separated list of string.
+
+        If commas are needed inside the string, you can use quoted string list
+        instead. Note that in this case, *all* items need to be quoted, like
+        ``"foo,bar", "baz"``. Both single quotes and double quotes are accepted.
+        """
+        # If quotes are found, parse it as a Python string literal after adding
+        # brackets around
+        if '"' in string or "'" in string:
+            string = '[' + string + ']'
+            l = ast.literal_eval(string)
+            return [str(x) for x in l]
+        # Otherwise, just split on commas
+        else:
+            return string.split(',')
 
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

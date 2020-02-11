@@ -1649,58 +1649,24 @@ def get_sphinx_name(obj, style=None, abbrev=False):
     else:
         return name
 
-class _FromStringMeta(abc.ABCMeta):
-
-    def _make_bool(string):
-        string = string.lower().strip()
-        if string in ('0', 'n', 'false'):
-            return False
-        elif string in ('1', 'y', 'true'):
-            return True
-        else:
-            raise ValueError('Cannot parse string as a boolean: {}'.format(string))
-
-    _EXTRA_STRING_TYPES = {
-        int: int,
-        str: str,
-        float: float,
-        bool: _make_bool,
-    }
-    def __instancecheck__(cls, instance):
-        return type(instance) in cls._EXTRA_STRING_TYPES.keys()
-
-    def __subclasscheck__(cls, sublcass):
-        return sublcass in cls._EXTRA_STRING_TYPES.keys()
 
 
-class FromString(abc.ABC):
+def newtype(cls, name):
     """
-    Abstract Base Class for classes that can build instances from strings.
+    Make a new class inheriting from ``cls`` with the given ``name``.
 
-    One main use case is to create instances from command line options that
-    come as a string.
+    The instances of ``cls`` class will be recognized as instances of the new
+    type as well using ``isinstance``.
     """
+    class Meta(type(cls)):
+        def __instancecheck__(self, x):
+            return isinstance(x, cls)
 
-    @abc.abstractmethod
-    def _from_str(cls, string):
-        """
-        Factory that builds an instance from a string.
-        """
+    class New(cls, metaclass=Meta):
         pass
 
-    @classmethod
-    def from_str(cls, wanted_cls, string):
-        """
-        Create an instance of ``wanted_cls`` out of ``string``.
-
-        .. note:: Explicitly passing the wanted class allows handling types
-            that are not inheriting from :class:`FromString` such as ``int``.
-        """
-        if issubclass(wanted_cls, cls):
-            return wanted_cls._from_str(string)
-        else:
-            ctor = _FromStringMeta._EXTRA_STRING_TYPES[wanted_cls]
-            return ctor(string)
-
+    New.__name__ = name.split('.')[-1]
+    New.__qualname__ = name
+    return New
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
