@@ -197,6 +197,24 @@ class AnalysisHelpers(Loggable, abc.ABC):
             set_cycler(orig_cycler)
 
     @classmethod
+    @contextlib.contextmanager
+    def set_axis_rc_params(cls, axis, rc_params):
+        """
+        Context manager to set ``matplotlib.rcParams`` while plotting, and then
+        restore the default parameters.
+        """
+        orig = matplotlib.rcParams.copy()
+        matplotlib.rcParams.update(rc_params)
+
+        try:
+            yield
+        finally:
+            # matplotlib complains about some deprecated settings being set, so
+            # silence it since we are just restoring the original state
+            with warnings.catch_warnings():
+                matplotlib.rcParams.update(orig)
+
+    @classmethod
     def cycle_colors(cls, axis, nr_cycles):
         """
         Cycle the axis color cycle ``nr_cycles`` forward
@@ -390,6 +408,10 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 :param markers: List of marker to use for the plots.
                 :type markers: list(str) or None
 
+                :param rc_params: Matplotlib rc params dictionary overlaid on
+                    existing settings.
+                :type rc_params: dict(str, object) or None
+
                 :param filepath: Path of the file to save the figure in. If
                     `None`, no file is saved.
                 :type filepath: str or None
@@ -416,7 +438,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 remove_params=['local_fig'],
                 include_kwargs=True,
             )
-            def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=False, colors=None, linestyles=None, markers=None, **kwargs):
+            def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=False, colors=None, linestyles=None, markers=None, rc_params=None, **kwargs):
 
                 # Bind the function to the instance, so we avoid having "self"
                 # showing up in the signature, which breaks parameter
@@ -474,10 +496,15 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 else:
                     set_cycler = lambda axis: nullcontext()
 
+                if rc_params:
+                    set_rc_params = lambda axis: cls.set_axis_rc_params(axis, rc_params)
+                else:
+                    set_rc_params = lambda axis: nullcontext()
+
                 # Allow returning an axis directly, or just update a given axis
                 if return_axis:
                     # In that case, the function takes all the kwargs
-                    with set_cycler(axis):
+                    with set_cycler(axis), set_rc_params(axis):
                         axis = f(*args, **kwargs, axis=axis)
                 else:
                     if local_fig:
@@ -488,7 +515,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         }
                         fig, axis = self.setup_plot(**setup_plot_kwargs)
 
-                    with set_cycler(axis):
+                    with set_cycler(axis), set_rc_params(axis):
                         f(*args, axis=axis, local_fig=local_fig, **f_kwargs)
 
                 if isinstance(axis, numpy.ndarray):
@@ -571,7 +598,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         fmt = 'png'
         b64_image = cls._get_base64_image(axis, fmt=fmt)
 
-        hidden_params = {'filepath', 'axis', 'output', 'img_format', 'always_save', 'kwargs', 'colors', 'linestyles', 'markers'}
+        hidden_params = {'filepath', 'axis', 'output', 'img_format', 'always_save', 'kwargs', 'colors', 'linestyles', 'markers', 'rc_params'}
         args_list = ', '.join(
             '{}={}'.format(k, v)
             for k, v in sorted(kwargs.items(), key=itemgetter(0))
