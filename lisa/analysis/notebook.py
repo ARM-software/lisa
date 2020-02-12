@@ -78,7 +78,7 @@ class NotebookAnalysis(TraceAnalysisBase):
             return val
 
     @TraceAnalysisBase.plot_method(return_axis=False)
-    def plot_event_field(self, event, field, axis, local_fig, filter_columns=None, filter_f=None):
+    def plot_event_field(self, event: str, field: str, axis, local_fig, filter_columns=None, filter_f=None):
         """
         Plot a signal represented by the filtered values of a field of an event.
 

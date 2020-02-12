@@ -24,6 +24,7 @@ import numpy as np
 from lisa.datautils import series_integrate, df_split_signals, series_combine, df_add_delta, df_refit_index
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, CPU
+from lisa.conf import TypedList
 
 
 class IdleAnalysis(TraceAnalysisBase):
@@ -202,7 +203,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_cpu_idle_state_residency.used_events
-    def plot_cpu_idle_state_residency(self, cpu: CPU, axis, local_fig, pct=False):
+    def plot_cpu_idle_state_residency(self, cpu: CPU, axis, local_fig, pct: bool=False):
         """
         Plot the idle state residency of a CPU
 
@@ -218,7 +219,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_cluster_idle_state_residency.used_events
-    def plot_cluster_idle_state_residency(self, cluster, axis, local_fig, pct=False):
+    def plot_cluster_idle_state_residency(self, cluster: TypedList[CPU], axis, local_fig, pct: bool=False):
         """
         Plot the idle state residency of a cluster
 
@@ -236,7 +237,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cluster_idle_state_residency.used_events
-    def plot_clusters_idle_state_residency(self, pct=False, axis=None, **kwargs):
+    def plot_clusters_idle_state_residency(self, pct: bool=False, axis=None, **kwargs):
         """
         Plot the idle state residency of all clusters
 

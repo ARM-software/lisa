@@ -26,6 +26,7 @@ from lisa.analysis.status import StatusAnalysis
 from lisa.trace import requires_one_event_of, may_use_events, TaskID
 from lisa.utils import deprecate
 from lisa.datautils import df_refit_index, series_refit_index, df_filter_task_ids, df_split_signals
+from lisa.conf import TypedList
 
 
 class LoadTrackingAnalysis(TraceAnalysisBase):
@@ -287,7 +288,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         'cpu_capacity',
     )
     @df_cpus_signal.used_events
-    def plot_cpus_signals(self, cpus=None, signals=['util', 'load'], axis=None, **kwargs):
+    def plot_cpus_signals(self, cpus=None, signals: TypedList[str]=['util', 'load'], axis=None, **kwargs):
         """
         Plot the CPU-related load-tracking signals
 
@@ -336,7 +337,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_task_signal.used_events
-    def plot_task_signals(self, task: TaskID, axis, local_fig, signals=['util', 'load']):
+    def plot_task_signals(self, task: TaskID, axis, local_fig, signals: TypedList[str]=['util', 'load']):
         """
         Plot the task-related load-tracking signals
 
