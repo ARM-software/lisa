@@ -46,6 +46,7 @@ from IPython.display import display
 from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython, nullcontext, measure_time
 from lisa.trace import MissingTraceEventError, PandasDataDesc
 from lisa.notebook import axis_link_dataframes, WrappingHBox
+from lisa.conf import TypedList
 
 # Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
 COLOR_CYCLES = [
@@ -446,7 +447,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 remove_params=['local_fig'],
                 include_kwargs=True,
             )
-            def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=False, colors=None, linestyles=None, markers=None, rc_params=None, **kwargs):
+            def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=False, colors: TypedList[str]=None, linestyles: TypedList[str]=None, markers: TypedList[str]=None, rc_params=None, **kwargs):
 
                 # Bind the function to the instance, so we avoid having "self"
                 # showing up in the signature, which breaks parameter
