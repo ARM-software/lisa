@@ -215,7 +215,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 matplotlib.rcParams.update(orig)
 
     @classmethod
-    def cycle_colors(cls, axis, nr_cycles):
+    def cycle_colors(cls, axis, nr_cycles=1):
         """
         Cycle the axis color cycle ``nr_cycles`` forward
 

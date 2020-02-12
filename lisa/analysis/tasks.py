@@ -669,7 +669,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
                 if series.empty:
                     # Cycle the colours to stay consistent
-                    self.cycle_colors(axis, 1)
+                    self.cycle_colors(axis)
                 else:
                     series = series_refit_index(series, window=self.trace.window)
                     series.plot(ax=axis, style='+',
@@ -988,19 +988,21 @@ class TasksAnalysis(TraceAnalysisBase):
                     linewidth=0,
                 )
 
-            # For some reason fill_between does not advance in the color cycler so let's do that manually.
-            self.get_next_color(axis)
-
             if duty_cycle or duration:
                 if which_cpu and not overlay:
                     duration_axis = axis.twinx()
                 else:
                     duration_axis = axis
 
+                # For some reason fill_between does not advance in the color cycler so let's do that manually.
+                self.cycle_colors(duration_axis)
+
                 if duty_cycle:
                     df['duty_cycle'].plot(ax=duration_axis, drawstyle='steps-post', label='Duty cycle of {}'.format(task))
+                    duration_axis.set_ylabel('Duty cycle')
 
                 if duration:
+                    duration_axis.set_ylabel('Duration in seconds')
                     for active, label in (
                             (True, 'Activations'),
                             (False, 'Sleep')
@@ -1011,5 +1013,8 @@ class TasksAnalysis(TraceAnalysisBase):
                         duration_series.plot(ax=duration_axis, drawstyle='steps-post', label='{} duration of {}'.format(label, task))
 
                 duration_axis.legend()
+
+        axis.set_title('Activations of {}'.format(task))
+        axis.grid(True)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
