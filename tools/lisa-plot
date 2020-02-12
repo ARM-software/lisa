@@ -24,7 +24,9 @@ import inspect
 from collections import OrderedDict
 import contextlib
 
-from lisa.utils import get_short_doc
+import matplotlib.pyplot as plt
+
+from lisa.utils import get_short_doc, nullcontext
 from lisa.trace import Trace, MissingTraceEventError, CPU, TaskID
 from lisa.conf import ConfigKeyError
 from lisa.analysis.base import TraceAnalysisBase
@@ -237,6 +239,10 @@ Available plots:
         help='Platform information, necessary for some plots',
     )
 
+    parser.add_argument('--xkcd', action='store_true',
+        help='Graphs will look like XKCD plots',
+    )
+
     args = parser.parse_args(argv)
 
     flat_plot_map = {
@@ -316,6 +322,8 @@ Available plots:
 
         trace = trace.get_view(window)
 
+    xkcd_cm = plt.xkcd() if args.xkcd else nullcontext()
+
     for plot_name, file_path in sorted(plot_spec_list):
         f = flat_plot_map[plot_name]
         dirname = os.path.dirname(file_path)
@@ -325,7 +333,8 @@ Available plots:
         kwargs = make_plot_kwargs(f, file_path, extra_options=args.option)
 
         with handle_plot_excep(exit_on_error=not args.best_effort):
-            TraceAnalysisBase.call_on_trace(f, trace, kwargs)
+            with xkcd_cm:
+                TraceAnalysisBase.call_on_trace(f, trace, kwargs)
 
 if __name__ == '__main__':
     ret = main(sys.argv[1:])
