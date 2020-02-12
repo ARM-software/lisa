@@ -40,6 +40,7 @@ from collections import namedtuple
 from operator import itemgetter
 from numbers import Number, Integral, Real
 import multiprocessing
+import textwrap
 
 import numpy as np
 import pandas as pd
@@ -50,14 +51,15 @@ import devlib
 from devlib.target import KernelVersion
 
 import lisa.utils
-from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate, nullcontext, measure_time, checksum, FromString
+from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate, nullcontext, measure_time, checksum, newtype
 from lisa.platforms.platinfo import PlatformInfo
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, TypedList, Configurable
 from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta
 from lisa.version import VERSION_TOKEN
+from lisa.typeclass import FromString, IntListFromStringInstance
 
 
-class TaskID(namedtuple('TaskID', ('pid', 'comm')), FromString):
+class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
     """
     Unique identifier of a logical task in a :class:`Trace`.
 
@@ -89,8 +91,13 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm')), FromString):
 
     _STR_PARSE_REGEX = re.compile(r'\[?([0-9]+):([a-zA-Z0-9_-]+)\]?')
 
+
+class TaskIDFromStringInstance(FromString, types=TaskID):
+    """
+    Instance of :class:`lisa.typeclass.FromString` for :class:`TaskID` type.
+    """
     @classmethod
-    def _from_str(cls, string):
+    def from_str(cls, string):
         try:
             pid = int(string)
             comm = None
@@ -105,14 +112,49 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm')), FromString):
 
         return cls(pid=pid, comm=comm)
 
+    @classmethod
+    def get_format_description(cls, short):
+        if short:
+            return 'task ID'
+        else:
+            return textwrap.dedent("""
+            Can be any of:
+               * a PID
+               * a task name
+               * a PID (first) and a name (second): pid:name
+            """).strip()
 
-class CPU(int, FromString):
+
+class TaskIDListFromStringInstance(FromString, types=TypedList[TaskID]):
     """
-    Speciliazed int representing a CPU.
+    Instance of :class:`lisa.typeclass.FromString` for lists :class:`TaskID` type.
     """
     @classmethod
-    def _from_str(cls, string):
-        return cls(string)
+    def from_str(cls, string):
+        """
+        The format is a comma-separated list of :class:`TaskID`.
+        """
+        from_str = FromString(TaskID).from_str
+        return [
+            from_str(string.strip())
+            for string in string.split(',')
+        ]
+
+    @classmethod
+    def get_format_description(cls, short):
+        return 'comma-separated TaskIDs'
+
+
+CPU = newtype(int, 'CPU')
+
+
+class CPUListFromStringInstance(FromString, types=TypedList[CPU]):
+    # Use the same implementation as for TypedList[int]
+    from_str = IntListFromStringInstance.from_str
+
+    @classmethod
+    def get_format_description(cls, short):
+        return FromString(TypedList[int]).get_format_description(short=short)
 
 
 class TraceBase(abc.ABC):

@@ -675,7 +675,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
     @AnalysisHelpers.plot_method()
     @df_rtapp_stats.used_events
-    def plot_slack_histogram(self, task: TaskID, axis, local_fig, bins=30):
+    def plot_slack_histogram(self, task: TaskID, axis, local_fig, bins: int=30):
         """
         Plot the slack histogram.
 
@@ -699,7 +699,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
     @AnalysisHelpers.plot_method()
     @df_rtapp_stats.used_events
-    def plot_perf_index_histogram(self, task: TaskID, axis, local_fig, bins=30):
+    def plot_perf_index_histogram(self, task: TaskID, axis, local_fig, bins: int=30):
         """
         Plot the perf index histogram.
 
@@ -916,7 +916,7 @@ class PerfAnalysis(AnalysisHelpers):
         data.plot(ax=axis, drawstyle='steps-post')
 
     @AnalysisHelpers.plot_method()
-    def plot_slack_histogram(self, task: TaskID, axis, local_fig, bins=30):
+    def plot_slack_histogram(self, task: TaskID, axis, local_fig, bins: int=30):
         """
         Plot the slack histogram.
 
@@ -938,7 +938,7 @@ class PerfAnalysis(AnalysisHelpers):
             axis.set_title(ylabel)
 
     @AnalysisHelpers.plot_method()
-    def plot_perf_index_histogram(self, task: TaskID, axis, local_fig, bins=30):
+    def plot_perf_index_histogram(self, task: TaskID, axis, local_fig, bins: int=30):
         r"""
         Plot the perf index histogram.
 

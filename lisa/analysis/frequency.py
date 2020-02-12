@@ -348,7 +348,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @requires_events('cpu_frequency')
-    def plot_cpu_frequencies(self, cpu: CPU, axis, local_fig, average=True):
+    def plot_cpu_frequencies(self, cpu: CPU, axis, local_fig, average: bool=True):
         """
         Plot frequency for the specified CPU
 
@@ -421,7 +421,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @df_cpu_frequency_residency.used_events
-    def plot_cpu_frequency_residency(self, cpu: CPU, pct=False, axis=None, **kwargs):
+    def plot_cpu_frequency_residency(self, cpu: CPU, pct: bool=False, axis=None, **kwargs):
         """
         Plot per-CPU frequency residency.
 
@@ -461,7 +461,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cpu_frequency_residency.used_events
-    def plot_domain_frequency_residency(self, pct=False, axis=None, **kwargs):
+    def plot_domain_frequency_residency(self, pct: bool=False, axis=None, **kwargs):
         """
         Plot the frequency residency for all frequency domains.
 
@@ -487,7 +487,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_cpu_frequency_transitions.used_events
-    def plot_cpu_frequency_transitions(self, cpu: CPU, axis, local_fig, pct=False):
+    def plot_cpu_frequency_transitions(self, cpu: CPU, axis, local_fig, pct: bool=False):
         """
         Plot frequency transitions count of the specified CPU
 
@@ -518,7 +518,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cpu_frequency_transitions.used_events
-    def plot_domain_frequency_transitions(self, pct=False, axis=None, **kwargs):
+    def plot_domain_frequency_transitions(self, pct: bool=False, axis=None, **kwargs):
         """
         Plot frequency transitions count for all frequency domains
 

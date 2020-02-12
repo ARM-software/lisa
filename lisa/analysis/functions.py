@@ -78,7 +78,7 @@ class FunctionsAnalysis(AnalysisHelpers):
             return df
 
     @AnalysisHelpers.plot_method()
-    def plot_profiling_stats(self, functions=None, axis=None, local_fig=None, metrics='avg'):
+    def plot_profiling_stats(self, functions: str=None, axis=None, local_fig=None, metrics: str='avg'):
         """
         Plot functions profiling metrics for the specified kernel functions.
 

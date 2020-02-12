@@ -25,8 +25,9 @@ import pandas as pd
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates
-from lisa.trace import requires_events, TaskID
+from lisa.trace import requires_events, TaskID, CPU
 from lisa.pelt import PELT_SCALE
+from lisa.conf import TypedList
 
 
 class StateInt(int):
@@ -712,8 +713,8 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_tasks_total_residency.used_events
-    def plot_tasks_total_residency(self, tasks=None, ascending=False,
-                                   count=None, axis=None, local_fig=None):
+    def plot_tasks_total_residency(self, tasks: TypedList[TaskID]=None, ascending: bool=False,
+                                   count: bool=None, axis=None, local_fig=None):
         """
         Plot the stacked total time spent by each task on each CPU
 
@@ -759,7 +760,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @requires_events("sched_wakeup")
-    def plot_tasks_wakeups(self, target_cpus=None, window=0.01, per_sec=False,
+    def plot_tasks_wakeups(self, target_cpus: TypedList[CPU]=None, window: float=0.01, per_sec: bool=False,
                            axis=None, local_fig=None):
         """
         Plot task wakeups over time
@@ -794,7 +795,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup")
-    def plot_tasks_wakeups_heatmap(self, xbins=100, colormap=None, axis=None, **kwargs):
+    def plot_tasks_wakeups_heatmap(self, xbins: int=100, colormap=None, axis=None, **kwargs):
         """
         Plot tasks wakeups heatmap
 
@@ -821,7 +822,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @requires_events("sched_wakeup_new")
-    def plot_tasks_forks(self, target_cpus=None, window=0.01, per_sec=False,
+    def plot_tasks_forks(self, target_cpus: TypedList[CPU]=None, window: float=0.01, per_sec: bool=False,
                          axis=None, local_fig=None):
         """
         Plot task forks over time
@@ -856,7 +857,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup_new")
-    def plot_tasks_forks_heatmap(self, xbins=100, colormap=None, axis=None, **kwargs):
+    def plot_tasks_forks_heatmap(self, xbins: int=100, colormap=None, axis=None, **kwargs):
         """
         :param xbins: Number of x-axis bins, i.e. in how many slices should
           time be arranged
@@ -881,9 +882,9 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_task_activation.used_events
-    def plot_task_activation(self, task: TaskID, cpu=None, active_value=None,
-            sleep_value=None, alpha=None, overlay=False, duration=False,
-            duty_cycle=False, which_cpu=False, height_duty_cycle=False,
+    def plot_task_activation(self, task: TaskID, cpu: CPU=None, active_value: float=None,
+            sleep_value: float=None, alpha: float=None, overlay: bool=False, duration: bool=False,
+            duty_cycle: bool=False, which_cpu: bool=False, height_duty_cycle: bool=False,
             axis=None, local_fig=None):
         """
         Plot task activations, in a style similar to kernelshark.

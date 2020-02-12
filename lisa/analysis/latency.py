@@ -178,8 +178,8 @@ class LatencyAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.plot_method()
     @df_latency_wakeup.used_events
     @df_latency_preemption.used_events
-    def plot_latencies(self, task: TaskID, axis, local_fig, wakeup=True, preempt=True,
-            threshold_ms=1):
+    def plot_latencies(self, task: TaskID, axis, local_fig, wakeup: bool=True, preempt: bool=True,
+            threshold_ms: float=1):
         """
         Plot the latencies of a task over time
 
@@ -254,8 +254,8 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @_get_latencies_df.used_events
-    def plot_latencies_cdf(self, task: TaskID, axis, local_fig, wakeup=True, preempt=True,
-            threshold_ms=1):
+    def plot_latencies_cdf(self, task: TaskID, axis, local_fig, wakeup: bool=True, preempt: bool=True,
+            threshold_ms: float=1):
         """
         Plot the latencies Cumulative Distribution Function of a task
 
@@ -289,8 +289,8 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @_get_latencies_df.used_events
-    def plot_latencies_histogram(self, task: TaskID, axis, local_fig, wakeup=True,
-            preempt=True, threshold_ms=1, bins=64):
+    def plot_latencies_histogram(self, task: TaskID, axis, local_fig, wakeup: bool=True,
+            preempt: bool=True, threshold_ms: float=1, bins: int=64):
         """
         Plot the latencies histogram of a task
 

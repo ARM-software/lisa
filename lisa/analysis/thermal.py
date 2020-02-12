@@ -138,7 +138,7 @@ class ThermalAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method()
     @df_thermal_zones_temperature.used_events
-    def plot_thermal_zone_temperature(self, thermal_zone_id, axis, local_fig):
+    def plot_thermal_zone_temperature(self, thermal_zone_id: int, axis, local_fig):
         """
         Plot temperature of thermal zones (all by default)
 
@@ -194,7 +194,7 @@ class ThermalAnalysis(TraceAnalysisBase):
             axis.grid(axis='y')
 
     @TraceAnalysisBase.plot_method()
-    def plot_dev_freq_cooling_states(self, device, axis, local_fig):
+    def plot_dev_freq_cooling_states(self, device: str, axis, local_fig):
         """
         Plot the state evolution of a devfreq cooling device
 

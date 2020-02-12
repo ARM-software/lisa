@@ -24,11 +24,12 @@ import inspect
 from collections import OrderedDict
 import contextlib
 
-from lisa.utils import get_short_doc, FromString
+from lisa.utils import get_short_doc
 from lisa.trace import Trace, MissingTraceEventError, CPU, TaskID
 from lisa.conf import ConfigKeyError
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.platforms.platinfo import PlatformInfo
+from lisa.typeclass import FromString
 
 
 def error(msg, ret=1):
@@ -117,10 +118,7 @@ def make_plot_kwargs(meth, file_path, extra_options):
 
     options = dict(extra_options)
     kwargs = {
-        name: FromString.from_str(
-            wanted_cls=param.annotation,
-            string=options[name]
-        )
+        name: FromString(param.annotation).from_str(options[name])
         for name, param in sig.parameters.items()
         if (
             name in options
@@ -147,8 +145,11 @@ def handle_plot_excep(exit_on_error=True):
 def get_meth_options_help(meth):
     sig = inspect.signature(meth)
 
+    def get_help(cls):
+        return FromString(cls).get_format_description(short=True)
+
     parameters = ', '.join(
-        '{} ({})'.format(name, param.annotation.__name__)
+        '{} ({})'.format(name, get_help(param.annotation))
         for name, param in sig.parameters.items()
         if param.annotation != inspect.Parameter.empty
     )

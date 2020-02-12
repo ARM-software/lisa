@@ -25,6 +25,12 @@ Utilities
 .. automodule:: lisa.utils
    :members:
 
+Typeclasses
+===========
+
+.. automodule:: lisa.typeclass
+   :members:
+
 Dataframe and Series handling utilities
 =======================================
 
