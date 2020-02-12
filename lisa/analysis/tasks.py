@@ -999,8 +999,10 @@ class TasksAnalysis(TraceAnalysisBase):
 
                 if duty_cycle:
                     df['duty_cycle'].plot(ax=duration_axis, drawstyle='steps-post', label='Duty cycle of {}'.format(task))
+                    duration_axis.set_ylabel('Duty cycle')
 
                 if duration:
+                    duration_axis.set_ylabel('Duration in seconds')
                     for active, label in (
                             (True, 'Activations'),
                             (False, 'Sleep')
@@ -1011,5 +1013,8 @@ class TasksAnalysis(TraceAnalysisBase):
                         duration_series.plot(ax=duration_axis, drawstyle='steps-post', label='{} duration of {}'.format(label, task))
 
                 duration_axis.legend()
+
+        axis.set_title('Activations of {}'.format(task))
+        axis.grid(True)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
