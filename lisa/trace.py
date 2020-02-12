@@ -40,6 +40,7 @@ from collections import namedtuple
 from operator import itemgetter
 from numbers import Number, Integral, Real
 import multiprocessing
+import textwrap
 
 import numpy as np
 import pandas as pd
@@ -111,6 +112,18 @@ class TaskIDFromStringInstance(FromString, types=TaskID):
 
         return cls(pid=pid, comm=comm)
 
+    @classmethod
+    def get_format_description(cls, short):
+        if short:
+            return 'task ID'
+        else:
+            return textwrap.dedent("""
+            Can be any of:
+               * a PID
+               * a task name
+               * a PID (first) and a name (second): pid:name
+            """).strip()
+
 
 class TaskIDListFromStringInstance(FromString, types=TypedList[TaskID]):
     """
@@ -127,6 +140,10 @@ class TaskIDListFromStringInstance(FromString, types=TypedList[TaskID]):
             for string in string.split(',')
         ]
 
+    @classmethod
+    def get_format_description(cls, short):
+        return 'comma-separated TaskIDs'
+
 
 CPU = newtype(int, 'CPU')
 
@@ -134,6 +151,10 @@ CPU = newtype(int, 'CPU')
 class CPUListFromStringInstance(FromString, types=TypedList[CPU]):
     # Use the same implementation as for TypedList[int]
     from_str = IntListFromStringInstance.from_str
+
+    @classmethod
+    def get_format_description(cls, short):
+        return FromString(TypedList[int]).get_format_description(short=short)
 
 
 class TraceBase(abc.ABC):

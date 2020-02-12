@@ -213,6 +213,7 @@ import copy
 import inspect
 import itertools
 import contextlib
+import textwrap
 from operator import attrgetter
 from collections.abc import Mapping, MutableMapping, Sequence, Iterable
 
@@ -670,8 +671,22 @@ class FromString(TypeClass):
     @TypeClass.required
     @classmethod
     def from_str(cls, string):
+        """
+        Parse the given string into a value of ``cls``.
+        """
         pass
 
+    @TypeClass.required
+    @classmethod
+    def get_format_description(cls, short):
+        """
+        Returns the description of the format parsed by :meth:`from_str`.
+
+        :param short: If ``True``, a short description should be returned.
+            Otherwise a more more lengthy description is acceptable
+        :type short: bool
+        """
+        pass
 
 class BuiltinFromStringInstance(FromString, types=(int, float, TypedList[float])):
     """
@@ -690,6 +705,10 @@ class BuiltinFromStringInstance(FromString, types=(int, float, TypedList[float])
                 val, type(val).__qualname__, cls.__qualname__
             ))
         return val
+
+    @classmethod
+    def get_format_description(cls, short):
+        return cls.__name__
 
 
 class BoolFromStringInstance(FromString, types=bool):
@@ -712,6 +731,10 @@ class BoolFromStringInstance(FromString, types=bool):
         else:
             raise ValueError('Cannot parse string as a boolean: {}'.format(string))
 
+    @classmethod
+    def get_format_description(cls, short):
+        return 'bool'
+
 
 class IntListFromStringInstance(FromString, types=TypedList[int]):
     """
@@ -728,6 +751,17 @@ class IntListFromStringInstance(FromString, types=TypedList[int]):
         """
         return ranges_to_list(string)
 
+    @classmethod
+    def get_format_description(cls, short):
+        if short:
+            return 'comma-separated integers'
+        else:
+            return textwrap.dedent("""
+            Can be any of:
+                * ``0``: a single integer
+                * ``4-0``: and inclusive range of integers
+                * ``1,2,10,55-99``: a comma separated list of the previous formats
+            """).strip()
 
 class StrFromStringInstance(FromString, types=str):
     """
@@ -737,6 +771,9 @@ class StrFromStringInstance(FromString, types=str):
     def from_str(cls, string):
         return string
 
+    @classmethod
+    def get_format_description(cls, short):
+        return 'str'
 
 class StrListFromStringInstance(FromString, types=TypedList[str]):
     """
@@ -760,6 +797,16 @@ class StrListFromStringInstance(FromString, types=TypedList[str]):
         # Otherwise, just split on commas
         else:
             return string.split(',')
+
+    @classmethod
+    def get_format_description(cls, short):
+        if short:
+            return 'comma-separated string'
+        else:
+            return textwrap.dedent("""
+            Can be either a comma separated string, or a comma-separated quoted
+            string if commas are needed inside elements.
+            """).strip()
 
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

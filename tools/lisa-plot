@@ -145,8 +145,11 @@ def handle_plot_excep(exit_on_error=True):
 def get_meth_options_help(meth):
     sig = inspect.signature(meth)
 
+    def get_help(cls):
+        return FromString(cls).get_format_description(short=True)
+
     parameters = ', '.join(
-        '{} ({})'.format(name, param.annotation.__name__)
+        '{} ({})'.format(name, get_help(param.annotation))
         for name, param in sig.parameters.items()
         if param.annotation != inspect.Parameter.empty
     )
