@@ -46,6 +46,7 @@ from IPython.display import display
 from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython, nullcontext, measure_time
 from lisa.trace import MissingTraceEventError, PandasDataDesc
 from lisa.notebook import axis_link_dataframes, WrappingHBox
+from lisa.conf import TypedList
 
 # Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
 COLOR_CYCLES = [
@@ -139,15 +140,16 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
     @classmethod
     @contextlib.contextmanager
-    def set_axis_cycler(cls, axis, cycler):
+    def set_axis_cycler(cls, axis, *cyclers):
         """
-        Context manager to set a cycler on an axis (and the default cycler as
+        Context manager to set cyclers on an axis (and the default cycler as
         well), and then restore the default cycler.
 
-        .. note:: The given cycler is merged with the original cycler. The
-            given cycler will override any key of the original cycler, and the
-            number of values will be adjusted to the maximum size of the two.
-            This way of merging allows decoupling the length of all keys.
+        .. note:: The given cyclers are merged with the original cycler. The
+            given cyclers will override any key of the original cycler, and the
+            number of values will be adjusted to the maximum size between all
+            of them. This way of merging allows decoupling the length of all
+            keys.
         """
         orig_cycler = plt.rcParams['axes.prop_cycle']
 
@@ -156,7 +158,10 @@ class AnalysisHelpers(Loggable, abc.ABC):
             len(values)
             for values in itertools.chain(
                 orig_cycler.by_key().values(),
-                cycler.by_key().values()
+                itertools.chain.from_iterable(
+                    cycler.by_key().values()
+                    for cycler in cyclers
+                ),
             )
         )
 
@@ -175,11 +180,15 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 for key, values in keys.items()
             }
 
-        # Merge the 2 cyclers together, so we still get the original values of
-        # the keys not overridden by the given cycler
-        parameters ={
+        cycler = {}
+        for user_cycler in cyclers:
+            cycler.update(pad_cycler(user_cycler))
+
+        # Merge the cyclers and original cycler together, so we still get the
+        # original values of the keys not overridden by the given cycler
+        parameters = {
             **pad_cycler(orig_cycler),
-            **pad_cycler(cycler)
+            **cycler,
         }
         cycler = make_cycler(**parameters)
 
@@ -438,7 +447,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 remove_params=['local_fig'],
                 include_kwargs=True,
             )
-            def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=False, colors=None, linestyles=None, markers=None, rc_params=None, **kwargs):
+            def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=False, colors: TypedList[str]=None, linestyles: TypedList[str]=None, markers: TypedList[str]=None, rc_params=None, **kwargs):
 
                 # Bind the function to the instance, so we avoid having "self"
                 # showing up in the signature, which breaks parameter
@@ -491,8 +500,11 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     if value
                 }
                 if cyclers:
-                    cycler = make_cycler(**cyclers)
-                    set_cycler = lambda axis: cls.set_axis_cycler(axis, cycler)
+                    cyclers = [
+                        make_cycler(**{name: value})
+                        for name, value in cyclers.items()
+                    ]
+                    set_cycler = lambda axis: cls.set_axis_cycler(axis, *cyclers)
                 else:
                     set_cycler = lambda axis: nullcontext()
 
