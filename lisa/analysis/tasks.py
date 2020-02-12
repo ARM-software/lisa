@@ -669,7 +669,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
                 if series.empty:
                     # Cycle the colours to stay consistent
-                    self.cycle_colors(axis, 1)
+                    self.cycle_colors(axis)
                 else:
                     series = series_refit_index(series, window=self.trace.window)
                     series.plot(ax=axis, style='+',
