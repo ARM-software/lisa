@@ -988,14 +988,14 @@ class TasksAnalysis(TraceAnalysisBase):
                     linewidth=0,
                 )
 
-            # For some reason fill_between does not advance in the color cycler so let's do that manually.
-            self.get_next_color(axis)
-
             if duty_cycle or duration:
                 if which_cpu and not overlay:
                     duration_axis = axis.twinx()
                 else:
                     duration_axis = axis
+
+                # For some reason fill_between does not advance in the color cycler so let's do that manually.
+                self.cycle_colors(duration_axis)
 
                 if duty_cycle:
                     df['duty_cycle'].plot(ax=duration_axis, drawstyle='steps-post', label='Duty cycle of {}'.format(task))
