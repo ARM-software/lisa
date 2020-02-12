@@ -239,6 +239,10 @@ Available plots:
         help='Platform information, necessary for some plots',
     )
 
+    parser.add_argument('--interactive-html', action='store_true',
+        help='Use mpld3 to generate an interactive HTML file when html format is in use',
+    )
+
     parser.add_argument('--xkcd', action='store_true',
         help='Graphs will look like XKCD plots',
     )
@@ -331,6 +335,9 @@ Available plots:
             os.makedirs(dirname, exist_ok=True)
 
         kwargs = make_plot_kwargs(f, file_path, extra_options=args.option)
+
+        if args.interactive_html:
+            kwargs['img_format'] = 'interactive_html'
 
         with handle_plot_excep(exit_on_error=not args.best_effort):
             with xkcd_cm:

@@ -39,6 +39,7 @@ from matplotlib.figure import Figure
 from cycler import cycler as make_cycler
 
 import mplcursors
+import mpld3
 
 from ipywidgets import widgets
 from IPython.display import display
@@ -539,6 +540,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     format_map = {
                         'rst': cls._get_rst_content,
                         'html': cls._get_html,
+                        'interactive_html': cls._get_interactive_html,
                     }
                     try:
                         return format_map[fmt]
@@ -563,7 +565,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     out = resolve_formatter(output)(f, args, f_kwargs, axis)
 
                 if filepath:
-                    if img_format in ('html', 'rst'):
+                    if img_format in ('html', 'interactive_html', 'rst'):
                         content = resolve_formatter(img_format)(f, args, f_kwargs, axis)
 
                         with open(filepath, 'wt', encoding='utf-8') as fd:
@@ -663,6 +665,12 @@ class AnalysisHelpers(Loggable, abc.ABC):
         rst = cls._get_rst(*args, **kwargs)
         parts = cls._docutils_render(writer='html', rst=rst, doctitle_xform=True)
         return parts['whole']
+
+    @classmethod
+    def _get_interactive_html(cls, f, args, kwargs, axis):
+        fig = axis.get_figure()
+        html = mpld3.fig_to_html(fig, template_type='general')
+        return html
 
 
 class TraceAnalysisBase(AnalysisHelpers):
