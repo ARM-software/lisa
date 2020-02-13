@@ -923,7 +923,7 @@ class FtraceTestBundle(TestBundle, metaclass=FtraceTestBundleMeta):
         allows updating the underlying path before it is actually loaded to
         match a different folder structure.
         """
-        return self.get_trace(events=self.ftrace_conf["events"])
+        return self.get_trace(events=self.ftrace_conf["events"], normalize_time=True)
 
     def get_trace(self, **kwargs):
         """
@@ -1193,7 +1193,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         allows updating the underlying path before it is actually loaded to
         match a different folder structure.
         """
-        trace = self.get_trace(events=self.ftrace_conf["events"])
+        trace = self.get_trace(events=self.ftrace_conf["events"], normalize_time=True)
         return trace.get_view(self.trace_window(trace), clear_base_cache=True)
 
     @TasksAnalysis.df_tasks_runtime.used_events
