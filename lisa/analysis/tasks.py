@@ -1016,7 +1016,8 @@ class TasksAnalysis(TraceAnalysisBase):
 
                 duration_axis.legend()
 
-        axis.set_title('Activations of {}'.format(task))
-        axis.grid(True)
+        if local_fig:
+            axis.set_title('Activations of {}'.format(task))
+            axis.grid(True)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

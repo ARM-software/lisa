@@ -389,14 +389,13 @@ class FrequencyAnalysis(TraceAnalysisBase):
         if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
-        axis.set_ylim(frequencies[0] * 0.9, frequencies[-1] * 1.1)
-
         axis.set_ylabel('Frequency (Hz)')
-        axis.set_xlabel('Time')
-
-        axis.set_title('Frequency of CPU{}'.format(cpu))
-        axis.grid(True)
+        axis.set_ylim(frequencies[0] * 0.9, frequencies[-1] * 1.1)
         axis.legend()
+        if local_fig:
+            axis.set_xlabel('Time')
+            axis.set_title('Frequency of CPU{}'.format(cpu))
+            axis.grid(True)
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cpu_frequencies.used_events
