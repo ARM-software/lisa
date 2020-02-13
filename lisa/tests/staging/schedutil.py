@@ -28,6 +28,7 @@ from lisa.trace import requires_events, FtraceCollector, FtraceConf
 from lisa.datautils import df_merge, series_mean, df_filter_task_ids
 from lisa.utils import ArtifactPath
 
+from lisa.analysis.base import COLOR_CYCLES
 from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
@@ -175,18 +176,27 @@ class RampBoostTestBase(RTATestBundle):
     def _plot_test_boost(self, df):
         task = self.rtapp_tasks[0]
         analysis = self.trace.analysis.frequency
-        fig, axis = analysis.setup_plot()
-        df['cost_margin'].plot(ax=axis, drawstyle='steps-post', color='r')
-        df['boost_points'].astype('int', copy=False).plot(ax=axis, drawstyle='steps-post', color='black')
-        df['expected_cost_margin'].plot(ax=axis, drawstyle='steps-post', color='blue')
-        df['base_cost'].plot(ax=axis, drawstyle='steps-post', color='orange')
-        df['allowed_cost'].plot(ax=axis, drawstyle='steps-post', color='green')
+        fig, axes = analysis.setup_plot(nrows=2)
+        boost_axis, util_axis = axes
 
-        self.trace.analysis.tasks.plot_task_activation(task, axis=axis, overlay=True)
+        df['cost_margin'].plot(ax=boost_axis, drawstyle='steps-post', color='r')
+        df['boost_points'].astype('int', copy=False).plot(ax=boost_axis, drawstyle='steps-post', color='black')
+        df['expected_cost_margin'].plot(ax=boost_axis, drawstyle='steps-post', color='blue')
+        df['base_cost'].plot(ax=boost_axis, drawstyle='steps-post', color='orange')
+        df['allowed_cost'].plot(ax=boost_axis, drawstyle='steps-post', color='green')
 
-        axis.legend()
+        self.trace.analysis.tasks.plot_task_activation(task, axis=boost_axis, overlay=True)
+        freq_axis = boost_axis.twinx()
+        self.trace.analysis.frequency.plot_cpu_frequencies(self.cpu, axis=freq_axis, average=False)
+
+        self.trace.analysis.load_tracking.plot_task_signals(task, axis=util_axis, signals=['util', 'util_est_enqueued'], colors=['orange', 'red'])
+        self.trace.analysis.tasks.plot_task_activation(task, axis=util_axis, overlay=True, colors=[COLOR_CYCLES[0]])
+
+        boost_axis.legend(loc='upper left', bbox_to_anchor=(0.1, 1))
+        boost_axis.set_title('Ramp boost for 5% => 75% util step')
+        boost_axis.set_ylabel('Cost (% of max cost)')
         analysis.save_plot(fig, filepath=os.path.join(self.res_dir, 'ramp_boost.svg'))
-        return axis
+        return axes
 
     @RTAEventsAnalysis.plot_slack_histogram.used_events
     @RTAEventsAnalysis.plot_perf_index_histogram.used_events
