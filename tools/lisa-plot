@@ -322,8 +322,6 @@ Available plots:
 
         trace = trace.get_view(window)
 
-    xkcd_cm = plt.xkcd() if args.xkcd else nullcontext()
-
     for plot_name, file_path in sorted(plot_spec_list):
         f = flat_plot_map[plot_name]
         dirname = os.path.dirname(file_path)
@@ -332,6 +330,7 @@ Available plots:
 
         kwargs = make_plot_kwargs(f, file_path, extra_options=args.option)
 
+        xkcd_cm = plt.xkcd() if args.xkcd else nullcontext()
         with handle_plot_excep(exit_on_error=not args.best_effort):
             with xkcd_cm:
                 TraceAnalysisBase.call_on_trace(f, trace, kwargs)
