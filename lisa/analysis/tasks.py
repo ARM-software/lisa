@@ -921,6 +921,7 @@ class TasksAnalysis(TraceAnalysisBase):
         min_lim, max_lim = axis.get_ylim()
 
         df = self.df_task_activation(task, cpu=cpu)
+        df = df_refit_index(df, window=self.trace.window, method='exclusive')
 
         if overlay:
             active_default = max_lim / 4
