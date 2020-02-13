@@ -244,6 +244,13 @@ class TypeClassMeta(type):
         provided.
     :type types: type or tuple(type) or None
     """
+
+    # Python <= 3.5 does cannot cope with custom arguments passed to
+    # type.__init__(), so filter them out:
+    # https://stackoverflow.com/questions/27258557/how-to-pass-arguments-to-the-metaclass-from-the-class-definition-in-python-3-x/27259275#27259275
+    def __init__(cls, name, bases, dct, *args, types=None, **kwargs):
+        super().__init__(name, bases, dct)
+
     def __new__(cls, name, bases, dct, *args, types=None, **kwargs):
         try:
             typeclass = bases[0]
