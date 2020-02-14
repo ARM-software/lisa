@@ -921,6 +921,7 @@ class TasksAnalysis(TraceAnalysisBase):
         min_lim, max_lim = axis.get_ylim()
 
         df = self.df_task_activation(task, cpu=cpu)
+        df = df_refit_index(df, window=self.trace.window, method='exclusive')
 
         if overlay:
             active_default = max_lim / 4
@@ -1015,7 +1016,8 @@ class TasksAnalysis(TraceAnalysisBase):
 
                 duration_axis.legend()
 
-        axis.set_title('Activations of {}'.format(task))
-        axis.grid(True)
+        if local_fig:
+            axis.set_title('Activations of {}'.format(task))
+            axis.grid(True)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
