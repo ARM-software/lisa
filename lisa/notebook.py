@@ -175,7 +175,7 @@ def interact_tasks(trace, tasks=None, kind=None):
         trace = Trace('trace.dat')
 
         # Allow selecting any rtapp task
-        @interact_tasks(kind='rtapp')
+        @interact_tasks(trace, kind='rtapp')
         def do_plot(task):
             trace.analysis.load_tracking.plot_task_signals(task)
     """
