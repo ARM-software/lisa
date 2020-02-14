@@ -416,7 +416,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
     @memoized
     @df_rtapp_task.used_events
-    def tasks_window(self, task):
+    def task_window(self, task):
         """
         Return the start end end time for the specified task.
 
