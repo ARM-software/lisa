@@ -2576,6 +2576,31 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         wrapper.used_events = checker
         return wrapper
 
+    def __and__(self, other):
+        """
+        Combine two event checkers into one that checks the presence of both.
+
+        .. seealso:: :class:`AndTraceEventChecker`
+        """
+        return AndTraceEventChecker([self, other])
+
+    def __or__(self, other):
+        """
+        Combine two event checkers into one that checks the presence of either
+        of them.
+
+        .. seealso:: :class:`OrTraceEventChecker`
+        """
+        return OrTraceEventChecker([self, other])
+
+    def __matmul__(self, other):
+        """
+        Combine two event checkers into an optional one.
+
+        .. seealso:: :class:`OptionalTraceEventChecker`
+        """
+        return OptionalTraceEventChecker([self, other])
+
     @abc.abstractmethod
     def _str_internal(self, style=None, wrapped=True):
         """
