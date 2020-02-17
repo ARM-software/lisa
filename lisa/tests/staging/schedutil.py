@@ -32,7 +32,7 @@ from lisa.analysis.base import COLOR_CYCLES
 from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
-from lisa.analysis.tasks import TaskState
+from lisa.analysis.tasks import TasksAnalysis, TaskState
 
 
 class RampBoostTestBase(RTATestBundle):
@@ -173,6 +173,9 @@ class RampBoostTestBase(RTATestBundle):
         # because we lack history, so we just drop it
         return df.iloc[1:]
 
+    @FrequencyAnalysis.plot_cpu_frequencies.used_events
+    @TasksAnalysis.plot_task_activation.used_events
+    @LoadTrackingAnalysis.plot_task_signals.used_events
     def _plot_test_boost(self, df):
         task = self.rtapp_tasks[0]
         analysis = self.trace.analysis.frequency
@@ -202,6 +205,7 @@ class RampBoostTestBase(RTATestBundle):
     @RTAEventsAnalysis.plot_perf_index_histogram.used_events
     @RTAEventsAnalysis.plot_latency.used_events
     @df_ramp_boost.used_events
+    @_plot_test_boost.used_events
     def test_ramp_boost(self, cost_threshold_pct=0.1, bad_samples_threshold_pct=0.1) -> ResultBundle:
         """
         Test that the energy boost feature is triggering as expected.
