@@ -18,6 +18,7 @@
 import abc
 import os
 import itertools
+import collections
 from statistics import mean
 
 import pandas as pd
@@ -28,11 +29,13 @@ from lisa.tests.base import (
 )
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby, ExekallTaggable
-from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_tunnel_mean, series_refit_index
+from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_tunnel_mean, series_refit_index, df_split_signals, df_refit_index
 from lisa.wlgen.rta import RTA, Periodic, RTATask
-from lisa.trace import FtraceCollector, requires_events
+from lisa.trace import FtraceCollector, requires_events, may_use_events, MissingTraceEventError
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.analysis.tasks import TasksAnalysis
+from lisa.analysis.rta import RTAEventsAnalysis
+from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.pelt import PELT_SCALE, simulate_pelt, pelt_settling_time
 
 UTIL_SCALE = PELT_SCALE
@@ -834,6 +837,11 @@ class CPUMigrationBase(LoadTrackingBase):
             "This workload requires {} CPUs of identical capacity".format(
                 nr_required_cpu))
 
+    # Don't strictly check for cpu_frequency, since there might be no occurence
+    # of the event.
+    @may_use_events(FrequencyAnalysis.df_cpus_frequency.used_events)
+    @TasksAnalysis.df_task_activation.used_events
+    @RTAEventsAnalysis.df_phases.used_events
     def get_expected_cpu_util(self):
         """
         Get the per-phase average CPU utilization expected from the duty cycle
@@ -847,6 +855,20 @@ class CPUMigrationBase(LoadTrackingBase):
         """
         cpu_capacities = self.plat_info['cpu-capacities']['rtapp']
         cpu_util = {}
+        cpu_freqs = self.plat_info['freqs']
+
+        try:
+            freq_df = self.trace.analysis.frequency.df_cpus_frequency()
+        except MissingTraceEventError:
+            cpus_rel_freq = None
+        else:
+            cpus_rel_freq = {
+                # Frequency, normalized according to max frequency on that CPU
+                cols['cpu']: df['frequency'] / max(cpu_freqs[cols['cpu']])
+                for cols, df in df_split_signals(freq_df, ['cpu'])
+            }
+
+
         for task in self.rtapp_task_ids:
             df = self.trace.analysis.tasks.df_task_activation(task)
 
@@ -855,23 +877,53 @@ class CPUMigrationBase(LoadTrackingBase):
                 duration = row.duration
                 start = row.Index
                 end = start + duration
-                # Use method='exclusive' as we only want what is strictly
-                # inside the window of the phase we are looking at
-                phase_df = df_window(df, (start, end), method='exclusive', clip_window=True)
+                # Ignore the first quarter of the util signal of each phase, since
+                # it's impacted by the phase change, and util can be affected
+                # (rtapp does some bookkeeping at the beginning of phases)
+                # start += duration / 4
+
+                # readjust the duration to take into account the modification of start
+                duration = end - start
+                window = (start, end)
+                phase_df = df_window(df, window, clip_window=True)
 
                 for cpu in self.cpus:
+
+                    if cpus_rel_freq is None:
+                        rel_freq_mean = 1
+                    else:
+                        phase_freq_series = df_window(cpus_rel_freq[cpu], window=window, clip_window=True)
+                        # # We might not have frequency data at the beginning of the
+                        # # trace, or if not frequency transition happened at all.
+                        if phase_freq_series.empty:
+                            rel_freq_mean = 1
+                        else:
+                            # If we lack freq data at the beginning of the
+                            # window, assume the frequency was right.
+                            if phase_freq_series.index[0] > start:
+                                phase_freq_series = pd.concat([pd.Series([1.0], index=[start]), phase_freq_series])
+
+                            # Extend the frequency to the right so that the mean
+                            # takes into account all the data we have
+                            freq_window = (phase_freq_series.index[0], end)
+                            rel_freq_mean = series_mean(series_refit_index(phase_freq_series, window=freq_window))
+
                     cpu_phase_df = phase_df[phase_df['cpu'] == cpu].dropna()
                     if cpu_phase_df.empty:
                         duty_cycle = 0
                         cpu_residency = 0
                     else:
-                        duty_cycle = series_mean(cpu_phase_df['duty_cycle'])
-                        cpu_residency = cpu_phase_df.index[-1] - cpu_phase_df.index[0]
+                        duty_cycle = series_mean(df_refit_index(cpu_phase_df['duty_cycle'], window=window))
+                        cpu_residency = end - max(cpu_phase_df.index[0], start)
 
                     phase_util = UTIL_SCALE * duty_cycle * (cpu_capacities[cpu] / UTIL_SCALE)
                     # Pro-rata with the time spent on that CPU, so we get
                     # the correct average.
                     phase_util *= cpu_residency / duration
+
+                    # We might not have run at max freq, e.g. because of
+                    # thermal capping, so take that into account
+                    phase_util *= rel_freq_mean
 
                     cpu_util.setdefault(cpu, {}).setdefault(phase, 0)
                     cpu_util[cpu][phase] += phase_util
@@ -949,6 +1001,7 @@ class CPUMigrationBase(LoadTrackingBase):
         analysis.plot_cpus_signals(cpus, signals=['util'], filepath=filepath)
 
     @get_trace_cpu_util.used_events
+    @get_expected_cpu_util.used_events
     @_plot_util.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_util_task_migration(self, allowed_error_pct=3) -> ResultBundle:
