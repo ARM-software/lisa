@@ -88,7 +88,7 @@ class SeriesAccessor(DataAccessor):
 
 
 @SeriesAccessor.register_accessor
-def series_refit_index(series, start=None, end=None, window=None, method='inclusive'):
+def series_refit_index(series, start=None, end=None, window=None, method='inclusive', clip_window=True):
     """
     Slice a series using :func:`series_window` and ensure we have a value at
     exactly the specified boundaries.
@@ -118,18 +118,20 @@ def series_refit_index(series, start=None, end=None, window=None, method='inclus
         location, without moving the point at which the transition to the last
         value happened. This also allows plotting series with only one item
         using matplotlib, which would otherwise be impossible.
+
+    :param clip_window: Passed down to :func:`series_refit_index`.
     """
     window = _make_window(start, end, window)
-    return _data_refit_index(series, window, method=method)
+    return _data_refit_index(series, window, method=method, clip_window=clip_window)
 
 
 @DataFrameAccessor.register_accessor
-def df_refit_index(df, start=None, end=None, window=None, method='inclusive'):
+def df_refit_index(df, start=None, end=None, window=None, method='inclusive', clip_window=True):
     """
     Same as :func:`series_refit_index` but acting on :class:`pandas.DataFrame`
     """
     window = _make_window(start, end, window)
-    return _data_refit_index(df, window, method=method)
+    return _data_refit_index(df, window, method=method, clip_window=clip_window)
 
 def _make_window(start, end, window):
     uses_separated = (start, end) != (None, None)
@@ -188,13 +190,13 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
             yield (cols_val, signal)
 
 
-def _data_refit_index(data, window, method):
+def _data_refit_index(data, window, method, clip_window):
     if data.empty:
         raise ValueError('Cannot refit the index of an empty dataframe or series')
 
     start, end = window
     duplicate_last = end > data.index[-1]
-    data = _data_window(data, window, method=method, clip_window=True)
+    data = _data_window(data, window, method=method, clip_window=clip_window)
 
     if data.empty:
         return data
