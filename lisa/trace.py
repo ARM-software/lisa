@@ -402,23 +402,15 @@ class _AvailableTraceEventsSet:
 
     def __contains__(self, event):
         if self._trace._strict_events:
-            return self._trace._parsed_events.setdefault('event', False)
+            return self._trace._parsed_events.setdefault(event, False)
 
-        def check_event(event, raw):
-            # Try to parse the event in case it was not parsed already
-            if event not in self._trace._parsed_events:
-                with contextlib.suppress(MissingTraceEventError):
-                    self._trace.df_events(event=event, raw=raw)
+        # Try to parse the event in case it was not parsed already
+        if event not in self._trace._parsed_events:
+            # If the trace file is not accessible anymore, we will get an OSError
+            with contextlib.suppress(MissingTraceEventError, OSError):
+                self._trace.df_events(event=event, raw=True)
 
-            return self._trace._parsed_events[event]
-
-        # Check for raw first, as it's more likely to already be parsed
-        try:
-            return check_event(event, raw=True)
-        # not there yet ? Maybe it's sometimes only available as non-raw,
-        # like cpu_frequency
-        except KeyError:
-            return check_event(event, raw=None)
+        return self._trace._parsed_events.setdefault(event, False)
 
     @property
     def _available_events(self):
@@ -1814,10 +1806,6 @@ class Trace(Loggable, TraceBase):
 
         compute_cost = sanitization_time + windowing_time
         self._cache.insert(pd_desc, df, compute_cost=compute_cost, write_swap=write_swap)
-        # If the raw event did not exist but a sanitized version does (like
-        # cpu_frequency), we need to update it here as well
-        self._parsed_events[event] = not df.empty
-
         return df
 
     def _load_raw_df_map(self, events, write_swap, allow_missing_events=False):
