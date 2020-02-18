@@ -769,11 +769,14 @@ class TraceCache:
             self._write_data(df, buffer)
             return buffer.getbuffer().nbytes
 
-        size0 = get_size(0)
         size1 = get_size(1)
+        size2 = get_size(2)
 
-        file_overhead = size0
-        col_overhead = size1 - size0
+        col_overhead = size2 - size1
+        # Since parquet seems to fail serializing of a dataframe with 0 columns
+        # in some cases, we use the dataframe with one column and remove the
+        # overhead of the column. It gives almost the same result.
+        file_overhead = size1 - col_overhead
         assert col_overhead > 0
 
         return (file_overhead, col_overhead)
