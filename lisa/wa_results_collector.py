@@ -432,8 +432,7 @@ class WaResultsCollector(Loggable):
                 metric = 'avg_freq_cluster_{}'.format(name)
                 metrics.append((metric, avg_freq, 'MHz'))
 
-            df = trace.df_events('cpu_frequency')
-            df = df[df.cpu == domain[0]]
+            df = trace.analysis.frequency.df_cpu_frequency(domain[0])
             metrics.append(('freq_transition_count_{}'.format(name), len(df), None))
 
             active_time = series_integrate(trace.analysis.idle.signal_cluster_active(domain))

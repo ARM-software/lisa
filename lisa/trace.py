@@ -52,7 +52,6 @@ from devlib.target import KernelVersion
 
 import lisa.utils
 from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate, nullcontext, measure_time, checksum, newtype
-from lisa.platforms.platinfo import PlatformInfo
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, TypedList, Configurable
 from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta
 from lisa.version import VERSION_TOKEN
@@ -1447,6 +1446,8 @@ class Trace(Loggable, TraceBase):
 
         # The platform information used to run the experiments
         if plat_info is None:
+            # Delay import to avoid circular dependency
+            from lisa.platforms.platinfo import PlatformInfo
             plat_info = PlatformInfo()
         self.plat_info = plat_info
 
@@ -2394,77 +2395,14 @@ class Trace(Loggable, TraceBase):
 
     @_sanitize_event('cpu_frequency')
     def _sanitize_cpu_frequency(self, event, df, aspects):
-        """
-        Rename some columns and add fake devlib frequency events
-        """
-        logger = self.get_logger()
-        if 'freq-domains' not in self.plat_info:
-            return df
-
-        try:
-            devlib_freq = self.df_events('cpu_frequency_devlib')
-        except MissingTraceEventError:
-            devlib_freq = pd.DataFrame()
-
         if aspects['rename_cols']:
             names = {
                 'cpu_id': 'cpu',
                 'state': 'frequency'
             }
-            devlib_freq.rename(columns=names, inplace=True)
             df.rename(columns=names, inplace=True)
 
-        domains = self.plat_info['freq-domains']
-
-        # devlib always introduces fake cpu_frequency events, in case the
-        # OS has not generated cpu_frequency envets there are the only
-        # frequency events to report
-        if df.empty:
-            self.available_events.append('cpu_frequency')
-            return devlib_freq
-
-        # make sure fake cpu_frequency events are never interleaved with
-        # OS generated events
-        else:
-            if not devlib_freq.empty:
-
-                # Frequencies injection is done in a per-cluster based.
-                # This is based on the assumption that clusters are
-                # frequency choerent.
-                # For each cluster we inject devlib events only if
-                # these events does not overlaps with os-generated ones.
-
-                # Inject "initial" devlib frequencies
-                os_df = df
-                dl_df = devlib_freq.iloc[:self.cpus_count]
-                for cpus in domains:
-                    dl_freqs = dl_df[dl_df.cpu.isin(cpus)]
-                    os_freqs = os_df[os_df.cpu.isin(cpus)]
-                    logger.debug("First freqs for {}:\n{}".format(cpus, dl_freqs))
-                    # All devlib events "before" os-generated events
-                    logger.debug("Min os freq @: {}".format(os_freqs.index.min()))
-                    if os_freqs.empty or \
-                       os_freqs.index.min() > dl_freqs.index.max():
-                        logger.debug("Insert devlib freqs for {}".format(cpus))
-                        df = pd.concat([dl_freqs, df])
-
-                # Inject "final" devlib frequencies
-                os_df = df
-                dl_df = devlib_freq.iloc[self.cpus_count:]
-                for cpus in domains:
-                    dl_freqs = dl_df[dl_df.cpu.isin(cpus)]
-                    os_freqs = os_df[os_df.cpu.isin(cpus)]
-                    logger.debug("Last freqs for {}:\n{}".format(cpus, dl_freqs))
-                    # All devlib events "after" os-generated events
-                    logger.debug("Max os freq @: {}".format(os_freqs.index.max()))
-                    if os_freqs.empty or \
-                       os_freqs.index.max() < dl_freqs.index.min():
-                        logger.debug("Append devlib freqs for {}".format(cpus))
-                        df = pd.concat([df, dl_freqs])
-
-                df.sort_index(inplace=True)
-
-            return df
+        return df
 
     @_sanitize_event('funcgraph_entry')
     @_sanitize_event('funcgraph_exit')
