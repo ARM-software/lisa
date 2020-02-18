@@ -365,7 +365,6 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         """
         return self._get_rtapp_phases('end', task)
 
-    @TraceAnalysisBase.cache
     @df_rtapp_phases_start.used_events
     def _get_task_phase(self, event, task, phase):
         task = self.trace.get_task_id(task)
