@@ -375,7 +375,6 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         if phase and phase < 0:
             phase += len(df)
         phase += 1  # because of the followig "head().tail()" filter
-        breakpoint()
         return df.loc[task.comm].head(phase).tail(1).Time.iloc[0]
 
     @_get_task_phase.used_events
