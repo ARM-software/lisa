@@ -147,8 +147,8 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         """
         df = self.df_rtapp_main()
         return (
-            df[df.event == 'start'].index.values[0],
-            df[df.event == 'end'].index.values[0])
+            df[df.event == 'start'].index[0],
+            df[df.event == 'end'].index[0])
 
     @property
     @memoized
@@ -166,7 +166,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         """
         df = self.df_rtapp_main()
         df = df[df['event'] == 'clock_ref']
-        return RefTime(df.index.values[0], df.data.values[0])
+        return RefTime(df.index[0], df.data.iloc[0])
 
     ###########################################################################
     # rtapp_task events related methods
@@ -375,7 +375,8 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         if phase and phase < 0:
             phase += len(df)
         phase += 1  # because of the followig "head().tail()" filter
-        return df.loc[task.comm].head(phase).tail(1).Time.values[0]
+        breakpoint()
+        return df.loc[task.comm].head(phase).tail(1).Time.iloc[0]
 
     @_get_task_phase.used_events
     def df_rtapp_phase_start(self, task, phase=0):
