@@ -1263,8 +1263,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             return ResultBundle.from_bool(True)
 
         pid = df_noise.index[0]
-        comm = df_noise.comm.values[0]
-        duration_s = df_noise.runtime.values[0]
+        comm = df_noise['comm'].iloc[0]
+        duration_s = df_noise['runtime'].iloc[0]
         duration_pct = duration_s * 100 / self.trace.time_range
 
         res = ResultBundle.from_bool(duration_s < threshold_s)

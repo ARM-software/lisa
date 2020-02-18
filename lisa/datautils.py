@@ -267,7 +267,7 @@ def df_squash(df, start, end, column='delta'):
     if df.empty:
         return df
 
-    end = min(end, df.index[-1] + df[column].values[-1])
+    end = min(end, df.index[-1] + df[column].iloc[-1])
     res_df = pd.DataFrame(data=[], columns=df.columns)
 
     if start > end:
@@ -316,7 +316,7 @@ def df_squash(df, start, end, column='delta'):
             res_df = res_df.drop([end])
         else:
             # Fix the delta for the last row
-            delta = min(end - res_df.index[-1], res_df[column].values[-1])
+            delta = min(end - res_df.index[-1], res_df[column].iloc[-1])
             res_df.at[res_df.index[-1], column] = delta
 
     return res_df

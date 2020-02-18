@@ -189,7 +189,7 @@ class StaggeredFinishes(MisfitMigrationBase):
             return state_df
 
         return df_squash(state_df, self.start_time,
-                         state_df.index[-1] + state_df.delta.values[-1], "delta")
+                         state_df.index[-1] + state_df['delta'].iloc[-1], "delta")
 
     @requires_events('sched_switch', TasksAnalysis.df_task_states.used_events)
     def test_preempt_time(self, allowed_preempt_pct=1) -> ResultBundle:
