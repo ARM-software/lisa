@@ -147,7 +147,7 @@ def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', f
         return show_loc(loc)
 
     event = 'motion_notify_event' if follow_cursor else 'button_press_event'
-    axis.get_figure().canvas.mpl_connect('button_press_event', handler)
+    axis.get_figure().canvas.mpl_connect(event, handler)
     display(hbox)
 
 
