@@ -625,7 +625,9 @@ class TasksAnalysis(TraceAnalysisBase):
             # TASK_RUNNING happens when a task is preempted (so it's not
             # TASK_ACTIVE anymore but still runnable)
             elif state == TaskState.TASK_RUNNING:
-                return preempted_value
+                # Return NaN regardless of preempted_value, since some below
+                # code relies on that
+                return np.NaN
             else:
                 return sleep_value
 
@@ -642,14 +644,46 @@ class TasksAnalysis(TraceAnalysisBase):
         # Once we removed the duplicates, we can compute the time spent while sleeping or activating
         df_add_delta(df, col='duration', inplace=True)
 
-        sleep = df[df['active'] == sleep_value]['duration']
-        active = df[df['active'] == active_value]['duration']
-        # Pair an activation time with it's following sleep time
-        active = active.reindex_like(sleep, method='ffill')
+        # Make a dataframe where the rows corresponding to preempted time are removed
+        preempt_free_df = df.dropna()
 
-        df['duty_cycle'] = active / (active + sleep)
+        # Silence SettingWithCopy warning when we assign to
+        # preempt_free_df.loc[]
+        # This is legitimate since we don't care at all about the original
+        # dataframe. All we want is to iteratively modify the view, and this
+        # cannot be done in one go.
+        with pd.option_context('mode.chained_assignment', None):
+            # Merge consecutive activations' duration. They could have been
+            # split in two by a bit of preemption, and we don't want that to
+            # affect the duty cycle.
+            while True:
+                # Find all rows where the active status is the same as the previous one
+                duplicated = preempt_free_df['active'] == preempt_free_df['active'].shift()
+                # Then get only the first duplicate in a run of duplicates
+                duplicated = duplicated & (duplicated != duplicated.shift(fill_value=False))
+
+                if not duplicated.any():
+                    break
+
+                # For each first row in a duplicated run
+                first_rows = duplicated.shift(-1, fill_value=False)
+                # Add the duration of the next row (duplicated) to the current one
+                preempt_free_df.loc[first_rows, 'duration'] += preempt_free_df['duration'].shift(-1)
+                # Remove the duplicated row, now that we merged its duration with
+                # the previous one.
+                preempt_free_df = preempt_free_df.loc[~duplicated]
+
+        sleep = preempt_free_df[preempt_free_df['active'] == sleep_value]['duration']
+        active = preempt_free_df[preempt_free_df['active'] == active_value]['duration']
+        # Pair an activation time with it's following sleep time
+        sleep = sleep.reindex(active.index, method='bfill')
+        duty_cycle = active / (active + sleep)
+
+        df['duty_cycle'] = duty_cycle
         df['duty_cycle'].fillna(inplace=True, method='ffill')
-        df['duty_cycle'] = df['duty_cycle'].shift(-1)
+
+        if not np.isnan(preempted_value):
+            df['active'].fillna(preemtped_value, inplace=True)
 
         return df
 
