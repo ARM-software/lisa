@@ -105,6 +105,30 @@ def once_per_class(method):
     return wrapper
 
 
+def once_per_attribute_value(attr_name):
+    """
+    The specified method will be invoked once for all instances that share the
+    same value for the specified attribute (sameness is established by comparing
+    repr() of the values).
+    """
+    def wrapped_once_per_attribute_value(method):
+        def wrapper(*args, **kwargs):
+            if __active_environment is None:
+                activate_environment('default')
+
+            attr_value = getattr(args[0], attr_name)
+            func_id = repr(method.__name__) + repr(args[0].__class__) + repr(attr_value)
+
+            if func_id in __environments[__active_environment]:
+                return
+            else:
+                __environments[__active_environment].append(func_id)
+            return method(*args, **kwargs)
+
+        return wrapper
+    return wrapped_once_per_attribute_value
+
+
 def once(method):
     """
     The specified method will be invoked only once within the
