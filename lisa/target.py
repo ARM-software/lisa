@@ -366,7 +366,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             # has been excluded explicitly
             elif attr in _DEVLIB_AVAILABLE_MODULES:
                 raise AttributeError('Devlib target module {} was explicitly excluded, not loading it'.format(attr))
-            # Something else that does not exists ...
+            # Something else that does not exist ...
             else:
                 raise
 
@@ -794,7 +794,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             logger.warning('Could not freeze userspace: "cgroups" devlib module is necessary')
             cm = nullcontext
         else:
-            controllers = [s.name for s in self.target.cgroups.list_subsystems()]
+            controllers = [s.name for s in self.cgroups.list_subsystems()]
             if 'freezer' not in controllers:
                 logger.warning('Could not freeze userspace: freezer cgroup controller not available on the target')
                 cm = nullcontext
@@ -811,10 +811,10 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 def cm():
                     logger.info('Freezing all tasks except: {}'.format(','.join(exclude)))
                     try:
-                        yield self.target.cgroups.freeze(exclude)
+                        yield self.cgroups.freeze(exclude)
                     finally:
                         logger.info('Un-freezing userspace tasks')
-                        self.target.cgroups.freeze(thaw=True)
+                        self.cgroups.freeze(thaw=True)
 
         with cm() as x:
             yield x
@@ -828,7 +828,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         logger.info('Disabling idle states for all domains')
 
         try:
-            cpuidle = self.target.cpuidle
+            cpuidle = self.cpuidle
         except AttributeError:
             logger.warning('Could not disable idle states, cpuidle devlib module is not loaded')
             cm = nullcontext
