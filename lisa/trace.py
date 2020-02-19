@@ -264,6 +264,9 @@ class TraceBase(abc.ABC):
         if events is None:
             events = sorted(self.available_events)
 
+        if not events:
+            return pd.DataFrame({'info': []})
+
         max_event_name_len = max(len(event) for event in events)
 
         def make_info_row(row, event):
