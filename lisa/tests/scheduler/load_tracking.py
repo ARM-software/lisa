@@ -286,7 +286,12 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         task = trace.get_task_id(task)
         cpus = trace.analysis.tasks.cpus_of_tasks([task])
 
-        df_activation = trace.analysis.tasks.df_task_activation(task)
+        df_activation = trace.analysis.tasks.df_task_activation(
+            task,
+            # Util only takes into account times where the task is actually
+            # executing
+            preempted_value=0,
+        )
         df = trace.analysis.load_tracking.df_tasks_signal(signal_name)
         df = df_filter_task_ids(df, [task])
 
