@@ -384,6 +384,16 @@ class TargetedPlugin(Plugin):
     """
 
     suppoted_targets = []
+    parameters = [
+        Parameter('cleanup_assets', kind=bool,
+                  global_alias='cleanup_assets',
+                  aliases=['clean_up'],
+                  default=True,
+                  description="""
+                  If ``True``, assets that are deployed or created by the
+                  plugin will be removed again from the device.
+                  """),
+    ]
 
     @classmethod
     def check_compatible(cls, target):

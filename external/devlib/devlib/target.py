@@ -906,16 +906,19 @@ class Target(object):
                     self.logger.warning(msg)
 
     def _install_module(self, mod, **params):
-        if mod.name not in self._installed_modules:
-            self.logger.debug('Installing module {}'.format(mod.name))
+        name = mod.name
+        if name not in self._installed_modules:
+            self.logger.debug('Installing module {}'.format(name))
             try:
                 mod.install(self, **params)
             except Exception as e:
-                self.logger.error('Module "{}" failed to install on target'.format(mod.name))
+                self.logger.error('Module "{}" failed to install on target'.format(name))
                 raise
-            self._installed_modules[mod.name] = mod
+            self._installed_modules[name] = mod
+            if name not in self.modules:
+                self.modules.append(name)
         else:
-            self.logger.debug('Module {} is already installed.'.format(mod.name))
+            self.logger.debug('Module {} is already installed.'.format(name))
 
     def _resolve_paths(self):
         raise NotImplementedError()

@@ -533,21 +533,19 @@ again decorated the method. ::
 Once we have generated our result data we need to retrieve it from the device
 for further processing or adding directly to WA's output for that job. For
 example for trace data we will want to pull it to the device and add it as a
-:ref:`artifact <artifact>` to WA's :ref:`context <context>` as shown below::
+:ref:`artifact <artifact>` to WA's :ref:`context <context>`. Once we have
+retrieved the data, we can now do any further processing and add any relevant
+:ref:`Metrics <metrics>` to the :ref:`context <context>`. For this we will use
+the the ``add_metric`` method to add the results to the final output for that
+workload. The method can be passed 4 params, which are the metric `key`,
+`value`, `unit` and `lower_is_better`. ::
 
-    def extract_results(self, context):
+    def update_output(self, context):
         # pull the trace file from the target
         self.result = os.path.join(self.target.working_directory, 'trace.txt')
         self.target.pull(self.result, context.working_directory)
         context.add_artifact('error_trace', self.result, kind='export')
 
-Once we have retrieved the data we can now do any further processing and add any
-relevant :ref:`Metrics <metrics>` to the :ref:`context <context>`. For this we
-will use the the ``add_metric`` method to add the results to the final output
-for that workload. The method can be passed 4 params, which are the metric
-`key`, `value`, `unit` and `lower_is_better`. ::
-
-    def update_output(self, context):
         # parse the file if needs to be parsed, or add result directly to
         # context.
 
@@ -588,12 +586,11 @@ So the full example would look something like::
             def stop(self, context):
                 self.target.execute('{} stop'.format(self.trace_on_target))
 
-            def extract_results(self, context):
+            def update_output(self, context):
                 self.result = os.path.join(self.target.working_directory, 'trace.txt')
                 self.target.pull(self.result, context.working_directory)
                 context.add_artifact('error_trace', self.result, kind='export')
 
-            def update_output(self, context):
                 metric = # ..
                 context.add_metric('number_of_errors', metric, lower_is_better=True
 

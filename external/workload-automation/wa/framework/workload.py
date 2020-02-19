@@ -44,14 +44,6 @@ class Workload(TargetedPlugin):
     kind = 'workload'
 
     parameters = [
-        Parameter('cleanup_assets', kind=bool,
-                  global_alias='cleanup_assets',
-                  aliases=['clean_up'],
-                  default=True,
-                  description="""
-                  If ``True``, assets that are deployed or created as part of the
-                  workload will be removed again from the device.
-                  """),
         Parameter('uninstall', kind=bool,
                   default=True,
                   description="""
@@ -904,15 +896,19 @@ class PackageHandler(object):
             message = 'Cannot retrieve "{}" as not installed on Target'
             raise WorkloadError(message.format(package))
         package_info = self.target.get_package_info(package)
-        self.target.pull(package_info.apk_path, self.owner.dependencies_directory,
+        apk_name = self._get_package_name(package_info.apk_path)
+        host_path = os.path.join(self.owner.dependencies_directory, apk_name)
+        self.target.pull(package_info.apk_path, host_path,
                          timeout=self.install_timeout)
-        apk_name = self.target.path.basename(package_info.apk_path)
-        return os.path.join(self.owner.dependencies_directory, apk_name)
+        return host_path
 
     def teardown(self):
         self.target.execute('am force-stop {}'.format(self.apk_info.package))
         if self.uninstall:
             self.target.uninstall_package(self.apk_info.package)
+
+    def _get_package_name(self, apk_path):
+        return self.target.path.basename(apk_path)
 
     def _get_package_error_msg(self, location):
         if self.version:
@@ -980,6 +976,9 @@ class TestPackageHandler(PackageHandler):
     def _start_instrument(self):
         self._instrument_output = self.target.execute(self.cmd)
         self.logger.debug(self._instrument_output)
+
+    def _get_package_name(self, apk_path):
+        return 'test_{}'.format(self.target.path.basename(apk_path))
 
     @property
     def instrument_output(self):
