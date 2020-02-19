@@ -86,6 +86,7 @@ def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', f
     .. note:: This requires the matplotlib widget enabled using ``%matplotlib
         widget`` magic.
     """
+    df_list = [df for df in df_list if not df.empty]
     output_list = [widgets.Output() for df in df_list]
     layout = Layout(
         # Overflow items to the next line rather than hiding them
