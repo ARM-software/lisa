@@ -402,6 +402,8 @@ class _AvailableTraceEventsSet:
         self._trace = trace
 
     def __contains__(self, event):
+        if self._trace._strict_events:
+            return self._trace._parsed_events.setdefault('event', False)
 
         def check_event(event, raw):
             # Try to parse the event in case it was not parsed already
@@ -1331,6 +1333,12 @@ class Trace(Loggable, TraceBase):
         that is optional but still recommended to improve trace parsing speed.
     :type events: list(str) or None
 
+    :param strict_events: When ``True``, all the events specified in ``events``
+        have to be present, and any other events will be assumed to not be
+        present. This allows early failure and avoid the cost of lazy detection
+        of events in very large traces.
+    :type strict_events: bool
+
     :param plat_info: Platform info describing the target that this trace was
         collected on.
     :type plat_info: lisa.platforms.platinfo.PlatformInfo
@@ -1382,6 +1390,7 @@ class Trace(Loggable, TraceBase):
         trace_path,
         plat_info=None,
         events=None,
+        strict_events=False,
         normalize_time=False,
         trace_format=None,
         plots_dir=None,
@@ -1441,6 +1450,7 @@ class Trace(Loggable, TraceBase):
             plat_info = PlatformInfo()
         self.plat_info = plat_info
 
+        self._strict_events = strict_events
         self.available_events = _AvailableTraceEventsSet(self)
         self.plots_dir = plots_dir if plots_dir else os.path.dirname(trace_path)
 
@@ -1456,7 +1466,7 @@ class Trace(Loggable, TraceBase):
         self.events = events
         # Pre-load the selected events
         if events:
-            self._load_raw_df_map(events, write_swap=True, allow_missing_events=True)
+            self._load_raw_df_map(events, write_swap=True, allow_missing_events=not self._strict_events)
 
     @property
     def trace_state(self):
@@ -2568,6 +2578,31 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         # to the method documentation
         wrapper.used_events = checker
         return wrapper
+
+    def __and__(self, other):
+        """
+        Combine two event checkers into one that checks the presence of both.
+
+        .. seealso:: :class:`AndTraceEventChecker`
+        """
+        return AndTraceEventChecker([self, other])
+
+    def __or__(self, other):
+        """
+        Combine two event checkers into one that checks the presence of either
+        of them.
+
+        .. seealso:: :class:`OrTraceEventChecker`
+        """
+        return OrTraceEventChecker([self, other])
+
+    def __matmul__(self, other):
+        """
+        Combine two event checkers into an optional one.
+
+        .. seealso:: :class:`OptionalTraceEventChecker`
+        """
+        return OptionalTraceEventChecker([self, other])
 
     @abc.abstractmethod
     def _str_internal(self, style=None, wrapped=True):
