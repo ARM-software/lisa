@@ -104,7 +104,7 @@ import inspect
 from collections import OrderedDict
 
 from wa.framework import signal
-from wa.framework.plugin import Plugin
+from wa.framework.plugin import TargetedPlugin
 from wa.framework.exception import (TargetNotRespondingError, TimeoutError,  # pylint: disable=redefined-builtin
                                     WorkloadError, TargetError)
 from wa.utils.log import log_error
@@ -421,14 +421,13 @@ def get_disabled():
     return [i for i in installed if not i.is_enabled]
 
 
-class Instrument(Plugin):
+class Instrument(TargetedPlugin):
     """
     Base class for instrument implementations.
     """
     kind = "instrument"
 
-    def __init__(self, target, **kwargs):
-        super(Instrument, self).__init__(**kwargs)
-        self.target = target
+    def __init__(self, *args, **kwargs):
+        super(Instrument, self).__init__(*args, **kwargs)
         self.is_enabled = True
         self.is_broken = False

@@ -21,7 +21,8 @@ from nose.tools import assert_equal, assert_raises
 
 from wa.utils.exec_control import (init_environment, reset_environment,
                                    activate_environment, once,
-                                   once_per_class, once_per_instance)
+                                   once_per_class, once_per_instance,
+                                   once_per_attribute_value)
 
 class MockClass(object):
 
@@ -108,6 +109,18 @@ class AnotherClass(object):
     @once_per_instance
     def initilize_once_per_instance(self):
         self.count += 1
+
+
+class NamedClass:
+
+    count = 0
+
+    def __init__(self, name):
+        self.name = name
+
+    @once_per_attribute_value('name')
+    def initilize(self):
+        NamedClass.count += 1
 
 
 class AnotherSubClass(MockClass):
@@ -352,3 +365,30 @@ class OncePerInstanceEnvironmentTest(TestCase):
         asc.initilize_once_per_instance()
         asc.initilize_once_per_instance()
         assert_equal(asc.count, 2)
+
+
+class OncePerAttributeValueTest(TestCase):
+
+    def setUp(self):
+        activate_environment('TEST_ENVIRONMENT')
+
+    def tearDown(self):
+        reset_environment('TEST_ENVIRONMENT')
+
+    def test_once_attribute_value(self):
+        classes = [
+                NamedClass('Rick'),
+                NamedClass('Morty'),
+                NamedClass('Rick'),
+                NamedClass('Morty'),
+                NamedClass('Morty'),
+                NamedClass('Summer'),
+        ]
+
+        for c in classes:
+            c.initilize()
+
+        for c in classes:
+            c.initilize()
+
+        assert_equal(NamedClass.count, 3)
