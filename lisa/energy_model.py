@@ -31,6 +31,7 @@ from trappy.stats.grammar import Parser
 
 from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses, deprecate, grouper
 from lisa.datautils import df_deduplicate
+from lisa.analysis.frequency import FrequencyAnalysis
 
 """Classes for modeling and estimating energy usage of CPU systems"""
 
@@ -829,6 +830,7 @@ class EnergyModel(Serializable, Loggable):
         """
         return LegacyEnergyModel.from_target(*args, **kwargs)
 
+    @FrequencyAnalysis.df_cpus_frequency.used_events
     def estimate_from_trace(self, trace):
         """
         Estimate the energy consumption of the system by looking at a trace
@@ -864,7 +866,7 @@ class EnergyModel(Serializable, Loggable):
             raise ValueError('Requires cpu_idle and cpu_frequency trace events')
 
         idle = trace.df_events('cpu_idle').pivot(columns='cpu_id')['state']
-        freqs = trace.df_events('cpu_frequency').pivot(columns='cpu')['frequency']
+        freqs = trace.analysis.frequency.df_cpus_frequency().pivot(columns='cpu')['frequency']
 
         inputs = pd.concat([idle, freqs], axis=1, keys=['idle', 'freq']).ffill()
 

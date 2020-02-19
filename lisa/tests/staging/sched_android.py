@@ -146,6 +146,7 @@ class SchedTuneFreqItem(SchedTuneItemBase):
         )
         return rtapp_profile
 
+    @FrequencyAnalysis.df_cpu_frequency.used_events
     @requires_events(SchedTuneItemBase.trace_window.used_events, "cpu_frequency")
     def trace_window(self, trace):
         """
@@ -155,8 +156,7 @@ class SchedTuneFreqItem(SchedTuneItemBase):
         rta_start, rta_stop = super().trace_window(trace)
 
         cpu = self.plat_info['capacity-classes'][-1][0]
-        freq_df = trace.df_events('cpu_frequency')
-        freq_df = freq_df[freq_df.cpu == cpu]
+        freq_df = trace.analysis.frequency.df_cpu_frequency(cpu)
 
         # Find the frequency events before and after the task runs
         freq_start = freq_df[freq_df.index < rta_start].index[-1]

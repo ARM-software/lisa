@@ -28,7 +28,7 @@ import numpy as np
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.trace import requires_events, CPU
+from lisa.trace import requires_events, requires_one_event_of, CPU
 from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window
 
 
@@ -42,7 +42,75 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     name = 'frequency'
 
-    @requires_events('cpu_frequency')
+    @requires_one_event_of('cpu_frequency', 'cpu_frequency_devlib')
+    def df_cpus_frequency(self, signals_init=True):
+        """
+        Similar to ``trace.df_events('cpu_frequency')``, with
+        ``cpu_frequency_devlib`` support.
+
+        :param signals_init: If ``True``, and initial value for signals will be
+            provided. This includes initial value taken outside window
+            boundaries and devlib-provided events.
+
+        The ``cpu_frequency_devlib`` user event is merged in the dataframe if
+        it provides earlier values for a CPU.
+        """
+        df = self.trace.df_events('cpu_frequency', signals_init=signals_init)
+        if not signals_init:
+            return df
+
+        devlib_df = self.trace.df_events('cpu_frequency')
+
+        # Get the initial values for each CPU
+        def init_freq(df, devlib):
+            df = df.groupby('cpu').head(1).copy()
+            df['devlib'] = devlib
+            return df
+
+        init_df = init_freq(df, False)
+        init_devlib_df = init_freq(df, True)
+
+        # Get the initial values as given by devlib and cpufreq.
+        # We want to select:
+        # * the first value
+        # * the 2nd value if that comes from cpufreq
+        init_df = pd.concat([init_df, init_devlib_df])
+        init_df.sort_index(inplace=True)
+        init_groups = init_df.groupby('cpu')
+
+        first_df = init_groups.head(1)
+        # devlib == False means it's already in the existing dataframe, and we
+        # don't want duplicates
+        first_df = first_df[first_df['devlib'] == True]
+        del first_df['devlib']
+
+        # The dataframe of the second values.
+        # If they are from cpufreq, we keep them, but if they are from devlib,
+        # they are useless (and actually harmful, since they correspond to no
+        # CPU transition)
+        second_df = init_groups.tail(1)
+        # Only keep non-devlib second events
+        second_df = second_df[second_df['devlib'] == False]
+        del second_df['devlib']
+
+        df = pd.concat([df, first_df, second_df])
+        df.sort_index(inplace=True)
+        return df
+
+    @df_cpus_frequency.used_events
+    def df_cpu_frequency(self, cpu, **kwargs):
+        """
+        Same as :meth:`df_cpus_frequency` but for a single CPU.
+
+        :param cpu: CPU ID to get the frequency of.
+        :type cpu: int
+
+        :Variable keyword arguments: Forwarded to :meth:`df_cpus_frequency`.
+        """
+        df = self.df_cpus_frequency(**kwargs)
+        return df[df['cpu'] == cpu]
+
+    @df_cpus_frequency.used_events
     def _check_freq_domain_coherency(self, cpus=None):
         """
         Check that all CPUs of a given frequency domain have the same frequency
@@ -59,7 +127,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         if len(cpus) < 2:
             return
 
-        df = self.trace.df_events('cpu_frequency')
+        df = self.df_cpus_frequency()
 
         for domain in domains:
             # restrict the domain to what we care. Other CPUs may have garbage
@@ -87,7 +155,8 @@ class FrequencyAnalysis(TraceAnalysisBase):
                     raise ValueError('Frequencies of CPUs in the freq domain {} are not coherent'.format(cpus))
 
     @TraceAnalysisBase.cache
-    @requires_events('cpu_frequency', 'cpu_idle')
+    @df_cpus_frequency.used_events
+    @requires_events('cpu_idle')
     def _get_frequency_residency(self, cpus):
         """
         Get a DataFrame with per cluster frequency residency, i.e. amount of
@@ -101,7 +170,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
           * A ``total_time`` column (the total time spent at a frequency)
           * A ``active_time`` column (the non-idle time spent at a frequency)
         """
-        freq_df = self.trace.df_events('cpu_frequency')
+        freq_df = self.df_cpus_frequency()
         # Assumption: all CPUs in a cluster run at the same frequency, i.e. the
         # frequency is scaled per-cluster not per-CPU. Hence, we can limit the
         # cluster frequencies data to a single CPU.
@@ -138,6 +207,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         time_df["active_time"] = pd.DataFrame(index=available_freqs, data=nonidle_time)
         return time_df
+
 
     @_get_frequency_residency.used_events
     def df_cpu_frequency_residency(self, cpu):
@@ -178,7 +248,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 return self._get_frequency_residency(tuple(domain))
 
     @TraceAnalysisBase.cache
-    @requires_events('cpu_frequency')
+    @df_cpu_frequency.used_events
     def df_cpu_frequency_transitions(self, cpu):
         """
         Compute number of frequency transitions of a given CPU.
@@ -191,7 +261,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
           * A ``transitions`` column (the number of frequency transitions)
         """
 
-        freq_df = self.trace.df_events('cpu_frequency', signals_init=False)
+        freq_df = self.df_cpu_frequency(cpu, signals_init=False)
         # Since we want to count the number of events appearing inside the
         # window, make sure we don't get anything outside it
         freq_df = df_window(
@@ -200,7 +270,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
             method='exclusive',
             clip_window=False,
         )
-        cpu_freqs = freq_df[freq_df.cpu == cpu]['frequency']
+        cpu_freqs = freq_df['frequency']
 
         # Remove possible duplicates (example: when devlib sets trace markers
         # a cpu_frequency event is triggered that can generate a duplicate)
@@ -230,7 +300,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
             transitions=transitions / self.trace.time_range,
         ))
 
-    @requires_events('cpu_frequency')
+    @df_cpu_frequency.used_events
     def get_average_cpu_frequency(self, cpu):
         """
         Get the average frequency for a given CPU
@@ -238,8 +308,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         :param cpu: The CPU to analyse
         :type cpu: int
         """
-        df = self.trace.df_events('cpu_frequency')
-        df = df[df.cpu == cpu]
+        df = self.df_cpu_frequency(cpu)
         freq = series_refit_index(df['frequency'], window=self.trace.window)
         return series_mean(freq)
 
@@ -347,7 +416,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         return self.do_plot(plotter, height=8, nrows=2, axis=axis, **kwargs)
 
     @TraceAnalysisBase.plot_method()
-    @requires_events('cpu_frequency')
+    @df_cpu_frequency.used_events
     def plot_cpu_frequencies(self, cpu: CPU, axis, local_fig, average: bool=True):
         """
         Plot frequency for the specified CPU
@@ -363,9 +432,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         show the intervals of time where the system was overutilized.
         """
         logger = self.get_logger()
-
-        df = self.trace.df_events('cpu_frequency')
-        df = df[df.cpu == cpu]
+        df = self.df_cpu_frequency(cpu)
 
         if "freqs" in self.trace.plat_info:
             frequencies = self.trace.plat_info['freqs'][cpu]
