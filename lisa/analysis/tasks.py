@@ -583,7 +583,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.cache
     @df_task_states.used_events
-    def df_task_activation(self, task, cpu=None, active_value=1, sleep_value=0):
+    def df_task_activation(self, task, cpu=None, active_value=1, sleep_value=0, preempted_value=np.NaN):
         """
         DataFrame of a task's active time on a given CPU
 
@@ -601,11 +601,16 @@ class TasksAnalysis(TraceAnalysisBase):
             sleeping.
         :type sleep_value: float
 
+        :param preempted_value: the value to use in the series when task is
+            preempted (runnable but not actually executing).
+        :type sleep_value: float
+
         :returns: a :class:`pandas.DataFrame` with:
 
           * A timestamp as index
           * A ``active`` column, containing ``active_value`` when the task is
-            not sleeping, ``sleep_value`` otherwise.
+            running, ``sleep_value`` when sleeping, and ``preempted_value``
+            otherwise.
           * A ``cpu`` column with the CPU the task was running on.
           * A ``duration`` column containing the duration of the current sleep or activation.
           * A ``duty_cycle`` column containing the duty cycle in ``[0...1]`` of
@@ -617,6 +622,10 @@ class TasksAnalysis(TraceAnalysisBase):
         def f(state):
             if state == TaskState.TASK_ACTIVE:
                 return active_value
+            # TASK_RUNNING happens when a task is preempted (so it's not
+            # TASK_ACTIVE anymore but still runnable)
+            elif state == TaskState.TASK_RUNNING:
+                return preempted_value
             else:
                 return sleep_value
 
@@ -883,8 +892,9 @@ class TasksAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.plot_method()
     @df_task_activation.used_events
     def plot_task_activation(self, task: TaskID, cpu: CPU=None, active_value: float=None,
-            sleep_value: float=None, alpha: float=None, overlay: bool=False, duration: bool=False,
-            duty_cycle: bool=False, which_cpu: bool=False, height_duty_cycle: bool=False,
+            sleep_value: float=None, alpha: float=None, overlay: bool=False,
+            duration: bool=False, duty_cycle: bool=False, which_cpu:
+            bool=False, height_duty_cycle: bool=False,
             axis=None, local_fig=None):
         """
         Plot task activations, in a style similar to kernelshark.
@@ -938,6 +948,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         active_value = active_value if active_value is not None else active_default
         sleep_value = sleep_value if sleep_value is not None else 0
+        preempted_value = sleep_value
 
         if not df.empty:
             color = self.get_next_color(axis)
@@ -961,10 +972,9 @@ class TasksAnalysis(TraceAnalysisBase):
                         y_level = level_height * cpu
 
                     cpu_df = df[df['cpu'] == cpu]
+                    active = cpu_df['active'].fillna(preempted_value)
                     if height_duty_cycle:
-                        active = cpu_df['active'] * cpu_df['duty_cycle']
-                    else:
-                        active = cpu_df['active']
+                        active *= cpu_df['duty_cycle']
 
                     axis.fill_between(
                         x=cpu_df.index,
@@ -983,7 +993,7 @@ class TasksAnalysis(TraceAnalysisBase):
                 axis.fill_between(
                     x=df.index,
                     y1=sleep_value,
-                    y2=df['active'].map({True: active_value, False: sleep_value}),
+                    y2=df['active'].map({1: active_value, 0: sleep_value}).fillna(preempted_value),
                     step='post',
                     alpha=_alpha,
                     color=color,
