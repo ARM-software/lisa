@@ -834,7 +834,16 @@ class CPUMigrationBase(LoadTrackingBase):
         """
         # Iterate over descending CPU capacity groups
         nr_required_cpu = cls.get_nr_required_cpu(plat_info)
-        for cpus in reversed(plat_info["capacity-classes"]):
+        cpu_classes = plat_info["capacity-classes"]
+
+        # If the CPU capacities are writeable, it's better to give priority to
+        # LITTLE cores as they will be less prone to thermal capping.
+        # Otherwise, it's better to pick big cores as they will not be affected
+        # by CPU invariance issues.
+        if not plat_info['cpu-capacities']['writeable']:
+            cpu_classes = reversed(cpu_classes)
+
+        for cpus in cpu_classes:
             if len(cpus) >= nr_required_cpu:
                 return cpus[:nr_required_cpu]
 
