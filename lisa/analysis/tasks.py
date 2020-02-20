@@ -418,7 +418,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
           * A ``cpu`` column (the CPU where the task was on)
           * A ``target_cpu`` column (the CPU where the task has been scheduled).
-            Will be ``NaN`` for non-wakeup events
+            Will be ``-1`` for non-wakeup events
           * A ``curr_state`` column (the current task state, see :class:`~TaskState`)
           * A ``next_state`` column (the next task state)
           * A ``delta`` column (the duration for which the task will remain in
