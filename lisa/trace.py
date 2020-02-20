@@ -2026,6 +2026,8 @@ class Trace(Loggable, TraceBase):
             # Ignore it since it's not a valid name, and we probably managed
             # to resolve it by looking at more events anyway.
             '<...>',
+            # sched entity PELT events for task groups will get a comm="(null)"
+            '(null)',
         }
         df = df[~df['name'].isin(forbidden_names)]
 
