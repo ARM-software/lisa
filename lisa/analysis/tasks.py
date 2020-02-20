@@ -634,6 +634,13 @@ class TasksAnalysis(TraceAnalysisBase):
         if cpu is not None:
             df = df[df['cpu'] == cpu]
 
+        df = df.copy()
+
+        # TASK_WAKING can just be removed. The delta will then be computed
+        # without it, which means the time spent in WAKING state will be
+        # accounted into the previous state.
+        df = df[df['curr_state'] != TaskState.TASK_WAKING]
+
         df['active'] = df['curr_state'].map(f)
         df = df[['active', 'cpu']]
 
