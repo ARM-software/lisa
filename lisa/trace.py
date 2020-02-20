@@ -1555,6 +1555,7 @@ class Trace(Loggable, TraceBase):
             trace = cls(
                 path,
                 events=events,
+                strict_events=True,
                 plat_info=plat_info,
                 # Disable swap if the folder is going to disappear
                 enable_swap=True if filepath else False,
@@ -1766,6 +1767,12 @@ class Trace(Loggable, TraceBase):
     def _load_df(self, pd_desc, sanitization_f=None, write_swap=None):
         raw = pd_desc['raw']
         event = pd_desc['event']
+
+        # Do not even bother loading the event if we know it cannot be
+        # there. This avoids some OSError in case the trace file has
+        # disappeared
+        if self._strict_events and event not in self.available_events:
+            raise MissingTraceEventError(event, available_events=self.available_events)
 
         if write_swap is None:
             write_swap = self._write_swap
