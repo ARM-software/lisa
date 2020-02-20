@@ -1047,33 +1047,41 @@ def series_rolling_apply(series, func, window, window_float_index=True, center=F
     return pd.Series(values, index=new_index)
 
 
-def _data_deduplicate(data, keep, consecutives, cols, all_col):
+def _data_find_duplicates_bool_vector(data, cols, all_col, keep):
     if keep == 'first':
         shift = 1
     elif keep == 'last':
         shift = -1
+    elif keep is None:
+        shift = 1
     else:
         raise ValueError('Unknown keep value: {}'.format(keep))
 
-    if consecutives:
-        dedup_data = data[cols] if cols else data
-        cond = dedup_data != dedup_data.shift(shift)
-        if isinstance(data, pd.DataFrame):
-            # The test is somewhat inverted since the cond must be True when
-            # the data is selected, but all_col is defined in terms of rejected
-            # data:
-            # not ((not x) and (not y))
-            # not (not (x or y))
-            # x or y
-            if all_col:
-                cond = cond.any(axis=1)
-            # not ((not x) or (not y))
-            # not (not (x and y))
-            # x and y
-            else:
-                cond = cond.all(axis=1)
+    dedup_data = data[cols] if cols else data
+    cond = dedup_data != dedup_data.shift(shift)
+    if isinstance(data, pd.DataFrame):
+        # The test is somewhat inverted since the cond must be True when
+        # the data is selected, but all_col is defined in terms of rejected
+        # data:
+        # ((not x) and (not y))
+        # (not (x or y))
+        if all_col:
+            cond = ~cond.any(axis=1)
+        # ((not x) or (not y))
+        # (not (x and y))
+        else:
+            cond = ~cond.all(axis=1)
 
-        return data[cond]
+    # Also mark as duplicate the first row in a run
+    if keep is None:
+        cond |= cond.shift(-1)
+
+    return cond
+
+
+def _data_deduplicate(data, keep, consecutives, cols, all_col):
+    if consecutives:
+        return data.loc[~_data_find_duplicates_bool_vector(data, cols, all_col, keep)]
     else:
         if not all_col:
             raise ValueError("all_col=False is not supported with consecutives=False")
@@ -1103,7 +1111,7 @@ def series_deduplicate(series, keep, consecutives):
 
     :type consecutives: bool
     """
-    return _data_deduplicate(series, keep=keep, consecutives=consecutives, cols=None, all_col=None)
+    return _data_deduplicate(series, keep=keep, consecutives=consecutives, cols=None, all_col=True)
 
 
 @DataFrameAccessor.register_accessor
@@ -1180,6 +1188,60 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
         df[col] = series
 
     return df
+
+
+@DataFrameAccessor.register_accessor
+def df_combine_duplicates(df, func, output_col, cols=None, all_col=True):
+    """
+    Combine the duplicated rows using ``func`` and remove the duplicates.
+
+    :param df: The dataframe to act on.
+    :type df: pandas.DataFrame
+
+    :param func: Function to combine a group of duplicates. It will be passed a
+        :class:`pandas.DataFrame` corresponding to the group and must return
+        either a series or a scalar value that will be broadcast to
+        ``output_col``.
+    :type func: collections.abc.Callable
+
+    :param output_col: Column in which the output of ``func`` should be stored.
+    :type output_col: str
+
+    :param cols: Columns to use for duplicates detection
+    :type cols: list(str) or None
+
+    :param all_cols: If ``True``, all columns will be used.
+    :type all_cols: bool
+    """
+    init_df = df
+    # We are going to add columns so make a copy
+    df = df.copy()
+
+    # Find all rows where the active status is the same as the previous one
+    duplicates = _data_find_duplicates_bool_vector(df, cols, all_col, keep=None)
+    # Then get only the first row in a run of duplicates
+    first_duplicates = duplicates & (duplicates != duplicates.shift(fill_value=False))
+
+    # Assign the group ID to each member of the group
+    df.loc[first_duplicates, 'duplicate_group'] = first_duplicates.loc[first_duplicates].index
+    df.loc[duplicates, 'duplicate_group'] = df.loc[duplicates, 'duplicate_group'].fillna(method='ffill')
+
+    # For some reasons GroupBy.apply() will raise a KeyError if the index is a
+    # Float64Index, go figure ...
+    index = df.index
+    df.reset_index(drop=True, inplace=True)
+
+    # Apply the function to each group, and assign the result to the output
+    # Note that we cannot use GroupBy.transform() as it currently cannot handle
+    # NaN groups.
+    init_df[output_col] = df.groupby('duplicate_group', sort=False).apply(func)
+
+    # Restore the index that we had to remove for apply()
+    df.index = index
+    init_df[output_col].fillna(df[output_col], inplace=True)
+
+    # Get rid of all the other rows of the group
+    return init_df.loc[~duplicates | first_duplicates]
 
 
 @DataFrameAccessor.register_accessor
