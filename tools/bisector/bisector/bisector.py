@@ -1782,6 +1782,7 @@ class LISATestStep(ShellStep):
     attr_init = dict(
         cat='test',
         name='LISA-test',
+        delete_artifact_hidden=True,
         compress_artifact=True,
         upload_artifact=False,
         delete_artifact=False,
@@ -1791,6 +1792,7 @@ class LISATestStep(ShellStep):
 
     options = dict(
         __init__=dict(
+            delete_artifact_hidden=BoolParam('Remove hidden files and folders inside the artifacts'),
             compress_artifact=BoolParam('compress the exekall artifact directory in an archive'),
             upload_artifact=BoolParam('upload the exekall artifact directory to Artifactorial as the execution goes, and delete the local archive.'),
             delete_artifact=BoolParam('delete the exekall artifact directory to Artifactorial as the execution goes.'),
@@ -1823,6 +1825,7 @@ class LISATestStep(ShellStep):
     )
 
     def __init__(self,
+                delete_artifact_hidden=Default,
                 compress_artifact=Default,
                 upload_artifact=Default,
                 delete_artifact=Default,
@@ -1841,6 +1844,7 @@ class LISATestStep(ShellStep):
             compress_artifact = True
             delete_artifact = True
 
+        self.delete_artifact_hidden = delete_artifact_hidden
         self.compress_artifact = compress_artifact
         self.delete_artifact = delete_artifact
         self.prune_db = prune_db
@@ -1904,6 +1908,18 @@ class LISATestStep(ShellStep):
                         froz_val.value is NoValue
                     )
                 db = db.prune_by_predicate(prune_predicate)
+
+        # Remove the hidden folders and files in the artifacts
+        if self.delete_artifact_hidden:
+            def remove_hidden(root, name, rm):
+                if name.startswith('.'):
+                    rm(os.path.join(root, name))
+
+            for root, dirs, files in os.walk(artifact_path, topdown=False):
+                for name in files:
+                    remove_hidden(root, name, os.remove)
+                for name in dirs:
+                    remove_hidden(root, name, shutil.rmtree)
 
         # Compress artifact directory
         if self.compress_artifact:
