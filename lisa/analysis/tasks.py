@@ -683,7 +683,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df['duty_cycle'].fillna(inplace=True, method='ffill')
 
         if not np.isnan(preempted_value):
-            df['active'].fillna(preemtped_value, inplace=True)
+            df['active'].fillna(preempted_value, inplace=True)
 
         return df
 
