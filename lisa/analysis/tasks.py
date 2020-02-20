@@ -24,7 +24,7 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates
+from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates
 from lisa.trace import requires_events, TaskID, CPU
 from lisa.pelt import PELT_SCALE
 from lisa.conf import TypedList
@@ -645,33 +645,12 @@ class TasksAnalysis(TraceAnalysisBase):
         df_add_delta(df, col='duration', inplace=True)
 
         # Make a dataframe where the rows corresponding to preempted time are removed
-        preempt_free_df = df.dropna()
+        preempt_free_df = df.dropna().copy()
 
-        # Silence SettingWithCopy warning when we assign to
-        # preempt_free_df.loc[]
-        # This is legitimate since we don't care at all about the original
-        # dataframe. All we want is to iteratively modify the view, and this
-        # cannot be done in one go.
-        with pd.option_context('mode.chained_assignment', None):
-            # Merge consecutive activations' duration. They could have been
-            # split in two by a bit of preemption, and we don't want that to
-            # affect the duty cycle.
-            while True:
-                # Find all rows where the active status is the same as the previous one
-                duplicated = preempt_free_df['active'] == preempt_free_df['active'].shift()
-                # Then get only the first duplicate in a run of duplicates
-                duplicated = duplicated & (duplicated != duplicated.shift(fill_value=False))
-
-                if not duplicated.any():
-                    break
-
-                # For each first row in a duplicated run
-                first_rows = duplicated.shift(-1, fill_value=False)
-                # Add the duration of the next row (duplicated) to the current one
-                preempt_free_df.loc[first_rows, 'duration'] += preempt_free_df['duration'].shift(-1)
-                # Remove the duplicated row, now that we merged its duration with
-                # the previous one.
-                preempt_free_df = preempt_free_df.loc[~duplicated]
+        # Merge consecutive activations' duration. They could have been
+        # split in two by a bit of preemption, and we don't want that to
+        # affect the duty cycle.
+        preempt_free_df = df_combine_duplicates(preempt_free_df, cols=['active'], func=lambda df: df['duration'].sum(), output_col='duration')
 
         sleep = preempt_free_df[preempt_free_df['active'] == sleep_value]['duration']
         active = preempt_free_df[preempt_free_df['active'] == active_value]['duration']
