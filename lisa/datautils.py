@@ -1234,11 +1234,19 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True):
     # Apply the function to each group, and assign the result to the output
     # Note that we cannot use GroupBy.transform() as it currently cannot handle
     # NaN groups.
-    init_df[output_col] = df.groupby('duplicate_group', sort=False).apply(func)
+    output = df.groupby('duplicate_group', sort=False).apply(func)
+    if not output.empty:
+        init_df[output_col] = output
 
-    # Restore the index that we had to remove for apply()
-    df.index = index
-    init_df[output_col].fillna(df[output_col], inplace=True)
+    # Ensure the column is created if it does not exists yet
+    try:
+        init_df[output_col]
+    except KeyError:
+        init_df[output_col] = np.NaN
+    else:
+        # Restore the index that we had to remove for apply()
+        df.index = index
+        init_df[output_col].fillna(df[output_col], inplace=True)
 
     # Get rid of all the other rows of the group
     return init_df.loc[~duplicates | first_duplicates]
