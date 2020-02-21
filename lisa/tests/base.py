@@ -1259,7 +1259,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         if df_noise.empty:
             return ResultBundle.from_bool(True)
 
-        res = ResultBundle.from_bool(df_noise['runtime'].max() < threshold_s)
+        res = ResultBundle.from_bool(df_noise['runtime'].sum() < threshold_s)
 
         pid = df_noise.index[0]
         comm = df_noise['comm'].iloc[0]
