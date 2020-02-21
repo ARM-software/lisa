@@ -1226,12 +1226,9 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         df = self.trace.analysis.tasks.df_tasks_runtime()
 
         # We don't want to account the test tasks
-        ignored_ids = list(map(self.trace.get_task_id, self.rtapp_tasks))
+        ignored_ids = self.rtapp_task_ids
 
-        def compute_duration_pct(row):
-            return row.runtime * 100 / self.trace.time_range
-
-        df["runtime_pct"] = df.apply(compute_duration_pct, axis=1)
+        df['runtime_pct'] = df['runtime'] * (100 / self.trace.time_range)
         df['pid'] = df.index
 
         # Figure out which PIDs to exclude from the thresholds
@@ -1262,12 +1259,13 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         if df_noise.empty:
             return ResultBundle.from_bool(True)
 
+        res = ResultBundle.from_bool(df_noise['runtime'].max() < threshold_s)
+
         pid = df_noise.index[0]
         comm = df_noise['comm'].iloc[0]
         duration_s = df_noise['runtime'].iloc[0]
-        duration_pct = duration_s * 100 / self.trace.time_range
+        duration_pct = df_noise['runtime_pct'].iloc[0]
 
-        res = ResultBundle.from_bool(duration_s < threshold_s)
         metric = {"pid": pid,
                   "comm": comm,
                   "duration (abs)": TestMetric(duration_s, "s"),
