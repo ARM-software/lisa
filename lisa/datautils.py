@@ -91,7 +91,8 @@ class SeriesAccessor(DataAccessor):
 def series_refit_index(series, start=None, end=None, window=None, method='inclusive', clip_window=True):
     """
     Slice a series using :func:`series_window` and ensure we have a value at
-    exactly the specified boundaries.
+    exactly the specified boundaries, unless the signal started after the
+    beginning of the required window.
 
     :param df: Series to act on
     :type df: pandas.Series
@@ -213,7 +214,10 @@ def _data_refit_index(data, window, method, clip_window):
 
     index = data.index.to_series()
 
-    if start is not None:
+    # Only advance the beginning of the data, never move it in the past.
+    # Otherwise, we "invent" a value for the signal that did not existed,
+    # leading to various wrong results.
+    if start is not None and index.iloc[0] < start:
         index.iloc[0] = start
 
     if end is not None:
