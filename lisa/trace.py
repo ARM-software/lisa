@@ -1351,6 +1351,7 @@ class Trace(Loggable, TraceBase):
 
     :param sanitization_functions: Mapping of event name to sanitization
         function. Each function takes:
+
             * the trace instance
             * the name of the event
             * a dataframe of the raw event
