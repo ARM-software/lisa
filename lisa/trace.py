@@ -1349,6 +1349,13 @@ class Trace(Loggable, TraceBase):
     :param plots_dir: directory where to save plots
     :type plots_dir: str
 
+    :param sanitization_functions: Mapping of event name to sanitization
+        function. Each function takes:
+            * the trace instance
+            * the name of the event
+            * a dataframe of the raw event
+            * a dictionary of aspects to sanitize
+    :type sanitization_functions: dict(str, collections.abc.Callable) or None
 
     :param max_mem_size: Maximum memory usage to be used for dataframe cache.
         Note that the peak memory usage can exceed that, as the cache can not
