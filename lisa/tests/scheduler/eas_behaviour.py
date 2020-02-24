@@ -59,35 +59,39 @@ class EASBehaviour(RTATestBundle):
         return self.plat_info['nrg-model']
 
     @classmethod
-    def get_big_duty_cycle(cls, plat_info, load):
+    def get_big_duty_cycle(cls, plat_info, utilization_pct=None):
         """
-        For load 0 or negative it returns the smallest duty-cycle percentage
-        guaranteeing the task will be placed on the biggest CPUs of the system.
-        This allows minimizing thermal issues while ensuring the expected
-        placement. Otherwise it return the duty-cycle percentage equivalent to
-        load on big CPUs.
-        """
-        # If a negative/zero load is passed we return the duty-cycle equivalent
-        # to the capacity of CPUs with the closest capacity to bigs
-        if load <= 0:
-            try:
-                bigs = plat_info["capacity-classes"][-2]
-            except IndexError:
-                bigs = plat_info["capacity-classes"][0]
-            load = 100
-        else:
-            bigs = plat_info["capacity-classes"][-1]
+        Returns a duty cycle for :class:`lisa.wlgen.rta.Periodic` that will
+        guarantee placement on a big CPU.
 
-        return cls.unscaled_utilization(plat_info, bigs[0], load)
+        :param utilization_pct: If ``None``, the duty cycle will be chosen so
+            that the task will not fit on the second to biggest CPUs in the
+            system, thereby forcing up-migration while minimizing the thermal
+            impact. If a number is passed, the value will be used as a
+            percentage of utilization of a big CPU, and will be converted to a
+            duty cycle.
+        :type utilization_pct: int or None
+        """
+        if utilization_pct is None:
+            cpus = plat_info["capacity-classes"][-1]
+        else:
+            try:
+                cpus = plat_info["capacity-classes"][-2]
+            except IndexError:
+                cpus = plat_info["capacity-classes"][0]
+            utilization_pct = 100
+
+        return cls.unscaled_utilization(plat_info, cpus[0], utilization_pct)
 
     @classmethod
-    def get_little_duty_cycle(cls, plat_info, load):
+    def get_little_duty_cycle(cls, plat_info, utilization_pct):
         """
-        Returns the duty-cycle percentage equivalent to load on little CPUs
+        Returns the duty-cycle percentage equivalent to ``utilization_pct`` on
+        little CPUs.
         """
         littles = plat_info["capacity-classes"][0]
 
-        return cls.unscaled_utilization(plat_info, littles[0], load)
+        return cls.unscaled_utilization(plat_info, littles[0], utilization_pct)
 
     @classmethod
     def check_from_target(cls, target):
@@ -498,7 +502,7 @@ class TwoBigTasks(EASBehaviour):
 
     @classmethod
     def get_rtapp_profile(cls, plat_info):
-        duty = cls.get_big_duty_cycle(plat_info, 0)
+        duty = cls.get_big_duty_cycle(plat_info)
 
         rtapp_profile = {}
         for i in range(2):
@@ -522,7 +526,7 @@ class TwoBigThreeSmall(EASBehaviour):
     @classmethod
     def get_rtapp_profile(cls, plat_info):
         small_duty = cls.get_little_duty_cycle(plat_info, 50)
-        big_duty = cls.get_big_duty_cycle(plat_info, 0)
+        big_duty = cls.get_big_duty_cycle(plat_info)
 
         rtapp_profile = {}
 
@@ -561,7 +565,7 @@ class EnergyModelWakeMigration(EASBehaviour):
     @classmethod
     def get_rtapp_profile(cls, plat_info):
         start_pct = cls.get_little_duty_cycle(plat_info, 20)
-        end_pct = cls.get_big_duty_cycle(plat_info, 0)
+        end_pct = cls.get_big_duty_cycle(plat_info)
 
         rtapp_profile = {}
 
