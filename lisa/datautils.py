@@ -1051,7 +1051,7 @@ def series_rolling_apply(series, func, window, window_float_index=True, center=F
     return pd.Series(values, index=new_index)
 
 
-def _data_find_duplicates_bool_vector(data, cols, all_col, keep):
+def _data_find_unique_bool_vector(data, cols, all_col, keep):
     if keep == 'first':
         shift = 1
     elif keep == 'last':
@@ -1062,30 +1062,33 @@ def _data_find_duplicates_bool_vector(data, cols, all_col, keep):
         raise ValueError('Unknown keep value: {}'.format(keep))
 
     dedup_data = data[cols] if cols else data
+    # Unique values will be True, duplicate False
     cond = dedup_data != dedup_data.shift(shift)
     if isinstance(data, pd.DataFrame):
-        # The test is somewhat inverted since the cond must be True when
-        # the data is selected, but all_col is defined in terms of rejected
-        # data:
-        # ((not x) and (not y))
-        # (not (x or y))
+        # (not (duplicate and duplicate))
+        # (not ((not unique) and (not unique)))
+        # (not (not (unique or unique)))
+        # (unique or unique)
         if all_col:
-            cond = ~cond.any(axis=1)
-        # ((not x) or (not y))
-        # (not (x and y))
+            cond = cond.any(axis=1)
+        # (not (duplicate or duplicate))
+        # (not (duplicate or duplicate))
+        # (not ((not unique) or (not unique)))
+        # (not (not (unique and unique)))
+        # (unique and unique)
         else:
-            cond = ~cond.all(axis=1)
+            cond = cond.all(axis=1)
 
     # Also mark as duplicate the first row in a run
     if keep is None:
-        cond |= cond.shift(-1)
+        cond &= cond.shift(-1).fillna(True)
 
     return cond
 
 
 def _data_deduplicate(data, keep, consecutives, cols, all_col):
     if consecutives:
-        return data.loc[~_data_find_duplicates_bool_vector(data, cols, all_col, keep)]
+        return data.loc[_data_find_unique_bool_vector(data, cols, all_col, keep)]
     else:
         if not all_col:
             raise ValueError("all_col=False is not supported with consecutives=False")
@@ -1222,7 +1225,7 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True):
     df = df.copy()
 
     # Find all rows where the active status is the same as the previous one
-    duplicates = _data_find_duplicates_bool_vector(df, cols, all_col, keep=None)
+    duplicates = ~_data_find_unique_bool_vector(df, cols, all_col, keep=None)
     # Then get only the first row in a run of duplicates
     first_duplicates = duplicates & (duplicates != duplicates.shift(fill_value=False))
 
