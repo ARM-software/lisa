@@ -902,7 +902,11 @@ class Ramp(RTATask):
         sign = +1 if start_pct <= end_pct else -1
         delta_pct = sign * abs(delta_pct)
 
-        steps = list(itertools.takewhile(lambda x: x <= end_pct, itertools.count(start_pct, delta_pct)))
+        if start_pct <= end_pct:
+            steps = list(itertools.takewhile(lambda x: x <= end_pct, itertools.count(start_pct, delta_pct)))
+        else:
+            steps = list(itertools.takewhile(lambda x: x >= end_pct, itertools.count(start_pct, delta_pct)))
+
         # clip the last step
         steps[-1] = end_pct
 
