@@ -29,7 +29,7 @@ import pandas.api.extensions
 import scipy.integrate
 import scipy.signal
 
-from lisa.utils import TASK_COMM_MAX_LEN, groupby
+from lisa.utils import TASK_COMM_MAX_LEN, groupby, deprecate
 
 
 class DataAccessor:
@@ -983,7 +983,7 @@ def series_local_extremum(series, kind):
 
 
 @SeriesAccessor.register_accessor
-def series_tunnel_mean(series):
+def series_envelope_mean(series):
     """
     Compute the average between the mean of local maximums and local minimums
     of the series.
@@ -998,6 +998,11 @@ def series_tunnel_mean(series):
     mins_mean = series_mean(mins)
 
     return (maxs_mean - mins_mean) / 2 + mins_mean
+
+# Keep an alias in place for compatibility
+@deprecate(replaced_by=series_envelope_mean, deprecated_in='2.0', removed_in='2.1')
+def series_tunnel_mean(*args, **kwargs):
+    return series_envelope_mean(*args, **kwargs)
 
 
 @SeriesAccessor.register_accessor
