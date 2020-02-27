@@ -20,6 +20,8 @@ import math
 import pandas as pd
 import numpy as np
 
+from lisa.datautils import series_envelope_mean
+
 PELT_WINDOW = 1024 * 1024 * 1e-9
 """
 PELT window in seconds.
@@ -247,5 +249,21 @@ def pelt_settling_time(margin=1, init=0, final=PELT_SCALE, window=PELT_WINDOW, h
     settling_time = - tau * math.log(1 - A)
     return settling_time
 
+
+def kernel_util_mean(util, plat_info):
+    """
+    Compute the mean of a utilization signal as output by the kernel.
+
+    :param util: Series of utilization over time.
+    :type util: pandas.Series
+
+    :param plat_info: Platform info of the kernel used to generate the
+        utilization signal.
+    :type plat_info: lisa.platforms.platinfo.PlatformInfo
+
+    .. warning:: It is currently only fully accurate for a task with a 512
+        utilisation mean.
+    """
+    return series_envelope_mean(util)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
