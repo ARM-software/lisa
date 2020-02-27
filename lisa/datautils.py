@@ -1258,7 +1258,12 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True):
     else:
         # Restore the index that we had to remove for apply()
         df.index = index
-        init_df[output_col].fillna(df[output_col], inplace=True)
+        try:
+            fill = df[output_col]
+        except KeyError:
+            pass
+        else:
+            init_df[output_col].fillna(fill, inplace=True)
 
     # Get rid of all the other rows of the group
     return init_df.loc[~duplicates | first_duplicates]
