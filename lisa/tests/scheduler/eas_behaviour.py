@@ -73,13 +73,13 @@ class EASBehaviour(RTATestBundle):
         :type utilization_pct: int or None
         """
         if utilization_pct is None:
-            cpus = plat_info["capacity-classes"][-1]
-            utilization_pct = 100
-        else:
             try:
                 cpus = plat_info["capacity-classes"][-2]
             except IndexError:
                 cpus = plat_info["capacity-classes"][0]
+            utilization_pct = 100
+        else:
+            cpus = plat_info["capacity-classes"][-1]
 
         return cls.unscaled_utilization(plat_info, cpus[0], utilization_pct)
 
