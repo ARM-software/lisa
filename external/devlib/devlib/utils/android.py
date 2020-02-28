@@ -271,7 +271,7 @@ class AdbConnection(object):
         self.adb_as_root = adb_as_root
         if self.adb_as_root:
             self.adb_root(enable=True)
-        adb_connect(self.device)
+        adb_connect(self.device, adb_server=self.adb_server)
         AdbConnection.active_connections[self.device] += 1
         self._setup_ls()
         self._setup_su()
@@ -319,7 +319,7 @@ class AdbConnection(object):
         if AdbConnection.active_connections[self.device] <= 0:
             if self.adb_as_root:
                 self.adb_root(self.device, enable=False)
-            adb_disconnect(self.device)
+            adb_disconnect(self.device, self.adb_server)
             del AdbConnection.active_connections[self.device]
 
     def cancel_running_command(self):
@@ -330,16 +330,16 @@ class AdbConnection(object):
 
     def adb_root(self, enable=True):
         cmd = 'root' if enable else 'unroot'
-        output = adb_command(self.device, cmd, timeout=30)
+        output = adb_command(self.device, cmd, timeout=30, adb_server=self.adb_server)
         if 'cannot run as root in production builds' in output:
             raise TargetStableError(output)
         AdbConnection._connected_as_root[self.device] = enable
 
     def wait_for_device(self, timeout=30):
-        adb_command(self.device, 'wait-for-device', timeout)
+        adb_command(self.device, 'wait-for-device', timeout, self.adb_server)
 
     def reboot_bootloader(self, timeout=30):
-        adb_command(self.device, 'reboot-bootloader', timeout)
+        adb_command(self.device, 'reboot-bootloader', timeout, self.adb_server)
 
     # Again, we need to handle boards where the default output format from ls is
     # single column *and* boards where the default output is multi-column.
@@ -423,7 +423,7 @@ def adb_get_device(timeout=None, adb_server=None):
             time.sleep(1)
 
 
-def adb_connect(device, timeout=None, attempts=MAX_ATTEMPTS):
+def adb_connect(device, timeout=None, attempts=MAX_ATTEMPTS, adb_server=None):
     _check_env()
     tries = 0
     output = None
@@ -436,11 +436,12 @@ def adb_connect(device, timeout=None, attempts=MAX_ATTEMPTS):
                 # adb connection may have gone "stale", resulting in adb blocking
                 # indefinitely when making calls to the device. To avoid this,
                 # always disconnect first.
-                adb_disconnect(device)
-                command = 'adb connect {}'.format(quote(device))
+                adb_disconnect(device, adb_server)
+                adb_cmd = get_adb_command(None, 'connect', adb_server)
+                command = '{} {}'.format(adb_cmd, quote(device))
                 logger.debug(command)
                 output, _ = check_output(command, shell=True, timeout=timeout)
-        if _ping(device):
+        if _ping(device, adb_server):
             break
         time.sleep(10)
     else:  # did not connect to the device
@@ -450,22 +451,23 @@ def adb_connect(device, timeout=None, attempts=MAX_ATTEMPTS):
         raise HostError(message)
 
 
-def adb_disconnect(device):
+def adb_disconnect(device, adb_server=None):
     _check_env()
     if not device:
         return
-    if ":" in device and device in adb_list_devices():
-        command = "adb disconnect " + device
+    if ":" in device and device in adb_list_devices(adb_server):
+        adb_cmd = get_adb_command(None, 'disconnect', adb_server)
+        command = "{} {}".format(adb_cmd, device)
         logger.debug(command)
         retval = subprocess.call(command, stdout=open(os.devnull, 'wb'), shell=True)
         if retval:
             raise TargetTransientError('"{}" returned {}'.format(command, retval))
 
 
-def _ping(device):
+def _ping(device, adb_server=None):
     _check_env()
-    device_string = ' -s {}'.format(quote(device)) if device else ''
-    command = "adb{} shell \"ls /data/local/tmp > /dev/null\"".format(device_string)
+    adb_cmd = get_adb_command(device, 'shell', adb_server)
+    command = "{} {}".format(adb_cmd, quote('ls /data/local/tmp > /dev/null'))
     logger.debug(command)
     result = subprocess.call(command, stderr=subprocess.PIPE, shell=True)
     if not result:  # pylint: disable=simplifiable-if-statement
@@ -544,14 +546,13 @@ def adb_background_shell(device, command,
     if as_root:
         command = 'echo {} | su'.format(quote(command))
 
-    device_string = ' -H {}'.format(adb_server) if adb_server else ''
-    device_string += ' -s {}'.format(device) if device else ''
-    full_command = 'adb{} shell {}'.format(device_string, quote(command))
+    adb_cmd = get_adb_command(None, 'shell', adb_server)
+    full_command = '{} {}'.format(adb_cmd, quote(command))
     logger.debug(full_command)
     return subprocess.Popen(full_command, stdout=stdout, stderr=stderr, shell=True)
 
-def adb_kill_server(self, timeout=30):
-    adb_command(None, 'kill-server', timeout)
+def adb_kill_server(timeout=30, adb_server=None):
+    adb_command(None, 'kill-server', timeout, adb_server)
 
 def adb_list_devices(adb_server=None):
     output = adb_command(None, 'devices', adb_server=adb_server)

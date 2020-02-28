@@ -65,7 +65,7 @@ ANDROID_SCREEN_ROTATION_REGEX = re.compile(r'orientation=(?P<rotation>[0-3])')
 DEFAULT_SHELL_PROMPT = re.compile(r'^.*(shell|root|juno)@?.*:[/~]\S* *[#$] ',
                                   re.MULTILINE)
 KVERSION_REGEX = re.compile(
-    r'(?P<version>\d+)(\.(?P<major>\d+)(\.(?P<minor>\d+)(-rc(?P<rc>\d+))?)?)?(.*-g(?P<sha1>[0-9a-fA-F]{7,}))?'
+    r'(?P<version>\d+)(\.(?P<major>\d+)(\.(?P<minor>\d+)(-rc(?P<rc>\d+))?)?)?(-(?P<commits>\d+)-g(?P<sha1>[0-9a-fA-F]{7,}))?'
 )
 
 GOOGLE_DNS_SERVER_ADDRESS = '8.8.8.8'
@@ -1806,6 +1806,8 @@ class KernelVersion(object):
     :type minor: int
     :ivar rc: Release candidate number (e.g. 3 for Linux 4.9-rc3). May be None.
     :type rc: int
+    :ivar commits: Number of additional commits on the branch. May be None.
+    :type commits: int
     :ivar sha1: Kernel git revision hash, if available (otherwise None)
     :type sha1: str
 
@@ -1830,6 +1832,7 @@ class KernelVersion(object):
         self.minor = None
         self.sha1 = None
         self.rc = None
+        self.commits = None
         match = KVERSION_REGEX.match(version_string)
         if match:
             groups = match.groupdict()
@@ -1839,6 +1842,8 @@ class KernelVersion(object):
                 self.minor = int(groups['minor'])
             if groups['rc'] is not None:
                 self.rc = int(groups['rc'])
+            if groups['commits'] is not None:
+                self.commits = int(groups['commits'])
             if groups['sha1'] is not None:
                 self.sha1 = match.group('sha1')
 
