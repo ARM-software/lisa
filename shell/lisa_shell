@@ -228,24 +228,27 @@ function lisa-install {
     # Record the point in time when we ran that install command
     (cd "$LISA_HOME" && check-setuppy --update-recorded-commit HEAD)
 
+    # Install custom_requirements.txt first so user can override the
+    # installation source of any package
+    local requirements=(custom_requirements.txt)
+
     if [[ "$LISA_DEVMODE" == 1 ]]; then
         # This set of requirements will install all the shipped dependencies
         # in editable mode
-        local requirements=(
+        requirements+=(
             devmode_requirements.txt
             devmode_extra_requirements.txt
         )
     else
         # This one will install the packages that are developed here, but will
         # take the external dependencies from PyPI
-        local requirements=(
+        requirements+=(
             requirements.txt
             extra_requirements.txt
         )
     fi
-    requirements+=(custom_requirements.txt)
 
-    pip_options=()
+    local pip_options=()
     for f in "${requirements[@]}"; do
         f="$LISA_HOME/$f"
         [[ -e "$f" ]] && pip_options+=(-r "$f")
@@ -272,6 +275,7 @@ function lisa-install {
 
     # Log the version of all Python modules, so we know what is the faulty
     # version when something goes wrong
+    print "\n\n" >> "$lisa_install_versions"
     LC_ALL=C date >> "$lisa_install_versions"
     lisa-version >> "$lisa_install_versions"
     _lisa-python -m pip freeze >> "$lisa_install_versions"
