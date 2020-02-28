@@ -1230,9 +1230,13 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True):
     df = df.copy()
 
     # Find all rows where the active status is the same as the previous one
-    duplicates = ~_data_find_unique_bool_vector(df, cols, all_col, keep=None)
+    duplicates_to_remove = ~_data_find_unique_bool_vector(df, cols, all_col, keep='first')
     # Then get only the first row in a run of duplicates
-    first_duplicates = duplicates & (duplicates != duplicates.shift(fill_value=False))
+    first_duplicates = (~duplicates_to_remove) & duplicates_to_remove.shift(-1, fill_value=True)
+    # We only kept them separate with keep='first' to be able to detect
+    # correctly the beginning of a duplicate run to get a group ID, so now we
+    # merge them
+    duplicates = duplicates_to_remove | first_duplicates
 
     # Assign the group ID to each member of the group
     df.loc[first_duplicates, 'duplicate_group'] = first_duplicates.loc[first_duplicates].index
@@ -1265,8 +1269,8 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True):
         else:
             init_df[output_col].fillna(fill, inplace=True)
 
-    # Get rid of all the other rows of the group
-    return init_df.loc[~duplicates | first_duplicates]
+    # Only keep the first row of each duplicate run
+    return init_df.loc[~duplicates_to_remove]
 
 
 @DataFrameAccessor.register_accessor
