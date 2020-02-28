@@ -713,6 +713,47 @@ class ArtifactPath(str, Loggable, HideExekallID):
         return joined
 
 
+def value_range(start, stop, step=None, inclusive=False):
+    """
+    Equivalent to builtin :func:`range` function, but works for floats as well.
+
+    :param start: First value to use.
+    :type start: numbers.Number
+
+    :param stop: Last value to use.
+    :type stop: numbers.Number
+
+    :param step: Increment. If ``None``, increment defaults to 1.
+    :type step: numbers.Number
+
+    :param inclusive: If ``True``, the ``stop`` value will be included (unlike
+        the builtin :func:`range`)
+    :type inclusive: bool
+
+    .. note:: Unlike :func:`range`, it will raise :excep:`ValueError` if
+        ``start > stop and step > 0``.
+    """
+
+    step = 1 if step is None else step
+
+    if stop < start and step > 0:
+        raise ValueError("step ({}) > 0 but stop ({}) < start ({})".format(step, stop, start))
+
+    if not step:
+        raise ValueError("Step cannot be 0: {}".format(step))
+
+    ops = {
+        (True, True): operator.le,
+        (True, False): operator.lt,
+
+        (False, True): operator.ge,
+        (False, False): operator.gt,
+    }
+    op = ops[start <= stop, inclusive]
+    comp = lambda x: op(x, stop)
+    return itertools.takewhile(comp, itertools.count(start, step))
+
+
 def groupby(iterable, key=None, reverse=False):
     """
     Equivalent of :func:`itertools.groupby`, with a pre-sorting so it works as
