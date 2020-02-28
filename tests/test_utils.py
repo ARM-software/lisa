@@ -190,3 +190,10 @@ class  TestToggleSet(TestCase):
 
         ts6 = ts2.merge_into(ts3).merge_with(ts1)
         assert_equal(ts6, toggle_set(['one', 'two', 'three', 'four', 'five', '~~']))
+
+    def test_order_on_create(self):
+        ts1 = toggle_set(['one', 'two', 'three', '~one'])
+        assert_equal(ts1, toggle_set(['~one', 'two', 'three']))
+
+        ts1 = toggle_set(['~one', 'two', 'three', 'one'])
+        assert_equal(ts1, toggle_set(['one', 'two', 'three']))
