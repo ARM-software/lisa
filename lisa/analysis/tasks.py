@@ -657,7 +657,7 @@ class TasksAnalysis(TraceAnalysisBase):
         # Merge consecutive activations' duration. They could have been
         # split in two by a bit of preemption, and we don't want that to
         # affect the duty cycle.
-        preempt_free_df = df_combine_duplicates(preempt_free_df, cols=['active'], func=lambda df: df['duration'].sum(), output_col='duration')
+        preempt_free_df = df_combine_duplicates(preempt_free_df, cols=['active'], func=lambda df: df['duration'].sum(), output_col='duration', inplace=True)
 
         sleep = preempt_free_df[preempt_free_df['active'] == sleep_value]['duration']
         active = preempt_free_df[preempt_free_df['active'] == active_value]['duration']
