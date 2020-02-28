@@ -67,6 +67,17 @@ def get_uncommited_patch(repo):
     """
     return git(repo, 'diff', 'HEAD')
 
+def get_commit_message(repo, ref='HEAD', format='%s'):
+    """
+    Get the reference commit message.
+
+    :returns: String containing the commit message.
+
+    :param format: Format string passed to ``git show --format``. Default to subject.
+    :type format: str
+    """
+    return git(repo, 'show', '--format=' + format, '-s', ref)
+
 def find_commits(repo, ref='HEAD', grep=None):
     """
     Find git commits.
