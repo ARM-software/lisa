@@ -432,6 +432,14 @@ class toggle_set(set):
             if isinstance(value, str):
                 msg = 'invalid type for toggle_set: "{}"'
                 raise TypeError(msg.format(type(value)))
+            updated_value = []
+            for v in value:
+                if v.startswith('~') and v[1:] in updated_value:
+                    updated_value.remove(v[1:])
+                elif not v.startswith('~') and ('~' + v) in updated_value:
+                    updated_value.remove(('~' + v))
+                updated_value.append(v)
+            args = tuple([updated_value] + list(args[1:]))
         set.__init__(self, *args)
 
     def merge_with(self, other):
