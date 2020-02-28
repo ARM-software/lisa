@@ -39,7 +39,7 @@ from trappy.utils import handle_duplicate_index
 from IPython.display import display
 
 from lisa.trace import Trace
-from lisa.git import find_shortest_symref
+from lisa.git import find_shortest_symref, get_commit_message
 from lisa.utils import Loggable, memoized
 from lisa.datautils import series_integrate, series_mean
 
@@ -169,7 +169,10 @@ class WaResultsCollector(Loggable):
                 try:
                     symref = find_shortest_symref(kernel_repo_path, sha1)
                 except ValueError:
-                    symref = sha1
+                    try:
+                        symref = get_commit_message(kernel_repo_path, sha1)
+                    except subprocess.CalledProcessError:
+                        symref = sha1
                 kernel_refs[sha1] = symref
             else:
                 kernel_refs[sha1] = sha1
