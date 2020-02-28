@@ -1203,7 +1203,7 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
 
 
 @DataFrameAccessor.register_accessor
-def df_combine_duplicates(df, func, output_col, cols=None, all_col=True):
+def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, inplace=False):
     """
     Combine the duplicated rows using ``func`` and remove the duplicates.
 
@@ -1224,10 +1224,13 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True):
 
     :param all_cols: If ``True``, all columns will be used.
     :type all_cols: bool
+
+    :param inplace: If ``True``, the passed dataframe is modified.
+    :type inplace: bool
     """
-    init_df = df
+    init_df = df if inplace else df.copy()
     # We are going to add columns so make a copy
-    df = df.copy()
+    df = df.copy(deep=False)
 
     # Find all rows where the active status is the same as the previous one
     duplicates_to_remove = ~_data_find_unique_bool_vector(df, cols, all_col, keep='first')
