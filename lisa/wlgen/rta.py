@@ -33,7 +33,7 @@ from operator import itemgetter
 from devlib import TargetStableError
 
 from lisa.wlgen.workload import Workload
-from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, group_by_value, nullcontext
+from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, group_by_value, nullcontext, value_range
 from lisa.pelt import PELT_SCALE
 
 
@@ -902,7 +902,7 @@ class Ramp(RTATask):
         sign = +1 if start_pct <= end_pct else -1
         delta_pct = sign * abs(delta_pct)
 
-        steps = list(itertools.takewhile(lambda x: x <= end_pct, itertools.count(start_pct, delta_pct)))
+        steps = list(value_range(start_pct, end_pct, delta_pct, inclusive=True))
         # clip the last step
         steps[-1] = end_pct
 
