@@ -366,11 +366,11 @@ class WaResultsCollector(Loggable):
             if extra_df.empty:
                 continue
 
-            extra_df.loc[:, 'workload'] = workload
-            extra_df.loc[:, 'iteration'] = iteration
-            extra_df.loc[:, 'id'] = job_id
-            extra_df.loc[:, 'tag'] = tag
-            extra_df.loc[:, 'test'] = test
+            extra_df['workload'] = workload
+            extra_df['iteration'] = iteration
+            extra_df['id'] = job_id
+            extra_df['tag'] = tag
+            extra_df['test'] = test
             # Collect all these DFs to merge them in one go at the end.
             extra_dfs.append(extra_df)
 
@@ -393,8 +393,8 @@ class WaResultsCollector(Loggable):
         # now, though - that refactoring would probably belong alongside a
         # refactoring to use WA's own API for reading output directories.
         df['_job_dir'] = df['id'].replace(job_dir_map)
-        df.loc[:, 'kernel_name'] = self._wa_get_kernel_name(wa_dir)
-        df.loc[:, 'kernel_sha1'] = self._wa_get_kernel_sha1(wa_dir)
+        df['kernel_name'] = self._wa_get_kernel_name(wa_dir)
+        df['kernel_sha1'] = self._wa_get_kernel_sha1(wa_dir)
 
         return df
 
@@ -520,8 +520,8 @@ class WaResultsCollector(Loggable):
             # 'device_power_sample'.
             device_name = artifact_name[len('energy_instrument_output') + 1:]
             name_extra = device_name or 'device'
-            df.loc[:, 'metric'] = '{}_power_sample'.format(name_extra)
-            df.loc[:, 'units'] = 'watts'
+            df['metric'] = '{}_power_sample'.format(name_extra)
+            df['units'] = 'watts'
 
         elif 'output_power' in df.columns and 'USB_power' in df.columns:
             # Looks like this is from a Monsoon
@@ -530,8 +530,8 @@ class WaResultsCollector(Loggable):
             # up.
             power_samples = df['output_power'] + df['USB_power']
             df = pd.DataFrame({'value': power_samples})
-            df.loc[:, 'metric'] = 'device_power_sample'
-            df.loc[:, 'units'] = 'watts'
+            df['metric'] = 'device_power_sample'
+            df['units'] = 'watts'
 
         return df
 
@@ -556,16 +556,16 @@ class WaResultsCollector(Loggable):
         if 'jankbench_results_csv' in artifacts:
             df = pd.read_csv(artifacts['jankbench_results_csv'])
             df = pd.DataFrame({'value': df['total_duration']})
-            df.loc[:, 'metric'] = 'frame_total_duration'
-            df.loc[:, 'units'] = 'ms'
+            df['metric'] = 'frame_total_duration'
+            df['units'] = 'ms'
 
             extra_metric_list.append(df)
         elif 'jankbench-results' in artifacts:
             con = sqlite3.connect(artifacts['jankbench-results'])
             df = pd.read_sql_query("SELECT _id, name, run_id, iteration, total_duration, jank_frame from ui_results", con)
             df = pd.DataFrame({'value': df['total_duration']})
-            df.loc[:, 'metric'] = 'frame_total_duration'
-            df.loc[:, 'units'] = 'ms'
+            df['metric'] = 'frame_total_duration'
+            df['units'] = 'ms'
 
             extra_metric_list.append(df)
 
