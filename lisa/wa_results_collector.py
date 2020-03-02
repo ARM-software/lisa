@@ -39,7 +39,7 @@ from trappy.utils import handle_duplicate_index
 from IPython.display import display
 
 from lisa.trace import Trace
-from lisa.git import find_shortest_symref
+from lisa.git import find_shortest_symref, get_commit_message
 from lisa.utils import Loggable, memoized
 from lisa.datautils import series_integrate, series_mean
 
@@ -163,11 +163,16 @@ class WaResultsCollector(Loggable):
 
         kernel_refs = {}
         for sha1 in df['kernel_sha1'].unique():
+            if sha1 is None:
+                continue
             if kernel_repo_path:
                 try:
                     symref = find_shortest_symref(kernel_repo_path, sha1)
                 except ValueError:
-                    symref = sha1
+                    try:
+                        symref = get_commit_message(kernel_repo_path, sha1)
+                    except subprocess.CalledProcessError:
+                        symref = sha1
                 kernel_refs[sha1] = symref
             else:
                 kernel_refs[sha1] = sha1
@@ -176,7 +181,10 @@ class WaResultsCollector(Loggable):
         for sha1, ref in kernel_refs.items():
             kernel_refs[sha1] = ref[len(common_prefix):]
 
-        df['kernel'] = df['kernel_sha1'].replace(kernel_refs)
+        # The kernel identifier is the sha1 to ref mapping if it exists or the
+        # original kernel version string.
+        df['kernel'] = df['kernel_sha1'].map(kernel_refs).fillna(
+                                                            df['kernel_name'])
 
         self.results_df = df
 
@@ -210,7 +218,7 @@ class WaResultsCollector(Loggable):
 
         Columns returned:
 
-        kernel_sha1,kernel,id,workload,tag,test,iteration,metric,value,units
+        kernel_name,kernel_sha1,kernel,id,workload,tag,test,iteration,metric,value,units
         """
         # A WA output directory looks something like:
         #
@@ -385,6 +393,7 @@ class WaResultsCollector(Loggable):
         # now, though - that refactoring would probably belong alongside a
         # refactoring to use WA's own API for reading output directories.
         df['_job_dir'] = df['id'].replace(job_dir_map)
+        df.loc[:, 'kernel_name'] = self._wa_get_kernel_name(wa_dir)
         df.loc[:, 'kernel_sha1'] = self._wa_get_kernel_sha1(wa_dir)
 
         return df
@@ -572,17 +581,24 @@ class WaResultsCollector(Loggable):
             return pd.DataFrame()
 
     @memoized
+    def _wa_get_kernel_version(self, wa_dir):
+        with open(os.path.join(wa_dir, '__meta', 'target_info.json')) as f:
+            target_info = json.load(f)
+
+        return KernelVersion(target_info['kernel_release'])
+
+    @memoized
+    def _wa_get_kernel_name(self, wa_dir):
+        return self._wa_get_kernel_version(wa_dir).release
+
+    @memoized
     def _wa_get_kernel_sha1(self, wa_dir):
         """
         Find the SHA1 of the kernel that a WA3 run was run against
         """
-        with open(os.path.join(wa_dir, '__meta', 'target_info.json')) as f:
-            target_info = json.load(f)
-
-        # Read the kernel release reported by the target
-        sha1 = KernelVersion(target_info['kernel_release']).sha1
-        if sha1:
-            return sha1
+        kver = self._wa_get_kernel_version(wa_dir)
+        if kver.sha1 is not None:
+            return kver.sha1
 
         # Couldn't get the release sha1, default to reading it from the
         # directory name built by test_series
@@ -591,8 +607,8 @@ class WaResultsCollector(Loggable):
         if match:
             return match.group("sha1")
 
-        raise RuntimeError("Couldn't find the sha1 of the kernel of the device "
-                           "that produced {}".format(wa_dir))
+        # Git describe doesn't always produce a sha1
+        return None
 
     @memoized
     def _select(self, tag='.*', kernel='.*', test='.*'):
