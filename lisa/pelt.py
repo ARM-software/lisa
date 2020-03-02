@@ -20,6 +20,8 @@ import math
 import pandas as pd
 import numpy as np
 
+from lisa.datautils import series_envelope_mean
+
 PELT_WINDOW = 1024 * 1024 * 1e-9
 """
 PELT window in seconds.
@@ -154,6 +156,50 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
     return df['pelt']
 
 
+def _pelt_tau(half_life, window):
+    """
+    Compute the time constant of an equivalent continuous-time system as
+    defined by: ``tau = period * (alpha / (1-alpha))``
+    https://en.wikipedia.org/wiki/Low-pass_filter#Simple_infinite_impulse_response_filter
+    """
+
+    # Alpha as defined in https://en.wikipedia.org/wiki/Moving_average
+    decay = (1 / 2)**(1 / half_life)
+    alpha = 1 - decay
+    tau = window * ((1 - alpha) / alpha)
+    return tau
+
+
+def pelt_swing(period, duty_cycle, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
+    """
+    Compute an approximation of the PELT signal swing for a given periodic task.
+
+    :param period: Period of the task in seconds.
+    :type period: float
+
+    :param duty_cycle: Duty cycle of the task.
+    :type duty_cycle: float
+
+    :param window: PELT window in seconds.
+    :type window: float
+
+    :param half_life: PELT half life, in number of windows.
+    :type half_life: int
+
+    :param scale: PELT scale.
+    :type scale: float
+
+    .. note:: The PELT signal is approximated as a first order filter. This
+        does not take into account the averaging inside a window, but the
+        window is small enough in practice for that effect to be negligible.
+    """
+    tau = _pelt_tau(half_life, window)
+    runtime = duty_cycle * period
+    # Compute the step response of a first order after time t=runtime
+    swing = scale * (1 - math.exp(-runtime / tau))
+    return swing
+
+
 def pelt_settling_time(margin=1, init=0, final=PELT_SCALE, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
     """
     Compute an approximation of the PELT settling time.
@@ -180,16 +226,7 @@ def pelt_settling_time(margin=1, init=0, final=PELT_SCALE, window=PELT_WINDOW, h
         does not take into account the averaging inside a window, but the
         window is small enough in practice for that effect to be negligible.
     """
-
-    # Compute the time constant of an equivalent continuous-time system as
-    # defined by:
-    # tau = period * (alpha / (1-alpha))
-    # https://en.wikipedia.org/wiki/Low-pass_filter#Simple_infinite_impulse_response_filter
-
-    # Alpha as defined in https://en.wikipedia.org/wiki/Moving_average
-    decay = (1 / 2)**(1 / half_life)
-    alpha = 1 - decay
-    tau = window * ((1 - alpha) / alpha)
+    tau = _pelt_tau(half_life, window)
 
     # Response of a first order low pass filter:
     # y(t) = u(t) * (1 - exp(-t/tau))
@@ -211,5 +248,22 @@ def pelt_settling_time(margin=1, init=0, final=PELT_SCALE, window=PELT_WINDOW, h
 
     settling_time = - tau * math.log(1 - A)
     return settling_time
+
+
+def kernel_util_mean(util, plat_info):
+    """
+    Compute the mean of a utilization signal as output by the kernel.
+
+    :param util: Series of utilization over time.
+    :type util: pandas.Series
+
+    :param plat_info: Platform info of the kernel used to generate the
+        utilization signal.
+    :type plat_info: lisa.platforms.platinfo.PlatformInfo
+
+    .. warning:: It is currently only fully accurate for a task with a 512
+        utilisation mean.
+    """
+    return series_envelope_mean(util)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

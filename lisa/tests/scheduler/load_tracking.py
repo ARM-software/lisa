@@ -29,14 +29,14 @@ from lisa.tests.base import (
 )
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby, ExekallTaggable
-from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_envelope_mean, series_refit_index, df_split_signals, df_refit_index
+from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_refit_index, df_split_signals, df_refit_index
 from lisa.wlgen.rta import RTA, Periodic, RTATask
 from lisa.trace import FtraceCollector, requires_events, may_use_events, MissingTraceEventError
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.frequency import FrequencyAnalysis
-from lisa.pelt import PELT_SCALE, simulate_pelt, pelt_settling_time
+from lisa.pelt import PELT_SCALE, simulate_pelt, pelt_settling_time, kernel_util_mean
 
 UTIL_SCALE = PELT_SCALE
 
@@ -379,7 +379,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         # Instead of taking the mean, take the average between the min and max
         # values of the settled signal. This avoids the bias introduced by the
         # fact that the util signal stays high while the task sleeps
-        settled_signal_mean = series_envelope_mean(df[signal_name])
+        settled_signal_mean = kernel_util_mean(df[signal_name], plat_info=self.plat_info)
         expected_signal_mean = expected_final_util
 
         signal_mean_error_pct = abs(expected_signal_mean - settled_signal_mean) / UTIL_SCALE * 100
@@ -970,7 +970,7 @@ class CPUMigrationBase(LoadTrackingBase):
 
             for cpu in self.cpus:
                 util = phase_df[phase_df['cpu'] == cpu]['util']
-                cpu_util.setdefault(cpu, {})[phase] = series_envelope_mean(util)
+                cpu_util.setdefault(cpu, {})[phase] = kernel_util_mean(util, plat_info=self.plat_info)
 
         return cpu_util
 
@@ -995,7 +995,10 @@ class CPUMigrationBase(LoadTrackingBase):
                 phase_util = df_window(df_util, (start, end))
                 series = pd.Series({
                     'Phase duty cycle average': series_mean(phase_activations['duty_cycle']),
-                    'Phase util tunnel average': series_envelope_mean(phase_util['util']),
+                    'Phase util tunnel average': kernel_util_mean(
+                        phase_util['util'],
+                        plat_info=self.plat_info,
+                    ),
                 })
                 return series
 

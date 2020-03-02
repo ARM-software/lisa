@@ -1273,7 +1273,12 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, inplace
             init_df[output_col].fillna(fill, inplace=True)
 
     # Only keep the first row of each duplicate run
-    return init_df.loc[~duplicates_to_remove]
+    if inplace:
+        removed_indices = duplicates_to_remove[duplicates_to_remove].index
+        init_df.drop(removed_indices, inplace=True)
+        return None
+    else:
+        return init_df.loc[~duplicates_to_remove]
 
 
 @DataFrameAccessor.register_accessor
