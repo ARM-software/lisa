@@ -20,7 +20,7 @@ import math
 import pandas as pd
 import numpy as np
 
-from lisa.datautils import series_envelope_mean
+from lisa.datautils import df_combine_duplicates, df_add_delta, series_mean
 
 PELT_WINDOW = 1024 * 1024 * 1e-9
 """
@@ -261,9 +261,32 @@ def kernel_util_mean(util, plat_info):
         utilization signal.
     :type plat_info: lisa.platforms.platinfo.PlatformInfo
 
-    .. warning:: It is currently only fully accurate for a task with a 512
-        utilisation mean.
+    It handles correctly the missing decay of the util when the task sleeps.
     """
-    return series_envelope_mean(util)
+    df = pd.DataFrame(dict(util=util))
+
+    # Find the times where the util is strictly increasing
+    df['up'] = (df['util'].diff() > 0)
+
+    # Merge together rows where the util is monotonically increasing/decreasing
+    # and compute the time spent in each phase
+    df = df_add_delta(df, col='duration', inplace=True)
+    func = lambda df: df['duration'].sum()
+    df_combine_duplicates(df, func=func, cols=['up'], output_col='duration', inplace=True)
+
+    # If it starts with an deactivation, shift back so that we start on an
+    # activation
+    if not df['up'].iloc[0]:
+        df = df.iloc[1:]
+
+    # Pair activations with the following deactivation
+    up_duration = df['duration']
+    down_duration = df['duration'].shift(-1)
+
+    duty_cycle = up_duration / (up_duration + down_duration)
+    df.loc[df['up'], 'duty_cycle'] = duty_cycle
+    df['duty_cycle'].fillna(method='ffill', inplace=True)
+
+    return series_mean(duty_cycle) * PELT_SCALE
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
