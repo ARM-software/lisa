@@ -492,6 +492,49 @@ class WaResultsCollector(Loggable):
 
         return ret
 
+    def _read_energy_instrument_metrics(self, path):
+        """
+        Parse the WA energy_measurement output. Use or create a Parquet cache
+        version of the original CSV.
+
+        Warning: If found, the cached version of the original CSV will _always_
+        be used.
+        """
+        path_cache = path + ".parquet"
+
+        try:
+            df = pd.read_parquet(path_cache)
+        except OSError:
+            df = pd.read_csv(path)
+            df.to_parquet(path_cache)
+
+        if 'device_power' in df.columns:
+            # Looks like this is from an ACME
+
+            df = pd.DataFrame({'value': df['device_power']})
+
+            # Figure out what to call the sample metrics. If the
+            # artifact name has something extra, that will be the
+            # channel (IIO device) name. Use that to differentiate where
+            # the samples came from. If not just call it
+            # 'device_power_sample'.
+            device_name = artifact_name[len('energy_instrument_output') + 1:]
+            name_extra = device_name or 'device'
+            df.loc[:, 'metric'] = '{}_power_sample'.format(name_extra)
+            df.loc[:, 'units'] = 'watts'
+
+        elif 'output_power' in df.columns and 'USB_power' in df.columns:
+            # Looks like this is from a Monsoon
+            # For monsoon the USB and device power are collected
+            # together with the same timestamps, so we can just add them
+            # up.
+            power_samples = df['output_power'] + df['USB_power']
+            df = pd.DataFrame({'value': power_samples})
+            df.loc[:, 'metric'] = 'device_power_sample'
+            df.loc[:, 'units'] = 'watts'
+
+        return df
+
     def _get_extra_job_metrics(self, job_dir, workload):
         """
         Get extra metrics (not reported directly by WA) from a WA job output dir
@@ -540,41 +583,14 @@ class WaResultsCollector(Loggable):
                 continue
 
             if artifact_name.startswith('energy_instrument_output'):
-
                 try:
-                    df = pd.read_csv(path)
+                    df = self._read_energy_instrument_metrics(path)
                 except pandas.errors.ParserError as e:
                     logger.info(" no data for %s", path)
                     continue
 
-                if 'device_power' in df.columns:
-                    # Looks like this is from an ACME
+                extra_metric_list.append(df)
 
-                    df = pd.DataFrame({'value': df['device_power']})
-
-                    # Figure out what to call the sample metrics. If the
-                    # artifact name has something extra, that will be the
-                    # channel (IIO device) name. Use that to differentiate where
-                    # the samples came from. If not just call it
-                    # 'device_power_sample'.
-                    device_name = artifact_name[len('energy_instrument_output') + 1:]
-                    name_extra = device_name or 'device'
-                    df.loc[:, 'metric'] = '{}_power_sample'.format(name_extra)
-
-                    df.loc[:, 'units'] = 'watts'
-
-                    extra_metric_list.append(df)
-                elif 'output_power' in df.columns and 'USB_power' in df.columns:
-                    # Looks like this is from a Monsoon
-                    # For monsoon the USB and device power are collected
-                    # together with the same timestamps, so we can just add them
-                    # up.
-                    power_samples = df['output_power'] + df['USB_power']
-                    df = pd.DataFrame({'value': power_samples})
-                    df.loc[:, 'metric'] = 'device_power_sample'
-                    df.loc[:, 'units'] = 'watts'
-
-                    extra_metric_list.append(df)
         if len(extra_metric_list) > 0:
             return pd.DataFrame().append(extra_metric_list)
         else:
