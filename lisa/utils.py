@@ -715,7 +715,7 @@ class ArtifactPath(str, Loggable, HideExekallID):
 
 def value_range(start, stop, step=None, inclusive=False):
     """
-    Equivalent to builtin :func:`range` function, but works for floats as well.
+    Equivalent to builtin :class:`range` function, but works for floats as well.
 
     :param start: First value to use.
     :type start: numbers.Number
@@ -727,10 +727,10 @@ def value_range(start, stop, step=None, inclusive=False):
     :type step: numbers.Number
 
     :param inclusive: If ``True``, the ``stop`` value will be included (unlike
-        the builtin :func:`range`)
+        the builtin :class:`range`)
     :type inclusive: bool
 
-    .. note:: Unlike :func:`range`, it will raise :excep:`ValueError` if
+    .. note:: Unlike :class:`range`, it will raise :exc:`ValueError` if
         ``start > stop and step > 0``.
     """
 
