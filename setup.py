@@ -82,7 +82,9 @@ setup(
 
     extras_require={
         "notebook": [
-            "jupyterlab",
+            # Force to 1.2.6 until matplotlib widget works again:
+            # https://github.com/matplotlib/jupyter-matplotlib/issues/193
+            "jupyterlab<=1.2.6",
             "ipympl", # For %matplotlib widget under jupyter lab
             "sphobjinv", # To open intersphinx inventories
         ],
