@@ -18,6 +18,7 @@
 from enum import Enum
 from collections import defaultdict
 import itertools
+import functools
 
 import numpy as np
 import pandas as pd
@@ -1048,5 +1049,35 @@ class TasksAnalysis(TraceAnalysisBase):
         if local_fig:
             axis.set_title('Activations of {}'.format(task))
             axis.grid(True)
+
+    @TraceAnalysisBase.plot_method()
+    @plot_task_activation.used_events
+    def plot_tasks_activation(self, hide_tasks: TypedList[TaskID]=None, which_cpu: bool=True, **kwargs):
+        """
+        Plot all tasks activations, in a style similar to kernelshark.
+
+        :param hide_tasks: PIDs to hide. Note that PID 0 (idle task) will
+            always be hidden.
+        :type hide_tasks: list(TaskID) or None
+
+        :Variable keyword arguments: Forwarded to :meth:`plot_task_activation`.
+        """
+        trace = self.trace
+        hide_tasks = hide_tasks or []
+        hidden_pids = {
+            trace.get_task_id(task, update=True).pid
+            for task in hide_tasks
+        }
+        # Hide idle task
+        hidden_pids.add(0)
+
+        # Plot per-PID, to avoid quirks around task renaming
+        for pid, comms in self.trace.get_tasks().items():
+            if pid in hidden_pids:
+                continue
+
+            self.plot_task_activation(TaskID(pid=pid, comm=None), which_cpu=which_cpu, **kwargs)
+
+    plot_tasks_activation.__annotations__ = plot_task_activation.__annotations__
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
