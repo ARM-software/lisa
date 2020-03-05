@@ -114,8 +114,9 @@ class AnalysisHelpers(Loggable, abc.ABC):
           array of, if ``nrows`` > 1))
         """
 
+        running_ipython = is_running_ipython()
         if interactive is None:
-            interactive = is_running_ipython()
+            interactive = running_ipython
 
         if tuple(map(int, matplotlib.__version__.split('.'))) <= (3, 0, 3):
             warnings.warn('This version of matplotlib does not allow saving figures from axis created using Figure(), forcing interactive=True')
@@ -135,15 +136,17 @@ class AnalysisHelpers(Loggable, abc.ABC):
         else:
             ax_list = [axes]
 
+        use_widgets = interactive and running_ipython
+
         if link_dataframes:
-            if not interactive:
+            if not use_widgets:
                 cls.get_logger().error('Dataframes can only be linked to axes in interactive widget plots')
             else:
                 for axis in ax_list:
                     axis_link_dataframes(axis, link_dataframes)
 
-        if cursor_delta or cursor_delta is None and interactive:
-            if not interactive and cursor_delta is not None:
+        if cursor_delta or cursor_delta is None and use_widgets:
+            if not use_widgets and cursor_delta is not None:
                 cls.get_logger().error('Cursor delta can only be used in interactive widget plots')
             else:
                 for axis in ax_list:
