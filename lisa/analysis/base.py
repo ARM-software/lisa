@@ -539,8 +539,12 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         }
                         fig, axis = self.setup_plot(**setup_plot_kwargs)
 
+                    f_kwargs.update(
+                        axis=axis,
+                        local_fig=local_fig,
+                    )
                     with set_cycler(axis), set_rc_params(axis):
-                        f(*args, axis=axis, local_fig=local_fig, **f_kwargs)
+                        f(*args, **f_kwargs)
 
                 if isinstance(axis, numpy.ndarray):
                     fig = axis[0].get_figure()
