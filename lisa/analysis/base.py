@@ -45,7 +45,7 @@ from IPython.display import display
 
 from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython, nullcontext, measure_time
 from lisa.trace import MissingTraceEventError, PandasDataDesc
-from lisa.notebook import axis_link_dataframes, WrappingHBox
+from lisa.notebook import axis_link_dataframes, axis_cursor_delta, WrappingHBox
 from lisa.conf import TypedList
 
 # Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
@@ -76,7 +76,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         pass
 
     @classmethod
-    def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, interactive=None, link_dataframes=None, **kwargs):
+    def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, interactive=None, link_dataframes=None, cursor_delta=True, **kwargs):
         """
         Common helper for setting up a matplotlib plot
 
@@ -91,6 +91,14 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
         :param nrows: Number of plots in a single column
         :type nrows: int
+
+        :param link_dataframes: Link the provided dataframes to the axes using
+            :func:`lisa.notebook.axis_link_dataframes`
+        :type link_dataframes: list(pandas.DataFrame) or None
+
+        :param cursor_delta: Add two vertical lines set with left and right
+            clicks, and show the time delta between them in a widget.
+        :type cursor_delta: bool
 
         :param interactive: If ``True``, use the pyplot API of matplotlib,
             which integrates well with notebooks. However, it can lead to
@@ -133,6 +141,10 @@ class AnalysisHelpers(Loggable, abc.ABC):
             else:
                 for axis in ax_list:
                     axis_link_dataframes(axis, link_dataframes)
+
+        if cursor_delta:
+            for axis in ax_list:
+                axis_cursor_delta(axis)
 
         # Needed for multirow plots to not overlap with each other
         figure.set_tight_layout(dict(h_pad=3.5))
