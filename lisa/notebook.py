@@ -55,6 +55,13 @@ def _(artist, event):
     return None
 
 
+def _make_vline(axis, *args, **kwargs):
+    vline = axis.axvline(*args, **kwargs)
+    assert type(vline) is matplotlib.lines.Line2D
+    vline.__class__ = _DataframeLinkMarker
+    return vline
+
+
 def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', follow_cursor=False):
     """
     Link some dataframes to an axis displayed in the interactive matplotlib widget.
@@ -99,9 +106,7 @@ def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', f
     )
     hbox = widgets.HBox(output_list, layout=layout)
 
-    cursor_vline = axis.axvline(color=cursor_color)
-    assert type(cursor_vline) is matplotlib.lines.Line2D
-    cursor_vline.__class__ = _DataframeLinkMarker
+    cursor_vline = _make_vline(axis, color=cursor_color)
 
     def show_loc(loc):
         cursor_vline.set_xdata(loc)
@@ -176,14 +181,8 @@ def axis_cursor_delta(axis, colors=['blue', 'green'], buttons=[MouseButton.LEFT,
         disabled=False,
     )
 
-    def make_vline(axis, color):
-        vline = axis.axvline(color=color)
-        assert type(vline) is matplotlib.lines.Line2D
-        vline.__class__ = _DataframeLinkMarker
-        return vline
-
     vlines = [
-        make_vline(axis, color)
+        _make_vline(axis, color=color)
         for color in colors
     ]
 
