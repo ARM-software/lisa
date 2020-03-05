@@ -146,7 +146,7 @@ def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', f
             with output:
                 display(styler)
 
-    init_loc = min(df.index[0] for df in df_list)
+    init_loc = min((df.index[0] for df in df_list), default=0)
     show_loc(init_loc)
 
     def handler(event):
