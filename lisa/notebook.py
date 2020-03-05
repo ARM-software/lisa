@@ -19,9 +19,11 @@ Various utilities for interactive notebooks.
 """
 
 import functools
+import collections
 
 import mplcursors
 import matplotlib
+from matplotlib.backend_bases import MouseButton
 from ipywidgets import widgets, Output, HBox, Layout, interact
 from IPython.display import display
 
@@ -149,6 +151,62 @@ def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', f
     event = 'motion_notify_event' if follow_cursor else 'button_press_event'
     axis.get_figure().canvas.mpl_connect(event, handler)
     display(hbox)
+
+
+def axis_cursor_delta(axis, colors=['blue', 'green'], buttons=[MouseButton.LEFT, MouseButton.RIGHT]):
+    """
+    Display the time delta between two vertical lines drawn on clicks.
+
+    :param axis: Axis to link to.
+    :type axis: matplotlib.axes.Axes
+
+    :param colors: List of colors to use for vertical lines.
+    :type colors: list(str)
+
+    :param buttons: Mouse buttons to use for each vertical line.
+    :type buttons: list(matplotlib.backend_bases.MouseButton)
+
+    .. note:: This requires the matplotlib widget enabled using
+        ``%matplotlib widget`` magic.
+    """
+    delta_widget = widgets.Text(
+        value='0',
+        placeholder='0',
+        description='Cursors delta',
+        disabled=False,
+    )
+
+    def make_vline(axis, color):
+        vline = axis.axvline(color=color)
+        assert type(vline) is matplotlib.lines.Line2D
+        vline.__class__ = _DataframeLinkMarker
+        return vline
+
+    vlines = [
+        make_vline(axis, color)
+        for color in colors
+    ]
+
+    assert len(vlines) == 2
+    vlines_map = dict(zip(buttons, vlines))
+    vlines_loc = collections.defaultdict(int)
+
+    def handler(event):
+        loc = event.xdata
+        button = event.button
+
+        vline = vlines_map[button]
+        vlines_loc[button] = loc
+        vline.set_xdata(loc)
+        locs = [
+            vlines_loc[button]
+            for button in buttons
+        ]
+        delta = locs[1] - locs[0]
+        delta_widget.value = str(delta)
+
+    axis.get_figure().canvas.mpl_connect('button_press_event', handler)
+    display(delta_widget)
 
 
 def interact_tasks(trace, tasks=None, kind=None):
