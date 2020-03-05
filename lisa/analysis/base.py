@@ -76,7 +76,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         pass
 
     @classmethod
-    def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, interactive=None, link_dataframes=None, cursor_delta=True, **kwargs):
+    def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, interactive=None, link_dataframes=None, cursor_delta=None, **kwargs):
         """
         Common helper for setting up a matplotlib plot
 
@@ -98,7 +98,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
         :param cursor_delta: Add two vertical lines set with left and right
             clicks, and show the time delta between them in a widget.
-        :type cursor_delta: bool
+        :type cursor_delta: bool or None
 
         :param interactive: If ``True``, use the pyplot API of matplotlib,
             which integrates well with notebooks. However, it can lead to
@@ -142,9 +142,12 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 for axis in ax_list:
                     axis_link_dataframes(axis, link_dataframes)
 
-        if cursor_delta:
-            for axis in ax_list:
-                axis_cursor_delta(axis)
+        if cursor_delta or cursor_delta is None and interactive:
+            if not interactive and cursor_delta is not None:
+                cls.get_logger().error('Cursor delta can only be used in interactive widget plots')
+            else:
+                for axis in ax_list:
+                    axis_cursor_delta(axis)
 
         # Needed for multirow plots to not overlap with each other
         figure.set_tight_layout(dict(h_pad=3.5))
