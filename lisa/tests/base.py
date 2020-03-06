@@ -53,6 +53,7 @@ from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
 from lisa.conf import (
     SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, TypedList,
 )
+from lisa.pelt import PELT_SCALE
 
 
 def _nested_formatter(multiline):
@@ -1329,12 +1330,11 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         :param utilization_pct: The scaled utilization in %
         :type utilization_pct: int
         """
-        if "nrg-model" in plat_info:
-            capacity_scale = plat_info["nrg-model"].capacity_scale
-        else:
-            capacity_scale = 1024
-
-        return (plat_info["cpu-capacities"]['rtapp'][cpu] / capacity_scale) * utilization_pct
+        # Use a quiet access to avoid filling up the debug log with
+        # unscaled_utilization output, as it's one of the major source of
+        # access (multiple megabytes)
+        capa = plat_info.get_nested_key(['cpu-capacities', 'rtapp'], quiet=True)[cpu]
+        return (capa * utilization_pct) / PELT_SCALE
 
     @classmethod
     @abc.abstractmethod
