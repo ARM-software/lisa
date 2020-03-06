@@ -3693,8 +3693,6 @@ class Report(Serializable):
     # The preamble is saved separately
     dont_save = ['preamble', 'path']
 
-    yaml = ruamel.yaml.YAML(typ='unsafe')
-
     REPORT_CACHE_TEMPLATE = '{report_filename}.cache.pickle'
 
     def __init__(self, macrostep_res, description='', path=None, src_files=None):
@@ -3710,14 +3708,14 @@ class Report(Serializable):
         )
 
     @classmethod
-    def _init_yaml(cls):
+    def _get_yaml(cls, typ='unsafe'):
         """
-        Initialize YAML document manager class attribute.
+        Create and initialize YAML document manager class attribute.
 
         .. note:: That method should only be called once when the class is
             created.
         """
-        yaml = cls.yaml
+        yaml = ruamel.yaml.YAML(typ=typ)
 
         # Make the relevant classes known to YAML
         for cls_to_register in get_subclasses(Serializable):
@@ -3751,16 +3749,15 @@ class Report(Serializable):
         yaml.constructor.add_constructor(yaml.resolver.DEFAULT_MAPPING_TAG, map_constructor)
 
         # Since strings are immutable, we can memoized the output to deduplicate
-        # strings. This will make the dumped strings live forever, but that should
-        # not be a big issue since everything that ends up in a YAML document is
-        # also living in memory anyway in our use case.
+        # strings.
         @functools.lru_cache(maxsize=None, typed=True)
-        def str_presenter(dumper, data):
+        def str_representer(dumper, data):
             # Use block style for multiline strings
             style = '|' if '\n' in data else None
             return dumper.represent_scalar('tag:yaml.org,2002:str', data, style=style)
 
-        yaml.representer.add_representer(str, str_presenter)
+        yaml.representer.add_representer(str, str_representer)
+        return yaml
 
     def save(self, path=None, upload_service=None):
         """Save the report to the specified path.
@@ -3862,7 +3859,7 @@ class Report(Serializable):
         if is_yaml:
             # Get the generator that will parse the YAML documents
             with open_f(path, 'rt', encoding='utf-8') as f:
-                documents = cls.yaml.load_all(f)
+                documents = cls._get_yaml().load_all(f)
 
                 # First document is the preamble
                 try:
@@ -4028,9 +4025,6 @@ class Report(Serializable):
 
     def __str__(self):
         return str(self.show()[0])
-
-
-Report._init_yaml()
 
 
 def ensure_dir(file_path):
