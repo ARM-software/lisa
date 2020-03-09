@@ -2583,7 +2583,7 @@ def load_yaml(yaml_path):
     """Load the sequence of steps from a YAML file."""
     try:
         with open(yaml_path, 'r', encoding='utf-8') as f:
-            mapping = Report.yaml.load(f)
+            mapping = Report._get_yaml().load(f)
     except (ruamel.yaml.parser.ParserError, ruamel.yaml.scanner.ScannerError) as e:
         raise ValueError('Could not parse YAML file {yaml_path}: {e}'.format(**locals())) from e
 
