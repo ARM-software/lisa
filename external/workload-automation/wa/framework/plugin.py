@@ -246,7 +246,7 @@ class Plugin(with_metaclass(PluginMeta, object)):
 
     @classmethod
     def get_default_config(cls):
-        return {p.name: p.default for p in cls.parameters}
+        return {p.name: p.default for p in cls.parameters if not p.deprecated}
 
     @property
     def dependencies_directory(self):
