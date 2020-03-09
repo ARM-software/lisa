@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import logging
 from copy import copy, deepcopy
 from collections import OrderedDict, defaultdict
 
@@ -35,6 +36,8 @@ KIND_MAP = {
 Status = enum(['UNKNOWN', 'NEW', 'PENDING',
                'STARTED', 'CONNECTED', 'INITIALIZED', 'RUNNING',
                'OK', 'PARTIAL', 'FAILED', 'ABORTED', 'SKIPPED'])
+
+logger = logging.getLogger('config')
 
 
 ##########################
@@ -192,7 +195,8 @@ class ConfigurationPoint(object):
                  constraint=None,
                  merge=False,
                  aliases=None,
-                 global_alias=None):
+                 global_alias=None,
+                 deprecated=False):
         """
         Create a new Parameter object.
 
@@ -243,6 +247,9 @@ class ConfigurationPoint(object):
         :param global_alias: An alias for this parameter that can be specified at
                             the global level. A global_alias can map onto many
                             ConfigurationPoints.
+        :param deprecated: Specify that this parameter is deprecated and its
+                           config should be ignored. If supplied WA will display
+                           a warning to the user however will continue execution.
         """
         self.name = identifier(name)
         if kind in KIND_MAP:
@@ -266,6 +273,7 @@ class ConfigurationPoint(object):
         self.merge = merge
         self.aliases = aliases or []
         self.global_alias = global_alias
+        self.deprecated = deprecated
 
         if self.default is not None:
             try:
@@ -281,6 +289,8 @@ class ConfigurationPoint(object):
         return False
 
     def set_value(self, obj, value=None, check_mandatory=True):
+        if self.deprecated:
+            return
         if value is None:
             if self.default is not None:
                 value = self.kind(self.default)
@@ -303,6 +313,10 @@ class ConfigurationPoint(object):
 
     def validate(self, obj, check_mandatory=True):
         value = getattr(obj, self.name, None)
+        if self.deprecated:
+            msg = 'Depreciated parameter supplied for "{}" in "{}". The value will be ignored.'
+            logger.warning(msg.format(self.name, obj.name))
+            return
         if value is not None:
             self.validate_value(obj.name, value)
         else:
