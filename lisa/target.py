@@ -138,6 +138,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('port', 'SSH or ADB server port', [int, None]),
         KeyDesc('device', 'ADB device. Takes precedence over "host"', [str, None]),
         KeyDesc('keyfile', 'SSH private key file', [str, None]),
+        KeyDesc('strict-host-check', 'Equivalent to StrictHostKeyChecking option of OpenSSH', [bool, None]),
         KeyDesc('workdir', 'Remote target workdir', [str]),
         KeyDesc('tools', 'List of tools to install on the target', [TypedList[str]]),
         LevelKeyDesc('wait-boot', 'Wait for the target to finish booting', (
@@ -228,8 +229,9 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
     def __init__(self, kind, name='<noname>', tools=[], res_dir=None,
         plat_info=None, workdir=None, device=None, host=None, port=None,
-        username=None, password=None, keyfile=None, devlib_platform=None,
-        devlib_excluded_modules=[], wait_boot=True, wait_boot_timeout=10,
+        username=None, password=None, keyfile=None, strict_host_check=None,
+        devlib_platform=None, devlib_excluded_modules=[],
+        wait_boot=True, wait_boot_timeout=10,
     ):
 
         super().__init__()
@@ -278,6 +280,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             username=username,
             password=password,
             keyfile=keyfile,
+            strict_host_check=strict_host_check,
             devlib_platform=devlib_platform,
             wait_boot=wait_boot,
             wait_boot_timeout=wait_boot_timeout,
@@ -569,7 +572,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         return custom_args, cls.from_conf(conf=target_conf, plat_info=platform_info, res_dir=args.res_dir)
 
     def _init_target(self, kind, name, workdir, device, host,
-            port, username, password, keyfile,
+            port, username, password, keyfile, strict_host_check,
             devlib_platform,
             wait_boot, wait_boot_timeout,
     ):
@@ -604,10 +607,12 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         elif kind == 'linux':
             logger.debug('Setting up Linux target...')
             devlib_target_cls = devlib.LinuxTarget
-
-            conn_settings['username'] = resolved_username
-            conn_settings['port'] = port or self.SSH_PORT_DEFAULT
-            conn_settings['host'] = host
+            conn_settings.update(
+                username=resolved_username,
+                port=port or self.SSH_PORT_DEFAULT,
+                host=host,
+                strict_host_check=True if strict_host_check is None else strict_host_check,
+            )
 
             # Configure password or SSH keyfile
             if keyfile:
@@ -619,8 +624,10 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             devlib_target_cls = devlib.LocalLinuxTarget
             # If we are given a password, assume we can use it as a sudo
             # password.
-            conn_settings['unrooted'] = password is None
-            conn_settings['password'] = password
+            conn_settings.update(
+                unrooted=password is None,
+                password=password,
+            )
         else:
             raise ValueError('Unsupported platform type {}'.format(kind))
 
