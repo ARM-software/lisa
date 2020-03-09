@@ -26,8 +26,17 @@ import socket
 import sys
 import time
 import atexit
+import contextlib
+import weakref
+import select
+import copy
 from pipes import quote
 from future.utils import raise_from
+
+from paramiko.client import SSHClient, AutoAddPolicy, RejectPolicy
+import paramiko.ssh_exception
+# By default paramiko is very verbose, including at the INFO level
+logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 # pylint: disable=import-error,wrong-import-position,ungrouped-imports,wrong-import-order
 import pexpect
@@ -42,8 +51,9 @@ from pexpect import EOF, TIMEOUT, spawn
 from devlib.exception import (HostError, TargetStableError, TargetNotRespondingError,
                               TimeoutError, TargetTransientError)
 from devlib.utils.misc import (which, strip_bash_colors, check_output,
-                               sanitize_cmd_template, memoized)
+                               sanitize_cmd_template, memoized, redirect_streams)
 from devlib.utils.types import boolean
+from devlib.connection import ConnectionBase, ParamikoBackgroundCommand, PopenBackgroundCommand
 
 
 ssh = None
@@ -54,31 +64,113 @@ sshpass = None
 logger = logging.getLogger('ssh')
 gem5_logger = logging.getLogger('gem5-connection')
 
-def ssh_get_shell(host,
+@contextlib.contextmanager
+def _handle_paramiko_exceptions(command=None):
+    try:
+        yield
+    except paramiko.ssh_exception.NoValidConnectionsError as e:
+        raise TargetNotRespondingError('Connection lost: {}'.format(e))
+    except paramiko.ssh_exception.AuthenticationException as e:
+        raise TargetStableError('Could not authenticate: {}'.format(e))
+    except paramiko.ssh_exception.BadAuthenticationType as e:
+        raise TargetStableError('Bad authentication type: {}'.format(e))
+    except paramiko.ssh_exception.BadHostKeyException as e:
+        raise TargetStableError('Bad host key: {}'.format(e))
+    except paramiko.ssh_exception.ChannelException as e:
+        raise TargetStableError('Could not open an SSH channel: {}'.format(e))
+    except paramiko.ssh_exception.PasswordRequiredException as e:
+        raise TargetStableError('Please unlock the private key file: {}'.format(e))
+    except paramiko.ssh_exception.ProxyCommandFailure as e:
+        raise TargetStableError('Proxy command failure: {}'.format(e))
+    except paramiko.ssh_exception.SSHException as e:
+        raise TargetTransientError('SSH logic error: {}'.format(e))
+    except socket.timeout:
+        raise TimeoutError(command, output=None)
+
+
+def _read_paramiko_streams(stdout, stderr, select_timeout, callback, init, chunk_size=int(1e42)):
+    try:
+        return _read_paramiko_streams_internal(stdout, stderr, select_timeout, callback, init, chunk_size)
+    finally:
+        # Close the channel to make sure the remove process will receive
+        # SIGPIPE when writing on its streams. That could happen if the
+        # user closed the out_streams but the remote process has not
+        # finished yet.
+        assert stdout.channel is stderr.channel
+        stdout.channel.close()
+
+
+def _read_paramiko_streams_internal(stdout, stderr, select_timeout, callback, init, chunk_size):
+    channel = stdout.channel
+    assert stdout.channel is stderr.channel
+
+    def read_channel(callback_state):
+        read_list, _, _ = select.select([channel], [], [], select_timeout)
+        for desc in read_list:
+            for ready, recv, name in (
+                (desc.recv_ready(), desc.recv, 'stdout'),
+                (desc.recv_stderr_ready(), desc.recv_stderr, 'stderr')
+            ):
+                if ready:
+                    chunk = recv(chunk_size)
+                    if chunk:
+                        try:
+                            callback_state = callback(callback_state, name, chunk)
+                        except Exception as e:
+                            return (e, callback_state)
+
+        return (None, callback_state)
+
+    def read_all_channel(callback=None, callback_state=None):
+        for stream, name in ((stdout, 'stdout'), (stderr, 'stderr')):
+            try:
+                chunk = stream.read()
+            except Exception:
+                continue
+
+            if callback is not None and chunk:
+                callback_state = callback(callback_state, name, chunk)
+
+        return callback_state
+
+    callback_excep = None
+    try:
+        callback_state = init
+        while not channel.exit_status_ready():
+            callback_excep, callback_state = read_channel(callback_state)
+            if callback_excep is not None:
+                raise callback_excep
+    # Make sure to always empty the streams to unblock the remote process on
+    # the way to exit, in case something bad happened. For example, the
+    # callback could raise an exception to signal it does not want to do
+    # anything anymore, or only reading from one of the stream might have
+    # raised an exception, leaving the other one non-empty.
+    except Exception as e:
+        if callback_excep is None:
+            # Only call the callback if there was no exception originally, as
+            # we don't want to reenter it if it raised an exception
+            read_all_channel(callback, callback_state)
+        raise e
+    else:
+        # Finish emptying the buffers
+        callback_state = read_all_channel(callback, callback_state)
+        exit_code = channel.recv_exit_status()
+        return (callback_state, exit_code)
+
+
+def telnet_get_shell(host,
                   username,
                   password=None,
-                  keyfile=None,
                   port=None,
                   timeout=10,
-                  telnet=False,
-                  original_prompt=None,
-                  options=None):
+                  original_prompt=None):
     _check_env()
     start_time = time.time()
     while True:
-        if telnet:
-            if keyfile:
-                raise ValueError('keyfile may not be used with a telnet connection.')
-            conn = TelnetPxssh(original_prompt=original_prompt)
-        else:  # ssh
-            conn = pxssh.pxssh(options=options,
-                               echo=False)
+        conn = TelnetPxssh(original_prompt=original_prompt)
 
         try:
-            if keyfile:
-                conn.login(host, username, ssh_key=keyfile, port=port, login_timeout=timeout)
-            else:
-                conn.login(host, username, password, port=port, login_timeout=timeout)
+            conn.login(host, username, password, port=port, login_timeout=timeout)
             break
         except EOF:
             timeout -= time.time() - start_time
@@ -157,10 +249,11 @@ def check_keyfile(keyfile):
         return keyfile
 
 
-class SshConnection(object):
+class SshConnectionBase(ConnectionBase):
+    """
+    Base class for SSH connections.
+    """
 
-    default_password_prompt = '[sudo] password'
-    max_cancel_attempts = 5
     default_timeout = 10
 
     @property
@@ -170,51 +263,473 @@ class SshConnection(object):
     @property
     def connected_as_root(self):
         if self._connected_as_root is None:
-            # Execute directly to prevent deadlocking of connection
-            result = self._execute_and_wait_for_prompt('id', as_root=False)
-            self._connected_as_root = 'uid=0(' in result
+            try:
+                result = self.execute('id', as_root=False)
+            except TargetStableError:
+                is_root = False
+            else:
+                is_root = 'uid=0(' in result
+            self._connected_as_root = is_root
         return self._connected_as_root
 
     @connected_as_root.setter
     def connected_as_root(self, state):
         self._connected_as_root = state
 
-    # pylint: disable=unused-argument,super-init-not-called
     def __init__(self,
                  host,
                  username,
                  password=None,
                  keyfile=None,
                  port=None,
-                 timeout=None,
-                 telnet=False,
-                 password_prompt=None,
-                 original_prompt=None,
                  platform=None,
-                 sudo_cmd="sudo -- sh -c {}",
-                 options=None
+                 sudo_cmd="sudo -S -- sh -c {}",
+                 strict_host_check=True,
                  ):
+        super().__init__()
         self._connected_as_root = None
         self.host = host
         self.username = username
         self.password = password
         self.keyfile = check_keyfile(keyfile) if keyfile else keyfile
         self.port = port
+        self.sudo_cmd = sanitize_cmd_template(sudo_cmd)
+        self.platform = platform
+        self.strict_host_check = strict_host_check
+        logger.debug('Logging in {}@{}'.format(username, host))
+
+
+class SshConnection(SshConnectionBase):
+    # pylint: disable=unused-argument,super-init-not-called
+    def __init__(self,
+                 host,
+                 username,
+                 password=None,
+                 keyfile=None,
+                 port=22,
+                 timeout=None,
+                 platform=None,
+                 sudo_cmd="sudo -S -- sh -c {}",
+                 strict_host_check=True,
+                 ):
+
+        super().__init__(
+            host=host,
+            username=username,
+            password=password,
+            keyfile=keyfile,
+            port=port,
+            platform=platform,
+            sudo_cmd=sudo_cmd,
+            strict_host_check=strict_host_check,
+        )
+        self.timeout = timeout if timeout is not None else self.default_timeout
+
+        self.client = self._make_client()
+        atexit.register(self.close)
+
+        # Use a marker in the output so that we will be able to differentiate
+        # target connection issues with "password needed".
+        # Also, sudo might not be installed at all on the target (but
+        # everything will work as long as we login as root). If sudo is still
+        # needed, it will explode when someone tries to use it. After all, the
+        # user might not be interested in being root at all.
+        self._sudo_needs_password = (
+            'NEED_PASSOWRD' in
+            self.execute(
+                # sudo -n is broken on some versions on MacOSX, revisit that if
+                # someone ever cares
+                'sudo -n true || echo NEED_PASSWORD',
+                as_root=False,
+                check_exit_code=False,
+            )
+        )
+
+    def _make_client(self):
+        if self.strict_host_check:
+            policy = RejectPolicy
+        else:
+            policy = AutoAddPolicy
+
+        with _handle_paramiko_exceptions():
+            client = SSHClient()
+            client.load_system_host_keys()
+            client.set_missing_host_key_policy(policy)
+            client.connect(
+                hostname=self.host,
+                port=self.port,
+                username=self.username,
+                password=self.password,
+                key_filename=self.keyfile,
+                timeout=self.timeout,
+            )
+
+            return client
+
+    def _make_channel(self):
+        with _handle_paramiko_exceptions():
+            transport = self.client.get_transport()
+            channel = transport.open_session()
+            return channel
+
+    def _get_sftp(self, timeout):
+        sftp = self.client.open_sftp()
+        sftp.get_channel().settimeout(timeout)
+        return sftp
+
+    @classmethod
+    def _push_file(cls, sftp, src, dst):
+        try:
+            sftp.put(src, dst)
+        # Maybe the dst was a folder
+        except OSError:
+            # This might fail if the folder already exists
+            with contextlib.suppress(IOError):
+                sftp.mkdir(dst)
+
+            new_dst = os.path.join(
+                dst,
+                os.path.basename(src),
+            )
+
+            return cls._push_file(sftp, src, new_dst)
+
+
+    @classmethod
+    def _push_folder(cls, sftp, src, dst):
+        # Behave like the "mv" command or adb push: a new folder is created
+        # inside the destination folder, rather than merging the trees.
+        dst = os.path.join(
+            dst,
+            os.path.basename(src),
+        )
+        return cls._push_folder_internal(sftp, src, dst)
+
+    @classmethod
+    def _push_folder_internal(cls, sftp, src, dst):
+        # This might fail if the folder already exists
+        with contextlib.suppress(IOError):
+            sftp.mkdir(dst)
+
+        for entry in os.scandir(src):
+            name = entry.name
+            src_path = os.path.join(src, name)
+            dst_path = os.path.join(dst, name)
+            if entry.is_dir():
+                push = cls._push_folder_internal
+            else:
+                push = cls._push_file
+
+            push(sftp, src_path, dst_path)
+
+    @classmethod
+    def _push_path(cls, sftp, src, dst):
+        push = cls._push_folder if os.path.isdir(src) else cls._push_file
+        push(sftp, src, dst)
+
+    @classmethod
+    def _pull_file(cls, sftp, src, dst):
+        # Pulling a file into a folder will use the source basename
+        if os.path.isdir(dst):
+            dst = os.path.join(
+                dst,
+                os.path.basename(src),
+            )
+
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(dst)
+
+        sftp.get(src, dst)
+
+    @classmethod
+    def _pull_folder(cls, sftp, src, dst):
+        with contextlib.suppress(FileNotFoundError):
+            try:
+                shutil.rmtree(dst)
+            except OSError:
+                os.remove(dst)
+
+        os.makedirs(dst)
+        for fileattr in sftp.listdir_attr(src):
+            filename = fileattr.filename
+            src_path = os.path.join(src, filename)
+            dst_path = os.path.join(dst, filename)
+            if stat.S_ISDIR(fileattr.st_mode):
+                pull = cls._pull_folder
+            else:
+                pull = cls._pull_file
+
+            pull(sftp, src_path, dst_path)
+
+    @classmethod
+    def _pull_path(cls, sftp, src, dst):
+        try:
+            cls._pull_file(sftp, src, dst)
+        except IOError:
+            # Maybe that was a directory, so retry as such
+            cls._pull_folder(sftp, src, dst)
+
+    def push(self, source, dest, timeout=30):
+        with _handle_paramiko_exceptions(), self._get_sftp(timeout) as sftp:
+            self._push_path(sftp, source, dest)
+
+    def pull(self, source, dest, timeout=30):
+        with _handle_paramiko_exceptions(), self._get_sftp(timeout) as sftp:
+            self._pull_path(sftp, source, dest)
+
+    def execute(self, command, timeout=None, check_exit_code=True,
+                as_root=False, strip_colors=True, will_succeed=False): #pylint: disable=unused-argument
+        if command == '':
+            return ''
+        try:
+            with _handle_paramiko_exceptions(command):
+                exit_code, output = self._execute(command, timeout, as_root, strip_colors)
+        except TargetStableError as e:
+            if will_succeed:
+                raise TargetTransientError(e)
+            else:
+                raise
+        else:
+            if check_exit_code and exit_code:
+                message = 'Got exit code {}\nfrom: {}\nOUTPUT: {}'
+                raise TargetStableError(message.format(exit_code, command, output))
+            return output
+
+    def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
+        with _handle_paramiko_exceptions(command):
+            bg_cmd = self._background(command, stdout, stderr, as_root)
+
+        self._current_bg_cmds.add(bg_cmd)
+        return bg_cmd
+
+    def _background(self, command, stdout, stderr, as_root):
+        stdout, stderr, command = redirect_streams(stdout, stderr, command)
+
+        command = "printf '%s\n' $$; exec sh -c {}".format(quote(command))
+        channel = self._make_channel()
+
+        def executor(cmd, timeout):
+            channel.exec_command(cmd)
+            # Read are not buffered so we will always get the data as soon as
+            # they arrive
+            return (
+                channel.makefile_stdin(),
+                channel.makefile(),
+                channel.makefile_stderr(),
+            )
+
+        stdin, stdout_in, stderr_in = self._execute_command(
+            command,
+            as_root=as_root,
+            log=False,
+            timeout=None,
+            executor=executor,
+        )
+        pid = int(stdout_in.readline())
+
+        def create_out_stream(stream_in, stream_out):
+            """
+            Create a pair of file-like objects. The first one is used to read
+            data and the second one to write.
+            """
+
+            if stream_out == subprocess.DEVNULL:
+                r, w = None, None
+            # When asked for a pipe, we just give the file-like object as the
+            # reading end and no writing end, since paramiko already writes to
+            # it
+            elif stream_out == subprocess.PIPE:
+                r, w = os.pipe()
+                r = os.fdopen(r, 'rb')
+                w = os.fdopen(w, 'wb')
+            # Turn a file descriptor into a file-like object
+            elif isinstance(stream_out, int) and stream_out >= 0:
+                r = os.fdopen(stream_out, 'rb')
+                w = os.fdopen(stream_out, 'wb')
+            # file-like object
+            else:
+                r = stream_out
+                w = stream_out
+
+            return (r, w)
+
+        out_streams = {
+            name: create_out_stream(stream_in, stream_out)
+            for stream_in, stream_out, name in (
+                (stdout_in, stdout, 'stdout'),
+                (stderr_in, stderr, 'stderr'),
+            )
+        }
+
+        def redirect_thread_f(stdout_in, stderr_in, out_streams, select_timeout):
+            def callback(out_streams, name, chunk):
+                try:
+                    r, w = out_streams[name]
+                except KeyError:
+                    return out_streams
+
+                try:
+                    w.write(chunk)
+                # Write failed
+                except ValueError:
+                    # Since that stream is now closed, stop trying to write to it
+                    del out_streams[name]
+                    # If that was the last open stream, we raise an
+                    # exception so the thread can terminate.
+                    if not out_streams:
+                        raise
+
+                return out_streams
+
+            try:
+                _read_paramiko_streams(stdout_in, stderr_in, select_timeout, callback, copy.copy(out_streams))
+            # The streams closed while we were writing to it, the job is done here
+            except ValueError:
+                pass
+
+            # Make sure the writing end are closed proper since we are not
+            # going to write anything anymore
+            for r, w in out_streams.values():
+                if r is not w and w is not None:
+                    w.close()
+
+        # If there is anything we need to redirect to, spawn a thread taking
+        # care of that
+        select_timeout = 1
+        thread_out_streams = {
+            name: (r, w)
+            for name, (r, w) in out_streams.items()
+            if w is not None
+        }
+        redirect_thread = threading.Thread(
+            target=redirect_thread_f,
+            args=(stdout_in, stderr_in, thread_out_streams, select_timeout),
+            # The thread will die when the main thread dies
+            daemon=True,
+        )
+        redirect_thread.start()
+
+        return ParamikoBackgroundCommand(
+            conn=self,
+            as_root=as_root,
+            chan=channel,
+            pid=pid,
+            stdin=stdin,
+            # We give the reading end to the consumer of the data
+            stdout=out_streams['stdout'][0],
+            stderr=out_streams['stderr'][0],
+            redirect_thread=redirect_thread,
+        )
+
+    def _close(self):
+        logger.debug('Logging out {}@{}'.format(self.username, self.host))
+        with _handle_paramiko_exceptions():
+            bg_cmds = set(self._current_bg_cmds)
+            for bg_cmd in bg_cmds:
+                bg_cmd.close()
+            self.client.close()
+
+    def _execute_command(self, command, as_root, log, timeout, executor):
+        # As we're already root, there is no need to use sudo.
+        log_debug = logger.debug if log else lambda msg: None
+        use_sudo = as_root and not self.connected_as_root
+
+        if use_sudo:
+            if self._sudo_needs_password and not self.password:
+                raise TargetStableError('Attempt to use sudo but no password was specified')
+
+            command = self.sudo_cmd.format(quote(command))
+
+            log_debug(command)
+            streams = executor(command, timeout=timeout)
+            if self._sudo_needs_password:
+                stdin = streams[0]
+                stdin.write(self.password + '\n')
+                stdin.flush()
+        else:
+            log_debug(command)
+            streams = executor(command, timeout=timeout)
+
+        return streams
+
+    def _execute(self, command, timeout=None, as_root=False, strip_colors=True, log=True):
+        # Merge stderr into stdout since we are going without a TTY
+        command = '({}) 2>&1'.format(command)
+
+        stdin, stdout, stderr = self._execute_command(
+            command,
+            as_root=as_root,
+            log=log,
+            timeout=timeout,
+            executor=self.client.exec_command,
+        )
+        stdin.close()
+
+        # Empty the stdout buffer of the command, allowing it to carry on to
+        # completion
+        def callback(output_chunks, name, chunk):
+            output_chunks.append(chunk)
+            return output_chunks
+
+        select_timeout = 1
+        output_chunks, exit_code = _read_paramiko_streams(stdout, stderr, select_timeout, callback, [])
+        # Join in one go to avoid O(N^2) concatenation
+        output = b''.join(output_chunks)
+
+        if sys.version_info[0] == 3:
+            output = output.decode(sys.stdout.encoding or 'utf-8', 'replace')
+        if strip_colors:
+            output = strip_bash_colors(output)
+
+        return (exit_code, output)
+
+
+class TelnetConnection(SshConnectionBase):
+
+    default_password_prompt = '[sudo] password'
+    max_cancel_attempts = 5
+
+    # pylint: disable=unused-argument,super-init-not-called
+    def __init__(self,
+                 host,
+                 username,
+                 password=None,
+                 port=None,
+                 timeout=None,
+                 password_prompt=None,
+                 original_prompt=None,
+                 sudo_cmd="sudo -- sh -c {}",
+                 strict_host_check=True,
+                 platform=None):
+
+        super().__init__(
+            host=host,
+            username=username,
+            password=password,
+            keyfile=None,
+            port=port,
+            platform=platform,
+            sudo_cmd=sudo_cmd,
+            strict_host_check=strict_host_check,
+        )
+
+        if self.strict_host_check:
+            options = {
+                'StrictHostKeyChecking': 'yes',
+            }
+        else:
+            options = {
+                'StrictHostKeyChecking': 'no',
+                'UserKnownHostsFile': '/dev/null',
+            }
+        self.options = options
+
         self.lock = threading.Lock()
         self.password_prompt = password_prompt if password_prompt is not None else self.default_password_prompt
-        self.sudo_cmd = sanitize_cmd_template(sudo_cmd)
         logger.debug('Logging in {}@{}'.format(username, host))
         timeout = timeout if timeout is not None else self.default_timeout
-        self.options = options if options is not None else {}
-        self.conn = ssh_get_shell(host,
-                                  username,
-                                  password,
-                                  self.keyfile,
-                                  port,
-                                  timeout,
-                                  False,
-                                  None,
-                                  self.options)
+
+        self.conn = telnet_get_shell(host, username, password, port, timeout, original_prompt)
         atexit.register(self.close)
 
     def push(self, source, dest, timeout=30):
@@ -282,7 +797,7 @@ class SshConnection(object):
         except EOF:
             raise TargetNotRespondingError('Connection lost.')
 
-    def close(self):
+    def _close(self):
         logger.debug('Logging out {}@{}'.format(self.username, self.host))
         try:
             self.conn.logout()
@@ -351,8 +866,8 @@ class SshConnection(object):
         # only specify -P for scp if the port is *not* the default.
         port_string = '-P {}'.format(quote(str(self.port))) if (self.port and self.port != 22) else ''
         keyfile_string = '-i {}'.format(quote(self.keyfile)) if self.keyfile else ''
-        options = " ".join(["-o {}={}".format(key,val)
-                            for key,val in self.options.items()])
+        options = " ".join(["-o {}={}".format(key, val)
+                            for key, val in self.options.items()])
         command = '{} {} -r {} {} {} {}'.format(scp,
                                                 options,
                                                 keyfile_string,
@@ -386,29 +901,6 @@ class SshConnection(object):
     @memoized
     def _get_window_size(self):
         return self.conn.getwinsize()
-
-class TelnetConnection(SshConnection):
-
-    # pylint: disable=super-init-not-called
-    def __init__(self,
-                 host,
-                 username,
-                 password=None,
-                 port=None,
-                 timeout=None,
-                 password_prompt=None,
-                 original_prompt=None,
-                 platform=None):
-        self.host = host
-        self.username = username
-        self.password = password
-        self.port = port
-        self.keyfile = None
-        self.lock = threading.Lock()
-        self.password_prompt = password_prompt if password_prompt is not None else self.default_password_prompt
-        logger.debug('Logging in {}@{}'.format(username, host))
-        timeout = timeout if timeout is not None else self.default_timeout
-        self.conn = ssh_get_shell(host, username, password, None, port, timeout, True, original_prompt)
 
 
 class Gem5Connection(TelnetConnection):
@@ -616,7 +1108,7 @@ class Gem5Connection(TelnetConnection):
                          'get this file'.format(redirection_file))
         return output
 
-    def close(self):
+    def _close(self):
         """
         Close and disconnect from the gem5 simulation. Additionally, we remove
         the temporary directory used to pass files into the simulation.
