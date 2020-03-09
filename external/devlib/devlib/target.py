@@ -53,7 +53,7 @@ from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor
 from devlib.utils.misc import memoized, isiterable, convert_new_lines
 from devlib.utils.misc import commonprefix, merge_lists
 from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list
-from devlib.utils.misc import batch_contextmanager
+from devlib.utils.misc import batch_contextmanager, tls_property
 from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string, bytes_regex
 
 
@@ -215,20 +215,17 @@ class Target(object):
         return int(self.execute(cmd.format(self.busybox)))
 
     @property
-    def conn(self):
-        if self._connections:
-            tid = id(threading.current_thread())
-            if tid not in self._connections:
-                self._connections[tid] = self.get_connection()
-            return self._connections[tid]
-        else:
-            return None
-
-    @property
     def shutils(self):
         if self._shutils is None:
             self._setup_shutils()
         return self._shutils
+
+    @tls_property
+    def _conn(self):
+        return self.get_connection()
+
+    # Add a basic property that does not require calling to get the value
+    conn = _conn.basic_property
 
     def __init__(self,
                  connection_settings=None,
@@ -242,6 +239,7 @@ class Target(object):
                  conn_cls=None,
                  is_container=False
                  ):
+
         self._is_rooted = None
         self.connection_settings = connection_settings or {}
         # Set self.platform: either it's given directly (by platform argument)
@@ -271,7 +269,6 @@ class Target(object):
         self._installed_binaries = {}
         self._installed_modules = {}
         self._cache = {}
-        self._connections = {}
         self._shutils = None
         self._file_transfer_cache = None
         self.busybox = None
@@ -290,10 +287,12 @@ class Target(object):
 
     def connect(self, timeout=None, check_boot_completed=True):
         self.platform.init_target_connection(self)
-        tid = id(threading.current_thread())
-        self._connections[tid] = self.get_connection(timeout=timeout)
+        # Forcefully set the thread-local value for the connection, with the
+        # timeout we want
+        self.conn = self.get_connection(timeout=timeout)
         if check_boot_completed:
             self.wait_boot_complete(timeout)
+        self.check_connection()
         self._resolve_paths()
         self.execute('mkdir -p {}'.format(quote(self.working_directory)))
         self.execute('mkdir -p {}'.format(quote(self.executables_directory)))
@@ -303,10 +302,18 @@ class Target(object):
         if self.platform.big_core and self.load_default_modules:
             self._install_module(get_module('bl'))
 
+    def check_connection(self):
+        """
+        Check that the connection works without obvious issues.
+        """
+        out = self.execute('true', as_root=False)
+        if out.strip():
+            raise TargetStableError('The shell seems to not be functional and adds content to stderr: {}'.format(out))
+
     def disconnect(self):
-        for conn in self._connections.values():
+        connections = self._conn.get_all_values()
+        for conn in connections:
             conn.close()
-        self._connections = {}
 
     def get_connection(self, timeout=None):
         if self.conn_cls is None:

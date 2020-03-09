@@ -82,6 +82,7 @@ params = dict(
         'python-dateutil',  # converting between UTC and local time.
         'pexpect>=3.3',  # Send/recieve to/from device
         'pyserial',  # Serial port interface
+        'paramiko', # SSH connection
         'wrapt',  # Basic for construction of decorator functions
         'future', # Python 2-3 compatibility
         'enum34;python_version<"3.4"', # Enums for Python < 3.4

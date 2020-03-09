@@ -24,6 +24,7 @@ from pipes import quote
 
 from devlib.exception import TargetTransientError, TargetStableError
 from devlib.utils.misc import check_output
+from devlib.connection import ConnectionBase, PopenBackgroundCommand
 
 
 PACKAGE_BIN_DIRECTORY = os.path.join(os.path.dirname(__file__), 'bin')
@@ -37,7 +38,7 @@ def kill_children(pid, signal=signal.SIGKILL):
             os.kill(cpid, signal)
 
 
-class LocalConnection(object):
+class LocalConnection(ConnectionBase):
 
     name = 'local'
     host = 'localhost'
@@ -56,6 +57,7 @@ class LocalConnection(object):
     # pylint: disable=unused-argument
     def __init__(self, platform=None, keep_password=True, unrooted=False,
                  password=None, timeout=None):
+        super().__init__()
         self._connected_as_root = None
         self.logger = logging.getLogger('local_connection')
         self.keep_password = keep_password
@@ -105,9 +107,24 @@ class LocalConnection(object):
                 raise TargetStableError('unrooted')
             password = self._get_password()
             command = 'echo {} | sudo -S '.format(quote(password)) + command
-        return subprocess.Popen(command, stdout=stdout, stderr=stderr, shell=True)
 
-    def close(self):
+        # Make sure to get a new PGID so PopenBackgroundCommand() can kill
+        # all sub processes that could be started without troubles.
+        def preexec_fn():
+            os.setpgrp()
+
+        popen = subprocess.Popen(
+            command,
+            stdout=stdout,
+            stderr=stderr,
+            shell=True,
+            preexec_fn=preexec_fn,
+        )
+        bg_cmd = PopenBackgroundCommand(popen)
+        self._current_bg_cmds.add(bg_cmd)
+        return bg_cmd
+
+    def _close(self):
         pass
 
     def cancel_running_command(self):

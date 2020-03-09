@@ -30,6 +30,7 @@ from collections import defaultdict
 import pexpect
 import xml.etree.ElementTree
 import zipfile
+import uuid
 
 try:
     from shlex import quote
@@ -37,7 +38,8 @@ except ImportError:
     from pipes import quote
 
 from devlib.exception import TargetTransientError, TargetStableError, HostError
-from devlib.utils.misc import check_output, which, ABI_MAP
+from devlib.utils.misc import check_output, which, ABI_MAP, redirect_streams
+from devlib.connection import ConnectionBase, AdbBackgroundCommand
 
 
 logger = logging.getLogger('android')
@@ -233,7 +235,7 @@ class ApkInfo(object):
         return output
 
 
-class AdbConnection(object):
+class AdbConnection(ConnectionBase):
 
     # maintains the count of parallel active connections to a device, so that
     # adb disconnect is not invoked untill all connections are closed
@@ -263,6 +265,7 @@ class AdbConnection(object):
     # pylint: disable=unused-argument
     def __init__(self, device=None, timeout=None, platform=None, adb_server=None,
                  adb_as_root=False):
+        super().__init__()
         self.timeout = timeout if timeout is not None else self.default_timeout
         if device is None:
             device = adb_get_device(timeout=timeout, adb_server=adb_server)
@@ -312,13 +315,21 @@ class AdbConnection(object):
                 raise
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
-        return adb_background_shell(self.device, command, stdout, stderr, as_root, adb_server=self.adb_server)
+        adb_shell, pid = adb_background_shell(self, command, stdout, stderr, as_root)
+        bg_cmd = AdbBackgroundCommand(
+            conn=self,
+            adb_popen=adb_shell,
+            pid=pid,
+            as_root=as_root
+        )
+        self._current_bg_cmds.add(bg_cmd)
+        return bg_cmd
 
-    def close(self):
+    def _close(self):
         AdbConnection.active_connections[self.device] -= 1
         if AdbConnection.active_connections[self.device] <= 0:
             if self.adb_as_root:
-                self.adb_root(self.device, enable=False)
+                self.adb_root(enable=False)
             adb_disconnect(self.device, self.adb_server)
             del AdbConnection.active_connections[self.device]
 
@@ -536,20 +547,41 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
     return output
 
 
-def adb_background_shell(device, command,
+def adb_background_shell(conn, command,
                          stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE,
-                         as_root=False,
-                         adb_server=None):
+                         as_root=False):
     """Runs the sepcified command in a subprocess, returning the the Popen object."""
+    device = conn.device
+    adb_server = conn.adb_server
+
     _check_env()
+    stdout, stderr, command = redirect_streams(stdout, stderr, command)
     if as_root:
         command = 'echo {} | su'.format(quote(command))
+
+    # Attach a unique UUID to the command line so it can be looked for without
+    # any ambiguity with ps
+    uuid_ = uuid.uuid4().hex
+    uuid_var = 'BACKGROUND_COMMAND_UUID={}'.format(uuid_)
+    command = "{} sh -c {}".format(uuid_var, quote(command))
 
     adb_cmd = get_adb_command(None, 'shell', adb_server)
     full_command = '{} {}'.format(adb_cmd, quote(command))
     logger.debug(full_command)
-    return subprocess.Popen(full_command, stdout=stdout, stderr=stderr, shell=True)
+    p = subprocess.Popen(full_command, stdout=stdout, stderr=stderr, shell=True)
+
+    # Out of band PID lookup, to avoid conflicting needs with stdout redirection
+    find_pid = 'ps -A -o pid,args | grep {}'.format(quote(uuid_var))
+    ps_out = conn.execute(find_pid)
+    pids = [
+        int(line.strip().split(' ', 1)[0])
+        for line in ps_out.splitlines()
+    ]
+    # The line we are looking for is the first one, since it was started before
+    # any look up command
+    pid = sorted(pids)[0]
+    return (p, pid)
 
 def adb_kill_server(timeout=30, adb_server=None):
     adb_command(None, 'kill-server', timeout, adb_server)
