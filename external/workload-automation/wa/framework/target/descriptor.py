@@ -20,7 +20,7 @@ from copy import copy
 from devlib import (LinuxTarget, AndroidTarget, LocalLinuxTarget,
                     ChromeOsTarget, Platform, Juno, TC2, Gem5SimulationPlatform,
                     AdbConnection, SshConnection, LocalConnection,
-                    Gem5Connection)
+                    TelnetConnection, Gem5Connection)
 from devlib.target import DEFAULT_SHELL_PROMPT
 
 from wa.framework import pluginloader
@@ -69,11 +69,14 @@ def instantiate_target(tdesc, params, connect=None, extra_platform_params=None):
 
     for name, value in params.items():
         if name in target_params:
-            tp[name] = value
+            if not target_params[name].deprecated:
+                tp[name] = value
         elif name in platform_params:
-            pp[name] = value
+            if not platform_params[name].deprecated:
+                pp[name] = value
         elif name in conn_params:
-            cp[name] = value
+            if not conn_params[name].deprecated:
+                cp[name] = value
         elif name in assistant_params:
             pass
         else:
@@ -129,7 +132,8 @@ class TargetDescription(object):
         config = {}
         for pattr in param_attrs:
             for p in getattr(self, pattr):
-                config[p.name] = p.default
+                if not p.deprecated:
+                    config[p.name] = p.default
         return config
 
     def _set(self, attr, vals):
@@ -324,14 +328,63 @@ CONNECTION_PARAMS = {
             """),
         Parameter(
             'port', kind=int,
+            default=22,
             description="""
             The port SSH server is listening on on the target.
             """),
         Parameter(
-            'telnet', kind=bool, default=False,
+            'strict_host_check', kind=bool, default=True,
             description="""
-            If set to ``True``, a Telnet connection, rather than
-            SSH will be used.
+            Specify whether devices should be connected to if
+            their host key does not match the systems known host keys. """),
+        Parameter(
+            'sudo_cmd', kind=str,
+            default="sudo -- sh -c {}",
+            description="""
+            Sudo command to use. Must have ``{}`` specified
+            somewhere in the string it indicate where the command
+            to be run via sudo is to go.
+            """),
+        # Depreciated Parameters
+        Parameter(
+            'telnet', kind=str,
+            description="""
+            Original shell prompt to expect.
+            """,
+            deprecated=True),
+        Parameter(
+            'password_prompt', kind=str,
+            description="""
+            Password prompt to expect
+            """,
+            deprecated=True),
+        Parameter(
+            'original_prompt', kind=str,
+            description="""
+            Original shell prompt to expect.
+            """,
+            deprecated=True),
+    ],
+    TelnetConnection: [
+        Parameter(
+            'host', kind=str, mandatory=True,
+            description="""
+            Host name or IP address of the target.
+            """),
+        Parameter(
+            'username', kind=str, mandatory=True,
+            description="""
+            User name to connect with
+            """),
+        Parameter(
+            'password', kind=str,
+            description="""
+            Password to use.
+            """),
+        Parameter(
+            'port', kind=int,
+            description="""
+            The port SSH server is listening on on the target.
             """),
         Parameter(
             'password_prompt', kind=str,
