@@ -3784,7 +3784,7 @@ class Report(Serializable):
             # The file needs to be opened as utf-8 since the underlying stream
             # will need to accept utf-8 data in its write() method.
             with open_f(temp_path, 'wt', encoding='utf-8') as yaml_f:
-                self.yaml.dump_all(
+                self._get_yaml().dump_all(
                     (self.preamble, self),
                     yaml_f,
                 )
