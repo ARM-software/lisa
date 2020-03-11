@@ -219,6 +219,34 @@ function _lisa-install-system-check {
     _lisa-python-package-check ensurepip python3-venv
 }
 
+function _lisa-copy-git-hook {
+     # works even with worktrees
+     local hooks_dir="$(git -C "$LISA_HOME" rev-parse --git-common-dir)/hooks"
+     local hook="$1"
+
+     # Copy/Update lisa specific git-hook
+     cp "$LISA_HOME/tools/$hook.lisa" "$hooks_dir/$hook.lisa"
+
+     # Avoid overriding user hooks
+     if [[ ! -e "$hooks_dir/$hook" ]]; then
+         cp "$LISA_HOME/tools/$hook" "$hooks_dir/$hook"
+     else
+         local installed=`grep -qxF '"$0".lisa' "$hooks_dir/$hook" || echo $?`
+
+         if [[ $installed -ne 0 ]]; then
+             echo ""
+             echo -ne "$LISASHELL_RED"
+             echo "!!WARNING!! Couldn't copy git-hook: $LISA_HOME/tools/$hook"
+             echo -ne "$LISASHELL_RESET"
+         fi
+     fi
+}
+
+function _lisa-install-git-hooks {
+	_lisa-copy-git-hook "post-merge"
+	_lisa-copy-git-hook "post-checkout"
+}
+
 function lisa-install {
     _lisa-install-system-check
 
@@ -279,6 +307,9 @@ function lisa-install {
     LC_ALL=C date >> "$lisa_install_versions"
     lisa-version >> "$lisa_install_versions"
     _lisa-python -m pip freeze >> "$lisa_install_versions"
+
+    # Install some git-hooks
+    _lisa-install-git-hooks
 }
 
 ################################################################################
