@@ -86,14 +86,6 @@ packages still match those dependencies. Sourcing ``init_env`` from a
 new shell should suffice, which will hint the user if running ``lisa-install``
 again is needed.
 
-.. tip::
-
-  A git **post-checkout** hook is provided in ``tools/post-checkout``. It will
-  check that no ``setup.py`` file have been updated since last time
-  ``lisa-install`` was executed. If a modification is detected, it will ask the
-  user to run ``lisa-install`` again, since a dependency might have been added,
-  or a version requirement might have been updated.
-
 External dependencies
 =====================
 
