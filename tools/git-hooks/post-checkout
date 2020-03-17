@@ -1,4 +1,4 @@
-#!/bin/sh
+#! /bin/sh
 # SPDX-License-Identifier: Apache-2.0
 #
 # Copyright (C) 2018, Arm Limited and contributors.
@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+# DO NOT REMOVE THIS COMMENT: LISA-HOOK
 
 # Git post-checkout hook that checks if lisa-install needs to be run again due
 # to updated setup.py files
@@ -24,10 +25,17 @@ PREVIOUS_HEAD=$1
 NEW_HEAD=$2
 IS_BRANCH_CHECKOUT=$3
 
+echo -e "\033[31m"
+echo "WARNING: shell state might go out of sync with lisa-shell."
+echo -e "\033[0m"
+echo "Please source init_env again:"
+echo "    \$ env -i $SHELL"
+echo "    \$ source init_env"
+
 if which check-setuppy >/dev/null 2>&1; then
     check-setuppy --current-rev "$NEW_HEAD"
-    # Make sure we always exit with 0 return code, otherwise it might break
-    # rebasing
-    exit 0
 fi
 
+# Make sure we always exit with 0 return code, otherwise it might break
+# rebasing
+exit 0

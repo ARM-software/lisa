@@ -219,31 +219,23 @@ function _lisa-install-system-check {
     _lisa-python-package-check ensurepip python3-venv
 }
 
+# Copy/Update lisa specific git-hook
 function _lisa-copy-git-hook {
-     # works even with worktrees
-     local hooks_dir="$(git -C "$LISA_HOME" rev-parse --git-common-dir)/hooks"
-     local hook="$1"
+    local hook="$1"
 
-     # Copy/Update lisa specific git-hook
-     cp "$LISA_HOME/tools/$hook.lisa" "$hooks_dir/$hook.lisa"
+    local hooks_dir="$(git -C "$LISA_HOME" rev-parse --git-common-dir)/hooks"
+    local src="$LISA_HOME/tools/git-hooks/$hook"
+    local dst="$hooks_dir/$hook"
 
-     # Avoid overriding user hooks
-     if [[ ! -e "$hooks_dir/$hook" ]]; then
-         cp "$LISA_HOME/tools/$hook" "$hooks_dir/$hook"
-     else
-         local installed=`grep -qxF '"$0".lisa' "$hooks_dir/$hook" || echo $?`
-
-         if [[ $installed -ne 0 ]]; then
-             echo ""
-             echo -ne "$LISASHELL_RED"
-             echo "!!WARNING!! Couldn't copy git-hook: $LISA_HOME/tools/$hook"
-             echo -ne "$LISASHELL_RESET"
-         fi
-     fi
+    # Avoid overriding existing hooks unless they are provided by LISA
+    if [[ ! -e "$dst" ]] || grep -q 'LISA-HOOK' "$dst"; then
+        cp -v "$src" "$dst"
+    else
+        echo "WARNING: Could not install git hook, as it is user-provided: $src => $dst"
+    fi
 }
 
 function _lisa-install-git-hooks {
-	_lisa-copy-git-hook "post-merge"
 	_lisa-copy-git-hook "post-checkout"
 }
 
