@@ -112,6 +112,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         KeyDesc('os', 'OS being used, e.g. "linux"', [str]),
         KeyDesc('name', 'Free-form name of the board', [str]),
         KeyDesc('cpus-count', 'Number of CPUs', [int]),
+        KeyDesc('numa-nodes-count', 'Number of NUMA nodes', [int]),        
 
         KeyDesc('freq-domains',
                 'Frequency domains modeled by a list of CPU IDs for each domain',
@@ -159,7 +160,8 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
                 # Since it is expensive to compute, use an on-demand DeferredValue
                 'calib': lambda: DeferredValue(RTA.get_cpu_calibrations, target, rta_calib_res_dir)
             },
-            'cpus-count': lambda: target.number_of_cpus
+            'cpus-count': lambda: target.number_of_cpus,
+            'numa-nodes-count': lambda: target.number_of_nodes
         }
 
         def get_freq_domains():
