@@ -80,7 +80,10 @@ class TestRTAProfile(RTABase):
         for phase, exp_phase in zip(phases, exp_phases):
             if 'cpus' not in exp_phase:
                 exp_phase = copy.copy(exp_phase)
-                exp_phase['cpus'] = sorted(range(self.target.plat_info['cpus-count']))
+                exp_phase.update(
+                    cpus=sorted(range(self.target.plat_info['cpus-count'])),
+                    nodes_membind=sorted(range(self.target.plat_info['numa-nodes-count'])),
+                )
             self.assertDictEqual(phase, exp_phase)
 
         # Try running the workload and check that it produces the expected log
