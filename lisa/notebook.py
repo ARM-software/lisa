@@ -20,12 +20,22 @@ Various utilities for interactive notebooks.
 
 import functools
 import collections
+from enum import Enum
 
 import mplcursors
 import matplotlib
-from matplotlib.backend_bases import MouseButton
 from ipywidgets import widgets, Output, HBox, Layout, interact
 from IPython.display import display
+
+# TODO: remove that when Python <= 3.5 support is removed
+try:
+    # Only available since matplotlib 3.1
+    from matplotlib.backend_bases import MouseButton
+except ImportError:
+    class MouseButton(Enum):
+        LEFT = 1
+        MIDDLE = 2
+        RIGHT = 3
 
 class WrappingHBox(widgets.HBox):
     """
