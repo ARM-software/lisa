@@ -333,7 +333,7 @@ CONNECTION_PARAMS = {
             The port SSH server is listening on on the target.
             """),
         Parameter(
-            'strict_host_check', kind=bool, default=True,
+            'strict_host_check', kind=bool, default=False,
             description="""
             Specify whether devices should be connected to if
             their host key does not match the systems known host keys. """),

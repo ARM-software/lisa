@@ -5,9 +5,9 @@ Instrumentation
 
 The ``Instrument`` API provide a consistent way of collecting measurements from
 a target. Measurements are collected via an instance of a class derived from
-:class:`Instrument`. An ``Instrument`` allows collection of measurement from one
-or more channels. An ``Instrument`` may support ``INSTANTANEOUS`` or
-``CONTINUOUS`` collection, or both.
+:class:`~devlib.instrument.Instrument`. An ``Instrument`` allows collection of
+measurement from one or more channels. An ``Instrument`` may support
+``INSTANTANEOUS`` or ``CONTINUOUS`` collection, or both.
 
 Example
 -------
@@ -49,6 +49,8 @@ Android target.
 
 API
 ---
+
+.. module:: devlib.instrument
 
 Instrument
 ~~~~~~~~~~
@@ -122,14 +124,16 @@ Instrument
    Take a single measurement from ``active_channels``. Returns a list of
    :class:`Measurement` objects (one for each active channel).
 
-   .. note:: This method is only implemented by :class:`Instrument`\ s that
+   .. note:: This method is only implemented by
+             :class:`~devlib.instrument.Instrument`\ s that
              support ``INSTANTANEOUS`` measurement.
 
 .. method:: Instrument.start()
 
    Starts collecting measurements from ``active_channels``.
 
-   .. note:: This method is only implemented by :class:`Instrument`\ s that
+   .. note:: This method is only implemented by
+             :class:`~devlib.instrument.Instrument`\ s that
              support ``CONTINUOUS`` measurement.
 
 .. method:: Instrument.stop()
@@ -137,7 +141,8 @@ Instrument
    Stops collecting measurements from ``active_channels``. Must be called after
    :func:`start()`.
 
-   .. note:: This method is only implemented by :class:`Instrument`\ s that
+   .. note:: This method is only implemented by
+             :class:`~devlib.instrument.Instrument`\ s that
              support ``CONTINUOUS`` measurement.
 
 .. method:: Instrument.get_data(outfile)
@@ -148,9 +153,9 @@ Instrument
    ``<site>_<kind>`` (see :class:`InstrumentChannel`). The order of the columns
    will be the same as the order of channels in ``Instrument.active_channels``.
 
-   If reporting timestamps, one channel must have a ``site`` named ``"timestamp"``
-   and a ``kind`` of a :class:`MeasurmentType` of an appropriate time unit which will
-   be used, if appropriate, during any post processing.
+   If reporting timestamps, one channel must have a ``site`` named
+   ``"timestamp"`` and a ``kind`` of a :class:`MeasurmentType` of an appropriate
+   time unit which will be used, if appropriate, during any post processing.
 
    .. note:: Currently supported time units are seconds, milliseconds and
              microseconds, other units can also be used if an appropriate
@@ -160,7 +165,8 @@ Instrument
    that can be used to stream :class:`Measurement`\ s lists (similar to what is
    returned by ``take_measurement()``.
 
-   .. note:: This method is only implemented by :class:`Instrument`\ s that
+   .. note:: This method is only implemented by
+             :class:`~devlib.instrument.Instrument`\ s that
              support ``CONTINUOUS`` measurement.
 
 .. method:: Instrument.get_raw()
@@ -185,7 +191,8 @@ Instrument
 
    Sample rate of the instrument in Hz. Assumed to be the same for all channels.
 
-   .. note:: This attribute is only provided by :class:`Instrument`\ s that
+   .. note:: This attribute is only provided by
+             :class:`~devlib.instrument.Instrument`\ s that
              support ``CONTINUOUS`` measurement.
 
 Instrument Channel
@@ -194,8 +201,8 @@ Instrument Channel
 .. class:: InstrumentChannel(name, site, measurement_type, \*\*attrs)
 
    An :class:`InstrumentChannel` describes a single type of measurement that may
-   be collected by an :class:`Instrument`. A channel is primarily defined by a
-   ``site`` and a ``measurement_type``.
+   be collected by an :class:`~devlib.instrument.Instrument`. A channel is
+   primarily defined by a ``site`` and a ``measurement_type``.
 
    A ``site`` indicates where  on the target a measurement is collected from
    (e.g. a voltage rail or location of a sensor).
@@ -488,12 +495,13 @@ voltage (see previous figure), samples are retrieved at a frequency of
 
 where :math:`T_X` is the integration time for the :math:`X` voltage.
 
-As described below (:meth:`BaylibreAcmeInstrument.reset`), the integration
-times for the bus and shunt voltage can be set separately which allows a
-tradeoff of accuracy between signals. This is particularly useful as the shunt
-voltage returned by the INA226 has a higher resolution than the bus voltage
-(2.5 μV and 1.25 mV LSB, respectively) and therefore would benefit more from a
-longer integration time.
+As described below (:meth:`BaylibreAcmeInstrument.reset
+<devlib.instrument.baylibre_acme.BaylibreAcmeInstrument.reset>`), the
+integration times for the bus and shunt voltage can be set separately which
+allows a tradeoff of accuracy between signals. This is particularly useful as
+the shunt voltage returned by the INA226 has a higher resolution than the bus
+voltage (2.5 μV and 1.25 mV LSB, respectively) and therefore would benefit more
+from a longer integration time.
 
 As an illustration, consider the following sampled sine wave and notice how
 increasing the integration time (of the bus voltage in this case) "smoothes"
@@ -601,8 +609,9 @@ Buffer-based transactions
 
 Samples made available by the INA226 are retrieved by the BBB and stored in a
 buffer which is sent back to the host once it is full (see
-``buffer_samples_count`` in :meth:`BaylibreAcmeInstrument.setup` for setting
-its size). Therefore, the larger the buffer is, the longer it takes to be
+``buffer_samples_count`` in :meth:`BaylibreAcmeInstrument.setup
+<devlib.instrument.baylibre_acme.BaylibreAcmeInstrument.setup>` for setting its
+size). Therefore, the larger the buffer is, the longer it takes to be
 transmitted back but the less often it has to be transmitted. To illustrate
 this, consider the following graphs showing the time difference between
 successive samples in a retrieved signal when the size of the buffer changes:
@@ -623,6 +632,8 @@ devlib provides wrapper classes for all the IIO connections to an IIO context
 given by `libiio (the Linux IIO interface)`_ however only the network-based one
 has been tested. For the other classes, please refer to the official IIO
 documentation for the meaning of their constructor parameters.
+
+.. module:: devlib.instrument.baylibre_acme
 
 .. class:: BaylibreAcmeInstrument(target=None, iio_context=None, use_base_iio_context=False, probe_names=None)
 

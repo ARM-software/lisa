@@ -43,7 +43,18 @@ public class UiAutomation extends BaseUiAutomation {
 
     @Test
     public void setup() throws Exception {
+        dismissPermissions();
         dismissAndroidVersionPopup();
+    }
+
+    @Test
+    public void dismissPermissions() throws Exception {
+        UiSelector selector = new UiSelector();
+        UiObject cont = mDevice.findObject(selector.textContains("Continue"));
+
+        if (cont.exists()) {
+            cont.click();
+        }
     }
 
     @Test

@@ -1,7 +1,6 @@
 Derived Measurements
 =====================
 
-
 The ``DerivedMeasurements`` API provides a consistent way of performing post
 processing on a provided :class:`MeasurementCsv` file.
 
@@ -34,6 +33,8 @@ API
 
 Derived Measurements
 ~~~~~~~~~~~~~~~~~~~~
+
+.. module:: devlib.derived
 
 .. class:: DerivedMeasurements
 
@@ -102,17 +103,20 @@ Available Derived Measurements
 Energy
 ~~~~~~
 
+.. module:: devlib.derived.energy
+
 .. class:: DerivedEnergyMeasurements
 
-   The ``DerivedEnergyMeasurements`` class is used to calculate average power and
-   cumulative energy for each site if the required data is present.
+   The ``DerivedEnergyMeasurements`` class is used to calculate average power
+   and cumulative energy for each site if the required data is present.
 
-   The calculation of cumulative energy can occur in 3 ways. If a
-   ``site`` contains ``energy`` results, the first and last measurements are extracted
-   and the delta calculated. If not, a ``timestamp`` channel will be used to calculate
-   the energy from the power channel, failing back to using the sample rate attribute
-   of the :class:`MeasurementCsv` file if timestamps are not available. If neither
-   timestamps or a sample rate are available then an error will be raised.
+   The calculation of cumulative energy can occur in 3 ways. If a ``site``
+   contains ``energy`` results, the first and last measurements are extracted
+   and the delta calculated. If not, a ``timestamp`` channel will be used to
+   calculate the energy from the power channel, failing back to using the sample
+   rate attribute of the :class:`MeasurementCsv` file if timestamps are not
+   available. If neither timestamps or a sample rate are available then an error
+   will be raised.
 
 
 .. method:: DerivedEnergyMeasurements.process(measurement_csv)
@@ -127,6 +131,8 @@ Energy
 
 FPS / Rendering
 ~~~~~~~~~~~~~~~
+
+.. module:: devlib.derived.fps
 
 .. class:: DerivedGfxInfoStats(drop_threshold=5, suffix='-fps', filename=None, outdir=None)
 

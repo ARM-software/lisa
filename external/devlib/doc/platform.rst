@@ -1,14 +1,17 @@
+.. module:: devlib.platform
+
 .. _platform:
 
 Platform
 ========
 
-:class:`Platform`\ s describe the system underlying the OS. They encapsulate
-hardware- and firmware-specific details. In most cases, the generic
-:class:`Platform` class, which gets used if a platform is not explicitly
-specified on :class:`Target` creation, will be sufficient. It will automatically
-query as much platform information (such CPU topology, hardware model, etc) if
-it was not specified explicitly by the user.
+:class:`~devlib.platform.Platform`\ s describe the system underlying the OS.
+They encapsulate hardware- and firmware-specific details. In most cases, the
+generic :class:`~devlib.platform.Platform` class, which gets used if a
+platform is not explicitly specified on :class:`~devlib.target.Target`
+creation, will be sufficient. It will automatically query as much platform
+information (such CPU topology, hardware model, etc) if it was not specified
+explicitly by the user.
 
 
 .. class:: Platform(name=None, core_names=None, core_clusters=None,\
@@ -31,6 +34,7 @@ it was not specified explicitly by the user.
                     platform (e.g. for handling flashing, rebooting, etc). These
                     would be added to the Target's modules. (See :ref:`modules`\ ).
 
+.. module:: devlib.platform.arm
 
 Versatile Express
 -----------------
@@ -38,8 +42,8 @@ Versatile Express
 The generic platform may be extended to support hardware- or
 infrastructure-specific functionality. Platforms exist for ARM
 VersatileExpress-based :class:`Juno` and :class:`TC2` development boards. In
-addition to the standard :class:`Platform` parameters above, these platforms
-support additional configuration:
+addition to the standard :class:`~devlib.platform.Platform` parameters above,
+these platforms support additional configuration:
 
 
 .. class:: VersatileExpressPlatform
@@ -116,43 +120,53 @@ support additional configuration:
 Gem5 Simulation Platform
 ------------------------
 
-By initialising a Gem5SimulationPlatform, devlib will start a gem5 simulation (based upon the
-arguments the user provided) and then connect to it using :class:`Gem5Connection`.
-Using the methods discussed above, some methods of the :class:`Target` will be altered
-slightly to better suit gem5.
+By initialising a Gem5SimulationPlatform, devlib will start a gem5 simulation
+(based upon the arguments the user provided) and then connect to it using
+:class:`~devlib.utils.ssh.Gem5Connection`. Using the methods discussed above,
+some methods of the :class:`~devlib.target.Target` will be altered slightly to
+better suit gem5.
+
+.. module:: devlib.platform.gem5
 
 .. class:: Gem5SimulationPlatform(name, host_output_dir, gem5_bin, gem5_args, gem5_virtio, gem5_telnet_port=None)
 
-    During initialisation the gem5 simulation will be kicked off (based upon the arguments
-    provided by the user) and the telnet port used by the gem5 simulation will be intercepted
-    and stored for use by the :class:`Gem5Connection`.
+    During initialisation the gem5 simulation will be kicked off (based upon the
+    arguments provided by the user) and the telnet port used by the gem5
+    simulation will be intercepted and stored for use by the
+    :class:`~devlib.utils.ssh.Gem5Connection`.
 
     :param name: Platform name
 
-    :param host_output_dir: Path on the host where the gem5 outputs will be placed (e.g. stats file)
+    :param host_output_dir: Path on the host where the gem5 outputs will be
+        placed (e.g. stats file)
 
     :param gem5_bin: gem5 binary
 
     :param gem5_args: Arguments to be passed onto gem5 such as config file etc.
 
-    :param gem5_virtio: Arguments to be passed onto gem5 in terms of the virtIO device used
-                        to transfer files between the host and the gem5 simulated system.
+    :param gem5_virtio: Arguments to be passed onto gem5 in terms of the virtIO
+        device used to transfer files between the host and the gem5 simulated
+        system.
 
-    :param gem5_telnet_port: Not yet in use as it would be used in future implementations
-                             of devlib in which the user could use the platform to pick
-                             up an existing and running simulation.
+    :param gem5_telnet_port: Not yet in use as it would be used in future
+                             implementations of devlib in which the user could
+                             use the platform to pick up an existing and running
+                             simulation.
 
 
 .. method:: Gem5SimulationPlatform.init_target_connection([target])
 
-    Based upon the OS defined in the :class:`Target`, the type of :class:`Gem5Connection`
-    will be set (:class:`AndroidGem5Connection` or :class:`AndroidGem5Connection`).
+    Based upon the OS defined in the :class:`~devlib.target.Target`, the type of
+    :class:`~devlib.utils.ssh.Gem5Connection` will be set
+    (:class:`~devlib.utils.ssh.AndroidGem5Connection` or
+    :class:`~devlib.utils.ssh.AndroidGem5Connection`).
 
 .. method:: Gem5SimulationPlatform.update_from_target([target])
 
-    This method provides specific setup procedures for a gem5 simulation. First of all, the m5
-    binary will be installed on the guest (if it is not present). Secondly, three methods
-    in the :class:`Target` will be monkey-patched:
+    This method provides specific setup procedures for a gem5 simulation. First
+    of all, the m5 binary will be installed on the guest (if it is not present).
+    Secondly, three methods in the :class:`~devlib.target.Target` will be
+    monkey-patched:
 
             - **reboot**: this is not supported in gem5
             - **reset**: this is not supported in gem5
@@ -160,7 +174,7 @@ slightly to better suit gem5.
               monkey-patched method will first try to
               transfer the existing screencaps.
               In case that does not work, it will fall back
-              to the original :class:`Target` implementation
+              to the original :class:`~devlib.target.Target` implementation
               of :func:`capture_screen`.
 
     Finally, it will call the parent implementation of :func:`update_from_target`.
