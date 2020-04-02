@@ -1,25 +1,26 @@
 Overview
 ========
 
-A :class:`Target` instance serves as the main interface to the target device.
+A :class:`~devlib.target.Target` instance serves as the main interface to the target device.
 There are currently four target interfaces:
 
-- :class:`LinuxTarget` for interacting with Linux devices over SSH.
-- :class:`AndroidTarget` for interacting with Android devices over adb.
-- :class:`ChromeOsTarget`: for interacting with ChromeOS devices over SSH, and their Android containers over adb.
-- :class:`LocalLinuxTarget`: for interacting with the local Linux host.
+- :class:`~devlib.target.LinuxTarget` for interacting with Linux devices over SSH.
+- :class:`~devlib.target.AndroidTarget` for interacting with Android devices over adb.
+- :class:`~devlib.target.ChromeOsTarget`: for interacting with ChromeOS devices
+  over SSH, and their Android containers over adb.
+- :class:`~devlib.target.LocalLinuxTarget`: for interacting with the local Linux host.
 
 They all work in more-or-less the same way, with the major difference being in
 how connection settings are specified; though there may also be a few APIs
-specific to a particular target type (e.g. :class:`AndroidTarget` exposes
-methods for working with logcat).
+specific to a particular target type (e.g. :class:`~devlib.target.AndroidTarget`
+exposes methods for working with logcat).
 
 
 Acquiring a Target
 ------------------
 
 To create an interface to your device, you just need to instantiate one of the
-:class:`Target` derivatives listed above, and pass it the right
+:class:`~devlib.target.Target` derivatives listed above, and pass it the right
 ``connection_settings``. Code snippet below gives a typical example of
 instantiating each of the three target types.
 
@@ -46,21 +47,22 @@ instantiating each of the three target types.
    t3 = AndroidTarget(connection_settings={'device': '0123456789abcde'})
 
 Instantiating a target may take a second or two as the remote device will be
-queried to initialize :class:`Target`'s internal state. If you would like to
-create a :class:`Target` instance but not immediately connect to the remote
-device, you can pass ``connect=False`` parameter. If you do that, you would have
-to then explicitly call ``t.connect()`` before you can interact with the device.
+queried to initialize :class:`~devlib.target.Target`'s internal state. If you
+would like to create a :class:`~devlib.target.Target` instance but not
+immediately connect to the remote device, you can pass ``connect=False``
+parameter. If you do that, you would have to then explicitly call
+``t.connect()`` before you can interact with the device.
 
 There are a few additional parameters you can pass in instantiation besides
 ``connection_settings``, but they are usually unnecessary. Please see
-:class:`Target` API documentation for more details.
+:class:`~devlib.target.Target` API documentation for more details.
 
 Target Interface
 ----------------
 
 This is a quick overview of the basic interface to the device. See
-:class:`Target` API documentation for the full list of supported methods and
-more detailed documentation.
+:class:`~devlib.target.Target` API documentation for the full list of supported
+methods and more detailed documentation.
 
 One-time Setup
 ~~~~~~~~~~~~~~
@@ -173,8 +175,9 @@ More...
 ~~~~~~~
 
 As mentioned previously, the above is not intended to be exhaustive
-documentation of the :class:`Target` interface. Please refer to the API
-documentation for the full list of attributes and methods and their parameters.
+documentation of the :class:`~devlib.target.Target` interface. Please refer to
+the API documentation for the full list of attributes and methods and their
+parameters.
 
 Super User Privileges
 ---------------------
@@ -238,6 +241,8 @@ complete. Retrying it or bailing out is therefore a responsability of the caller
 
 The hierarchy is as follows:
 
+.. module:: devlib.exception
+
 - :class:`DevlibError`
 
    - :class:`WorkerThreadError`
@@ -287,7 +292,7 @@ Modules
 Additional functionality is exposed via modules. Modules are initialized as
 attributes of a target instance. By default, ``hotplug``, ``cpufreq``,
 ``cpuidle``, ``cgroups`` and ``hwmon`` will attempt to load on target; additional
-modules may be specified when creating a :class:`Target` instance.
+modules may be specified when creating a :class:`~devlib.target.Target` instance.
 
 A module will probe the target for support before attempting to load. So if the
 underlying platform does not support particular functionality (e.g. the kernel

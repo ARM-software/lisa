@@ -350,6 +350,8 @@ class SshConnection(SshConnectionBase):
             policy = RejectPolicy
         else:
             policy = AutoAddPolicy
+        # Only try using SSH keys if we're not using a password
+        check_ssh_keys = not self.password
 
         with _handle_paramiko_exceptions():
             client = SSHClient()
@@ -362,6 +364,8 @@ class SshConnection(SshConnectionBase):
                 password=self.password,
                 key_filename=self.keyfile,
                 timeout=self.timeout,
+                look_for_keys=check_ssh_keys,
+                allow_agent=check_ssh_keys
             )
 
             return client

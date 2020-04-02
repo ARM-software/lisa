@@ -1,57 +1,62 @@
+.. module:: devlib.target
+
 Target
 ======
 
-
 .. class:: Target(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=None)
 
-    :class:`Target` is the primary interface to the remote device. All interactions
-    with the device are performed via a :class:`Target` instance, either
-    directly, or via its modules or a wrapper interface (such as an
-    :class:`Instrument`).
+    :class:`~devlib.target.Target` is the primary interface to the remote
+    device. All interactions with the device are performed via a
+    :class:`~devlib.target.Target` instance, either directly, or via its
+    modules or a wrapper interface (such as an
+    :class:`~devlib.instrument.Instrument`).
 
-    :param connection_settings: A ``dict`` that specifies how to connect to the remote
-       device. Its contents depend on the specific :class:`Target` type (used see
+    :param connection_settings: A ``dict`` that specifies how to connect to the
+       remote device. Its contents depend on the specific
+       :class:`~devlib.target.Target` type (used see
        :ref:`connection-types`\ ).
 
-    :param platform: A :class:`Target` defines interactions at Operating System level. A
-        :class:`Platform` describes the underlying hardware (such as CPUs
-        available). If a :class:`Platform` instance is not specified on
-        :class:`Target` creation, one will be created automatically and it will
-        dynamically probe the device to discover as much about the underlying
-        hardware as it can. See also :ref:`platform`\ .
+    :param platform: A :class:`~devlib.target.Target` defines interactions at
+        Operating System level. A :class:`~devlib.platform.Platform` describes
+        the underlying hardware (such as CPUs available). If a
+        :class:`~devlib.platform.Platform` instance is not specified on
+        :class:`~devlib.target.Target` creation, one will be created
+        automatically and it will dynamically probe the device to discover
+        as much about the underlying hardware as it can. See also
+        :ref:`platform`\ .
 
     :param working_directory: This is primary location for on-target file system
-        interactions performed by ``devlib``. This location *must* be readable and
-        writable directly (i.e. without sudo) by the connection's user account.
-        It may or may not allow execution. This location will be created,
-        if necessary, during ``setup()``.
+        interactions performed by ``devlib``. This location *must* be readable
+        and writable directly (i.e. without sudo) by the connection's user
+        account. It may or may not allow execution. This location will be
+        created, if necessary, during :meth:`setup()`.
 
         If not explicitly specified, this will be set to a default value
-        depending on the type of :class:`Target`
+        depending on the type of :class:`~devlib.target.Target`
 
     :param executables_directory: This is the location to which ``devlib`` will
-        install executable binaries (either during ``setup()`` or via an
-        explicit ``install()`` call). This location *must* support execution
+        install executable binaries (either during :meth:`setup()` or via an
+        explicit :meth:`install()` call). This location *must* support execution
         (obviously). It should also be possible to write to this location,
         possibly with elevated privileges (i.e. on a rooted Linux target, it
         should be possible to write here with sudo, but not necessarily directly
-        by the connection's account). This location will be created,
-        if necessary, during ``setup()``.
+        by the connection's account). This location will be created, if
+        necessary, during :meth:`setup()`.
 
         This location does *not* need to be same as the system's executables
         location. In fact, to prevent devlib from overwriting system's defaults,
         it better if this is a separate location, if possible.
 
         If not explicitly specified, this will be set to a default value
-        depending on the type of :class:`Target`
+        depending on the type of :class:`~devlib.target.Target`
 
     :param connect: Specifies whether a connections should be established to the
-        target. If this is set to ``False``, then ``connect()`` must be
-        explicitly called later on before the :class:`Target` instance can be
-        used.
+        target. If this is set to ``False``, then :meth:`connect()` must be
+        explicitly called later on before the :class:`~devlib.target.Target`
+        instance can be used.
 
-    :param modules: a list of additional modules to be installed. Some modules will
-        try to install by default (if supported by the underlying target).
+    :param modules: a list of additional modules to be installed. Some modules
+        will try to install by default (if supported by the underlying target).
         Current default modules are ``hotplug``, ``cpufreq``, ``cpuidle``,
         ``cgroups``, and ``hwmon`` (See :ref:`modules`\ ).
 
@@ -59,40 +64,40 @@ Target
 
     :param load_default_modules: If set to ``False``,  default modules listed
          above will *not* attempt to load. This may be used to either speed up
-         target instantiation (probing for initializing modules takes a bit of time)
-         or if there is an issue with one of the modules on a particular device
-         (the rest of the modules will then have to be explicitly specified in
-         the ``modules``).
+         target instantiation (probing for initializing modules takes a bit of
+         time) or if there is an issue with one of the modules on a particular
+         device (the rest of the modules will then have to be explicitly
+         specified in the ``modules``).
 
     :param shell_prompt: This is a regular expression that matches the shell
          prompted on the target. This may be used by some modules that establish
          auxiliary connections to a target over UART.
 
-    :param conn_cls: This is the type of connection that will be used to communicate
-        with the device.
+    :param conn_cls: This is the type of connection that will be used to
+        communicate with the device.
 
 .. attribute:: Target.core_names
 
    This is a list containing names of CPU cores on the target, in the order in
    which they are index by the kernel. This is obtained via the underlying
-   :class:`Platform`.
+   :class:`~devlib.platform.Platform`.
 
 .. attribute:: Target.core_clusters
 
    Some devices feature heterogeneous core configurations (such as ARM
    big.LITTLE).  This is a list that maps CPUs onto underlying clusters.
    (Usually, but not always, clusters correspond to groups of CPUs with the same
-   name). This is obtained via the underlying :class:`Platform`.
+   name). This is obtained via the underlying :class:`~devlib.platform.Platform`.
 
 .. attribute:: Target.big_core
 
    This is the name of the cores that are the "big"s in an ARM big.LITTLE
-   configuration. This is obtained via the underlying :class:`Platform`.
+   configuration. This is obtained via the underlying :class:`~devlib.platform.Platform`.
 
 .. attribute:: Target.little_core
 
    This is the name of the cores that are the "little"s in an ARM big.LITTLE
-   configuration. This is obtained via the underlying :class:`Platform`.
+   configuration. This is obtained via the underlying :class:`~devlib.platform.Platform`.
 
 .. attribute:: Target.is_connected
 
@@ -152,11 +157,11 @@ Target
 
    The underlying connection object. This will be ``None`` if an active
    connection does not exist (e.g. if ``connect=False`` as passed on
-   initialization and ``connect()`` has not been called).
+   initialization and :meth:`connect()` has not been called).
 
-   .. note:: a :class:`Target` will automatically create a connection per
-             thread. This will always be set to the connection for the current
-             thread.
+   .. note:: a :class:`~devlib.target.Target` will automatically create a
+             connection per thread. This will always be set to the connection
+             for the current thread.
 
 .. method:: Target.connect([timeout])
 
@@ -176,19 +181,20 @@ Target
    being executed.
 
    This should *not* be used to establish an initial connection; use
-   ``connect()`` instead.
+   :meth:`connect()` instead.
 
-   .. note:: :class:`Target` will automatically create a connection per
-             thread, so you don't normally need to use this explicitly in
+   .. note:: :class:`~devlib.target.Target` will automatically create a connection
+             per thread, so you don't normally need to use this explicitly in
              threaded code. This is generally useful if you want to perform a
-             blocking operation (e.g. using ``background()``) while at the same
+             blocking operation (e.g. using :class:`background()`) while at the same
              time doing something else in the same host-side thread.
 
 .. method:: Target.setup([executables])
 
    This will perform an initial one-time set up of a device for devlib
-   interaction. This involves deployment of tools relied on the :class:`Target`,
-   creation of working locations on the device, etc.
+   interaction. This involves deployment of tools relied on the
+   :class:`~devlib.target.Target`, creation of working locations on the device,
+   etc.
 
    Usually, it is enough to call this method once per new device, as its effects
    will persist across reboots. However, it is safe to call this method multiple
@@ -281,31 +287,31 @@ Target
           a string.
    :param in_directory:  execute the binary in the  specified directory. This must
                    be an absolute path.
-   :param on_cpus:  taskset the binary to these CPUs. This may be a single ``int`` (in which
-          case, it will be interpreted as the mask), a list of ``ints``, in which
-          case this will be interpreted as the list of cpus, or string, which
-          will be interpreted as a comma-separated list of cpu ranges, e.g.
-          ``"0,4-7"``.
+   :param on_cpus:  taskset the binary to these CPUs. This may be a single
+          ``int`` (in which case, it will be interpreted as the mask), a list of
+          ``ints``, in which case this will be interpreted as the list of cpus,
+          or string, which will be interpreted as a comma-separated list of cpu
+          ranges, e.g. ``"0,4-7"``.
    :param as_root: Specify whether the command should be run as root
    :param timeout: If this is specified and invocation does not terminate within this number
            of seconds, an exception will be raised.
 
 .. method:: Target.background_invoke(binary [, args [, in_directory [, on_cpus [, as_root ]]]])
 
-   Execute the specified binary on target (must already be installed) as a background
-   task, under the specified conditions and return the :class:`subprocess.Popen`
-   instance for the command.
+   Execute the specified binary on target (must already be installed) as a
+   background task, under the specified conditions and return the
+   :class:`subprocess.Popen` instance for the command.
 
    :param binary: binary to execute. Must be present and executable on the device.
    :param args: arguments to be passed to the binary. The can be either a list or
           a string.
    :param in_directory:  execute the binary in the  specified directory. This must
                    be an absolute path.
-   :param on_cpus:  taskset the binary to these CPUs. This may be a single ``int`` (in which
-          case, it will be interpreted as the mask), a list of ``ints``, in which
-          case this will be interpreted as the list of cpus, or string, which
-          will be interpreted as a comma-separated list of cpu ranges, e.g.
-          ``"0,4-7"``.
+   :param on_cpus:  taskset the binary to these CPUs. This may be a single
+          ``int`` (in which case, it will be interpreted as the mask), a list of
+          ``ints``, in which case this will be interpreted as the list of cpus,
+          or string, which will be interpreted as a comma-separated list of cpu
+          ranges, e.g. ``"0,4-7"``.
    :param as_root: Specify whether the command should be run as root
 
 .. method:: Target.kick_off(command [, as_root])
@@ -361,7 +367,7 @@ Target
    multiple files at once, leaving them in their original state on exit. If one
    write fails, all the already-performed writes will be reverted as well.
 
-.. method:: Target.read_tree_values(path, depth=1, dictcls=dict, [, tar [, decode_unicode [, strip_null_char ]]]):
+.. method:: Target.read_tree_values(path, depth=1, dictcls=dict, [, tar [, decode_unicode [, strip_null_char ]]])
 
    Read values of all sysfs (or similar) file nodes under ``path``, traversing
    up to the maximum depth ``depth``.
@@ -386,7 +392,7 @@ Target
    :param decode_unicode: decode the content of tar-ed files as utf-8
    :param strip_null_char: remove null chars from utf-8 decoded files
 
-.. method:: Target.read_tree_values_flat(path, depth=1):
+.. method:: Target.read_tree_values_flat(path, depth=1)
 
    Read values of all sysfs (or similar) file nodes under ``path``, traversing
    up to the maximum depth ``depth``.
@@ -553,16 +559,35 @@ Target
     Installs an additional module to the target after the initial setup has been
     performed.
 
+Linux Target
+------------
+
+.. class:: LinuxTarget(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=SshConnection, is_container=False,)
+
+    :class:`LinuxTarget` is a subclass of :class:`~devlib.target.Target`
+    with customisations specific to a device running linux.
+
+
+Local Linux Target
+------------------
+
+.. class:: LocalLinuxTarget(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=SshConnection, is_container=False,)
+
+    :class:`LocalLinuxTarget` is a subclass of
+    :class:`~devlib.target.LinuxTarget` with customisations specific to using
+    the host machine running linux as the target.
+
 
 Android Target
 ---------------
 
 .. class:: AndroidTarget(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=AdbConnection, package_data_directory="/data/data")
 
-    :class:`AndroidTarget` is a subclass of :class:`Target` with additional features specific to a device running Android.
+    :class:`AndroidTarget` is a subclass of :class:`~devlib.target.Target` with
+    additional features specific to a device running Android.
 
-    :param package_data_directory: This is the location of the data stored
-        for installed Android packages on the device.
+    :param package_data_directory: This is the location of the data stored for
+                                   installed Android packages on the device.
 
 .. method:: AndroidTarget.set_rotation(rotation)
 
@@ -654,6 +679,7 @@ Android Target
     otherwise returns a ``TimeoutError``.
 
 .. method:: AndroidTarget.reboot_bootloader(timeout=30)
+
     Attempts to reboot the target into it's bootloader.
 
 .. method:: AndroidTarget.homescreen()
@@ -687,9 +713,9 @@ ChromeOS Target
     :class:`ChromeOsTarget` if the device supports android otherwise only the
     :class:`LinuxTarget` methods will be available.
 
-    :param working_directory: This is the location of the working
-        directory to be used for the Linux target container. If not specified will
-        default to ``"/mnt/stateful_partition/devlib-target"``.
+    :param working_directory: This is the location of the working directory to
+        be used for the Linux target container. If not specified will default to
+        ``"/mnt/stateful_partition/devlib-target"``.
 
     :param android_working_directory: This is the location of the working
         directory to be used for the android container. If not specified it will

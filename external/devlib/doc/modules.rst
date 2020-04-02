@@ -1,11 +1,13 @@
+.. module:: devlib.module
+
 .. _modules:
 
 Modules
 =======
 
-Modules add additional functionality to the core :class:`Target` interface.
-Usually, it is support for specific subsystems on the target. Modules are
-instantiated as attributes of the :class:`Target` instance.
+Modules add additional functionality to the core :class:`~devlib.target.Target`
+interface. Usually, it is support for specific subsystems on the target. Modules
+are instantiated as attributes of the :class:`~devlib.target.Target` instance.
 
 hotplug
 -------
@@ -27,6 +29,8 @@ interface to this subsystem
 
    # Make sure all cpus are online
    target.hotplug.online_all()
+
+.. module:: devlib.module.cpufreq
 
 cpufreq
 -------
@@ -132,6 +136,9 @@ policies (governors). The ``devlib`` module exposes the following interface
        ``1`` or ``"cpu1"``).
    :param frequency: Frequency to set.
 
+
+.. module:: devlib.module.cupidle
+
 cpuidle
 -------
 
@@ -167,10 +174,14 @@ cpuidle
 You can also call ``enable()`` or ``disable()`` on :class:`CpuidleState` objects
 returned by get_state(s).
 
+.. module:: devlib.module.cgroups
+
 cgroups
 -------
 
 TODO
+
+.. module:: devlib.module.hwmon
 
 hwmon
 -----
@@ -187,8 +198,8 @@ Modules implement discrete, optional pieces of functionality ("optional" in the
 sense that the functionality may or may not be present on the target device, or
 that it may or may not be necessary for a particular application).
 
-Every module (ultimately) derives from :class:`Module` class.  A module must
-define the following class attributes:
+Every module (ultimately) derives from :class:`devlib.module.Module` class.  A
+module must define the following class attributes:
 
 :name: A unique name for the module. This cannot clash with any of the existing
        names and must be a valid Python identifier, but is otherwise free-form.
@@ -204,14 +215,16 @@ define the following class attributes:
                  which case the module's ``name`` will be treated as its
                  ``kind`` as well.
 
-:stage: This defines when the module will be installed into a :class:`Target`.
-        Currently, the following values are allowed:
+:stage: This defines when the module will be installed into a
+        :class:`~devlib.target.Target`. Currently, the following values are
+        allowed:
 
         :connected: The module is installed after a connection to the target has
                     been established. This is the default.
-        :early: The module will be installed when a :class:`Target` is first
-                created. This should be used for modules that do not rely on a
-                live connection to the target.
+        :early: The module will be installed when a
+                :class:`~devlib.target.Target` is first created. This should be
+                used for modules that do not rely on a live connection to the
+                target.
         :setup: The module will be installed after initial setup of the device
                 has been performed. This allows the module to utilize assets
                 deployed during the setup stage for example 'Busybox'.
@@ -220,8 +233,8 @@ Additionally, a module must implement a static (or class) method :func:`probe`:
 
 .. method:: Module.probe(target)
 
-    This method takes a :class:`Target` instance and returns ``True`` if this
-    module is supported by that target, or ``False`` otherwise.
+    This method takes a :class:`~devlib.target.Target` instance and returns
+    ``True`` if this module is supported by that target, or ``False`` otherwise.
 
     .. note:: If the module ``stage`` is ``"early"``, this method cannot assume
               that a connection has been established (i.e. it can only access
@@ -231,9 +244,9 @@ Installation and invocation
 ***************************
 
 The default installation method will create an instance of a module (the
-:class:`Target` instance being the sole argument) and assign it to the target
-instance attribute named after the module's ``kind`` (or ``name`` if ``kind`` is
-``None``).
+:class:`~devlib.target.Target` instance being the sole argument) and assign it
+to the target instance attribute named after the module's ``kind`` (or
+``name`` if ``kind`` is ``None``).
 
 It is possible to change the installation procedure for a module by overriding
 the default :func:`install` method. The method must have the following
@@ -344,10 +357,11 @@ FlashModule
 Module Registration
 ~~~~~~~~~~~~~~~~~~~
 
-Modules are specified on :class:`Target` or :class:`Platform` creation by name.
-In order to find the class associated with the name, the module needs to be
-registered with ``devlib``. This is accomplished by passing the module class
-into :func:`register_module` method once it is defined.
+Modules are specified on :class:`~devlib.target.Target` or
+:class:`~devlib.platform.Platform` creation by name. In order to find the class
+associated with the name, the module needs to be registered with ``devlib``.
+This is accomplished by passing the module class into :func:`register_module`
+method once it is defined.
 
 .. note:: If you're wiring a module to be included as part of ``devlib`` code
           base, you can place the file with the module class under

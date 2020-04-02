@@ -3,16 +3,17 @@ Connection
 
 A :class:`Connection` abstracts an actual physical connection to a device. The
 first connection is created when :func:`Target.connect` method is called. If a
-:class:`Target` is used in a multi-threaded environment, it will maintain a
-connection for each thread in which it is invoked. This allows the same target
-object to be used in parallel in multiple threads.
+:class:`~devlib.target.Target` is used in a multi-threaded environment, it will
+maintain a connection for each thread in which it is invoked. This allows
+the same target object to be used in parallel in multiple threads.
 
 :class:`Connection`\ s will be automatically created and managed by
-:class:`Target`\ s, so there is usually no reason to create one manually.
-Instead, configuration for a :class:`Connection` is passed as
-`connection_settings` parameter when creating a :class:`Target`. The connection
-to be used target is also specified on instantiation by `conn_cls` parameter,
-though all concrete :class:`Target` implementations will set an appropriate
+:class:`~devlib.target.Target`\ s, so there is usually no reason to create one
+manually. Instead, configuration for a :class:`Connection` is passed as
+`connection_settings` parameter when creating a
+:class:`~devlib.target.Target`. The connection to be used target is also
+specified on instantiation by `conn_cls` parameter, though all concrete
+:class:`~devlib.target.Target` implementations will set an appropriate
 default, so there is typically no need to specify this explicitly.
 
 :class:`Connection` classes are not a part of an inheritance hierarchy, i.e.
@@ -76,7 +77,7 @@ class that implements the following methods.
 
    .. note:: This **will block the connection** until the command completes.
 
-.. note:: The above methods are directly wrapped by :class:`Target` methods,
+.. note:: The above methods are directly wrapped by :class:`~devlib.target.Target` methods,
           however note that some of the defaults are different.
 
 .. method:: cancel_running_command(self)
@@ -100,6 +101,9 @@ class that implements the following methods.
 Connection Types
 ----------------
 
+
+.. module:: devlib.utils.android
+
 .. class:: AdbConnection(device=None, timeout=None, adb_server=None, adb_as_root=False)
 
     A connection to an android device via ``adb`` (Android Debug Bridge).
@@ -116,6 +120,7 @@ Connection Types
     :param adb_server: Allows specifying the address of the adb server to use.
     :param adb_as_root: Specify whether the adb server should be restarted in root mode.
 
+.. module:: devlib.utils.ssh
 
 .. class:: SshConnection(host, username, password=None, keyfile=None, port=None,\
                          timeout=None, password_prompt=None, \
@@ -179,6 +184,7 @@ Connection Types
                             connection to reduce the possibility of clashes).
                             This parameter is ignored for SSH connections.
 
+.. module:: devlib.host
 
 .. class:: LocalConnection(keep_password=True, unrooted=False, password=None)
 
@@ -193,6 +199,9 @@ Connection Types
     :param password: Specify password on connection creation rather than
                      prompting for it.
 
+
+.. module:: devlib.utils.ssh
+   :noindex:
 
 .. class:: Gem5Connection(platform, host=None, username=None, password=None,\
                           timeout=None, password_prompt=None,\
@@ -212,7 +221,7 @@ Connection Types
                                will be ignored, the gem5 simulation needs to be
                                on the same host the user is currently on, so if
                                the host given as input parameter is not the
-                               same as the actual host, a ``TargetStableError``
+                               same as the actual host, a :class:`TargetStableError`
                                will be raised to prevent confusion.
 
     :param username: Username in the simulated system
@@ -238,14 +247,14 @@ The only methods discussed below are those that will be overwritten by the
 
     A connection to a gem5 simulation that emulates a Linux system.
 
-.. method:: _login_to_device(self)
+    .. method:: _login_to_device(self)
 
-    Login to the gem5 simulated system.
+        Login to the gem5 simulated system.
 
 .. class:: AndroidGem5Connection
 
     A connection to a gem5 simulation that emulates an Android system.
 
-.. method:: _wait_for_boot(self)
+    .. method:: _wait_for_boot(self)
 
-    Wait for the gem5 simulated system to have booted and finished the booting animation.
+        Wait for the gem5 simulated system to have booted and finished the booting animation.
