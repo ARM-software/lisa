@@ -509,7 +509,7 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
 
     logger.debug(' '.join(quote(part) for part in parts))
     try:
-        raw_output, _ = check_output(parts, timeout, shell=False, combined_output=True)
+        raw_output, error = check_output(parts, timeout, shell=False)
     except subprocess.CalledProcessError as e:
         raise TargetStableError(str(e))
 
@@ -529,8 +529,8 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
         if exit_code.isdigit():
             if int(exit_code):
                 message = ('Got exit code {}\nfrom target command: {}\n'
-                           'OUTPUT: {}')
-                raise TargetStableError(message.format(exit_code, command, output))
+                           'OUTPUT: {}\nSTDERR: {}\n')
+                raise TargetStableError(message.format(exit_code, command, output, error))
             elif re_search:
                 message = 'Could not start activity; got the following:\n{}'
                 raise TargetStableError(message.format(re_search[0]))
@@ -541,10 +541,10 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
             else:
                 message = 'adb has returned early; did not get an exit code. '\
                           'Was kill-server invoked?\nOUTPUT:\n-----\n{}\n'\
-                          '-----'
-                raise TargetTransientError(message.format(raw_output))
+                          '-----\nSTDERR:\n-----\n{}\n-----'
+                raise TargetTransientError(message.format(raw_output, error))
 
-    return output
+    return output + error
 
 
 def adb_background_shell(conn, command,
