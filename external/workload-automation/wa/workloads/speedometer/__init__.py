@@ -15,29 +15,30 @@
 import os
 import re
 
-from wa import UiautoWorkload, Parameter
+from wa import ApkUiautoWorkload, Parameter
 from wa.framework.exception import ValidationError, WorkloadError
 from wa.utils.types import list_of_strs
 from wa.utils.misc import unique
 
-
-class Speedometer(UiautoWorkload):
+class Speedometer(ApkUiautoWorkload):
 
     name = 'speedometer'
+    package_names = ['com.android.chrome']
     regex = re.compile(r'Speedometer Score ([\d.]+)')
     versions = ['1.0', '2.0']
     description = '''
     A workload to execute the speedometer web based benchmark
 
     Test description:
-    1. Open browser application
+    1. Open chrome
     2. Navigate to the speedometer website - http://browserbench.org/Speedometer/
     3. Execute the benchmark
 
+    known working chrome version 80.0.3987.149
     '''
 
     parameters = [
-        Parameter('version', allowed_values=versions, kind=str, default='2.0',
+        Parameter('speedometer_version', allowed_values=versions, kind=str, default='2.0',
                   description='''
                   The speedometer version to be used.
                   ''')
@@ -48,14 +49,7 @@ class Speedometer(UiautoWorkload):
     def __init__(self, target, **kwargs):
         super(Speedometer, self).__init__(target, **kwargs)
         self.gui.timeout = 1500
-        self.gui.uiauto_params['version'] = self.version
-
-    def setup(self, context):
-        super(Speedometer, self).setup(context)
-        url = 'am start -a android.intent.action.VIEW -d http://browserbench.org/Speedometer' + self.version
-        if self.version == '1.0':
-            url = 'am start -a android.intent.action.VIEW -d http://browserbench.org/Speedometer'
-        self.target.execute(url)
+        self.gui.uiauto_params['version'] = self.speedometer_version
 
     def update_output(self, context):
         super(Speedometer, self).update_output(context)
@@ -71,3 +65,4 @@ class Speedometer(UiautoWorkload):
             context.add_metric('Speedometer Score', result, 'Runs per minute', lower_is_better=False)
         else:
             raise WorkloadError("The Speedometer workload has failed. No score was obtainable.")
+

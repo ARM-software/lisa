@@ -38,16 +38,20 @@ public class UiAutomation extends BaseUiAutomation {
     private long networkTimeout =  TimeUnit.SECONDS.toMillis(networkTimeoutSecs);
     public static String TAG = "UXPERF";
     public boolean textenabled = false;
+    private String speedometerVersion;
 
     @Before
     public void initialize(){
+        Bundle params = getParams();
+        speedometerVersion = params.getString("version"); 
         initialize_instrumentation();
     }
 
     @Test
     public void setup() throws Exception{
         setScreenOrientation(ScreenOrientation.NATURAL);
-        clearFirstRun();
+         dismissChromePopup();
+         openSpeedometer();
     }
 
     @Test
@@ -61,39 +65,70 @@ public class UiAutomation extends BaseUiAutomation {
         unsetScreenOrientation();
     }
 
-    public void clearFirstRun() throws Exception {
-        UiObject accept =
-            mDevice.findObject(new UiSelector().resourceId("com.android.chrome:id/terms_accept")
-                .className("android.widget.Button"));
-        if (accept.exists()){
-            accept.click();
-            UiObject negative =
-                mDevice.findObject(new UiSelector().resourceId("com.android.chrome:id/negative_button")
-                    .className("android.widget.Button"));
-            negative.waitForExists(100000);
-            negative.click();
-        }
-    }
-
     public void runBenchmark() throws Exception {
         UiObject start =
             mDevice.findObject(new UiSelector().description("Start Test")
-                .className("android.widget.Button"));
-            if (start.waitForExists(2000)){
-                start.click();
-            } else {
-            UiObject starttext =
-                mDevice.findObject(new UiSelector().text("Start Test")
-                    .className("android.widget.Button"));
-                starttext.click();
-            }
+                   .className("android.widget.Button"));
+            
+        UiObject starttext =
+            mDevice.findObject(new UiSelector().text("Start Test")
+                   .className("android.widget.Button"));
+
+        // Run speedometer test
+        if (start.waitForExists(10000)) {
+            start.click();
+        } else {
+            starttext.click();
+        }
         UiObject scores =
             mDevice.findObject(new UiSelector().resourceId("result-number")
                 .className("android.view.View"));
         scores.waitForExists(2100000);
+        getScores(scores);
+    }
+
+    public void openSpeedometer() throws Exception {
+        UiObject urlBar =
+            mDevice.findObject(new UiSelector().resourceId("com.android.chrome:id/url_bar"));
+         
+        UiObject searchBox =  mDevice.findObject(new UiSelector().resourceId("com.android.chrome:id/search_box_text"));
+        
+        if (!urlBar.waitForExists(5000)) {
+                searchBox.click();
+        }
+
+        String url = "http://browserbench.org/Speedometer" + speedometerVersion;
+        if (speedometerVersion.equals("1.0")) {
+            url = "http://browserbench.org/Speedometer";
+        }
+        // Clicking search box turns it into url bar on some deivces
+        if(urlBar.waitForExists(2000)) {
+            urlBar.click();
+            sleep(2);
+            urlBar.setText(url);
+        } else {
+            searchBox.setText(url);
+        }
+        pressEnter();
+    }
+
+    public void getScores(UiObject scores) throws Exception {
+        boolean isScoreAvailable = false;
+        int waitAttempts = 0;
+        while (!isScoreAvailable && waitAttempts < 10) {
+            sleep(1);
+            if (!scores.getText().isEmpty() || !scores.getContentDescription().isEmpty()) {
+                isScoreAvailable = true;
+            }
+            waitAttempts++;
+        }
+        
         String textScore = scores.getText();
-        Log.d(TAG, "Speedometer Score " + textScore);
-        Log.d(TAG, "Speedometer Score " + scores.getContentDescription());
+        String descScore = scores.getContentDescription();
+        // Chrome throws loads of errors on some devices clogging up logcat so clear tabs before saving score.
+        clearTabs();
+        Log.i(TAG, "Speedometer Score " + textScore);
+        Log.i(TAG, "Speedometer Score " + descScore);      
     }
 
     public void clearTabs() throws Exception {
