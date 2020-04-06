@@ -1,21 +1,58 @@
-.. _wltest-doc:
+.. _workload_automation-doc:
 
-******
+*******************
+Workload Automation
+*******************
+
+Workload Automation is an external framework, designed to run workloads and
+collect measurements on Android and Linux devices.
+
+See https://github.com/ARM-software/workload-automation
+
+Workload Automation is integrated with LISA:
+
+  1. Installed by default in the LISA environment.
+  2. :class:`~lisa.wa.WAOutput`, for parsing the measurement collected during a WA run.
+  3. ``lisa-wltest-series`` to run WA on multiple kernels to compare them.
+
+
+Running WA from the LISA's environment
+======================================
+
+Once the LISA's environment is setup, Workload Automation will be available
+without any further configuration.
+
+.. code-block:: sh
+
+  $ source init_env
+  $ wa run <workload|agenda> -d output/
+
+See the `Workload Automation documentation
+<https://workload-automation.readthedocs.io/en/latest/user_information.html#user-guide>`_
+for more informations.
+
+WAOutput
+========
+
+The output of Workload Automation can be parsed using the
+:class:`lisa.wa.WAOutput` class. The results is a :class:`pandas.DataFrame`,
+which can also be plotted. See the classe's documentation for examples.
+
 Wltest
-******
+======
 
-Wltest enables the comparison of power and performance impacts of kernel
-changes on Android devices. Wltest takes a list of kernel commits as input,
-build and flashes each one on a device, and runs a `workload-automation` agenda
-in order to collect power and performance metrics. After the execution, the
-results can be parsed and analyized using the ipython agenda provided in Lisa
-under ``ipynb/wltests/sched-evaluation-full.ipynb``
+Wltest enables the comparison of power and performance impacts of kernel changes
+on Android devices. Wltest takes a list of kernel commits as input, build and
+flashes each one on a device, and runs a `workload-automation` agenda in order
+to collect power and performance metrics. After the execution, the results can
+be parsed and analyized using the ipython agenda provided in Lisa under
+``ipynb/wltests/sched-evaluation-full.ipynb``
 
 The ``lisa-wltest-series --help`` command provides the full list of parameters
 for wltest.
 
 Target types
-============
+------------
 
 Wltests supports two types of targets:
 

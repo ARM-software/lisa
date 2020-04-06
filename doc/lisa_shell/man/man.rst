@@ -93,7 +93,7 @@ Test commands
    Example: ``lisa-test 'OneSmallTask*' --list``
 
 
-* ``lisa-wltest-series``    - See :ref:`wltest main documentation<wltest-doc>`
+* ``lisa-wltest-series``    - See :ref:`wltest main documentation<workload_automation-doc>`
 * ``exekall``               - See :ref:`exekall main documentation<exekall-doc>`
 * ``bisector``              - See :ref:`bisector main documentation<bisector-doc>`
 
