@@ -730,7 +730,7 @@ class BoolFromStringInstance(FromString, types=bool):
             * ``0``, ``n``, ``false``
             * ``1``, ``y``, ``true``
         """
-        string = string.lower().strip()
+        string = string.casefold().strip()
         if string in ('0', 'n', 'false'):
             return False
         elif string in ('1', 'y', 'true'):

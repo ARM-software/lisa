@@ -111,7 +111,7 @@ class FunctionsAnalysis(AnalysisHelpers):
             if metric.upper() == 'TIME':
                 title = 'Total Execution Time per CPUs'
                 ylabel = 'Execution Time [us]'
-            data = df[metric.lower()].unstack()
+            data = df[metric.casefold()].unstack()
             data.plot(kind='bar',
                      ax=axis, figsize=(16, 8), legend=True,
                      title=title, table=True)

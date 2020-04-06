@@ -174,7 +174,7 @@ def is_test(method):
         return False
     else:
         return any(
-            'result' in cls.__qualname__.lower()
+            'result' in cls.__qualname__.casefold()
             for cls in base_cls_list
         )
 
