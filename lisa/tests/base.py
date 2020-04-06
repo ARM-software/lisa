@@ -1236,8 +1236,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         for key, threshold in self.NOISE_ACCOUNTING_THRESHOLDS.items():
             # Find out which task(s) this threshold is about
             if isinstance(key, str):
-                comms = [comm for comm in df.comm.values if re.match(key, comm)]
-                task_ids = [self.trace.get_task_id(comm) for comm in comms]
+                comms = df.loc[df['comm'].str.match(key), 'comm']
+                task_ids = comms.apply(self.trace.get_task_id)
             else:
                 # Use update=False to let None fields propagate, as they are
                 # used to indicate a "dont care" value
