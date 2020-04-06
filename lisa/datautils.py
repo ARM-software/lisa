@@ -978,7 +978,7 @@ def series_local_extremum(series, kind):
     else:
         raise ValueError('Unsupported kind: {}'.format(kind))
 
-    ilocs = scipy.signal.argrelextrema(series.values, comparator=comparator)
+    ilocs = scipy.signal.argrelextrema(series.to_numpy(), comparator=comparator)
     return series.iloc[ilocs]
 
 
@@ -1042,7 +1042,7 @@ def series_rolling_apply(series, func, window, window_float_index=True, center=F
 
     # Use a timedelta index so that rolling gives time-based results
     index = pd.to_timedelta(orig_index, unit='s')
-    series = pd.Series(series.values, index=index)
+    series = pd.Series(series.array, index=index)
 
     window_ns = int(window * 1e9)
     rolling_window = '{}ns'.format(window_ns)
@@ -1166,7 +1166,7 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
     """
 
     def increment(series):
-        return pd.Series(np.nextafter(series.values, math.inf), index=series.index)
+        return pd.Series(np.nextafter(series.array, math.inf), index=series.index)
 
     def get_duplicated(series):
         # Keep the first, so we update the second duplicates

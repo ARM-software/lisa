@@ -94,7 +94,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
             except MissingTraceEventError:
                 continue
             else:
-                for pid, name in df[['__pid', '__comm']].drop_duplicates().values:
+                for pid, name in df[['__pid', '__comm']].drop_duplicates():
                     task_ids.add(TaskID(pid, name))
 
         return sorted(task_ids)
