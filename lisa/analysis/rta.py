@@ -95,7 +95,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
                 continue
             else:
                 task_ids.update(
-                    df[['__pid', '__comm']].drop_duplicates().transform(
+                    df[['__pid', '__comm']].drop_duplicates().apply(
                         lambda row: TaskID(pid=row['__pid'], comm=row['__comm']),
                         axis=1,
                     )
