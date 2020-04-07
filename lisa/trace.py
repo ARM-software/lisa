@@ -1759,6 +1759,7 @@ class Trace(Loggable, TraceBase):
                 available_events=self.available_events,
             )
 
+        df.name = event
         return df
 
     def _make_raw_pd_desc(self, event):
