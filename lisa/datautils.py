@@ -1215,7 +1215,7 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
 
 
 @DataFrameAccessor.register_accessor
-def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, inplace=False):
+def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, prune=True, inplace=False):
     """
     Combine the duplicated rows using ``func`` and remove the duplicates.
 
@@ -1224,9 +1224,17 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, inplace
 
     :param func: Function to combine a group of duplicates. It will be passed a
         :class:`pandas.DataFrame` corresponding to the group and must return
-        either a series or a scalar value that will be broadcast to
-        ``output_col``.
+        either a :class:`pandas.Series` with the same index as its input dataframe,
+        or a scalar depending on the value of ``prune``.
     :type func: collections.abc.Callable
+
+    :param prune: If ``True``, ``func`` will be expected to return a single
+        scalar that will be used instead of a whole duplicated group. Only the
+        first row of the group is kept, the other ones are removed.
+
+        If ``False``, ``func`` is expected to return a :class:`pandas.Series`
+        that will be used as replacement for the group. No rows will be removed.
+    :type prune: bool
 
     :param output_col: Column in which the output of ``func`` should be stored.
     :type output_col: str
@@ -1247,7 +1255,7 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, inplace
     # Find all rows where the active status is the same as the previous one
     duplicates_to_remove = ~_data_find_unique_bool_vector(df, cols, all_col, keep='first')
     # Then get only the first row in a run of duplicates
-    first_duplicates = (~duplicates_to_remove) & duplicates_to_remove.shift(-1, fill_value=True)
+    first_duplicates = (~duplicates_to_remove) & duplicates_to_remove.shift(-1, fill_value=False)
     # We only kept them separate with keep='first' to be able to detect
     # correctly the beginning of a duplicate run to get a group ID, so now we
     # merge them
@@ -1265,9 +1273,9 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, inplace
     # Apply the function to each group, and assign the result to the output
     # Note that we cannot use GroupBy.transform() as it currently cannot handle
     # NaN groups.
-    output = df.groupby('duplicate_group', sort=False).apply(func)
+    output = df.groupby('duplicate_group', sort=False, as_index=True, group_keys=False, observed=True).apply(func)
     if not output.empty:
-        init_df[output_col] = output
+        init_df[output_col].update(output)
 
     # Ensure the column is created if it does not exists yet
     try:
@@ -1284,13 +1292,19 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, inplace
         else:
             init_df[output_col].fillna(fill, inplace=True)
 
-    # Only keep the first row of each duplicate run
-    if inplace:
-        removed_indices = duplicates_to_remove[duplicates_to_remove].index
-        init_df.drop(removed_indices, inplace=True)
-        return None
+    if prune:
+        # Only keep the first row of each duplicate run
+        if inplace:
+            removed_indices = duplicates_to_remove[duplicates_to_remove].index
+            init_df.drop(removed_indices, inplace=True)
+            return None
+        else:
+            return init_df.loc[~duplicates_to_remove]
     else:
-        return init_df.loc[~duplicates_to_remove]
+        if inplace:
+            return None
+        else:
+            return init_df
 
 
 @DataFrameAccessor.register_accessor
