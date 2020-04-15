@@ -1357,6 +1357,9 @@ class Trace(Loggable, TraceBase):
             * the name of the event
             * a dataframe of the raw event
             * a dictionary of aspects to sanitize
+
+        These functions *must not* modify their input dataframe under any
+        circumstances. They are required to make copies where appropriate.
     :type sanitization_functions: dict(str, collections.abc.Callable) or None
 
     :param max_mem_size: Maximum memory usage to be used for dataframe cache.
@@ -2321,6 +2324,9 @@ class Trace(Loggable, TraceBase):
 
     _SANITIZATION_FUNCTIONS = {}
     def _sanitize_event(event, mapping=_SANITIZATION_FUNCTIONS):
+        """
+        Sanitization functions must not modify their input.
+        """
         def decorator(f):
             mapping[event] = f
             return f
@@ -2345,8 +2351,10 @@ class Trace(Loggable, TraceBase):
         If necessary, rename certain signal names from v5.0 to v5.1 format.
         """
         if aspects['rename_cols'] and 'utilization' in df:
-            df.rename(columns={'utilization': 'util_avg'}, inplace=True)
-            df.rename(columns={'load': 'load_avg'}, inplace=True)
+            df = df.rename(columns={
+                'utilization': 'util_avg',
+                'load': 'load_avg',
+            }, copy=False)
 
         return df
 
@@ -2356,12 +2364,13 @@ class Trace(Loggable, TraceBase):
         If necessary, rename certain signal names from v5.0 to v5.1 format.
         """
         if aspects['rename_cols'] and 'utilization' in df:
-            df.rename(columns={'utilization': 'util_avg'}, inplace=True)
-            df.rename(columns={'load': 'load_avg'}, inplace=True)
-            df.rename(columns={'avg_period': 'period_contrib'}, inplace=True)
-            df.rename(columns={'runnable_avg_sum': 'load_sum'}, inplace=True)
-            df.rename(columns={'running_avg_sum': 'util_sum'}, inplace=True)
-
+            df = df.rename(columns={
+                'utilization': 'util_avg',
+                'load': 'load_avg',
+                'avg_period': 'period_contrib',
+                'runnable_avg_sum': 'load_sum',
+                'running_avg_sum': 'util_sum',
+            }, copy=False)
         return df
 
     @_sanitize_event('sched_boost_cpu')
@@ -2372,6 +2381,8 @@ class Trace(Loggable, TraceBase):
         Also, if necessary, rename certain signal names from v5.0 to v5.1
         format.
         """
+        df = df.copy(deep=False)
+
         if aspects['rename_cols'] and 'usage' in df:
             df.rename(columns={'usage': 'util'}, inplace=True)
         df['boosted_util'] = df['util'] + df['margin']
@@ -2385,6 +2396,8 @@ class Trace(Loggable, TraceBase):
         Also, if necessary, rename certain signal names from v5.0 to v5.1
         format.
         """
+        df = df.copy(deep=False)
+
         if aspects['rename_cols'] and 'utilization' in df:
             # Convert signals name from to v5.1 format
             df.rename(columns={'utilization': 'util'}, inplace=True)
@@ -2397,11 +2410,11 @@ class Trace(Loggable, TraceBase):
         Convert between existing field name formats for sched_energy_diff
         """
         if aspects['rename_cols']:
-            translations = {'nrg_d': 'nrg_diff',
-                            'utl_d': 'usage_delta',
-                            'payoff': 'nrg_payoff'
-            }
-            df.rename(columns=translations, inplace=True)
+            df = df.rename(columns={
+                'nrg_d': 'nrg_diff',
+                'utl_d': 'usage_delta',
+                'payoff': 'nrg_payoff',
+            }, copy=False)
 
         return df
 
@@ -2413,17 +2426,17 @@ class Trace(Loggable, TraceBase):
             # Replace '00000000,0000000f' format in more usable int
             return int(mask.replace(',', ''), 16)
 
+        df = df.copy(deep=False)
         df['cpus'] = df['cpus'].apply(f)
         return df
 
     @_sanitize_event('cpu_frequency')
     def _sanitize_cpu_frequency(self, event, df, aspects):
         if aspects['rename_cols']:
-            names = {
+            df = df.rename(columns={
                 'cpu_id': 'cpu',
                 'state': 'frequency'
-            }
-            df.rename(columns=names, inplace=True)
+            }, copy=False)
 
         return df
 
@@ -2440,6 +2453,7 @@ class Trace(Loggable, TraceBase):
             self.get_logger().warning('Missing symbol addresses, function names will not be resolved: {}'.format(e))
             return df
         else:
+            df = df.copy(deep=False)
             df['func_name'] = df['func'].map(addr_map)
             return df
 
