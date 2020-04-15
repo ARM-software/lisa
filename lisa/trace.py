@@ -2326,6 +2326,19 @@ class Trace(Loggable, TraceBase):
             return f
         return decorator
 
+    @_sanitize_event('sched_switch')
+    def _sanitize_sched_switch(self, event, df, aspects):
+        """
+        If ``prev_state`` is a string, turn it back into an integer state by
+        parsing it.
+        """
+        if df['prev_state'].dtype.name == 'string':
+            # Avoid circular dependency issue by importing at the last moment
+            from lisa.analysis.tasks import TaskState
+            df = df.copy(deep=False)
+            df['prev_state'] = df['prev_state'].apply(TaskState.from_sched_switch_str).astype('uint16', copy=False)
+        return df
+
     @_sanitize_event('sched_load_avg_cpu')
     def _sanitize_load_avg_cpu(self, event, df, aspects):
         """

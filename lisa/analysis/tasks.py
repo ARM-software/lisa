@@ -121,6 +121,22 @@ class TaskState(StateInt, Enum):
 
         return res
 
+    @classmethod
+    def from_sched_switch_str(cls, string):
+        """
+        Build a :class:`StateInt` from a string as it would be used in
+        ``sched_switch`` event's ``prev_state`` field.
+
+        :param string: String to parse.
+        :type string: str
+        """
+        state = 0
+        for _state in cls:
+            if _state.char in string:
+                state |= _state
+
+        return state
+
 
 class TasksAnalysis(TraceAnalysisBase):
     """
