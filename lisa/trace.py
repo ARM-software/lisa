@@ -1474,7 +1474,7 @@ class Trace(Loggable, TraceBase):
         self.events = events
         # Pre-load the selected events
         if events:
-            self._load_raw_df_map(events, write_swap=True, allow_missing_events=not self._strict_events)
+            self._load_cache_raw_df(events, write_swap=True, allow_missing_events=not self._strict_events)
 
     @property
     def trace_state(self):
@@ -1790,7 +1790,7 @@ class Trace(Loggable, TraceBase):
         if write_swap is None:
             write_swap = self._write_swap
 
-        df = self._load_raw_df_map([event], write_swap=True)[event]
+        df = self._load_cache_raw_df([event], write_swap=True)[event]
 
         if sanitization_f:
             # Evict the raw dataframe once we got the sanitized version, since
@@ -1831,7 +1831,7 @@ class Trace(Loggable, TraceBase):
         self._cache.insert(pd_desc, df, compute_cost=compute_cost, write_swap=write_swap)
         return df
 
-    def _load_raw_df_map(self, events, write_swap, allow_missing_events=False):
+    def _load_cache_raw_df(self, events, write_swap, allow_missing_events=False):
         insert_kwargs = dict(
             write_swap=write_swap,
             # For raw dataframe, always write in the swap area if asked for
@@ -1865,7 +1865,7 @@ class Trace(Loggable, TraceBase):
 
         # Load the remaining events from the trace directly
         events_to_load = sorted(set(events) - from_cache.keys())
-        from_trace = self._parse_raw_events(events_to_load)
+        from_trace = self._load_raw_df(events_to_load)
 
         for event, df in from_trace.items():
             pd_desc = self._make_raw_pd_desc(event)
@@ -1884,7 +1884,7 @@ class Trace(Loggable, TraceBase):
 
         return df_map
 
-    def _parse_raw_events_df(self, events):
+    def _parse_raw_events(self, events):
         internal_trace = self._get_trace(events)
 
         mapping = {}
@@ -1911,11 +1911,11 @@ class Trace(Loggable, TraceBase):
 
         return mapping
 
-    def _parse_raw_events(self, events):
+    def _load_raw_df(self, events):
         if not events:
             return {}
 
-        df_map = self._parse_raw_events_df(events)
+        df_map = self._parse_raw_events(events)
 
         # remember the events that we tried to parse and that turned out to not be available
         self._parsed_events.update({
