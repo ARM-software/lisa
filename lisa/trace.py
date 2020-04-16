@@ -1915,34 +1915,7 @@ class Trace(Loggable, TraceBase):
         if not events:
             return {}
 
-        def chunk_list(l, nr_chunks):
-            l_len = len(l)
-            n = l_len // nr_chunks
-            if not n:
-                return l
-            else:
-                return [
-                    l[i:i + n]
-                    for i in range(0, l_len, n)
-                ]
-
-        nr_processes = os.cpu_count()
-        parallel_parse = len(events) > 2
-        # Parallel parsing with Trappy just slows things down at the moment so
-        # disable it until we can experiment with other parsers which might
-        # exhibit different behaviors
-        parallel_parse = False
-        if parallel_parse:
-            chunked_events = chunk_list(events, nr_processes)
-            df_map = {}
-            with multiprocessing.Pool(processes=nr_processes) as pool:
-                for df_map_ in pool.map(self._parse_raw_events_df, chunked_events):
-                    df_map.update({
-                        event: df
-                        for event, df in df_map_.items()
-                    })
-        else:
-            df_map = self._parse_raw_events_df(events)
+        df_map = self._parse_raw_events_df(events)
 
         # remember the events that we tried to parse and that turned out to not be available
         self._parsed_events.update({
