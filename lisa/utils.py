@@ -867,6 +867,41 @@ def deduplicate(seq, keep_last=True, key=lambda x: x):
     return list(reorder(dedup.values()))
 
 
+def take(n, iterable):
+    """
+    Yield the first ``n`` items of an iterator, if ``n`` positive, or last
+    items otherwise.
+
+    Yield nothing if the iterator is empty.
+    """
+    if not n:
+        return
+
+    if n > 0:
+        yield from itertools.islice(iterable, n)
+    else:
+        # Inspired from:
+        # https://docs.python.org/3/library/itertools.html#itertools-recipes
+        n = abs(n)
+        yield from iter(collections.deque(iterable, maxlen=n))
+
+
+def consume(n, iterator):
+    """
+    Advance the iterator n-steps ahead. If ``n`` is None, consume entirely.
+    """
+    # Inspired from:
+    # https://docs.python.org/3/library/itertools.html#itertools-recipes
+
+    # Use functions that consume iterators at C speed.
+    if n is None:
+        # feed the entire iterator into a zero-length deque
+        collections.deque(iterator, maxlen=0)
+    else:
+        # advance to the empty slice starting at position n
+        next(itertools.islice(iterator, n, n), None)
+
+
 def get_nested_key(mapping, key_path, getitem=operator.getitem):
     """
     Get a key in a nested mapping
