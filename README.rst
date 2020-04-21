@@ -81,14 +81,18 @@ External Links
 ==============
 
 -  Linux Integrated System Analysis (LISA) & Friends
-   `Slides <http://events.linuxfoundation.org/sites/events/files/slides/ELC16_LISA_20160326.pdf>`__
-   and `Video <https://www.youtube.com/watch?v=yXZzzUEngiU>`__
+   `Slides <http://events17.linuxfoundation.org/sites/events/files/slides/ELC16_LISA_20160326.pdf>`__
+   and `Video <https://www.youtube.com/watch?v=zRlqwurYq5Y>`__
+   ..
+     video title: LAS16-TR04: Using Tracing to tune and optimize EAS English
 
    Note: the LISA classes referred by the slides are outdated, but all
    the other concepts and the overall architecture stays the same.
 
 -  Some insights on what it takes to have reliable tests:
-   `Video <https://www.youtube.com/watch?v=I_MZ9XS3_zc&t=7s>`__
+   `Video <https://www.youtube.com/watch?v=I_MZ9XS3_zc>`__
+    ..
+      video title: Scheduler behavioural testing
 
 License
 =======
@@ -96,7 +100,7 @@ License
 This project is licensed under Apache-2.0.
 
 This project includes some third-party code under other open source
-licenses. For more information, see ``tools/LICENSE.*``.
+licenses. For more information, see ``lisa/assets/binaries/*/README.*``.
 
 Contributions / Pull Requests
 =============================
