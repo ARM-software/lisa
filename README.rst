@@ -83,6 +83,7 @@ External Links
 -  Linux Integrated System Analysis (LISA) & Friends
    `Slides <http://events17.linuxfoundation.org/sites/events/files/slides/ELC16_LISA_20160326.pdf>`__
    and `Video <https://www.youtube.com/watch?v=zRlqwurYq5Y>`__
+
    ..
      video title: LAS16-TR04: Using Tracing to tune and optimize EAS English
 
@@ -91,6 +92,7 @@ External Links
 
 -  Some insights on what it takes to have reliable tests:
    `Video <https://www.youtube.com/watch?v=I_MZ9XS3_zc>`__
+
     ..
       video title: Scheduler behavioural testing
 
