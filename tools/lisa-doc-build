@@ -75,4 +75,5 @@ done
 
 echo "Man pages have been updated and the main documentation can be found under: $LISA_HOME/doc/_build/html/index.html"
 
+[[ $ret = 0 ]] || echo "ERROR: some non-ignore warnings appeared during the build"
 exit $ret
