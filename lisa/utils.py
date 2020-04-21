@@ -1711,7 +1711,7 @@ def get_sphinx_name(obj, style=None, abbrev=False):
 
 
 
-def newtype(cls, name):
+def newtype(cls, name, module=None):
     """
     Make a new class inheriting from ``cls`` with the given ``name``.
 
@@ -1727,6 +1727,14 @@ def newtype(cls, name):
 
     New.__name__ = name.split('.')[-1]
     New.__qualname__ = name
+
+    if module is None:
+        try:
+            module = sys._getframe(1).f_globals.get('__name__', '__main__')
+        except Exception:
+            module = cls.__module__
+    New.__module__ = module
+
     return New
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
