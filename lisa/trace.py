@@ -144,7 +144,7 @@ class TaskIDListFromStringInstance(FromString, types=TypedList[TaskID]):
         return 'comma-separated TaskIDs'
 
 
-CPU = newtype(int, 'CPU')
+CPU = newtype(int, 'CPU', doc='Alias to ``int`` used for CPU IDs')
 
 
 class CPUListFromStringInstance(FromString, types=TypedList[CPU]):

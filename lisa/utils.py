@@ -1711,9 +1711,22 @@ def get_sphinx_name(obj, style=None, abbrev=False):
 
 
 
-def newtype(cls, name, module=None):
+def newtype(cls, name, doc=None, module=None):
     """
     Make a new class inheriting from ``cls`` with the given ``name``.
+
+    :param cls: Class to inherit from.
+    :type cls: type
+
+    :param name: Qualified name of the new type.
+    :type name: str
+
+    :param doc: Content of docstring to assign to the new type.
+    :type doc: str or None
+
+    :param module: Module name to assign to ``__module__`` attribute of the new
+        type. By default, it's inferred from the caller of :func:`newtype`.
+    :type module: str or None
 
     The instances of ``cls`` class will be recognized as instances of the new
     type as well using ``isinstance``.
@@ -1734,6 +1747,7 @@ def newtype(cls, name, module=None):
         except Exception:
             module = cls.__module__
     New.__module__ = module
+    New.__doc__ = doc
 
     return New
 
