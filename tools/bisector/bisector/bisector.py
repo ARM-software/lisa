@@ -4058,7 +4058,7 @@ def get_dbus_bus():
 
 def dbus_variant(v):
     """
-    Build a :class:`gi.repository.Glib.Variant` instance out of a Python
+    Build a :class:`gi.repository.GLib.Variant` instance out of a Python
     object.
     """
     if isinstance(v, str):
