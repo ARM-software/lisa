@@ -22,10 +22,10 @@ from collections.abc import Mapping
 
 from lisa.utils import HideExekallID, group_by_value, memoized
 from lisa.conf import (
-    DeferredValue, TypedDict, TypedList, SortedTypedList,
-    MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, DerivedKeyDesc,
-    ConfigKeyError,
+    DeferredValue, MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc,
+    DerivedKeyDesc, ConfigKeyError,
 )
+from lisa.generic import TypedDict, TypedList, SortedTypedList
 from lisa.energy_model import EnergyModel
 from lisa.wlgen.rta import RTA
 
@@ -112,7 +112,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         KeyDesc('os', 'OS being used, e.g. "linux"', [str]),
         KeyDesc('name', 'Free-form name of the board', [str]),
         KeyDesc('cpus-count', 'Number of CPUs', [int]),
-        KeyDesc('numa-nodes-count', 'Number of NUMA nodes', [int]),        
+        KeyDesc('numa-nodes-count', 'Number of NUMA nodes', [int]),
 
         KeyDesc('freq-domains',
                 'Frequency domains modeled by a list of CPU IDs for each domain',

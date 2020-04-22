@@ -24,7 +24,7 @@ import numpy as np
 from lisa.datautils import series_integrate, df_split_signals, series_combine, df_add_delta, df_refit_index
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, CPU
-from lisa.conf import TypedList
+from lisa.generic import TypedList
 
 
 class IdleAnalysis(TraceAnalysisBase):
