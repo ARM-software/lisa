@@ -49,6 +49,7 @@ for name, obj in vars(unittest).items():
         pass
 
 # This is a hack to prevent :ivar: docs from attempting to create a reference
+# https://github.com/sphinx-doc/sphinx/issues/2549
 # Credit goes to https://stackoverflow.com/a/41184353/5096023
 
 
