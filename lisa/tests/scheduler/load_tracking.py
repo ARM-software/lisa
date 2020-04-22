@@ -127,7 +127,8 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
     }
     """
     The cpufreq configuration used while the synthetic workload is being run.
-    Items are arguments to :meth:`devlib.cpufreq.use_governor`.
+    Items are arguments to
+    :meth:`devlib.module.cpufreq.CpufreqModule.use_governor`.
     """
 
     @classmethod

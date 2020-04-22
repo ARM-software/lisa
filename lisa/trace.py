@@ -2936,7 +2936,7 @@ class CollectorBase(Loggable):
 
 class FtraceCollector(CollectorBase, Configurable):
     """
-    Thin wrapper around :class:`devlib.FtraceCollector`.
+    Thin wrapper around :class:`devlib.collector.ftrace.FtraceCollector`.
 
     {configurable_params}
     """

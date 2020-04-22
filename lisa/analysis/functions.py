@@ -28,7 +28,7 @@ class FunctionsAnalysis(AnalysisHelpers):
     Support for kernel functions profiling and analysis
 
     :param stats_path: Path to JSON function stats as returned by devlib
-        :meth:`devlib.FtraceCollector.get_stats`
+        :meth:`devlib.collector.ftrace.FtraceCollector.get_stats`
     :type stats_path: str
     """
 
