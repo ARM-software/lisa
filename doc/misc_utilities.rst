@@ -25,6 +25,12 @@ Utilities
 .. automodule:: lisa.utils
    :members:
 
+Generic types
+=============
+
+.. automodule:: lisa.generic
+   :members:
+
 Typeclasses
 ===========
 

@@ -28,7 +28,7 @@ from lisa.utils import memoized
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates
 from lisa.trace import requires_events, TaskID, CPU
 from lisa.pelt import PELT_SCALE
-from lisa.conf import TypedList
+from lisa.generic import TypedList
 
 
 class StateInt(int):

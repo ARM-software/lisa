@@ -51,8 +51,9 @@ from lisa.utils import (
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
 from lisa.conf import (
-    SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, TypedList,
+    SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc,
 )
+from lisa.generic import TypedList
 from lisa.pelt import PELT_SCALE
 
 

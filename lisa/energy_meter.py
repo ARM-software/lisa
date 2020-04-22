@@ -39,8 +39,9 @@ import devlib
 from lisa.utils import Loggable, get_subclasses, ArtifactPath, HideExekallID
 from lisa.datautils import series_integrate
 from lisa.conf import (
-    SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable, TypedList,
+    SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable,
 )
+from lisa.generic import TypedList
 from lisa.target import Target
 
 # Default energy measurements for each board

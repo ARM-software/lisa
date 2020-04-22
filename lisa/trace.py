@@ -52,7 +52,8 @@ from devlib.target import KernelVersion
 
 import lisa.utils
 from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate, nullcontext, measure_time, checksum, newtype
-from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, TypedList, Configurable
+from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
+from lisa.generic import TypedList
 from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta
 from lisa.version import VERSION_TOKEN
 from lisa.typeclass import FromString, IntListFromStringInstance

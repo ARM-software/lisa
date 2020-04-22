@@ -46,7 +46,7 @@ from IPython.display import display
 from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython, nullcontext, measure_time
 from lisa.trace import MissingTraceEventError, PandasDataDesc
 from lisa.notebook import axis_link_dataframes, axis_cursor_delta, WrappingHBox
-from lisa.conf import TypedList
+from lisa.generic import TypedList
 
 # Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
 COLOR_CYCLES = [
