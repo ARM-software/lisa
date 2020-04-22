@@ -266,17 +266,36 @@ def resolve_dotted_name(name):
     return getattr(mod, callable_name)
 
 
-def import_all_submodules(pkg):
-    """Import all submodules of a given package."""
-    return _import_all_submodules(pkg.__name__, pkg.__path__)
+def import_all_submodules(pkg, best_effort=False):
+    """
+    Import all submodules of a given package.
+
+    :param pkg: Package to import.
+    :type pkg: types.ModuleType
+
+    :param best_effort: If ``True``, modules in the hierarchy that cannot be
+        imported will be silently skipped.
+    :type best_effort: bool
+    """
+    return _import_all_submodules(pkg.__name__, pkg.__path__, best_effort)
 
 
-def _import_all_submodules(pkg_name, pkg_path):
-    return [
-        importlib.import_module(module_name)
-        for finder, module_name, is_pkg
-        in pkgutil.walk_packages(pkg_path, prefix=pkg_name + '.')
-    ]
+def _import_all_submodules(pkg_name, pkg_path, best_effort=False):
+    modules = []
+    for finder, module_name, is_pkg in (
+        pkgutil.walk_packages(pkg_path, prefix=pkg_name + '.')
+    ):
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError:
+            if best_effort:
+                pass
+            else:
+                raise
+        else:
+            modules.append(module)
+
+    return modules
 
 
 class UnknownTagPlaceholder:
