@@ -25,37 +25,7 @@ cd "$LISA_HOME/doc" || exit 1
 # Build the main documentation
 ##############################
 
-# The documentation of those modules causes some issues,
-# be permissive for warnings related to them
-#
-# CONSIDER UPDATING nitpick_ignore in doc/conf.py before adding anything here
-IGNORE_PATTERN="TypedList|TypedDict"
-
-make SPHINXOPTS='-n --no-color' html 2>doc_build.log
-log=$(cat doc_build.log)
-warns=$(cat doc_build.log | grep -E '(WARNING|Exception occurred)' --color=always | grep -E -w -v "$IGNORE_PATTERN")
-ignored_warns=$(cat doc_build.log | grep WARNING | grep --color=always -E -w "$IGNORE_PATTERN")
-
-echo
-
-echo "Documentation build warnings:"
-echo
-if [ -n "$warns" ]; then
-    echo "Warnings to fix:"
-    echo
-    echo "$warns"
-    echo
-    ret=1
-else
-    echo "Ignored warnings:"
-    echo
-    echo "$ignored_warns"
-fi
-
-echo
-echo "Sphinx log:"
-echo
-echo "$log"
+make SPHINXOPTS='-n --no-color' html || ret=1
 
 echo
 echo "Building man pages"
