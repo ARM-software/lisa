@@ -1752,9 +1752,22 @@ def newtype(cls, name, doc=None, module=None):
     return New
 
 
-SPHINX_NITPICK_IGNORE = []
-"""
-List of nitpick ignore entries to be populated that class creating type names
-that cannot be resolved and therefore cross referenced.
-"""
+_SPHINX_NITPICK_IGNORE = set()
+def sphinx_register_nitpick_ignore(x):
+    """
+    Register an object with a name that cannot be resolved and therefore cross
+    referenced by Sphinx.
+
+    .. seealso:: https://www.sphinx-doc.org/en/master/usage/configuration.html#confval-nitpick_ignore
+    """
+    _SPHINX_NITPICK_IGNORE.add(x)
+
+def sphinx_nitpick_ignore():
+    """
+    Set of objects to ignore without warning when cross referencing in Sphinx.
+    """
+    # Make sure the set is populated
+    import_all_submodules(lisa)
+    return _SPHINX_NITPICK_IGNORE
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
