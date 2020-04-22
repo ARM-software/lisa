@@ -100,6 +100,11 @@ RTD = (os.getenv('READTHEDOCS') == 'True')
 
 # For ReadTheDocs only: source init_env and get all env var defined by it.
 if RTD:
+    # RTD makes a shallow clone by default, so make sure to have the whole
+    # history to be able to generate breaking change list and any other
+    # git-based documentation
+    subprocess.check_call(['git', 'fetch', '--unshallow'])
+
     source_env = {
         **os.environ,
         # LISA_USE_VENV=0 will avoid re-installing LISA automatically,
