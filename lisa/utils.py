@@ -15,6 +15,15 @@
 # limitations under the License.
 #
 
+
+"""
+Miscellaneous utilities that don't fit anywhere else.
+
+Also used as a home for everything that would create cyclic dependency issues
+between modules if they were hosted in their "logical" module. This is mostly
+done for secondary utilities that are not used often.
+"""
+
 import hashlib
 import zlib
 import time
