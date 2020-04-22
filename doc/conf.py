@@ -20,6 +20,10 @@ import unittest
 import textwrap
 import json
 import functools
+import inspect
+import importlib
+import types
+import contextlib
 
 from docutils import nodes
 from sphinx.util.docfields import TypedField
@@ -32,10 +36,10 @@ sys.path.insert(0, os.path.abspath('../'))
 
 # Import our packages after modifying sys.path
 import lisa
-from lisa.utils import LISA_HOME
+from lisa.utils import LISA_HOME, import_all_submodules
 from lisa.doc.helpers import (
     autodoc_process_test_method, autodoc_process_analysis_events,
-    autodoc_process_analysis_plots, DocPlotConf,
+    autodoc_process_analysis_plots, DocPlotConf, get_xref_type,
 )
 
 # This ugly hack is required because by default TestCase.__module__ is
@@ -397,6 +401,93 @@ autodoc_default_options = {
 }
 autodoc_inherit_docstrings = True
 
+
+def nitpick_ignore_module(module):
+    mod_prefix = ('{}.'.format(module.__name__))
+
+    class ContinueException(Exception):
+        pass
+
+    def get_xref(module, name, x):
+        # We don't want to ignore "foreign" modules
+        if (
+            isinstance(x, types.ModuleType) and
+            not x.__name__.startswith(mod_prefix)
+        ):
+            raise ContinueException
+
+        try:
+            reftype = get_xref_type(x)
+        except ValueError:
+            raise ContinueException
+        else:
+            # Re-exported names would have the __module__ set to the module
+            # they are defined in
+            try:
+                mod = x.__module__
+            # Otherwise, assume it was defined in that module
+            except AttributeError:
+                mod = module.__name__
+            else:
+                # We don't want to ignore "foreign" classes that happened
+                # to be imported there
+                if mod is None or not mod.startswith(mod_prefix):
+                    raise ContinueException
+
+            try:
+                name = x.__qualname__
+            except AttributeError:
+                pass
+
+            name = '{}.{}'.format(mod, name)
+            return (reftype, name)
+
+    modules = [module] + import_all_submodules(module, best_effort=True)
+    xrefs = []
+    for module in modules:
+        xrefs.append(('py:mod', module.__name__))
+
+        for name, x in inspect.getmembers(module):
+            with contextlib.suppress(ContinueException):
+                xrefs.append(get_xref(module, name, x))
+
+            if isinstance(x, type):
+                for name, y in inspect.getmembers(x):
+                    with contextlib.suppress(ContinueException):
+                        xrefs.append(
+                            get_xref(module, name, y)
+                        )
+
+    return xrefs
+
+
+def nitpick_ignore_modules(modules):
+    xrefs = []
+    for module in modules:
+        try:
+            module = importlib.import_module(module)
+        except ImportError:
+            pass
+        else:
+            xrefs.extend(nitpick_ignore_module(module))
+    return xrefs
+
+
+# List here all packages/modules that don't have accurate reference targets or
+# don't have an intersphinx inventory available
+nitpick_ignore = nitpick_ignore_modules([
+    # Devlib does not use autodoc (for now) and does not use module.qualname
+    # names, which makes all xref to it fail
+    'devlib',
+    'docutils.parsers',
+    'ipywidgets',
+])
+
+nitpick_ignore.extend([
+    # gi.repository is strangely laid out, and the module in which Variant
+    # (claims) to actually be defined in is not actually importable it seems
+    ('py:class', 'gi.repository.GLib.Variant')
+])
 
 def setup(app):
 

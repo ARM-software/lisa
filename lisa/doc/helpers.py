@@ -23,6 +23,7 @@ import itertools
 import logging
 import functools
 import re
+import types
 from collections.abc import Mapping
 from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
@@ -430,5 +431,32 @@ def get_deprecated_table():
     return '\n\n'.join(tables)
 
 
+def get_xref_type(obj):
+    """
+    Infer the Sphinx type a cross reference to ``obj`` should have.
+
+    For example, ``:py:class`FooBar`` has the type ``py:class``.
+    """
+    if isinstance(obj, type):
+        if issubclass(obj, BaseException):
+            t = 'exc'
+        else:
+            t = 'class'
+    elif isinstance(obj, types.ModuleType):
+        t = 'mod'
+    elif callable(obj):
+        try:
+            qualname = obj.__qualname__
+        except AttributeError:
+            t = 'func'
+        else:
+            if len(qualname.split('.')) > 1:
+                t = 'meth'
+            else:
+                t = 'func'
+    else:
+        raise ValueError('Cannot infer the xref type of {}'.format(obj))
+
+    return 'py:{}'.format(t)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
