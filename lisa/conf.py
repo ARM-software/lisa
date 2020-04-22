@@ -32,6 +32,7 @@ import io
 import functools
 import threading
 import weakref
+from operator import attrgetter
 
 import lisa
 
@@ -1882,12 +1883,29 @@ class GenericContainerMetaBase(type):
 
         types = type_ if isinstance(type_, Sequence) else [type_]
 
-        name = '{}[{}]'.format(
-            self.__name__,
-            ','.join(type_.__name__ for type_ in types)
+        def make_name(self_getter, sub_getter):
+            return '{}[{}]'.format(
+                self_getter(self),
+                ','.join(sub_getter(type_) for type_ in types)
+            )
+
+        NewClass.__name__ = make_name(
+            attrgetter('__name__'),
+            attrgetter('__name__')
         )
-        NewClass.__name__ = name
-        NewClass.__qualname__ = name
+
+        def type_param_name(t):
+            if t.__module__ == 'builtins':
+                return t.__qualname__
+            else:
+                # Add the module name so that Sphinx can establish cross
+                # references
+                return '{}.{}'.format(t.__module__, t.__qualname__)
+
+        NewClass.__qualname__ = make_name(
+            attrgetter('__qualname__'),
+            type_param_name,
+        )
         NewClass.__module__ = self.__module__
 
         return NewClass
