@@ -23,6 +23,8 @@ import functools
 from collections.abc import Mapping, Sequence
 from operator import attrgetter
 
+from lisa.utils import sphinx_register_nitpick_ignore
+
 class GenericContainerMetaBase(type):
     """
     Base class for the metaclass of generic containers.
@@ -73,6 +75,10 @@ class GenericContainerMetaBase(type):
             type_param_name,
         )
         NewClass.__module__ = self.__module__
+
+        # Since this type name is not resolvable, avoid cross reference
+        # warnings from Sphinx
+        sphinx_register_nitpick_ignore(NewClass)
 
         return NewClass
 

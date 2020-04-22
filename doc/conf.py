@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.abspath('../'))
 
 # Import our packages after modifying sys.path
 import lisa
-from lisa.utils import LISA_HOME, import_all_submodules
+from lisa.utils import LISA_HOME, import_all_submodules, sphinx_nitpick_ignore
 from lisa.doc.helpers import (
     autodoc_process_test_method, autodoc_process_analysis_events,
     autodoc_process_analysis_plots, DocPlotConf, get_xref_type,
@@ -488,6 +488,12 @@ nitpick_ignore.extend([
     # (claims) to actually be defined in is not actually importable it seems
     ('py:class', 'gi.repository.GLib.Variant')
 ])
+
+nitpick_ignore.extend(
+    (get_xref_type(x), '{}.{}'.format(x.__module__, x.__qualname__))
+    for x in sphinx_nitpick_ignore()
+)
+
 
 def setup(app):
 
