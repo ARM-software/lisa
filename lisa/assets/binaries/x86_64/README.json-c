@@ -22,7 +22,7 @@ UBUNTU_CODENAME=bionic
 Build recipe:
 
 export ARCH=x86_64
-export BUILD_DIR=/tmp/tmpx9gb3ciw/x86_64
+export BUILD_DIR=/tmp/tmp0gjjq7t7/x86_64
 export LISA_ARCH_ASSETS=/lisa/assets/binaries/x86_64
 export LISA_HOME=''
 #! /bin/bash
