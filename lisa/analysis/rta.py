@@ -121,7 +121,6 @@ class RTAEventsAnalysis(TraceAnalysisBase):
           * A ``__comm`` column: the actual rt-app trace task name
           * A ``__cpu``  column: the CPU on which the task was running at event
                                  generation time
-          * A ``__line`` column: the ftrace line numer
           * A ``__pid``  column: the PID of the task
           * A ``data``   column: the data corresponding to the reported event
           * An ``event`` column: the event generated
