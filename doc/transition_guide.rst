@@ -51,8 +51,8 @@ Project structure
 
 * ``$repo/libs/utils`` is now ``$repo/lisa/``. ``$repo/libs/wlgen`` has also been
   moved to that location.
-* :mod:`devlib`, :mod:`trappy` and :mod:`wa` are
-  now under ``$repo/external/``. Git subtrees are now used instead of submodules.
+* :mod:`devlib` and :mod:`wa` are now under ``$repo/external/``. Git subtrees
+  are now used instead of submodules.
 * All non self-tests have been moved from ``$repo/tests`` to ``$repo/lisa/tests``
 
 Updating your tree
@@ -64,9 +64,9 @@ Since we no longer use submodules, a ``git pull`` is all you need
 Python 3
 ++++++++
 
-With Python 2 end of life drawing near, we decided to bridge the gap and move over
-to Python 3. Unlike :mod:`devlib` or :mod:`trappy`, we didn't go for compatibility
-with both Python 2 and Python 3 - LISA is now Python 3 only.
+With Python 2 end of life drawing near, we decided to bridge the gap and move
+over to Python 3. Unlike :mod:`devlib`, we didn't go for compatibility with
+both Python 2 and Python 3 - LISA is now Python 3 only.
 
 Imports
 +++++++
@@ -102,7 +102,7 @@ We now mandate the use of absolute imports, which look like this::
 .. warning::
 
   Do make sure you haven't kept some ``PYTHONPATH`` tweaking in your ``.bashrc``
-  that could lead to an older LISA/devlib/trappy being imported.
+  that could lead to an older LISA/devlib being imported.
 
 Logging
 +++++++
@@ -134,7 +134,7 @@ be phased out - see the
 .. warning::
 
   Jupyterlab breaks the TRAPpy plots that use JS injection (e.g.
-  :mod:`~trappy.plotter.ILinePlot`). You can use the "old" notebooks by clicking
+  :class:`~trappy.plotter.ILinePlot`). You can use the "old" notebooks by clicking
   ``Help->Launch Classic Notebook``, but that is bound to go away eventually.
 
 Furthermore, in LISA legacy notebooks served as documentations and where the

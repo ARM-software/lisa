@@ -87,7 +87,6 @@ setup(
         # Depdendencies that are shipped as part of the LISA repo as
         # subtree/submodule
         "devlib",
-        "trappy",
     ],
 
     extras_require={

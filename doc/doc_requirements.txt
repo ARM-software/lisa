@@ -4,9 +4,6 @@
 # devlib before WA and LISA
 -e ./external/devlib/
 
-# TRAPpy before BART and LISA
--e ./external/trappy/
-
 # WA before LISA
 -e ./external/workload-automation/
 -e ./[doc]

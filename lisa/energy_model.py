@@ -27,7 +27,6 @@ import numpy as np
 
 from devlib.utils.misc import mask_to_list, ranges_to_list
 from devlib.exception import TargetStableError
-from trappy.stats.grammar import Parser
 
 from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses, deprecate, grouper
 from lisa.datautils import df_deduplicate

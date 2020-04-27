@@ -34,7 +34,6 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import to_hex
 
 from devlib.target import KernelVersion
-from trappy.utils import handle_duplicate_index
 
 from IPython.display import display
 
@@ -466,7 +465,7 @@ class WaResultsCollector(Loggable):
             column = 'util_avg'
         if event:
             df = trace.df_events(event)
-            util_sum = (handle_duplicate_index(df)[row_filter]
+            util_sum = (df[row_filter]
                         .pivot(columns='cpu')[column].ffill().sum(axis=1))
             avg_util_sum = series_mean(util_sum)
             metrics.append(('avg_util_sum', avg_util_sum, None))

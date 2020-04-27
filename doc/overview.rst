@@ -15,10 +15,9 @@ flexible with regard to the target OS; its only expectation is a Linux
 kernel-based system. Android, GNU/Linux and busybox style systems have all been
 used.
 
-LISA provides features to describe workloads (notably using rt-app) and run them
-on targets. It can collect trace files from the target OS (e.g. systrace and
-ftrace traces), parse them via the TRAPpy framework. These traces can then be
-parsed and analysed in order to examine detailed target behaviour during the
-workload's execution.
+LISA provides features to describe workloads (notably using rt-app) and run
+them on targets. It can collect trace files from the target OS (e.g. systrace
+and ftrace traces) and parse them. These traces can then be parsed and analysed
+in order to examine detailed target behaviour during the workload's execution.
 
 .. image:: images/overview.png

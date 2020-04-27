@@ -8,9 +8,9 @@ Introduction
 ============
 
 LISA comes with a plethora of analysis functions based on `Ftrace
-<https://www.kernel.org/doc/Documentation/trace/ftrace.txt>`_ traces. Under the
-hood, we use :mod:`trappy` to convert the trace events into
-:class:`pandas.DataFrame` which are suited to handling large data sets.
+<https://www.kernel.org/doc/Documentation/trace/ftrace.txt>`_ traces. We
+convert the trace events into :class:`pandas.DataFrame` which are suited to
+handling mid-sized data sets.
 
 Trace
 =====

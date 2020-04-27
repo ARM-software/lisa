@@ -49,7 +49,6 @@ import numpy as np
 import pandas as pd
 import pyarrow.lib
 
-import trappy
 import devlib
 from devlib.target import KernelVersion
 

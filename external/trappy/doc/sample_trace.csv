@@ -1,7 +1,0 @@
-Time,host,type,file,protocol,response_code,response_time
-0.5536,62.242.88.10,GET,/index.html,HTTP/1.0,200,945
-0.748,62.242.88.10,GET,/robots.txt,HTTP/1.0,200,567
-0.956,67.131.107.5,GET,/admin.html,HTTP/1.0,401,340
-1.5455,217.140.96.140,GET,/razor.html,HTTP/1.1,404,120
-1.7304,216.139.185.45,GET,/mailman/admindb/ppwc,HTTP/1.1,200,1012
-2.0729,216.139.185.45,POST,/mailman/admindb/ppwc,HTTP/1.1,200,1103
