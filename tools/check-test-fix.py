@@ -51,14 +51,6 @@ def cleanup(path):
             os.unlink(_path)
     return path
 
-def check_output(*args, **kwargs):
-    try:
-        return subprocess.check_output(*args, **kwargs)
-    except subprocess.CalledProcessError as e:
-        for out in (e.stderr, e.stdout):
-            if out:
-                print(out.decode('utf-8'))
-        raise
 
 def download_artifacts(bisector_report, log_folder, exekall_db, extra_opts):
     subprocess.call([
@@ -107,7 +99,11 @@ def exekall_run(artifact_dir, db_path, test_patterns, test_src_list, log_level, 
 
     # Capture output so it is not interleaved since multiple workers are
     # running at the same time.
-    out = check_output(cmd, stderr=subprocess.STDOUT)
+    try:
+        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+    # Exekall returns non-zero when a test failure occur, which is expected
+    except subprocess.CalledProcessError as e:
+        out = e.output
 
     return artifact_dir, out.decode('utf-8')
 
@@ -121,7 +117,7 @@ def exekall_merge(merged_artifact, db_path_list):
     return merged_artifact
 
 def exekall_compare(ref_db_path, new_db_path):
-    out = check_output([
+    out = subprocess.check_output([
         'exekall', 'compare',
         str(ref_db_path), str(new_db_path),
         '--non-significant',
@@ -284,6 +280,7 @@ EXAMPLE:
                     replay_uuid=exekall_replay_uuid,
                 ),
                 callback=exekall_run_callback,
+                error_callback=print_exception,
             )
 
         # Uncompress all downloaded archives and kick off exekall run from the
