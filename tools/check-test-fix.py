@@ -299,7 +299,7 @@ EXAMPLE:
             # extract archives asynchronously
             with multiprocessing.pool.Pool(processes=nr_cpus) as untar_pool:
                 for tar in glob.iglob(
-                        str(log_folder/'**'/'lisa_artifacts.tar.xz'),
+                        str(log_folder/'**'/'lisa_artifacts.*'),
                         recursive=True
                     ):
                     untar_pool.apply_async(extract_tar,
