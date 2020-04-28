@@ -25,7 +25,7 @@ import functools
 import re
 import types
 from collections.abc import Mapping
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
 from operator import itemgetter
 
@@ -309,8 +309,14 @@ def find_dead_links(content):
 
     @functools.lru_cache(maxsize=None)
     def check(url):
+        # Some HTTP servers (including ReadTheDocs) will return 403 Forbidden
+        # if no User-Agent is given
+        headers={
+            'User-Agent': 'Wget/1.13.4 (linux-gnu)',
+        }
+        request = Request(url, headers=headers)
         try:
-            urlopen(url)
+            urlopen(request)
         except (HTTPError, URLError) as e:
             return e.reason
         else:
