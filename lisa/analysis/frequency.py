@@ -28,7 +28,7 @@ import numpy as np
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.trace import requires_events, requires_one_event_of, CPU
+from lisa.trace import requires_events, requires_one_event_of, CPU, MissingTraceEventError
 from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window
 
 
@@ -59,7 +59,10 @@ class FrequencyAnalysis(TraceAnalysisBase):
         if not signals_init:
             return df
 
-        devlib_df = self.trace.df_events('cpu_frequency')
+        try:
+            devlib_df = self.trace.df_events('devlib_cpu_frequency')
+        except MissingTraceEventError:
+            return df
 
         # Get the initial values for each CPU
         def init_freq(df, devlib):
