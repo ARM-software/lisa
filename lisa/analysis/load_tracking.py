@@ -70,12 +70,6 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 "load_avg": "load"
             }
 
-        if event == 'sched_util_est_task':
-            return {
-                'est_enqueued': 'util_est_enqueued',
-                'est_ewma': 'util_est_ewma',
-            }
-
         return {}
 
     @classmethod
@@ -120,7 +114,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     @may_use_events(
         requires_one_event_of(*_SCHED_PELT_CFS_NAMES),
-        'sched_util_est_cpu'
+        'sched_util_est_cfs'
     )
     def df_cpus_signal(self, signal):
         """
@@ -133,15 +127,15 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         :param signal: Signal name to get. Can be any of:
             * ``util``
             * ``load``
-            * ``util_est_enqueued``
+            * ``enqueued`` (util est enqueued)
 
         :type signal: str
         """
 
         if signal in ('util', 'load'):
             df = self._df_either_event(self._SCHED_PELT_CFS_NAMES)
-        elif signal == 'util_est_enqueued':
-            df = self._df_uniformized_signal('sched_util_est_cpu')
+        elif signal == 'enqueued':
+            df = self._df_uniformized_signal('sched_util_est_cfs')
         else:
             raise ValueError('Signal "{}" not supported'.format(signal))
 
@@ -163,7 +157,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.cache
     @may_use_events(
         requires_one_event_of(*_SCHED_PELT_SE_NAMES),
-        'sched_util_est_task'
+        'sched_util_est_se'
     )
     def df_tasks_signal(self, signal):
         """
@@ -177,8 +171,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
             * ``util``
             * ``load``
-            * ``util_est_enqueued``
-            * ``util_est_ewma``
+            * ``enqueued`` (util est enqueued)
+            * ``ewma`` (util est ewma)
             * ``required_capacity``
 
         :type signal: str
@@ -186,8 +180,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         if signal in ('util', 'load'):
             df = self._df_either_event(self._SCHED_PELT_SE_NAMES)
 
-        elif signal in ('util_est_enqueued', 'util_est_ewma'):
-            df = self._df_uniformized_signal('sched_util_est_task')
+        elif signal in ('enqueued', 'ewma'):
+            df = self._df_uniformized_signal('sched_util_est_se')
 
         elif signal == 'required_capacity':
             # Add a column which represents the max capacity of the smallest

@@ -67,7 +67,7 @@ PhaseStats = namedtuple("PhaseStats",
 
 
 ActivationSignals = namedtuple("ActivationSignals", [
-    'time', 'util_avg', 'util_est_enqueued', 'util_est_ewma', 'issue'],
+    'time', 'util', 'enqueued', 'ewma', 'issue'],
     module=__name__,
 )
 
@@ -79,15 +79,15 @@ class UtilConvergence(UtilTrackingBase):
     **Expected Behaviour:**
 
     The estimated utilization of a task is properly computed starting form its
-    `util_avg` value at the end of each activation.
+    `util` value at the end of each activation.
 
     Two signals composes the estimated utlization of a task:
 
-    * `util_est_enqueued` : is expected to match the max between `util_avg` and
-      `util_est_ewma` at the end of the previous activation
+    * `enqueued` : is expected to match the max between `util` and
+      `ewma` at the end of the previous activation
 
-    * `util_est_ewma` : is expected to track an Exponential Weighted Moving
-      Average of the `util_avg` signal sampled at the end of each activation.
+    * `ewma` : is expected to track an Exponential Weighted Moving
+      Average of the `util` signal sampled at the end of each activation.
 
     Based on these two invariant, this class provides a set of tests to verify
     these conditions using different methods and sampling points.
@@ -131,7 +131,7 @@ class UtilConvergence(UtilTrackingBase):
         return cur_kernel < min_kernel
 
     def _plot_signals(self, task, test, failures):
-        signals = ['util', 'util_est_enqueued', 'util_est_ewma']
+        signals = ['util', 'enqueued', 'ewma']
         ax = self.trace.analysis.load_tracking.plot_task_signals(task, signals=signals)
         ax = self.trace.analysis.rta.plot_phases(task, axis=ax)
         for start in failures:
@@ -139,7 +139,7 @@ class UtilConvergence(UtilTrackingBase):
         filepath = os.path.join(self.res_dir, 'util_est_{}.png'.format(test))
         self.trace.analysis.rta.save_plot(ax.figure, filepath=filepath)
 
-    @requires_events('sched_util_est_task')
+    @requires_events('sched_util_est_se')
     @LoadTrackingAnalysis.df_tasks_signal.used_events
     @RTAEventsAnalysis.task_phase_windows.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
@@ -147,28 +147,28 @@ class UtilConvergence(UtilTrackingBase):
         """
         Test signals are properly "dominated".
 
-        The mean of `util_est_enqueued` is expected to be always not
-        smaller than that of `util_avg`, since this last is subject to decays
+        The mean of `enqueued` is expected to be always not
+        smaller than that of `util`, since this last is subject to decays
         while the first not.
 
-        The mean of `util_est_enqueued` is expected to be always greater or
-        equal than the mean of `util_avg`, since this `util_avg` is subject
-        to decays while `util_est_enqueued` not.
+        The mean of `enqueued` is expected to be always greater or
+        equal than the mean of `util`, since this `util` is subject
+        to decays while `enqueued` not.
 
-        On fast-ramp systems, the `util_est_ewma` signal is never smaller then
-        the `util_est_enqueued`, thus his mean is expected to be bigger.
+        On fast-ramp systems, the `ewma` signal is never smaller then
+        the `enqueued`, thus his mean is expected to be bigger.
 
-        On non fast-ramp systems instead, the `util_est_ewma` is expected to be
-        smaller then `util_est_enqueued` in ramp-up phases, or bigger in
+        On non fast-ramp systems instead, the `ewma` is expected to be
+        smaller then `enqueued` in ramp-up phases, or bigger in
         ramp-down phases.
 
         Those conditions are checked on a single execution of a task which has
         three main behaviours:
 
             * STABLE: periodic big task running for a relatively long period to
-              ensure `util_avg` saturation.
-            * DOWN: periodic ramp-down task, to slowly decay `util_avg`
-            * UP: periodic ramp-up task, to slowly increase `util_avg`
+              ensure `util` saturation.
+            * DOWN: periodic ramp-down task, to slowly decay `util`
+            * UP: periodic ramp-up task, to slowly increase `util`
 
         """
         failure_reasons = {}
@@ -176,10 +176,9 @@ class UtilConvergence(UtilTrackingBase):
 
         task = self.rtapp_task_ids_map['test'][0]
 
-        ue_df = self.trace.df_events('sched_util_est_task')
+        ue_df = self.trace.df_events('sched_util_est_se')
         ue_df = df_filter_task_ids(ue_df, [task])
-        ua_df = self.trace.analysis.load_tracking.df_tasks_signal('util')
-        ua_df = df_filter_task_ids(ua_df, [task])
+        ua_df = self.trace.analysis.load_tracking.df_task_signal(task, 'util')
 
         failures = []
         for phase in self.trace.analysis.rta.task_phase_windows(task):
@@ -190,22 +189,22 @@ class UtilConvergence(UtilTrackingBase):
             apply_phase_window = functools.partial(df_window, window=(phase.start, phase.end))
 
             ue_phase_df = apply_phase_window(ue_df)
-            mean_enqueued = series_mean(ue_phase_df['util_est_enqueued'])
-            mean_ewma = series_mean(ue_phase_df['util_est_ewma'])
+            mean_enqueued = series_mean(ue_phase_df['enqueued'])
+            mean_ewma = series_mean(ue_phase_df['ewma'])
 
             ua_phase_df = apply_phase_window(ua_df)
             mean_util = series_mean(ua_phase_df['util'])
 
             def make_issue(msg):
                 return msg.format(
-                    avg='util_avg={}'.format(mean_util),
-                    enq='util_est_enqueud={}'.format(mean_enqueued),
-                    ewma='util_est_ewma={}'.format(mean_ewma),
+                    util='util={}'.format(mean_util),
+                    enq='enqueud={}'.format(mean_enqueued),
+                    ewma='ewma={}'.format(mean_ewma),
                 )
 
             issue = None
             if mean_enqueued < mean_util:
-                issue = make_issue('{enq} smaller than {avg}')
+                issue = make_issue('{enq} smaller than {util}')
 
             # Running on FastRamp kernels:
             elif self.fast_ramp:
@@ -248,27 +247,27 @@ class UtilConvergence(UtilTrackingBase):
         bundle.add_metric("failures", sorted(phase for phase, stat in failures))
         return bundle
 
-    @requires_events('sched_util_est_task')
+    @requires_events('sched_util_est_se')
     @TasksAnalysis.df_task_states.used_events
     @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
     def test_activations(self) -> ResultBundle:
         """
         Test signals are properly "aggregated" at enqueue/dequeue time.
 
-        On fast-ramp systems, `util_est_enqueud` is expected to be always
-        smaller than `util_est_ewma`.
+        On fast-ramp systems, `enqueud` is expected to be always
+        smaller than `ewma`.
 
-        On non fast-ramp systems, the `util_est_enqueued` is expected to be
-        smaller then `util_est_ewma` in ramp-down phases, or bigger in ramp-up
+        On non fast-ramp systems, the `enqueued` is expected to be
+        smaller then `ewma` in ramp-down phases, or bigger in ramp-up
         phases.
 
         Those conditions are checked on a single execution of a task which has
         three main behaviours:
 
             * STABLE: periodic big task running for a relatively long period to
-              ensure `util_avg` saturation.
-            * DOWN: periodic ramp-down task, to slowly decay `util_avg`
-            * UP: periodic ramp-up task, to slowly increase `util_avg`
+              ensure `util` saturation.
+            * DOWN: periodic ramp-down task, to slowly decay `util`
+            * UP: periodic ramp-up task, to slowly increase `util`
 
         """
         metrics = {}
@@ -281,28 +280,28 @@ class UtilConvergence(UtilTrackingBase):
                          (df.next_state == TaskState.TASK_ACTIVE)].index
 
         # Check task signals at each activation
-        df = self.trace.df_events('sched_util_est_task')
+        df = self.trace.df_events('sched_util_est_se')
         df = df_filter_task_ids(df, [task])
 
 
         for idx, activation in enumerate(activations):
             # Get the value of signals at their first update after the activation
             row = df_window(df, (activation, None), method='post').iloc[0]
-            avg = row['util_avg']
-            enq = row['util_est_enqueued']
-            ewma = row['util_est_ewma']
+            util = row['util']
+            enq = row['enqueued']
+            ewma = row['ewma']
             def make_issue(msg):
                 return msg.format(
-                    avg='util_avg={}'.format(avg),
-                    enq='util_est_enqueud={}'.format(enq),
-                    ewma='util_est_ewma={}'.format(ewma),
+                    util='util={}'.format(util),
+                    enq='enqueud={}'.format(enq),
+                    ewma='ewma={}'.format(ewma),
                 )
 
             issue = None
 
             # UtilEst is not updated when within 1% of previous activation
-            if 1.01 * enq < avg:
-                issue = make_issue('{enq} smaller than {avg}')
+            if 1.01 * enq < util:
+                issue = make_issue('{enq} smaller than {util}')
 
             # Running on FastRamp kernels:
             elif self.fast_ramp:
@@ -331,7 +330,7 @@ class UtilConvergence(UtilTrackingBase):
                 elif phase.id >= 6 and enq < ewma:
                     issue = make_issue('ramp up: {enq} smaller than {ewma}')
 
-            metrics[idx] = ActivationSignals(activation, avg, enq, ewma, issue)
+            metrics[idx] = ActivationSignals(activation, util, enq, ewma, issue)
 
         failures = [
             (idx, activation_signals)
