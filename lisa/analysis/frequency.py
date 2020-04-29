@@ -42,17 +42,17 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     name = 'frequency'
 
-    @requires_one_event_of('cpu_frequency', 'cpu_frequency_devlib')
+    @requires_one_event_of('cpu_frequency', 'userspace@cpu_frequency_devlib')
     def df_cpus_frequency(self, signals_init=True):
         """
         Similar to ``trace.df_events('cpu_frequency')``, with
-        ``cpu_frequency_devlib`` support.
+        ``userspace@cpu_frequency_devlib`` support.
 
         :param signals_init: If ``True``, and initial value for signals will be
             provided. This includes initial value taken outside window
             boundaries and devlib-provided events.
 
-        The ``cpu_frequency_devlib`` user event is merged in the dataframe if
+        The ``userspace@cpu_frequency_devlib`` user event is merged in the dataframe if
         it provides earlier values for a CPU.
         """
         df = self.trace.df_events('cpu_frequency', signals_init=signals_init)
@@ -60,7 +60,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
             return df
 
         try:
-            devlib_df = self.trace.df_events('devlib_cpu_frequency')
+            devlib_df = self.trace.df_events('userspace@devlib_cpu_frequency')
         except MissingTraceEventError:
             return df
 
