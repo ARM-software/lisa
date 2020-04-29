@@ -68,7 +68,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
             return df
 
         init_df = init_freq(df, False)
-        init_devlib_df = init_freq(df, True)
+        init_devlib_df = init_freq(devlib_df, True)
 
         # Get the initial values as given by devlib and cpufreq.
         # We want to select:
