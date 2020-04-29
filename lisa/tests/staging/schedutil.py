@@ -122,7 +122,7 @@ class RampBoostTestBase(RTATestBundle):
         df_list = [
             schedutil_df,
             trace.analysis.load_tracking.df_cpus_signal('util'),
-            trace.analysis.load_tracking.df_cpus_signal('util_est_enqueued'),
+            trace.analysis.load_tracking.df_cpus_signal('enqueued'),
             cpu_active_df,
         ]
 
@@ -143,20 +143,20 @@ class RampBoostTestBase(RTATestBundle):
 
         boost_points = (
             # util_est_enqueued is the same as last freq update
-            (df['util_est_enqueued'].diff() == 0) &
+            (df['enqueued'].diff() == 0) &
 
             # util_avg is increasing
             (df['util'].diff() >= 0) &
 
             # util_avg > util_est_enqueued
-            (df['util'] > df['util_est_enqueued']) &
+            (df['util'] > df['enqueued']) &
 
             # CPU is not idle
             (df['cpu_active'])
         )
         df['boost_points'] = boost_points
 
-        df['expected_cost_margin'] = (df['util'] - df['util_est_enqueued']).where(
+        df['expected_cost_margin'] = (df['util'] - df['enqueued']).where(
             cond=boost_points,
             other=0,
         )
@@ -192,7 +192,7 @@ class RampBoostTestBase(RTATestBundle):
         freq_axis = boost_axis.twinx()
         self.trace.analysis.frequency.plot_cpu_frequencies(self.cpu, axis=freq_axis, average=False)
 
-        self.trace.analysis.load_tracking.plot_task_signals(task, axis=util_axis, signals=['util', 'util_est_enqueued'], colors=['orange', 'red'])
+        self.trace.analysis.load_tracking.plot_task_signals(task, axis=util_axis, signals=['util', 'enqueued'], colors=['orange', 'red'])
         self.trace.analysis.tasks.plot_task_activation(task, axis=util_axis, overlay=True, colors=[COLOR_CYCLES[0]])
 
         boost_axis.legend(loc='upper left', bbox_to_anchor=(0.1, 1))
