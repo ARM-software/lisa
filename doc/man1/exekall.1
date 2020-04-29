@@ -70,7 +70,8 @@ subcommands:
 usage: exekall run [\-h] [\-s ID_PATTERN] [\-\-list] [\-n N] [\-\-load\-db LOAD_DB]
                    [\-\-load\-type TYPE_PATTERN] [\-\-replay REPLAY]
                    [\-\-artifact\-dir ARTIFACT_DIR] [\-\-no\-save\-value\-db]
-                   [\-\-verbose] [\-\-log\-level {debug,info,warn,error,critical}]
+                   [\-\-verbose] [\-\-pdb]
+                   [\-\-log\-level {debug,info,warn,error,critical}]
                    [\-\-param CALLABLE_PATTERN PARAM VALUE]
                    [\-\-sweep CALLABLE_PATTERN PARAM START STOP STEP]
                    [\-\-share TYPE_PATTERN] [\-\-random\-order]
@@ -128,6 +129,8 @@ advanced arguments:
                         execution of expressions.
   \-\-verbose, \-v         More verbose output. Can be repeated for even more verbosity. This
                         only impacts exekall output, \-\-log\-level for more global settings.
+  \-\-pdb                 If an exception occurs in the code ran by \(ga\(gaexekall\(ga\(ga, drops into a
+                        debugger shell.
   \-\-log\-level {debug,info,warn,error,critical}
                         Change the default log level of the standard logging module.
   \-\-param CALLABLE_PATTERN PARAM VALUE
