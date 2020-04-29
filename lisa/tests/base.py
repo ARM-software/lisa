@@ -1438,9 +1438,9 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         profile = profile or cls.get_rtapp_profile(target.plat_info)
         cg_cfg = cg_cfg or cls.get_cgroup_configuration(target.plat_info)
 
-        trace_events = [event.replace('rtapp_', '')
+        trace_events = [event.replace('userspace@rtapp_', '')
                         for event in ftrace_coll.events
-                        if event.startswith("rtapp_")]
+                        if event.startswith('userspace@rtapp_')]
 
         def add_buffer(task):
             template_phase = task.phases[0]
