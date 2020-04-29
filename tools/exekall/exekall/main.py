@@ -30,6 +30,7 @@ import pathlib
 import random
 import shutil
 import sys
+import pdb
 
 from exekall.customization import AdaptorBase
 import exekall.utils as utils
@@ -277,6 +278,9 @@ please run ``exekall run YOUR_SOURCES_OR_MODULES --help``.
 
     add_argument(run_parser, '--verbose', '-v', action='count', default=0,
         help="""More verbose output. Can be repeated for even more verbosity. This only impacts exekall output, --log-level for more global settings.""")
+
+    add_argument(run_parser, '--pdb', action='store_true',
+        help="""If an exception occurs in the code ran by ``exekall``, drops into a debugger shell.""")
 
     add_argument(run_parser, '--log-level', default='info',
         choices=('debug', 'info', 'warn', 'error', 'critical'),
@@ -678,6 +682,7 @@ def do_run(args, parser, run_parser, argv):
     module_set.add(inspect.getmodule(adaptor_cls))
 
     verbose = args.verbose
+    use_pdb = args.pdb
     save_db = args.save_value_db
 
     iteration_nr = args.n
@@ -957,6 +962,7 @@ def do_run(args, parser, run_parser, argv):
         adaptor_cls=adaptor_cls,
         verbose=verbose,
         save_db=save_db,
+        use_pdb=use_pdb,
     )
 
     # If we reloaded a DB, merge it with the current DB so the outcome is a
@@ -972,7 +978,7 @@ def do_run(args, parser, run_parser, argv):
 
 
 def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
-                   hidden_callable_set, only_template_scripts, adaptor_cls, verbose, save_db):
+                   hidden_callable_set, only_template_scripts, adaptor_cls, verbose, save_db, use_pdb):
 
     if not only_template_scripts:
         with (artifact_dir / 'UUID').open('wt') as f:
@@ -1114,6 +1120,12 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                     ),
                     uuid=get_uuid_str(expr_val),
                 ))
+
+                # Drop into the debugger if we got an exception
+                excep = expr_val.excep
+                if use_pdb and excep is not NoValue:
+                    error(utils.format_exception(excep))
+                    pdb.post_mortem(excep.__traceback__)
 
             def get_duration_str(expr_val):
                 if expr_val.duration is None:
