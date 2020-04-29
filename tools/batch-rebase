@@ -31,7 +31,8 @@ import textwrap
 import logging
 import contextlib
 
-from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, TypedList
+from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc
+from lisa.generic import TypedList
 
 def info(msg):
     logging.info(msg)
