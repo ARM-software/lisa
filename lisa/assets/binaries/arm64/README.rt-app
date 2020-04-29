@@ -1,15 +1,15 @@
 Sources of rt-app available at:
-Git commit: 9a50d76f726d7c325c82ac8c7ed9ed70e1c97937
+Git commit: b3a5408c6d9f7eeb1b91d8286757cbd38fefa9cb
 Git repository: https://github.com/scheduler-tools/rt-app.git
 
 
 Build host info:
 
 NAME="Ubuntu"
-VERSION="18.04.3 LTS (Bionic Beaver)"
+VERSION="18.04.4 LTS (Bionic Beaver)"
 ID=ubuntu
 ID_LIKE=debian
-PRETTY_NAME="Ubuntu 18.04.3 LTS"
+PRETTY_NAME="Ubuntu 18.04.4 LTS"
 VERSION_ID="18.04"
 HOME_URL="https://www.ubuntu.com/"
 SUPPORT_URL="https://help.ubuntu.com/"
@@ -22,7 +22,7 @@ UBUNTU_CODENAME=bionic
 Build recipe:
 
 export ARCH=arm64
-export BUILD_DIR=/tmp/tmpgj0ta48e/arm64
+export BUILD_DIR=/tmp/tmpx9gb3ciw/arm64
 export CONFIGURE_HOST=aarch64-linux-gnu
 export CROSS_COMPILE=aarch64-linux-gnu-
 export LISA_ARCH_ASSETS=/lisa/assets/binaries/arm64
@@ -38,11 +38,20 @@ build_jsonc() {
     make
 }
 
+build_numactl() {
+    cd numactl
+    ./autogen.sh
+    ./configure --host=$CONFIGURE_HOST --disable-shared --enable-static
+    make
+}
+
 build_rtapp() {
     cd rt-app
     export ac_cv_lib_json_c_json_object_from_file=yes
+    export ac_cv_lib_numa_numa_available=yes
     ./autogen.sh
-    ./configure --host=$CONFIGURE_HOST LDFLAGS="--static -L$BUILD_DIR/json-c/" CFLAGS="-I$BUILD_DIR" --with-deadline
+    ./configure --host=$CONFIGURE_HOST LDFLAGS="--static -L$BUILD_DIR/json-c/ -L$BUILD_DIR/numactl/" \
+                CFLAGS="-I$BUILD_DIR -I$BUILD_DIR/numactl" --with-deadline
     make
     "$CROSS_COMPILE"strip src/rt-app
 }
@@ -51,12 +60,15 @@ download() {
     git clone https://github.com/json-c/json-c
     git -C json-c checkout ddd049045d98dd3163d01a7d79184b3c7fb95a14
 
+    git clone https://github.com/numactl/numactl.git
+    git -C numactl checkout 26fba7199c365b55e72e054bb2adba097ce04924
+
     git clone https://github.com/scheduler-tools/rt-app.git
-    git -C rt-app checkout 9a50d76f726d7c325c82ac8c7ed9ed70e1c97937
+    git -C rt-app checkout b3a5408c6d9f7eeb1b91d8286757cbd38fefa9cb
 }
 
 build() {
-    (build_jsonc) && (build_rtapp)
+    (build_jsonc) && (build_numactl) && (build_rtapp)
 }
 
 install() {
