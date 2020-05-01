@@ -3805,6 +3805,16 @@ class Trace(Loggable, TraceBase):
             **self._parse_meta_events(meta_events),
         }
 
+        # Save some memory by changing values of this column into an category
+        categorical_fields = [
+            '__comm',
+            'comm',
+        ]
+        for df in df_map.values():
+            for field in categorical_fields:
+                with contextlib.suppress(KeyError):
+                    df[field] = df[field].astype('category', copy=False)
+
         # remember the events that we tried to parse and that turned out to not be available
         self._update_parseable_events({
             event: (event in df_map)
@@ -4190,6 +4200,11 @@ class Trace(Loggable, TraceBase):
             from lisa.analysis.tasks import TaskState
             df = df.copy(deep=False)
             df['prev_state'] = df['prev_state'].apply(TaskState.from_sched_switch_str).astype('uint16', copy=False)
+
+        # Save a lot of memory by using category for strings
+        for col in ('next_comm', 'prev_comm'):
+            df[col] = df[col].astype('category', copy=False)
+
         return df
 
     @_sanitize_event('sched_load_avg_cpu')
