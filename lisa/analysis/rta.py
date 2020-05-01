@@ -249,7 +249,12 @@ class RTAEventsAnalysis(TraceAnalysisBase):
             df = df.sort_values(by=['phase_loop', 'thread_loop'],
                                 ascending=False)
         # ... keep only the newest/oldest event
-        df = df.groupby(['__comm', '__pid', 'phase', 'event']).head(1)
+        grouped = df.groupby(
+                ['__comm', '__pid', 'phase', 'event'],
+                observed=True,
+                sort=False
+        )
+        df = grouped.head(1)
 
         # Reorder the index and keep only required cols
         df = (df.sort_index()[['__comm', '__pid', 'phase']]

@@ -266,7 +266,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         df = self.df_tasks_signal('util')
 
         # Compute number of samples above threshold
-        samples = df[df.util > util_threshold].groupby('pid').count()["util"]
+        samples = df[df.util > util_threshold].groupby('pid', observed=True, sort=False).count()["util"]
         samples = samples[samples > min_samples]
         samples = samples.sort_values(ascending=False)
 

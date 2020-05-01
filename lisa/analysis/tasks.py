@@ -188,7 +188,7 @@ class TasksAnalysis(TraceAnalysisBase):
         """
         df = self.trace.df_events('sched_wakeup')
 
-        wakeups = df.groupby('pid').count()["comm"]
+        wakeups = df.groupby('pid', observed=True, sort=False).count()["comm"]
         df = pd.DataFrame(wakeups).rename(columns={"comm": "wakeups"})
         df["comm"] = df.index.map(self._get_task_pid_name)
 
@@ -335,7 +335,7 @@ class TasksAnalysis(TraceAnalysisBase):
             # amount possible.
             df = df_update_duplicates(df, col='Time', inplace=True)
 
-            grouped = df.groupby('pid', sort=False)
+            grouped = df.groupby('pid', observed=True, sort=False)
             new_columns = dict(
                 next_state=grouped['curr_state'].shift(-1, fill_value=TaskState.TASK_UNKNOWN),
                 # GroupBy.transform() will run the function on each group, and
@@ -545,7 +545,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df = df_add_delta(df, window=self.trace.window)
         df = df[df.curr_state == TaskState.TASK_ACTIVE]
 
-        residency_df = pd.DataFrame(df.groupby("cpu")["delta"].sum())
+        residency_df = pd.DataFrame(df.groupby("cpu", observed=True, sort=False)["delta"].sum())
         residency_df.rename(columns={"delta": "runtime"}, inplace=True)
 
         cpus_present = set(residency_df.index.unique())

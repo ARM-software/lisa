@@ -3827,9 +3827,9 @@ class Trace(Loggable, TraceBase):
         def finalize(df, key_col, value_col, key_type, value_type):
             # Aggregate the values for each key and convert to python types
             mapping = {}
-            grouped = df.groupby([key_col])
-            for key, index in grouped.groups.items():
-                values = df.loc[index][value_col].apply(value_type)
+            grouped = df.groupby([key_col], observed=True, sort=False)
+            for key, subdf in grouped:
+                values = subdf[value_col].apply(value_type)
                 values = list(values)
                 key = key_type(key)
                 mapping[key] = values
@@ -3842,7 +3842,7 @@ class Trace(Loggable, TraceBase):
 
             # Get a Time column
             df = df.reset_index()
-            grouped = df.groupby([name_col, pid_col])
+            grouped = df.groupby([name_col, pid_col], observed=True, sort=False)
 
             # Get timestamp of first occurrences of each key/value combinations
             mapping_df = grouped.first()

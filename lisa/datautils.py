@@ -179,7 +179,7 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
                 raise ValueError('align_start=True cannot be used with window != None')
             window = (df.index[0], None)
 
-        for group, signal in df.groupby(signal_cols):
+        for group, signal in df.groupby(signal_cols, observed=True, sort=False):
             # When only one column is looked at, the group is the value instead of
             # a tuple of values
             if len(signal_cols) < 2:

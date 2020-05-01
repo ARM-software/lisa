@@ -168,7 +168,11 @@ class IdleAnalysis(TraceAnalysisBase):
         # Create a dataframe with a column per CPU
         cols = {
             cpu: group['state']
-            for cpu, group in idle_df.groupby('cpu_id', group_keys=False)
+            for cpu, group in idle_df.groupby(
+                'cpu_id',
+                sort=False,
+                observed=True,
+            )
             if cpu in cluster
         }
         cpus_df = pd.DataFrame(cols, index=idle_df.index)
@@ -190,7 +194,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
         # For each cluster state, take the sum of the delta column.
         # The resulting dataframe is indexed by group keys (cluster_state).
-        residency = df.groupby('cluster_state')['delta'].sum()
+        residency = df.groupby('cluster_state', sort=False, observed=True)['delta'].sum()
         residency.name = 'time'
 
         residency = residency.to_frame()
