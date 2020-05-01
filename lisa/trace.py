@@ -56,7 +56,7 @@ import lisa.utils
 from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, take
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.generic import TypedList
-from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta, df_combine_duplicates, series_convert
+from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta, df_combine_duplicates, series_convert, df_deduplicate
 from lisa.version import VERSION_TOKEN
 from lisa.typeclass import FromString, IntListFromStringInstance
 
@@ -3839,8 +3839,7 @@ class Trace(Loggable, TraceBase):
             mapping = {}
             grouped = df.groupby([key_col], observed=True, sort=False)
             for key, subdf in grouped:
-                values = subdf[value_col].apply(value_type)
-                values = list(values)
+                values = subdf[value_col].apply(value_type).to_list()
                 key = key_type(key)
                 mapping[key] = values
 
@@ -3855,9 +3854,9 @@ class Trace(Loggable, TraceBase):
             grouped = df.groupby([name_col, pid_col], observed=True, sort=False)
 
             # Get timestamp of first occurrences of each key/value combinations
-            mapping_df = grouped.first()
-            mapping_df = mapping_df[['Time']]
-            mapping_df.rename_axis(index={name_col: 'name', pid_col: 'pid'}, inplace=True)
+            mapping_df = grouped.head(1)
+            mapping_df = mapping_df[['Time', name_col, pid_col]]
+            mapping_df.rename({name_col: 'name', pid_col: 'pid'}, axis=1, inplace=True)
             mapping_df_list.append(mapping_df)
 
         def load(event, *args, **kwargs):
@@ -3890,9 +3889,7 @@ class Trace(Loggable, TraceBase):
         # Sort by order of appearance
         df.sort_values(by=['Time'], inplace=True)
         # Remove duplicated name/pid mapping and only keep the first appearance
-        df = df.loc[~df.index.duplicated(keep='first')]
-        # explode the multindex into a "key" and "value" columns
-        df.reset_index(inplace=True)
+        df = df_deduplicate(df, consecutives=False, keep='first', cols=['name', 'pid'])
 
         forbidden_names = {
             # <idle> is invented by trace-cmd, no event field contain this
