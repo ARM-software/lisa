@@ -25,6 +25,7 @@ from lisa.datautils import series_integrate, df_split_signals, series_combine, d
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, CPU
 from lisa.generic import TypedList
+from lisa.analysis.base import TraceAnalysisBase
 
 
 class IdleAnalysis(TraceAnalysisBase):
@@ -40,8 +41,32 @@ class IdleAnalysis(TraceAnalysisBase):
 ###############################################################################
 # DataFrame Getter Methods
 ###############################################################################
-
+    @TraceAnalysisBase.cache
     @requires_events('cpu_idle')
+    def df_cpu_idle(self, cpu=None):
+        """
+        Dataframe of the ``cpu_idle`` event, with the following columns:
+
+            * ``cpu``
+            * ``state``: Instead of 4294967295, the -1 type independent value
+              is used.
+
+        :param cpu: Optionally, filter on that CPU
+        :type cpu: str or None
+        """
+        df = self.trace.df_events('cpu_idle')
+        # Filter before rename to avoid copying data we will ignore
+        if cpu is not None:
+            df = df[df['cpu_id'] == cpu]
+
+        df = df.rename({'cpu_id': 'cpu'}, axis=1)
+        # The event uses an unsigned int even though the kernel uses -1, so use
+        # -1 to avoid being tied to the event field type size
+        non_idle = (2 ** 32) -1
+        df['state'].replace(non_idle, -1, inplace=True)
+        return df
+
+    @df_cpu_idle.used_events
     def signal_cpu_active(self, cpu):
         """
         Build a square wave representing the active (i.e. non-idle) CPU time
@@ -52,8 +77,7 @@ class IdleAnalysis(TraceAnalysisBase):
         :returns: A :class:`pandas.Series` that equals 1 at timestamps where the
           CPU is reported to be non-idle, 0 otherwise
         """
-        idle_df = self.trace.df_events('cpu_idle')
-        cpu_df = idle_df[idle_df.cpu_id == cpu]
+        cpu_df = self.df_cpu_idle(cpu)
 
         # Turn -1 into 1 and everything else into 0
         cpu_active = cpu_df.state.map({-1: 1})
@@ -96,7 +120,7 @@ class IdleAnalysis(TraceAnalysisBase):
         return cluster_active
 
     @TraceAnalysisBase.cache
-    @requires_events('cpu_idle')
+    @signal_cpu_active.used_events
     def df_cpus_wakeups(self):
         """
         Get a DataFrame showing when CPUs have woken from idle
@@ -119,7 +143,7 @@ class IdleAnalysis(TraceAnalysisBase):
 
         return pd.DataFrame({'cpu': sr}).sort_index()
 
-    @requires_events("cpu_idle")
+    @df_cpu_idle.used_events
     def df_cpu_idle_state_residency(self, cpu):
         """
         Compute time spent by a given CPU in each idle state.
@@ -132,8 +156,7 @@ class IdleAnalysis(TraceAnalysisBase):
           * Idle states as index
           * A ``time`` column (The time spent in the idle state)
         """
-        idle_df = self.trace.df_events('cpu_idle')
-        idle_df = idle_df[idle_df['cpu_id'] == cpu]
+        idle_df = self.df_cpu_idle(cpu)
 
         # Ensure accurate time-based sum of state deltas
         idle_df = df_refit_index(idle_df, window=self.trace.window)
@@ -150,7 +173,7 @@ class IdleAnalysis(TraceAnalysisBase):
         df.index.name = 'idle_state'
         return df
 
-    @requires_events('cpu_idle')
+    @df_cpu_idle.used_events
     def df_cluster_idle_state_residency(self, cluster):
         """
         Compute time spent by a given cluster in each idle state.
@@ -163,13 +186,13 @@ class IdleAnalysis(TraceAnalysisBase):
           * Idle states as index
           * A ``time`` column (The time spent in the idle state)
         """
-        idle_df = self.trace.df_events('cpu_idle')
+        idle_df = self.df_cpu_idle()
 
         # Create a dataframe with a column per CPU
         cols = {
             cpu: group['state']
             for cpu, group in idle_df.groupby(
-                'cpu_id',
+                'cpu',
                 sort=False,
                 observed=True,
             )
