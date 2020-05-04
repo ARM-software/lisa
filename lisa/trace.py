@@ -4204,6 +4204,21 @@ class Trace(Loggable, TraceBase):
 
         return df
 
+    @_sanitize_event('thermal_power_cpu_limit')
+    @_sanitize_event('thermal_power_cpu_get_power')
+    def _sanitize_thermal_power_cpu(self, event, df, aspects):
+
+        def f(mask):
+            # Replace '00000000,0000000f' format in more usable int
+            return int(mask.replace(',', ''), 16)
+
+        df = df.copy(deep=False)
+        df['cpus'] = df['cpus'].apply(f)
+        return df
+
+    # SANITIZATION BELOW THAT ARE LIKELY TO BE REMOVED SOON, AS THEY SHOULD BE
+    # HOSTED IN AN ANALYSIS AND THESE EVENTS ARE MOST LIKELY NOT USED ANYMORE
+
     @_sanitize_event('sched_boost_cpu')
     def _sanitize_boost_cpu(self, event, df, aspects):
         """
@@ -4247,18 +4262,6 @@ class Trace(Loggable, TraceBase):
                 'payoff': 'nrg_payoff',
             }, copy=False)
 
-        return df
-
-    @_sanitize_event('thermal_power_cpu_limit')
-    @_sanitize_event('thermal_power_cpu_get_power')
-    def _sanitize_thermal_power_cpu(self, event, df, aspects):
-
-        def f(mask):
-            # Replace '00000000,0000000f' format in more usable int
-            return int(mask.replace(',', ''), 16)
-
-        df = df.copy(deep=False)
-        df['cpus'] = df['cpus'].apply(f)
         return df
 
 
