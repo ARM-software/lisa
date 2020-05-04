@@ -862,9 +862,6 @@ class EnergyModel(Serializable, Loggable):
                   the returned DataFrame to get a Series that shows overall
                   estimated power usage over time.
         """
-        if not trace.has_events('cpu_idle') or not trace.has_events('cpu_frequency'):
-            raise ValueError('Requires cpu_idle and cpu_frequency trace events')
-
         idle = trace.df_events('cpu_idle').pivot(columns='cpu_id')['state']
         freqs = trace.analysis.frequency.df_cpus_frequency().pivot(columns='cpu')['frequency']
 
