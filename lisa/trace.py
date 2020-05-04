@@ -3415,7 +3415,7 @@ class Trace(Loggable, TraceBase):
     def _get_time_range(self, parser=None):
         return self._get_cacheable_metadata('time-range', parser)
 
-    def df_events(self, event, raw=None, rename_cols=True, window=None, signals=None, signals_init=True, compress_signals_init=False, write_swap=None):
+    def df_events(self, event, raw=None, window=None, signals=None, signals_init=True, compress_signals_init=False, write_swap=None):
         """
         Get a dataframe containing all occurrences of the specified trace event
         in the parsed trace.
@@ -3458,10 +3458,6 @@ class Trace(Loggable, TraceBase):
                 parsing.
 
         :type event: str
-
-        :param rename_cols: If ``True``, some columns will be renamed for
-            consistency.
-        :type rename_cols: bool
 
         :param window: Return a dataframe sliced to fit the given window (in
             seconds). Note that ``signals_init=True`` will result in including
@@ -3539,7 +3535,7 @@ class Trace(Loggable, TraceBase):
 
         if not raw:
             spec.update(
-                rename_cols=rename_cols,
+                rename_cols=True,
                 sanitization=sanitization_f.__qualname__ if sanitization_f else None,
             )
 
