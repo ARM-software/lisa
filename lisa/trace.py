@@ -4289,23 +4289,6 @@ class Trace(Loggable, TraceBase):
         df['cpus'] = df['cpus'].apply(f)
         return df
 
-    @_sanitize_event('funcgraph_entry')
-    @_sanitize_event('funcgraph_exit')
-    def _sanitize_funcgraph(self, event, df, aspects):
-        """
-        Resolve the kernel function names.
-        """
-
-        try:
-            addr_map = self.plat_info['kernel']['symbols-address']
-        except KeyError as e:
-            self.get_logger().warning('Missing symbol addresses, function names will not be resolved: {}'.format(e))
-            return df
-        else:
-            df = df.copy(deep=False)
-            df['func_name'] = df['func'].map(addr_map)
-            return df
-
 
 class TraceEventCheckerBase(abc.ABC, Loggable):
     """

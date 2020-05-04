@@ -20,7 +20,104 @@ import json
 import os
 
 import pandas as pd
-from lisa.analysis.base import AnalysisHelpers
+from lisa.analysis.base import TraceAnalysisBase, AnalysisHelpers
+from lisa.trace import requires_events, requires_one_event_of
+from lisa.conf import ConfigKeyError
+
+
+class FunctionsAnalysis(TraceAnalysisBase):
+    """
+    Support for ftrace events-based kernel functions profiling and analysis
+    """
+
+    name = 'functions'
+
+    def df_resolve_ksym(self, df, addr_col, name_col='func_name', addr_map=None, exact=True):
+        """
+        Resolve the kernel function names.
+
+        :param df: Dataframe to augment
+        :type df: pandas.DataFrame
+
+        :param addr_col: Name of the column containing a kernel address.
+        :type addr_col: str
+
+        :param name_col: Name of the column to create with symbol names
+        :param name_col: str
+
+        :param addr_map: If provided, the mapping of kernel addresses to symbol
+            names. If missing, the symbols addresses from the
+            :class:`lisa.platforms.platinfo.PlatformInfo` attached to the trace
+            will be used.
+        :type addr_map: dict(int, str)
+
+        :param exact: If ``True``, an exact symbol address is expected. If
+            ``False``, symbol addresses are sorted and paired to form
+            intervals, which are then used to infer the name. This is suited to
+            resolve an instruction pointer that could point anywhere inside of
+            a function (but before the starting address of the next function).
+        :type exact: bool
+        """
+        trace = self.trace
+
+        if addr_map is None:
+            addr_map = trace.plat_info['kernel']['symbols-address']
+
+        df = df.copy(deep=False)
+        if exact:
+            df[name_col] = df[addr_col].map(addr_map)
+        # Not exact means the function addresses will be used as ranges, so
+        # we can find in which function any instruction point value is
+        else:
+            # Sort by address, so that each consecutive pair of address
+            # constitue a range of address belonging to a given function.
+            addr_list = sorted(
+                addr_map.items(),
+                key=itemgetter(0)
+            )
+            bins, labels = zip(*addr_list)
+            # "close" the last bucket with the highest value possible of that column
+            max_addr = np.iinfo(df[addr_col].dtype).max
+            bins = list(bins) + [max_addr]
+            name_i = pd.cut(
+                df[addr_col],
+                bins=bins,
+                # Since our labels are not unique, we cannot pass it here
+                # directly. Instead, use an index into the labels list
+                labels=range(len(labels)),
+                # Include the left boundary and exclude the right one
+                include_lowest=True,
+                right=False,
+            )
+            df[name_col] = name_i.apply(lambda x: labels[x])
+
+        return df
+
+    def _df_with_ksym(self, event, *args, **kwargs):
+        df = self.trace.df_events(event)
+        try:
+            return self.df_resolve_ksym(df, event, *args, **kwargs)
+        except ConfigKeyError:
+            self.get_logger().warning('Missing symbol addresses, function names will not be resolved: {}'.format(e))
+            return df
+
+    @requires_one_event_of('funcgraph_entry', 'funcgraph_exit')
+    @TraceAnalysisBase.cache
+    def df_funcgraph(self, event):
+        """
+        Return augmented dataframe of the event with the following column:
+
+            * ``func_name``: Name of the calling function if it could be
+              resolved.
+
+        :param event: One of:
+
+            * ``entry`` (``funcgraph_entry`` event)
+            * ``exit`` (``funcgraph_exit`` event)
+        :type event: str
+        """
+        event = 'funcgraph_{}'.format(event)
+        return self._df_with_ksym(event, 'func', 'func_name', exact=True)
 
 
 class JSONStatsFunctionsAnalysis(AnalysisHelpers):
