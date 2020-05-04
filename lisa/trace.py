@@ -4204,34 +4204,6 @@ class Trace(Loggable, TraceBase):
 
         return df
 
-    @_sanitize_event('sched_load_avg_cpu')
-    def _sanitize_load_avg_cpu(self, event, df, aspects):
-        """
-        If necessary, rename certain signal names from v5.0 to v5.1 format.
-        """
-        if aspects['rename_cols'] and 'utilization' in df:
-            df = df.rename(columns={
-                'utilization': 'util_avg',
-                'load': 'load_avg',
-            }, copy=False)
-
-        return df
-
-    @_sanitize_event('sched_load_avg_task')
-    def _sanitize_load_avg_task(self, event, df, aspects):
-        """
-        If necessary, rename certain signal names from v5.0 to v5.1 format.
-        """
-        if aspects['rename_cols'] and 'utilization' in df:
-            df = df.rename(columns={
-                'utilization': 'util_avg',
-                'load': 'load_avg',
-                'avg_period': 'period_contrib',
-                'runnable_avg_sum': 'load_sum',
-                'running_avg_sum': 'util_sum',
-            }, copy=False)
-        return df
-
     @_sanitize_event('sched_boost_cpu')
     def _sanitize_boost_cpu(self, event, df, aspects):
         """

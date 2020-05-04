@@ -66,8 +66,12 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         if event in ['sched_load_avg_cpu', 'sched_load_avg_task']:
             return {
-                "util_avg": "util",
-                "load_avg": "load"
+                'load_avg': 'load',
+                'util_avg': 'util',
+                "utilization": 'util',
+                'avg_period': 'period_contrib',
+                'runnable_avg_sum': 'load_sum',
+                'running_avg_sum': 'util_sum',
             }
 
         return {}
