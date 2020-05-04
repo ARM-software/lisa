@@ -23,7 +23,7 @@ import pandas as pd
 from lisa.analysis.base import AnalysisHelpers
 
 
-class FunctionsAnalysis(AnalysisHelpers):
+class JSONStatsFunctionsAnalysis(AnalysisHelpers):
     """
     Support for kernel functions profiling and analysis
 
