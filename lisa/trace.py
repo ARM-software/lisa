@@ -4289,16 +4289,6 @@ class Trace(Loggable, TraceBase):
         df['cpus'] = df['cpus'].apply(f)
         return df
 
-    @_sanitize_event('cpu_frequency')
-    def _sanitize_cpu_frequency(self, event, df, aspects):
-        if aspects['rename_cols']:
-            df = df.rename(columns={
-                'cpu_id': 'cpu',
-                'state': 'frequency'
-            }, copy=False)
-
-        return df
-
     @_sanitize_event('funcgraph_entry')
     @_sanitize_event('funcgraph_exit')
     def _sanitize_funcgraph(self, event, df, aspects):

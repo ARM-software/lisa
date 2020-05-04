@@ -55,7 +55,17 @@ class FrequencyAnalysis(TraceAnalysisBase):
         The ``userspace@cpu_frequency_devlib`` user event is merged in the dataframe if
         it provides earlier values for a CPU.
         """
+        def rename(df):
+            return df.rename(
+                {
+                    'cpu_id': 'cpu',
+                    'state': 'frequency',
+                },
+                axis=1,
+            )
+
         df = self.trace.df_events('cpu_frequency', signals_init=signals_init)
+        df = rename(df)
         if not signals_init:
             return df
 
@@ -63,10 +73,12 @@ class FrequencyAnalysis(TraceAnalysisBase):
             devlib_df = self.trace.df_events('userspace@devlib_cpu_frequency')
         except MissingTraceEventError:
             return df
+        else:
+            devlib_df = rename(df)
 
         # Get the initial values for each CPU
         def init_freq(df, devlib):
-            df = df.groupby('cpu', observed=True, sort=False).head(1).copy()
+            df = df.groupby('cpu_id', observed=True, sort=False).head(1).copy()
             df['devlib'] = devlib
             return df
 
@@ -79,7 +91,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         # * the 2nd value if that comes from cpufreq
         init_df = pd.concat([init_df, init_devlib_df])
         init_df.sort_index(inplace=True)
-        init_groups = init_df.groupby('cpu', observed=True, sort=False)
+        init_groups = init_df.groupby('cpu_id', observed=True, sort=False)
 
         first_df = init_groups.head(1)
         # devlib == False means it's already in the existing dataframe, and we
