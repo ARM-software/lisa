@@ -738,6 +738,22 @@ def df_window(df, window, method='pre', clip_window=True):
 
 
 @DataFrameAccessor.register_accessor
+def df_make_empty_clone(df):
+    """
+    Make an empty clone of the given dataframe.
+
+    :param df: The template dataframe.
+    :type df: pandas.DataFrame
+
+    More specifically, the following aspects are cloned:
+
+        * Column names
+        * Column dtypes
+    """
+    return df.iloc[0:0].copy(deep=True)
+
+
+@DataFrameAccessor.register_accessor
 def df_window_signals(df, window, signals, compress_init=False, clip_window=True):
     """
     Similar to :func:`df_window` with ``method='pre'`` but guarantees that each
@@ -764,11 +780,6 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
     def before(x):
         return np.nextafter(x, -math.inf)
 
-    def make_empty_df():
-        empty = pd.DataFrame(columns=df.columns)
-        empty.index.name = df.index.name
-        return empty
-
     windowed_df = df_window(df, window, method='pre', clip_window=clip_window)
 
     # Split the extra rows that the method='pre' gave in a separate dataframe,
@@ -778,7 +789,7 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
         window[0],
     )
     if extra_window[0] >= extra_window[1]:
-        extra_df = make_empty_df()
+        extra_df = df_make_empty_clone(df)
     else:
         extra_df = df_window(windowed_df, extra_window, method='pre')
 
@@ -791,7 +802,7 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
     # The windowed_df did not contain any row in the given window, all the
     # actual data are in extra_df
     except KeyError:
-        windowed_df = make_empty_df()
+        windowed_df = df_make_empty_clone(df)
     else:
         # Make sure we don't include the left boundary
         if windowed_df.index[0] == _window[0]:
