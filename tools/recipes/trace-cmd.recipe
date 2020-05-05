@@ -6,14 +6,16 @@ download() {
     # So we use the personal one from Steven Rostedt
     git clone git://git.kernel.org/pub/scm/linux/kernel/git/rostedt/trace-cmd.git
 
-    git -C trace-cmd checkout trace-cmd-v2.4.2
+    # 2.8.3 + the following fix:
+    # trace-cmd: Check if ftrace file exists, before writing in it.
+    git -C trace-cmd checkout 6bc13cbbd203df952edb16894788b268bdcff562
 }
 
 # For trace-cmd v2.8.3
-# TRACE_CMD_BIN=tracecmd/trace-cmd
+TRACE_CMD_BIN=tracecmd/trace-cmd
 
 # For older versions of trace-cmd
-TRACE_CMD_BIN=trace-cmd
+# TRACE_CMD_BIN=trace-cmd
 
 build() {
     cd trace-cmd
@@ -35,7 +37,13 @@ install() {
     cp -v "$TRACE_CMD_BIN" "$LISA_ARCH_ASSETS/trace-cmd"
 
     source "$LISA_HOME/tools/recipes/utils.sh"
-    install_readme trace-cmd . COPYING
+    # According to COPYING, the tools are distributed under GPL-2.0 whereas the
+    # libraries are under LGLP-2.1:
+    #
+    # There are two main licenses that the tools in this directory are covered
+    # under. For the applications themselves, they are covered under GPL-2.0 (see
+    # under LPGL-2.1 (see LICENSES/LGPL-2.1).
+    install_readme trace-cmd . LICENSES/GPL-2.0
 }
 
 
