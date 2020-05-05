@@ -34,7 +34,7 @@ import inspect
 import shlex
 import contextlib
 import tempfile
-from functools import reduce, wraps
+from functools import lru_cache, reduce, wraps
 from collections.abc import Iterable, Set, Mapping, Sequence
 from collections import namedtuple
 from operator import itemgetter
@@ -2903,10 +2903,14 @@ class CollectorBase(Loggable):
     Sequence of tools to install on the target when using the collector.
     """
 
-    def __init__(self, target, collector):
+    def __init__(self, collector):
         self._collector = collector
-        if self.TOOLS:
-            self.target.install_tools(self.TOOLS)
+        self._install_tools(collector.target)
+
+    # Run once for each instance
+    @lru_cache(maxsize=None)
+    def _install_tools(self, target):
+        target.install_tools(self.TOOLS)
 
     def __getattr__(self, attr):
         return getattr(self._collector, attr)
@@ -2976,8 +2980,16 @@ class FtraceCollector(CollectorBase, Configurable):
             tracer=tracer,
         )
 
-        collector = devlib.FtraceCollector(**kwargs)
-        super().__init__(target, collector)
+        # Install the tools before creating the collector, as devlib will check
+        # for it
+        self._install_tools(target)
+        collector = devlib.FtraceCollector(
+            # Prevent devlib from pushing its own trace-cmd since we provide
+            # our own binary
+            no_install=True,
+            **kwargs
+        )
+        super().__init__(collector)
 
     def _is_kernel_event(self, event):
         """
@@ -3066,6 +3078,6 @@ class DmesgCollector(CollectorBase):
 
     def __init__(self, target, **kwargs):
         collector = devlib.DmesgCollector(target, **kwargs)
-        super().__init__(target, collector)
+        super().__init__(collector)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
