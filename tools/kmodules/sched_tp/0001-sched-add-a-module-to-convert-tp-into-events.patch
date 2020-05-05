@@ -1,4 +1,4 @@
-From b03bc38384e70ab7271b3435ef9b1e240fac2aba Mon Sep 17 00:00:00 2001
+From 766ef215effed5e92c14aafd07ce1dcc32025e4a Mon Sep 17 00:00:00 2001
 From: Qais Yousef <qais.yousef@arm.com>
 Date: Fri, 24 May 2019 15:10:46 +0100
 Subject: [PATCH] sched: add a module to convert tp into events
@@ -11,13 +11,34 @@ Lisa tests.
 
 Signed-off-by: Qais Yousef <qais.yousef@arm.com>
 ---
- kernel/sched/Makefile       |   3 +
- kernel/sched/sched_events.h | 134 ++++++++++++++++++++++++++++++++++
- kernel/sched/sched_tp.c     | 141 ++++++++++++++++++++++++++++++++++++
- 3 files changed, 278 insertions(+)
+ include/trace/events/sched.h |   7 ++
+ kernel/sched/Makefile        |   3 +
+ kernel/sched/core.c          |   2 +
+ kernel/sched/fair.c          |   6 +
+ kernel/sched/sched_events.h  | 209 +++++++++++++++++++++++++++++++++++
+ kernel/sched/sched_tp.c      | 170 ++++++++++++++++++++++++++++
+ 6 files changed, 397 insertions(+)
  create mode 100644 kernel/sched/sched_events.h
  create mode 100644 kernel/sched/sched_tp.c
 
+diff --git a/include/trace/events/sched.h b/include/trace/events/sched.h
+index 420e80e56e55..9c35f992dab0 100644
+--- a/include/trace/events/sched.h
++++ b/include/trace/events/sched.h
+@@ -335,6 +335,13 @@ TRACE_EVENT(sched_process_exec,
+ 		  __entry->pid, __entry->old_pid)
+ );
+ 
++DECLARE_TRACE(sched_util_est_cfs_tp,
++	TP_PROTO(struct cfs_rq *cfs_rq),
++	TP_ARGS(cfs_rq));
++
++DECLARE_TRACE(sched_util_est_se_tp,
++	TP_PROTO(struct sched_entity *se),
++	TP_ARGS(se));
+ 
+ #ifdef CONFIG_SCHEDSTATS
+ #define DEFINE_EVENT_SCHEDSTAT DEFINE_EVENT
 diff --git a/kernel/sched/Makefile b/kernel/sched/Makefile
 index 21fb5a5662b5..dbcb46d51509 100644
 --- a/kernel/sched/Makefile
@@ -32,25 +53,83 @@ index 21fb5a5662b5..dbcb46d51509 100644
  obj-$(CONFIG_SMP) += cpupri.o cpudeadline.o topology.o stop_task.o pelt.o
  obj-$(CONFIG_SCHED_AUTOGROUP) += autogroup.o
  obj-$(CONFIG_SCHEDSTATS) += stats.o
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index dd05a378631a..0db413eccaee 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -33,6 +33,8 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(pelt_dl_tp);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(pelt_irq_tp);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(pelt_se_tp);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(sched_overutilized_tp);
++EXPORT_TRACEPOINT_SYMBOL_GPL(sched_util_est_cfs_tp);
++EXPORT_TRACEPOINT_SYMBOL_GPL(sched_util_est_se_tp);
+ 
+ DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
+ 
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 83ab35e2374f..af29a272c7ab 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -3718,6 +3718,8 @@ static inline void util_est_enqueue(struct cfs_rq *cfs_rq,
+ 	enqueued  = cfs_rq->avg.util_est.enqueued;
+ 	enqueued += _task_util_est(p);
+ 	WRITE_ONCE(cfs_rq->avg.util_est.enqueued, enqueued);
++
++	trace_sched_util_est_cfs_tp(cfs_rq);
+ }
+ 
+ /*
+@@ -3748,6 +3750,8 @@ util_est_dequeue(struct cfs_rq *cfs_rq, struct task_struct *p, bool task_sleep)
+ 	ue.enqueued -= min_t(unsigned int, ue.enqueued, _task_util_est(p));
+ 	WRITE_ONCE(cfs_rq->avg.util_est.enqueued, ue.enqueued);
+ 
++	trace_sched_util_est_cfs_tp(cfs_rq);
++
+ 	/*
+ 	 * Skip update of task's estimated utilization when the task has not
+ 	 * yet completed an activation, e.g. being migrated.
+@@ -3801,6 +3805,8 @@ util_est_dequeue(struct cfs_rq *cfs_rq, struct task_struct *p, bool task_sleep)
+ 	ue.ewma  += last_ewma_diff;
+ 	ue.ewma >>= UTIL_EST_WEIGHT_SHIFT;
+ 	WRITE_ONCE(p->se.avg.util_est, ue);
++
++	trace_sched_util_est_se_tp(&p->se);
+ }
+ 
+ static inline int task_fits_capacity(struct task_struct *p, long capacity)
 diff --git a/kernel/sched/sched_events.h b/kernel/sched/sched_events.h
 new file mode 100644
-index 000000000000..659563ccb570
+index 000000000000..03c5467c9567
 --- /dev/null
 +++ b/kernel/sched/sched_events.h
-@@ -0,0 +1,136 @@
+@@ -0,0 +1,209 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#undef TRACE_SYSTEM
 +#define TRACE_SYSTEM sched
++
++#define MAX_SPAN_SIZE		128
 +
 +#if !defined(_SCHED_EVENTS_H) || defined(TRACE_HEADER_MULTI_READ)
 +#define _SCHED_EVENTS_H
 +
 +#define PATH_SIZE		64
-+#define SPAN_SIZE		NR_CPUS/4
++#define __SPAN_SIZE		(round_up(NR_CPUS, 4)/4)
++#define SPAN_SIZE		(__SPAN_SIZE > MAX_SPAN_SIZE ? MAX_SPAN_SIZE : __SPAN_SIZE)
 +
 +#include <linux/tracepoint.h>
++#include <linux/version.h>
 +
-+TRACE_EVENT(sched_load_cfs_rq,
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(5,6,0)
++#define RBL_LOAD_ENTRY		rbl_load
++#define RBL_LOAD_MEMBER		runnable_load_avg
++#define RBL_LOAD_STR		"rbl_load"
++#else
++#define RBL_LOAD_ENTRY		runnable
++#define RBL_LOAD_MEMBER		runnable_avg
++#define RBL_LOAD_STR		"runnable"
++#endif
++
++TRACE_EVENT(sched_pelt_cfs,
 +
 +	TP_PROTO(int cpu, char *path, const struct sched_avg *avg),
 +
@@ -60,7 +139,7 @@ index 000000000000..659563ccb570
 +		__field(	int,		cpu			)
 +		__array(	char,		path,	PATH_SIZE	)
 +		__field(	unsigned long,	load			)
-+		__field(	unsigned long,	rbl_load		)
++		__field(	unsigned long,	RBL_LOAD_ENTRY		)
 +		__field(	unsigned long,	util			)
 +	),
 +
@@ -68,13 +147,13 @@ index 000000000000..659563ccb570
 +		__entry->cpu		= cpu;
 +		strlcpy(__entry->path, path, PATH_SIZE);
 +		__entry->load		= avg->load_avg;
-+		__entry->rbl_load	= avg->runnable_load_avg;
++		__entry->RBL_LOAD_ENTRY	= avg->RBL_LOAD_MEMBER;
 +		__entry->util		= avg->util_avg;
 +	),
 +
-+	TP_printk("cpu=%d path=%s load=%lu rbl_load=%lu util=%lu",
++	TP_printk("cpu=%d path=%s load=%lu " RBL_LOAD_STR "=%lu util=%lu",
 +		  __entry->cpu, __entry->path, __entry->load,
-+		  __entry->rbl_load,__entry->util)
++		  __entry->RBL_LOAD_ENTRY,__entry->util)
 +);
 +
 +DECLARE_EVENT_CLASS(sched_pelt_rq_template,
@@ -86,20 +165,20 @@ index 000000000000..659563ccb570
 +	TP_STRUCT__entry(
 +		__field(	int,		cpu			)
 +		__field(	unsigned long,	load			)
-+		__field(	unsigned long,	rbl_load		)
++		__field(	unsigned long,	RBL_LOAD_ENTRY		)
 +		__field(	unsigned long,	util			)
 +	),
 +
 +	TP_fast_assign(
 +		__entry->cpu		= cpu;
 +		__entry->load		= avg->load_avg;
-+		__entry->rbl_load	= avg->runnable_load_avg;
++		__entry->RBL_LOAD_ENTRY	= avg->RBL_LOAD_MEMBER;
 +		__entry->util		= avg->util_avg;
 +	),
 +
-+	TP_printk("cpu=%d load=%lu rbl_load=%lu util=%lu",
++	TP_printk("cpu=%d load=%lu " RBL_LOAD_STR "=%lu util=%lu",
 +		  __entry->cpu, __entry->load,
-+		  __entry->rbl_load,__entry->util)
++		  __entry->RBL_LOAD_ENTRY,__entry->util)
 +);
 +
 +DEFINE_EVENT(sched_pelt_rq_template, sched_pelt_rt,
@@ -114,7 +193,7 @@ index 000000000000..659563ccb570
 +	TP_PROTO(int cpu, const struct sched_avg *avg),
 +	TP_ARGS(cpu, avg));
 +
-+TRACE_EVENT(sched_load_se,
++TRACE_EVENT(sched_pelt_se,
 +
 +	TP_PROTO(int cpu, char *path, char *comm, int pid, const struct sched_avg *avg),
 +
@@ -126,7 +205,7 @@ index 000000000000..659563ccb570
 +		__array(	char,		comm,	TASK_COMM_LEN	)
 +		__field(	int,		pid			)
 +		__field(	unsigned long,	load			)
-+		__field(	unsigned long,	rbl_load		)
++		__field(	unsigned long,	RBL_LOAD_ENTRY		)
 +		__field(	unsigned long,	util			)
 +		__field(	unsigned long long, update_time	        )
 +	),
@@ -137,14 +216,14 @@ index 000000000000..659563ccb570
 +		strlcpy(__entry->comm, comm, TASK_COMM_LEN);
 +		__entry->pid		= pid;
 +		__entry->load		= avg->load_avg;
-+		__entry->rbl_load	= avg->runnable_load_avg;
++		__entry->RBL_LOAD_ENTRY	= avg->RBL_LOAD_MEMBER;
 +		__entry->util		= avg->util_avg;
 +		__entry->update_time    = avg->last_update_time;
 +	),
 +
-+	TP_printk("cpu=%d path=%s comm=%s pid=%d load=%lu rbl_load=%lu util=%lu update_time=%llu",
++	TP_printk("cpu=%d path=%s comm=%s pid=%d load=%lu " RBL_LOAD_STR "=%lu util=%lu update_time=%llu",
 +		  __entry->cpu, __entry->path, __entry->comm, __entry->pid,
-+		  __entry->load, __entry->rbl_load,__entry->util, __entry->update_time)
++		  __entry->load, __entry->RBL_LOAD_ENTRY,__entry->util, __entry->update_time)
 +);
 +
 +TRACE_EVENT(sched_overutilized,
@@ -167,6 +246,65 @@ index 000000000000..659563ccb570
 +		  __entry->overutilized, __entry->span)
 +);
 +
++TRACE_EVENT(sched_util_est_se,
++
++	TP_PROTO(int cpu, char *path, char *comm, int pid,
++		 const struct sched_avg *avg),
++
++	TP_ARGS(cpu, path, comm, pid, avg),
++
++	TP_STRUCT__entry(
++		__field(	int,		cpu			)
++		__array(	char,		path,	PATH_SIZE	)
++		__array(	char,		comm,	TASK_COMM_LEN	)
++		__field(	int,		pid			)
++		__field( 	unsigned int,	enqueued		)
++		__field( 	unsigned int,	ewma			)
++		__field(	unsigned long,	util			)
++	),
++
++	TP_fast_assign(
++		__entry->cpu		= cpu;
++		strlcpy(__entry->path, path, PATH_SIZE);
++		strlcpy(__entry->comm, comm, TASK_COMM_LEN);
++		__entry->pid		= pid;
++		__entry->enqueued	= avg->util_est.enqueued;
++		__entry->ewma		= avg->util_est.ewma;
++		__entry->util		= avg->util_avg;
++	),
++
++	TP_printk("cpu=%d path=%s comm=%s pid=%d enqueued=%u ewma=%u util=%lu",
++		  __entry->cpu, __entry->path, __entry->comm, __entry->pid,
++		  __entry->enqueued, __entry->ewma, __entry->util)
++);
++
++TRACE_EVENT(sched_util_est_cfs,
++
++	TP_PROTO(int cpu, char *path, const struct sched_avg *avg),
++
++	TP_ARGS(cpu, path, avg),
++
++	TP_STRUCT__entry(
++		__field(	int,		cpu			)
++		__array(	char,		path,	PATH_SIZE	)
++		__field( 	unsigned int,	enqueued		)
++		__field( 	unsigned int,	ewma			)
++		__field(	unsigned long,	util			)
++	),
++
++	TP_fast_assign(
++		__entry->cpu		= cpu;
++		strlcpy(__entry->path, path, PATH_SIZE);
++		__entry->enqueued	= avg->util_est.enqueued;
++		__entry->ewma		= avg->util_est.ewma;
++		__entry->util		= avg->util_avg;
++	),
++
++	TP_printk("cpu=%d path=%s enqueued=%u ewma=%u util=%lu",
++		  __entry->cpu, __entry->path, __entry->enqueued,
++		 __entry->ewma, __entry->util)
++);
++
 +#endif /* _SCHED_EVENTS_H */
 +
 +/* This part must be outside protection */
@@ -176,10 +314,10 @@ index 000000000000..659563ccb570
 +#include <trace/define_trace.h>
 diff --git a/kernel/sched/sched_tp.c b/kernel/sched/sched_tp.c
 new file mode 100644
-index 000000000000..f2cc4992749e
+index 000000000000..9fff885ba022
 --- /dev/null
 +++ b/kernel/sched/sched_tp.c
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,170 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#include <linux/module.h>
 +
@@ -207,19 +345,47 @@ index 000000000000..f2cc4992749e
 +#endif
 +}
 +
++static inline void _trace_cfs(struct cfs_rq *cfs_rq,
++			      void (*trace_event)(int, char*,
++						  const struct sched_avg*))
++{
++	const struct sched_avg *avg;
++	char path[PATH_SIZE];
++	int cpu;
++
++	avg = sched_trace_cfs_rq_avg(cfs_rq);
++	sched_trace_cfs_rq_path(cfs_rq, path, PATH_SIZE);
++	cpu = sched_trace_cfs_rq_cpu(cfs_rq);
++
++	trace_event(cpu, path, avg);
++ }
++
++static inline void _trace_se(struct sched_entity *se,
++			     void (*trace_event)(int, char*, char*, int,
++						 const struct sched_avg*))
++{
++	void *gcfs_rq = get_group_cfs_rq(se);
++	void *cfs_rq = get_se_cfs_rq(se);
++	struct task_struct *p;
++	char path[PATH_SIZE];
++	char *comm;
++	pid_t pid;
++	int cpu;
++
++	sched_trace_cfs_rq_path(gcfs_rq, path, PATH_SIZE);
++	cpu = sched_trace_cfs_rq_cpu(cfs_rq);
++
++	p = gcfs_rq ? NULL : container_of(se, struct task_struct, se);
++	comm = p ? p->comm : "(null)";
++	pid = p ? p->pid : -1;
++
++	trace_event(cpu, path, comm, pid, &se->avg);
++}
++
 +static void sched_pelt_cfs(void *data, struct cfs_rq *cfs_rq)
 +{
-+	if (trace_sched_load_cfs_rq_enabled()) {
-+		const struct sched_avg *avg;
-+		char path[PATH_SIZE];
-+		int cpu;
-+
-+		avg = sched_trace_cfs_rq_avg(cfs_rq);
-+		sched_trace_cfs_rq_path(cfs_rq, path, PATH_SIZE);
-+		cpu = sched_trace_cfs_rq_cpu(cfs_rq);
-+
-+		trace_sched_load_cfs_rq(cpu, path, avg);
-+	}
++	if (trace_sched_pelt_cfs_enabled())
++		_trace_cfs(cfs_rq, trace_sched_pelt_cfs);
 +}
 +
 +static void sched_pelt_rt(void *data, struct rq *rq)
@@ -263,23 +429,8 @@ index 000000000000..f2cc4992749e
 +
 +static void sched_pelt_se(void *data, struct sched_entity *se)
 +{
-+	if (trace_sched_load_se_enabled()) {
-+		void *gcfs_rq = get_group_cfs_rq(se);
-+		void *cfs_rq = get_se_cfs_rq(se);
-+		struct task_struct *p;
-+		char path[PATH_SIZE];
-+		char *comm;
-+		pid_t pid;
-+		int cpu;
-+
-+		sched_trace_cfs_rq_path(gcfs_rq, path, PATH_SIZE);
-+		cpu = sched_trace_cfs_rq_cpu(cfs_rq);
-+
-+		p = gcfs_rq ? NULL : container_of(se, struct task_struct, se);
-+		comm = p ? p->comm : "(null)";
-+		pid = p ? p->pid : -1;
-+
-+		trace_sched_load_se(cpu, path, comm, pid, &se->avg);
++	if (trace_sched_pelt_se_enabled()) {
++		_trace_se(se, trace_sched_pelt_se);
 +	}
 +}
 +
@@ -294,6 +445,18 @@ index 000000000000..f2cc4992749e
 +	}
 +}
 +
++static void sched_util_est_cfs(void *data, struct cfs_rq *cfs_rq)
++{
++	if (trace_sched_util_est_cfs_enabled())
++		_trace_cfs(cfs_rq, trace_sched_util_est_cfs);
++}
++
++static void sched_util_est_se(void *data, struct sched_entity *se)
++{
++	if (trace_sched_util_est_se_enabled())
++		_trace_se(se, trace_sched_util_est_se);
++}
++
 +static int sched_tp_init(void)
 +{
 +	register_trace_pelt_cfs_tp(sched_pelt_cfs, NULL);
@@ -302,6 +465,8 @@ index 000000000000..f2cc4992749e
 +	register_trace_pelt_irq_tp(sched_pelt_irq, NULL);
 +	register_trace_pelt_se_tp(sched_pelt_se, NULL);
 +	register_trace_sched_overutilized_tp(sched_overutilized, NULL);
++	register_trace_sched_util_est_cfs_tp(sched_util_est_cfs, NULL);
++	register_trace_sched_util_est_se_tp(sched_util_est_se, NULL);
 +
 +	return 0;
 +}
@@ -314,6 +479,8 @@ index 000000000000..f2cc4992749e
 +	unregister_trace_pelt_irq_tp(sched_pelt_irq, NULL);
 +	unregister_trace_pelt_se_tp(sched_pelt_se, NULL);
 +	unregister_trace_sched_overutilized_tp(sched_overutilized, NULL);
++	unregister_trace_sched_util_est_cfs_tp(sched_util_est_cfs, NULL);
++	unregister_trace_sched_util_est_se_tp(sched_util_est_se, NULL);
 +}
 +
 +
