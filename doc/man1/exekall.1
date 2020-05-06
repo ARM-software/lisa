@@ -68,17 +68,17 @@ subcommands:
 .nf
 .ft C
 usage: exekall run [\-h] [\-s ID_PATTERN] [\-\-list] [\-n N] [\-\-load\-db LOAD_DB]
-                   [\-\-load\-type TYPE_PATTERN] [\-\-replay REPLAY]
-                   [\-\-artifact\-dir ARTIFACT_DIR] [\-\-no\-save\-value\-db]
-                   [\-\-verbose] [\-\-pdb]
+                   [\-\-load\-type TYPE_PATTERN]
+                   [\-\-replay REPLAY | \-\-load\-uuid LOAD_UUID]
+                   [\-\-artifact\-dir ARTIFACT_DIR | \-\-artifact\-root ARTIFACT_ROOT]
+                   [\-\-no\-save\-value\-db] [\-\-verbose] [\-\-pdb]
                    [\-\-log\-level {debug,info,warn,error,critical}]
                    [\-\-param CALLABLE_PATTERN PARAM VALUE]
                    [\-\-sweep CALLABLE_PATTERN PARAM START STOP STEP]
                    [\-\-share TYPE_PATTERN] [\-\-random\-order]
-                   [\-\-artifact\-root ARTIFACT_ROOT]
                    [\-\-symlink\-artifact\-dir\-to SYMLINK_ARTIFACT_DIR_TO]
-                   [\-\-load\-uuid LOAD_UUID] [\-\-restrict CALLABLE_PATTERN]
-                   [\-\-forbid TYPE_PATTERN] [\-\-allow CALLABLE_PATTERN]
+                   [\-\-restrict CALLABLE_PATTERN] [\-\-forbid TYPE_PATTERN]
+                   [\-\-allow CALLABLE_PATTERN]
                    [\-\-goal TYPE_PATTERN | \-\-callable\-goal CALLABLE_PATTERN]
                    [\-\-template\-scripts SCRIPT_FOLDER] [\-\-adaptor ADAPTOR]
                    [\-\-conf CONF] [\-\-inject SERIALIZED_OBJECT_PATH]
@@ -112,14 +112,20 @@ optional arguments:
                         instead of the root objects.
   \-\-replay REPLAY       Replay the execution of the given UUID, loading as much prerequisite
                         from the DB as possible.
+  \-\-load\-uuid LOAD_UUID
+                        Load the given UUID from the database.
   \-\-artifact\-dir ARTIFACT_DIR
                         Folder in which the artifacts will be stored. Defaults to
                         EXEKALL_ARTIFACT_DIR env var.
   \-\-artifact\-root ARTIFACT_ROOT
                         Root folder under which the artifact folders will be created. Defaults
                         to EXEKALL_ARTIFACT_ROOT env var.
-  \-\-load\-uuid LOAD_UUID
-                        Load the given UUID from the database.
+  \-\-conf CONF           LISA configuration file. If multiple configurations of a given type
+                        are found, they are merged (last one can override keys in previous
+                        ones). Only load trusted files as it can lead to arbitrary code
+                        execution.
+  \-\-inject SERIALIZED_OBJECT_PATH
+                        Serialized object to inject when building expressions
 
 advanced arguments:
   Options not needed for every\-day use

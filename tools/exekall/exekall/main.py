@@ -261,39 +261,53 @@ please run ``exekall run YOUR_SOURCES_OR_MODULES --help``.
         default=[],
         help="""Load the (indirect) instances of the given class from the database instead of the root objects.""")
 
-    uuid_group = run_parser.add_mutually_exclusive_group()
-    add_argument(uuid_group, '--replay',
+    run_uuid_group = run_parser.add_mutually_exclusive_group()
+    add_argument(run_uuid_group, '--replay',
         help="""Replay the execution of the given UUID, loading as much prerequisite from the DB as possible.""")
 
-    artifact_dir_group = run_parser.add_mutually_exclusive_group()
-    add_argument(artifact_dir_group, '--artifact-dir',
+    add_argument(run_uuid_group, '--load-uuid', action='append',
+        default=[],
+        help="""Load the given UUID from the database.""")
+
+    # Load the parameters that were used to compute the value with the given
+    # UUID from the database. This can be used as a more flexible form of
+    # --replay that does not imply restricting the selection
+    add_argument(run_uuid_group, '--load-uuid-args',
+        help=argparse.SUPPRESS)
+
+    run_artifact_dir_group = run_parser.add_mutually_exclusive_group()
+    add_argument(run_artifact_dir_group, '--artifact-dir',
         default=os.getenv('EXEKALL_ARTIFACT_DIR'),
         help="""Folder in which the artifacts will be stored. Defaults to EXEKALL_ARTIFACT_DIR env var.""")
 
-    run_parser = run_parser.add_argument_group(title='advanced arguments', description='Options not needed for every-day use')
+    add_argument(run_artifact_dir_group, '--artifact-root',
+        default=os.getenv('EXEKALL_ARTIFACT_ROOT', 'artifacts'),
+        help="Root folder under which the artifact folders will be created. Defaults to EXEKALL_ARTIFACT_ROOT env var.")
 
-    add_argument(run_parser, '--no-save-value-db', action='store_false',
+    run_advanced_group = run_parser.add_argument_group(title='advanced arguments', description='Options not needed for every-day use')
+
+    add_argument(run_advanced_group, '--no-save-value-db', action='store_false',
         dest='save_value_db',
         help="""Do not create a VALUE_DB.pickle.xz file in the artifact folder. This avoids a costly serialization of the results, but prevents partial re-execution of expressions.""")
 
-    add_argument(run_parser, '--verbose', '-v', action='count', default=0,
+    add_argument(run_advanced_group, '--verbose', '-v', action='count', default=0,
         help="""More verbose output. Can be repeated for even more verbosity. This only impacts exekall output, --log-level for more global settings.""")
 
-    add_argument(run_parser, '--pdb', action='store_true',
+    add_argument(run_advanced_group, '--pdb', action='store_true',
         help="""If an exception occurs in the code ran by ``exekall``, drops into a debugger shell.""")
 
-    add_argument(run_parser, '--log-level', default='info',
+    add_argument(run_advanced_group, '--log-level', default='info',
         choices=('debug', 'info', 'warn', 'error', 'critical'),
         help="""Change the default log level of the standard logging module.""")
 
-    add_argument(run_parser, '--param', nargs=3, action='append', default=[],
+    add_argument(run_advanced_group, '--param', nargs=3, action='append', default=[],
         metavar=('CALLABLE_PATTERN', 'PARAM', 'VALUE'),
         help="""Set a function parameter. It needs three fields:
     * pattern matching qualified name of the callable
     * name of the parameter
     * value""")
 
-    add_argument(run_parser, '--sweep', nargs=5, action='append', default=[],
+    add_argument(run_advanced_group, '--sweep', nargs=5, action='append', default=[],
         metavar=('CALLABLE_PATTERN', 'PARAM', 'START', 'STOP', 'STEP'),
         help="""Parametric sweep on a function parameter. It needs five fields:
     * pattern matching qualified name of the callable
@@ -302,67 +316,53 @@ please run ``exekall run YOUR_SOURCES_OR_MODULES --help``.
     * stop value
     * step size.""")
 
-    add_argument(run_parser, '--share', action='append',
+    add_argument(run_advanced_group, '--share', action='append',
         metavar='TYPE_PATTERN',
         default=[],
         help="""Class name pattern to share between multiple iterations.""")
 
-    add_argument(run_parser, '--random-order', action='store_true',
+    add_argument(run_advanced_group, '--random-order', action='store_true',
         help="""Run the expressions in a random order, instead of sorting by name.""")
 
-    add_argument(artifact_dir_group, '--artifact-root',
-        default=os.getenv('EXEKALL_ARTIFACT_ROOT', 'artifacts'),
-        help="Root folder under which the artifact folders will be created. Defaults to EXEKALL_ARTIFACT_ROOT env var.")
-
-    add_argument(run_parser, '--symlink-artifact-dir-to',
+    add_argument(run_advanced_group, '--symlink-artifact-dir-to',
         type=pathlib.Path,
         help="""Create a symlink pointing at the artifact dir.""")
 
     # Show the list of expressions in reStructuredText format, suitable for
     # inclusion in Sphinx documentation
-    add_argument(run_parser, '--rst-list', action='store_true',
+    add_argument(run_advanced_group, '--rst-list', action='store_true',
         help=argparse.SUPPRESS)
 
-    add_argument(uuid_group, '--load-uuid', action='append',
-        default=[],
-        help="""Load the given UUID from the database.""")
-
-    # Load the parameters that were used to compute the value with the given
-    # UUID from the database. This can be used as a more flexible form of
-    # --replay that does not imply restricting the selection
-    add_argument(uuid_group, '--load-uuid-args',
-        help=argparse.SUPPRESS)
-
-    add_argument(run_parser, '--restrict', action='append',
+    add_argument(run_advanced_group, '--restrict', action='append',
         metavar='CALLABLE_PATTERN',
         default=[],
         help="""Callable names patterns. Types produced by these callables will only be produced by these (other callables will be excluded).""")
 
-    add_argument(run_parser, '--forbid', action='append',
+    add_argument(run_advanced_group, '--forbid', action='append',
         metavar='TYPE_PATTERN',
         default=[],
         help="""Fully qualified type names patterns. Callable returning these types or any subclass will not be called.""")
 
-    add_argument(run_parser, '--allow', action='append',
+    add_argument(run_advanced_group, '--allow', action='append',
         metavar='CALLABLE_PATTERN',
         default=[],
         help="""Allow using callable with a fully qualified name matching these patterns, even if they have been not selected for various reasons.""")
 
-    goal_group = run_parser.add_mutually_exclusive_group()
-    add_argument(goal_group, '--goal', action='append',
+    run_goal_group = run_advanced_group.add_mutually_exclusive_group()
+    add_argument(run_goal_group, '--goal', action='append',
         metavar='TYPE_PATTERN',
         default=[],
         help="""Compute expressions leading to an instance of a class with name matching this pattern (or a subclass of it).""")
 
-    add_argument(goal_group, '--callable-goal', action='append',
+    add_argument(run_goal_group, '--callable-goal', action='append',
         metavar='CALLABLE_PATTERN',
         default=[],
         help="""Compute expressions ending with a callable which name is matching this pattern.""")
 
-    add_argument(run_parser, '--template-scripts', metavar='SCRIPT_FOLDER',
+    add_argument(run_advanced_group, '--template-scripts', metavar='SCRIPT_FOLDER',
         help="""Only create the template scripts of the expressions without running them.""")
 
-    add_argument(run_parser, '--adaptor',
+    add_argument(run_advanced_group, '--adaptor',
         help="""Adaptor to use from the customization module, if there is more than one to choose from.""")
 
     merge_parser = subparsers.add_parser('merge',
@@ -668,7 +668,8 @@ def do_run(args, parser, run_parser, argv):
             raise RuntimeError('No adaptor was found')
     # Add all the CLI arguments of the adaptor before reparsing the
     # command line.
-    adaptor_group = utils.create_adaptor_parser_group(run_parser, adaptor_cls)
+    # adaptor_group = utils.create_adaptor_parser_group(run_parser, adaptor_cls)
+    adaptor_group = run_parser
     adaptor_cls.register_run_param(adaptor_group)
 
     # Reparse the command line after the adaptor had a chance to add its own
