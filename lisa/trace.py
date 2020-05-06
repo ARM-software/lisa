@@ -4216,54 +4216,6 @@ class Trace(Loggable, TraceBase):
         df['cpus'] = df['cpus'].apply(f)
         return df
 
-    # SANITIZATION BELOW THAT ARE LIKELY TO BE REMOVED SOON, AS THEY SHOULD BE
-    # HOSTED IN AN ANALYSIS AND THESE EVENTS ARE MOST LIKELY NOT USED ANYMORE
-
-    @_sanitize_event('sched_boost_cpu')
-    def _sanitize_boost_cpu(self, event, df, aspects):
-        """
-        Add a boosted utilization signal as the sum of utilization and margin.
-
-        Also, if necessary, rename certain signal names from v5.0 to v5.1
-        format.
-        """
-        df = df.copy(deep=False)
-
-        if aspects['rename_cols'] and 'usage' in df:
-            df.rename(columns={'usage': 'util'}, inplace=True)
-        df['boosted_util'] = df['util'] + df['margin']
-        return df
-
-    @_sanitize_event('sched_boost_task')
-    def _sanitize_boost_task(self, event, df, aspects):
-        """
-        Add a boosted utilization signal as the sum of utilization and margin.
-
-        Also, if necessary, rename certain signal names from v5.0 to v5.1
-        format.
-        """
-        df = df.copy(deep=False)
-
-        if aspects['rename_cols'] and 'utilization' in df:
-            # Convert signals name from to v5.1 format
-            df.rename(columns={'utilization': 'util'}, inplace=True)
-        df['boosted_util'] = df['util'] + df['margin']
-        return df
-
-    @_sanitize_event('sched_energy_diff')
-    def _sanitize_energy_diff(self, event, df, aspects):
-        """
-        Convert between existing field name formats for sched_energy_diff
-        """
-        if aspects['rename_cols']:
-            df = df.rename(columns={
-                'nrg_d': 'nrg_diff',
-                'utl_d': 'usage_delta',
-                'payoff': 'nrg_payoff',
-            }, copy=False)
-
-        return df
-
 
 class TraceEventCheckerBase(abc.ABC, Loggable):
     """
