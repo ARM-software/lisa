@@ -1876,6 +1876,14 @@ class TraceBase(abc.ABC):
 
         return df_add_delta(df, col=col_name, inplace=inplace, window=self.window)
 
+    @deprecate('This method has been deprecated and is an alias',
+        deprecated_in='2.0',
+        removed_in='2.1',
+        replaced_by='df_event',
+    )
+    def df_events(self, *args, **kwargs):
+        return self.df_event(*args, **kwargs)
+
     def df_all_events(self, events=None):
         """
         Provide a dataframe with an ``info`` column containing the textual
