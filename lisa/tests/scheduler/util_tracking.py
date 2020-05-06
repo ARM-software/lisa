@@ -176,7 +176,7 @@ class UtilConvergence(UtilTrackingBase):
 
         task = self.rtapp_task_ids_map['test'][0]
 
-        ue_df = self.trace.df_events('sched_util_est_se')
+        ue_df = self.trace.df_event('sched_util_est_se')
         ue_df = df_filter_task_ids(ue_df, [task])
         ua_df = self.trace.analysis.load_tracking.df_task_signal(task, 'util')
 
@@ -280,7 +280,7 @@ class UtilConvergence(UtilTrackingBase):
                          (df.next_state == TaskState.TASK_ACTIVE)].index
 
         # Check task signals at each activation
-        df = self.trace.df_events('sched_util_est_se')
+        df = self.trace.df_event('sched_util_est_se')
         df = df_filter_task_ids(df, [task])
 
 

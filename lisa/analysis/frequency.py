@@ -45,7 +45,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
     @requires_one_event_of('cpu_frequency', 'userspace@cpu_frequency_devlib')
     def df_cpus_frequency(self, signals_init=True):
         """
-        Similar to ``trace.df_events('cpu_frequency')``, with
+        Similar to ``trace.df_event('cpu_frequency')``, with
         ``userspace@cpu_frequency_devlib`` support.
 
         :param signals_init: If ``True``, and initial value for signals will be
@@ -64,13 +64,13 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 axis=1,
             )
 
-        df = self.trace.df_events('cpu_frequency', signals_init=signals_init)
+        df = self.trace.df_event('cpu_frequency', signals_init=signals_init)
         df = rename(df)
         if not signals_init:
             return df
 
         try:
-            devlib_df = self.trace.df_events('userspace@devlib_cpu_frequency')
+            devlib_df = self.trace.df_event('userspace@devlib_cpu_frequency')
         except MissingTraceEventError:
             return df
         else:
@@ -330,9 +330,9 @@ class FrequencyAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.cache
     @requires_events('clock_set_rate', 'clock_enable', 'clock_disable')
     def df_peripheral_clock_effective_rate(self, clk_name):
-        rate_df = self.trace.df_events('clock_set_rate')
-        enable_df = self.trace.df_events('clock_enable')
-        disable_df = self.trace.df_events('clock_disable')
+        rate_df = self.trace.df_event('clock_set_rate')
+        enable_df = self.trace.df_event('clock_enable')
+        disable_df = self.trace.df_event('clock_disable')
 
         freq = rate_df[rate_df.clk_name == clk_name]
         enables = enable_df[enable_df.clk_name == clk_name]

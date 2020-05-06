@@ -1081,7 +1081,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
           Calling ``self.trace`` here will raise an :exc:`AttributeError`
           exception, to avoid entering infinite recursion.
         """
-        swdf = trace.df_events('sched_switch')
+        swdf = trace.df_event('sched_switch')
 
         def get_first_switch(row):
             comm, pid, _ = row.name

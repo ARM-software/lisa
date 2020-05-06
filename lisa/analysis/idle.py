@@ -54,7 +54,7 @@ class IdleAnalysis(TraceAnalysisBase):
         :param cpu: Optionally, filter on that CPU
         :type cpu: str or None
         """
-        df = self.trace.df_events('cpu_idle')
+        df = self.trace.df_event('cpu_idle')
         # Filter before rename to avoid copying data we will ignore
         if cpu is not None:
             df = df[df['cpu_id'] == cpu]

@@ -25,7 +25,7 @@ You can create one like so::
 
 Raw trace events can be accessed like this::
 
-  trace.df_events("sched_switch")
+  trace.df_event("sched_switch")
 
 Whereas analysis dataframes can be obtained like that::
 

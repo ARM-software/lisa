@@ -94,7 +94,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
         return df
 
     def _df_with_ksym(self, event, *args, **kwargs):
-        df = self.trace.df_events(event)
+        df = self.trace.df_event(event)
         try:
             return self.df_resolve_ksym(df, event, *args, **kwargs)
         except ConfigKeyError:

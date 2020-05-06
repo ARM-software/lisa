@@ -464,14 +464,14 @@ class WaResultsCollector(Loggable):
             def row_filter(r): return True
             column = 'util_avg'
         if event:
-            df = trace.df_events(event)
+            df = trace.df_event(event)
             util_sum = (df[row_filter]
                         .pivot(columns='cpu')[column].ffill().sum(axis=1))
             avg_util_sum = series_mean(util_sum)
             metrics.append(('avg_util_sum', avg_util_sum, None))
 
         if trace.has_events('thermal_temperature'):
-            df = trace.df_events('thermal_temperature')
+            df = trace.df_event('thermal_temperature')
             for zone, zone_df in df.groupby('thermal_zone'):
                 metrics.append(('tz_{}_start_temp'.format(zone),
                                 zone_df.iloc[0]['temp_prev'],

@@ -1795,7 +1795,7 @@ class TraceBase(abc.ABC):
     def trace_state(self):
         """
         State of the trace object that might impact the output of dataframe
-        getter functions like :meth:`Trace.df_events`.
+        getter functions like :meth:`Trace.df_event`.
 
         It must be hashable and serializable to JSON, so that it can be
         recorded when analysis methods results are cached to the swap.
@@ -1902,7 +1902,7 @@ class TraceBase(abc.ABC):
             return '{:<{event_name_len}}: {}'.format(event, fields, event_name_len=max_event_name_len)
 
         def make_info_series(event):
-            df = self.df_events(event)
+            df = self.df_event(event)
             info = df.apply(make_info_row, axis=1, event=event)
             info.name = 'info'
             return info
@@ -1953,7 +1953,7 @@ class TraceView(Loggable, TraceBase):
 
     **Design notes:**
 
-      * :meth:`df_events` uses the underlying :meth:`lisa.trace.Trace.df_events`
+      * :meth:`df_event` uses the underlying :meth:`lisa.trace.Trace.df_event`
         and trims the dataframe according to the given ``window`` before
         returning it.
       * ``self.start`` and ``self.end`` mimic the :class:`Trace` attributes but
@@ -1981,7 +1981,7 @@ class TraceView(Loggable, TraceBase):
     def __getattr__(self, name):
         return getattr(self.base_trace, name)
 
-    def df_events(self, event, **kwargs):
+    def df_event(self, event, **kwargs):
         """
         Get a dataframe containing all occurrences of the specified trace event
         in the sliced trace.
@@ -1990,7 +1990,7 @@ class TraceView(Loggable, TraceBase):
         :type event: str
 
         :Variable keyword arguments: Forwarded to
-            :meth:`lisa.trace.Trace.df_events`.
+            :meth:`lisa.trace.Trace.df_event`.
         """
         try:
             window = kwargs['window']
@@ -1998,7 +1998,7 @@ class TraceView(Loggable, TraceBase):
             window = (self.start, self.end)
         kwargs['window'] = window
 
-        return self.base_trace.df_events(event, **kwargs)
+        return self.base_trace.df_event(event, **kwargs)
 
     def get_view(self, window, **kwargs):
         start = self.start
@@ -2037,7 +2037,7 @@ class _AvailableTraceEventsSet:
         if event not in trace._parseable_events:
             # If the trace file is not accessible anymore, we will get an OSError
             with contextlib.suppress(MissingTraceEventError, OSError):
-                trace.df_events(event=event, raw=True)
+                trace.df_event(event=event, raw=True)
 
         return trace._parseable_events.setdefault(event, False)
 
@@ -2954,7 +2954,7 @@ class Trace(Loggable, TraceBase):
 
     :param events: events to be parsed. Since events can be loaded on-demand,
         that is optional but still recommended to improve trace parsing speed.
-        .. seealso:: :meth:`df_events` for event formats accepted.
+        .. seealso:: :meth:`df_event` for event formats accepted.
     :type events: list(str) or None
 
     :param strict_events: When ``True``, all the events specified in ``events``
@@ -3011,7 +3011,7 @@ class Trace(Loggable, TraceBase):
         the max size is the size of the trace file.
     :type max_swap_size: int or None
 
-    :param write_swap: Default value used for :meth:`df_events` ``write_swap``
+    :param write_swap: Default value used for :meth:`df_event` ``write_swap``
         parameter.
     :type write_swap: bool
 
@@ -3415,7 +3415,7 @@ class Trace(Loggable, TraceBase):
     def _get_time_range(self, parser=None):
         return self._get_cacheable_metadata('time-range', parser)
 
-    def df_events(self, event, raw=None, window=None, signals=None, signals_init=True, compress_signals_init=False, write_swap=None):
+    def df_event(self, event, raw=None, window=None, signals=None, signals_init=True, compress_signals_init=False, write_swap=None):
         """
         Get a dataframe containing all occurrences of the specified trace event
         in the parsed trace.
@@ -3717,7 +3717,7 @@ class Trace(Loggable, TraceBase):
         # dataframes one by one
         for source_event, specs in groupby(meta_specs, key=itemgetter(2)):
             try:
-                df = self.df_events(source_event)
+                df = self.df_event(source_event)
             except MissingTraceEventError:
                 pass
             else:
@@ -3781,7 +3781,7 @@ class Trace(Loggable, TraceBase):
         # to load them from there as well
         for event in get_missing(df_map):
             with contextlib.suppress(MissingTraceEventError):
-                df_map[event] = self.df_events(event, raw=True)
+                df_map[event] = self.df_event(event, raw=True)
 
         return {
             events_map[event]: df
@@ -3843,7 +3843,7 @@ class Trace(Loggable, TraceBase):
 
         mapping_df_list = []
         def _load(event, name_col, pid_col):
-            df = self.df_events(event)
+            df = self.df_event(event)
 
             # Get a Time column
             df = df.reset_index()

@@ -220,7 +220,7 @@ but we did rename/move things to make them more coherent.
 
 **LISA next**::
 
-  trace.df_events("sched_switch")
+  trace.df_event("sched_switch")
 
 
 Analysis

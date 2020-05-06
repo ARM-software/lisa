@@ -90,7 +90,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         task_ids = set()
         for event in self.RTAPP_USERSPACE_EVENTS:
             try:
-                df = self.trace.df_events(event)
+                df = self.trace.df_event(event)
             except MissingTraceEventError:
                 continue
             else:
@@ -137,7 +137,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
           * ``NaN`` for all the other events
 
         """
-        return self.trace.df_events('userspace@rtapp_main')
+        return self.trace.df_event('userspace@rtapp_main')
 
     @property
     @memoized
@@ -199,7 +199,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
           * ``end``: the end of the ``__pid``:``__comm`` task execution
 
         """
-        df = self.trace.df_events('userspace@rtapp_task')
+        df = self.trace.df_event('userspace@rtapp_task')
         return self._task_filtered(df, task)
 
     ###########################################################################
@@ -233,7 +233,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
           * ``end``: the end of the ``__pid``:``__comm`` related event
 
         """
-        df = self.trace.df_events('userspace@rtapp_loop')
+        df = self.trace.df_event('userspace@rtapp_loop')
         return self._task_filtered(df, task)
 
     @TraceAnalysisBase.cache
@@ -516,7 +516,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         The ``index`` represents the timestamp of the event.
         """
-        df = self.trace.df_events('userspace@rtapp_event')
+        df = self.trace.df_event('userspace@rtapp_event')
         return self._task_filtered(df, task)
 
     ###########################################################################
@@ -526,7 +526,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.cache
     @requires_events('userspace@rtapp_stats')
     def _get_stats(self):
-        df = self.trace.df_events('userspace@rtapp_stats').copy(deep=True)
+        df = self.trace.df_event('userspace@rtapp_stats').copy(deep=True)
         # Add performance metrics column, performance is defined as:
         #             slack
         #   perf = -------------

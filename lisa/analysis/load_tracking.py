@@ -90,7 +90,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         return []
 
     def _df_uniformized_signal(self, event):
-        df = self.trace.df_events(event)
+        df = self.trace.df_event(event)
 
         df = df.rename(columns=self._columns_renaming(event), copy=True)
 
@@ -317,7 +317,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
                 # Add capacities data if available
                 if self.trace.has_events('cpu_capacity'):
-                    df = self.trace.df_events('cpu_capacity')
+                    df = self.trace.df_event('cpu_capacity')
                     df = df[df["__cpu"] == cpu]
                     if len(df):
                         data = df[['capacity']]
