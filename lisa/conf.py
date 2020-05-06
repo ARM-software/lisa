@@ -716,6 +716,9 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
         :param add_default_src: Add a default source if available for that
             class.
         :type add_default_src: bool
+
+        .. note:: Only load YAML files from trusted source as it can lead to
+            arbitrary code execution.
         """
 
         toplevel_key = cls.STRUCTURE.name
@@ -746,6 +749,9 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
             path will win if it defines some keys that were also defined in another
             file. Each file will be mapped to a different sources, named after
             the basename of the file.
+
+        .. note:: Only load YAML files from trusted source as it can lead to
+            arbitrary code execution.
         """
         # Make sure that all modules from LISA are loaded, so that
         # get_subclasses will be accurate.

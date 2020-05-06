@@ -181,7 +181,7 @@ class LISAAdaptor(AdaptorBase):
     def register_run_param(parser):
         add_argument(parser, '--conf', action='append',
             default=[],
-            help="LISA configuration file. If multiple configurations of a given type are found, they are merged (last one can override keys in previous ones)")
+            help="LISA configuration file. If multiple configurations of a given type are found, they are merged (last one can override keys in previous ones). Only load trusted files as it can lead to arbitrary code execution.")
 
         add_argument(parser, '--inject', action='append',
             metavar='SERIALIZED_OBJECT_PATH',

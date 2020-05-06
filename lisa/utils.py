@@ -564,6 +564,9 @@ class Serializable(Loggable):
 
         :raises AssertionError: if the deserialized object is not an instance
                                 of the class.
+
+        .. note:: Only deserialize files from trusted source, as both pickle
+            and YAML formats can lead to arbitrary code execution.
         """
         instance = cls._from_path(filepath, fmt)
         assert isinstance(instance, cls)

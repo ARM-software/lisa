@@ -109,6 +109,9 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
             name: !env:str BOARD_NAME
             port: !env:int PORT
 
+    .. note:: Only load trusted YAML files as it can lead to abritrary code
+        execution.
+
     .. note:: That structure in a YAML file is allowed and will work:
 
         * file foo.yml::
@@ -414,6 +417,9 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         """
         Create a :class:`Target` from the YAML configuration file pointed by
         ``LISA_CONF`` environment variable.
+
+        .. note:: Only load trusted YAML files as it can lead to abritrary code
+            execution.
         """
         path = os.environ['LISA_CONF']
         return cls.from_one_conf(path)
@@ -425,6 +431,9 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         This file will be used to provide a :class:`TargetConf` and
         :class:`lisa.platforms.platinfo.PlatformInfo` instances.
+
+        .. note:: Only load trusted YAML files as it can lead to abritrary code
+            execution.
         """
         conf = TargetConf.from_yaml_map(path)
         try:
@@ -483,6 +492,8 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
                 In both cases, --conf can also contain a PlatformInfo YAML description.
 
+                Note: only load trusted YAML files as it can lead to abritrary
+                code execution.
                 """.format(
                     script=os.path.basename(sys.argv[0])
                 )))
