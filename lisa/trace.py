@@ -1176,7 +1176,10 @@ class TxtTraceParser(TxtTraceParserBase):
                 'pid': _KERNEL_DTYPE['pid'],
                 'prio': _KERNEL_DTYPE['prio'],
                 'target_cpu': _KERNEL_DTYPE['cpu'],
-                'success': 'bool',
+                # This field does exist but it's useless nowadays as it has a
+                # constant value of 1, so save some memory by just not parsing
+                # it
+                # 'success': 'bool',
             },
         ),
         'cpu_frequency': dict(

@@ -278,7 +278,7 @@ class TasksAnalysis(TraceAnalysisBase):
             wkn_df = self.trace.df_event('sched_wakeup_new')
             wk_df = pd.concat([wk_df, wkn_df])
 
-        wk_df = wk_df[wk_df.success == 1][["pid", "comm", "target_cpu", "__cpu"]]
+        wk_df = wk_df[["pid", "comm", "target_cpu", "__cpu"]].copy(deep=False)
         wk_df["curr_state"] = TaskState.TASK_WAKING
 
         prev_sw_df = sw_df[["__cpu", "prev_pid", "prev_state", "prev_comm"]].copy()
