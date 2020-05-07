@@ -1668,10 +1668,12 @@ _SIGNALS = [
     SignalDesc('cpu_frequency', ['cpu']),
     SignalDesc('sched_compute_energy', ['comm', 'pid']),
 
+    SignalDesc('sched_pelt_se', ['comm', 'pid']),
     SignalDesc('sched_load_se', ['comm', 'pid']),
     SignalDesc('sched_util_est_se', ['comm', 'pid']),
 
     SignalDesc('sched_util_est_cfs', ['cpu']),
+    SignalDesc('sched_pelt_cfs', ['path', 'cpu']),
     SignalDesc('sched_load_cfs_rq', ['path', 'cpu']),
     SignalDesc('sched_pelt_irq', ['cpu']),
     SignalDesc('sched_pelt_rt', ['cpu']),
