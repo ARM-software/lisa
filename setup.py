@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import sys
 from setuptools import setup, find_namespace_packages
 
 
@@ -27,6 +28,15 @@ with open("lisa/version.py") as f:
     exec(f.read(), version_globals)
     lisa_version = version_globals['__version__']
 
+if sys.version_info < (3, 6):
+    print(
+        'Python 3.6 will soon be required to run LISA, please upgrade from {} to any version higher than 3.6'.format(
+            '.'.join(
+                map(str, tuple(sys.version_info)[:3])
+            ),
+        ),
+        file=sys.stderr,
+    )
 
 packages = find_namespace_packages(include=['lisa*'])
 package_data = {
