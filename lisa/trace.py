@@ -3161,7 +3161,9 @@ class Trace(Loggable, TraceBase):
             # Delay import to avoid circular dependency
             from lisa.platforms.platinfo import PlatformInfo
             plat_info = PlatformInfo()
-        self.plat_info = plat_info
+        else:
+            # Make a shallow copy so we can update it
+            plat_info = copy.copy(plat_info)
 
         self._strict_events = strict_events
         self.available_events = _AvailableTraceEventsSet(self)
@@ -3180,6 +3182,13 @@ class Trace(Loggable, TraceBase):
         # Pre-load the selected events
         if events:
             self._load_cache_raw_df(events, write_swap=True, allow_missing_events=not strict_events)
+
+        # Register what we currently have
+        self.plat_info = plat_info
+        # Update the platform info with the data available from the trace once
+        # the Trace is almost fully initialized
+        self.plat_info = plat_info.add_trace_src(self)
+
 
     _CACHEABLE_METADATA = {
         'time-range',

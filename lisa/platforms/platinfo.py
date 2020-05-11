@@ -158,7 +158,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             'os': lambda: target.os,
             'rtapp': {
                 # Since it is expensive to compute, use an on-demand DeferredValue
-                'calib': lambda: DeferredValue(RTA.get_cpu_calibrations, target, rta_calib_res_dir)
+                'calib': DeferredValue(RTA.get_cpu_calibrations, target, rta_calib_res_dir)
             },
             'cpus-count': lambda: target.number_of_cpus,
             'numa-nodes-count': lambda: target.number_of_nodes
@@ -222,8 +222,11 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             'orig': get_orig_capacities,
         }
 
-        info['kernel']['symbols-address'] = lambda: DeferredValue(self._read_kallsyms, target)
+        info['kernel']['symbols-address'] = DeferredValue(self._read_kallsyms, target)
 
+        return self._add_info(src, info, only_missing=only_missing, filter_none=True, **kwargs)
+
+    def _add_info(self, src, new_info, only_missing, deferred=False, **kwargs):
         def dfs(existing_info, new_info):
             def evaluate(existing_info, key, val):
                 if isinstance(val, Mapping):
@@ -232,16 +235,79 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
                     if only_missing and key in existing_info:
                         return None
                     else:
-                        return val()
+                        if val is None or isinstance(val, DeferredValue):
+                            return val
+                        elif deferred:
+                            return DeferredValue(val)
+                        else:
+                            return val()
 
             return {
                 key: evaluate(existing_info, key, val)
                 for key, val in new_info.items()
             }
 
-        info = dfs(self, info)
+        info = dfs(self, new_info)
+        return self.add_src(src, info, **kwargs)
 
-        return self.add_src(src, info, filter_none=True, **kwargs)
+    def add_trace_src(self, trace, src='trace', only_reliable=True, only_missing=True, deferred=True, **kwargs):
+        """
+        Add source from an instance of :class:`lisa.trace.Trace`.
+
+        :param trace: Trace to exploit.
+        :type target: lisa.target.Target
+
+        :param src: Named of the added source.
+        :type src: str
+
+        :param only_missing: If ``True``, only add values for the keys that are
+            not already provided by another source.
+        :type only_missing: bool
+
+        :param only_reliable: Only add the reliable information, and avoid
+            using heuristics.
+        :type only_reliable: bool
+
+        :param deferred: If ``True``, :class:`lisa.conf.DeferredValue` will be
+            used so that no expensive parsing will be immediately triggered, but
+            only when needed.
+        :type deferred: bool
+
+        :Variable keyword arguments: Forwarded to
+            :class:`lisa.conf.MultiSrcConf.add_src`.
+        """
+        def add_info(info):
+            return self._add_info(
+                src, info,
+                only_missing=only_missing,
+                filter_none=True,
+                deferred=deferred,
+                **kwargs
+            )
+
+        def meta_getter(key):
+            def get_meta():
+                try:
+                    return trace.get_metadata(key)
+                except KeyError:
+                    return None
+            return get_meta
+
+        infos = {
+            'kernel': {
+                'symbols-address': meta_getter('symbols-address'),
+            },
+        }
+        add_info(infos)
+
+        # Heuristics
+        if not only_reliable:
+            infos = {
+                'cpus-count': lambda: trace.cpus_count,
+            }
+            add_info(infos)
+
+        return self
 
     # Internal methods used to compute some keys from a live devlib Target
 
