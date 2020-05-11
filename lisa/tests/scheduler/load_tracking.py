@@ -295,6 +295,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         )
         df = trace.analysis.load_tracking.df_tasks_signal(signal_name)
         df = df_filter_task_ids(df, [task])
+        df = df.copy(deep=False)
 
         # Ignore the first activation, as its signals are incorrect
         df_activation = df_activation.iloc[2:]
