@@ -23,7 +23,7 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.analysis.status import StatusAnalysis
-from lisa.trace import requires_one_event_of, may_use_events, TaskID, CPU
+from lisa.trace import requires_one_event_of, may_use_events, TaskID, CPU, MissingTraceEventError, OrTraceEventChecker
 from lisa.utils import deprecate
 from lisa.datautils import df_refit_index, series_refit_index, df_filter_task_ids, df_split_signals
 from lisa.generic import TypedList
@@ -104,13 +104,15 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         return df
 
     def _df_either_event(self, events):
+        missing = []
         for event in events:
-            if event not in self.trace.available_events:
-                continue
+            try:
+                return self._df_uniformized_signal(event)
+            except MissingTraceEventError as e:
+                missing.append(e.missing_events)
 
-            return self._df_uniformized_signal(event)
-
-        raise RuntimeError("Trace is missing one of either events: {}".format(events))
+        missing = OrTraceEventChecker(missing)
+        raise MissingTraceEventError(missing, self.trace.available_events)
 
     @may_use_events(
         requires_one_event_of(*_SCHED_PELT_CFS_NAMES),
