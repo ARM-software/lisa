@@ -73,8 +73,13 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 'runnable_avg_sum': 'load_sum',
                 'running_avg_sum': 'util_sum',
             }
-
-        return {}
+        elif event == 'cpu_capacity':
+            return {
+                'cpu_id': 'cpu',
+                'state': 'capacity',
+            }
+        else:
+            return {}
 
     @classmethod
     def _columns_to_drop(cls, event):
@@ -120,7 +125,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     @may_use_events(
         requires_one_event_of(*_SCHED_PELT_CFS_NAMES),
-        'sched_util_est_cfs'
+        'sched_util_est_cfs',
+        'cpu_capacity',
     )
     def df_cpus_signal(self, signal, cpus: TypedList[CPU]=None):
         """
@@ -134,6 +140,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             * ``util``
             * ``load``
             * ``enqueued`` (util est enqueued)
+            * ``capacity``
 
         :type signal: str
 
@@ -145,6 +152,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             df = self._df_either_event(self._SCHED_PELT_CFS_NAMES)
         elif signal == 'enqueued':
             df = self._df_uniformized_signal('sched_util_est_cfs')
+        elif signal == 'capacity':
+            df = self._df_uniformized_signal('cpu_capacity')
         else:
             raise ValueError('Signal "{}" not supported'.format(signal))
 
@@ -321,9 +330,11 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 self.trace.analysis.cpus.plot_orig_capacity(cpu, axis=axis)
 
                 # Add capacities data if available
-                if self.trace.has_events('cpu_capacity'):
-                    df = self.trace.df_event('cpu_capacity')
-                    df = df[df["__cpu"] == cpu]
+                try:
+                    df = self.df_cpus_signal('capacity', cpus=[cpu])
+                except MissingTraceEventError:
+                    pass
+                else:
                     if len(df):
                         data = df[['capacity']]
                         data = df_refit_index(data, window=window)

@@ -1665,6 +1665,7 @@ _SIGNALS = [
     SignalDesc('sched_wakeup_new', ['comm', 'pid']),
 
     SignalDesc('cpu_idle', ['cpu_id']),
+    SignalDesc('cpu_capacity', ['cpu_id']),
     SignalDesc('cpu_frequency', ['cpu']),
     SignalDesc('sched_compute_energy', ['comm', 'pid']),
 
