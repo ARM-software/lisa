@@ -2083,7 +2083,7 @@ class Trace(Loggable, TraceBase):
             # yet.
             return all(
                 event in self.available_events
-                for event in self.available_events
+                for event in events
             )
 
     def get_view(self, window, **kwargs):
