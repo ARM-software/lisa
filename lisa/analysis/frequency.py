@@ -347,7 +347,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         freq.ffill(inplace=True)
         freq['effective_rate'] = np.where(
             freq['state'] == 0, 0,
-            np.where(freq['state'] == 1, freq['rate'], float('nan'))
+            np.where(freq['state'] == 1, freq['state'], float('nan'))
         )
         return freq
 
@@ -378,7 +378,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
             # Plot frequency information (set rate)
             freq_axis.set_title("Clock frequency for " + clk)
-            set_rate = freq['rate'].dropna()
+            set_rate = freq['state'].dropna()
 
             rate_axis_lib = 0
             if len(set_rate) > 0:
