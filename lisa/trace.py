@@ -2617,6 +2617,7 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
         super().__init__(check=check)
         checker_list = []
         optional_checker_list = []
+        event_checkers = event_checkers or []
         for checker in event_checkers:
             # "unwrap" checkers of the same type, to avoid useless levels of
             # nesting. This is valid since the operator is known to be
@@ -2692,7 +2693,7 @@ class OrTraceEventChecker(AssociativeTraceEventChecker):
     :type event_checkers: list(TraceEventCheckerBase)
     """
 
-    def __init__(self, event_checkers, **kwargs):
+    def __init__(self, event_checkers=None, **kwargs):
         super().__init__('or', event_checkers, **kwargs)
 
     def check_events(self, event_set):
@@ -2724,7 +2725,7 @@ class OptionalTraceEventChecker(AssociativeTraceEventChecker):
     :type event_checkers: list(TraceEventCheckerBase)
     """
 
-    def __init__(self, event_checkers, **kwargs):
+    def __init__(self, event_checkers=None, **kwargs):
         super().__init__(',', event_checkers, prefix_str='optional: ', **kwargs)
 
     def check_events(self, event_set):
@@ -2739,7 +2740,7 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
     :type event_checkers: list(TraceEventCheckerBase)
     """
 
-    def __init__(self, event_checkers, **kwargs):
+    def __init__(self, event_checkers=None, **kwargs):
         super().__init__('and', event_checkers, **kwargs)
 
     def check_events(self, event_set):
