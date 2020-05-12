@@ -122,7 +122,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         requires_one_event_of(*_SCHED_PELT_CFS_NAMES),
         'sched_util_est_cfs'
     )
-    def df_cpus_signal(self, signal):
+    def df_cpus_signal(self, signal, cpus: TypedList[CPU]=None):
         """
         Get the load-tracking signals for the CPUs
 
@@ -136,6 +136,9 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             * ``enqueued`` (util est enqueued)
 
         :type signal: str
+
+        :param cpus: If specified, list of CPUs to select.
+        :type cpus: list(lisa.trace.CPU) or None
         """
 
         if signal in ('util', 'load'):
@@ -145,7 +148,10 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         else:
             raise ValueError('Signal "{}" not supported'.format(signal))
 
-        return df[['cpu', signal]]
+        df = df[['cpu', signal]]
+        if cpus is not None:
+            df = df[df['cpu'].isin(cpus)]
+        return df
 
     @deprecate(replaced_by=df_cpus_signal, deprecated_in='2.0', removed_in='2.1')
     @requires_one_event_of(*_SCHED_PELT_CFS_NAMES)
@@ -308,8 +314,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 axis.set_title('CPU{}'.format(cpu))
 
                 for signal in signals:
-                    df = self.df_cpus_signal(signal)
-                    df = df[df['cpu'] == cpu]
+                    df = self.df_cpus_signal(signal, cpus=[cpu])
                     df = df_refit_index(df, window=window)
                     df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
