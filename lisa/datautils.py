@@ -21,6 +21,7 @@ import operator
 import math
 import itertools
 import warnings
+import contextlib
 from operator import attrgetter
 
 import numpy as np
@@ -178,7 +179,7 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
                 raise ValueError('align_start=True cannot be used with window != None')
             window = (df.index[0], None)
 
-        for group, signal in df.groupby(signal_cols):
+        for group, signal in df.groupby(signal_cols, observed=True, sort=False):
             # When only one column is looked at, the group is the value instead of
             # a tuple of values
             if len(signal_cols) < 2:
@@ -738,6 +739,22 @@ def df_window(df, window, method='pre', clip_window=True):
 
 
 @DataFrameAccessor.register_accessor
+def df_make_empty_clone(df):
+    """
+    Make an empty clone of the given dataframe.
+
+    :param df: The template dataframe.
+    :type df: pandas.DataFrame
+
+    More specifically, the following aspects are cloned:
+
+        * Column names
+        * Column dtypes
+    """
+    return df.iloc[0:0].copy(deep=True)
+
+
+@DataFrameAccessor.register_accessor
 def df_window_signals(df, window, signals, compress_init=False, clip_window=True):
     """
     Similar to :func:`df_window` with ``method='pre'`` but guarantees that each
@@ -764,11 +781,6 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
     def before(x):
         return np.nextafter(x, -math.inf)
 
-    def make_empty_df():
-        empty = pd.DataFrame(columns=df.columns)
-        empty.index.name = df.index.name
-        return empty
-
     windowed_df = df_window(df, window, method='pre', clip_window=clip_window)
 
     # Split the extra rows that the method='pre' gave in a separate dataframe,
@@ -778,7 +790,7 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
         window[0],
     )
     if extra_window[0] >= extra_window[1]:
-        extra_df = make_empty_df()
+        extra_df = df_make_empty_clone(df)
     else:
         extra_df = df_window(windowed_df, extra_window, method='pre')
 
@@ -791,7 +803,7 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
     # The windowed_df did not contain any row in the given window, all the
     # actual data are in extra_df
     except KeyError:
-        windowed_df = make_empty_df()
+        windowed_df = df_make_empty_clone(df)
     else:
         # Make sure we don't include the left boundary
         if windowed_df.index[0] == _window[0]:
@@ -1203,7 +1215,7 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
 
 
 @DataFrameAccessor.register_accessor
-def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, inplace=False):
+def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, prune=True, inplace=False):
     """
     Combine the duplicated rows using ``func`` and remove the duplicates.
 
@@ -1212,9 +1224,17 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, inplace
 
     :param func: Function to combine a group of duplicates. It will be passed a
         :class:`pandas.DataFrame` corresponding to the group and must return
-        either a series or a scalar value that will be broadcast to
-        ``output_col``.
+        either a :class:`pandas.Series` with the same index as its input dataframe,
+        or a scalar depending on the value of ``prune``.
     :type func: collections.abc.Callable
+
+    :param prune: If ``True``, ``func`` will be expected to return a single
+        scalar that will be used instead of a whole duplicated group. Only the
+        first row of the group is kept, the other ones are removed.
+
+        If ``False``, ``func`` is expected to return a :class:`pandas.Series`
+        that will be used as replacement for the group. No rows will be removed.
+    :type prune: bool
 
     :param output_col: Column in which the output of ``func`` should be stored.
     :type output_col: str
@@ -1235,7 +1255,7 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, inplace
     # Find all rows where the active status is the same as the previous one
     duplicates_to_remove = ~_data_find_unique_bool_vector(df, cols, all_col, keep='first')
     # Then get only the first row in a run of duplicates
-    first_duplicates = (~duplicates_to_remove) & duplicates_to_remove.shift(-1, fill_value=True)
+    first_duplicates = (~duplicates_to_remove) & duplicates_to_remove.shift(-1, fill_value=False)
     # We only kept them separate with keep='first' to be able to detect
     # correctly the beginning of a duplicate run to get a group ID, so now we
     # merge them
@@ -1253,9 +1273,9 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, inplace
     # Apply the function to each group, and assign the result to the output
     # Note that we cannot use GroupBy.transform() as it currently cannot handle
     # NaN groups.
-    output = df.groupby('duplicate_group', sort=False).apply(func)
+    output = df.groupby('duplicate_group', sort=False, as_index=True, group_keys=False, observed=True).apply(func)
     if not output.empty:
-        init_df[output_col] = output
+        init_df[output_col].update(output)
 
     # Ensure the column is created if it does not exists yet
     try:
@@ -1272,13 +1292,19 @@ def df_combine_duplicates(df, func, output_col, cols=None, all_col=True, inplace
         else:
             init_df[output_col].fillna(fill, inplace=True)
 
-    # Only keep the first row of each duplicate run
-    if inplace:
-        removed_indices = duplicates_to_remove[duplicates_to_remove].index
-        init_df.drop(removed_indices, inplace=True)
-        return None
+    if prune:
+        # Only keep the first row of each duplicate run
+        if inplace:
+            removed_indices = duplicates_to_remove[duplicates_to_remove].index
+            init_df.drop(removed_indices, inplace=True)
+            return None
+        else:
+            return init_df.loc[~duplicates_to_remove]
     else:
-        return init_df.loc[~duplicates_to_remove]
+        if inplace:
+            return None
+        else:
+            return init_df
 
 
 @DataFrameAccessor.register_accessor
@@ -1395,17 +1421,251 @@ class SignalDesc:
                 return [cls(event, fields=[])]
             else:
                 fields = set(fields)
+                # At most one set of each group will be taken
                 default_field_sets = [
-                    {'comm', 'pid'},
-                    {'cpu'},
+                    [
+                        {'comm', 'pid'},
+                        {'pid'},
+                        {'comm'},
+                    ],
+                    [
+                        {'cpu'},
+                        {'cpu_id'},
+                    ],
                 ]
+
+                selected = []
+                for field_set_group in default_field_sets:
+                    # Select at most one field set per group
+                    for field_set in field_set_group:
+                        # if fields is a non-strict superset of field_set
+                        if fields >= field_set:
+                            selected.append(field_set)
+                            break
 
                 return [
                     cls(event, fields=field_set)
-                    for field_set in default_field_sets
-                    # if fields is a superset of field_set
-                    if fields > field_set
+                    for field_set in selected
                 ]
+
+
+# Before pandas <= 1.0.0 (Python <= 3.5):
+# * 'string' dtype does not exist
+# * nullable integer dtypes are not serializable before
+_PANDAS_HIGHER_THAN_1_1_0 = tuple(map(int, pd.__version__.split('.'))) >= (1, 0, 0)
+
+@SeriesAccessor.register_accessor
+def series_convert(series, dtype):
+    """
+    Convert a :class:`pandas.Series` with a best effort strategy.
+
+    Nullable types may be used if necessary and possible, otherwise ``object``
+    dtype will be used.
+
+    :param series: Series of another type than the target one. Strings are
+        allowed.
+    :type series: pandas.Series
+
+    :param dtype: dtype to convert to. If it is a string ``uint8``, the
+        following strategy will be used:
+
+            1. Convert to the given dtype
+            2. If it failed, try converting to an equivalent nullable dtype
+            3. If it failed, try to parse it with an equivalent Python object
+               constructor, and then convert it to the dtype.
+            4. If an integer dtype was requested, parsing as hex string will be
+               attempted too
+
+        If it is a callable, it will be applied on the series, converting all
+        values considered as nan by :func:`pandas.isna` into ``None`` values.
+        The result will have ``object`` dtype. The callable has a chance to
+        handle the conversion from nan itself.
+
+        .. note:: In some cases, asking for an unsigned dtype might let through
+            negative values, as there is no way to reliably distinguish between
+            conversion failures reasons.
+    :type dtype: str or collections.abc.Callable
+    """
+
+    if series.dtype.name == dtype:
+        return series
+
+    def to_object(x):
+        x = x.astype('object', copy=True)
+        # If we had any pandas <NA> values, they need to be turned into None
+        # first, otherwise pyarrow will choke on them
+        x.loc[x.isna()] = None
+        return x
+
+    astype = lambda dtype: lambda x: x.astype(dtype, copy=False)
+    make_convert = lambda dtype: lambda x: series_convert(x, dtype)
+    basic = astype(dtype)
+
+    class Tree(list):
+        """
+        Tree of converters to guide what to do in case of failure
+        """
+        def __init__(self, *args, name=None):
+            super().__init__(args)
+            self.name = name
+
+    class Pipeline(Tree):
+        """
+        Sequence of converters that succeed as a whole or fail as a whole
+        """
+        def __call__(self, series):
+            for x in self:
+                series = x(series)
+            return series
+
+    class Alternative(Tree):
+        """
+        Sequence of converters to try in order until one works
+        """
+        def __call__(self, series):
+            excep = ValueError('Empty alternative')
+            for x in self:
+                try:
+                    return x(series)
+                except (TypeError, ValueError, OverflowError) as e:
+                    excep = e
+
+            # Re-raise the last exception raised
+            raise excep
+
+    pipelines = Alternative(name='root')
+
+    # If that is not a string
+    with contextlib.suppress(AttributeError, TypeError):
+        lower_dtype = dtype.lower()
+        is_bool = ('bool' in lower_dtype)
+        is_int = ('int' in lower_dtype)
+
+    # types are callable too
+    if callable(dtype):
+        def convert(x):
+            try:
+                return dtype(x)
+            except Exception:
+                # Make sure None will be propagated as None.
+                # note: We use an exception handler rather than checking first
+                # in order to speed up the expected path where the conversion
+                # won't fail.
+                if pd.isna(x):
+                    return None
+                else:
+                    raise
+
+        # Use faster logic of pandas if possible, but not for bytes as it will
+        # happily convert math.nan into b'nan'
+        if dtype is not bytes:
+            pipelines.append(basic)
+
+        pipelines.append(
+            # Otherwise fallback to calling the type directly
+            lambda series: series.apply(convert, convert_dtype=False)
+        )
+
+    # Then try with a nullable type.
+    # Floats are already nullable so we don't need to do anything
+    elif is_bool or is_int:
+        nullable_dtypes = {
+            'int':    'Int64',
+            'int8':   'Int8',
+            'int16':  'Int16',
+            'int32':  'Int32',
+            'int64':  'Int64',
+
+            'uint':   'UInt64',
+            'uint8':  'UInt8',
+            'uint16': 'UInt16',
+            'uint32': 'UInt32',
+            'uint64': 'UInt64',
+
+            'bool':   'boolean',
+        }
+
+        # Bare nullable dtype
+        if _PANDAS_HIGHER_THAN_1_1_0:
+            # Already nullable
+            if dtype[0].isupper():
+                nullable = dtype
+            else:
+                nullable = nullable_dtypes[dtype]
+            to_nullable = astype(nullable)
+        else:
+            # Make it fail so we don't end up with issues with missing parquet
+            # support for nullable types down the line
+            def to_nullable(series):
+                raise ValueError('pandas version too old for nullable types')
+            basic = astype(lower_dtype)
+
+        if is_int:
+            parse = Alternative(
+                # Parse as integer
+                make_convert(int),
+                # Parse as hex int
+                make_convert(functools.partial(int, base=16))
+            )
+        elif is_bool:
+            parse = make_convert(bool)
+        else:
+            assert False
+
+        # Strategy assuming it's already a numeric type
+        from_numeric = Alternative(
+            basic,
+            to_nullable
+        )
+
+        pipelines.extend((
+            from_numeric,
+            # Maybe we were trying to parse some strings that turned out to
+            # need to go through the Python int constructor to be parsed,
+            # so do that first
+            Pipeline(
+                parse,
+                Alternative(
+                    from_numeric,
+                    # Or just leave the output as it is if nothing else can be
+                    # done, as we already have 'object' of an integer type
+                    to_object,
+                    name='convert parser output',
+                ),
+                name='parse',
+            )
+        ))
+
+    elif dtype == 'string':
+        pipelines.extend((
+            basic,
+            # We need to attempt conversion from bytes before using Python str,
+            # otherwise it will include the b'' inside the string
+            lambda x: x.str.decode('ascii'),
+            # If direct conversion to "string" failed, we need to turn
+            # whatever the type was to actual strings using the Python
+            # constructor
+            Pipeline(
+                make_convert(str),
+                Alternative(
+                    basic,
+                    # basic might fail on older version of pandas where
+                    # 'string' dtype does not exists
+                    to_object,
+                    name='convert parse output'
+                ),
+                name='parse'
+            )
+        ))
+
+    elif dtype == 'bytes':
+        pipelines.append(make_convert(bytes))
+    else:
+        # For floats, astype() works well and can even convert from strings and the like
+        pipelines.append(basic)
+
+    return pipelines(series)
+
 
 # Defined outside SignalDesc as it references SignalDesc itself
 _SIGNALS = [
@@ -1420,13 +1680,16 @@ _SIGNALS = [
     SignalDesc('sched_wakeup_new', ['comm', 'pid']),
 
     SignalDesc('cpu_idle', ['cpu_id']),
-    SignalDesc('cpu_frequency', ['cpu']),
+    SignalDesc('cpu_capacity', ['cpu_id']),
+    SignalDesc('cpu_frequency', ['cpu_id']),
     SignalDesc('sched_compute_energy', ['comm', 'pid']),
 
+    SignalDesc('sched_pelt_se', ['comm', 'pid']),
     SignalDesc('sched_load_se', ['comm', 'pid']),
     SignalDesc('sched_util_est_se', ['comm', 'pid']),
 
     SignalDesc('sched_util_est_cfs', ['cpu']),
+    SignalDesc('sched_pelt_cfs', ['path', 'cpu']),
     SignalDesc('sched_load_cfs_rq', ['path', 'cpu']),
     SignalDesc('sched_pelt_irq', ['cpu']),
     SignalDesc('sched_pelt_rt', ['cpu']),

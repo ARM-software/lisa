@@ -46,7 +46,7 @@ class ThermalAnalysis(TraceAnalysisBase):
           * A ``thermal_zone`` column (The thermal zone name)
           * A ``temp`` column (The reported temperature)
         """
-        df = self.trace.df_events("thermal")
+        df = self.trace.df_event("thermal")
         df = df[['id', 'thermal_zone', 'temp']]
 
         return df
@@ -67,7 +67,7 @@ class ThermalAnalysis(TraceAnalysisBase):
           * A ``cdev_state`` column (The cooling device state index)
 
         """
-        df = self.trace.df_events("thermal_power_cpu_limit")
+        df = self.trace.df_event("thermal_power_cpu_limit")
         df = df[['cpus', 'freq', 'cdev_state']]
 
         if cpus is not None:
@@ -93,7 +93,7 @@ class ThermalAnalysis(TraceAnalysisBase):
           * A ``freq`` column (The frequency limit)
           * A ``cdev_state`` column (The cooling device state index)
         """
-        df = self.trace.df_events("devfreq_out_power")
+        df = self.trace.df_event("devfreq_out_power")
         df = df[['type', 'freq', 'cdev_state']]
 
         if devices is not None:
@@ -220,7 +220,7 @@ class ThermalAnalysis(TraceAnalysisBase):
 ###############################################################################
 
     def _matching_masks(self, cpus):
-        df = self.trace.df_events('thermal_power_cpu_limit')
+        df = self.trace.df_event('thermal_power_cpu_limit')
 
         global_mask = list_to_mask(cpus)
         cpumasks = df['cpus'].unique().tolist()

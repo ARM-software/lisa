@@ -1,5 +1,0 @@
-*.pyc
-doc/.ipynb_checkpoints
-/dist/
-/build/
-/TRAPpy.egg-info/

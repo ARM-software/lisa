@@ -28,7 +28,7 @@ import numpy as np
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
-from lisa.trace import requires_events, requires_one_event_of, CPU
+from lisa.trace import requires_events, requires_one_event_of, CPU, MissingTraceEventError
 from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window
 
 
@@ -42,33 +42,48 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     name = 'frequency'
 
-    @requires_one_event_of('cpu_frequency', 'cpu_frequency_devlib')
+    @requires_one_event_of('cpu_frequency', 'userspace@cpu_frequency_devlib')
     def df_cpus_frequency(self, signals_init=True):
         """
-        Similar to ``trace.df_events('cpu_frequency')``, with
-        ``cpu_frequency_devlib`` support.
+        Similar to ``trace.df_event('cpu_frequency')``, with
+        ``userspace@cpu_frequency_devlib`` support.
 
         :param signals_init: If ``True``, and initial value for signals will be
             provided. This includes initial value taken outside window
             boundaries and devlib-provided events.
 
-        The ``cpu_frequency_devlib`` user event is merged in the dataframe if
+        The ``userspace@cpu_frequency_devlib`` user event is merged in the dataframe if
         it provides earlier values for a CPU.
         """
-        df = self.trace.df_events('cpu_frequency', signals_init=signals_init)
+        def rename(df):
+            return df.rename(
+                {
+                    'cpu_id': 'cpu',
+                    'state': 'frequency',
+                },
+                axis=1,
+            )
+
+        df = self.trace.df_event('cpu_frequency', signals_init=signals_init)
+        df = rename(df)
         if not signals_init:
             return df
 
-        devlib_df = self.trace.df_events('cpu_frequency')
+        try:
+            devlib_df = self.trace.df_event('userspace@devlib_cpu_frequency')
+        except MissingTraceEventError:
+            return df
+        else:
+            devlib_df = rename(df)
 
         # Get the initial values for each CPU
         def init_freq(df, devlib):
-            df = df.groupby('cpu').head(1).copy()
+            df = df.groupby('cpu_id', observed=True, sort=False).head(1).copy()
             df['devlib'] = devlib
             return df
 
         init_df = init_freq(df, False)
-        init_devlib_df = init_freq(df, True)
+        init_devlib_df = init_freq(devlib_df, True)
 
         # Get the initial values as given by devlib and cpufreq.
         # We want to select:
@@ -76,7 +91,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         # * the 2nd value if that comes from cpufreq
         init_df = pd.concat([init_df, init_devlib_df])
         init_df.sort_index(inplace=True)
-        init_groups = init_df.groupby('cpu')
+        init_groups = init_df.groupby('cpu_id', observed=True, sort=False)
 
         first_df = init_groups.head(1)
         # devlib == False means it's already in the existing dataframe, and we
@@ -180,7 +195,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         # Compute TOTAL Time
         cluster_freqs = df_add_delta(cluster_freqs, col="total_time", window=self.trace.window)
-        time_df = cluster_freqs[["total_time", "frequency"]].groupby(["frequency"]).sum()
+        time_df = cluster_freqs[["total_time", "frequency"]].groupby('frequency', observed=True, sort=False).sum()
 
         # Compute ACTIVE Time
         cluster_active = self.trace.analysis.idle.signal_cluster_active(cpus)
@@ -315,9 +330,9 @@ class FrequencyAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.cache
     @requires_events('clock_set_rate', 'clock_enable', 'clock_disable')
     def df_peripheral_clock_effective_rate(self, clk_name):
-        rate_df = self.trace.df_events('clock_set_rate')
-        enable_df = self.trace.df_events('clock_enable')
-        disable_df = self.trace.df_events('clock_disable')
+        rate_df = self.trace.df_event('clock_set_rate')
+        enable_df = self.trace.df_event('clock_enable')
+        disable_df = self.trace.df_event('clock_disable')
 
         freq = rate_df[rate_df.clk_name == clk_name]
         enables = enable_df[enable_df.clk_name == clk_name]
@@ -332,7 +347,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         freq.ffill(inplace=True)
         freq['effective_rate'] = np.where(
             freq['state'] == 0, 0,
-            np.where(freq['state'] == 1, freq['rate'], float('nan'))
+            np.where(freq['state'] == 1, freq['state'], float('nan'))
         )
         return freq
 
@@ -363,7 +378,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
             # Plot frequency information (set rate)
             freq_axis.set_title("Clock frequency for " + clk)
-            set_rate = freq['rate'].dropna()
+            set_rate = freq['state'].dropna()
 
             rate_axis_lib = 0
             if len(set_rate) > 0:

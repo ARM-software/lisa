@@ -385,9 +385,7 @@ intersphinx_mapping = {
     'matplotlib': ('https://matplotlib.org', None),
     'numpy': ('https://docs.scipy.org/doc/numpy', None),
     # XXX: Doesn't seem to work, might be due to how devlib doc is generated
-    'wa': ('https://devlib.readthedocs.io/en/latest/', None),
-    'trappy': ('https://pythonhosted.org/TRAPpy', None),
-    'bart': ('https://pythonhosted.org/bart-py/', None),
+    'devlib': ('https://devlib.readthedocs.io/en/latest/', None),
     'wa': ('https://workload-automation.readthedocs.io/en/latest/', None),
     'ipywidgets': ('https://ipywidgets.readthedocs.io/en/latest/', None),
 }
@@ -492,7 +490,12 @@ nitpick_ignore = nitpick_ignore_modules([
 nitpick_ignore.extend([
     # gi.repository is strangely laid out, and the module in which Variant
     # (claims) to actually be defined in is not actually importable it seems
-    ('py:class', 'gi.repository.GLib.Variant')
+    ('py:class', 'gi.repository.GLib.Variant'),
+
+    # Since trappy is not always installed, just hardcode the references we
+    # have since there wont be more in the future.
+    ('py:mod', 'trappy'),
+    ('py:class', 'trappy.plotter.ILinePlot'),
 ])
 
 nitpick_ignore.extend(

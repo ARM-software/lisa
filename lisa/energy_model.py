@@ -27,7 +27,6 @@ import numpy as np
 
 from devlib.utils.misc import mask_to_list, ranges_to_list
 from devlib.exception import TargetStableError
-from trappy.stats.grammar import Parser
 
 from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses, deprecate, grouper
 from lisa.datautils import df_deduplicate
@@ -862,10 +861,7 @@ class EnergyModel(Serializable, Loggable):
                   the returned DataFrame to get a Series that shows overall
                   estimated power usage over time.
         """
-        if not trace.has_events('cpu_idle') or not trace.has_events('cpu_frequency'):
-            raise ValueError('Requires cpu_idle and cpu_frequency trace events')
-
-        idle = trace.df_events('cpu_idle').pivot(columns='cpu_id')['state']
+        idle = trace.analysis.idle.df_cpu_idle().pivot(columns='cpu')['state']
         freqs = trace.analysis.frequency.df_cpus_frequency().pivot(columns='cpu')['frequency']
 
         inputs = pd.concat([idle, freqs], axis=1, keys=['idle', 'freq']).ffill()

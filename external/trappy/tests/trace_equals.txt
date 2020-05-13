@@ -1,7 +1,0 @@
- systemd-journal-1662  [003]   653.065292: bputs:                0xffff0000080feeb8s: equals_event: my_field=foo
- systemd-journal-1662  [003]   653.065293: bputs:                0xffff0000080feeb8s: equals_event: my_field=foo=bar
- systemd-journal-1662  [003]   653.065294: bputs:                0xffff0000080feeb8s: equals_event: my_field=foo=bar=baz
- systemd-journal-1662  [003]   653.065295: bputs:                0xffff0000080feeb8s: equals_event: my_field=1
- systemd-journal-1662  [003]   653.065296: bputs:                0xffff0000080feeb8s: equals_event: my_field=1=2
- systemd-journal-1662  [003]   653.065297: bputs:                0xffff0000080feeb8s: equals_event: my_field=1=foo
- systemd-journal-1662  [003]   653.065298: bputs:                0xffff0000080feeb8s: equals_event: my_field=1foo=2

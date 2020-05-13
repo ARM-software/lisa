@@ -91,7 +91,7 @@ class NotebookAnalysis(TraceAnalysisBase):
         :param filter_columns: Pre-filter the dataframe using
             :func:`lisa.datautils.df_filter`. Also, a signal will be inferred
             from the column names being used and will be passed to
-            :meth:`lisa.trace.Trace.df_events`.
+            :meth:`lisa.trace.Trace.df_event`.
         :type filter_columns: dict or None
 
         :param filter_f: Function used to filter the dataframe of the event.
@@ -105,7 +105,7 @@ class NotebookAnalysis(TraceAnalysisBase):
         else:
             signals = None
 
-        df = trace.df_events(event, signals=signals)
+        df = trace.df_event(event, signals=signals)
 
         if filter_columns:
             df = df_filter(df, filter_columns)

@@ -66,11 +66,20 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         """
         if event in ['sched_load_avg_cpu', 'sched_load_avg_task']:
             return {
-                "util_avg": "util",
-                "load_avg": "load"
+                'load_avg': 'load',
+                'util_avg': 'util',
+                "utilization": 'util',
+                'avg_period': 'period_contrib',
+                'runnable_avg_sum': 'load_sum',
+                'running_avg_sum': 'util_sum',
             }
-
-        return {}
+        elif event == 'cpu_capacity':
+            return {
+                'cpu_id': 'cpu',
+                'state': 'capacity',
+            }
+        else:
+            return {}
 
     @classmethod
     def _columns_to_drop(cls, event):
@@ -86,7 +95,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         return []
 
     def _df_uniformized_signal(self, event):
-        df = self.trace.df_events(event)
+        df = self.trace.df_event(event)
 
         df = df.rename(columns=self._columns_renaming(event), copy=True)
 
@@ -116,9 +125,10 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
     @may_use_events(
         requires_one_event_of(*_SCHED_PELT_CFS_NAMES),
-        'sched_util_est_cfs'
+        'sched_util_est_cfs',
+        'cpu_capacity',
     )
-    def df_cpus_signal(self, signal):
+    def df_cpus_signal(self, signal, cpus: TypedList[CPU]=None):
         """
         Get the load-tracking signals for the CPUs
 
@@ -130,18 +140,27 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             * ``util``
             * ``load``
             * ``enqueued`` (util est enqueued)
+            * ``capacity``
 
         :type signal: str
+
+        :param cpus: If specified, list of CPUs to select.
+        :type cpus: list(lisa.trace.CPU) or None
         """
 
         if signal in ('util', 'load'):
             df = self._df_either_event(self._SCHED_PELT_CFS_NAMES)
         elif signal == 'enqueued':
             df = self._df_uniformized_signal('sched_util_est_cfs')
+        elif signal == 'capacity':
+            df = self._df_uniformized_signal('cpu_capacity')
         else:
             raise ValueError('Signal "{}" not supported'.format(signal))
 
-        return df[['cpu', signal]]
+        df = df[['cpu', signal]]
+        if cpus is not None:
+            df = df[df['cpu'].isin(cpus)]
+        return df
 
     @deprecate(replaced_by=df_cpus_signal, deprecated_in='2.0', removed_in='2.1')
     @requires_one_event_of(*_SCHED_PELT_CFS_NAMES)
@@ -266,7 +285,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         df = self.df_tasks_signal('util')
 
         # Compute number of samples above threshold
-        samples = df[df.util > util_threshold].groupby('pid').count()["util"]
+        samples = df[df.util > util_threshold].groupby('pid', observed=True, sort=False).count()["util"]
         samples = samples[samples > min_samples]
         samples = samples.sort_values(ascending=False)
 
@@ -304,17 +323,18 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
                 axis.set_title('CPU{}'.format(cpu))
 
                 for signal in signals:
-                    df = self.df_cpus_signal(signal)
-                    df = df[df['cpu'] == cpu]
+                    df = self.df_cpus_signal(signal, cpus=[cpu])
                     df = df_refit_index(df, window=window)
                     df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
 
                 self.trace.analysis.cpus.plot_orig_capacity(cpu, axis=axis)
 
                 # Add capacities data if available
-                if self.trace.has_events('cpu_capacity'):
-                    df = self.trace.df_events('cpu_capacity')
-                    df = df[df["__cpu"] == cpu]
+                try:
+                    df = self.df_cpus_signal('capacity', cpus=[cpu])
+                except MissingTraceEventError:
+                    pass
+                else:
                     if len(df):
                         data = df[['capacity']]
                         data = df_refit_index(data, window=window)

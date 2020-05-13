@@ -21,7 +21,7 @@ They are commonly split into two steps:
 
 In our case, the data usually consists of
 `Ftrace <https://www.kernel.org/doc/Documentation/trace/ftrace.txt>`_ traces
-that we then postprocess using :mod:`trappy`
+that we then parse into :class:`pandas.DataFrame`.
 
 .. seealso:: :ref:`analysis-page`
 

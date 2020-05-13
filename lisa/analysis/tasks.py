@@ -121,6 +121,22 @@ class TaskState(StateInt, Enum):
 
         return res
 
+    @classmethod
+    def from_sched_switch_str(cls, string):
+        """
+        Build a :class:`StateInt` from a string as it would be used in
+        ``sched_switch`` event's ``prev_state`` field.
+
+        :param string: String to parse.
+        :type string: str
+        """
+        state = 0
+        for _state in cls:
+            if _state.char in string:
+                state |= _state
+
+        return state
+
 
 class TasksAnalysis(TraceAnalysisBase):
     """
@@ -141,7 +157,7 @@ class TasksAnalysis(TraceAnalysisBase):
         :type tasks: list(int or str or tuple(int, str))
         """
         trace = self.trace
-        df = trace.df_events('sched_switch')[['next_pid', 'next_comm', '__cpu']]
+        df = trace.df_event('sched_switch')[['next_pid', 'next_comm', '__cpu']]
 
         task_ids = [trace.get_task_id(task, update=False) for task in tasks]
         df = df_filter_task_ids(df, task_ids, pid_col='next_pid', comm_col='next_comm')
@@ -170,9 +186,9 @@ class TasksAnalysis(TraceAnalysisBase):
           * Task PIDs as index
           * A ``wakeups`` column (The number of wakeups)
         """
-        df = self.trace.df_events('sched_wakeup')
+        df = self.trace.df_event('sched_wakeup')
 
-        wakeups = df.groupby('pid').count()["comm"]
+        wakeups = df.groupby('pid', observed=True, sort=False).count()["comm"]
         df = pd.DataFrame(wakeups).rename(columns={"comm": "wakeups"})
         df["comm"] = df.index.map(self._get_task_pid_name)
 
@@ -215,7 +231,7 @@ class TasksAnalysis(TraceAnalysisBase):
           * A ``prio`` column (The priority of the task)
           * A ``comm`` column (The name of the task)
         """
-        df = self.trace.df_events('sched_switch')
+        df = self.trace.df_event('sched_switch')
 
         # Filters tasks which have a priority bigger than threshold
         df = df[df.next_prio <= min_prio]
@@ -255,14 +271,14 @@ class TasksAnalysis(TraceAnalysisBase):
         # A) Assemble the sched_switch and sched_wakeup events
         ######################################################
 
-        wk_df = self.trace.df_events('sched_wakeup')
-        sw_df = self.trace.df_events('sched_switch')
+        wk_df = self.trace.df_event('sched_wakeup')
+        sw_df = self.trace.df_event('sched_switch')
 
         if self.trace.has_events('sched_wakeup_new'):
-            wkn_df = self.trace.df_events('sched_wakeup_new')
+            wkn_df = self.trace.df_event('sched_wakeup_new')
             wk_df = pd.concat([wk_df, wkn_df])
 
-        wk_df = wk_df[wk_df.success == 1][["pid", "comm", "target_cpu", "__cpu"]]
+        wk_df = wk_df[["pid", "comm", "target_cpu", "__cpu"]].copy(deep=False)
         wk_df["curr_state"] = TaskState.TASK_WAKING
 
         prev_sw_df = sw_df[["__cpu", "prev_pid", "prev_state", "prev_comm"]].copy()
@@ -319,7 +335,7 @@ class TasksAnalysis(TraceAnalysisBase):
             # amount possible.
             df = df_update_duplicates(df, col='Time', inplace=True)
 
-            grouped = df.groupby('pid', sort=False)
+            grouped = df.groupby('pid', observed=True, sort=False)
             new_columns = dict(
                 next_state=grouped['curr_state'].shift(-1, fill_value=TaskState.TASK_UNKNOWN),
                 # GroupBy.transform() will run the function on each group, and
@@ -529,7 +545,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df = df_add_delta(df, window=self.trace.window)
         df = df[df.curr_state == TaskState.TASK_ACTIVE]
 
-        residency_df = pd.DataFrame(df.groupby("cpu")["delta"].sum())
+        residency_df = pd.DataFrame(df.groupby("cpu", observed=True, sort=False)["delta"].sum())
         residency_df.rename(columns={"delta": "runtime"}, inplace=True)
 
         cpus_present = set(residency_df.index.unique())
@@ -690,7 +706,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         task_id = self.trace.get_task_id(task, update=False)
 
-        sw_df = self.trace.df_events("sched_switch")
+        sw_df = self.trace.df_event("sched_switch")
         sw_df = df_filter_task_ids(sw_df, [task_id], pid_col='next_pid', comm_col='next_comm')
 
         if "freq-domains" in self.trace.plat_info:
@@ -806,7 +822,7 @@ class TasksAnalysis(TraceAnalysisBase):
         :type per_sec: bool
         """
 
-        df = self.trace.df_events("sched_wakeup")
+        df = self.trace.df_event("sched_wakeup")
 
         if target_cpus:
             df = df[df.target_cpu.isin(target_cpus)]
@@ -838,7 +854,7 @@ class TasksAnalysis(TraceAnalysisBase):
         :type colormap: str or matplotlib.colors.Colormap
         """
 
-        df = self.trace.df_events("sched_wakeup")
+        df = self.trace.df_event("sched_wakeup")
         df = df_window(df, window=self.trace.window, method='exclusive', clip_window=False)
 
         fig, axis = self._plot_cpu_heatmap(
@@ -868,7 +884,7 @@ class TasksAnalysis(TraceAnalysisBase):
         :type per_sec: bool
         """
 
-        df = self.trace.df_events("sched_wakeup_new")
+        df = self.trace.df_event("sched_wakeup_new")
 
         if target_cpus:
             df = df[df.target_cpu.isin(target_cpus)]
@@ -898,7 +914,7 @@ class TasksAnalysis(TraceAnalysisBase):
         :type colormap: str or matplotlib.colors.Colormap
         """
 
-        df = self.trace.df_events("sched_wakeup_new")
+        df = self.trace.df_event("sched_wakeup_new")
         df = df_window(df, window=self.trace.window, method='exclusive', clip_window=False)
 
         fig, axis = self._plot_cpu_heatmap(

@@ -36,25 +36,27 @@ import contextlib
 import tempfile
 from functools import lru_cache, reduce, wraps
 from collections.abc import Iterable, Set, Mapping, Sequence
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from operator import itemgetter
 from numbers import Number, Integral, Real
 import multiprocessing
 import textwrap
+import subprocess
+import itertools
 
+import pandas as pd
 import numpy as np
 import pandas as pd
 import pyarrow.lib
 
-import trappy
 import devlib
 from devlib.target import KernelVersion
 
 import lisa.utils
-from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, deprecate, nullcontext, measure_time, checksum, newtype
+from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, take
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.generic import TypedList
-from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta
+from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta, df_combine_duplicates, series_convert, df_deduplicate
 from lisa.version import VERSION_TOKEN
 from lisa.typeclass import FromString, IntListFromStringInstance
 
@@ -157,6 +159,1630 @@ class CPUListFromStringInstance(FromString, types=TypedList[CPU]):
         return FromString(TypedList[int]).get_format_description(short=short)
 
 
+class MissingMetadataError(KeyError):
+    """
+    Raised when a given metadata is not available.
+    """
+    def __init__(self, metadata):
+        self.metadata = metadata
+
+    def __str__(self):
+        return 'Missing metadata: {}'.format(self.metadata)
+
+
+class TraceParserBase(abc.ABC, Loggable):
+    """
+    Abstract Base Class for trace parsers.
+
+    :param events: Iterable of events to parse. An empty iterable can be
+        passed, in which case some metadata may still be available.
+    :param events: collections.abc.Iterable(str)
+
+    :param needed_metadata: Set of metadata name to gather in the parser.
+    :type needed_metadata: collections.abc.Iterable(str)
+    """
+
+    def __init__(self, events, needed_metadata):
+        self._needed_metadata = set(needed_metadata or [])
+
+    def get_metadata(self, key):
+        """
+        Return the metadata value.
+
+        :param key: Name of the metadata. Can be one of:
+
+            * ``time-range``: tuple ``(start, end)`` of the timestamps in the
+              trace. This must be the first timestamp to appear in the trace,
+              regardless of what events is being parsed. Otherwise, it would be
+              impossible to use the time range of a parser in the mother
+              :class:`TraceBase` when requesting specific events.
+
+            * ``symbols-address``: Dictionnary of address (int) to symbol names
+              in the kernel (str) that was used to create the trace. This
+              allows resolving the fields of events that recorded addresses
+              rather than function names.
+
+            * ``cpus-count``: Number of CPUs on the system the trace was
+              collected on.
+
+            * ``available-events``: List of all available events stored in the
+              trace. The list must be exhaustive, not limited to the events
+              that were requested.
+        :type key: str
+
+        :raises: :exc:`MissingMetadataError` if the metadata is not available
+            on that parser.
+
+        .. note:: A given metadata can only be expected to be available if
+            asked for in the constructor, but bear in mind that there is no
+            promise on the availability of any.
+
+            Metadata may still be made available if not asked for, but only if
+            it's a very cheap byproduct of parsing that incurs no extra cost.
+        """
+        raise MissingMetadataError(key)
+
+    @abc.abstractmethod
+    def parse_event(self, event):
+        """
+        Parse the given event from the trace and return a
+        :class:`pandas.DataFrame` with the following columns:
+
+            * ``Time`` index: floating point absolute timestamp in seconds. The
+              index *must not* have any duplicated values.
+            * One column per event field, with the appropriate dtype.
+            * Columns prefixed with ``__``: Header of each event, usually containing the following fields:
+
+                * ``__cpu``: CPU number the event was emitted from
+                * ``__pid``: PID of the current process scheduled at the time the event was emitted
+                * ``__comm``: Task command name going with ``__pid`` at the point the event was emitted
+
+        :param event: name of the event to parse
+        :type event: str
+
+        :raises MissingTraceEventError: If the event cannot be parsed.
+
+        .. note:: The caller is free to modify the index of the data, and it
+            must not affect other dataframes.
+        """
+        pass
+
+    def parse_events(self, events, best_effort=False, **kwargs):
+        """
+        Same as :meth:`parse_event` but taking a list of events as input, and
+        returning a mapping of event names to :class:`pandas.DataFrame` for
+        each.
+
+        :param events: Event names to parse.
+        :type events: list(str)
+
+        :param best_effort: If ``True``, do not raise
+            :exc:`MissingTraceEventError`, silently skip the event.
+            Must default to ``False``.
+        :type best_effort: bool
+
+        :param kwargs: See :meth:`parse_event`
+        """
+
+        def parse(event):
+            try:
+                return self.parse_event(event)
+            except MissingTraceEventError:
+                if best_effort:
+                    return None
+                else:
+                    raise
+        return {
+            event: df
+            for event, df in (
+                (event, parse(event))
+                for event in events
+            )
+            if df is not None
+        }
+
+
+class ParallelTraceParser(TraceParserBase):
+    """
+    Parse multiple events in parallel in subprocesses.
+    """
+
+    def parse_events(self, events, best_effort=False):
+        """
+        Call :meth:`~TraceParserBase.parse_event` for each event in a subprocess and collect the
+        result back.
+
+        .. note:: Since there is currently no way of sharing a
+            :class:`pandas.DataFrame` between multiple Python processes, all
+            data have to be pickled and sent over a socket back to the parent
+            process. This is costly enough to offset any benefit for a
+            reasonably optimized regex parser. If the parser is very
+            inefficient, it could still speed things up a bit, at the expense
+            of a large increase in peak memory consumption.
+        """
+        events = list(events)
+
+        nr_processes=min(
+            len(events),
+            multiprocessing.cpu_count(),
+        )
+
+        def parse(*args, **kwargs):
+            try:
+                return self.parse_event(*args, **kwargs)
+            except MissingTraceEventError:
+                if best_effort:
+                    return None
+                else:
+                    raise
+
+        with multiprocessing.Pool(processes=nr_processes) as pool:
+            df_list = pool.map(parse, events)
+
+        mapping = dict(zip(events, df_list))
+        mapping = {
+            event: df
+            for event, df in mapping.items()
+            if df is not None
+        }
+
+        return mapping
+
+
+class EventParserBase:
+    """
+    Base class for trace event parser.
+
+    Required attributes or properties:
+
+        * ``event``: name of the event
+        * ``regex``: full regex to parse a line of the event
+        * ``fields``: mapping of field names to :mod:`pandas` dtype to use for
+          the :class:`pandas.DataFrame` column.
+    """
+
+    PARSER_REGEX_TERMINALS = dict(
+        # To be used with the re.ASCII regex flag
+        identifier=r'\w+',
+        integer=r'\d+',
+        floating=r'\d+\.\d+',
+        blank=r' +',
+    )
+    """
+    Snippets of regex to be used in building more complex regexes in textual trace parsers.
+
+    .. note:: Meant to be used with the :data:`re.ASCII` flags.
+    """
+
+    def __init__(self, event, fields):
+        self.event = event
+        self.fields = fields
+
+
+class TxtEventParser(EventParserBase):
+    """
+    Trace event parser for raw output of ``trace-cmd report -R trace.dat``.
+
+    :param event: name of the event
+    :type event: str
+
+    :param fields: mapping of field name to :class:`pandas.DataFrame` column
+        dtype to use for each.
+    :type fields: dict(str, str)
+
+    :param positional_field: Name of the positional field. If ``None``, no
+        positional field will be parsed.
+    :type positional_field: str or None
+
+    :param greedy_field: Name of a greedy field that will consume the
+        remainder of the line, no matter what the content is. This allows
+        parsing events with a field containing a string formatted itself as
+        an event
+    :type greedy_field: str or None
+
+    Parses events with the following format::
+
+          <idle>-0     [001]    76.214046: sched_wakeup: something here: comm=watchdog/1 pid=15 prio=0 success=1 target_cpu=1
+          \____________________________________________/ \____________/  \__________________________________________________/
+                             header                        positional                          fields
+
+    """
+
+    def __init__(self, event, fields, positional_field=None, greedy_field=None):
+        super().__init__(
+            event=event,
+            fields=fields,
+        )
+        regex = self._get_regex(event, fields, positional_field, greedy_field)
+        self.regex = re.compile(regex, flags=re.ASCII)
+        self.raw = True
+
+    @property
+    def bytes_regex(self):
+        """
+        Same as ``regex`` but acting on :class:`bytes` instead of :class:`str`.
+        """
+        regex = self.regex
+        return re.compile(
+            self.regex.pattern.encode('ascii'),
+            flags=regex.flags,
+        )
+
+    @classmethod
+    def _get_fields_regex(cls, event, fields, positional_field, greedy_field):
+        """
+        Returns the regex to parse the fields part of the event line.
+
+        :param event: name of the event
+        :type event: str
+
+        :param fields: Mapping of field names to dataframe column dtype
+        :type fields: dict(str, str)
+
+        :param positional_field: Name to give to the positional field column,
+            or ``None`` if it should not be parsed.
+        :type positional_field: str or None
+
+        :param greedy_field: Name of a greedy field that will consume the
+            remainder of the line, no matter what the content is. This allows
+            parsing events with a field containing a string formatted itself as
+            an event
+        :type greedy_field: str or None
+        """
+        fields = fields.keys() - {positional_field}
+
+        if fields:
+            def combine(fields):
+                return r'(?:{})+'.format(
+                    '|'.join(fields)
+                )
+
+            def make_regex(field):
+                if field == greedy_field:
+                    return r'{field}=(?P<{field}>.*)'.format(
+                        field=re.escape(field),
+                        **cls.PARSER_REGEX_TERMINALS
+                    )
+                else:
+                    # The non-capturing group with positive lookahead is
+                    # necessary to be able to correctly collect spaces in the
+                    # values of fields
+                    return r'{field}=(?P<{field}>.+?)(?:{blank}(?={identifier}=)|$)'.format(
+                        field=re.escape(field),
+                        **cls.PARSER_REGEX_TERMINALS
+                    )
+
+            fields_regexes = list(map(make_regex, fields))
+
+            # Catch-all field that will consume any unknown field, allowing for
+            # partial parsing (both for performance/memory consumption and
+            # forward compatibility)
+            fields_regexes.append(r'{identifier}=.*?(?=(?:{other_fields})=)'.format(
+                other_fields='|'.join(fields),
+                **cls.PARSER_REGEX_TERMINALS
+            ))
+
+            fields = combine(fields_regexes)
+        else:
+            fields = ''
+
+        if positional_field:
+            # If there are more fields to match, use the first ":" or spaces as
+            # separator, otherwise just consume everything
+            if fields:
+                fields =  r' *:? *{fields}'.format(fields=fields)
+
+            fields = r'(?P<{pos}>.*?){fields}$'.format(pos=positional_field, fields=fields, **cls.PARSER_REGEX_TERMINALS)
+
+        return fields
+
+    @classmethod
+    def _get_header_regex(cls, event):
+        """
+        Return the regex for the header of the event.
+
+        :param event: Name of the event
+        :type event: str
+        """
+        blank = cls.PARSER_REGEX_TERMINALS['blank']
+        regex_map = dict(
+            __comm=r'\S+',
+            __pid=cls.PARSER_REGEX_TERMINALS['integer'],
+            __cpu=cls.PARSER_REGEX_TERMINALS['integer'],
+            __time=cls.PARSER_REGEX_TERMINALS['floating'],
+            __event=re.escape(event),
+        )
+
+        compos = {
+            field: r'(?P<{field}>{regex})'.format(field=field, regex=regex)
+            for field, regex in regex_map.items()
+        }
+
+        # We don't need to capture these ones as they have already been parsed
+        # in the skeleton dataframe, and fixed up for __time
+        compos.update(
+            (field, regex)
+            for field, regex in regex_map.items()
+            if field in ('__time', '__event')
+        )
+
+        regex = r'^{blank}{__comm}-{__pid}{blank}\[{__cpu}\]{blank}{__time}:{blank}{__event}:'.format(**compos, blank=blank)
+        return regex
+
+    def _get_regex(self, event, fields, positional_field, greedy_field):
+        """
+        Return the full regex to parse the event line.
+
+        This includes both the header and the fields part.
+        """
+        fields = self._get_fields_regex(event, fields, positional_field, greedy_field)
+        header = self._get_header_regex(event)
+        return r'{header} *{fields}'.format(header=header, fields=fields, **self.PARSER_REGEX_TERMINALS)
+
+
+class PrintTxtEventParser(TxtEventParser):
+    """
+    Event parser for the folling events, displayed in non-raw format by
+    ``trace-cmd``:
+
+        * ``print``
+        * ``bprint``
+        * ``bputs``
+
+    .. note:: ``bputs`` and ``print`` could be parsed in raw format, but that
+        would make them harder to parse (function resolution needed), and
+        ``bprint`` is just impossible to parse in raw format, since the data to
+        interpolate the format string with are not displayed by ``trace-cmd``.
+    """
+    def __init__(self, event, func_field, content_field):
+        fields = {
+            func_field: 'string',
+            # Use bytes so that we can easily parse meta events out of it
+            # without conversion
+            content_field: 'bytes',
+        }
+        self._func_field = func_field
+        self._content_field = content_field
+        super().__init__(event=event, fields=fields)
+        self.raw = False
+
+    def _get_fields_regex(self, event, fields, positional_field, greedy_field):
+        return r'(?P<{func}>.*?): *(?P<{content}>.*)'.format(
+            func=self._func_field,
+            content=self._content_field,
+        )
+
+
+class TxtTraceParserBase(TraceParserBase):
+    """
+    Text trace parser base class.
+
+    :param lines: Iterable of text lines as :class:`bytes`.
+    :type lines: collections.abc.Iterable(bytes)
+
+    :param events: List of events that will be available using
+        :meth:`parse_event`. If not provided, all events will be considered.
+        .. note:: Restricting the set of events can speed up some operations.
+    :type events: list(str)
+
+    :param event_parsers: Pre-built event parsers. Missing event parsers will
+        be inferred from the fields parsed in the trace, which is costly and
+        can lead to using larger dtypes than necessary (e.g. ``int64`` rather
+        than ``uint16``).
+        .. seealso:: :class:`TxtEventParser`
+    :type event_parsers: list(EventParserBase)
+
+    :param default_event_parser_cls: Class used to build event parsers inferred from the trace.
+    :type default_event_parser_cls: type
+
+    :param pre_filtered_lines: Set to ``True`` if the lines provided were
+        already pre-filtered externally, meaning that it will not accurately
+        reflect all the events that are available in that trace.
+    :type pre_filtered_lines: bool
+
+    :param pre_filled_metadata: Metadata pre-filled by the caller of the
+        constructor.
+    :type pre_filled_metadata: dict(str, object) or None
+    """
+
+    HEADER_FIELDS = {
+        '__comm': 'string',
+        '__pid': 'uint32',
+        '__cpu': 'uint32',
+        '__time': 'float64',
+        '__event': 'string',
+    }
+    """
+    Pandas dtype of the header fields.
+    """
+
+    DTYPE_INFERENCE_ORDER = ['int64', 'uint64', 'float64', 'string']
+    """
+    When the dtype of a field is not provided by a user-defined parser, these
+    dtypes will be tried in order to convert the column from string to
+    something more appropriate.
+
+    .. note:: ``uint64`` allows testing for hexadecimal formatting of numbers.
+    """
+
+    DEFAULT_EVENT_PARSER_CLS = None
+    """
+    Class used to create event parsers when inferred from the trace.
+    """
+
+    EVENT_DESCS = {}
+    """
+    Mapping of event names to parser description as a dict.
+
+    Each event description can include the constructor parameters of the class
+    used as :data:`DEFAULT_EVENT_PARSER_CLS`, which will be used to build event
+    parsers from the descriptions.
+
+    If an instance of :class:`EventParserBase` is passed instead of a dict, it
+    will be used as is.
+    """
+
+    # Since re.Match is only importable directly since Python >= 3.7, use a
+    # dummy match to get the type
+    _RE_MATCH_CLS = re.match('x', 'x').__class__
+
+    def __init__(self,
+        lines,
+        events=None,
+        needed_metadata=None,
+        event_parsers=None,
+        default_event_parser_cls=None,
+        pre_filtered_lines=False,
+        pre_filled_metadata=None,
+    ):
+        super().__init__(events, needed_metadata=needed_metadata)
+        self._pre_filtered_lines = pre_filtered_lines
+        self._pre_filled_metadata = pre_filled_metadata or {}
+        events = set(events or [])
+
+        default_event_parser_cls = default_event_parser_cls or self.DEFAULT_EVENT_PARSER_CLS
+        event_parsers = {
+            **{
+                event: (
+                    desc
+                    if isinstance(desc, EventParserBase)
+                    else default_event_parser_cls(event=event, **desc)
+                )
+                for event, desc in self.EVENT_DESCS.items() or []
+            },
+            **{
+                parser.event: parser
+                for parser in event_parsers or []
+            }
+        }
+        # Remove all the parsers that are unnecessary
+        event_parsers = {
+            event: parser
+            for event, parser in event_parsers.items()
+            if event in events
+        }
+
+        # If we don't need the fields in the skeleton df, avoid collecting them
+        # to save memory and speed things up
+        need_fields = (events != event_parsers.keys())
+        skeleton_regex = self._get_skeleton_regex(need_fields)
+
+        events_df, skeleton_df, time_range, available_events = self._eagerly_parse_lines(
+            lines=lines,
+            skeleton_regex=skeleton_regex,
+            event_parsers=event_parsers,
+            events=events,
+        )
+
+        self._events_df = events_df
+        # If the time range is not needed, the time range we computed might be
+        # wrong, so just remove it
+        self._time_range = time_range if 'time-range' in self._needed_metadata else None
+        self._skeleton_df = skeleton_df
+        self._available_events = available_events
+
+        inferred_event_descs = self._get_event_descs(skeleton_df, events, event_parsers)
+        # We only needed the fields to infer the descriptors, so let's drop
+        # them to lower peak memory usage
+        with contextlib.suppress(KeyError):
+            del self._skeleton_df['__fields']
+
+        event_parsers = {
+            **{
+                event: default_event_parser_cls(
+                    event=event,
+                    **desc,
+                )
+                for event, desc in inferred_event_descs.items()
+            },
+            # Existing parsers take precedence so the user can override
+            # autodetected events
+            **event_parsers,
+        }
+        self._event_parsers = event_parsers
+
+    @classmethod
+    def from_string(cls, txt, **kwargs):
+        """
+        Build an instance from a single multiline string.
+
+        :param txt: String containing the trace. It will be encoded as ASCII
+            before being forwarded to the constructor if it's not already
+            :class:`bytes`.
+        :type txt: bytes or str
+
+        :Variable keyword arguments: Forwarded to ``__init__``
+        """
+        # The text could already be bytes, in which case this will fail
+        with contextlib.suppress(AttributeError):
+            txt = txt.encode('ascii')
+
+        return cls(lines=txt.splitlines(), **kwargs)
+
+    @classmethod
+    def from_txt_file(cls, path, **kwargs):
+        """
+        Build an instance from a path to a text file.
+
+        :Variable keyword arguments: Forwarded to ``__init__``
+        """
+        with open(path, 'rb') as f:
+            return cls(lines=f, **kwargs)
+
+    @abc.abstractmethod
+    def _get_skeleton_regex(self, need_fields):
+        """
+        Return a :class:`bytes` regex that provides the following groups:
+
+            * ``__event``: name of the event
+            * ``__time``: timestamp of event occurence
+            * ``__fields`` if ``need_fields == True``: a string containing all
+              the named fields of each event occurence.
+
+        .. note:: This regex is critical for performances as it will be used to
+            scan the whole trace.
+        """
+
+    @staticmethod
+    def _make_df_from_data(regex, data, extra_cols=[]):
+        columns = sorted(
+            regex.groupindex.keys(),
+            # Order columns so that we can directly append the
+            # groups() tuple of the regex match
+            key=lambda field: regex.groupindex[field]
+        )
+        # Rename regex columns to avoid clashes that were explicitely added as
+        # extra
+        columns = [
+            '__parsed_{}'.format(col) if col in extra_cols else col
+            for col in columns
+        ]
+        columns += extra_cols
+
+        index = '__time' if data and '__time' in columns else None
+        return pd.DataFrame.from_records(
+            data,
+            columns=columns,
+            index=index,
+        )
+
+    def _eagerly_parse_lines(self, lines, skeleton_regex, event_parsers, events, time=None):
+        """
+        Filter the lines to select the ones with events.
+
+        Also eagerly parse events from them to avoid the extra memory
+        consumption from line storage, and to speed up parsing by acting as a
+        pipeline on lazy lines stream.
+        """
+
+        # Recompile all regex so that they work on bytes rather than strings.
+        # This simplifies the rest of the code while allowing the raw output
+        # from a process to be fed
+        def encode(string):
+            return string.encode('ascii')
+
+        events = list(map(encode, events))
+        event_parsers = {
+            encode(event): parser
+            for event, parser in event_parsers.items()
+        }
+
+        # Only add an extra iterator and tuple unpacking if that is strictly
+        # necessary, as it comes with a performance cost
+        time_is_provided = time is not None
+        skel_search = skeleton_regex.search
+        if time_is_provided:
+            lines = zip(time, lines)
+            drop_filter = lambda line: not skel_search(line[1])
+        else:
+            drop_filter = lambda line: not skel_search(line)
+
+        # First, get rid of all the lines coming before the trace
+        lines = itertools.dropwhile(drop_filter, lines)
+
+        # Appending to lists is amortized O(1). Inside the list, we store
+        # tuples since they are:
+        # 1) the most compact Python representation of a product type
+        # 2) output directly by regex.search()
+        skeleton_data = []
+        events_data = {
+            **{event: (None, None) for event in events},
+            **{
+                event: (parser.bytes_regex.search, [])
+                for event, parser in event_parsers.items()
+            },
+        }
+        available_events = set()
+
+        begin_time = None
+        end_time = None
+        time_type = getattr(np, self.HEADER_FIELDS['__time'])
+
+        # THE FOLLOWING LOOP IS A THE MOST PERFORMANCE-SENSITIVE PART OF THAT
+        # CLASS, APPLY EXTREME CARE AND BENCHMARK WHEN MODIFYING
+        # Best practices:
+        # - resolve all dotted names ahead of time
+        # - minimize the amount of local variables. Prefer anonymous
+        #   expressions
+        # - Catch exceptions for exceptional cases rather than explicit check
+
+        # Pre-lookup methods out of the loop to speed it up
+        append = list.append
+        group = self._RE_MATCH_CLS.group
+        groups = self._RE_MATCH_CLS.groups
+        nextafter = np.nextafter
+        inf = math.inf
+        line_time = 0
+        parse_time = '__time' in skeleton_regex.groupindex.keys()
+
+        for line in lines:
+            prev_time = line_time
+            if time_is_provided:
+                line_time, line = line
+
+            match = skel_search(line)
+            # Stop at the first non-matching line
+            try:
+                event = group(match, '__event')
+                line_time = time_type(group(match, '__time'))
+            # Assume only "time" is not in the regex. Keep that out of the hot
+            # path since it's only needed in rare cases (like nesting parsers)
+            except IndexError:
+                # If we are supposed to parse time, let's re-raise the
+                # exception
+                if parse_time:
+                    raise
+                else:
+                    # Otherwise, make sure "event" is defined so that we only
+                    # go a match failure on "time"
+                    event
+            # The line did not match the skeleton regex, so skip it
+            except TypeError:
+                continue
+
+            # Do a global deduplication of timestamps, across all
+            # events regardless of the one we will parse. This ensures
+            # stable results and joinable dataframes from multiple
+            # parser instance.
+            if line_time <= prev_time:
+                line_time = nextafter(prev_time, inf)
+
+            if begin_time is None:
+                begin_time = line_time
+
+            # If we can parse it right away, let's do it now
+            try:
+                search, data = events_data[event]
+                append(
+                    data,
+                    # Add the fixedup time
+                    groups(search(line)) + (line_time,)
+                )
+            # If we don't have a parser for it yet (search == None),
+            # just store the line so we can infer its parser later
+            except TypeError:
+                # Add the fixedup time and the full line for later
+                # parsing as well
+                append(
+                    skeleton_data,
+                    groups(match) + (line_time, line)
+                )
+            # We are not interested in that event, but we still remember the
+            # pareseable events
+            except KeyError:
+                available_events.add(event)
+
+        # This should have been set on the first line.
+        # Note: we don't raise the exception if no events were asked for, to
+        # allow creating dummy parsers without any line
+        if begin_time is None and events:
+            raise ValueError('No lines containing events have been found')
+
+        end_time = line_time
+        available_events.update(
+            event
+            for event, (search, data) in events_data.items()
+            if data
+        )
+
+        events_df = {}
+        for event, parser in event_parsers.items():
+            try:
+                # Remove the tuple data from the dict as we go, to free memory
+                # before proceeding to the next event to smooth the peak memory
+                # consumption
+                _, data = events_data.pop(event)
+            except KeyError:
+                pass
+            else:
+                decoded_event = event.decode('ascii')
+                df = self._make_df_from_data(parser.regex, data, ['__time'])
+                # Post-process immediately to shorten the memory consumption
+                # peak
+                df = self._postprocess_df(decoded_event, parser, df)
+                events_df[decoded_event] = df
+
+        # Compute the skeleton dataframe for the events that have not been
+        # parsed already. It contains the event name, the time, and potentially
+        # the fields if they are needed
+        skeleton_df = self._make_df_from_data(skeleton_regex, skeleton_data, ['__time', 'line'])
+        # Drop unnecessary columns that might have been parsed by the regex
+        to_keep = {'__event', '__fields', 'line'}
+        skeleton_df = skeleton_df[sorted(to_keep & set(skeleton_df.columns))]
+        # Make the event column more compact
+        skeleton_df['__event'] = skeleton_df['__event'].astype('category', copy=False)
+        # This is very fast on a category dtype
+        available_events.update(skeleton_df['__event'].unique())
+
+        available_events = {event.decode('ascii') for event in available_events}
+        return (events_df, skeleton_df, (begin_time, end_time), available_events)
+
+    def _lazyily_parse_event(self, event, parser, df):
+        # Only parse the lines that have a chance to match
+        df = df[df['__event'] == event.encode('ascii')]
+        index = df.index
+        regex = parser.bytes_regex
+
+        # Resolve names outside of the comprehension
+        search = regex.search
+        groups = self._RE_MATCH_CLS.groups
+        # Parse the lines with the regex.
+        # note: we cannot use Series.str.extract(expand=True) since it does
+        # not work on bytes
+        data = [
+            groups(search(line))
+            for line in df['line']
+        ]
+        df = self._make_df_from_data(regex, data)
+        df.index = index
+        df = self._postprocess_df(event, parser, df)
+        return df
+
+    @staticmethod
+    def _get_event_descs(df, events, event_parsers):
+        user_supplied = event_parsers.keys()
+        all_events = events is None
+
+        if not all_events and set(events) == user_supplied:
+            return {}
+        else:
+            def encode(string):
+                return string.encode('ascii')
+
+            user_supplied = set(map(encode, user_supplied))
+            events = set(map(encode, events))
+
+            # Since we make a shallow copy:
+            # DO NOT MODIFY ANY EXISTING COLUMN
+            df = df.copy(deep=False)
+
+            # Find the field names only for the events we don't already know about,
+            # since the inference is relatively expensive
+            if all_events:
+                df = df[~df['__event'].isin(user_supplied)]
+            else:
+                events = set(events) - user_supplied
+                df = df[df['__event'].isin(events)]
+
+            def apply_regex(series, func, regex):
+                regex = encode(regex.format(**TxtEventParser.PARSER_REGEX_TERMINALS))
+                regex = re.compile(regex, flags=re.ASCII)
+                return [
+                    func(regex, x)
+                    for x in series
+                ]
+
+            def is_match(pat, x):
+                return bool(pat.search(x))
+
+            # We cannot use Series.str.(count|finall) since they don't work
+            # with bytes
+            df['split_fields'] = apply_regex(df['__fields'], re.findall, r'({identifier})=')
+            # Look for any value before the first named field
+            df['pos_fields'] = apply_regex(df['__fields'], is_match, r'(?:^ *(?:[^ =]+ [^ =]+)+=)|(?:^[^=]*$)')
+
+            def infer_fields(x):
+                field_alternatives = x.transform(tuple).unique()
+                if len(field_alternatives) == 1:
+                    fields = field_alternatives[0]
+                else:
+                    # Use the union of all the fields, and the order of appearance is not guaranteed
+                    fields = sorted(set(itertools.chain.from_iterable(field_alternatives)))
+
+                return fields
+
+            # For each event we don't already know, get the list of all fields available
+            inferred = df.groupby('__event', observed=True)['split_fields'].apply(infer_fields).to_frame()
+            inferred['positional_field'] = df.groupby('__event', observed=True)['pos_fields'].any()
+
+            def update_desc(desc):
+                new = dict(
+                    positional_field='__positional' if desc['positional_field'] else None,
+                    fields={
+                        field.decode('ascii'): None
+                        for field in desc['split_fields']
+                    },
+                )
+                return new
+
+            dct = {
+                event.decode('ascii'): update_desc(desc)
+                for event, desc in inferred.T.to_dict().items()
+            }
+            return dct
+
+    def parse_event(self, event):
+        try:
+            parser = self._event_parsers[event]
+        except KeyError:
+            raise MissingTraceEventError([event])
+
+        # Maybe it was eagerly parsed
+        try:
+            df = self._events_df[event]
+        except KeyError:
+            df = self._lazyily_parse_event(event, parser, self._skeleton_df)
+
+        # Since there is no way to distinguish between no event entry and
+        # non-collected events in text traces, map empty dataframe to missing
+        # event
+        if df.empty:
+            raise MissingTraceEventError([event])
+        else:
+            return df
+
+    @classmethod
+    def _postprocess_df(cls, event, parser, df):
+        """
+        ALL THE PROCESSING MUST HAPPEN INPLACE on the dataframe
+        """
+        # Convert fields from extracted strings to appropriate dtype
+        all_fields = {
+            **parser.fields,
+            **cls.HEADER_FIELDS,
+        }
+
+        def default_converter(x):
+            for dtype in cls.DTYPE_INFERENCE_ORDER:
+                convert = make_converter(dtype)
+                with contextlib.suppress(ValueError, TypeError):
+                    return convert(x)
+
+            # If all conversions failed, just return the initial series
+            return x
+
+        def make_converter(dtype):
+            # If the dtype is already known, just use that
+            if dtype:
+                return lambda x: series_convert(x, dtype)
+            else:
+                # Otherwise, infer it from the data we have
+                return default_converter
+
+        converters = {
+            field: make_converter(dtype)
+            for field, dtype in all_fields.items()
+            if field in df.columns
+        }
+        # DataFrame.apply() can lead to recursion error when a conversion
+        # fails, so use an explicit loop instead
+        for col in set(df.columns) & converters.keys():
+            df[col] = converters[col](df[col])
+
+        df.index.name = 'Time'
+        df.name = event
+        return df
+
+    def get_metadata(self, key):
+        # Only return the time-range if it was asked for, as it will otherwise
+        # not match the beginning of the trace
+        if key == 'time-range' and key in self._needed_metadata:
+            return self._time_range
+        # If we filtered some events, we are not exhaustive anymore so we
+        # cannot return the list
+        if key == 'available-events' and not self._pre_filtered_lines:
+            return self._available_events
+        else:
+            try:
+                return self._pre_filled_metadata[key]
+            except KeyError:
+                return super().get_metadata(key)
+
+class TxtTraceParser(TxtTraceParserBase):
+    """
+    Text trace parser for the raw output of ``trace-cmd report -R trace.dat``.
+
+    :param lines: Iterable of text lines.
+    :type lines: collections.abc.Iterable(str)
+
+    :param events: List of events that will be available using
+        :meth:`~TxtTraceParserBase.parse_event`. If not provided, all events will be considered.
+        .. note:: Restricting the set of events can speed up some operations.
+    :type events: list(str)
+
+    :param event_parsers: Pre-built event parsers. Missing event parsers will
+        be inferred from the fields parsed in the trace, which is costly and can
+        lead to using larger dtypes than necessary (e.g. ``int64`` rather than
+        ``uint16``).
+        .. seealso:: :class:`TxtEventParser`
+    :type event_parsers: list(EventParserBase)
+
+    :param default_event_parser_cls: Class used to build event parsers inferred from the trace.
+    """
+    DEFAULT_EVENT_PARSER_CLS = TxtEventParser
+
+    _KERNEL_DTYPE = {
+        'timestamp': 'uint64',
+        'cpu': 'uint16',
+        'pid': 'uint32',
+        'comm': 'string',
+        'cgroup_path': 'string',
+        # prio in [-1, 140]
+        'prio': 'int16',
+        'util': 'uint16',
+    }
+
+    EVENT_DESCS = {
+        'print': PrintTxtEventParser(
+            event='print',
+            func_field='func',
+            content_field='buf',
+        ),
+        'bprint': PrintTxtEventParser(
+            event='bprint',
+            func_field='func',
+            content_field='buf',
+        ),
+        'bputs': PrintTxtEventParser(
+            event='bputs',
+            func_field='func',
+            content_field='str',
+        ),
+
+        'sched_switch': dict(
+            fields={
+                'prev_comm': _KERNEL_DTYPE['comm'],
+                'prev_pid': _KERNEL_DTYPE['pid'],
+                'prev_prio': _KERNEL_DTYPE['prio'],
+                'prev_state': 'uint16',
+                'next_comm': _KERNEL_DTYPE['comm'],
+                'next_pid': _KERNEL_DTYPE['pid'],
+                'next_prio': _KERNEL_DTYPE['prio'],
+            },
+        ),
+        'sched_wakeup': dict(
+            fields={
+                'comm': _KERNEL_DTYPE['comm'],
+                'pid': _KERNEL_DTYPE['pid'],
+                'prio': _KERNEL_DTYPE['prio'],
+                'target_cpu': _KERNEL_DTYPE['cpu'],
+                # This field does exist but it's useless nowadays as it has a
+                # constant value of 1, so save some memory by just not parsing
+                # it
+                # 'success': 'bool',
+            },
+        ),
+        'cpu_frequency': dict(
+            fields={
+                'cpu_id': _KERNEL_DTYPE['cpu'],
+                'state': 'uint32',
+            },
+        ),
+        'cpu_idle': dict(
+            fields={
+                'cpu_id': _KERNEL_DTYPE['cpu'],
+                # Technically, the value used in the kernel can go down to -1,
+                # but it ends up stored in an unsigned type (why ? ...), which
+                # means we actually get 4294967295 in the event, as an unsigned
+                # value. Therefore, it's up to sanitization to fix that up ...
+                'state': 'int64',
+            },
+        ),
+        'sched_compute_energy': dict(
+            fields={
+                'comm': _KERNEL_DTYPE['comm'],
+                'dst_cpu': _KERNEL_DTYPE['cpu'],
+                'energy': 'uint64',
+                'pid': _KERNEL_DTYPE['pid'],
+                'prev_cpu': _KERNEL_DTYPE['cpu'],
+            },
+        ),
+        'sched_pelt_cfs': dict(
+            fields={
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'load': _KERNEL_DTYPE['util'],
+                'path': _KERNEL_DTYPE['cgroup_path'],
+                'rbl_load': _KERNEL_DTYPE['util'],
+                'util': _KERNEL_DTYPE['util'],
+            },
+        ),
+        'sched_pelt_se': dict(
+            fields={
+                'comm': _KERNEL_DTYPE['comm'],
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'load': _KERNEL_DTYPE['util'],
+                'path': _KERNEL_DTYPE['cgroup_path'],
+                'pid': _KERNEL_DTYPE['pid'],
+                'rbl_load': _KERNEL_DTYPE['util'],
+                'util': _KERNEL_DTYPE['util'],
+                'update_time': _KERNEL_DTYPE['timestamp'],
+            },
+        ),
+        'sched_migrate_task': dict(
+            fields={
+                'comm': _KERNEL_DTYPE['comm'],
+                'dest_cpu': _KERNEL_DTYPE['cpu'],
+                'orig_cpu': _KERNEL_DTYPE['cpu'],
+                'pid': _KERNEL_DTYPE['pid'],
+                'prio': _KERNEL_DTYPE['prio'],
+            },
+        ),
+        'sched_overutilized': dict(
+            fields={
+                'overutilized': 'bool',
+                'span': 'string',
+            },
+        ),
+        'sched_pelt_dl': dict(
+            fields={
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'load': _KERNEL_DTYPE['util'],
+                'rbl_load': _KERNEL_DTYPE['util'],
+                'util': _KERNEL_DTYPE['util'],
+            },
+        ),
+        'sched_pelt_irq': dict(
+            fields={
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'load': _KERNEL_DTYPE['util'],
+                'rbl_load': _KERNEL_DTYPE['util'],
+                'util': _KERNEL_DTYPE['util'],
+            },
+        ),
+        'sched_pelt_rt': dict(
+            fields={
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'load': _KERNEL_DTYPE['util'],
+                'rbl_load': _KERNEL_DTYPE['util'],
+                'util': _KERNEL_DTYPE['util'],
+            },
+        ),
+        'sched_process_wait': dict(
+            fields={
+                'comm': _KERNEL_DTYPE['comm'],
+                'pid': _KERNEL_DTYPE['pid'],
+                'prio': _KERNEL_DTYPE['prio'],
+            },
+        ),
+        'sched_util_est_cfs': dict(
+            fields={
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'path': _KERNEL_DTYPE['cgroup_path'],
+                'enqueued': _KERNEL_DTYPE['util'],
+                'ewma': _KERNEL_DTYPE['util'],
+                'util': _KERNEL_DTYPE['util'],
+            },
+        ),
+        'sched_util_est_se': dict(
+            fields={
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'comm': _KERNEL_DTYPE['comm'],
+                'pid': _KERNEL_DTYPE['pid'],
+                'path': _KERNEL_DTYPE['cgroup_path'],
+                'enqueued': _KERNEL_DTYPE['util'],
+                'ewma': _KERNEL_DTYPE['util'],
+                'util': _KERNEL_DTYPE['util'],
+            },
+        ),
+        'sched_wakeup_new': dict(
+            fields={
+                'comm': _KERNEL_DTYPE['comm'],
+                'pid': _KERNEL_DTYPE['pid'],
+                'prio': _KERNEL_DTYPE['prio'],
+                'success': 'bool',
+                'target_cpu': _KERNEL_DTYPE['cpu'],
+            },
+        ),
+        'sched_waking': dict(
+            fields={
+                'comm': _KERNEL_DTYPE['comm'],
+                'pid': _KERNEL_DTYPE['pid'],
+                'prio': _KERNEL_DTYPE['prio'],
+                'success': 'bool',
+                'target_cpu': _KERNEL_DTYPE['cpu'],
+            },
+        ),
+        'uclamp_util_cfs': dict(
+            fields={
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'uclamp_avg': _KERNEL_DTYPE['util'],
+                'uclamp_max': _KERNEL_DTYPE['util'],
+                'uclamp_min': _KERNEL_DTYPE['util'],
+                'util_avg': _KERNEL_DTYPE['util'],
+            },
+        ),
+        'uclamp_util_se': dict(
+            fields={
+                'comm': _KERNEL_DTYPE['comm'],
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'pid': _KERNEL_DTYPE['pid'],
+                'uclamp_avg': _KERNEL_DTYPE['util'],
+                'uclamp_max': _KERNEL_DTYPE['util'],
+                'uclamp_min': _KERNEL_DTYPE['util'],
+                'util_avg': _KERNEL_DTYPE['util'],
+            },
+        ),
+    }
+
+    @classmethod
+    def from_dat(cls, path, events, needed_metadata=None, event_parsers=None, **kwargs):
+        """
+        Build an instance from a path to a trace.dat file created with
+        ``trace-cmd``.
+
+        :Variable keyword arguments: Forwarded to ``__init__``
+        """
+        needed_metadata = set(needed_metadata or [])
+        events = set(events)
+        # We need all the events to detect the timestamp of the first and last
+        # event
+        if 'time-range' in needed_metadata:
+            event_filters = []
+        else:
+            # First get the list of events this kernel can contain, since
+            # filtering on non-existant events will make the whole trace-cmd
+            # report command abort.
+            kernel_events = {
+                event.split(':', 1)[1]
+                for event in subprocess.check_output(
+                    ['trace-cmd', 'report', '-E', '--', path],
+                    stderr=subprocess.DEVNULL,
+                ).decode('ascii').splitlines()
+            }
+            # Filtering on event name from trace-cmd can speed up a lot the
+            # partial parsing
+            event_filters = list(itertools.chain.from_iterable(
+                ('-F', event)
+                for event in (events & kernel_events)
+            ))
+
+        non_raw = {
+            parser.event
+            for parser in itertools.chain(
+                cls.EVENT_DESCS.values(),
+                event_parsers or[]
+            )
+            if isinstance(parser, TxtEventParser) and not parser.raw
+        }
+
+        raw_events = list(itertools.chain.from_iterable(
+            ('-r', event) if event not in non_raw else []
+            for event in events
+        ))
+
+        pre_filled_metadata = {}
+
+        no_filter_cmd = ['trace-cmd', 'report', '-N', '-f', '--', path]
+
+        if 'symbols-address' in needed_metadata:
+            # Get the symbol addresses in that trace
+            def parse(line):
+                addr, sym = line.split(' ', 1)
+                addr = int(addr, base=16)
+                sym = sym.strip()
+                return (addr, sym)
+
+            symbols_address = dict(
+                parse(line)
+                for line in subprocess.check_output(
+                    no_filter_cmd,
+                    stderr=subprocess.DEVNULL,
+                    universal_newlines=True,
+                ).splitlines()
+            )
+
+            # If we get only "0" as a key, that means kptr_restrict was in use and
+            # no useable address is available
+            if symbols_address.keys() != {0}:
+                pre_filled_metadata['symbols-address'] = symbols_address
+
+        if 'cpus-count' in needed_metadata:
+            regex = re.compile(rb'cpus=(?P<cpus>\d+)')
+            with subprocess.Popen(
+                no_filter_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            ) as p:
+                try:
+                    match, _ = take(1, itertools.filterfalse(None, map(regex.search, p.stdout)))
+                except ValueError:
+                    pass
+                else:
+                    pre_filled_metadata['cpus-count'] = match.group('cpus')
+
+        kwargs.update(
+            events=events,
+            needed_metadata=needed_metadata,
+            event_parsers=event_parsers,
+            pre_filled_metadata=pre_filled_metadata,
+        )
+        cmd = [
+            'trace-cmd',
+            'report',
+            # Do not load any plugin, so that we get fully reproducible results
+            '-N',
+            # Full accuracy on timestamp
+            '-t',
+            # All events in raw format
+            *raw_events,
+            *event_filters,
+            '--', path
+        ]
+        # A fairly large buffer reduces the interaction overhead
+        bufsize = 10 * 1024 * 1024
+        try:
+            with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=bufsize) as p:
+                # Consume the lines as they come straight from the stdout object to
+                # avoid the memory overhead of storing the whole output in one
+                # gigantic string
+                return cls(lines=p.stdout, pre_filtered_lines=bool(event_filters), **kwargs)
+        except ValueError as e:
+            # Maybe there were no lines in the output because no event matched the
+            # filter
+            if event_filters:
+                _kwargs = copy.copy(kwargs)
+                del _kwargs['events']
+                # Make a dummy parser that will raise MissingTraceEventError
+                # for any event, since the pre_filtering lead to everything
+                # being discarded
+                return cls(lines=[], events=[], pre_filtered_lines=True, **_kwargs)
+            else:
+                raise
+
+    def _get_skeleton_regex(self, need_fields):
+        regex = r'\] +(?P<__time>{floating}): *(?P<__event>{identifier}):'.format(**TxtEventParser.PARSER_REGEX_TERMINALS)
+        if need_fields:
+            regex += r' *(?P<__fields>.*)'
+
+        return re.compile(regex.encode('ascii'), flags=re.ASCII)
+
+
+class SimpleTxtTraceParser(TxtTraceParserBase):
+    """
+    Simple text trace parser (base) class.
+
+    :param lines: Lines of the text to parse.
+    :type lines: collections.abc.Iterable(str)
+
+    :param events: List of events that will be potentially parsed by
+        :meth:`~TraceParserBase.parse_events`. If ``None``, all available
+        will be considered but that may increase the initial parsing stage.
+    :type events: list(str)
+
+    :param event_parsers: Optional list of :class:`TxtTraceParserBase` to
+        provide fully customized event regex.
+
+        .. note:: See :data:`EVENT_DESCS` for class-provided special case
+            handling.
+    :type event_parsers: list(TxtTraceParserBase)
+
+    :param header_regex: Regex used to parse the header of each event. See
+        :data:`HEADER_REGEX` documentation.
+    :type header_regex: str
+
+    .. note:: This class is easier to customize than :class:`TxtTraceParser`
+        but may have higher processing time and peak memory usage.
+    """
+
+    EVENT_DESCS = {}
+    """
+    Mapping of event names to parser description as a dict.
+
+    Each event description can include the following dict keys:
+
+        * ``header_regex``: Regex to parse the event header. If not set, the
+          header regex from the trace parser will be used.
+
+        * ``fields_regex``: Regex to parse the fields part of the event (i.e.
+          the part after the header). This is the most commonly modified
+          setting to take into account special cases in event formatting.
+
+        * ``fields``: Mapping of field names to :class:`pandas.DataFrame`
+          column dtype. This allows using a smaller dtype or the use of a
+          non-inferred dtype like ``boolean``.
+
+        * ``positional_field``: Name of the positional field (comming before
+          the named fields). If ``None``, the column will be suppressed in the
+          parsed dataframe.
+    """
+
+    HEADER_REGEX = None
+    """
+    Default regex to use to parse event header.
+    It must parse the following groups:
+
+        * ``__time``: the timestamp of the event
+        * ``__event``: the name of the event
+        * ``__cpu`` (optional): the CPU by which the event was emitted
+        * ``__pid`` (optional): the currently scheduled PID at the point the event was emitted
+        * ``__comm`` (optional): the currently scheduled task's name at the point the event was emitted
+
+    .. note:: It must *not* capture the event fields, as it will be
+        concatenated with the field regex of each event to parse full lines.
+    """
+
+    def __init__(self, lines, events=None, event_parsers=None, header_regex=None, **kwargs):
+        header_regex = header_regex or self.HEADER_REGEX
+        self.header_regex = header_regex
+
+        # Do not parse for each event unnecessary columns that are already
+        # parsed in the skeleton dataframe
+        regex = header_regex
+        for field in ('__time', '__event'):
+            regex = regex.replace(r'(?P<{}>'.format(field), r'(?:')
+        event_parser_header_regex = regex
+
+        class SimpleTxtEventParser(TxtEventParser):
+            def __init__(self, header_regex=event_parser_header_regex, fields_regex=None, **kwargs):
+                self.fields_regex = fields_regex
+                self.header_regex = header_regex
+                super().__init__(**kwargs)
+
+            def _get_header_regex(self, event):
+                return self.header_regex
+
+            def _get_fields_regex(self, *args, **kwargs):
+                if self.fields_regex:
+                    return self.fields_regex
+                else:
+                    return super()._get_fields_regex(*args, **kwargs)
+
+        super().__init__(
+            lines=lines,
+            events=events,
+            event_parsers=event_parsers,
+            default_event_parser_cls=SimpleTxtEventParser,
+            **kwargs,
+        )
+
+    def _get_skeleton_regex(self, need_fields):
+        # Parse the whole header, which is wasteful but provides a simpler interface
+        regex = self.header_regex + r' *(?P<__fields>.*)'
+        return re.compile(regex.encode('ascii'), flags=re.ASCII)
+
+
+class MetaTxtTraceParser(SimpleTxtTraceParser):
+    """
+    Textual trace parser to parse meta-events.
+
+    :param time: Iterable of timestamps matching ``lines``.
+    :type time: collections.abc.Iterable(float)
+
+    :param merged_df: Dataframe to merge into the parsed ones, to add
+        pre-computed fields.
+    :type merged_df: pandas.DataFrame
+
+    Meta events are events "embedded" as a string inside the field of another
+    event. They are expected to comply with the raw format as output by
+    ``trace-cmd report -R``.
+
+    """
+    HEADER_REGEX = r'(?P<__event>[\w@]+):?'
+
+    class DEFAULT_EVENT_PARSER_CLS(TxtEventParser):
+        @classmethod
+        def _get_header_regex(cls, event):
+            regex = r'^ *{__event}:?'.format(
+                __event=re.escape(event),
+                **cls.PARSER_REGEX_TERMINALS
+            )
+            return regex
+
+    EVENT_DESCS = {
+        **SimpleTxtTraceParser.EVENT_DESCS,
+        # Provide the description of rtapp userspace events to speed up parsing
+        # of these
+        'userspace@rtapp_loop': dict(
+            fields={
+                'phase': 'uint32',
+                'phase_loop': 'uint32',
+                'thread_loop': 'uint32',
+                'event': 'string',
+            },
+        ),
+        'userspace@rtapp_main': dict(
+            fields={
+                'event': 'string',
+                'data': None,
+            },
+        ),
+        'userspace@rtapp_task': dict(
+            fields={
+                'event': 'string',
+            },
+        ),
+        'userspace@rtapp_event': dict(
+            fields={
+                'desc': 'string',
+                # Not sure about the meaning or real size of these
+                'id': 'uint32',
+                'type': 'uint32',
+            },
+        ),
+        'userspace@rtapp_stats': dict(
+            fields={
+                'period': 'uint64',
+                'run': 'uint64',
+                'wa_lat': 'uint64',
+                'slack': 'uint64',
+                'c_period': 'uint64',
+                'c_run': 'uint64',
+            },
+        ),
+    }
+
+    def __init__(self, *args, time, merged_df=None, **kwargs):
+        self._time = time
+        self._merged_df = merged_df
+        super().__init__(*args, **kwargs)
+
+    def _eagerly_parse_lines(self, *args, **kwargs):
+        # Use the iloc as "time", and we fix it up manually afterwards
+        return super()._eagerly_parse_lines(
+            *args, **kwargs, time=self._time,
+        )
+
+    def _postprocess_df(self, event, parser, df):
+        df = super()._postprocess_df(event, parser, df)
+        merged_df = self._merged_df
+        if merged_df is not None:
+            df = df.merge(merged_df, left_index=True, right_index=True, copy=False)
+        return df
+
+class HRTxtTraceParser(SimpleTxtTraceParser):
+    """
+    Parse text trace in their human readable format (as opposed to the raw
+    format).
+
+    The accepted format is the one produced by the kernel, after formatting
+    event records with their format string. This means that format strings
+    deviating from the classic ``field=value`` format need a custom regex.
+
+    .. note:: This parser is provided for convenience but is probably not
+        complete. More specifically, it does not contain custom regex for all the
+        events which format deviates from the raw format as output by ``trace-cmd
+        report -R``.
+
+        For a better supported format, see :class:`TxtTraceParser`.
+    """
+    EVENT_DESCS = {
+        'sched_switch': dict(
+            fields_regex=r'prev_comm=(?P<prev_comm>.+?) +prev_pid=(?P<prev_pid>\d+) +prev_prio=(?P<prev_prio>\d+) +prev_state=(?P<prev_state>[^ ]+) ==> next_comm=(?P<next_comm>.+?) +next_pid=(?P<next_pid>\d+) +next_prio=(?P<next_prio>\d+)',
+            fields={
+                'prev_comm': 'string',
+                'prev_pid': 'uint32',
+                'prev_prio': 'int16',
+                'prev_state': 'string',
+                'next_comm': 'string',
+                'next_pid': 'uint32',
+                'next_prio': 'int16',
+            },
+        ),
+        'tracing_mark_write': dict(
+            fields={
+                'buf': 'string',
+            },
+            positional_field='buf',
+        ),
+    }
+
+    HEADER_REGEX = r'(?P<__comm>\S+)-(?P<__pid>\d+).+(?P<__time>\d+\.\d+): +(?P<__event>\w+):'
+
+
+class SysTraceParser(HRTxtTraceParser):
+    """
+    Parse Google's systrace format.
+
+    .. note:: This parser is based on :class:`HRTxtTraceParser` and is
+        therefore provided for convenience but may lack some events custom
+        field regex.
+    """
+
+    @classmethod
+    def from_html(cls, *args, **kwargs):
+        return super().from_txt_file(*args, **kwargs)
+
+
+class TrappyTraceParser(TraceParserBase):
+    """
+    Glue with :mod:`trappy` trace parsers.
+
+    .. note:: This class is deprecated and the use of :class:`TxtTraceParser`
+        is recommended instead. This class is only provided in case
+        compatibility with :mod:`trappy` is needed for one reason or another.
+    """
+
+    def __init__(self, path, events, needed_metadata=None, trace_format=None):
+        super().__init__(events, needed_metadata=needed_metadata)
+
+        # Lazy import so that it's not a required dependency
+        import trappy
+
+        events = set(events)
+        # Make sure we won't attempt parsing 'print' events, so that this
+        # parser is not used to resolve meta events.
+        events -= {'print'}
+        self._events = events
+
+        events = set(events)
+        if trace_format is None:
+            if path.endswith('html'):
+                trace_format = 'SySTrace'
+            else:
+                trace_format = 'FTrace'
+
+        self.get_logger().debug('Parsing {} events from {}: {}'.format(trace_format, path, sorted(events)))
+        if trace_format == 'SysTrace':
+            trace_class = trappy.SysTrace
+        elif trace_format == 'FTrace':
+            trace_class = trappy.FTrace
+        else:
+            raise ValueError('Unknown trace format: {}'.format(trace_format))
+
+        # Since we handle the cache in lisa.trace.Trace, we do not need to duplicate it
+        trace_class.disable_cache = True
+        trace = trace_class(
+            path,
+            scope="custom",
+            events=sorted(events),
+            normalize_time=False,
+        )
+        self._trace = trace
+
+        # trappy sometimes decides to be "clever" and overrules the path to be
+        # used, even though it was specifically asked for a given file path
+        assert path == trace.trace_path
+
+    def get_metadata(self, key):
+        if key == 'time-range':
+            trace = self._trace
+            return (trace.basetime, trace.endtime)
+        else:
+            return super().get_metadata(key)
+
+    def parse_event(self, event):
+        trace = self._trace
+
+        if event not in self._events:
+            raise MissingTraceEventError([event])
+
+        df = getattr(trace, event).data_frame
+        if df.empty:
+            raise MissingTraceEventError([event])
+
+        return df
+
+
 class TraceBase(abc.ABC):
     """
     Base class for common functionalities between :class:`Trace` and :class:`TraceView`
@@ -172,7 +1798,7 @@ class TraceBase(abc.ABC):
     def trace_state(self):
         """
         State of the trace object that might impact the output of dataframe
-        getter functions like :meth:`Trace.df_events`.
+        getter functions like :meth:`Trace.df_event`.
 
         It must be hashable and serializable to JSON, so that it can be
         recorded when analysis methods results are cached to the swap.
@@ -253,6 +1879,14 @@ class TraceBase(abc.ABC):
 
         return df_add_delta(df, col=col_name, inplace=inplace, window=self.window)
 
+    @deprecate('This method has been deprecated and is an alias',
+        deprecated_in='2.0',
+        removed_in='2.1',
+        replaced_by='df_event',
+    )
+    def df_events(self, *args, **kwargs):
+        return self.df_event(*args, **kwargs)
+
     def df_all_events(self, events=None):
         """
         Provide a dataframe with an ``info`` column containing the textual
@@ -279,7 +1913,7 @@ class TraceBase(abc.ABC):
             return '{:<{event_name_len}}: {}'.format(event, fields, event_name_len=max_event_name_len)
 
         def make_info_series(event):
-            df = self.df_events(event)
+            df = self.df_event(event)
             info = df.apply(make_info_row, axis=1, event=event)
             info.name = 'info'
             return info
@@ -330,7 +1964,7 @@ class TraceView(Loggable, TraceBase):
 
     **Design notes:**
 
-      * :meth:`df_events` uses the underlying :meth:`lisa.trace.Trace.df_events`
+      * :meth:`df_event` uses the underlying :meth:`lisa.trace.Trace.df_event`
         and trims the dataframe according to the given ``window`` before
         returning it.
       * ``self.start`` and ``self.end`` mimic the :class:`Trace` attributes but
@@ -358,7 +1992,7 @@ class TraceView(Loggable, TraceBase):
     def __getattr__(self, name):
         return getattr(self.base_trace, name)
 
-    def df_events(self, event, **kwargs):
+    def df_event(self, event, **kwargs):
         """
         Get a dataframe containing all occurrences of the specified trace event
         in the sliced trace.
@@ -367,7 +2001,7 @@ class TraceView(Loggable, TraceBase):
         :type event: str
 
         :Variable keyword arguments: Forwarded to
-            :meth:`lisa.trace.Trace.df_events`.
+            :meth:`lisa.trace.Trace.df_event`.
         """
         try:
             window = kwargs['window']
@@ -375,7 +2009,7 @@ class TraceView(Loggable, TraceBase):
             window = (self.start, self.end)
         kwargs['window'] = window
 
-        return self.base_trace.df_events(event, **kwargs)
+        return self.base_trace.df_event(event, **kwargs)
 
     def get_view(self, window, **kwargs):
         start = self.start
@@ -405,22 +2039,24 @@ class _AvailableTraceEventsSet:
         self._trace = trace
 
     def __contains__(self, event):
-        if self._trace._strict_events:
-            return self._trace._parsed_events.setdefault(event, False)
+        trace = self._trace
+
+        if trace._strict_events and not trace._is_meta_event(event):
+            return trace._parseable_events.setdefault(event, False)
 
         # Try to parse the event in case it was not parsed already
-        if event not in self._trace._parsed_events:
+        if event not in trace._parseable_events:
             # If the trace file is not accessible anymore, we will get an OSError
             with contextlib.suppress(MissingTraceEventError, OSError):
-                self._trace.df_events(event=event, raw=True)
+                trace.df_event(event=event, raw=True)
 
-        return self._trace._parsed_events.setdefault(event, False)
+        return trace._parseable_events.setdefault(event, False)
 
     @property
     def _available_events(self):
         return {
             event
-            for event, available in self._trace._parsed_events.items()
+            for event, available in self._trace._parseable_events.items()
             if available
         }
 
@@ -818,7 +2454,10 @@ class TraceCache:
         """
         Get the value of the given metadata ``key``.
         """
-        return self._metadata[key]
+        try:
+            return self._metadata[key]
+        except KeyError:
+            raise MissingMetadataError(key)
 
     def to_json_map(self):
         """
@@ -1326,6 +2965,7 @@ class Trace(Loggable, TraceBase):
 
     :param events: events to be parsed. Since events can be loaded on-demand,
         that is optional but still recommended to improve trace parsing speed.
+        .. seealso:: :meth:`df_event` for event formats accepted.
     :type events: list(str) or None
 
     :param strict_events: When ``True``, all the events specified in ``events``
@@ -1342,10 +2982,13 @@ class Trace(Loggable, TraceBase):
         of the system timestamp that was captured when tracing.
     :type normalize_time: bool
 
-    :param trace_format: format of the trace. Possible values are:
-        - FTrace
-        - SysTrace
-    :type trace_format: str or None
+    :param parser: Optional trace parser to use as a backend. It must
+        implement the API defined by :class:`TraceParserBase`, and will be
+        called as ``parser(path=trace_path, events=events,
+        needed_metadata={'time-range', ...})`` with the events that should be parsed.
+        Other parameters must either have default values, or be pre-assigned
+        using :func:`functools.partial`.
+    :type parser: object or None
 
     :param plots_dir: directory where to save plots
     :type plots_dir: str
@@ -1357,6 +3000,9 @@ class Trace(Loggable, TraceBase):
             * the name of the event
             * a dataframe of the raw event
             * a dictionary of aspects to sanitize
+
+        These functions *must not* modify their input dataframe under any
+        circumstances. They are required to make copies where appropriate.
     :type sanitization_functions: dict(str, collections.abc.Callable) or None
 
     :param max_mem_size: Maximum memory usage to be used for dataframe cache.
@@ -1376,7 +3022,7 @@ class Trace(Loggable, TraceBase):
         the max size is the size of the trace file.
     :type max_swap_size: int or None
 
-    :param write_swap: Default value used for :meth:`df_events` ``write_swap``
+    :param write_swap: Default value used for :meth:`df_event` ``write_swap``
         parameter.
     :type write_swap: bool
 
@@ -1389,13 +3035,66 @@ class Trace(Loggable, TraceBase):
         the parsing of it.
     """
 
+    def _select_userspace(source_event, meta_event, df):
+        # tracing_mark_write is the name of the kernel function invoked when
+        # writing to: /sys/kernel/debug/tracing/trace_marker
+        df = df[df['func'] == 'tracing_mark_write']
+        return (df, 'buf')
+
+    def _select_trace_printk(source_event, meta_event, df):
+        content_col = {
+            'bprint': 'buf',
+            'bputs': 'str',
+        }[source_event]
+
+        # Select on foobar function name with "trace_printk@func@foobar"
+        func_prefix = 'func@'
+        if meta_event.startswith(func_prefix):
+            func_name = meta_event[len(func_prefix):]
+            df = df[df['func'] == func_name].copy(deep=False)
+            # Prepend the meta event name so it will be matched
+            fake_event = meta_event.encode('ascii') + b': '
+            df[content_col] = fake_event + df[content_col]
+
+        return (df, content_col)
+
+    _META_EVENT_SOURCE = {
+        'userspace': {
+            'print': _select_userspace,
+        },
+        'trace_printk': {
+            'bprint': _select_trace_printk,
+            'bputs': _select_trace_printk,
+        },
+    }
+    """
+    Define the source of each meta event.
+
+    Meta events are events derived by parsing a field of another given real event.
+
+    Meta events are event with a name formed as ``prefix:event``.
+    This mapping has the format::
+
+        prefix:
+            source event: getter_func
+            ... # Multiple sources are allowed
+        ...
+
+    ``getter_func`` takes the :class:`pandas.DataFrame` of the source event as
+    input and returns a tuple of ``(dataframe, line_column)`` where:
+
+        * ``dataframe`` is the source event dataframe, potentially filtered.
+        * ``line_column`` is the name of the column containing the lines to
+          parse.
+    """
+
     def __init__(self,
         trace_path,
         plat_info=None,
         events=None,
         strict_events=False,
         normalize_time=False,
-        trace_format=None,
+        parser=None,
         plots_dir=None,
         sanitization_functions=None,
 
@@ -1446,23 +3145,34 @@ class Trace(Loggable, TraceBase):
         self._write_swap = write_swap
         self.normalize_time = normalize_time
         self.trace_path = trace_path
-        self._trace_format = trace_format
+
+        if parser is None:
+            _, extension = os.path.splitext(trace_path)
+            if extension == '.html':
+                parser = SysTraceParser.from_txt_file
+            if extension == '.txt':
+                parser = TxtTraceParser.from_txt_file
+            else:
+                parser = TxtTraceParser.from_dat
+        self._parser = parser
 
         # The platform information used to run the experiments
         if plat_info is None:
             # Delay import to avoid circular dependency
             from lisa.platforms.platinfo import PlatformInfo
             plat_info = PlatformInfo()
-        self.plat_info = plat_info
+        else:
+            # Make a shallow copy so we can update it
+            plat_info = copy.copy(plat_info)
 
         self._strict_events = strict_events
         self.available_events = _AvailableTraceEventsSet(self)
         self.plots_dir = plots_dir if plots_dir else os.path.dirname(trace_path)
 
         try:
-            self._parsed_events = self._cache.get_metadata('parsed-events')
-        except KeyError:
-            self._parsed_events = {}
+            self._parseable_events = self._cache.get_metadata('parseable-events')
+        except MissingMetadataError:
+            self._parseable_events = {}
 
         if isinstance(events, str):
             raise ValueError('Events passed to Trace(events=...) must be a list of strings, not a string.')
@@ -1471,24 +3181,117 @@ class Trace(Loggable, TraceBase):
         self.events = events
         # Pre-load the selected events
         if events:
-            self._load_raw_df_map(events, write_swap=True, allow_missing_events=not self._strict_events)
+            self._load_cache_raw_df(events, write_swap=True, allow_missing_events=not strict_events)
+
+        # Register what we currently have
+        self.plat_info = plat_info
+        # Update the platform info with the data available from the trace once
+        # the Trace is almost fully initialized
+        self.plat_info = plat_info.add_trace_src(self)
+
+
+    _CACHEABLE_METADATA = {
+        'time-range',
+        'cpus-count',
+    }
+    """
+    Parser metadata that can safely be cached, i.e. that are serializable in
+    the trace cache.
+    """
+
+    def get_metadata(self, key):
+        """
+        Get metadata from the underlying trace parser.
+
+        .. seealso:: :meth:`TraceParserBase.get_metadata`
+        """
+        if key in self._CACHEABLE_METADATA:
+            return self._get_cacheable_metadata(key)
+        else:
+            return self._get_metadata(key)
+
+    def _get_metadata(self, key, parser=None):
+        if parser is None:
+            parser = self._get_parser(needed_metadata={key})
+
+        return parser.get_metadata(key)
+
+    def _get_cacheable_metadata(self, key, parser=None):
+        try:
+            value = self._cache.get_metadata(key)
+        except MissingMetadataError:
+            if parser is None:
+                value = self._get_metadata(key)
+            else:
+                value = parser.get_metadata(key)
+
+            self._cache.update_metadata({key: value})
+
+        return value
+
+    @classmethod
+    def _is_meta_event(cls, event):
+        sources = cls.get_event_sources(event)
+        # If an event is not its own source, this is a meta-event by definition
+        return sources[0] != event
+
+    @classmethod
+    def get_event_sources(cls, event):
+        """
+        Get the possible sources events of a given event.
+
+        For normal events, this will just be a list with the event itself in
+        it.
+
+        For meta events, this will be the list of source events hosting that
+        meta-event.
+        """
+        try:
+            prefix, _ = event.split('@', 1)
+        except ValueError:
+            return [event]
+
+        try:
+            return sorted(cls._META_EVENT_SOURCE[prefix].keys())
+        except KeyError:
+            return [event]
 
     @property
     def trace_state(self):
-        return (self.normalize_time,)
+        # The parser type will potentially change the exact content in raw
+        # dataframes
+        parser_name = '{}.{}'.format(
+            self._parser.__module__,
+            self._parser.__qualname__
+        )
+        return (self.normalize_time, parser_name)
 
     @property
     @memoized
     def cpus_count(self):
         try:
             return self.plat_info['cpus-count']
-        # If we don't know the number of CPUs, check the trace for the
-        # highest-numbered CPU that traced an event.
         except KeyError:
-            max_cpu = max(int(self.df_events(e)['__cpu'].max())
-                          for e in self.available_events)
-            count = max_cpu + 1
-            self.get_logger().info("Estimated CPU count from trace: {}".format(count))
+            try:
+                self.get_metadata('cpus-count')
+            # If we don't know the number of CPUs, check the trace for the
+            # highest-numbered CPU that traced an event.
+            except MissingMetadataError:
+                # Sched_switch should be enough if it's available
+                if 'sched_switch' in self.available_events:
+                    checked_events = ['sched_switch']
+                # This is pretty costly, as it will trigger parsing of all
+                # events in the trace, so only do it as last resort
+                else:
+                    checked_events = self.available_events
+
+                max_cpu = max(
+                    int(self.df_event(e)['__cpu'].max())
+                    for e in checked_events
+                )
+                count = max_cpu + 1
+                self.get_logger().debug("Estimated CPU count from trace: {}".format(count))
+
             return count
 
     @classmethod
@@ -1573,52 +3376,42 @@ class Trace(Loggable, TraceBase):
 
         proxy.base_trace = trace
 
-    def _get_trace(self, events):
+    def _get_parser(self, events=tuple(), needed_metadata=None):
         logger = self.get_logger()
         path = self.trace_path
         events = set(events)
+        needed_metadata = set(needed_metadata or [])
+        parser = self._parser(path=path, events=events, needed_metadata=needed_metadata)
 
-        if self._trace_format is None:
-            if path.endswith('html'):
-                trace_format = 'SySTrace'
-            else:
-                trace_format = 'FTrace'
+        # While we are at it, gather a bunch of metadata. Since we did not
+        # explicitly asked for it, the parser will only give
+        # it if it was a cheap byproduct.
+
+        # Since we got a parser here, use it to get basetime/endtime as well
+        with contextlib.suppress(MissingMetadataError):
+            self._get_time_range(parser=parser)
+
+        # Populate the list of available events, and inform the rest of the
+        # code that this list is definitive.
+        try:
+            available_events = self._get_metadata('available-events', parser=parser)
+        except MissingMetadataError:
+            pass
         else:
-            trace_format = self._trace_format
+            self._update_parseable_events({
+                event: True
+                for event in available_events
+            })
+            self._strict_events = True
 
-        # Trappy chokes on some events for some reason, so make the user aware
-        # of it and carry on
-        mishandled_events = {'thermal_power_cpu_limit'}
-        mishandled_events &= events
-        if mishandled_events:
-            logger.debug('A bug in Trappy prevents from loading these events: {}'.format(sorted(mishandled_events)))
-            events -= mishandled_events
+        return parser
 
-
-        logger.debug('Parsing {} events from {}: {}'.format(trace_format, path, sorted(events)))
-        if trace_format == 'Systems':
-            trace_class = trappy.SysTrace
-        elif trace_format == 'FTrace':
-            trace_class = trappy.FTrace
-        else:
-            raise ValueError('Unknown trace format: {}'.format(trace_format))
-
-        # Since we handle the cache in lisa.trace.Trace, we do not need to duplicate it
-        trace_class.disable_cache = True
-        internal_trace = trace_class(
-            path,
-            scope="custom",
-            events=sorted(events),
-            normalize_time=False,
-        )
-
-        # trappy sometimes decides to be "clever" and overrules the path to be
-        # used, even though it was specifically asked for a given file path
-        assert path == internal_trace.trace_path
-
-        # Since we got a trace here, use it to get basetime/endtime as well
-        self._get_time_range(internal_trace=internal_trace)
-        return internal_trace
+    def _update_parseable_events(self, mapping):
+        self._parseable_events.update(mapping)
+        self._cache.update_metadata({
+            'parseable-events': self._parseable_events,
+        })
+        return self._parseable_events
 
     @property
     @memoized
@@ -1639,34 +3432,52 @@ class Trace(Loggable, TraceBase):
         """
         return self._get_time_range()[1]
 
-    def _get_time_range(self, internal_trace=None):
-        try:
-            basetime = self._cache.get_metadata('basetime')
-            endtime = self._cache.get_metadata('endtime')
-        except KeyError:
-            if internal_trace is None:
-                internal_trace = self._get_trace(events=[])
+    def _get_time_range(self, parser=None):
+        return self._get_cacheable_metadata('time-range', parser)
 
-            basetime = internal_trace.basetime
-            endtime = internal_trace.endtime
-            self._cache.update_metadata({
-                'basetime': basetime,
-                'endtime': endtime,
-            })
-
-        return (basetime, endtime)
-
-    def df_events(self, event, raw=None, rename_cols=True, window=None, signals=None, signals_init=True, compress_signals_init=False, write_swap=None):
+    def df_event(self, event, raw=None, window=None, signals=None, signals_init=True, compress_signals_init=False, write_swap=None):
         """
         Get a dataframe containing all occurrences of the specified trace event
         in the parsed trace.
 
-        :param event: Trace event name
-        :type event: str
+        :param event: Trace event name.
 
-        :param rename_cols: If ``True``, some columns will be renamed for
-            consistency.
-        :type rename_cols: bool
+            In addition to actual events, the following formats for meta events
+            are supported:
+
+            * ``trace_printk@``: the event will be assumed to be embedded in
+              textual form inside the field of another event as a string,
+              typically emitted using the ``trace_printk()`` kernel function:
+
+              .. code-block:: C
+
+                  // trace.df_event('trace_printk@event')
+                  void foo(void) {
+                      trace_printk("event: optional_positional_field field1=foo field2=42");
+                  }
+
+            * ``trace_printk@func@``: the event name will be the name of the
+              function calling trace_printk:
+
+              .. code-block:: C
+
+                  // trace.df_event('trace_printk@func@foo')
+                  void foo(void) {
+                      trace_printk("optional_positional_field field1=foo field2=42")
+                  }
+
+            * ``userspace@``: the event is generated by userspace:
+
+              .. code-block:: shell
+
+                  # trace.df_event('userspace@event')
+                  echo "event: optional_positional_field field1=foo field2=42" > /sys/kernel/debug/tracing/trace_marker
+
+            .. note:: All meta event names are expected to be valid C language
+                identifiers. Usage of other characters will prevent correct
+                parsing.
+
+        :type event: str
 
         :param window: Return a dataframe sliced to fit the given window (in
             seconds). Note that ``signals_init=True`` will result in including
@@ -1680,6 +3491,7 @@ class Trace(Loggable, TraceBase):
 
         :param signals_init: If ``True``, an initial value is provided for each
             signal that is multiplexed in that dataframe.
+
             .. seealso::
 
                 :class:`lisa.datautils.SignalDesc` and
@@ -1743,7 +3555,7 @@ class Trace(Loggable, TraceBase):
 
         if not raw:
             spec.update(
-                rename_cols=rename_cols,
+                rename_cols=True,
                 sanitization=sanitization_f.__qualname__ if sanitization_f else None,
             )
 
@@ -1781,13 +3593,13 @@ class Trace(Loggable, TraceBase):
         # Do not even bother loading the event if we know it cannot be
         # there. This avoids some OSError in case the trace file has
         # disappeared
-        if self._strict_events and event not in self.available_events:
+        if self._strict_events and not self._is_meta_event(event) and event not in self.available_events:
             raise MissingTraceEventError(event, available_events=self.available_events)
 
         if write_swap is None:
             write_swap = self._write_swap
 
-        df = self._load_raw_df_map([event], write_swap=True)[event]
+        df = self._load_cache_raw_df([event], write_swap=True)[event]
 
         if sanitization_f:
             # Evict the raw dataframe once we got the sanitized version, since
@@ -1828,7 +3640,7 @@ class Trace(Loggable, TraceBase):
         self._cache.insert(pd_desc, df, compute_cost=compute_cost, write_swap=write_swap)
         return df
 
-    def _load_raw_df_map(self, events, write_swap, allow_missing_events=False):
+    def _load_cache_raw_df(self, events, write_swap, allow_missing_events=False):
         insert_kwargs = dict(
             write_swap=write_swap,
             # For raw dataframe, always write in the swap area if asked for
@@ -1862,7 +3674,7 @@ class Trace(Loggable, TraceBase):
 
         # Load the remaining events from the trace directly
         events_to_load = sorted(set(events) - from_cache.keys())
-        from_trace = self._parse_raw_events(events_to_load)
+        from_trace = self._load_raw_df(events_to_load)
 
         for event, df in from_trace.items():
             pd_desc = self._make_raw_pd_desc(event)
@@ -1881,84 +3693,148 @@ class Trace(Loggable, TraceBase):
 
         return df_map
 
-    def _parse_raw_events_df(self, events):
-        internal_trace = self._get_trace(events)
-
-        mapping = {}
-        for event in events:
-            try:
-                df = getattr(internal_trace, event).data_frame
-            # If some events could not be parsed
-            except AttributeError:
-                continue
-            else:
-                # The dataframe cache will service future requests as needed, so we
-                # can release the memory here
-                delattr(internal_trace, event)
-
-                # If the dataframe is empty, that event may not even exist at
-                # all
-                if df.empty:
-                    continue
-                else:
-                    if self.normalize_time:
-                        df.index -= self.basetime
-
-                    mapping[event] = df
-
-        return mapping
-
     def _parse_raw_events(self, events):
         if not events:
             return {}
+        parser = self._get_parser(events)
+        df_map = parser.parse_events(events, best_effort=True)
 
-        def chunk_list(l, nr_chunks):
-            l_len = len(l)
-            n = l_len // nr_chunks
-            if not n:
-                return l
+        if self.normalize_time:
+            for event, df in df_map.items():
+                df.index -= self.basetime
+        return df_map
+
+    def _parse_meta_events(self, meta_events):
+        if not meta_events:
+            return {}
+
+        # Gather the infor to parse the meta event
+        def make_spec(meta_event):
+            prefix, event = meta_event.split('@', 1)
+            data_getters = self._META_EVENT_SOURCE[prefix]
+            return (meta_event, event, data_getters)
+
+        meta_specs = list(map(make_spec, meta_events))
+
+        # Map each trimmed event name back to its meta event name
+        events_map = {
+            event: meta_event
+            for meta_event, event, _ in meta_specs
+        }
+
+        # Explode per source event
+        meta_specs = [
+            (meta_event, event, source_event, source_getter)
+            for (meta_event, event, data_getters) in meta_specs
+            for source_event, source_getter in data_getters.items()
+        ]
+
+        def get_missing(df_map):
+            return events_map.keys() - df_map.keys()
+
+        df_map = {}
+        # Group all the meta events by their source event, so we process source
+        # dataframes one by one
+        for source_event, specs in groupby(meta_specs, key=itemgetter(2)):
+            try:
+                df = self.df_event(source_event)
+            except MissingTraceEventError:
+                pass
             else:
-                return [
-                    l[i:i + n]
-                    for i in range(0, l_len, n)
-                ]
+                # Add all the header fields from the source dataframes
+                extra_fields = [x for x in df.columns if x.startswith('__')]
+                merged_df = df[extra_fields]
 
-        nr_processes = os.cpu_count()
-        parallel_parse = len(events) > 2
-        # Parallel parsing with Trappy just slows things down at the moment so
-        # disable it until we can experiment with other parsers which might
-        # exhibit different behaviors
-        parallel_parse = False
-        if parallel_parse:
-            chunked_events = chunk_list(events, nr_processes)
-            df_map = {}
-            with multiprocessing.Pool(processes=nr_processes) as pool:
-                for df_map_ in pool.map(self._parse_raw_events_df, chunked_events):
-                    df_map.update({
-                        event: df
-                        for event, df in df_map_.items()
-                    })
-        else:
-            df_map = self._parse_raw_events_df(events)
+                for (meta_event, event, source_event, source_getter) in specs:
+                    source_df, line_field = source_getter(source_event, event, df)
+                    try:
+                        parser = MetaTxtTraceParser(
+                            lines=source_df[line_field],
+                            time=source_df.index,
+                            merged_df=merged_df,
+                            events=[event],
+                        )
+                    # An empty dataframe would trigger an exception from
+                    # MetaTxtTraceParser, so we just skip over it and if the
+                    # event cannot be found anywhere, we will raise an
+                    # exception.
+                    #
+                    # Also, some android kernels hide trace_printk() strings
+                    # which prevents from parsing anything at all ...
+                    except ValueError:
+                        continue
+                    else:
+                        try:
+                            meta_event_df = parser.parse_event(event)
+                        except MissingTraceEventError:
+                            continue
+                            # In case a meta-event is spread among multiple
+                            # events, we get all the dataframes and concatenate
+                            # them together
+                        else:
+                            df_map.setdefault(event, []).append(meta_event_df)
+
+                    if not get_missing(df_map):
+                        break
+
+        def concat(df_list):
+            if len(df_list) > 1:
+                # As of pandas == 1.0.3, concatenating dataframe with nullable
+                # columns will give an object dtype and both NaN and <NA> if
+                # that column does not exist in all dataframes. This is quite
+                # annoying but there is no straightforward way of working
+                # around that.
+                df = pd.concat(df_list, copy=False)
+                df.sort_index(inplace=True)
+                return df
+            # Avoid creating a new dataframe and sorting the index
+            # unnecessarily if there is only one
+            else:
+                return df_list[0]
+
+        df_map = {
+            event: concat(df_list)
+            for event, df_list in df_map.items()
+        }
+
+        # On some parsers, meta events are treated as regular events so attempt
+        # to load them from there as well
+        for event in get_missing(df_map):
+            with contextlib.suppress(MissingTraceEventError):
+                df_map[event] = self.df_event(event, raw=True)
+
+        return {
+            events_map[event]: df
+            for event, df in df_map.items()
+        }
+
+    def _load_raw_df(self, events):
+        events = set(events)
+        if not events:
+            return {}
+
+        meta_events = set(filter(self._is_meta_event, events))
+        regular_events = events - meta_events
+
+        df_map = {
+            **self._parse_raw_events(regular_events),
+            **self._parse_meta_events(meta_events),
+        }
+
+        # Save some memory by changing values of this column into an category
+        categorical_fields = [
+            '__comm',
+            'comm',
+        ]
+        for df in df_map.values():
+            for field in categorical_fields:
+                with contextlib.suppress(KeyError):
+                    df[field] = df[field].astype('category', copy=False)
 
         # remember the events that we tried to parse and that turned out to not be available
-        self._parsed_events.update({
-            event: not df.empty
-            for event, df in df_map.items()
-            # Only update the state if the event was not there, since it could
-            # have been made available by a sanitization function
-            if event not in self._parsed_events
-        })
-
-        # If for one reason or another we end up not having a dataframe at all
-        self._parsed_events.update({
-            event: False
-            for event in (set(events) - df_map.keys())
-            if event not in self._parsed_events
-        })
-
-        self._cache.update_metadata({
-            'parsed-events': self._parsed_events,
+        self._update_parseable_events({
+            event: (event in df_map)
+            for event in events
         })
 
         return df_map
@@ -1977,10 +3853,9 @@ class Trace(Loggable, TraceBase):
         def finalize(df, key_col, value_col, key_type, value_type):
             # Aggregate the values for each key and convert to python types
             mapping = {}
-            grouped = df.groupby([key_col])
-            for key, index in grouped.groups.items():
-                values = df.loc[index][value_col].apply(value_type)
-                values = list(values)
+            grouped = df.groupby([key_col], observed=True, sort=False)
+            for key, subdf in grouped:
+                values = subdf[value_col].apply(value_type).to_list()
                 key = key_type(key)
                 mapping[key] = values
 
@@ -1988,16 +3863,16 @@ class Trace(Loggable, TraceBase):
 
         mapping_df_list = []
         def _load(event, name_col, pid_col):
-            df = self.df_events(event)
+            df = self.df_event(event)
 
             # Get a Time column
             df = df.reset_index()
-            grouped = df.groupby([name_col, pid_col])
+            grouped = df.groupby([name_col, pid_col], observed=True, sort=False)
 
             # Get timestamp of first occurrences of each key/value combinations
-            mapping_df = grouped.first()
-            mapping_df = mapping_df[['Time']]
-            mapping_df.rename_axis(index={name_col: 'name', pid_col: 'pid'}, inplace=True)
+            mapping_df = grouped.head(1)
+            mapping_df = mapping_df[['Time', name_col, pid_col]]
+            mapping_df.rename({name_col: 'name', pid_col: 'pid'}, axis=1, inplace=True)
             mapping_df_list.append(mapping_df)
 
         def load(event, *args, **kwargs):
@@ -2030,9 +3905,7 @@ class Trace(Loggable, TraceBase):
         # Sort by order of appearance
         df.sort_values(by=['Time'], inplace=True)
         # Remove duplicated name/pid mapping and only keep the first appearance
-        df = df.loc[~df.index.duplicated(keep='first')]
-        # explode the multindex into a "key" and "value" columns
-        df.reset_index(inplace=True)
+        df = df_deduplicate(df, consecutives=False, keep='first', cols=['name', 'pid'])
 
         forbidden_names = {
             # <idle> is invented by trace-cmd, no event field contain this
@@ -2321,74 +4194,29 @@ class Trace(Loggable, TraceBase):
 
     _SANITIZATION_FUNCTIONS = {}
     def _sanitize_event(event, mapping=_SANITIZATION_FUNCTIONS):
+        """
+        Sanitization functions must not modify their input.
+        """
         def decorator(f):
             mapping[event] = f
             return f
         return decorator
 
-    @_sanitize_event('sched_load_avg_cpu')
-    def _sanitize_load_avg_cpu(self, event, df, aspects):
+    @_sanitize_event('sched_switch')
+    def _sanitize_sched_switch(self, event, df, aspects):
         """
-        If necessary, rename certain signal names from v5.0 to v5.1 format.
+        If ``prev_state`` is a string, turn it back into an integer state by
+        parsing it.
         """
-        if aspects['rename_cols'] and 'utilization' in df:
-            df.rename(columns={'utilization': 'util_avg'}, inplace=True)
-            df.rename(columns={'load': 'load_avg'}, inplace=True)
+        if df['prev_state'].dtype.name == 'string':
+            # Avoid circular dependency issue by importing at the last moment
+            from lisa.analysis.tasks import TaskState
+            df = df.copy(deep=False)
+            df['prev_state'] = df['prev_state'].apply(TaskState.from_sched_switch_str).astype('uint16', copy=False)
 
-        return df
-
-    @_sanitize_event('sched_load_avg_task')
-    def _sanitize_load_avg_task(self, event, df, aspects):
-        """
-        If necessary, rename certain signal names from v5.0 to v5.1 format.
-        """
-        if aspects['rename_cols'] and 'utilization' in df:
-            df.rename(columns={'utilization': 'util_avg'}, inplace=True)
-            df.rename(columns={'load': 'load_avg'}, inplace=True)
-            df.rename(columns={'avg_period': 'period_contrib'}, inplace=True)
-            df.rename(columns={'runnable_avg_sum': 'load_sum'}, inplace=True)
-            df.rename(columns={'running_avg_sum': 'util_sum'}, inplace=True)
-
-        return df
-
-    @_sanitize_event('sched_boost_cpu')
-    def _sanitize_boost_cpu(self, event, df, aspects):
-        """
-        Add a boosted utilization signal as the sum of utilization and margin.
-
-        Also, if necessary, rename certain signal names from v5.0 to v5.1
-        format.
-        """
-        if aspects['rename_cols'] and 'usage' in df:
-            df.rename(columns={'usage': 'util'}, inplace=True)
-        df['boosted_util'] = df['util'] + df['margin']
-        return df
-
-    @_sanitize_event('sched_boost_task')
-    def _sanitize_boost_task(self, event, df, aspects):
-        """
-        Add a boosted utilization signal as the sum of utilization and margin.
-
-        Also, if necessary, rename certain signal names from v5.0 to v5.1
-        format.
-        """
-        if aspects['rename_cols'] and 'utilization' in df:
-            # Convert signals name from to v5.1 format
-            df.rename(columns={'utilization': 'util'}, inplace=True)
-        df['boosted_util'] = df['util'] + df['margin']
-        return df
-
-    @_sanitize_event('sched_energy_diff')
-    def _sanitize_energy_diff(self, event, df, aspects):
-        """
-        Convert between existing field name formats for sched_energy_diff
-        """
-        if aspects['rename_cols']:
-            translations = {'nrg_d': 'nrg_diff',
-                            'utl_d': 'usage_delta',
-                            'payoff': 'nrg_payoff'
-            }
-            df.rename(columns=translations, inplace=True)
+        # Save a lot of memory by using category for strings
+        for col in ('next_comm', 'prev_comm'):
+            df[col] = df[col].astype('category', copy=False)
 
         return df
 
@@ -2400,35 +4228,9 @@ class Trace(Loggable, TraceBase):
             # Replace '00000000,0000000f' format in more usable int
             return int(mask.replace(',', ''), 16)
 
+        df = df.copy(deep=False)
         df['cpus'] = df['cpus'].apply(f)
         return df
-
-    @_sanitize_event('cpu_frequency')
-    def _sanitize_cpu_frequency(self, event, df, aspects):
-        if aspects['rename_cols']:
-            names = {
-                'cpu_id': 'cpu',
-                'state': 'frequency'
-            }
-            df.rename(columns=names, inplace=True)
-
-        return df
-
-    @_sanitize_event('funcgraph_entry')
-    @_sanitize_event('funcgraph_exit')
-    def _sanitize_funcgraph(self, event, df, aspects):
-        """
-        Resolve the kernel function names.
-        """
-
-        try:
-            addr_map = self.plat_info['kernel']['symbols-address']
-        except KeyError as e:
-            self.get_logger().warning('Missing symbol addresses, function names will not be resolved: {}'.format(e))
-            return df
-        else:
-            df['func_name'] = df['func'].map(addr_map)
-            return df
 
 
 class TraceEventCheckerBase(abc.ABC, Loggable):
@@ -2967,10 +4769,17 @@ class FtraceCollector(CollectorBase, Configurable):
         self.check_init_param(**kwargs)
 
         self.events = events
-        kernel_events = [
-            event for event in events
-            if self._is_kernel_event(event)
-        ]
+        kernel_events = set(itertools.chain.from_iterable(
+            Trace.get_event_sources(event)
+            for event in events
+        ))
+
+        # trace-cmd start complains if given these events, even though they are
+        # valid
+        kernel_events -= {
+            'funcgraph_entry', 'funcgraph_exit',
+            'print', 'bprint', 'bputs',
+        }
 
         if 'funcgraph_entry' in events or 'funcgraph_exit' in events:
             tracer = 'function_graph' if tracer is None else tracer
@@ -2991,27 +4800,6 @@ class FtraceCollector(CollectorBase, Configurable):
             **kwargs
         )
         super().__init__(collector)
-
-    def _is_kernel_event(self, event):
-        """
-        Return ``True`` if the event is a kernel event.
-
-        This allows events to be passed around in the collector to be inspected
-        and used by other entities and then ignored when actually setting up
-        ``trace-cmd``. An example are the userspace events generated by
-        ``rt-app``.
-        """
-        # Avoid circular dependency with lisa.analysis submodule with late
-        # import
-        from lisa.analysis.rta import RTAEventsAnalysis
-
-        return not (
-            event in RTAEventsAnalysis.RTAPP_USERSPACE_EVENTS
-            # trace-cmd start complains if given these events, even though they
-            # are actually present in the trace when function_graph is
-            # enabled
-            or event in ['funcgraph_entry', 'funcgraph_exit']
-        )
 
     @classmethod
     def from_conf(cls, target, conf):

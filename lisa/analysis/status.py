@@ -49,7 +49,7 @@ class StatusAnalysis(TraceAnalysisBase):
           * A ``len`` column (the time spent in that overutilized status)
         """
         # Build sequence of overutilization "bands"
-        df = self.trace.df_events('sched_overutilized')
+        df = self.trace.df_event('sched_overutilized')
         df = df_add_delta(df, col='len', window=self.trace.window)
         # Ignore the last line added by df_refit_index() with a NaN len
         df = df.iloc[:-1]

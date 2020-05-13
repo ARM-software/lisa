@@ -197,7 +197,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         Test that tasks are not being preempted too much
         """
 
-        sdf = self.trace.df_events('sched_switch')
+        sdf = self.trace.df_event('sched_switch')
         task_state_dfs = {
             task: self.trace.analysis.tasks.df_task_states(task)
             for task in self.rtapp_tasks

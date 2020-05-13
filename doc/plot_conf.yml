@@ -101,9 +101,9 @@ doc-plot-conf:
         NotebookAnalysis.plot_event_field:
             kwargs:
                 event: cpu_frequency
-                field: frequency
+                field: state
                 filter_columns:
-                    cpu: *cpu
+                    cpu_id: *cpu
 
         RTAEventsAnalysis.plot_phases:
             kwargs:

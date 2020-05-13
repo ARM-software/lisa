@@ -82,7 +82,7 @@ class RampBoostTestBase(RTATestBundle):
         task = self.rtapp_task_ids[0]
 
         # schedutil_df also has a 'util' column that would conflict
-        schedutil_df = trace.df_events('schedutil_em')[['cpu', 'cost_margin', 'base_freq']]
+        schedutil_df = trace.df_event('schedutil_em')[['cpu', 'cost_margin', 'base_freq']]
         schedutil_df = schedutil_df.copy()
         schedutil_df['from_schedutil'] = True
 
