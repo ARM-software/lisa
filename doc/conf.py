@@ -39,7 +39,8 @@ import lisa
 from lisa.utils import LISA_HOME, import_all_submodules, sphinx_nitpick_ignore
 from lisa.doc.helpers import (
     autodoc_process_test_method, autodoc_process_analysis_events,
-    autodoc_process_analysis_plots, DocPlotConf, get_xref_type,
+    autodoc_process_analysis_plots, autodoc_process_analysis_methods,
+    DocPlotConf, get_xref_type,
 )
 
 # This ugly hack is required because by default TestCase.__module__ is
@@ -511,6 +512,7 @@ def setup(app):
 
     app.connect('autodoc-process-docstring', autodoc_process_test_method)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
+    app.connect('autodoc-process-docstring', autodoc_process_analysis_methods)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_plots_handler)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab:
