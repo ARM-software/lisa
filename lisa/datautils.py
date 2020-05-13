@@ -1637,11 +1637,34 @@ def series_convert(series, dtype):
         ))
 
     elif dtype == 'string':
+        # Faster than Series.str.decode()
+        basic_decode = lambda x : x.apply(bytes.decode, args=('ascii',), convert_dtype=False)
+
+        # Significantly faster than Series.str.decode()
+        def fast_decode(x):
+            # Deduplicate the original values by turning into a category
+            x = x.astype('category')
+            cat = x.cat.categories.to_series()
+            # Decode the deduplicated values.
+            #
+            # Since decoding is relatively expensive, doing it on fewer objects
+            # is usually a win, especially since most strings are task names.
+            #
+            # This also has the advantage that the strings are deduplicated,
+            # which is safe since they are immutable. This reduces the memory
+            # used by the final series
+            new_cat = basic_decode(cat)
+            x.cat.rename_categories(new_cat, inplace=True)
+            return astype('string')(x)
+
         pipelines.extend((
             basic,
             # We need to attempt conversion from bytes before using Python str,
             # otherwise it will include the b'' inside the string
-            lambda x: x.str.decode('ascii'),
+            fast_decode,
+            # Since decode() is complex, let's have the basic version in case
+            # categories have unexpected limitations
+            basic_decode,
             # If direct conversion to "string" failed, we need to turn
             # whatever the type was to actual strings using the Python
             # constructor
