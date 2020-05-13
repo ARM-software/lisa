@@ -267,6 +267,30 @@ def autodoc_process_analysis_plots(app, what, name, obj, options, lines, plot_co
     lines.extend(rst_figure.splitlines())
 
 
+def autodoc_process_analysis_methods(app, what, name, obj, options, lines):
+    """
+    Append the list of required trace events
+    """
+    methods = {
+        func: subclass
+        for subclass in get_subclasses(TraceAnalysisBase)
+        for name, func in inspect.getmembers(subclass, callable)
+    }
+
+    try:
+        cls = methods[obj]
+    except (KeyError, TypeError):
+        return
+    else:
+        on_trace_name = 'trace.analysis.{}.{}'.format(
+            cls.name,
+            obj.__name__
+        )
+        extra_doc = "\n*Called on* :class:`~lisa.trace.Trace` *instances as* ``{}()``\n\n".format(on_trace_name)
+        # prepend
+        lines[:0] = extra_doc.splitlines()
+
+
 def get_analysis_list(meth_type):
     rst_list = []
 
