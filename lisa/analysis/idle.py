@@ -98,7 +98,7 @@ class IdleAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.cache
     @requires_events('cpu_idle')
     def df_cpus_wakeups(self):
-        """"
+        """
         Get a DataFrame showing when CPUs have woken from idle
 
         :param cpus: List of CPUs to find wakeups for. If None, all CPUs.
