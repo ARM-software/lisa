@@ -1421,16 +1421,31 @@ class SignalDesc:
                 return [cls(event, fields=[])]
             else:
                 fields = set(fields)
+                # At most one set of each group will be taken
                 default_field_sets = [
-                    {'comm', 'pid'},
-                    {'cpu'},
+                    [
+                        {'comm', 'pid'},
+                        {'pid'},
+                        {'comm'},
+                    ],
+                    [
+                        {'cpu'},
+                        {'cpu_id'},
+                    ],
                 ]
+
+                selected = []
+                for field_set_group in default_field_sets:
+                    # Select at most one field set per group
+                    for field_set in field_set_group:
+                        # if fields is a non-strict superset of field_set
+                        if fields >= field_set:
+                            selected.append(field_set)
+                            break
 
                 return [
                     cls(event, fields=field_set)
-                    for field_set in default_field_sets
-                    # if fields is a superset of field_set
-                    if fields > field_set
+                    for field_set in selected
                 ]
 
 
