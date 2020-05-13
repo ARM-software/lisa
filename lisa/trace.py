@@ -4232,6 +4232,16 @@ class Trace(Loggable, TraceBase):
         df['cpus'] = df['cpus'].apply(f)
         return df
 
+    @_sanitize_event('print')
+    @_sanitize_event('bprint')
+    @_sanitize_event('bputs')
+    def _sanitize_print(self, event, df, aspects):
+        df = df.copy(deep=False)
+        # Reduce memory usage and speedup selection based on function
+        with contextlib.suppress(KeyError):
+            df['func'] = df['func'].astype('category', copy=False)
+        return df
+
 
 class TraceEventCheckerBase(abc.ABC, Loggable):
     """
