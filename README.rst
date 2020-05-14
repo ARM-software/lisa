@@ -16,13 +16,11 @@ with regard to the target OS; its only expectation is a Linux
 kernel-based system. Android, GNU/Linux and busybox style systems have
 all been used.
 
-LISA provides features to describe workloads (notably using
-`rt-app <https://github.com/scheduler-tools/rt-app>`__) and run them on
-targets. It can collect trace files from the target OS (e.g. systrace
-and ftrace traces), parse them via the
-`TRAPpy <https://github.com/ARM-software/trappy>`__ framework. These
-traces can then be parsed and analysed in order to examine detailed
-target behaviour during the workload's execution.
+LISA provides features to describe workloads (notably using `rt-app
+<https://github.com/scheduler-tools/rt-app>`__) and run them on targets. It can
+collect trace files from the target OS (e.g. systrace and ftrace traces). These
+traces can then be parsed and analysed in order to examine detailed target
+behaviour during the workload's execution.
 
 Some LISA features may require modifying the target OS. For example, in
 order to collect ftrace files the target kernel must have
