@@ -116,7 +116,7 @@ class RTA(Workload):
         # Move configuration file to target
         self.target.push(self.local_json, self.remote_json)
 
-    def run(self, cpus=None, cgroup=None, background=False, as_root=False, update_cpu_capacities=None,
+    def run(self, cpus=None, cgroup=None, as_root=False, update_cpu_capacities=None,
             numa_nodes_membind=None):
         logger = self.get_logger()
         plat_info = self.target.plat_info
@@ -160,11 +160,7 @@ class RTA(Workload):
             capa_cm = nullcontext()
 
         with capa_cm:
-            super().run(cpus, cgroup, background, as_root, numa_nodes_membind)
-
-        if background:
-            # TODO: handle background case
-            return
+            super().run(cpus, cgroup, as_root, numa_nodes_membind)
 
         if not self.log_stats:
             return

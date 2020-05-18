@@ -59,9 +59,9 @@ class Workload(Loggable):
                 super().__init__(target, name, res_dir)
                 self.command = "echo"
 
-            def run(self, cpus=None, cgroup=None, background=False, as_root=False, value=42):
+            def run(self, cpus=None, cgroup=None, as_root=False, value=42):
                 self.command = "{} {}".format(self.command, shlex.quote(value))
-                super().run(cpus, cgroup, background, as_root)
+                super().run(cpus, cgroup, as_root)
 
     **Usage example**::
 
@@ -125,7 +125,7 @@ class Workload(Loggable):
         """
         self.wipe_run_dir()
 
-    def run(self, cpus=None, cgroup=None, background=False, as_root=False, timeout=None):
+    def run(self, cpus=None, cgroup=None, as_root=False, timeout=None):
         """
         Execute the workload on the configured target.
 
@@ -134,9 +134,6 @@ class Workload(Loggable):
 
         :param cgroup: cgroup in which to run the workload
         :type cgroup: str
-
-        :param background: Whether to run the workload in background or not
-        :type background: bool
 
         :param as_root: Whether to run the workload as root or not
         :type as_root: bool
@@ -171,16 +168,13 @@ class Workload(Loggable):
 
         logger.info("Execution start: {}".format(_command))
 
-        if background:
-            target.background(_command, as_root=as_root)
-        else:
-            self.output = target.execute(_command, as_root=as_root, timeout=timeout)
-            logger.info("Execution complete")
+        self.output = target.execute(_command, as_root=as_root, timeout=timeout)
+        logger.info("Execution complete")
 
-            logfile = ArtifactPath.join(self.res_dir, 'output.log')
-            logger.debug('Saving stdout to {}...'.format(logfile))
+        logfile = ArtifactPath.join(self.res_dir, 'output.log')
+        logger.debug('Saving stdout to {}...'.format(logfile))
 
-            with open(logfile, 'w') as ofile:
-                ofile.write(self.output)
+        with open(logfile, 'w') as ofile:
+            ofile.write(self.output)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

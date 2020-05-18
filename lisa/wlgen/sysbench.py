@@ -62,7 +62,7 @@ class Sysbench(Workload):
 
         self.sysbench_bin = sysbench_bin
 
-    def run(self, cpus=None, cgroup=None, background=False, as_root=False,
+    def run(self, cpus=None, cgroup=None, as_root=False,
             test="cpu", max_duration_s=None, max_requests=None, **kwargs):
         """
         Execute the workload on the configured target.
@@ -72,9 +72,6 @@ class Sysbench(Workload):
 
         :param cgroup: cgroup in which to run the workload
         :type cgroup: str
-
-        :param background: Whether to run the workload in background or not
-        :type background: bool
 
         :param as_root: Whether to run the workload as root or not
         :type as_root: bool
@@ -108,7 +105,7 @@ class Sysbench(Workload):
         ] + ['run']
 
         self.command = ' '.join(arg_list)
-        super().run(cpus, cgroup, background, as_root)
+        super().run(cpus, cgroup, as_root)
 
         self.output = SysbenchOutput(self.output)
 
