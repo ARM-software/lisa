@@ -66,7 +66,7 @@ class RTA(Workload):
 
     ALLOWED_TASK_NAME_REGEX = r'^[a-zA-Z0-9_]+$'
 
-    def __init__(self, target, name, res_dir=None, json_file=None):
+    def __init__(self, target, name=None, res_dir=None, json_file=None):
         # Don't add code here, use the early/late init methods instead.
         # This lets us factorize some code for the class methods that serve as
         # alternate constructors.
@@ -189,7 +189,7 @@ class RTA(Workload):
         return calibration
 
     @classmethod
-    def by_profile(cls, target, name, profile, res_dir=None, default_policy=None,
+    def by_profile(cls, target, profile, name=None, res_dir=None, default_policy=None,
                    max_duration_s=None, calibration=None,
                    log_stats=False, trace_events=None):
         """
@@ -223,7 +223,7 @@ class RTA(Workload):
         A simple profile workload would be::
 
             task = Periodic(duty_cycle_pct=5)
-            rta = RTA.by_profile(target, "test",  {"foo" : task})
+            rta = RTA.by_profile(target, {"foo" : task})
             rta.run()
         """
         logger = cls.get_logger()
@@ -373,7 +373,7 @@ class RTA(Workload):
         return json.loads(json_str)
 
     @classmethod
-    def by_str(cls, target, name, str_conf, res_dir=None, max_duration_s=None,
+    def by_str(cls, target, str_conf, name=None, res_dir=None, max_duration_s=None,
                calibration=None):
         """
         Create an rt-app workload using a pure string description

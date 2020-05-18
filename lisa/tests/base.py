@@ -1471,8 +1471,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                 for name, task in profile.items()
             }
 
-        wload = RTA.by_profile(target, "rta_{}".format(cls.__name__.casefold()),
-                               profile, res_dir=res_dir,
+        wload = RTA.by_profile(target, profile, res_dir=res_dir,
+                               name="rta_{}".format(cls.__name__.casefold()),
                                trace_events=trace_events)
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
         as_root = cgroup is not None
