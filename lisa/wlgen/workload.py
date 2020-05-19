@@ -87,7 +87,7 @@ class Workload(Loggable):
 
         wlgen_dir = self.target.path.join(target.working_directory,
                                           "lisa", "wlgen")
-        self.target.execute("mkdir -p {}/lisa/wlgen".format(quote(wlgen_dir)))
+        self.target.execute("mkdir -p {}".format(quote(wlgen_dir)))
 
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         temp_fmt = "{}_{}_XXXXXX".format(self.name, timestamp)
