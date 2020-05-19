@@ -52,9 +52,10 @@ class RTA(Workload):
     :param json_file: Path to the rt-app json description
     :type json_file: str
 
-    The class constructor only deals with pre-constructed json files.
-    For creating rt-app workloads through other means, see :meth:`by_profile`
-    and :meth:`by_str`.
+    .. warning::
+      The class constructor only deals with pre-constructed json files.
+      For creating rt-app workloads through other means, see :meth:`by_profile`
+      and :meth:`by_str`.
 
     For more information about rt-app itself, see
     https://github.com/scheduler-tools/rt-app

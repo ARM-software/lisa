@@ -39,8 +39,15 @@ class Workload(Loggable):
     :param res_dir: Directory into which artefacts will be stored
     :type res_dir: str
 
-    :ivar command: Will be called in :meth:`run`. Daughter classes should
-      specify its value as needed.
+    :ivar command: The command this workload will execute when invoking
+      :meth:`run`. Daughter classes should specify its value before
+      :meth:`run` is invoked; preferably in the daughter ``__init__()`` (see
+      example below), or in the daughter ``run()`` before the ``super()`` call.
+
+    :ivar output: The saved output of the last :meth:`run()` invocation.
+
+    .. note:: A :class:`Workload` instance can be used as a context manager,
+      which ensures :meth:`wipe_run_dir()` is eventually invoked.
 
     **Design notes**
 

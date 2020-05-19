@@ -49,6 +49,9 @@ class SysbenchOutput(str):
 class Sysbench(Workload):
     """
     A sysbench workload
+
+    :ivar output: The saved output of the last :meth:`run()` invocation.
+      Of type :class:`SysbenchOutput` for ease of use.
     """
 
     required_tools = Workload.required_tools + ['sysbench']
