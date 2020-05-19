@@ -620,7 +620,9 @@ class RTA(Workload):
         """
         Get the rt-ap calibration value for all CPUs.
 
-        :param target: Devlib target to run calibration on.
+        :param target: Target to run calibration on.
+        :type target: lisa.target.Target
+
         :returns: Dict mapping CPU numbers to rt-app calibration values.
         """
 
@@ -706,13 +708,13 @@ class Phase(Loggable):
     Descriptor for an rt-app load phase
 
     :param duration_s: the phase duration in [s].
-    :type duration_s: int
+    :type duration_s: float
 
     :param period_ms: the phase period in [ms].
-    :type period_ms: int
+    :type period_ms: float
 
     :param duty_cycle_pct: the generated load in percents.
-    :type duty_cycle_pct: numbers.Number
+    :type duty_cycle_pct: float
 
     :param cpus: the CPUs on which task execution is restricted during this phase.
         If unspecified, that phase will be allowed to run on any CPU,
@@ -724,9 +726,17 @@ class Phase(Loggable):
                           supported when duty_cycle_pct=100
     :type barrier_after: str
 
+    :param uclamp_min: the task uclamp.min value to set for the task for the
+      duration of the phase.
+    :type uclamp_min: int
+
+    :param uclamp_max: the task uclamp.max value to set for the task for the
+      duration of the phase.
+    :type uclamp_max: int
+
     :param numa_nodes_membind: the list of NUMA Nodes.
         Task will only allocate memory from these nodes during this phase.
-        If unspecified, that phase will be allowed to allocate memory from any 
+        If unspecified, that phase will be allowed to allocate memory from any
         NUMA node, regardless of the previous phase settings.
     :type numa_nodes_membind: list(int) or None
     """
@@ -826,15 +836,27 @@ class Phase(Loggable):
         else:
             nodes_membind = self.numa_nodes_membind
         phase['nodes_membind'] = nodes_membind
-            
+
         return phase
 
 class RTATask:
     """
     Base class for conveniently constructing params to :meth:`RTA.by_profile`
 
-    :param sched_policy: the scheduler policy for this task.
+    :param delay_s: the delay in seconds before starting.
+    :type delay_s: float
+
+    :param loops: Number of times to repeat the described task (including
+      initial delay). -1 indicates infinite looping
+    :type loops: int
+
+    :param sched_policy: the scheduler policy for this task. Defaults to
+      ``SCHED_OTHER``, see ``man sched`` for information on scheduler policies.
     :type sched_policy: str or None
+
+    :param priority: the scheduler priority for this task. See ``man sched``
+      for information on scheduler priorities.
+    :type priority: int or None
 
     This class represents an rt-app task which may contain multiple :class:`Phase`.
     It implements ``__add__`` so that using ``+`` on two tasks concatenates their
@@ -885,20 +907,36 @@ class Ramp(RTATask):
     of steps according to the input parameters.
 
     :param start_pct: the initial load percentage.
+    :type start_pct: float
+
     :param end_pct: the final load percentage.
+    :type end_pct: float
+
     :param delta_pct: the load increase/decrease at each step, in percentage
-                      points.
+      points.
+    :type delta_pct: float
+
     :param time_s: the duration in seconds of each load step.
+    :type time_s: float
+
     :param period_ms: the period used to define the load in [ms].
-    :param delay_s: the delay in seconds before ramp start.
-    :param loops: number of time to repeat the ramp, with the specified delay in
-                  between.
+    :type period_ms: float
 
-    :param sched_policy: the scheduler policy for this task.
-    :type sched_policy: str or None
+    .. seealso:: See :class:`RTATask` for the documentation of the following
+      parameters:
 
-    :param cpus: See ``cpus`` parameter of :class:`Phase`.
-    :param numa_nodes_membind: See ``numa_nodes_membind`` parameter of :class:`Phase`.
+      * **delay_s**
+      * **loops**
+      * **sched_policy**
+      * **priority**
+
+    .. seealso:: See :class:`Phase` for the documentation of the following
+      parameters:
+
+      * **cpus**
+      * **uclamp_min**
+      * **uclamp_max**
+      * **numa_nodes_membind**
     """
 
     def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
@@ -941,18 +979,32 @@ class Step(Ramp):
     that alternates between two load values.
 
     :param start_pct: the initial load percentage.
+    :type start_pct: float
+
     :param end_pct: the final load percentage.
+    :type end_pct: float
+
     :param time_s: the duration in seconds of each load step.
+    :type time_s: float
+
     :param period_ms: the period used to define the load in [ms].
-    :param delay_s: the delay in seconds before ramp start.
-    :param loops: number of time to repeat the step, with the specified delay in
-                  between.
+    :type period_ms: float
 
-    :param sched_policy: the scheduler policy for this task.
-    :type sched_policy: str or None
+    .. seealso:: See :class:`RTATask` for the documentation of the following
+      parameters:
 
-    :param cpus: See ``cpus`` parameter of :class:`Phase`.
-    :param numa_nodes_membind: See ``numa_nodes_membind`` parameter of :class:`Phase`.
+      * **delay_s**
+      * **loops**
+      * **sched_policy**
+      * **priority**
+
+    .. seealso:: See :class:`Phase` for the documentation of the following
+      parameters:
+
+      * **cpus**
+      * **uclamp_min**
+      * **uclamp_max**
+      * **numa_nodes_membind**
     """
 
     def __init__(self, start_pct=0, end_pct=100, time_s=1, period_ms=100,
@@ -979,20 +1031,32 @@ class Pulse(RTATask):
     completed.
 
     :param start_pct: the initial load percentage.
-    :param end_pct: the final load percentage. Must be lower than ``start_pct``
-                    value. If end_pct is 0, the task ends after the ``start_pct``
-                    period has completed.
+    :type start_pct: float
+
+    :param end_pct: the final load percentage.
+    :type end_pct: float
+
     :param time_s: the duration in seconds of each load step.
+    :type time_s: float
+
     :param period_ms: the period used to define the load in [ms].
-    :param delay_s: the delay in seconds before ramp start.
-    :param loops: number of time to repeat the pulse, with the specified delay
-                  in between.
+    :type period_ms: float
 
-    :param sched_policy: the scheduler policy for this task.
-    :type sched_policy: str or None
+    .. seealso:: See :class:`RTATask` for the documentation of the following
+      parameters:
 
-    :param cpus: See ``cpus`` parameter of :class:`Phase`.
-    :param numa_nodes_membind: See ``numa_nodes_membind`` parameter of :class:`Phase`.
+      * **delay_s**
+      * **loops**
+      * **sched_policy**
+      * **priority**
+
+    .. seealso:: See :class:`Phase` for the documentation of the following
+      parameters:
+
+      * **cpus**
+      * **uclamp_min**
+      * **uclamp_max**
+      * **numa_nodes_membind**
     """
 
     def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
@@ -1024,19 +1088,30 @@ class Periodic(Pulse):
     This class defines a task which load is periodic with a configured
     period and duty-cycle.
 
-    :param duty_cycle_pct: the load percentage.
-    :param duration_s: the total duration in seconds of the task.
-    :param period_ms: the period used to define the load in milliseconds.
-    :param delay_s: the delay in seconds before starting the periodic phase.
+    :param duty_cycle_pct: the generated load in percents.
+    :type duty_cycle_pct: float
 
-    :param priority: the priority for this task.
-    :type priority: int or None
+    :param duration_s: the phase duration in [s].
+    :type duration_s: float
 
-    :param sched_policy: the scheduler policy for this task.
-    :type sched_policy: str or None
+    :param period_ms: the period used to define the load in [ms].
+    :type period_ms: float
 
-    :param cpus: See ``cpus`` parameter of :class:`Phase`.
-    :param numa_nodes_membind: See ``numa_nodes_membind`` parameter of :class:`Phase`.
+    .. seealso:: See :class:`RTATask` for the documentation of the following
+      parameters:
+
+      * **delay_s**
+      * **loops**
+      * **sched_policy**
+      * **priority**
+
+    .. seealso:: See :class:`Phase` for the documentation of the following
+      parameters:
+
+      * **cpus**
+      * **uclamp_min**
+      * **uclamp_max**
+      * **numa_nodes_membind**
     """
 
     def __init__(self, duty_cycle_pct=50, duration_s=1, period_ms=100,
@@ -1055,23 +1130,27 @@ class RunAndSync(RTATask):
     Configure a task that runs 100% then waits on a barrier
 
     :param barrier: name of barrier to wait for. Sleeps until any other tasks
-                    that refer to this barrier have reached the barrier too.
+      that refer to this barrier have reached the barrier too.
     :type barrier: str
 
-    :param time_s: time to run for
+    :param time_s: time to run for in [s]
+    :type time_s: float
 
-    :param delay_s: the delay in seconds before starting.
+    .. seealso:: See :class:`RTATask` for the documentation of the following
+      parameters:
 
-    :param sched_policy: the scheduler policy for this task.
-    :type sched_policy: str or None
+      * **delay_s**
+      * **loops**
+      * **sched_policy**
+      * **priority**
 
-    :param cpus: the list of CPUs on which task can run.
-        .. note:: if not specified, it can run on all CPUs
-    :type cpus: list(int)
+    .. seealso:: See :class:`Phase` for the documentation of the following
+      parameters:
 
-    :param numa_nodes_membind: the list of NUMA Nodes. Task will only allocate memory from these nodes.
-        .. note:: if not specified, task will allocate memory according to default policy
-    :type numa_nodes_membind: list(int)
+      * **cpus**
+      * **uclamp_min**
+      * **uclamp_max**
+      * **numa_nodes_membind**
     """
 
     def __init__(self, barrier, time_s=1, delay_s=0, loops=1, sched_policy=None,
