@@ -851,10 +851,10 @@ class RTATask:
     :type loops: int
 
     :param sched_policy: the scheduler policy for this task. Defaults to
-      ``SCHED_OTHER``, see ``man sched`` for information on scheduler policies.
+      ``SCHED_OTHER``, see :manpage:`sched` for information on scheduler policies.
     :type sched_policy: str or None
 
-    :param priority: the scheduler priority for this task. See ``man sched``
+    :param priority: the scheduler priority for this task. See :manpage:`sched`
       for information on scheduler priorities.
     :type priority: int or None
 

@@ -390,6 +390,8 @@ intersphinx_mapping = {
     'ipywidgets': ('https://ipywidgets.readthedocs.io/en/latest/', None),
 }
 
+manpages_url = "https://manpages.debian.org/{path}"
+
 #
 # Fix autodoc
 #
