@@ -76,7 +76,12 @@ def call_git(git_args, silent=False, capture=False):
     info(' '.join(shlex.quote(x) for x in cmd))
     if capture:
         def run(cmd):
-            return subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+            return subprocess.check_output(
+                cmd,
+                stderr=subprocess.STDOUT,
+                encoding='utf-8',
+                universal_newlines=True,
+            )
     else:
         if silent:
             stdout = subprocess.DEVNULL
@@ -285,7 +290,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             )
 
             nr_commits = int(
-                git(['rev-list', '--count', range_ref], capture=True).decode('utf-8')
+                git(['rev-list', '--count', range_ref], capture=True)
             )
             info('Cherry-picking topic "{name}" from {remote} ({nr_commits} commits)\nremote: {remote}\nbase: {base}\ntip: {tip}\n'.format(
                 name=name,
