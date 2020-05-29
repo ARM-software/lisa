@@ -16,6 +16,7 @@
 #
 
 from collections import namedtuple, OrderedDict, defaultdict
+from collections.abc import Mapping
 from itertools import product
 import logging
 import operator
@@ -919,6 +920,7 @@ class EnergyModel(Serializable, Loggable):
         return inputs.apply(f, axis=1)
 
     @classmethod
+    @memoized
     def _get_idle_states_name(cls, target, cpu):
         if target.is_module_available('cpuidle'):
             return [s.name for s in target.cpuidle.get_states(cpu)]
@@ -943,8 +945,11 @@ class LinuxEnergyModel(EnergyModel):
     @classmethod
     def from_target(cls, target, directory='/sys/kernel/debug/energy_model'):
         """
-        Create an EnergyModel by reading a target filesystem on a device with
-        the new Simplified Energy Model present in debugfs.
+        Create an :class:`EnergyModel` by reading a target filesystem on a
+        device with the new Simplified Energy Model present in debugfs.
+
+        :param target: Target object to read filesystem from.
+        :type target: lisa.target.Target
 
         This uses the energy_model debugfs used usptream to expose the
         performance domains, their frequencies and power costs. This feature is
@@ -955,102 +960,144 @@ class LinuxEnergyModel(EnergyModel):
         any power data or topological dependencies for entering "cluster"
         idle states since the simplified model has no such concept.
 
-        Initialises only class:`ActiveStates` for CPUs and clears all other
-        levels.
+        .. note:: Initialises only class:`ActiveStates` for CPUs and clears all
+            other levels.
 
-        :param target: :class:`devlib.target.Target` object to read filesystem
-                       from.
-        :returns: Constructed EnergyModel object based on the parameters
-                  reported by the target.
+        The recognized debugfs hierarchy pointed at by ``directory`` is::
+
+            |-- cpu0
+            |   |-- cpus
+            |   |-- ps:450000
+            |   |   |-- cost
+            |   |   |-- frequency
+            |   |   `-- power
+            |   |-- ps:575000
+            |   |   |-- cost
+            |   |   |-- frequency
+            |   |   `-- power
+            |   `-- ps:850000
+            |       |-- cost
+            |       |-- frequency
+            |       `-- power
+            `-- cpu1
+                |-- cpus
+                |-- ps:1100000
+                |   |-- cost
+                |   |-- frequency
+                |   `-- power
+                |-- ps:450000
+                |   |-- cost
+                |   |-- frequency
+                |   `-- power
+                `-- ps:950000
+                    |-- cost
+                    |-- frequency
+                    `-- power
         """
-        sysfs = '/sys/devices/system/cpu/cpu{}/cpu_capacity'
-        pd_attr = defaultdict(dict)
-        cpu_to_pd = {}
+        cpu_cap_sysfs = '/sys/devices/system/cpu/cpu{}/cpu_capacity'
+
+        # Format of a debugfs cstate entry
+        cstate_format = {
+            'cost': int,
+            'frequency': int,
+            'power': int,
+        }
+
+        def has_keys(mapping, keys):
+            try:
+                return set(keys) <= mapping.keys()
+            except AttributeError:
+                return False
+
+        def parse_pd_attr(pd_em):
+            """
+            Parse the power domain attributes from debugfs sub-hierarchy
+            """
+            cstate_keys = cstate_format.keys()
+            cstates = [
+                {
+                    # Convert from string to appropriate type
+                    key: cstate_format.get(key, lambda x: x)(val)
+                    for key, val in entry.items()
+                }
+                for key, entry in pd_em.items()
+                # Filter-out folders that don't contain the files we need, so
+                # we don't depend on the name of the folder itself which can
+                # change from one kernel version to another
+                if has_keys(entry, cstate_keys)
+            ]
+
+            # Read the CPUMask
+            cpus = ranges_to_list(pd_em['cpus'])
+
+            # Add the capacity to the cstate
+            max_freq = max(cs['frequency'] for cs in cstates)
+            pd_cap = target.read_value(cpu_cap_sysfs.format(cpus[0]), int)
+            cstates = [
+                {
+                    'capacity': cs['frequency'] * pd_cap / max_freq,
+                    **cs
+                }
+                for cs in cstates
+            ]
+
+            return {
+                'cpus': cpus,
+                'cstates': cstates,
+            }
 
         debugfs_em = target.read_tree_values(directory, depth=3, tar=True)
         if not debugfs_em:
-            raise TargetStableError('Energy Model not exposed at {} in sysfs.'.format(directory))
+            raise TargetStableError('Energy Model not exposed at {} in debugfs.'.format(directory))
 
-        for pd in debugfs_em:
-            # Read the CPUMask
-            pd_attr[pd]['cpus'] = ranges_to_list(debugfs_em[pd]['cpus'])
-            for cpu in pd_attr[pd]['cpus']:
-                cpu_to_pd[cpu] = pd
+        pd_attr = {
+            pd: parse_pd_attr(pd_em)
+            for pd, pd_em in debugfs_em.items()
+        }
+        cpu_attr = {
+            cpu: attr
+            for attr in pd_attr.values()
+            for cpu in attr['cpus']
+        }
 
-            # Read the frequency and power costs
-            pd_attr[pd]['frequency'] = []
-            pd_attr[pd]['power'] = []
-            cstates = [k for k in debugfs_em[pd].keys() if 'cs:' in k]
-            cstates = sorted(cstates, key=lambda cs: int(cs.replace('cs:', '')))
-            for cs in cstates:
-                pd_attr[pd]['frequency'].append(int(debugfs_em[pd][cs]['frequency']))
-                pd_attr[pd]['power'].append(int(debugfs_em[pd][cs]['power']))
-
-            # Compute the intermediate capacities
-            cap = target.read_value(sysfs.format(pd_attr[pd]['cpus'][0]), int)
-            max_freq = max(pd_attr[pd]['frequency'])
-            caps = [f * cap / max_freq for f in pd_attr[pd]['frequency']]
-            pd_attr[pd]['capacity'] = caps
-
-        root_em = cls._simple_em_root(target, pd_attr, cpu_to_pd)
-        root_pd = cls._simple_pd_root(target)
-        perf_domains = [pd_attr[pd]['cpus'] for pd in pd_attr]
-
-        return cls(root_node=root_em,
-                   root_power_domain=root_pd,
-                   freq_domains=perf_domains)
-
-    @classmethod
-    def _simple_em_root(cls, target, pd_attr, cpu_to_pd):
-        """
-        ``pd_attr`` is a dict tree like this ::
-
-            {
-                "pd0": {
-                    "capacity": [236, 301, 367, 406, 446 ],
-                    "frequency": [ 450000, 575000, 700000, 775000, 850000 ],
-                    "power": [ 42, 58, 79, 97, 119 ]
-                },
-                "pd1": {
-                    "capacity": [ 418, 581, 744, 884, 1024 ],
-                    "frequency": [ 450000, 625000, 800000, 950000, 1100000 ],
-                    "power": [ 160, 239, 343, 454, 583 ]
-                }
-            }
-        """
-        def simple_read_idle_states(cpu, target):
-            # idle states are not supported in the simple model
-            # record 0 power for them all, but name them according to target
-            names = cls._get_idle_states_name(target, cpu)
-            return OrderedDict((name, 0) for name in names)
-
-        def simple_read_active_states(pd):
-            cstates = list(zip(pd['capacity'], pd['power']))
-            active_states = [ActiveState(c, p) for c, p in cstates]
-            return OrderedDict(zip(pd['frequency'], active_states))
-
-        cpu_nodes = []
-        for cpu in range(target.number_of_cpus):
-            pd = pd_attr[cpu_to_pd[cpu]]
-            node = EnergyModelNode(
-                cpu=cpu,
-                active_states=simple_read_active_states(pd),
-                idle_states=simple_read_idle_states(cpu, target))
-            cpu_nodes.append(node)
-
-        return EnergyModelRoot(children=cpu_nodes)
-
-    @classmethod
-    def _simple_pd_root(cls, target):
-        # We don't have a way to read the idle power domains from sysfs (the
-        # kernel isn't even aware of them) so we'll just have to assume each CPU
-        # is its own power domain and all idle states are independent of each
-        # other.
-        cpu_pds = []
-        for cpu in range(target.number_of_cpus):
-            names = cls._get_idle_states_name(target, cpu)
-            cpu_pds.append(PowerDomain(cpu=cpu, idle_states=names))
-        return PowerDomain(children=cpu_pds, idle_states=[])
+        return cls(
+            root_node=EnergyModelRoot(
+                children=[
+                    EnergyModelNode(
+                        cpu=cpu,
+                        active_states=OrderedDict(
+                            (cs['frequency'], ActiveState(cs['capacity'], cs['power']))
+                            for cs in sorted(
+                                attr['cstates'],
+                                key=operator.itemgetter('frequency'),
+                            )
+                        ),
+                        # Idle states are not supported in the simple model, so record
+                        # 0 power for them all, but name them according to target
+                        idle_states=OrderedDict(
+                            (name, 0)
+                            for name in cls._get_idle_states_name(target, cpu)
+                        ),
+                    )
+                    for cpu, attr in cpu_attr.items()
+                ]
+            ),
+            # We don't have a way to read the idle power domains from sysfs (the
+            # kernel isn't even aware of them) so we'll just have to assume each CPU
+            # is its own power domain and all idle states are independent of each
+            # other.
+            root_power_domain=PowerDomain(
+                children=[
+                    PowerDomain(
+                        cpu=cpu,
+                        idle_states=cls._get_idle_states_name(target, cpu),
+                    )
+                    for cpu in sorted(cpu_attr.keys())
+                ],
+                idle_states=[]
+            ),
+            freq_domains=sorted(attr['cpus'] for attr in pd_attr.values()),
+        )
 
 
 class LegacyEnergyModel(EnergyModel):
