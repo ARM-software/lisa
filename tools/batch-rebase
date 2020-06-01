@@ -78,7 +78,6 @@ def call_git(git_args, silent=False, capture=False):
         def run(cmd):
             return subprocess.check_output(
                 cmd,
-                stderr=subprocess.STDOUT,
                 encoding='utf-8',
                 universal_newlines=True,
             )
