@@ -69,21 +69,23 @@ class BatchRebaseManifest(SimpleMultiSrcConf):
 
 RESUME_MANIFEST_NAME = '.batch-rebase-state'
 
-def call_git(git_args, silent=False, capture=False):
+def call_git(git_args, silent_stderr=False, capture=False, quiet=False):
     git_args = [str(arg) for arg in git_args]
 
     cmd = ('git', *git_args)
-    info(' '.join(shlex.quote(x) for x in cmd))
+
+    if not quiet:
+        info(' '.join(shlex.quote(x) for x in cmd))
+
     if capture:
         def run(cmd):
             return subprocess.check_output(
                 cmd,
-                stderr=subprocess.STDOUT,
                 encoding='utf-8',
                 universal_newlines=True,
-            )
+            ).strip()
     else:
-        if silent:
+        if silent_stderr:
             stdout = subprocess.DEVNULL
         else:
             stdout = None
@@ -93,13 +95,13 @@ def call_git(git_args, silent=False, capture=False):
 
     return run(cmd)
 
-def make_git_func(repo):
+def make_git_func(repo, **kwargs):
     """
     Make a function calling git on a specific repo
     """
     @functools.wraps(call_git)
-    def wrapper(git_args, *args, **kwargs):
-        return call_git(['-C', repo, *git_args], *args, **kwargs)
+    def wrapper(git_args, **wrapper_kwargs):
+        return call_git(['-C', repo, *git_args], **wrapper_kwargs, **kwargs)
 
     return wrapper
 
@@ -120,7 +122,7 @@ def copy_content(src, dst):
 def has_unresolved(repo):
     git = make_git_func(repo)
     try:
-        git(['diff', '--quiet', '--name-only', '--diff-filter=U'], silent=True)
+        git(['diff', '--quiet', '--name-only', '--diff-filter=U'], silent_stderr=True)
     except subprocess.CalledProcessError:
         return True
     else:
@@ -156,7 +158,7 @@ def do_create(conf_folder, repo, temp_repo, new_branch, conf, persistent_tags, t
     }
 
     for opt, val in git_config.items():
-        git(['config', opt, val], silent=True)
+        git(['config', opt, val], silent_stderr=True)
 
     # Copy the rr-cache content
     copy_content(rr_cache, temp_repo/'.git'/'rr-cache')
@@ -361,7 +363,7 @@ def rerere_autocommit(repo):
         else:
             if empty_staging_area(repo):
                 # If the commit would be empty, just skip it
-                curr_sha1 = git(['rev-list', '-n1', 'CHERRY_PICK_HEAD'], capture=True).decode()
+                curr_sha1 = git(['rev-list', '-n1', 'CHERRY_PICK_HEAD'], capture=True)
                 warn('Empty commit, skipping it: {}'.format(curr_sha1))
                 git(['reset'])
             else:
@@ -382,6 +384,44 @@ def rerere_autocommit(repo):
             break
 
     return True
+
+
+def do_stat(repo, tip, base):
+    git = make_git_func(repo=repo, capture=True, quiet=True)
+
+    git_range = '{}..{}'.format(base, tip)
+    sha1s = git(['rev-list', '--simplify-by-decoration', '--topo-order', git_range]).splitlines()
+    tag_map = {
+        sha1: ' + '.join(git(['tag', '--sort=taggerdate', '--points-at', sha1]).splitlines())
+        for sha1 in sha1s
+    }
+
+    total = None
+    def count(base, tip, display=False):
+        nr = int(git(['rev-list', '--count', '{}..{}'.format(base, tip)]))
+        if display:
+            pct = 100 * nr/total
+            return '{nr}/{pct:.0f}%'.format(nr=nr, pct=pct).rjust(8)
+        else:
+            return nr
+
+    total = count(base, tip)
+
+    max_tag_len = max(map(len, tag_map.values()))
+    sha1s = sha1s + [base]
+    for ref, prev_ref in zip(sha1s, sha1s[1:]):
+        tag = tag_map[ref]
+        print('{tag:<{len}}: {prev} commits ({base} from base, {tip} to tip)'.format(
+            tag=tag,
+            prev=count(prev_ref, ref, display=True),
+            base=count(base, ref, display=True),
+            tip=count(ref, tip, display=True),
+            len=max_tag_len + 1,
+        ))
+
+
+    print('\nTotal commits: {}'.format(total))
+    return 0
 
 def main():
     logging.basicConfig(
@@ -465,12 +505,17 @@ def main():
         help='Resume creation after resolving a conflict'
     )
 
+    stat_parser = subparsers.add_parser('stat',
+        help='Inspect a branch created by "create" subcommand with --tags and dump some statistics',
+    )
+
     # Common optiosn
-    for subparser in (create_parser, resume_parser):
+    for subparser in (create_parser, resume_parser, stat_parser):
         subparser.add_argument('GIT_TREE',
             help='Git tree to work on',
         )
 
+    for subparser in (create_parser, resume_parser):
         subparser.add_argument('--keep-temp', action='store_true',
             help='Keep the temporary git repo instead of removing it when the cherry picking is finished'
         )
@@ -497,43 +542,55 @@ def main():
         help='Replace the default tag suffix (current date)'
     )
 
+    # Stat action
+    stat_parser.add_argument('--base', required=True,
+        help='Git ref pointing at the base',
+    )
+    stat_parser.add_argument('--tip', required=True,
+        help='Git ref pointing at the tip',
+    )
+
     args = parser.parse_args()
-    repo = Path(args.GIT_TREE).resolve()
-    keep_temp = args.keep_temp
 
     ret = 0
-    delete_temp_repo = True
-    temp_repo = None
-    try:
-        if args.subcommand == 'create':
-            conf = BatchRebaseManifest.from_yaml_map(args.manifest)
-            new_branch = args.create_branch
-            persistent_tags = args.tags
-            tags_suffix = args.tags_suffix
+    repo = Path(args.GIT_TREE).resolve()
 
-            # Make sure we use resolved absolute path
-            conf_folder = Path(args.manifest).parent
-            temp_repo = Path(tempfile.mkdtemp())
-            delete_temp_repo, ret = do_create(
-                conf_folder,
-                repo, temp_repo,
-                new_branch,
-                conf,
-                persistent_tags, tags_suffix,
-            )
+    if args.subcommand == 'stat':
+        return do_stat(repo, tip=args.tip, base=args.base)
+    else:
+        keep_temp = args.keep_temp
+        delete_temp_repo = True
+        temp_repo = None
+        try:
+            if args.subcommand == 'create':
+                conf = BatchRebaseManifest.from_yaml_map(args.manifest)
+                new_branch = args.create_branch
+                persistent_tags = args.tags
+                tags_suffix = args.tags_suffix
 
-            if args.delete_temp:
-                info('Deleting temporary clone as requested with --delete-temp')
-                delete_temp_repo = True
+                # Make sure we use resolved absolute path
+                conf_folder = Path(args.manifest).parent
+                temp_repo = Path(tempfile.mkdtemp())
+                delete_temp_repo, ret = do_create(
+                    conf_folder,
+                    repo, temp_repo,
+                    new_branch,
+                    conf,
+                    persistent_tags, tags_suffix,
+                )
 
-        elif args.subcommand == 'resume':
-            temp_repo = repo
-            conf = BatchRebaseManifest.from_yaml_map(temp_repo/RESUME_MANIFEST_NAME)
-            delete_temp_repo, ret = do_resume(temp_repo, conf)
+                if args.delete_temp:
+                    info('Deleting temporary clone as requested with --delete-temp')
+                    delete_temp_repo = True
 
-    finally:
-        if delete_temp_repo and temp_repo and not keep_temp:
-            shutil.rmtree(str(temp_repo))
+            elif args.subcommand == 'resume':
+                temp_repo = repo
+                conf = BatchRebaseManifest.from_yaml_map(temp_repo/RESUME_MANIFEST_NAME)
+                delete_temp_repo, ret = do_resume(temp_repo, conf)
+
+        finally:
+            if delete_temp_repo and temp_repo and not keep_temp:
+                shutil.rmtree(str(temp_repo))
 
     return ret
 
