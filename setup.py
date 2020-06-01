@@ -72,7 +72,9 @@ setup(
         # anymore. Since don't want to drop support for Python 3.5 for now, so
         # we mandate a lower version that what is actually required.
         "matplotlib >= 1.4.2",
-        "pandas >= 0.23.0",
+        # The 1.0.3 bound is temporary as the 1.0.4 release from May 29 2020
+        # seems to be broken wrt to parquet serialization
+        "pandas >= 0.23.0, < 1.0.4",
         "numpy",
         "scipy",
         # Earlier versions have broken __slots__ deserialization
