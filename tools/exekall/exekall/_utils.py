@@ -421,22 +421,22 @@ def out(msg):
 
 def info(msg):
     """Write a log message at the INFO level."""
-    EXEKALL_LOGGER.info(msg)
+    EXEKALL_LOGGER.info(msg, stacklevel=2)
 
 
 def debug(msg):
     """Write a log message at the DEBUG level."""
-    EXEKALL_LOGGER.debug(msg)
+    EXEKALL_LOGGER.debug(msg, stacklevel=2)
 
 
 def warn(msg):
     """Write a log message at the WARNING level."""
-    EXEKALL_LOGGER.warning(msg)
+    EXEKALL_LOGGER.warning(msg, stacklevel=2)
 
 
 def error(msg):
     """Write a log message at the ERROR level."""
-    EXEKALL_LOGGER.error(msg)
+    EXEKALL_LOGGER.error(msg, stacklevel=2)
 
 
 def infer_mod_name(python_src):
