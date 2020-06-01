@@ -595,9 +595,10 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         conn_settings = {}
         resolved_username = username or 'root'
 
+        logger.debug('Setting up {} target...'.format(kind))
+
         # If the target is Android, we need just (eventually) the device
         if kind == 'android':
-            logger.debug('Setting up Android target...')
             devlib_target_cls = devlib.AndroidTarget
 
             # Workaround for ARM-software/devlib#225
@@ -617,7 +618,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             conn_settings['adb_as_root'] = (username == 'root')
 
         elif kind == 'linux':
-            logger.debug('Setting up Linux target...')
             devlib_target_cls = devlib.LinuxTarget
             conn_settings.update(
                 username=resolved_username,
@@ -632,7 +632,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             else:
                 conn_settings['password'] = password
         elif kind == 'host':
-            logger.debug('Setting up localhost Linux target...')
             devlib_target_cls = devlib.LocalLinuxTarget
             # If we are given a password, assume we can use it as a sudo
             # password.
@@ -648,7 +647,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             for key, val in conn_settings.items()
             if key != 'password'
         )
-        logger.info('{} {} target connection settings:\n    {}'.format(kind, name, settings))
+        logger.debug('{} {} target connection settings:\n    {}'.format(kind, name, settings))
 
         ########################################################################
         # Devlib Platform configuration
@@ -680,15 +679,15 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             except Exception as e:
                 logger.warning('"adb root" failed: {}'.format(e))
 
-        logger.debug('Checking target connection...')
-        logger.debug('Target info:')
-        logger.debug('      ABI: {}'.format(target.abi))
-        logger.debug('     CPUs: {}'.format(target.cpuinfo))
-        logger.debug(' clusters: {}'.format(target.core_clusters))
-        logger.debug('  workdir: {}'.format(target.working_directory))
+        logger.debug('Target info: {}'.format(dict(
+            abi=target.abi,
+            cpuinfo=target.cpuinfo,
+            workdir=target.working_directory,
+        )))
 
         target.setup()
 
+        logger.info('Connected to target {}'.format(name or ''))
         return target
 
     def get_res_dir(self, name=None, append_time=True, symlink=True):
