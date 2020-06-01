@@ -2770,7 +2770,7 @@ class TraceCache:
                 # Try to load the dataframe from that path
                 try:
                     if self.DATAFRAME_SWAP_FORMAT == 'parquet':
-                        data = pd.read_parquet(path, memory_map=True)
+                        data = pd.read_parquet(path)
                     else:
                         raise ValueError('Dataframe swap format "{}" not handled'.format(self.DATAFRAME_SWAP_FORMAT))
                 except (OSError, pyarrow.lib.ArrowIOError):
