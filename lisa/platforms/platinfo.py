@@ -22,8 +22,8 @@ from collections.abc import Mapping
 
 from lisa.utils import HideExekallID, group_by_value, memoized
 from lisa.conf import (
-    DeferredValue, MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc,
-    DerivedKeyDesc, ConfigKeyError,
+    DeferredValue, DeferredExcep, MultiSrcConf, KeyDesc, LevelKeyDesc,
+    TopLevelKeyDesc, DerivedKeyDesc, ConfigKeyError,
 )
 from lisa.generic import TypedDict, TypedList, SortedTypedList
 from lisa.energy_model import EnergyModel
@@ -149,7 +149,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             :class:`lisa.conf.MultiSrcConf.add_src`.
         """
         info = {
-            'nrg-model': lambda: self._nrg_model_from_target(target),
+            'nrg-model': lambda: EnergyModel.from_target(target),
             'kernel': {
                 'version': lambda: target.kernel_version,
                 'config': lambda: target.config.typed_config,
@@ -227,6 +227,8 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         return self._add_info(src, info, only_missing=only_missing, filter_none=True, **kwargs)
 
     def _add_info(self, src, new_info, only_missing, deferred=False, **kwargs):
+        logger = self.get_logger()
+
         def dfs(existing_info, new_info):
             def evaluate(existing_info, key, val):
                 if isinstance(val, Mapping):
@@ -240,7 +242,11 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
                         elif deferred:
                             return DeferredValue(val)
                         else:
-                            return val()
+                            try:
+                                return val()
+                            except Exception as e:
+                                logger.error('Cannot retrieve value of key {}: {}'.format(key, e))
+                                return DeferredExcep(excep=e)
 
             return {
                 key: evaluate(existing_info, key, val)
@@ -310,16 +316,6 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         return self
 
     # Internal methods used to compute some keys from a live devlib Target
-
-    @classmethod
-    def _nrg_model_from_target(cls, target):
-        logger = cls.get_logger()
-        logger.info('Attempting to read energy model from target')
-        try:
-            return EnergyModel.from_target(target)
-        except (TargetStableError, RuntimeError, ValueError) as err:
-            logger.error("Couldn't read target energy model: {}".format(err))
-            return None
 
     @classmethod
     def _read_kallsyms(cls, target):

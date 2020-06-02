@@ -79,6 +79,25 @@ class DeferredValue:
         return '<lazy value of {}>'.format(self.callback.__qualname__)
 
 
+class DeferredExcep(DeferredValue):
+    """
+    Specialization of :class:`DeferredValue` to lazily raise an exception.
+
+    :param excep: Exception to raise when the value is used.
+    :type excep: BaseException
+    """
+
+    def __init__(self, excep):
+        self.excep = excep
+
+        def callback():
+            raise self.excep
+        super().__init__(callback=callback)
+
+    def __str__(self):
+        return '<lazy {} exception>'.format(self.excep.__class__.__qualname__)
+
+
 class KeyDescBase(abc.ABC):
     """
     Base class for configuration files key descriptor.
@@ -298,6 +317,16 @@ class MissingBaseKeyError(ConfigKeyError):
     Exception raised when a base key needed to compute a derived key is missing.
     """
     pass
+
+
+class DeferredValueComputationError(ConfigKeyError):
+    """
+    Raised when computing the value of :class:`DeferredValue` lead to an
+    exception.
+    """
+    def __init__(self, msg, excep):
+        super().__init__(msg)
+        self.excep = excep
 
 
 class KeyComputationRecursionError(ConfigKeyError, RecursionError):
@@ -1303,7 +1332,23 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         key_desc = self._structure[key]
         val = self._key_map[key][src]
         if isinstance(val, DeferredValue):
-            val = val(key_desc=key_desc)
+            try:
+                val = val(key_desc=key_desc)
+            # Propagate ConfigKeyError as-is
+            except ConfigKeyError:
+                raise
+            # Wrap into a ConfigKeyError so that the user code can easily
+            # handle missing keys, and the original exception is still
+            # available as excep.__cause__ since it was chained with "from"
+            except Exception as e:
+                raise DeferredValueComputationError(
+                    'Could not compute "{key}" from source "{src}": {excep}'.format(
+                        key=key,
+                        src=src,
+                        excep=e,
+                    ),
+                    excep=e,
+                ) from e
             key_desc.validate_val(val)
             self._key_map[key][src] = val
         return val
