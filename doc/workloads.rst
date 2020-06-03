@@ -38,7 +38,7 @@ cycle is as simple as this::
    for i in range(4):
        profile["task_{}".format(i)] = Periodic(duty_cycle_pct=50)
 
-   wload = RTA.by_profile(target, "4_50_tasks", profile)
+   wload = RTA.by_profile(target, profile, name="4_50_tasks")
    wload.run()
 
 See the :class:`~lisa.wlgen.rta.RTA` & :class:`~lisa.wlgen.rta.RTATask`

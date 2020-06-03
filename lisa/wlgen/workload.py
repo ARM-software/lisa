@@ -39,8 +39,15 @@ class Workload(Loggable):
     :param res_dir: Directory into which artefacts will be stored
     :type res_dir: str
 
-    :ivar command: Will be called in :meth:`run`. Daughter classes should
-      specify its value as needed.
+    :ivar command: The command this workload will execute when invoking
+      :meth:`run`. Daughter classes should specify its value before
+      :meth:`run` is invoked; preferably in the daughter ``__init__()`` (see
+      example below), or in the daughter ``run()`` before the ``super()`` call.
+
+    :ivar output: The saved output of the last :meth:`run()` invocation.
+
+    .. note:: A :class:`Workload` instance can be used as a context manager,
+      which ensures :meth:`wipe_run_dir()` is eventually invoked.
 
     **Design notes**
 
@@ -55,13 +62,13 @@ class Workload(Loggable):
     **Implementation example**::
 
         class Printer(Workload):
-            def __init__(self, target, name, res_dir=None):
+            def __init__(self, target, name=None, res_dir=None):
                 super().__init__(target, name, res_dir)
                 self.command = "echo"
 
-            def run(self, cpus=None, cgroup=None, background=False, as_root=False, value=42):
+            def run(self, cpus=None, cgroup=None, as_root=False, value=42):
                 self.command = "{} {}".format(self.command, shlex.quote(value))
-                super().run(cpus, cgroup, background, as_root)
+                super().run(cpus, cgroup, as_root)
 
     **Usage example**::
 
@@ -79,15 +86,15 @@ class Workload(Loggable):
     :meth:`lisa.target.Target.install_tools`.
     """
 
-    def __init__(self, target, name, res_dir=None):
+    def __init__(self, target, name=None, res_dir=None):
         self.target = target
-        self.name = name
+        self.name = name or self.__class__.__qualname__
         self.command = None
         self.output = ""
 
         wlgen_dir = self.target.path.join(target.working_directory,
                                           "lisa", "wlgen")
-        self.target.execute("mkdir -p {}/lisa/wlgen".format(quote(wlgen_dir)))
+        self.target.execute("mkdir -p {}".format(quote(wlgen_dir)))
 
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         temp_fmt = "{}_{}_XXXXXX".format(self.name, timestamp)
@@ -98,7 +105,9 @@ class Workload(Loggable):
         logger.info("Creating target's run directory: {}".format(self.run_dir))
 
         res_dir = res_dir if res_dir else target.get_res_dir(
-            name='{}-{}'.format(self.__class__.__qualname__, name)
+            name='{}{}'.format(
+                self.__class__.__qualname__,
+                '-{}'.format(name) if name else '')
         )
         self.res_dir = res_dir
 
@@ -125,7 +134,7 @@ class Workload(Loggable):
         """
         self.wipe_run_dir()
 
-    def run(self, cpus=None, cgroup=None, background=False, as_root=False, timeout=None):
+    def run(self, cpus=None, cgroup=None, as_root=False, timeout=None):
         """
         Execute the workload on the configured target.
 
@@ -134,9 +143,6 @@ class Workload(Loggable):
 
         :param cgroup: cgroup in which to run the workload
         :type cgroup: str
-
-        :param background: Whether to run the workload in background or not
-        :type background: bool
 
         :param as_root: Whether to run the workload as root or not
         :type as_root: bool
@@ -171,16 +177,13 @@ class Workload(Loggable):
 
         logger.info("Execution start: {}".format(_command))
 
-        if background:
-            target.background(_command, as_root=as_root)
-        else:
-            self.output = target.execute(_command, as_root=as_root, timeout=timeout)
-            logger.info("Execution complete")
+        self.output = target.execute(_command, as_root=as_root, timeout=timeout)
+        logger.info("Execution complete")
 
-            logfile = ArtifactPath.join(self.res_dir, 'output.log')
-            logger.debug('Saving stdout to {}...'.format(logfile))
+        logfile = ArtifactPath.join(self.res_dir, 'output.log')
+        logger.debug('Saving stdout to {}...'.format(logfile))
 
-            with open(logfile, 'w') as ofile:
-                ofile.write(self.output)
+        with open(logfile, 'w') as ofile:
+            ofile.write(self.output)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
