@@ -137,6 +137,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             ``cpu``.
 
         :param signal: Signal name to get. Can be any of:
+
             * ``util``
             * ``load``
             * ``enqueued`` (util est enqueued)
