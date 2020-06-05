@@ -1278,6 +1278,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
         # called from external modules, like __init_subclass__ that is called
         # from other modules like abc.py
         if parameter:
+            register_deprecated_map = False
             def wrap_func(func, stacklevel=1):
                 sig = inspect.signature(func)
                 @functools.wraps(func)
@@ -1288,22 +1289,13 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
                     return func(**kwargs)
                 return wrapper
         else:
+            register_deprecated_map = True
             def wrap_func(func, stacklevel=1):
                 @functools.wraps(func)
                 def wrapper(*args, **kwargs):
                     warnings.warn(make_msg(obj), DeprecationWarning, stacklevel=stacklevel)
                     return func(*args, **kwargs)
                 return wrapper
-
-            # Make sure we don't accidentally override an existing entry
-            assert obj_name not in DEPRECATED_MAP
-            DEPRECATED_MAP[obj_name] = {
-                'obj': obj,
-                'replaced_by': replaced_by,
-                'msg': msg,
-                'removed_in': removed_in,
-                'deprecated_in': deprecated_in,
-            }
 
         # For classes, wrap __new__ and update docstring
         if isinstance(obj, type):
@@ -1395,6 +1387,21 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
             doc += '\n\n' + extra_doc
 
         update_doc_of.__doc__ = doc
+
+        # Register in the mapping only once we know what is the returned
+        # object, so that what the rest of the world will see is consistent
+        # with the 'obj' key
+        if register_deprecated_map:
+            # Make sure we don't accidentally override an existing entry
+            assert obj_name not in DEPRECATED_MAP
+            DEPRECATED_MAP[obj_name] = {
+                'obj': return_obj,
+                'replaced_by': replaced_by,
+                'msg': msg,
+                'removed_in': removed_in,
+                'deprecated_in': deprecated_in,
+            }
+
         return return_obj
 
     return decorator
