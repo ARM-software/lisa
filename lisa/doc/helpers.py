@@ -294,21 +294,29 @@ def autodoc_process_analysis_methods(app, what, name, obj, options, lines):
 def get_analysis_list(meth_type):
     rst_list = []
 
+    deprecated = {
+        entry['obj']
+        for entry in get_deprecated_map().values()
+    }
+
     for subclass in get_subclasses(AnalysisHelpers):
         class_path = "{}.{}".format(subclass.__module__, subclass.__qualname__)
         if meth_type == 'plot':
-            meth_list = [
-                f.__name__
-                for f in subclass.get_plot_methods()
-            ]
+            meth_list = subclass.get_plot_methods()
         elif meth_type == 'df':
             meth_list = [
-                name
+                member
                 for name, member in inspect.getmembers(subclass, callable)
                 if name.startswith('df_')
             ]
         else:
             raise ValueError()
+
+        meth_list = [
+            f.__name__
+            for f in meth_list
+            if f not in deprecated
+        ]
 
         rst_list += [
             ":class:`{analysis_name}<{cls}>`::meth:`~{cls}.{meth}`".format(
