@@ -141,7 +141,7 @@ def handle_plot_excep(exit_on_error=True):
     except MissingTraceEventError as e:
         excep_msg = str(e)
     except ConfigKeyError as e:
-        excep_msg = 'Please specify --platinfo with the "{}" filled in'.format(e.args[1])
+        excep_msg = 'Please specify --plat-info with the "{}" filled in'.format(e.args[1])
     else:
         excep_msg = None
 
@@ -245,7 +245,7 @@ Available plots:
     )
 
 
-    parser.add_argument('--platinfo',
+    parser.add_argument('--plat-info',
         help='Platform information, necessary for some plots',
     )
 
@@ -261,8 +261,8 @@ Available plots:
         for plot_name, meth in plot_list.items()
     }
 
-    if args.platinfo:
-        plat_info = PlatformInfo.from_yaml_map(args.platinfo)
+    if args.plat_info:
+        plat_info = PlatformInfo.from_yaml_map(args.plat_info)
     else:
         plat_info = None
 
