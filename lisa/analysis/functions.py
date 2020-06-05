@@ -129,7 +129,7 @@ class JSONStatsFunctionsAnalysis(AnalysisHelpers):
     :type stats_path: str
     """
 
-    name = 'functions'
+    name = 'functions_json'
 
     def __init__(self, stats_path):
         self.stats_path = stats_path
