@@ -312,6 +312,14 @@ comparison. Can be repeated.""")
             else:
                 return froz_val
 
+        def get_obj(froz_val):
+            val = froz_val.value
+            excep = froz_val.excep
+            if val is NoValue and excep is not NoValue:
+                return excep
+            else:
+                return val
+
         def get_attr_key(obj, attr_key):
             # parse "attr[key1][key2][...]"
             attr = attr_key.split('[', 1)[0]
@@ -351,9 +359,9 @@ comparison. Can be repeated.""")
         for uuid, attr_set in attr_map.items():
             attr_list = sorted(attr_set)
             froz_val = get_uuid(uuid)
-            value = froz_val.value
+            obj = get_obj(froz_val)
             for attr in attr_list:
-                attr_value = resolve_attr(value, attr)
+                attr_value = resolve_attr(obj, attr)
 
                 attr_str = str(attr_value)
                 if '\n' in attr_str:
@@ -364,7 +372,7 @@ comparison. Can be repeated.""")
 
                 print(show_format.format(
                     uuid=froz_val.uuid,
-                    type=get_name(type(value)),
+                    type=get_name(type(obj)),
                     attr='.' + attr if attr else '',
                     val=attr_str,
                     eq=eq,
@@ -379,8 +387,8 @@ comparison. Can be repeated.""")
 
         for uuid, attr in yaml_show_spec_list:
             froz_val = get_uuid(uuid)
-            value = froz_val.value
-            value = resolve_attr(value, attr)
+            obj = get_obj(froz_val)
+            value = resolve_attr(obj, attr)
 
             if isinstance(value, Serializable):
                 yaml_str = value.to_yaml()
@@ -396,8 +404,8 @@ comparison. Can be repeated.""")
         for uuid_attr, path in serialize_spec_list:
             uuid, attr = parse_uuid_attr(uuid_attr)
             froz_val = get_uuid(uuid)
-            value = froz_val.value
-            value = resolve_attr(value, attr)
+            obj = get_obj(froz_val)
+            value = resolve_attr(obj, attr)
 
             if isinstance(value, Serializable):
                 value.to_path(path)
