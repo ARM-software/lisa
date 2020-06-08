@@ -94,15 +94,18 @@ class Workload(Loggable):
 
         wlgen_dir = self.target.path.join(target.working_directory,
                                           "lisa", "wlgen")
-        self.target.execute("mkdir -p {}".format(quote(wlgen_dir)))
+        target.execute('mkdir -p {}'.format(quote(wlgen_dir)))
 
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        temp_fmt = "{}_{}_XXXXXX".format(self.name, timestamp)
-        self.run_dir = target.execute("mktemp -d -p {} {}".format(
-                                      quote(wlgen_dir), quote(temp_fmt))).strip()
+        temp_fmt = "{name}_{time}_XXXXXX".format(
+            name=self.name.replace('/', '_'),
+            time=datetime.now().strftime('%Y%m%d_%H%M%S'),
+        )
+        cmd = "mktemp -d -p {} {}".format(
+            quote(wlgen_dir), quote(temp_fmt)
+        )
+        self.run_dir = target.execute(cmd).strip()
 
-        logger = self.get_logger()
-        logger.info("Creating target's run directory: {}".format(self.run_dir))
+        self.get_logger().info("Created workload's run target directory: {}".format(self.run_dir))
 
         res_dir = res_dir if res_dir else target.get_res_dir(
             name='{}{}'.format(
@@ -110,7 +113,6 @@ class Workload(Loggable):
                 '-{}'.format(name) if name else '')
         )
         self.res_dir = res_dir
-
         self.target.install_tools(self.required_tools)
 
     def wipe_run_dir(self):
