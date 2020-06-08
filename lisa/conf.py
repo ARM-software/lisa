@@ -309,8 +309,10 @@ class ConfigKeyError(KeyError):
     """
     Exception raised when a key is not found in the config instance.
     """
-    def __init__(self, msg):
+    def __init__(self, msg, key=None, src=None):
         self.msg = msg
+        self.key = key
+        self.src = src
 
     def __str__(self):
         return self.msg
@@ -328,9 +330,9 @@ class DeferredValueComputationError(ConfigKeyError):
     Raised when computing the value of :class:`DeferredValue` lead to an
     exception.
     """
-    def __init__(self, msg, excep):
-        super().__init__(msg)
+    def __init__(self, msg, excep, **kwargs):
         self.excep = excep
+        super().__init__(msg, **kwargs)
 
 
 class KeyComputationRecursionError(ConfigKeyError, RecursionError):
@@ -449,12 +451,16 @@ class DerivedKeyDesc(KeyDesc):
                 val = self._get_base_key_val(conf, key_path, eval_deferred=eval_deferred)
                 set_nested_key(base_conf, key_path, val)
             return base_conf
-        except KeyError as e:
-            raise MissingBaseKeyError('Missing value for base key "{base_key}" in order to compute derived key "{derived_key}": {msg}'.format(
-                derived_key=self.qualname,
-                base_key=e.args[1],
-                msg=e.args[0],
-            )) from e
+        except ConfigKeyError as e:
+            key = self.qualname
+            raise MissingBaseKeyError(
+                'Missing value for base key "{base_key}" in order to compute derived key "{derived_key}": {msg}'.format(
+                    derived_key=key,
+                    base_key=e.key,
+                    msg=e.msg,
+                ),
+                key=key,
+            ) from e
 
     def get_non_evaluated_base_keys(self, conf):
         """
@@ -578,11 +584,14 @@ class LevelKeyDesc(KeyDescBase, Mapping):
                 closest_match = ', maybe you meant "{}" ?'.format(closest_match)
 
             parent = self.qualname
-            raise ConfigKeyError('Key "{key}" is not allowed in {parent}{maybe}'.format(
+            raise ConfigKeyError(
+                'Key "{key}" is not allowed in {parent}{maybe}'.format(
+                    key=key,
+                    parent=parent,
+                    maybe=closest_match,
+                ),
                 key=key,
-                parent=parent,
-                maybe=closest_match,
-            ), parent, key)
+            )
 
     def validate_val(self, conf):
         """Validate a mapping to be used as a configuration source"""
@@ -1328,9 +1337,12 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             return src_prio[0]
         else:
             key = key_desc.qualname
-            raise ConfigKeyError('Could not find any source for key "{key}"'.format(
+            raise ConfigKeyError(
+                'Could not find any source for key "{key}"'.format(
+                    key=key,
+                ),
                 key=key,
-            ), key)
+            )
 
     def _eval_deferred_val(self, src, key):
         key_desc = self._structure[key]
@@ -1345,13 +1357,16 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             # handle missing keys, and the original exception is still
             # available as excep.__cause__ since it was chained with "from"
             except Exception as e:
+                key = key_desc.qualname
                 raise DeferredValueComputationError(
                     'Could not compute "{key}" from source "{src}": {excep}'.format(
                         key=key,
                         src=src,
                         excep=e,
                     ),
+                    key=key,
                     excep=e,
+                    src=src,
                 ) from e
             key_desc.validate_val(val)
             self._key_map[key][src] = val
@@ -1467,10 +1482,14 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 val = self._key_map[key][src]
             except KeyError:
                 key = key_desc.qualname
-                raise ConfigKeyError('Key "{key}" is not available from source "{src}"'.format(
+                raise ConfigKeyError(
+                    'Key "{key}" is not available from source "{src}"'.format(
+                        key=key,
+                        src=src,
+                    ),
                     key=key,
                     src=src,
-                ), key)
+                )
 
             if eval_deferred:
                 val = self._eval_deferred_val(src, key)
