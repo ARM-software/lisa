@@ -52,7 +52,7 @@ class UserspaceSanityItem(TestBundle):
         :type switch_governor: bool
         """
 
-        sysbench = Sysbench(target, res_dir)
+        sysbench = Sysbench(target, res_dir=res_dir)
 
         cm = target.cpufreq.use_governor('userspace') if switch_governor else nullcontext()
         with cm:
