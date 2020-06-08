@@ -309,7 +309,11 @@ class ConfigKeyError(KeyError):
     """
     Exception raised when a key is not found in the config instance.
     """
-    pass
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return self.msg
 
 
 class MissingBaseKeyError(ConfigKeyError):
