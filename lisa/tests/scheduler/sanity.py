@@ -43,7 +43,7 @@ class CapacitySanity(TestBundle):
         Factory method to create a bundle using a live target
         """
         with target.cpufreq.use_governor("performance"):
-            sysbench = Sysbench(target, "sysbench", res_dir)
+            sysbench = Sysbench(target, res_dir=res_dir)
 
             cpu_capacities = target.sched.get_capacities()
             capa_work = {capa: sys.maxsize for capa in list(cpu_capacities.values())}
