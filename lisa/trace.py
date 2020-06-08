@@ -4621,13 +4621,23 @@ class MissingTraceEventError(RuntimeError, ValueError):
     """
 
     def __init__(self, missing_events, available_events=None):
-        msg = "Trace is missing the following required events: {}".format(missing_events)
-        if available_events:
-            msg += '. Available events are: {}'.format(
-                ', '.join(available_events))
-
-        super().__init__(msg)
         self.missing_events = missing_events
+        # Forcibly turn into a list, to avoid carrying around an
+        # _AvailableTraceEventsSet with its Trace instance
+        self.available_events = sorted(available_events or [])
+
+    def __str__(self):
+        if self.available_events:
+            available = '. Available events are: {}'.format(
+                ', '.join(sorted(self.available_events)))
+        else:
+            available = ''
+
+        return "Trace is missing the following required events: {}{}".format(
+            self.missing_events,
+            available,
+        )
+        return msg
 
 
 class FtraceConf(SimpleMultiSrcConf, HideExekallID):
