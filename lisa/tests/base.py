@@ -957,6 +957,25 @@ class DmesgTestBundle(TestBundle):
     Path to the dmesg log in the result directory.
     """
 
+    CANNED_DMESG_IGNORED_PATTERNS = {
+        'EAS-schedutil': 'Disabling EAS, schedutil is mandatory',
+        # On kernel >= 5.6, executable stack will trigger this issue:
+    	# kern: warn: [555.927466] process 'root/devlib-target/bin/busybox' started with executable stack
+        'executable-stack': 'started with executable stack',
+    }
+    """
+    Mapping of canned patterns to avoid repetition while defining
+    :attr:`DMESG_IGNORED_PATTERNS` in subclasses.
+    """
+
+    DMESG_IGNORED_PATTERNS = [
+        CANNED_DMESG_IGNORED_PATTERNS['executable-stack'],
+    ]
+    """
+    List of patterns to ignore in addition to the ones passed to
+    :meth:`test_dmesg`.
+    """
+
     @property
     def dmesg_path(self):
         """
@@ -987,12 +1006,18 @@ class DmesgTestBundle(TestBundle):
             inspected at all. If ``None``, the facility is ignored.
         :type facility: str or None
 
-        :param ignored_patterns: List of regexes to ignore some messages.
+        :param ignored_patterns: List of regexes to ignore some messages. The
+            pattern list is combined with :attr:`DMESG_IGNORED_PATTERNS` class
+            attribute.
         :type ignored_patterns: list or None
         """
         levels = DmesgCollector.LOG_LEVELS
         # Consider as an issue all levels more critical than `level`
         issue_levels = levels[:levels.index(level) + 1]
+        ignored_patterns = (
+            (ignored_patterns or []) +
+            (self.DMESG_IGNORED_PATTERNS or [])
+        )
 
         logger = self.get_logger()
 
