@@ -8,4 +8,7 @@ cleanup() { rm "$script"; }
 trap cleanup EXIT
 
 jupyter nbconvert --to python --stdout "$ipynb"  > "$script" &&
-ipython3 "$script"
+# Avoid colors since it does not try to detect non-interactive outut
+ipython3 --colors=NoColor "$script"
+
+# DO NOT USE exec FOR THE LAST COMMAND, as it will prevent the cleanup from happening
