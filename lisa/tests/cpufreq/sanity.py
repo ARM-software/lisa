@@ -71,6 +71,14 @@ class UserspaceSanity(DmesgTestBundle):
     :type sanity_items: list(UserspaceSanityItem)
     """
 
+    DMESG_IGNORED_PATTERNS = [
+        *DmesgTestBundle.DMESG_IGNORED_PATTERNS,
+
+        # Since we use the performance governor, we will hit a warning when
+        # disabling schedutil
+        DmesgTestBundle.CANNED_DMESG_IGNORED_PATTERNS['EAS-schedutil']
+    ]
+
     def __init__(self, res_dir, plat_info, sanity_items):
         super().__init__(res_dir, plat_info)
 
