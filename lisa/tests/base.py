@@ -1011,7 +1011,7 @@ class DmesgTestBundle(TestBundle):
             if (
                 (entry.facility == facility if facility else True)
                 and (entry.level in issue_levels)
-                and not any(regex.match(entry.msg) for regex in ignored_regex)
+                and not any(regex.search(entry.msg) for regex in ignored_regex)
             )
         ]
 
