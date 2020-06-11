@@ -1325,7 +1325,7 @@ class LegacyEnergyModel(EnergyModel):
 
         # Sort core groups so that the lowest-numbered cores are first
         # Again, not strictly necessary, just more pleasant.
-        return sorted(ret, key=lambda x: x[0])
+        return sorted(ret, key=operator.itemgetter(0))
 
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
