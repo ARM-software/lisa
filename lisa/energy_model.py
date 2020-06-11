@@ -313,6 +313,10 @@ class EnergyModel(Serializable, Loggable):
 
     :ivar cpu_nodes: List of leaf (CPU) :class:`EnergyModelNode`
     :ivar cpus: List of logical CPU numbers in the system
+    :ivar capacity_scale: The relative computational capacity of the most
+        powerful CPU at its highest available frequency. Utilisation is in the
+        interval ``[0, capacity_scale]``.
+
 
     :param root_node: Root of :class:`EnergyModelNode` tree
     :param root_power_domain: Root of :class:`PowerDomain` tree
@@ -338,9 +342,6 @@ class EnergyModel(Serializable, Loggable):
         by a CPU runqueue's util_avg in the Linux kernel scheduler's
         load-tracking system with EAS features enabled.
 
-        The range of utilization values is 0 -
-        :attr:`EnergyModel.capacity_scale`.
-
         This represents a static utilization, assuming that tasks don't change
         in size (for example representing a set of fixed periodic RT-App
         workloads). For workloads that change over time, a series of
@@ -352,11 +353,6 @@ class EnergyModel(Serializable, Loggable):
     """
     Order in which subclasses are tried when auto-detecting the kind of energy
     model to load from a target.
-    """
-
-    capacity_scale = 1024
-    """The relative computational capacity of the most powerful CPU at its
-    highest available frequency.
     """
 
     def __init__(self, root_node, root_power_domain, freq_domains):
@@ -405,11 +401,10 @@ class EnergyModel(Serializable, Loggable):
         self.cpu_pds = sorted_leaves(root_power_domain)
         assert len(self.cpu_pds) == len(self.cpu_nodes)
 
-        max_cap = max(n.max_capacity for n in self.cpu_nodes)
-        if max_cap != self.capacity_scale:
-            logger.debug(
-                'Unusual max capacity ({}), overriding capacity_scale'.format(max_cap))
-            self.capacity_scale = max_cap
+        self.capacity_scale = max(
+            node.max_capacity
+            for node in self.cpu_nodes
+        )
 
     def _cpus_with_capacity(self, cap):
         """
