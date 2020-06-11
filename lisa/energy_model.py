@@ -812,7 +812,19 @@ class EnergyModel(Serializable, Loggable):
 
         subcls = cls._find_subcls(target)
         logger.info('Attempting to load EM using {}'.format(subcls.__name__))
-        return subcls.from_target(target)
+        em = subcls.from_target(target)
+
+        cpu_missing_idle_states = sorted(
+            node.cpu
+            for node in em.root.iter_leaves()
+            if not node.idle_states
+        )
+        if cpu_missing_idle_states:
+            logger.warning('CPUs missing idle states in cpuidle framework: {}'.format(
+                cpu_missing_idle_states,
+            ))
+
+        return em
 
     @deprecate(replaced_by='lisa.energy_model.LinuxEnergyModel.from_target', deprecated_in='2.0', removed_in='2.1')
     @staticmethod
