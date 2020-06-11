@@ -110,7 +110,11 @@ class _CpuTree(Loggable):
         else:
             if len(children) == 0:
                 raise ValueError('children cannot be empty')
-            self.cpus = tuple(sorted(set().union(*[n.cpus for n in children])))
+            self.cpus = tuple(sorted(set(
+                cpu
+                for node in children
+                for cpu in node.cpus
+            )))
             self.children = children
             for child in children:
                 child.parent = self
@@ -361,12 +365,14 @@ class EnergyModel(Serializable, Loggable):
         if self.cpus != tuple(range(len(self.cpus))):
             raise ValueError('CPU IDs [{}] are sparse'.format(self.cpus))
 
+        domains_as_set = [set(dom) for dom in freq_domains]
+
         # Check that freq_domains is a partition of the CPUs
-        fd_intersection = set().intersection(*freq_domains)
+        fd_intersection = set.intersection(*domains_as_set)
         if fd_intersection:
             raise ValueError('CPUs {} exist in multiple freq domains'.format(
                 fd_intersection))
-        fd_difference = set(self.cpus) - set().union(*freq_domains)
+        fd_difference = set(self.cpus) - set.union(*domains_as_set)
         if fd_difference:
             raise ValueError('CPUs {} not in any frequency domain'.format(
                 fd_difference))
