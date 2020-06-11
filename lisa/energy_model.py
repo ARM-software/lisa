@@ -36,7 +36,7 @@ from lisa.analysis.frequency import FrequencyAnalysis
 """Classes for modeling and estimating energy usage of CPU systems"""
 
 
-def read_multiple_oneline_files(target, glob_patterns):
+def _read_multiple_oneline_files(target, glob_patterns):
     """
     Quickly read many single-line files that match a glob pattern
 
@@ -934,11 +934,14 @@ class EnergyModel(Serializable, Loggable):
 
     @classmethod
     @memoized
-    def _get_idle_states_name(cls, target, cpu):
+    def _get_idle_states_name(cls, target, cpu, only_real=False):
         if target.is_module_available('cpuidle'):
             return [s.name for s in target.cpuidle.get_states(cpu)]
         else:
-            return ['placeholder-idle-state']
+            if only_real:
+                raise ValueError('idle state detection requires the cpuidle devlib module')
+            else:
+                return ['placeholder-idle-state']
 
 
 class LinuxEnergyModel(EnergyModel):
@@ -1152,26 +1155,25 @@ class LegacyEnergyModel(EnergyModel):
         :returns: Constructed EnergyModel object based on the parameters
                   reported by the target.
         """
-        if not target.is_module_available('cpufreq'):
-            raise TargetStableError('Requires cpufreq devlib module. Please ensure '
-                               '"cpufreq" is listed in your target/test modules')
 
-        if not target.is_module_available('cpuidle'):
-            cls.get_logger().warning('Idle states detection requires cpuidle devlib module. Please ensure "cpuidle" is listed in your target/test modules')
+        cpus = set(range(target.number_of_cpus))
 
         def sge_path(cpu, domain, group, field):
             return filename.format(cpu, domain, group, field)
 
         # Read all the files we might need in one go, otherwise this will take
         # ages.
-        sge_globs = [sge_path('**', '**', '**', 'cap_states'),
-                     sge_path('**', '**', '**', 'nr_cap_states'),
-                     sge_path('**', '**', '**', 'idle_states')]
-        sge_file_values = read_multiple_oneline_files(target, sge_globs)
+        sge_globs = [
+            sge_path('**', '**', '**', 'cap_states'),
+            sge_path('**', '**', '**', 'nr_cap_states'),
+            sge_path('**', '**', '**', 'idle_states'),
+        ]
+        sge_file_values = _read_multiple_oneline_files(target, sge_globs)
 
         if not sge_file_values:
-            raise TargetStableError('Energy Model not exposed in sysfs. '
-                              'Check CONFIG_SCHED_DEBUG is enabled.')
+            raise TargetStableError(
+                'Energy Model not exposed in sysfs. Check CONFIG_SCHED_DEBUG is enabled.'
+            )
 
         # These functions read the cap_states and idle_states vectors for the
         # first sched_group in the sched_domain for a given CPU at a given
@@ -1203,7 +1205,7 @@ class LegacyEnergyModel(EnergyModel):
             nr_states = int(nr_cap_states_strs[0])
             em_member_count = int(nr_values / nr_states)
             if em_member_count not in (2, 3):
-                raise TargetStableError('Unsupported cap_states format '
+                raise ValueError('Unsupported cap_states format '
                                   'cpu={} domain_level={} path={}'.format(cpu, domain_level, cap_states_path))
 
             # Here we split the incoming cap_states_strs list into em_member_count lists, so that
@@ -1215,8 +1217,13 @@ class LegacyEnergyModel(EnergyModel):
             #   [c0, f0, p0, c1, f1, p1, c2, f2, p2] -> [(c0, f0, p0), (c1, f1, p1), (c2, f2, p2)]
             # it's generic, and doesn't care if the EM gets any more values in between so long as the
             # capacity is first and power is last.
-            cap_states = [ActiveState(capacity=int(c), power=int(p))
-                          for c, p in map(lambda x: (x[0], x[-1]), grouper(cap_states_strs, em_member_count))]
+            cap_states = [
+                ActiveState(capacity=int(c), power=int(p))
+                for c, p in map(
+                    lambda x: (x[0], x[-1]),
+                    grouper(cap_states_strs, em_member_count)
+                )
+            ]
 
             freqs = target.cpufreq.list_frequencies(cpu)
             return OrderedDict(zip(sorted(freqs), cap_states))
@@ -1226,107 +1233,108 @@ class LegacyEnergyModel(EnergyModel):
             idle_states_strs = read_sge_file(idle_states_path).split()
 
             # get_states should return the state names in increasing depth order
-            names = cls._get_idle_states_name(target, cpu)
+            names = cls._get_idle_states_name(target, cpu, only_real=True)
             # idle_states is a list of power values in increasing order of
             # idle-depth/decreasing order of power.
-            return OrderedDict(zip(names, [int(p) for p in idle_states_strs]))
+            return OrderedDict(zip(names, map(int, idle_states_strs)))
 
-        # Read the CPU-level data from sched_domain level 0
-        cpus = list(range(target.number_of_cpus))
-        cpu_nodes = []
-        for cpu in cpus:
-            node = EnergyModelNode(
-                cpu=cpu,
-                active_states=read_active_states(cpu, 0),
-                idle_states=read_idle_states(cpu, 0))
-            cpu_nodes.append(node)
+        def _find_core_groups(target):
+            """
+            Read the core_siblings masks for each CPU from sysfs
 
-        # Read the "cluster" level data from sched_domain level 1
-        core_group_nodes = []
-        for core_group in cls._find_core_groups(target):
-            node = EnergyModelNode(
-                children=[cpu_nodes[c] for c in core_group],
-                active_states=read_active_states(core_group[0], 1),
-                idle_states=read_idle_states(core_group[0], 1))
-            core_group_nodes.append(node)
+            :returns: A list of tuples of ints, representing the partition of core
+                    siblings
+            """
+            topology_base = '/sys/devices/system/cpu/'
 
-        root = EnergyModelRoot(children=core_group_nodes)
+            # We only care about core_siblings, but let's check *_siblings, so we
+            # can throw an error if a CPU's thread_siblings isn't just itself, or if
+            # there's a topology level we don't understand.
+
+            # Since we might have to read a lot of files, read everything we need in
+            # one go to avoid taking too long.
+            mask_glob = topology_base + 'cpu**/topology/*_siblings'
+            file_values = _read_multiple_oneline_files(target, [mask_glob])
+
+            regex = re.compile(
+                topology_base + r'cpu(?P<cpu>[0-9]+)/topology/(?P<level>[a-z]+)_siblings')
+
+            ret = set()
+
+            for path, mask_str in file_values.items():
+                match = regex.match(path)
+                cpu = int(match.group('cpu'))
+                level = match.group('level')
+                # mask_to_list returns the values in descending order, so we'll sort
+                # them ascending. This isn't strictly necessary but it's nicer.
+                siblings = tuple(sorted(mask_to_list(int(mask_str, base=16))))
+
+                if level == 'thread':
+                    if siblings != (cpu,):
+                        # SMT systems aren't supported
+                        raise ValueError(
+                            'CPU{} thread_siblings is {}. Expected: {}'.format(
+                                cpu, siblings, [cpu]
+                            )
+                        )
+                elif level != 'core':
+                    # The only other levels we should expect to find are 'book' and
+                    # 'shelf', which are not used by architectures we support.
+                    raise ValueError(
+                        'Unrecognised topology level "{}"'.format(level))
+                else:
+                    ret.add(siblings)
+
+            # Sort core groups so that the lowest-numbered cores are first
+            # Again, not strictly necessary, just more pleasant.
+            return sorted(ret, key=operator.itemgetter(0))
 
         # Use cpufreq to figure out the frequency domains
         freq_domains = []
-        remaining_cpus = set(cpus)
+        remaining_cpus = cpus.copy()
         while remaining_cpus:
-            cpu = next(iter(remaining_cpus))
+            cpu = remaining_cpus.pop()
             dom = target.cpufreq.get_related_cpus(cpu)
-            freq_domains.append(dom)
-            remaining_cpus = remaining_cpus.difference(dom)
+            freq_domains.append(sorted(dom))
+            remaining_cpus -= set(dom)
+        freq_domains = sorted(freq_domains)
 
-        # We don't have a way to read the power domains from sysfs (the kernel
-        # isn't even aware of them) so we'll just have to assume each CPU is its
-        # own power domain and all idle states are independent of each other.
-        cpu_pds = []
-        for cpu in cpus:
-            names = cls._get_idle_states_name(target, cpu)
-            cpu_pds.append(PowerDomain(cpu=cpu, idle_states=names))
+        return cls(
+            root_node=EnergyModelRoot(
+                children=[
+                    EnergyModelNode(
+                        children=[
+                            EnergyModelNode(
+                                cpu=cpu,
+                                active_states=read_active_states(cpu, 0),
+                                idle_states=read_idle_states(cpu, 0)
+                            )
+                            # Read the CPU-level data from sched_domain level 0
+                            for cpu in core_group
+                        ],
+                        active_states=read_active_states(core_group[0], 1),
+                        idle_states=read_idle_states(core_group[0], 1)
+                    )
+                    # Read the "cluster" level data from sched_domain level 1
+                    for core_group in _find_core_groups(target)
+                ]
+            ),
+            # We don't have a way to read the power domains from sysfs (the kernel
+            # isn't even aware of them) so we'll just have to assume each CPU is its
+            # own power domain and all idle states are independent of each other.
+            root_power_domain=PowerDomain(
+                children=[
+                    PowerDomain(
+                        cpu=cpu,
+                        idle_states=cls._get_idle_states_name(target, cpu, only_real=True),
+                    )
+                    for cpu in cpus
+                ],
+                idle_states=[],
+            ),
+            freq_domains=freq_domains,
+        )
 
-        root_pd = PowerDomain(children=cpu_pds, idle_states=[])
-
-        return cls(root_node=root,
-                   root_power_domain=root_pd,
-                   freq_domains=freq_domains)
-
-    @classmethod
-    def _find_core_groups(cls, target):
-        """
-        Read the core_siblings masks for each CPU from sysfs
-
-        :param target: Devlib Target object to read masks from
-        :returns: A list of tuples of ints, representing the partition of core
-                  siblings
-        """
-        cpus = list(range(target.number_of_cpus))
-
-        topology_base = '/sys/devices/system/cpu/'
-
-        # We only care about core_siblings, but let's check *_siblings, so we
-        # can throw an error if a CPU's thread_siblings isn't just itself, or if
-        # there's a topology level we don't understand.
-
-        # Since we might have to read a lot of files, read everything we need in
-        # one go to avoid taking too long.
-        mask_glob = topology_base + 'cpu**/topology/*_siblings'
-        file_values = read_multiple_oneline_files(target, [mask_glob])
-
-        regex = re.compile(
-            topology_base + r'cpu([0-9]+)/topology/([a-z]+)_siblings')
-
-        ret = set()
-
-        for path, mask_str in file_values.items():
-            match = regex.match(path)
-            cpu = int(match.groups()[0])
-            level = match.groups()[1]
-            # mask_to_list returns the values in descending order, so we'll sort
-            # them ascending. This isn't strictly necessary but it's nicer.
-            siblings = tuple(sorted(mask_to_list(int(mask_str, 16))))
-
-            if level == 'thread':
-                if siblings != (cpu,):
-                    # SMT systems aren't supported
-                    raise RuntimeError('CPU{} thread_siblings is {}. '
-                                       'expected {}'.format(cpu, siblings, [cpu]))
-                continue
-            if level != 'core':
-                # The only other levels we should expect to find are 'book' and
-                # 'shelf', which are not used by architectures we support.
-                raise RuntimeError(
-                    'Unrecognised topology level "{}"'.format(level))
-
-            ret.add(siblings)
-
-        # Sort core groups so that the lowest-numbered cores are first
-        # Again, not strictly necessary, just more pleasant.
-        return sorted(ret, key=operator.itemgetter(0))
 
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
