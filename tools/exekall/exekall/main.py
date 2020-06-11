@@ -263,7 +263,7 @@ please run ``exekall run YOUR_SOURCES_OR_MODULES --help``.
 
     run_uuid_group = run_parser.add_mutually_exclusive_group()
     add_argument(run_uuid_group, '--replay',
-        help="""Replay the execution of the given UUID, loading as much prerequisite from the DB as possible.""")
+        help="""Replay the execution of the given UUID, loading as much prerequisite from the DB as possible. This implies --pdb for convenience.""")
 
     add_argument(run_uuid_group, '--load-uuid', action='append',
         default=[],
@@ -683,7 +683,7 @@ def do_run(args, parser, run_parser, argv):
     module_set.add(inspect.getmodule(adaptor_cls))
 
     verbose = args.verbose
-    use_pdb = args.pdb
+    use_pdb = args.pdb or args.replay
     save_db = args.save_value_db
 
     iteration_nr = args.n
