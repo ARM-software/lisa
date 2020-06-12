@@ -957,11 +957,11 @@ class CPUMigrationBase(LoadTrackingBase):
         """
         df = self.trace.analysis.load_tracking.df_cpus_signal('util')
         tasks = self.rtapp_task_ids_map.keys()
-        task = sorted(task for task in tasks if task.startswith('migr'))[0]
-        task = self.rtapp_task_ids_map[task][0]
+        migr_task = sorted(task for task in tasks if task.startswith('migr'))[0]
+        migr_task = self.rtapp_task_ids_map[migr_task][0]
 
         cpu_util = {}
-        for row in self.trace.analysis.rta.df_phases(task).itertuples():
+        for row in self.trace.analysis.rta.df_phases(migr_task).itertuples():
             phase = row.phase
             duration = row.duration
             start = row.Index
