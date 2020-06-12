@@ -904,6 +904,30 @@ def fold(f, xs, init=None):
         f(init, first),
     )
 
+def is_monotonic(iterable, decreasing=False):
+    """
+    Return ``True`` if the given sequence is monotonic, ``False`` otherwise.
+
+    :param decreasing: If ``True``, check that the sequence is decreasing
+        rather than increasing.
+    :type decreasing: bool
+    """
+
+    op = operator.ge if decreasing else operator.le
+    iterator = iter(iterable)
+
+    try:
+        x = next(iterator)
+        while True:
+            y = next(iterator)
+            if op(x, y):
+                x = next(iterator)
+            else:
+                return False
+    except StopIteration:
+        return True
+
+
 def take(n, iterable):
     """
     Yield the first ``n`` items of an iterator, if ``n`` positive, or last
