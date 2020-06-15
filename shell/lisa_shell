@@ -295,7 +295,7 @@ function lisa-install {
 
     # Log the version of all Python modules, so we know what is the faulty
     # version when something goes wrong
-    print "\n\n" >> "$lisa_install_versions"
+    printf "\n\n" >> "$lisa_install_versions"
     LC_ALL=C date >> "$lisa_install_versions"
     lisa-version >> "$lisa_install_versions"
     _lisa-python -m pip freeze >> "$lisa_install_versions"
