@@ -62,7 +62,7 @@ class SerialMon(Instrument):
         if self._collector.collecting:
             self._collector.stop()
             data = self._collector.get_data()
-            for l in data:
+            for l in data:  # noqa: E741
                 context.add_artifact("{}_serial_log".format(identifier),
                                      l.path, kind="log")
 

@@ -37,8 +37,8 @@ This section contains reference information common to plugins of all types.
 The Context
 ~~~~~~~~~~~
 
-.. note:: For clarification on the meaning of "workload specification" ("spec"), "job"
-  and "workload" and the distiction between them, please see the :ref:`glossary <glossary>`.
+.. note:: For clarification on the meaning of "workload specification" "spec", "job"
+  and "workload" and the distinction between them, please see the :ref:`glossary <glossary>`.
 
 The majority of methods in plugins accept a context argument. This is an
 instance of :class:`wa.framework.execution.ExecutionContext`. It contains
@@ -158,7 +158,7 @@ irrespective of the host's path notation. For example:
 .. note:: Output processors, unlike workloads and instruments, do not have their
           own target attribute as they are designed to be able to be run offline.
 
-.. _plugin-parmeters:
+.. _plugin-parameters:
 
 Parameters
 ~~~~~~~~~~~

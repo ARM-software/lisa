@@ -290,6 +290,9 @@ class ConfigurationPoint(object):
 
     def set_value(self, obj, value=None, check_mandatory=True):
         if self.deprecated:
+            if value is not None:
+                msg = 'Depreciated parameter supplied for "{}" in "{}". The value will be ignored.'
+                logger.warning(msg.format(self.name, obj.name))
             return
         if value is None:
             if self.default is not None:
@@ -312,11 +315,9 @@ class ConfigurationPoint(object):
         setattr(obj, self.name, value)
 
     def validate(self, obj, check_mandatory=True):
-        value = getattr(obj, self.name, None)
         if self.deprecated:
-            msg = 'Depreciated parameter supplied for "{}" in "{}". The value will be ignored.'
-            logger.warning(msg.format(self.name, obj.name))
             return
+        value = getattr(obj, self.name, None)
         if value is not None:
             self.validate_value(obj.name, value)
         else:
@@ -464,6 +465,7 @@ class MetaConfiguration(Configuration):
             description="""
             The local mount point for the filer hosting WA assets.
             """,
+            default=''
         ),
         ConfigurationPoint(
             'logging',
@@ -480,7 +482,6 @@ class MetaConfiguration(Configuration):
                         contain bash color escape codes. Set this to ``False`` if
                         console output will be piped somewhere that does not know
                         how to handle those.
-
             """,
         ),
         ConfigurationPoint(

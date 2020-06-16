@@ -20,6 +20,7 @@ from wa.framework.exception import ValidationError, WorkloadError
 from wa.utils.types import list_of_strs
 from wa.utils.misc import unique
 
+
 class Speedometer(ApkUiautoWorkload):
 
     name = 'speedometer'
@@ -55,7 +56,7 @@ class Speedometer(ApkUiautoWorkload):
         super(Speedometer, self).update_output(context)
         result = None
         logcat_file = context.get_artifact_path('logcat')
-        with open(logcat_file) as fh:
+        with open(logcat_file, errors='replace') as fh:
             for line in fh:
                 match = self.regex.search(line)
                 if match:
@@ -65,4 +66,3 @@ class Speedometer(ApkUiautoWorkload):
             context.add_metric('Speedometer Score', result, 'Runs per minute', lower_is_better=False)
         else:
             raise WorkloadError("The Speedometer workload has failed. No score was obtainable.")
-

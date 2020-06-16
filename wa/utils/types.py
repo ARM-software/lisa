@@ -218,7 +218,7 @@ def version_tuple(v):
     return tuple(map(str, (v.split("."))))
 
 
-def module_name_set(l):
+def module_name_set(l):  # noqa: E741
     """
     Converts a list of target modules into a set of module names, disregarding
     any configuration that may be present.

@@ -51,7 +51,7 @@ class LogcatEvent(object):
 class LogcatParser(object):
 
     def parse(self, filepath):
-        with open(filepath) as fh:
+        with open(filepath, errors='replace') as fh:
             for line in fh:
                 event = self.parse_line(line)
                 if event:

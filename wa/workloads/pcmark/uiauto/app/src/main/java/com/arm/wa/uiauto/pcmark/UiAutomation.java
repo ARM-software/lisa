@@ -107,33 +107,40 @@ public class UiAutomation extends BaseUiAutomation {
         } else {
             UiObject benchmarktext =
                 mDevice.findObject(new UiSelector().textContains("INSTALL("));
-            benchmarktext.click();
+            if(benchmarktext.exists()) {
+                benchmarktext.click();
+            }
         }
-            UiObject install =
-                mDevice.findObject(new UiSelector().description("INSTALL")
+        
+        UiObject install =
+            mDevice.findObject(new UiSelector().description("INSTALL")
+                .className("android.view.View"));
+        if (install.exists()) {
+            install.click();
+        } else {
+            UiObject installtext =
+                mDevice.findObject(new UiSelector().text("INSTALL")
+                       .className("android.view.View"));
+            if (installtext.exists()) {
+                installtext.click();
+            }
+        }
+        UiObject installed =
+            mDevice.findObject(new UiSelector().text("RUN")
                     .className("android.view.View"));
-            if (install.exists()) {
-                install.click();
-            } else {
-                UiObject installtext =
-                    mDevice.findObject(new UiSelector().text("INSTALL")
-                        .className("android.view.View"));
-                installtext.click();;
-                }
-                UiObject installed =
-                    mDevice.findObject(new UiSelector().text("RUN")
-                        .className("android.view.View"));
-                installed.waitForExists(180000);
-                if (!installed.exists()){
-                    UiObject installeddesc =
-                        mDevice.findObject(new UiSelector().description("RUN")
-                            .className("android.view.View"));
+            installed.waitForExists(360000);
+            if (!installed.exists()){
+                UiObject installeddesc =
+                    mDevice.findObject(new UiSelector().description("RUN")
+                           .className("android.view.View"));
                     installeddesc.waitForExists(1000);
-                }
+            }
     }
 
     //Execute the Work 2.0 Performance Benchmark - wait up to ten minutes for this to complete
     private void runBenchmark() throws Exception {
+    	// After installing, stop screen switching back to landscape. 
+    	setScreenOrientation(ScreenOrientation.PORTRAIT);
         UiObject run =
             mDevice.findObject(new UiSelector().resourceId("CONTROL_PCMA_WORK_V2_DEFAULT")
                                                .className("android.view.View")
@@ -144,7 +151,7 @@ public class UiAutomation extends BaseUiAutomation {
         } else {
             UiObject runtext =
                 mDevice.findObject(new UiSelector().text("RUN"));
-                if (runtext.exists()) {
+                if (runtext.waitForExists(2000)) {
                     runtext.click();
                 } else {
                     UiObject rundesc =

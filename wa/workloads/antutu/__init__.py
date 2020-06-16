@@ -77,7 +77,7 @@ class Antutu(ApkUiautoWorkload):
         #pylint: disable=no-self-use
         expected_results = len(regex_version)
         logcat_file = context.get_artifact_path('logcat')
-        with open(logcat_file) as fh:
+        with open(logcat_file, errors='replace') as fh:
             for line in fh:
                 for regex in regex_version:
                     match = regex.search(line)

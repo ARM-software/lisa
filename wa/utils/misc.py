@@ -30,9 +30,12 @@ import string
 import subprocess
 import sys
 import traceback
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from functools import reduce  # pylint: disable=redefined-builtin
 from operator import mul
+from tempfile import gettempdir
+from time import sleep
 if sys.version_info[0] == 3:
     from io import StringIO
 else:
@@ -53,6 +56,8 @@ from devlib.utils.misc import (ABI_MAP, check_output, walk_modules,
                                to_identifier)
 
 check_output_logger = logging.getLogger('check_output')
+
+file_lock_logger = logging.getLogger('file_lock')
 
 
 # Defined here rather than in wa.exceptions due to module load dependencies
@@ -640,3 +645,44 @@ def format_ordered_dict(od):
     """
     return '{{{}}}'.format(', '.join('{}={}'.format(k, v)
                                      for k, v in od.items()))
+
+
+@contextmanager
+def lock_file(path, timeout=30):
+    """
+    Enable automatic locking and unlocking of a file path given. Used to
+    prevent synchronisation issues between multiple wa processes.
+    Uses a default timeout of 30 seconds which should be overridden for files
+    that are expect to be unavailable for longer periods of time.
+    """
+
+    # Import here to avoid circular imports
+    # pylint: disable=wrong-import-position,cyclic-import
+    from wa.framework.exception import ResourceError
+
+    locked = False
+    l_file = 'wa-{}.lock'.format(path)
+    l_file = os.path.join(gettempdir(), l_file.replace(os.path.sep, '_'))
+    file_lock_logger.debug('Acquiring lock on "{}"'.format(path))
+    try:
+        while timeout:
+            try:
+                open(l_file, 'x').close()
+                locked = True
+                file_lock_logger.debug('Lock acquired on "{}"'.format(path))
+                break
+            except FileExistsError:
+                msg = 'Failed to acquire lock on "{}" Retrying...'
+                file_lock_logger.debug(msg.format(l_file))
+                sleep(1)
+                timeout -= 1
+        else:
+            msg = 'Failed to acquire lock file "{}" within the timeout. \n' \
+                  'If there are no other running WA processes please delete ' \
+                  'this file and retry.'
+            raise ResourceError(msg.format(os.path.abspath(l_file)))
+        yield
+    finally:
+        if locked and os.path.exists(l_file):
+            os.remove(l_file)
+            file_lock_logger.debug('Lock released "{}"'.format(path))

@@ -31,7 +31,7 @@ import requests
 from wa import Parameter, settings, __file__ as _base_filepath
 from wa.framework.resource import ResourceGetter, SourcePriority, NO_ONE
 from wa.framework.exception import ResourceError
-from wa.utils.misc import (ensure_directory_exists as _d,
+from wa.utils.misc import (ensure_directory_exists as _d, lock_file,
                            ensure_file_directory_exists as _f, sha256, urljoin)
 from wa.utils.types import boolean, caseless_string
 
@@ -254,22 +254,23 @@ class Http(ResourceGetter):
         url = urljoin(self.url, owner_name, asset['path'])
         local_path = _f(os.path.join(settings.dependencies_directory, '__remote',
                                      owner_name, asset['path'].replace('/', os.sep)))
-        if os.path.exists(local_path) and not self.always_fetch:
-            local_sha = sha256(local_path)
-            if local_sha == asset['sha256']:
-                self.logger.debug('Local SHA256 matches; not re-downloading')
-                return local_path
-        self.logger.debug('Downloading {}'.format(url))
-        response = self.geturl(url, stream=True)
-        if response.status_code != http.client.OK:
-            message = 'Could not download asset "{}"; recieved "{} {}"'
-            self.logger.warning(message.format(url,
-                                               response.status_code,
-                                               response.reason))
-            return
-        with open(local_path, 'wb') as wfh:
-            for chunk in response.iter_content(chunk_size=self.chunk_size):
-                wfh.write(chunk)
+        with lock_file(local_path, timeout=5 * 60):
+            if os.path.exists(local_path) and not self.always_fetch:
+                local_sha = sha256(local_path)
+                if local_sha == asset['sha256']:
+                    self.logger.debug('Local SHA256 matches; not re-downloading')
+                    return local_path
+            self.logger.debug('Downloading {}'.format(url))
+            response = self.geturl(url, stream=True)
+            if response.status_code != http.client.OK:
+                message = 'Could not download asset "{}"; recieved "{} {}"'
+                self.logger.warning(message.format(url,
+                                                   response.status_code,
+                                                   response.reason))
+                return
+            with open(local_path, 'wb') as wfh:
+                for chunk in response.iter_content(chunk_size=self.chunk_size):
+                    wfh.write(chunk)
         return local_path
 
     def geturl(self, url, stream=False):
@@ -327,7 +328,8 @@ class Filer(ResourceGetter):
 
     """
     parameters = [
-        Parameter('remote_path', global_alias='remote_assets_path', default='',
+        Parameter('remote_path', global_alias='remote_assets_path',
+                  default=settings.assets_repository,
                   description="""
                   Path, on the local system, where the assets are located.
                   """),

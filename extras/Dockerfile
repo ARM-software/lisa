@@ -17,6 +17,13 @@
 #
 #   docker run -it --privileged -v /dev/bus/usb:/dev/bus/usb --volume ${PWD}:/workspace --workdir /workspace wa
 #
+# If using selinux you may need to add the `z` option when mounting
+# volumes e.g.:
+#   --volume ${PWD}:/workspace:z
+# Warning: Please ensure you do not use this option when mounting
+# system directores. For more information please see:
+# https://docs.docker.com/storage/bind-mounts/#configure-the-selinux-label
+#
 # The above command starts the container in privileged mode, with
 # access to USB devices. The current directory is mounted into the
 # image, allowing you to work from there. Any files written to this
@@ -46,8 +53,38 @@ ARG DEVLIB_REF=v1.2
 ARG WA_REF=v3.2
 ARG ANDROID_SDK_URL=https://dl.google.com/android/repository/sdk-tools-linux-3859397.zip
 
-RUN apt-get update
-RUN apt-get install -y python3 python3-pip git wget zip openjdk-8-jre-headless vim emacs nano curl sshpass ssh usbutils locales
+RUN apt-get update && apt-get install -y \
+apache2-utils \
+bison \
+cmake \
+curl \
+emacs \
+flex \
+git \
+libcdk5-dev \
+libiio-dev \
+libxml2 \
+libxml2-dev \
+locales \
+nano \
+openjdk-8-jre-headless \
+python3 \
+python3-pip \
+ssh \
+sshpass \
+sudo \
+trace-cmd \
+usbutils \
+vim \
+wget \
+zip
+
+# Clone and download iio-capture
+RUN git clone -v https://github.com/BayLibre/iio-capture.git /tmp/iio-capture && \
+    cd /tmp/iio-capture && \
+    make && \
+    make install
+
 RUN pip3 install pandas
 
 # Ensure we're using utf-8 as our default encoding
@@ -57,8 +94,16 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
 # Let's get the two repos we need, and install them
-RUN git clone -v https://github.com/ARM-software/devlib.git /tmp/devlib && cd /tmp/devlib && git checkout $DEVLIB_REF && python3 setup.py install && pip3 install .[full]
-RUN git clone -v https://github.com/ARM-software/workload-automation.git /tmp/wa && cd /tmp/wa && git checkout $WA_REF && python3 setup.py install && pip3 install .[all]
+RUN git clone -v https://github.com/ARM-software/devlib.git /tmp/devlib && \
+    cd /tmp/devlib && \
+    git checkout $DEVLIB_REF && \
+    python3 setup.py install && \
+    pip3 install .[full]
+RUN git clone -v https://github.com/ARM-software/workload-automation.git /tmp/wa && \
+    cd /tmp/wa && \
+    git checkout $WA_REF && \
+    python3 setup.py install && \
+    pip3 install .[all]
 
 # Clean-up
 RUN rm -R /tmp/devlib /tmp/wa
@@ -72,7 +117,13 @@ RUN mkdir -p /home/wa/.android
 RUN mkdir -p /home/wa/AndroidSDK && cd /home/wa/AndroidSDK && wget $ANDROID_SDK_URL -O sdk.zip && unzip sdk.zip
 RUN cd /home/wa/AndroidSDK/tools/bin && yes | ./sdkmanager --licenses && ./sdkmanager platform-tools && ./sdkmanager 'build-tools;27.0.3'
 
+# Download Monsoon
+RUN mkdir -p /home/wa/monsoon
+RUN curl https://android.googlesource.com/platform/cts/+/master/tools/utils/monsoon.py\?format\=TEXT | base64 --decode > /home/wa/monsoon/monsoon.py
+RUN chmod +x /home/wa/monsoon/monsoon.py
+
 # Update the path
+RUN echo 'export PATH=/home/wa/monsoon:${PATH}' >> /home/wa/.bashrc
 RUN echo 'export PATH=/home/wa/AndroidSDK/platform-tools:${PATH}' >> /home/wa/.bashrc
 RUN echo 'export PATH=/home/wa/AndroidSDK/build-tools:${PATH}' >> /home/wa/.bashrc
 RUN echo 'export ANDROID_HOME=/home/wa/AndroidSDK' >> /home/wa/.bashrc
