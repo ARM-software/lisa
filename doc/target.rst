@@ -660,20 +660,26 @@ Android Target
    Returns ``True`` if the targets auto brightness is currently
    enabled and ``False`` otherwise.
 
-.. method:: AndroidTarget.ensure_screen_is_off()
+.. method:: AndroidTarget.ensure_screen_is_off(verify=True)
 
    Checks if the devices screen is on and if so turns it off.
+   If ``verify`` is set to ``True`` then a ``TargetStableError``
+   will be raise if the display cannot be turned off. E.g. if
+   always on mode is enabled.
 
-.. method:: AndroidTarget.ensure_screen_is_on()
+.. method:: AndroidTarget.ensure_screen_is_on(verify=True)
 
    Checks if the devices screen is off and if so turns it on.
+   If ``verify`` is set to ``True`` then a ``TargetStableError``
+   will be raise if the display cannot be turned on.
 
 .. method:: AndroidTarget.is_screen_on()
 
    Returns ``True`` if the targets screen is currently on and ``False``
-   otherwise.
+   otherwise. If the display is in a "Doze" mode or similar always on state,
+   this will return ``True``.
 
-.. method:: AndroidTarget.wait_for_target(timeout=30)
+.. method:: AndroidTarget.wait_for_device(timeout=30)
 
     Returns when the devices becomes available withing the given timeout
     otherwise returns a ``TimeoutError``.

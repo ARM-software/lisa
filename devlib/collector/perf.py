@@ -236,7 +236,7 @@ class PerfCollector(CollectorBase):
         self.target.execute(report_command)
 
     def _validate_events(self, events):
-        available_events_string = self.target.execute('{} list'.format(self.perf_type))
+        available_events_string = self.target.execute('{} list | {} cat'.format(self.perf_type, self.target.busybox))
         available_events = available_events_string.splitlines()
         for available_event in available_events:
             if available_event == '':

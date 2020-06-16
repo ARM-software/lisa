@@ -168,7 +168,7 @@ Process Control
    # PsEntry records.
    entries = t.ps()
    # e.g.  print virtual memory sizes of all running sshd processes:
-   print ', '.join(str(e.vsize) for e in entries if e.name == 'sshd')
+   print(', '.join(str(e.vsize) for e in entries if e.name == 'sshd'))
 
 
 More...
