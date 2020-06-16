@@ -336,6 +336,6 @@ recordings in scripts. Here is an example:
     from wa.utils.revent import ReventRecording
 
     with ReventRecording('/path/to/recording.revent') as recording:
-        print "Recording: {}".format(recording.filepath)
-        print "There are {} input events".format(recording.num_events)
-        print "Over a total of {} seconds".format(recording.duration)
+        print("Recording: {}".format(recording.filepath))
+        print("There are {} input events".format(recording.num_events))
+        print("Over a total of {} seconds".format(recording.duration))

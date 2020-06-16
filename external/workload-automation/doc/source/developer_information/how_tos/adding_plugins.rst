@@ -58,22 +58,28 @@ will automatically generate a workload in the your ``WA_CONFIG_DIR/plugins``. If
 you wish to specify a custom location this can be provided with ``-p
 <path>``
 
+A typical invocation of the :ref:`create <create-command>` command would be in
+the form::
+
+        wa create workload -k <workload_kind> <workload_name>
+
+
 .. _adding-a-basic-workload-example:
 
 Adding a Basic Workload
 -----------------------
 
-To add a basic workload you can simply use the command::
+To add a ``basic`` workload template for our example workload we can simply use the
+command::
 
-        wa create workload basic
+        wa create workload -k basic ziptest
 
-This will generate a very basic workload with dummy methods for the workload
-interface and it is left to the developer to add any required functionality to
-the workload.
+This will generate a very basic workload with dummy methods for the each method in
+the workload interface and it is left to the developer to add any required functionality.
 
-Not all the methods are required to be implemented, this example shows how a
-subset might be used to implement a simple workload that times how long it takes
-to compress a file of a particular size on the device.
+Not all the methods from the interface are required to be implemented, this
+example shows how a subset might be used to implement a simple workload that
+times how long it takes to compress a file of a particular size on the device.
 
 
 .. note:: This is intended as an example of how to implement the Workload
@@ -87,14 +93,15 @@ in this example we are implementing a very simple workload and do not
 require any additional feature so shall inherit directly from the the base
 :class:`Workload` class. We then need to provide a ``name`` for our workload
 which is what will be used to identify your workload for example in an
-agenda or via the show command.
+agenda or via the show command, if you used the `create` command this will
+already be populated for you.
 
 .. code-block:: python
 
     import os
     from wa import Workload, Parameter
 
-    class ZipTestWorkload(Workload):
+    class ZipTest(Workload):
 
         name = 'ziptest'
 
@@ -113,7 +120,7 @@ separated by a new line.
                       '''
 
 In order to allow for additional configuration of the workload from a user a
-list of :ref:`parameters <plugin-parmeters>` can be supplied. These can be
+list of :ref:`parameters <plugin-parameters>` can be supplied. These can be
 configured in a variety of different ways. For example here we are ensuring that
 the value of the parameter is an integer and larger than 0 using the ``kind``
 and ``constraint`` options, also if no value is provided we are providing a

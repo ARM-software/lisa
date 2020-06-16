@@ -153,7 +153,7 @@ class Jankbench(ApkWorkload):
     def extract_metrics_from_logcat(self, context):
         metric_names = ['mean', 'junk_p', 'std_dev', 'count_bad', 'count_junk']
         logcat_file = context.get_artifact_path('logcat')
-        with open(logcat_file) as fh:
+        with open(logcat_file, errors='replace') as fh:
             run_tests = copy(self.test_ids or self.valid_test_ids)
             current_iter = None
             current_test = None

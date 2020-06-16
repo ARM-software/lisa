@@ -90,9 +90,6 @@ class VersatileExpressPlatform(Platform):
     def _init_android_target(self, target):
         if target.connection_settings.get('device') is None:
             addr = self._get_target_ip_address(target)
-            if sys.version_info[0] == 3:
-                # Convert bytes to string for Python3 compatibility
-                addr = addr.decode("utf-8")
             target.connection_settings['device'] = addr + ':5555'
 
     def _init_linux_target(self, target):
@@ -108,7 +105,7 @@ class VersatileExpressPlatform(Platform):
                                     init_dtr=0) as tty:
             tty.sendline('su')  # this is, apprently, required to query network device
                                 # info by name on recent Juno builds...
-            self.logger.debug('Waiting for the Android shell prompt.')
+            self.logger.debug('Waiting for the shell prompt.')
             tty.expect(target.shell_prompt)
 
             self.logger.debug('Waiting for IP address...')
@@ -119,7 +116,7 @@ class VersatileExpressPlatform(Platform):
                     time.sleep(1)
                     try:
                         tty.expect(r'inet ([1-9]\d*.\d+.\d+.\d+)', timeout=10)
-                        return tty.match.group(1)
+                        return tty.match.group(1).decode('utf-8')
                     except pexpect.TIMEOUT:
                         pass  # We have our own timeout -- see below.
                     if (time.time() - wait_start_time) > self.ready_timeout:

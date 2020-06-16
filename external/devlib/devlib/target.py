@@ -58,7 +58,7 @@ from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_s
 
 
 FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (.+) type (\S+) \((\S+)\)')
-ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn|Display Power: state)=([0-9]+|true|false|ON|OFF)',
+ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn|Display Power: state)=([0-9]+|true|false|ON|OFF|DOZE)',
                                         re.IGNORECASE)
 ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'cur=(?P<width>\d+)x(?P<height>\d+)')
 ANDROID_SCREEN_ROTATION_REGEX = re.compile(r'orientation=(?P<rotation>[0-3])')
@@ -1153,7 +1153,11 @@ class AndroidTarget(Target):
 
     @property
     def adb_name(self):
-        return self.conn.device
+        return getattr(self.conn, 'device', None)
+
+    @property
+    def adb_server(self):
+        return getattr(self.conn, 'adb_server', None)
 
     @property
     @memoized
@@ -1444,7 +1448,8 @@ class AndroidTarget(Target):
                 flags.append('-g')  # Grant all runtime permissions
             self.logger.debug("Replace APK = {}, ADB flags = '{}'".format(replace, ' '.join(flags)))
             if isinstance(self.conn, AdbConnection):
-                return adb_command(self.adb_name, "install {} {}".format(' '.join(flags), quote(filepath)), timeout=timeout)
+                return adb_command(self.adb_name, "install {} {}".format(' '.join(flags), quote(filepath)),
+                                   timeout=timeout, adb_server=self.adb_server)
             else:
                 dev_path = self.get_workpath(filepath.rsplit(os.path.sep, 1)[-1])
                 self.push(quote(filepath), dev_path, timeout=timeout)
@@ -1513,7 +1518,8 @@ class AndroidTarget(Target):
 
     def uninstall_package(self, package):
         if isinstance(self.conn, AdbConnection):
-            adb_command(self.adb_name, "uninstall {}".format(quote(package)), timeout=30)
+            adb_command(self.adb_name, "uninstall {}".format(quote(package)), timeout=30,
+                        adb_server=self.adb_server)
         else:
             self.execute("pm uninstall {}".format(quote(package)), timeout=30)
 
@@ -1530,7 +1536,7 @@ class AndroidTarget(Target):
         logcat_opts = '-d' + formatstr + filtstr
         if isinstance(self.conn, AdbConnection):
             command = 'logcat {} {} {}'.format(logcat_opts, op, quote(filepath))
-            adb_command(self.adb_name, command, timeout=timeout)
+            adb_command(self.adb_name, command, timeout=timeout, adb_server=self.adb_server)
         else:
             dev_path = self.get_workpath('logcat')
             command = 'logcat {} {} {}'.format(logcat_opts, op, quote(dev_path))
@@ -1541,7 +1547,7 @@ class AndroidTarget(Target):
     def clear_logcat(self):
         with self.clear_logcat_lock:
             if isinstance(self.conn, AdbConnection):
-                adb_command(self.adb_name, 'logcat -c', timeout=30)
+                adb_command(self.adb_name, 'logcat -c', timeout=30, adb_server=self.adb_server)
             else:
                 self.execute('logcat -c', timeout=30)
 
@@ -1558,17 +1564,28 @@ class AndroidTarget(Target):
         output = self.execute('dumpsys power')
         match = ANDROID_SCREEN_STATE_REGEX.search(output)
         if match:
+            if 'DOZE' in match.group(1).upper():
+                return True
             return boolean(match.group(1))
         else:
             raise TargetStableError('Could not establish screen state.')
 
-    def ensure_screen_is_on(self):
+    def ensure_screen_is_on(self, verify=True):
         if not self.is_screen_on():
             self.execute('input keyevent 26')
+        if verify and not self.is_screen_on():
+             raise TargetStableError('Display cannot be turned on.')
 
-    def ensure_screen_is_off(self):
-        if self.is_screen_on():
-            self.execute('input keyevent 26')
+    def ensure_screen_is_off(self, verify=True):
+        # Allow 2 attempts to help with cases of ambient display modes
+        # where the first attempt will switch the display fully on.
+        for _ in range(2):
+            if self.is_screen_on():
+                self.execute('input keyevent 26')
+                time.sleep(0.5)
+        if verify and self.is_screen_on():
+             msg = 'Display cannot be turned off. Is always on display enabled?'
+             raise TargetStableError(msg)
 
     def set_auto_brightness(self, auto_brightness):
         cmd = 'settings put system screen_brightness_mode {}'
@@ -2228,7 +2245,8 @@ class ChromeOsTarget(LinuxTarget):
 
         # Pull out ssh connection settings
         ssh_conn_params = ['host', 'username', 'password', 'keyfile',
-                           'port', 'password_prompt', 'timeout', 'sudo_cmd']
+                           'port', 'timeout', 'sudo_cmd',
+                           'strict_host_check', 'use_scp']
         self.ssh_connection_settings = {}
         for setting in ssh_conn_params:
             if connection_settings.get(setting, None):

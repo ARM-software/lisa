@@ -15,6 +15,9 @@
 # pylint: disable=attribute-defined-outside-init
 from past.builtins import basestring
 
+from operator import attrgetter
+from pprint import pformat
+
 from devlib.module import Module
 from devlib.utils.types import integer, boolean
 
@@ -96,40 +99,35 @@ class Cpuidle(Module):
 
     def __init__(self, target):
         super(Cpuidle, self).__init__(target)
-        self._states = {}
 
         basepath = '/sys/devices/system/cpu/'
         values_tree = self.target.read_tree_values(basepath, depth=4, check_exit_code=False)
-        i = 0
-        cpu_id = 'cpu{}'.format(i)
-        while cpu_id in values_tree:
-            cpu_node = values_tree[cpu_id]
 
-            if 'cpuidle' in cpu_node:
-                idle_node = cpu_node['cpuidle']
-                self._states[cpu_id] = []
-                j = 0
-                state_id = 'state{}'.format(j)
-                while state_id in idle_node:
-                    state_node = idle_node[state_id]
-                    state = CpuidleState(
+        self._states = {
+            cpu_name: sorted(
+                (
+                    CpuidleState(
                         self.target,
-                        index=j,
-                        path=self.target.path.join(basepath, cpu_id, 'cpuidle', state_id),
+                        # state_name is formatted as "state42"
+                        index=int(state_name[len('state'):]),
+                        path=self.target.path.join(basepath, cpu_name, 'cpuidle', state_name),
                         name=state_node['name'],
                         desc=state_node['desc'],
                         power=int(state_node['power']),
                         latency=int(state_node['latency']),
                         residency=int(state_node['residency']) if 'residency' in state_node else None,
                     )
-                    msg = 'Adding {} state {}: {} {}'
-                    self.logger.debug(msg.format(cpu_id, j, state.name, state.desc))
-                    self._states[cpu_id].append(state)
-                    j += 1
-                    state_id = 'state{}'.format(j)
+                    for state_name, state_node in cpu_node['cpuidle'].items()
+                    if state_name.startswith('state')
+                ),
+                key=attrgetter('index'),
+            )
 
-            i += 1
-            cpu_id = 'cpu{}'.format(i)
+            for cpu_name, cpu_node in values_tree.items()
+            if cpu_name.startswith('cpu') and 'cpuidle' in cpu_node
+        }
+
+        self.logger.debug('Adding cpuidle states:\n{}'.format(pformat(self._states)))
 
     def get_states(self, cpu=0):
         if isinstance(cpu, int):
@@ -174,6 +172,6 @@ class Cpuidle(Module):
 
     def get_governor(self):
         path = self.target.path.join(self.root_path, 'current_governor_ro')
-        if not self.target.path.exists(path):
+        if not self.target.file_exists(path):
             path = self.target.path.join(self.root_path, 'current_governor')
         return self.target.read_value(path)

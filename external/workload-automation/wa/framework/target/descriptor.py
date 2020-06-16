@@ -14,8 +14,6 @@
 #
 
 import inspect
-from collections import OrderedDict
-from copy import copy
 
 from devlib import (LinuxTarget, AndroidTarget, LocalLinuxTarget,
                     ChromeOsTarget, Platform, Juno, TC2, Gem5SimulationPlatform,
@@ -266,7 +264,6 @@ VEXPRESS_PLATFORM_PARAMS = [
 
               ``dtr``: toggle the DTR line on the serial connection
               ``reboottxt``: create ``reboot.txt`` in the root of the VEMSD mount.
-
               '''),
 ]
 
@@ -320,6 +317,8 @@ CONNECTION_PARAMS = {
             'password', kind=str,
             description="""
             Password to use.
+            (When connecting to a passwordless machine set to an
+            empty string to prevent attempting ssh key authentication.)
             """),
         Parameter(
             'keyfile', kind=str,
@@ -344,6 +343,13 @@ CONNECTION_PARAMS = {
             Sudo command to use. Must have ``{}`` specified
             somewhere in the string it indicate where the command
             to be run via sudo is to go.
+            """),
+        Parameter(
+            'use_scp', kind=bool,
+            default=False,
+            description="""
+            Allow using SCP as method of file transfer instead
+            of the default SFTP.
             """),
         # Depreciated Parameters
         Parameter(
@@ -464,16 +470,16 @@ CONNECTION_PARAMS['ChromeOsConnection'] = \
     CONNECTION_PARAMS[AdbConnection] + CONNECTION_PARAMS[SshConnection]
 
 
-# name --> ((target_class, conn_class), params_list, defaults)
+# name --> ((target_class, conn_class, unsupported_platforms), params_list, defaults)
 TARGETS = {
-    'linux': ((LinuxTarget, SshConnection), COMMON_TARGET_PARAMS, None),
-    'android': ((AndroidTarget, AdbConnection), COMMON_TARGET_PARAMS +
+    'linux': ((LinuxTarget, SshConnection, []), COMMON_TARGET_PARAMS, None),
+    'android': ((AndroidTarget, AdbConnection, []), COMMON_TARGET_PARAMS +
                [Parameter('package_data_directory', kind=str, default='/data/data',
                           description='''
                           Directory containing Android data
                           '''),
                ], None),
-    'chromeos': ((ChromeOsTarget, 'ChromeOsConnection'), COMMON_TARGET_PARAMS +
+    'chromeos': ((ChromeOsTarget, 'ChromeOsConnection', []), COMMON_TARGET_PARAMS +
                 [Parameter('package_data_directory', kind=str, default='/data/data',
                            description='''
                            Directory containing Android data
@@ -494,7 +500,8 @@ TARGETS = {
                           the need for privilege elevation.
                           '''),
                 ], None),
-    'local': ((LocalLinuxTarget, LocalConnection), COMMON_TARGET_PARAMS, None),
+    'local': ((LocalLinuxTarget, LocalConnection, [Juno, Gem5SimulationPlatform, TC2]),
+              COMMON_TARGET_PARAMS, None),
 }
 
 # name --> assistant
@@ -505,31 +512,87 @@ ASSISTANTS = {
     'chromeos': ChromeOsAssistant
 }
 
-# name --> ((platform_class, conn_class), params_list, defaults, target_defaults)
+# Platform specific parameter overrides.
+JUNO_PLATFORM_OVERRIDES = [
+        Parameter('baudrate', kind=int, default=115200,
+                description='''
+                Baud rate for the serial connection.
+                '''),
+        Parameter('vemsd_mount', kind=str, default='/media/JUNO',
+                description='''
+                VExpress MicroSD card mount location. This is a MicroSD card in
+                the VExpress device that is mounted on the host via USB. The card
+                contains configuration files for the platform and firmware and
+                kernel images to be flashed.
+                '''),
+        Parameter('bootloader', kind=str, default='u-boot',
+                allowed_values=['uefi', 'uefi-shell', 'u-boot', 'bootmon'],
+                description='''
+                Selects the bootloader mechanism used by the board. Depending on
+                firmware version, a number of possible boot mechanisms may be use.
+
+                Please see ``devlib`` documentation for descriptions.
+                '''),
+        Parameter('hard_reset_method', kind=str, default='dtr',
+                allowed_values=['dtr', 'reboottxt'],
+                description='''
+                There are a couple of ways to reset VersatileExpress board if the
+                software running on the board becomes unresponsive. Both require
+                configuration to be enabled (please see ``devlib`` documentation).
+
+                ``dtr``: toggle the DTR line on the serial connection
+                ``reboottxt``: create ``reboot.txt`` in the root of the VEMSD mount.
+                '''),
+]
+TC2_PLATFORM_OVERRIDES = [
+        Parameter('baudrate', kind=int, default=38400,
+                description='''
+                Baud rate for the serial connection.
+                '''),
+        Parameter('vemsd_mount', kind=str, default='/media/VEMSD',
+                description='''
+                VExpress MicroSD card mount location. This is a MicroSD card in
+                the VExpress device that is mounted on the host via USB. The card
+                contains configuration files for the platform and firmware and
+                kernel images to be flashed.
+                '''),
+        Parameter('bootloader', kind=str, default='bootmon',
+                allowed_values=['uefi', 'uefi-shell', 'u-boot', 'bootmon'],
+                description='''
+                Selects the bootloader mechanism used by the board. Depending on
+                firmware version, a number of possible boot mechanisms may be use.
+
+                Please see ``devlib`` documentation for descriptions.
+                '''),
+        Parameter('hard_reset_method', kind=str, default='reboottxt',
+                allowed_values=['dtr', 'reboottxt'],
+                description='''
+                There are a couple of ways to reset VersatileExpress board if the
+                software running on the board becomes unresponsive. Both require
+                configuration to be enabled (please see ``devlib`` documentation).
+
+                ``dtr``: toggle the DTR line on the serial connection
+                ``reboottxt``: create ``reboot.txt`` in the root of the VEMSD mount.
+                '''),
+]
+
+# name --> ((platform_class, conn_class, conn_overrides), params_list, defaults, target_overrides)
 # Note: normally, connection is defined by the Target name, but
 #       platforms may choose to override it
-# Note: the target_defaults allows you to override common target_params for a
+# Note: the target_overrides allows you to override common target_params for a
 # particular platform. Parameters you can override are in COMMON_TARGET_PARAMS
-# Example of overriding one of the target parameters: Replace last None with:
-# {'shell_prompt': CUSTOM__SHELL_PROMPT}
+# Example of overriding one of the target parameters: Replace last `None` with
+# a list of `Parameter` objects to be used instead.
 PLATFORMS = {
-    'generic': ((Platform, None), COMMON_PLATFORM_PARAMS, None, None),
-    'juno': ((Juno, None), COMMON_PLATFORM_PARAMS + VEXPRESS_PLATFORM_PARAMS,
-            {
-                 'vemsd_mount': '/media/JUNO',
-                 'baudrate': 115200,
-                 'bootloader': 'u-boot',
-                 'hard_reset_method': 'dtr',
-            },
-            None),
-    'tc2': ((TC2, None), COMMON_PLATFORM_PARAMS + VEXPRESS_PLATFORM_PARAMS,
-            {
-                 'vemsd_mount': '/media/VEMSD',
-                 'baudrate': 38400,
-                 'bootloader': 'bootmon',
-                 'hard_reset_method': 'reboottxt',
-            }, None),
-    'gem5': ((Gem5SimulationPlatform, Gem5Connection), GEM5_PLATFORM_PARAMS, None, None),
+    'generic': ((Platform, None, None), COMMON_PLATFORM_PARAMS, None, None),
+    'juno': ((Juno, None, [
+                            Parameter('host', kind=str, mandatory=False,
+                            description="Host name or IP address of the target."),
+                          ]
+            ), COMMON_PLATFORM_PARAMS + VEXPRESS_PLATFORM_PARAMS, JUNO_PLATFORM_OVERRIDES, None),
+    'tc2': ((TC2, None, None), COMMON_PLATFORM_PARAMS + VEXPRESS_PLATFORM_PARAMS,
+            TC2_PLATFORM_OVERRIDES, None),
+    'gem5': ((Gem5SimulationPlatform, Gem5Connection, None), GEM5_PLATFORM_PARAMS, None, None),
 }
 
 
@@ -549,16 +612,17 @@ class DefaultTargetDescriptor(TargetDescriptor):
         # pylint: disable=attribute-defined-outside-init,too-many-locals
         result = []
         for target_name, target_tuple in TARGETS.items():
-            (target, conn), target_params = self._get_item(target_tuple)
+            (target, conn, unsupported_platforms), target_params = self._get_item(target_tuple)
             assistant = ASSISTANTS[target_name]
             conn_params = CONNECTION_PARAMS[conn]
             for platform_name, platform_tuple in PLATFORMS.items():
                 platform_target_defaults = platform_tuple[-1]
                 platform_tuple = platform_tuple[0:-1]
-                (platform, plat_conn), platform_params = self._get_item(platform_tuple)
+                (platform, plat_conn, conn_defaults), platform_params = self._get_item(platform_tuple)
+                if platform in unsupported_platforms:
+                    continue
                 # Add target defaults specified in the Platform tuple
-                target_params = self._apply_param_defaults(target_params,
-                                                           platform_target_defaults)
+                target_params = self._override_params(target_params, platform_target_defaults)
                 name = '{}_{}'.format(platform_name, target_name)
                 td = TargetDescription(name, self)
                 td.target = target
@@ -570,31 +634,31 @@ class DefaultTargetDescriptor(TargetDescriptor):
 
                 if plat_conn:
                     td.conn = plat_conn
-                    td.conn_params = CONNECTION_PARAMS[plat_conn]
+                    td.conn_params = self._override_params(CONNECTION_PARAMS[plat_conn],
+                                                           conn_defaults)
                 else:
                     td.conn = conn
-                    td.conn_params = conn_params
+                    td.conn_params = self._override_params(conn_params, conn_defaults)
 
                 result.append(td)
         return result
 
-    def _apply_param_defaults(self, params, defaults):  # pylint: disable=no-self-use
-        '''Adds parameters in the defaults dict to params list.
-        Return updated params as a list (idempotent function).'''
-        if not defaults:
+    def _override_params(self, params, overrides): # pylint: disable=no-self-use
+        ''' Returns a new list of parameters replacing any parameter with the
+        corresponding parameter in overrides'''
+        if not overrides:
             return params
-        param_map = OrderedDict((p.name, copy(p)) for p in params)
-        for name, value in defaults.items():
-            if name not in param_map:
-                raise ValueError('Unexpected default "{}"'.format(name))
-            param_map[name].default = value
-        # Convert the OrderedDict to a list to return the same type
+        param_map = {p.name: p for p in params}
+        for override in overrides:
+            if override.name in param_map:
+                param_map[override.name] = override
+        # Return the list of overriden parameters
         return list(param_map.values())
 
     def _get_item(self, item_tuple):
-        cls, params, defaults = item_tuple
-        updated_params = self._apply_param_defaults(params, defaults)
-        return cls, updated_params
+        cls_tuple, params, defaults = item_tuple
+        updated_params = self._override_params(params, defaults)
+        return cls_tuple, updated_params
 
 
 _adhoc_target_descriptions = []
@@ -637,7 +701,7 @@ def _get_target_defaults(target):
 
 
 def add_description_for_target(target, description=None, **kwargs):
-    (base_name, ((_, base_conn), base_params, _)) = _get_target_defaults(target)
+    (base_name, ((_, base_conn, _), base_params, _)) = _get_target_defaults(target)
 
     if 'target_params' not in kwargs:
         kwargs['target_params'] = base_params
@@ -645,7 +709,7 @@ def add_description_for_target(target, description=None, **kwargs):
     if 'platform' not in kwargs:
         kwargs['platform'] = Platform
     if 'platform_params' not in kwargs:
-        for (plat, conn), params, _, _ in PLATFORMS.values():
+        for (plat, conn, _), params, _, _ in PLATFORMS.values():
             if plat == kwargs['platform']:
                 kwargs['platform_params'] = params
                 if conn is not None and kwargs['conn'] is None:

@@ -145,7 +145,7 @@ class Vellamo(ApkUiautoWorkload):
     def non_root_update_output(self, context):
         failed = []
         logcat_file = context.get_artifact_path('logcat')
-        with open(logcat_file) as fh:
+        with open(logcat_file, errors='replace') as fh:
             iteration_result_regex = re.compile("VELLAMO RESULT: (Browser|Metal|Multicore) (\d+)")
             for line in fh:
                 if 'VELLAMO ERROR:' in line:

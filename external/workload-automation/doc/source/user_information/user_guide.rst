@@ -483,14 +483,14 @@ that parses the contents of the output directory:
     >>> ro = RunOutput('./wa_output')
     >>> for job in ro.jobs:
     ...     if job.status != 'OK':
-    ...         print 'Job "{}" did not complete successfully: {}'.format(job, job.status)
+    ...         print('Job "{}" did not complete successfully: {}'.format(job, job.status))
     ...         continue
-    ...     print 'Job "{}":'.format(job)
+    ...     print('Job "{}":'.format(job))
     ...     for metric in job.metrics:
     ...         if metric.units:
-    ...             print '\t{}: {} {}'.format(metric.name, metric.value, metric.units)
+    ...             print('\t{}: {} {}'.format(metric.name, metric.value, metric.units))
     ...         else:
-    ...             print '\t{}: {}'.format(metric.name, metric.value)
+    ...             print('\t{}: {}'.format(metric.name, metric.value))
     ...
     Job "wk1-dhrystone-1":
             thread 0 score: 20833333

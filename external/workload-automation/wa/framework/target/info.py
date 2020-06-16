@@ -23,6 +23,7 @@ from devlib.utils.android import AndroidProperties
 from wa.framework.configuration.core import settings
 from wa.framework.exception import ConfigError
 from wa.utils.serializer import read_pod, write_pod, Podable
+from wa.utils.misc import lock_file
 
 
 def cpuinfo_from_pod(pod):
@@ -280,13 +281,15 @@ def read_target_info_cache():
         os.makedirs(settings.cache_directory)
     if not os.path.isfile(settings.target_info_cache_file):
         return {}
-    return read_pod(settings.target_info_cache_file)
+    with lock_file(settings.target_info_cache_file):
+        return read_pod(settings.target_info_cache_file)
 
 
 def write_target_info_cache(cache):
     if not os.path.exists(settings.cache_directory):
         os.makedirs(settings.cache_directory)
-    write_pod(cache, settings.target_info_cache_file)
+    with lock_file(settings.target_info_cache_file):
+        write_pod(cache, settings.target_info_cache_file)
 
 
 def get_target_info_from_cache(system_id):
