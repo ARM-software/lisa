@@ -51,7 +51,7 @@ class BenchmarkPi(ApkUiautoWorkload):
     def update_output(self, context):
         super(BenchmarkPi, self).update_output(context)
         logcat_file = context.get_artifact_path('logcat')
-        with open(logcat_file) as fh:
+        with open(logcat_file, errors='replace') as fh:
             for line in fh:
                 match = self.regex.search(line)
                 if match:

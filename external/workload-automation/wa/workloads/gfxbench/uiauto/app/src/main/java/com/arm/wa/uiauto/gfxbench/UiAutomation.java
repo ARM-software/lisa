@@ -31,6 +31,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
 @RunWith(AndroidJUnit4.class)
@@ -39,10 +40,13 @@ public class UiAutomation extends BaseUiAutomation {
     private int networkTimeoutSecs = 30;
     private long networkTimeout =  TimeUnit.SECONDS.toMillis(networkTimeoutSecs);
     public static String TAG = "UXPERF";
+    protected Bundle parameters;
+    protected String[] testList;
 
     @Before
     public void initialize(){
-        initialize_instrumentation();
+        parameters = getParams();
+        testList = parameters.getStringArray("tests");
     }
 
     @Test
@@ -65,25 +69,25 @@ public class UiAutomation extends BaseUiAutomation {
 
         mDevice.click(selectx,selecty);
 
-        //Disable the tests
+        // Disable test categories
         toggleTest("High-Level Tests");
         toggleTest("Low-Level Tests");
         toggleTest("Special Tests");
         toggleTest("Fixed Time Test");
 
-        //Enable sub tests
-        toggleTest("Car Chase");
-        toggleTest("1080p Car Chase Offscreen");
-        toggleTest("Manhattan 3.1");
-        toggleTest("1080p Manhattan 3.1 Offscreen");
-        toggleTest("1440p Manhattan 3.1.1 Offscreen");
-        toggleTest("Tessellation");
-        toggleTest("1080p Tessellation Offscreen");
+        // Enable selected tests
+        for (String test : testList) {
+            toggleTest(test);
+        }
     }
 
     @Test
     public void runWorkload() throws Exception {
         runBenchmark();
+    }
+
+    @Test
+    public void extractResults() throws Exception {
         getScores();
     }
 
@@ -128,66 +132,46 @@ public class UiAutomation extends BaseUiAutomation {
 
         //Wait for results
         UiObject complete =
-            mDevice.findObject(new UiSelector().text("High-Level Tests")
-                .className("android.widget.TextView"));
+            mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"));
         complete.waitForExists(1200000);
+
+        UiObject outOfmemory = mDevice.findObject(new UiSelector().text("OUT_OF_MEMORY"));
+        if (outOfmemory.exists()) {
+            throw new OutOfMemoryError("The workload has failed because the device is doing to much work.");
+        }
     }
 
     public void getScores() throws Exception {
-        UiScrollable list = new UiScrollable(new UiSelector().scrollable(true));
-        UiObject results =
-            mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"));
-        int number_of_results = results.getChildCount();
-
-        //High Level Tests
-        UiObject carchase =
-            mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
-            .getChild(new UiSelector().index(1))
-            .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
-        Log.d(TAG, "Car Chase score " + carchase.getText());
-
-        UiObject carchaseoff =
-            mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
-            .getChild(new UiSelector().index(2))
-            .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
-        Log.d(TAG, "Car Chase Offscreen score " + carchaseoff.getText());
-
-        UiObject manhattan =
-            mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
-            .getChild(new UiSelector().index(3))
-            .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
-        Log.d(TAG, "Manhattan 3.1 score " + manhattan.getText());
-
-        UiObject manhattan1080 =
-            mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
-            .getChild(new UiSelector().index(4))
-            .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
-        Log.d(TAG, "1080p Manhattan 3.1 Offscreen score " + manhattan1080.getText());
-
-        UiObject manhattan1440 =
-            mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
-            .getChild(new UiSelector().index(5))
-            .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
-        Log.d(TAG, "1440p Manhattan 3.1 Offscreen score " + manhattan1440.getText());
-
-        //Low Level Tests
-        UiObject tess =
-            mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
-            .getChild(new UiSelector().index(7))
-            .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
-        if (!tess.exists() && list.waitForExists(60)) {
-            list.scrollIntoView(tess);
+        // To ensure we print all scores, some will be printed multiple times but these are filtered on the python side.
+        UiScrollable scrollable = new UiScrollable(new UiSelector().scrollable(true));
+        // Start at the bottom of the list as this seems more reliable when extracting results.
+        scrollable.flingToEnd(10);
+        Boolean top_of_list = false;
+        while(true) {
+            UiObject resultsList =
+                mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"));
+            // Find the element in the list that contains our test and pull result and sub_result
+            for (int i=1; i < resultsList.getChildCount(); i++) {
+                UiObject testName = resultsList.getChild(new UiSelector().index(i))
+                    .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_name"));
+                UiObject result = resultsList.getChild(new UiSelector()
+                                    .index(i))
+                                    .getChild(new UiSelector()
+                                    .resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_result"));
+                UiObject subResult = resultsList.getChild(new UiSelector()
+                                    .index(i))
+                                    .getChild(new UiSelector()
+                                    .resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
+                if (testName.waitForExists(500) && result.waitForExists(500) && subResult.waitForExists(500)) {
+                    Log.d(TAG, "name: (" + testName.getText() + ") result: (" + result.getText() + ") sub_result: (" + subResult.getText() + ")");
+                }
+            }
+            // Ensure we loop over the first screen an extra time once the top of the list has been reached.
+            if (top_of_list){
+                break;
+            }
+            top_of_list = !scrollable.scrollBackward(100);
         }
-        Log.d(TAG, "Tessellation score " + tess.getText());
-
-        UiObject tessoff =
-            mDevice.findObject(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/results_testList"))
-            .getChild(new UiSelector().index(8))
-            .getChild(new UiSelector().resourceId("net.kishonti.gfxbench.gl.v50000.corporate:id/updated_result_item_subresult"));
-        if (!tessoff.exists() && list.waitForExists(60)) {
-            list.scrollIntoView(tessoff);
-        }
-        Log.d(TAG, "Tessellation Offscreen score " + tessoff.getText());
     }
 
     public void toggleTest(String testname) throws Exception {
@@ -195,6 +179,7 @@ public class UiAutomation extends BaseUiAutomation {
         UiObject test =
             mDevice.findObject(new UiSelector().text(testname));
         if (!test.exists() && list.waitForExists(60)) {
+            list.flingToBeginning(10);
             list.scrollIntoView(test);
         }
         test.click();

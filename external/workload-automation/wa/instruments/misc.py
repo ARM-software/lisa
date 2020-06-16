@@ -38,7 +38,7 @@ from wa import Instrument, Parameter, very_fast
 from wa.framework.exception import ConfigError
 from wa.framework.instrument import slow
 from wa.utils.diff import diff_sysfs_dirs, diff_interrupt_files
-from wa.utils.misc import as_relative
+from wa.utils.misc import as_relative, lock_file
 from wa.utils.misc import ensure_file_directory_exists as _f
 from wa.utils.misc import ensure_directory_exists as _d
 from wa.utils.types import list_of_strings
@@ -244,7 +244,8 @@ class ApkVersion(Instrument):
 
     def setup(self, context):
         if hasattr(context.workload, 'apk_file'):
-            self.apk_info = ApkInfo(context.workload.apk_file)
+            with lock_file(context.workload.apk_file):
+                self.apk_info = ApkInfo(context.workload.apk_file)
         else:
             self.apk_info = None
 

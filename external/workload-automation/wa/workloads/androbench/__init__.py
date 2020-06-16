@@ -43,7 +43,7 @@ class Androbench(ApkUiautoWorkload):
         super(Androbench, self).update_output(context)
         expected_results = len(self.regex_matches)
         logcat_file = context.get_artifact_path('logcat')
-        with open(logcat_file) as fh:
+        with open(logcat_file, errors='replace') as fh:
             for line in fh:
                 for regex in self.regex_matches:
                     match = regex.search(line)

@@ -61,7 +61,7 @@ class Motionmark(UiautoWorkload):
         super(Motionmark, self).update_output(context)
         num_unprocessed_results = len(self.regex)
         logcat_file = context.get_artifact_path('logcat')
-        with open(logcat_file) as fh:
+        with open(logcat_file, errors='replace') as fh:
             for line in fh:
                 for regex in self.regex:
                     match = regex.search(line)

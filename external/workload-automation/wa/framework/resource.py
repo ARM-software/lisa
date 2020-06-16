@@ -25,6 +25,7 @@ from wa.framework.configuration import settings
 from wa.utils import log
 from wa.utils.misc import get_object_name
 from wa.utils.types import enum, list_or_string, prioritylist, version_tuple
+from wa.utils.misc import lock_file
 
 
 SourcePriority = enum(['package', 'remote', 'lan', 'local',
@@ -280,7 +281,8 @@ class ResourceResolver(object):
 
 def apk_version_matches(path, version):
     version = list_or_string(version)
-    info = ApkInfo(path)
+    with lock_file(path):
+        info = ApkInfo(path)
     for v in version:
         if info.version_name == v or info.version_code == v:
             return True
@@ -290,7 +292,8 @@ def apk_version_matches(path, version):
 
 
 def apk_version_matches_range(path, min_version=None, max_version=None):
-    info = ApkInfo(path)
+    with lock_file(path):
+        info = ApkInfo(path)
     return range_version_matching(info.version_name, min_version, max_version)
 
 
@@ -333,18 +336,21 @@ def file_name_matches(path, pattern):
 
 
 def uiauto_test_matches(path, uiauto):
-    info = ApkInfo(path)
+    with lock_file(path):
+        info = ApkInfo(path)
     return uiauto == ('com.arm.wa.uiauto' in info.package)
 
 
 def package_name_matches(path, package):
-    info = ApkInfo(path)
+    with lock_file(path):
+        info = ApkInfo(path)
     return info.package == package
 
 
 def apk_abi_matches(path, supported_abi, exact_abi=False):
     supported_abi = list_or_string(supported_abi)
-    info = ApkInfo(path)
+    with lock_file(path):
+        info = ApkInfo(path)
     # If no native code present, suitable for all devices.
     if not info.native_code:
         return True
