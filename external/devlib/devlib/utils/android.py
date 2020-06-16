@@ -46,6 +46,7 @@ logger = logging.getLogger('android')
 
 MAX_ATTEMPTS = 5
 AM_START_ERROR = re.compile(r"Error: Activity.*")
+AAPT_BADGING_OUTPUT = re.compile(r"no dump ((file)|(apk)) specified", re.IGNORECASE)
 
 # See:
 # http://developer.android.com/guide/topics/manifest/uses-sdk-element.html#ApiLevels
@@ -93,6 +94,7 @@ android_home = None
 platform_tools = None
 adb = None
 aapt = None
+aapt_version = None
 fastboot = None
 
 
@@ -152,7 +154,11 @@ class ApkInfo(object):
         self.version_code = None
         self.native_code = None
         self.permissions = []
-        self.parse(path)
+        self._apk_path = None
+        self._activities = None
+        self._methods = None
+        if path:
+            self.parse(path)
 
     # pylint: disable=too-many-branches
     def parse(self, apk_path):
@@ -197,7 +203,9 @@ class ApkInfo(object):
     @property
     def activities(self):
         if self._activities is None:
-            cmd = [aapt, 'dump', 'xmltree', self._apk_path,
+            file_flag = '--file' if aapt_version == 2 else ''
+            cmd = [aapt, 'dump', 'xmltree',
+                   self._apk_path, '{}'.format(file_flag),
                    'AndroidManifest.xml']
             matched_activities = self.activity_regex.finditer(self._run(cmd))
             self._activities = [m.group('name') for m in matched_activities]
@@ -264,7 +272,7 @@ class AdbConnection(ConnectionBase):
 
     # pylint: disable=unused-argument
     def __init__(self, device=None, timeout=None, platform=None, adb_server=None,
-                 adb_as_root=False):
+                 adb_as_root=False, connection_attempts=MAX_ATTEMPTS):
         super().__init__()
         self.timeout = timeout if timeout is not None else self.default_timeout
         if device is None:
@@ -274,7 +282,7 @@ class AdbConnection(ConnectionBase):
         self.adb_as_root = adb_as_root
         if self.adb_as_root:
             self.adb_root(enable=True)
-        adb_connect(self.device, adb_server=self.adb_server)
+        adb_connect(self.device, adb_server=self.adb_server, attempts=connection_attempts)
         AdbConnection.active_connections[self.device] += 1
         self._setup_ls()
         self._setup_su()
@@ -637,8 +645,10 @@ class _AndroidEnvironment(object):
     def __init__(self):
         self.android_home = None
         self.platform_tools = None
+        self.build_tools = None
         self.adb = None
         self.aapt = None
+        self.aapt_version = None
         self.fastboot = None
 
 
@@ -664,28 +674,73 @@ def _initialize_without_android_home(env):
     _init_common(env)
     return env
 
-
 def _init_common(env):
+    _discover_build_tools(env)
+    _discover_aapt(env)
+
+def _discover_build_tools(env):
     logger.debug('ANDROID_HOME: {}'.format(env.android_home))
     build_tools_directory = os.path.join(env.android_home, 'build-tools')
-    if not os.path.isdir(build_tools_directory):
-        msg = '''ANDROID_HOME ({}) does not appear to have valid Android SDK install
-                 (cannot find build-tools)'''
-        raise HostError(msg.format(env.android_home))
-    versions = os.listdir(build_tools_directory)
-    for version in reversed(sorted(versions)):
-        aapt_path = os.path.join(build_tools_directory, version, 'aapt')
-        if os.path.isfile(aapt_path):
-            logger.debug('Using aapt for version {}'.format(version))
-            env.aapt = aapt_path
-            break
-    else:
-        raise HostError('aapt not found. Please make sure at least one Android '
-                        'platform is installed.')
+    if os.path.isdir(build_tools_directory):
+        env.build_tools = build_tools_directory
 
+def _check_supported_aapt2(binary):
+    # At time of writing the version argument of aapt2 is not helpful as
+    # the output is only a placeholder that does not distinguish between versions
+    # with and without support for badging. Unfortunately aapt has been
+    # deprecated and fails to parse some valid apks so we will try to favour
+    # aapt2 if possible else will fall back to aapt.
+    # Try to execute the badging command and check if we get an expected error
+    # message as opposed to an unknown command error to determine if we have a
+    # suitable version.
+    cmd = '{} dump badging'.format(binary)
+    result = subprocess.run(cmd.encode('utf-8'), shell=True, stderr=subprocess.PIPE)
+    supported = bool(AAPT_BADGING_OUTPUT.search(result.stderr.decode('utf-8')))
+    msg = 'Found a {} aapt2 binary at: {}'
+    logger.debug(msg.format('supported' if supported else 'unsupported', binary))
+    return supported
+
+def _discover_aapt(env):
+    if env.build_tools:
+        aapt_path = ''
+        aapt2_path = ''
+        versions = os.listdir(env.build_tools)
+        for version in reversed(sorted(versions)):
+            if not aapt2_path and not os.path.isfile(aapt2_path):
+                aapt2_path = os.path.join(env.build_tools, version, 'aapt2')
+            if not aapt_path and not os.path.isfile(aapt_path):
+                aapt_path = os.path.join(env.build_tools, version, 'aapt')
+                aapt_version = 1
+                break
+
+        # Use aapt2 only if present and we have a suitable version
+        if aapt2_path and _check_supported_aapt2(aapt2_path):
+            aapt_path = aapt2_path
+            aapt_version = 2
+
+        # Use the aapt version discoverted from build tools.
+        if aapt_path:
+            logger.debug('Using {} for version {}'.format(aapt_path, version))
+            env.aapt = aapt_path
+            env.aapt_version = aapt_version
+            return
+
+    # Try detecting aapt2 and aapt from PATH
+    if not env.aapt:
+            aapt2_path = which('aapt2')
+            if _check_supported_aapt2(aapt2_path):
+                env.aapt = aapt2_path
+                env.aapt_version = 2
+            else:
+                env.aapt = which('aapt')
+                env.aapt_version = 1
+
+    if not env.aapt:
+        raise HostError('aapt/aapt2 not found. Please make sure it is avaliable in PATH'
+                        ' or at least one Android platform is installed')
 
 def _check_env():
-    global android_home, platform_tools, adb, aapt  # pylint: disable=W0603
+    global android_home, platform_tools, adb, aapt, aapt_version  # pylint: disable=W0603
     if not android_home:
         android_home = os.getenv('ANDROID_HOME')
         if android_home:
@@ -696,6 +751,7 @@ def _check_env():
         platform_tools = _env.platform_tools
         adb = _env.adb
         aapt = _env.aapt
+        aapt_version = _env.aapt_version
 
 class LogcatMonitor(object):
     """
@@ -714,11 +770,12 @@ class LogcatMonitor(object):
     def logfile(self):
         return self._logfile
 
-    def __init__(self, target, regexps=None):
+    def __init__(self, target, regexps=None, logcat_format=None):
         super(LogcatMonitor, self).__init__()
 
         self.target = target
         self._regexps = regexps
+        self._logcat_format = logcat_format
         self._logcat = None
         self._logfile = None
 
@@ -750,12 +807,16 @@ class LogcatMonitor(object):
             else:
                 logcat_cmd = '{} | grep {}'.format(logcat_cmd, quote(regexp))
 
+        if self._logcat_format:
+            logcat_cmd = "{} -v {}".format(logcat_cmd, quote(self._logcat_format))
+
         logcat_cmd = get_adb_command(self.target.conn.device, logcat_cmd)
 
         logger.debug('logcat command ="{}"'.format(logcat_cmd))
-        self._logcat = pexpect.spawn(logcat_cmd, logfile=self._logfile)
+        self._logcat = pexpect.spawn(logcat_cmd, logfile=self._logfile, encoding='utf-8')
 
     def stop(self):
+        self.flush_log()
         self._logcat.terminate()
         self._logfile.close()
 
@@ -763,6 +824,12 @@ class LogcatMonitor(object):
         """
         Return the list of lines found by the monitor
         """
+        self.flush_log()
+
+        with open(self._logfile.name) as fh:
+            return [line for line in fh]
+
+    def flush_log(self):
         # Unless we tell pexect to 'expect' something, it won't read from
         # logcat's buffer or write into our logfile. We'll need to force it to
         # read any pending logcat output.
@@ -792,9 +859,6 @@ class LogcatMonitor(object):
                 # No available bytes to read. No prob, logcat just hasn't
                 # printed anything since pexpect last read from its buffer.
                 break
-
-        with open(self._logfile.name) as fh:
-            return [line for line in fh]
 
     def clear_log(self):
         with open(self._logfile.name, 'w') as _:

@@ -104,7 +104,7 @@ Connection Types
 
 .. module:: devlib.utils.android
 
-.. class:: AdbConnection(device=None, timeout=None, adb_server=None, adb_as_root=False)
+.. class:: AdbConnection(device=None, timeout=None, adb_server=None, adb_as_root=False, connection_attempts=MAX_ATTEMPTS)
 
     A connection to an android device via ``adb`` (Android Debug Bridge).
     ``adb`` is part of the Android SDK (though stand-alone versions are also
@@ -119,6 +119,9 @@ Connection Types
                     is raised.
     :param adb_server: Allows specifying the address of the adb server to use.
     :param adb_as_root: Specify whether the adb server should be restarted in root mode.
+    :param connection_attempts: Specify how many connection attempts, 10 seconds
+                                apart, should be attempted to connect to the device.
+                                Defaults to 5.
 
 .. module:: devlib.utils.ssh
 
@@ -132,6 +135,9 @@ Connection Types
     :param username: username for SSH login
     :param password: password for the SSH connection
 
+                     .. note:: To connect to a system without a password this
+                               parameter should be set to an empty string otherwise
+                               ssh key authentication will be attempted.
                      .. note:: In order to user password-based authentication,
                                ``sshpass`` utility must be installed on the
                                system.

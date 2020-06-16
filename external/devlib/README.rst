@@ -14,6 +14,16 @@ Installation
         sudo -H pip install devlib
 
 
+Dependencies
+------------
+
+``devlib`` should install all dependencies automatically, however if you run
+into issues please ensure you are using that latest version of pip.
+
+On some systems there may additional steps required to install the dependency
+``paramiko`` please consult the `module documentation <http://www.paramiko.org/installing.html>`_
+for more information.
+
 Usage
 -----
 
