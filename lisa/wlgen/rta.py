@@ -168,7 +168,7 @@ class RTA(Workload):
                 # RT-app appends some number to the logs, so we can't predict the
                 # exact filename
                 logfile = self.target.path.join(self.run_dir, '*{}*.log'.format(task))
-                self.target.pull(logfile, self.res_dir)
+                self.target.pull(logfile, self.res_dir, globbing=True)
 
     def _process_calibration(self, calibration):
         """
