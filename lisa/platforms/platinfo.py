@@ -229,6 +229,28 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     def _add_info(self, src, new_info, only_missing, deferred=False, **kwargs):
         logger = self.get_logger()
 
+        def rename_f(f, name):
+            try:
+                qualname = f.__qualname__
+            except AttributeError:
+                qualname = None
+
+            if isinstance(f, DeferredValue):
+                wrapper = f
+            # Hide the name of the locals and lambda functions since it's
+            # usually not very helpful
+            elif qualname and ('<locals>' in qualname or '<lambda>' in qualname):
+                @functools.wraps(f)
+                def wrapper(*args, **kwargs):
+                    return f(*args, **kwargs)
+
+                wrapper.__qualname__ = name
+                wrapper.__name__ = name
+            else:
+                wrapper = f
+
+            return wrapper
+
         def dfs(existing_info, new_info):
             def evaluate(existing_info, key, val):
                 if isinstance(val, Mapping):
@@ -237,10 +259,11 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
                     if only_missing and key in existing_info:
                         return None
                     else:
+                        renamed_val = rename_f(val, key)
                         if val is None or isinstance(val, DeferredValue):
-                            return val
+                            return renamed_val
                         elif deferred:
-                            return DeferredValue(val)
+                            return DeferredValue(renamed_val)
                         else:
                             try:
                                 return val()

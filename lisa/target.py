@@ -145,6 +145,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('strict-host-check', 'Equivalent to StrictHostKeyChecking option of OpenSSH', [bool, None]),
         KeyDesc('workdir', 'Remote target workdir', [str]),
         KeyDesc('tools', 'List of tools to install on the target', [TypedList[str]]),
+        KeyDesc('lazy-platinfo', 'Lazily autodect the platform information to speed up the connection', [bool]),
         LevelKeyDesc('wait-boot', 'Wait for the target to finish booting', (
             KeyDesc('enable', 'Enable the boot check', [bool]),
             KeyDesc('timeout', 'Timeout of the boot check', [int]),
@@ -180,6 +181,10 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     :param devlib_platform: Instance of :class:`devlib.platform.Platform` to
         use to build the :class:`devlib.target.Target`
     :type devlib_platform: devlib.platform.Platform
+
+    :param plat_info: Platform information attached to this target, for the
+        benefits of user code.
+    :type plat_info: lisa.platforms.platinfo.PlatformInfo
 
     You need to provide the information needed to connect to the
     target. For SSH targets that means "host", "username" and
@@ -232,7 +237,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     }
 
     def __init__(self, kind, name='<noname>', tools=[], res_dir=None,
-        plat_info=None, workdir=None, device=None, host=None, port=None,
+        plat_info=None, lazy_platinfo=False, workdir=None, device=None, host=None, port=None,
         username=None, password=None, keyfile=None, strict_host_check=None,
         devlib_platform=None, devlib_excluded_modules=[],
         wait_boot=True, wait_boot_timeout=10,
@@ -310,7 +315,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         rta_calib_res_dir = ArtifactPath.join(self._res_dir, 'rta_calib')
         os.makedirs(rta_calib_res_dir)
-        self.plat_info.add_target_src(self, rta_calib_res_dir, fallback=True)
+        self.plat_info.add_target_src(self, rta_calib_res_dir, deferred=lazy_platinfo, fallback=True)
 
         logger.info('Effective platform information:\n{}'.format(self.plat_info))
 
