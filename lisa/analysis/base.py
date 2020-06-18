@@ -409,9 +409,9 @@ class AnalysisHelpers(Loggable, abc.ABC):
         It allows for automatic plot setup and HTML and reStructuredText output.
         """
 
-        def decorator(func):
+        def decorator(f):
             @update_wrapper_doc(
-                func,
+                f,
                 added_by=':meth:`{}.{}.plot_method`'.format(
                     AnalysisHelpers.__module__,
                     AnalysisHelpers.__qualname__,
@@ -467,11 +467,6 @@ class AnalysisHelpers(Loggable, abc.ABC):
             )
             def wrapper(self, *args, filepath=None, axis=None, output=None, img_format=None, always_save=False, colors: TypedList[str]=None, linestyles: TypedList[str]=None, markers: TypedList[str]=None, rc_params=None, **kwargs):
 
-                # Bind the function to the instance, so we avoid having "self"
-                # showing up in the signature, which breaks parameter
-                # formatting code.
-                f = func.__get__(self, type(self))
-
                 def is_f_param(param):
                     """
                     Return True if the parameter is for `f`, False if it is
@@ -489,6 +484,12 @@ class AnalysisHelpers(Loggable, abc.ABC):
                             inspect.Parameter.VAR_KEYWORD,
                             inspect.Parameter.VAR_POSITIONAL,
                         )
+
+                # Factor the *args inside the **kwargs by binding them to the
+                # user-facing signature, which is the one of the wrapper.
+                kwargs.update(
+                    inspect.signature(wrapper).bind_partial(self, *args).arguments
+                )
 
                 f_kwargs = {
                     param: val
@@ -535,7 +536,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 if return_axis:
                     # In that case, the function takes all the kwargs
                     with set_cycler(axis), set_rc_params(axis):
-                        axis = f(*args, **kwargs, axis=axis)
+                        axis = f(**kwargs, axis=axis)
                 else:
                     if local_fig:
                         setup_plot_kwargs = {
@@ -550,7 +551,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         local_fig=local_fig,
                     )
                     with set_cycler(axis), set_rc_params(axis):
-                        f(*args, **f_kwargs)
+                        f(**f_kwargs)
 
                 if isinstance(axis, numpy.ndarray):
                     fig = axis[0].get_figure()
@@ -582,11 +583,11 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
                         mplcursors.cursor(fig)
                 else:
-                    out = resolve_formatter(output)(f, args, f_kwargs, axis)
+                    out = resolve_formatter(output)(f, [], f_kwargs, axis)
 
                 if filepath:
                     if img_format in ('html', 'rst'):
-                        content = resolve_formatter(img_format)(f, args, f_kwargs, axis)
+                        content = resolve_formatter(img_format)(f, [], f_kwargs, axis)
 
                         with open(filepath, 'wt', encoding='utf-8') as fd:
                             fd.write(content)
@@ -632,7 +633,21 @@ class AnalysisHelpers(Loggable, abc.ABC):
         fmt = 'png'
         b64_image = cls._get_base64_image(axis, fmt=fmt)
 
-        hidden_params = {'filepath', 'axis', 'output', 'img_format', 'always_save', 'kwargs', 'colors', 'linestyles', 'markers', 'rc_params'}
+        hidden_params = {
+            'self',
+            'axis',
+            'local_fig',
+            'filepath',
+            'axis',
+            'output',
+            'img_format',
+            'always_save',
+            'kwargs',
+            'colors',
+            'linestyles',
+            'markers',
+            'rc_params',
+        }
         args_list = ', '.join(
             '{}={}'.format(k, v)
             for k, v in sorted(kwargs.items(), key=itemgetter(0))
