@@ -935,13 +935,19 @@ class EnergyModel(Serializable, Loggable):
     @classmethod
     @memoized
     def _get_idle_states_name(cls, target, cpu, only_real=False):
-        if target.is_module_available('cpuidle'):
-            return [s.name for s in target.cpuidle.get_states(cpu)]
-        else:
+        def placeholder():
             if only_real:
-                raise ValueError('idle state detection requires the cpuidle devlib module')
+                raise ValueError('idle state detection requires the cpuidle devlib module, and populated sysfs idle states')
             else:
                 return ['placeholder-idle-state']
+
+        try:
+            cpuidle = target.cpuidle
+        except AttributeError:
+            return placeholder()
+        else:
+            states = [s.name for s in cpuidle.get_states(cpu)]
+            return states or placeholder()
 
 
 class LinuxEnergyModel(EnergyModel):
