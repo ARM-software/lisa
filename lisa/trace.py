@@ -380,6 +380,12 @@ class TxtEventParser(EventParserBase):
         an event
     :type greedy_field: str or None
 
+    :param raw: If ``True``, `trace-cmd report` will be used in raw mode. This
+        usually ensures compliance with the format, but may sometimes be a problem.
+        For exampe ``const char*`` are displayed as an hex pointer in raw mode,
+        which is not helpful.
+    :type raw: bool
+
     Parses events with the following format::
 
           <idle>-0     [001]    76.214046: sched_wakeup: something here: comm=watchdog/1 pid=15 prio=0 success=1 target_cpu=1
@@ -388,14 +394,14 @@ class TxtEventParser(EventParserBase):
 
     """
 
-    def __init__(self, event, fields, positional_field=None, greedy_field=None):
+    def __init__(self, event, fields, positional_field=None, greedy_field=None, raw=True):
         super().__init__(
             event=event,
             fields=fields,
         )
         regex = self._get_regex(event, fields, positional_field, greedy_field)
         self.regex = re.compile(regex, flags=re.ASCII)
-        self.raw = True
+        self.raw = raw
 
     @property
     def bytes_regex(self):
@@ -543,8 +549,7 @@ class PrintTxtEventParser(TxtEventParser):
         }
         self._func_field = func_field
         self._content_field = content_field
-        super().__init__(event=event, fields=fields)
-        self.raw = False
+        super().__init__(event=event, fields=fields, raw=False)
 
     def _get_fields_regex(self, event, fields, positional_field, greedy_field):
         return r'(?P<{func}>.*?): *(?P<{content}>.*)'.format(
@@ -1168,6 +1173,22 @@ class TxtTraceParser(TxtTraceParserBase):
             content_field='str',
         ),
 
+        'ipi_entry': dict(
+            fields={
+                'reason': 'string',
+            },
+            positional_field='reason',
+            # const char* reason is not displayed properly in raw mode
+            raw=False,
+        ),
+        'ipi_exit': dict(
+            fields={
+                'reason': 'string',
+            },
+            positional_field='reason',
+            # const char* reason is not displayed properly in raw mode
+            raw=False,
+        ),
         'sched_switch': dict(
             fields={
                 'prev_comm': _KERNEL_DTYPE['comm'],
