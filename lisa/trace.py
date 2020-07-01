@@ -380,6 +380,12 @@ class TxtEventParser(EventParserBase):
         an event
     :type greedy_field: str or None
 
+    :param raw: If ``True``, `trace-cmd report` will be used in raw mode. This
+        usually ensures compliance with the format, but may sometimes be a problem.
+        For exampe ``const char*`` are displayed as an hex pointer in raw mode,
+        which is not helpful.
+    :type raw: bool
+
     Parses events with the following format::
 
           <idle>-0     [001]    76.214046: sched_wakeup: something here: comm=watchdog/1 pid=15 prio=0 success=1 target_cpu=1
@@ -388,14 +394,14 @@ class TxtEventParser(EventParserBase):
 
     """
 
-    def __init__(self, event, fields, positional_field=None, greedy_field=None):
+    def __init__(self, event, fields, positional_field=None, greedy_field=None, raw=True):
         super().__init__(
             event=event,
             fields=fields,
         )
         regex = self._get_regex(event, fields, positional_field, greedy_field)
         self.regex = re.compile(regex, flags=re.ASCII)
-        self.raw = True
+        self.raw = raw
 
     @property
     def bytes_regex(self):
@@ -543,8 +549,7 @@ class PrintTxtEventParser(TxtEventParser):
         }
         self._func_field = func_field
         self._content_field = content_field
-        super().__init__(event=event, fields=fields)
-        self.raw = False
+        super().__init__(event=event, fields=fields, raw=False)
 
     def _get_fields_regex(self, event, fields, positional_field, greedy_field):
         return r'(?P<{func}>.*?): *(?P<{content}>.*)'.format(
@@ -640,21 +645,8 @@ class TxtTraceParserBase(TraceParserBase):
         self._pre_filled_metadata = pre_filled_metadata or {}
         events = set(events or [])
 
-        default_event_parser_cls = default_event_parser_cls or self.DEFAULT_EVENT_PARSER_CLS
-        event_parsers = {
-            **{
-                event: (
-                    desc
-                    if isinstance(desc, EventParserBase)
-                    else default_event_parser_cls(event=event, **desc)
-                )
-                for event, desc in self.EVENT_DESCS.items() or []
-            },
-            **{
-                parser.event: parser
-                for parser in event_parsers or []
-            }
-        }
+        default_event_parser_cls, event_parsers = self._resolve_event_parsers(event_parsers, default_event_parser_cls)
+
         # Remove all the parsers that are unnecessary
         event_parsers = {
             event: parser
@@ -700,6 +692,28 @@ class TxtTraceParserBase(TraceParserBase):
             **event_parsers,
         }
         self._event_parsers = event_parsers
+
+
+    @classmethod
+    def _resolve_event_parsers(cls, event_parsers, default_event_parser_cls):
+        default_event_parser_cls = default_event_parser_cls or cls.DEFAULT_EVENT_PARSER_CLS
+        event_parsers = {
+            **{
+                event: (
+                    desc
+                    if isinstance(desc, EventParserBase)
+                    else default_event_parser_cls(event=event, **desc)
+                )
+                for event, desc in cls.EVENT_DESCS.items() or []
+            },
+            **{
+                parser.event: parser
+                for parser in event_parsers or []
+            }
+        }
+
+        return (default_event_parser_cls, event_parsers)
+
 
     @classmethod
     def from_string(cls, txt, **kwargs):
@@ -1159,6 +1173,22 @@ class TxtTraceParser(TxtTraceParserBase):
             content_field='str',
         ),
 
+        'ipi_entry': dict(
+            fields={
+                'reason': 'string',
+            },
+            positional_field='reason',
+            # const char* reason is not displayed properly in raw mode
+            raw=False,
+        ),
+        'ipi_exit': dict(
+            fields={
+                'reason': 'string',
+            },
+            positional_field='reason',
+            # const char* reason is not displayed properly in raw mode
+            raw=False,
+        ),
         'sched_switch': dict(
             fields={
                 'prev_comm': _KERNEL_DTYPE['comm'],
@@ -1335,7 +1365,7 @@ class TxtTraceParser(TxtTraceParserBase):
     }
 
     @classmethod
-    def from_dat(cls, path, events, needed_metadata=None, event_parsers=None, **kwargs):
+    def from_dat(cls, path, events, needed_metadata=None, event_parsers=None, default_event_parser_cls=None, **kwargs):
         """
         Build an instance from a path to a trace.dat file created with
         ``trace-cmd``.
@@ -1366,13 +1396,13 @@ class TxtTraceParser(TxtTraceParserBase):
                 for event in (events & kernel_events)
             ))
 
+        default_event_parser_cls, event_parsers = cls._resolve_event_parsers(event_parsers, default_event_parser_cls)
+        event_parsers = event_parsers.values()
+
         non_raw = {
             parser.event
-            for parser in itertools.chain(
-                cls.EVENT_DESCS.values(),
-                event_parsers or[]
-            )
-            if isinstance(parser, TxtEventParser) and not parser.raw
+            for parser in event_parsers
+            if not parser.raw
         }
 
         raw_events = list(itertools.chain.from_iterable(
@@ -1424,6 +1454,7 @@ class TxtTraceParser(TxtTraceParserBase):
             events=events,
             needed_metadata=needed_metadata,
             event_parsers=event_parsers,
+            default_event_parser_cls=default_event_parser_cls,
             pre_filled_metadata=pre_filled_metadata,
         )
         cmd = [
@@ -3033,6 +3064,44 @@ class Trace(Loggable, TraceBase):
     :ivar available_events: Events available in the parsed trace, exposed as
         some kind of set-ish smart container. Querying for event might trigger
         the parsing of it.
+
+    :Supporting more events:
+        Subclasses of :class:`TraceParserBase` can usually auto-detect the
+        event format, but there may be a number of reasons to pass a custom
+        event parser:
+
+            * The event format produced by a given kernel differs from the
+              description bundled with the parser, leading to incorrect parse
+              (missing field).
+
+            * The event cannot be parsed in raw format in case text output of
+              ``trace-cmd`` is used, because of a ``const char*`` field displayed
+              as a pointer for example.
+
+            * Automatic detection can take a heavy performance toll. This is
+              why parsers needing descriptions will come with pre-defined
+              descritption of most used events.
+
+        Custom event parsers can be passed as extra parameters to the parser,
+        which can be set manually::
+
+            from functools import partial
+
+            # Event parsers provided by TxtTraceParser can also be overridden
+            # with user-provided ones in case they fail to parse what a given
+            # kernel produced
+            event_parsers = [
+                TxtEventParser('foobar', fields={'foo': int, 'bar': 'string'}, raw=True)
+            ]
+
+            # Pre-fill the "event_parsers" parameter of
+            # TxtEventParser.from_dat() using a partial application.
+            #
+            # Note: you need to choose the parser appropriately for the
+            # format of the trace, since the automatic filetype detection is
+            # bypassed.
+            parser = partial(TxtTraceParser.from_dat, event_parsers=event_parsers)
+            trace = Trace('foobar.dat', parser=parser)
     """
 
     def _select_userspace(source_event, meta_event, df):

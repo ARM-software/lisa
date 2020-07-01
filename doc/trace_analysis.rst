@@ -15,13 +15,15 @@ handling mid-sized data sets.
 Trace
 =====
 
-Our :class:`~lisa.trace.Trace` takes an Ftrace ``trace.dat`` file as input (Systrace
-``trace.html`` are also accepted), and provides access to both the raw trace events,
-as well as some new dataframes built from analysing and aggregating trace events.
+Our :class:`~lisa.trace.Trace` takes an Ftrace ``trace.dat`` file as input
+(Systrace ``trace.html`` are also accepted, but mileage may vary since it's an
+intrinsically ambiguous format), and provides access to both the raw trace
+events, as well as some new :class:`pandas.DataFrame` built from analysing and
+aggregating trace events.
 
 You can create one like so::
 
-  trace = Trace("path/to/trace.dat", events=["sched_switch", "sched_wakeup"])
+  trace = Trace("path/to/trace.dat")
 
 Raw trace events can be accessed like this::
 
@@ -54,8 +56,6 @@ Plots
 When run in a notebook, these plots will be displayed automatically. By default,
 they are also saved in the same directory as your ``trace.dat``
 
-.. TODO:: Generate some sample plots using the nosetest trace
-
 .. exec::
     from lisa.doc.helpers import get_analysis_list
     print(get_analysis_list("plot"))
@@ -66,17 +66,21 @@ API
 Trace
 +++++
 
-.. automodule:: lisa.trace
+.. autoclass:: lisa.trace.Trace
    :members:
 
-Proxy
-+++++
+.. automodule:: lisa.trace
+   :members:
+   :exclude-members: Trace, TraceParserBase, EventParserBase, ParallelTraceParser, TxtTraceParserBase, MetaTxtTraceParser, TxtTraceParser, SimpleTxtTraceParser, HRTxtTraceParser, SysTraceParser, TxtEventParser, PrintTxtEventParser, TrappyTraceParser
+
+Analysis proxy
+++++++++++++++
 
 .. automodule:: lisa.analysis.proxy
    :members:
 
-Base class
-++++++++++
+Analysis base class
++++++++++++++++++++
 
 .. automodule:: lisa.analysis.base
    :members:
@@ -157,4 +161,48 @@ Interactive notebook helper
 +++++++++++++++++++++++++++
 
 .. automodule:: lisa.analysis.notebook
+   :members:
+
+
+Trace parsers
++++++++++++++
+
+.. note:: :class:`lisa.trace.Trace` is the class to use to manipulate a trace
+    file, trace parsers are backend objects that are usually not
+    manipulated by the user.
+
+.. autoclass:: lisa.trace.TraceParserBase
+   :members:
+
+.. autoclass:: lisa.trace.EventParserBase
+   :members:
+
+.. autoclass:: lisa.trace.ParallelTraceParser
+   :members:
+
+.. autoclass:: lisa.trace.TxtTraceParserBase
+   :members:
+
+.. autoclass:: lisa.trace.TxtTraceParser
+   :members:
+
+.. autoclass:: lisa.trace.MetaTxtTraceParser
+   :members:
+
+.. autoclass:: lisa.trace.SimpleTxtTraceParser
+   :members:
+
+.. autoclass:: lisa.trace.HRTxtTraceParser
+   :members:
+
+.. autoclass:: lisa.trace.SysTraceParser
+   :members:
+
+.. autoclass:: lisa.trace.TxtEventParser
+   :members:
+
+.. autoclass:: lisa.trace.PrintTxtEventParser
+   :members:
+
+.. autoclass:: lisa.trace.TrappyTraceParser
    :members:
