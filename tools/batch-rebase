@@ -551,6 +551,10 @@ def main():
         help='Used as a suffix for both the created branch and tags (if enabled with --tags)'
     )
 
+    create_parser.add_argument('--checkout', action='store_true',
+        help='Attempt to checkout the newly created branch.'
+    )
+
     # Stat action
     stat_parser.add_argument('--base', required=True,
         help='Git ref pointing at the base',
@@ -609,6 +613,15 @@ def main():
                 if args.delete_temp:
                     info('Deleting temporary clone as requested with --delete-temp')
                     delete_temp_repo = True
+
+                ###
+                # Functions that could raise must be used after setting
+                # delete_temp_repo
+                ###
+
+                git = make_git_func(repo)
+                if args.checkout:
+                    git(['checkout', new_branch])
 
             elif args.subcommand == 'resume':
                 temp_repo = repo
