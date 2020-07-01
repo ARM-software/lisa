@@ -56,8 +56,6 @@ Plots
 When run in a notebook, these plots will be displayed automatically. By default,
 they are also saved in the same directory as your ``trace.dat``
 
-.. TODO:: Generate some sample plots using the nosetest trace
-
 .. exec::
     from lisa.doc.helpers import get_analysis_list
     print(get_analysis_list("plot"))
