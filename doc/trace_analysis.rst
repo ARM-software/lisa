@@ -66,8 +66,12 @@ API
 Trace
 +++++
 
+.. autoclass:: lisa.trace.Trace
+   :members:
+
 .. automodule:: lisa.trace
    :members:
+   :exclude-members: Trace, TraceParserBase, EventParserBase, ParallelTraceParser, TxtTraceParserBase, MetaTxtTraceParser, TxtTraceParser, SimpleTxtTraceParser, HRTxtTraceParser, SysTraceParser, TxtEventParser, PrintTxtEventParser, TrappyTraceParser
 
 Analysis proxy
 ++++++++++++++
@@ -157,4 +161,48 @@ Interactive notebook helper
 +++++++++++++++++++++++++++
 
 .. automodule:: lisa.analysis.notebook
+   :members:
+
+
+Trace parsers
++++++++++++++
+
+.. note:: :class:`lisa.trace.Trace` is the class to use to manipulate a trace
+    file, trace parsers are backend objects that are usually not
+    manipulated by the user.
+
+.. autoclass:: lisa.trace.TraceParserBase
+   :members:
+
+.. autoclass:: lisa.trace.EventParserBase
+   :members:
+
+.. autoclass:: lisa.trace.ParallelTraceParser
+   :members:
+
+.. autoclass:: lisa.trace.TxtTraceParserBase
+   :members:
+
+.. autoclass:: lisa.trace.TxtTraceParser
+   :members:
+
+.. autoclass:: lisa.trace.MetaTxtTraceParser
+   :members:
+
+.. autoclass:: lisa.trace.SimpleTxtTraceParser
+   :members:
+
+.. autoclass:: lisa.trace.HRTxtTraceParser
+   :members:
+
+.. autoclass:: lisa.trace.SysTraceParser
+   :members:
+
+.. autoclass:: lisa.trace.TxtEventParser
+   :members:
+
+.. autoclass:: lisa.trace.PrintTxtEventParser
+   :members:
+
+.. autoclass:: lisa.trace.TrappyTraceParser
    :members:
