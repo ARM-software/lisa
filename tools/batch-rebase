@@ -54,6 +54,10 @@ class BatchRebaseManifest(SimpleMultiSrcConf):
             KeyDesc('remote', 'remote where the base branch is located', [str]),
             KeyDesc('ref', 'Name of the base branch', [str]),
         ]),
+        LevelKeyDesc('tip', 'New branche spec', [
+            KeyDesc('ref', 'Name of the base branch. --refs-suffix can be used to tweak the name', [str]),
+            KeyDesc('tags', 'Default of --tags', [bool]),
+        ]),
         LevelKeyDesc('resume', 'Internal state used for resuming after a conflict', [
             KeyDesc('conflict-topic', 'Topic where the conflict happened', [str]),
             KeyDesc('persistent-refs', 'List of references that needs to be pushed back to the main repo', [TypedList[str]]),
@@ -529,7 +533,7 @@ def main():
         help='Config file'
     )
 
-    create_parser.add_argument('--create-branch', required=True,
+    create_parser.add_argument('--create-branch',
         help='Name of the new branch to create'
     )
 
@@ -568,10 +572,22 @@ def main():
         temp_repo = None
         try:
             if args.subcommand == 'create':
-                refs_suffix = args.refs_suffix
                 conf = BatchRebaseManifest.from_yaml_map(args.manifest)
-                new_branch = '{}-{}'.format(args.create_branch, refs_suffix)
-                persistent_tags = args.tags or args.tags_suffix
+                def default_from_conf(x, key):
+                    try:
+                        default = conf.get_nested_key(key)
+                    except KeyError:
+                        return x
+                    else:
+                        return x or default
+
+                refs_suffix = args.refs_suffix
+                new_branch_stem = default_from_conf(args.create_branch, ['tip', 'ref'])
+                if not new_branch_stem:
+                    create_parser.error('--create-branch or tip/ref key in config file is mandatory')
+
+                new_branch = '{}-{}'.format(new_branch_stem, refs_suffix)
+                persistent_tags = default_from_conf(args.tags, ['tip', 'tags']) or args.tags_suffix
 
                 # If the user passed an explicit suffix, use it rather than the date
                 if args.tags_suffix or args.refs_suffix:
