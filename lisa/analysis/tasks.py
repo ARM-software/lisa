@@ -26,7 +26,7 @@ import pandas as pd
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates
-from lisa.trace import requires_events, TaskID, CPU
+from lisa.trace import requires_events, may_use_events, TaskID, CPU, MissingTraceEventError
 from lisa.pelt import PELT_SCALE
 from lisa.generic import TypedList
 
@@ -252,6 +252,7 @@ class TasksAnalysis(TraceAnalysisBase):
         return rt_tasks
 
     @requires_events('sched_switch', 'sched_wakeup')
+    @may_use_events('sched_wakeup_new')
     def _df_tasks_states(self, tasks=None, return_one_df=False):
         """
         Compute tasks states for all tasks.
@@ -274,8 +275,11 @@ class TasksAnalysis(TraceAnalysisBase):
         wk_df = self.trace.df_event('sched_wakeup')
         sw_df = self.trace.df_event('sched_switch')
 
-        if self.trace.has_events('sched_wakeup_new'):
+        try:
             wkn_df = self.trace.df_event('sched_wakeup_new')
+        except MissingTraceEventError:
+            pass
+        else:
             wk_df = pd.concat([wk_df, wkn_df])
 
         wk_df = wk_df[["pid", "comm", "target_cpu", "__cpu"]].copy(deep=False)
