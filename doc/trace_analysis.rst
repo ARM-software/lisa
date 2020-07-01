@@ -71,14 +71,14 @@ Trace
 .. automodule:: lisa.trace
    :members:
 
-Proxy
-+++++
+Analysis proxy
+++++++++++++++
 
 .. automodule:: lisa.analysis.proxy
    :members:
 
-Base class
-++++++++++
+Analysis base class
++++++++++++++++++++
 
 .. automodule:: lisa.analysis.base
    :members:
