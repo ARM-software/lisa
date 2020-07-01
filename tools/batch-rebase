@@ -296,7 +296,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             )
 
             nr_commits = int(
-                git(['rev-list', '--count', '--', range_ref], capture=True)
+                git(['rev-list', '--count', range_ref], capture=True)
             )
             info('Cherry-picking topic "{name}" from {remote} ({nr_commits} commits)\nremote: {remote}\nbase: {base}\ntip: {tip}\n'.format(
                 name=name,
@@ -394,7 +394,7 @@ def do_stat(repo, tip, base):
     git = make_git_func(repo=repo, capture=True, quiet=True)
 
     git_range = '{}..{}'.format(base, tip)
-    sha1s = git(['rev-list', '--simplify-by-decoration', '--topo-order', '--', git_range]).splitlines()
+    sha1s = git(['rev-list', '--simplify-by-decoration', '--topo-order', git_range]).splitlines()
     tag_map = {
         sha1: ' + '.join(git(['tag', '--sort=taggerdate', '--points-at', '--', sha1]).splitlines())
         for sha1 in sha1s
@@ -402,7 +402,7 @@ def do_stat(repo, tip, base):
 
     total = None
     def count(base, tip, display=False):
-        nr = int(git(['rev-list', '--count', '--', '{}..{}'.format(base, tip)]))
+        nr = int(git(['rev-list', '--count', '{}..{}'.format(base, tip)]))
         if display:
             pct = 100 * nr/total
             return '{nr}/{pct:.0f}%'.format(nr=nr, pct=pct).rjust(8)
