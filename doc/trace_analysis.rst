@@ -15,13 +15,15 @@ handling mid-sized data sets.
 Trace
 =====
 
-Our :class:`~lisa.trace.Trace` takes an Ftrace ``trace.dat`` file as input (Systrace
-``trace.html`` are also accepted), and provides access to both the raw trace events,
-as well as some new dataframes built from analysing and aggregating trace events.
+Our :class:`~lisa.trace.Trace` takes an Ftrace ``trace.dat`` file as input
+(Systrace ``trace.html`` are also accepted, but mileage may vary since it's an
+intrinsically ambiguous format), and provides access to both the raw trace
+events, as well as some new :class:`pandas.DataFrame` built from analysing and
+aggregating trace events.
 
 You can create one like so::
 
-  trace = Trace("path/to/trace.dat", events=["sched_switch", "sched_wakeup"])
+  trace = Trace("path/to/trace.dat")
 
 Raw trace events can be accessed like this::
 
