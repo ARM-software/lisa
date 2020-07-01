@@ -640,21 +640,8 @@ class TxtTraceParserBase(TraceParserBase):
         self._pre_filled_metadata = pre_filled_metadata or {}
         events = set(events or [])
 
-        default_event_parser_cls = default_event_parser_cls or self.DEFAULT_EVENT_PARSER_CLS
-        event_parsers = {
-            **{
-                event: (
-                    desc
-                    if isinstance(desc, EventParserBase)
-                    else default_event_parser_cls(event=event, **desc)
-                )
-                for event, desc in self.EVENT_DESCS.items() or []
-            },
-            **{
-                parser.event: parser
-                for parser in event_parsers or []
-            }
-        }
+        default_event_parser_cls, event_parsers = self._resolve_event_parsers(event_parsers, default_event_parser_cls)
+
         # Remove all the parsers that are unnecessary
         event_parsers = {
             event: parser
@@ -700,6 +687,28 @@ class TxtTraceParserBase(TraceParserBase):
             **event_parsers,
         }
         self._event_parsers = event_parsers
+
+
+    @classmethod
+    def _resolve_event_parsers(cls, event_parsers, default_event_parser_cls):
+        default_event_parser_cls = default_event_parser_cls or cls.DEFAULT_EVENT_PARSER_CLS
+        event_parsers = {
+            **{
+                event: (
+                    desc
+                    if isinstance(desc, EventParserBase)
+                    else default_event_parser_cls(event=event, **desc)
+                )
+                for event, desc in cls.EVENT_DESCS.items() or []
+            },
+            **{
+                parser.event: parser
+                for parser in event_parsers or []
+            }
+        }
+
+        return (default_event_parser_cls, event_parsers)
+
 
     @classmethod
     def from_string(cls, txt, **kwargs):
@@ -1335,7 +1344,7 @@ class TxtTraceParser(TxtTraceParserBase):
     }
 
     @classmethod
-    def from_dat(cls, path, events, needed_metadata=None, event_parsers=None, **kwargs):
+    def from_dat(cls, path, events, needed_metadata=None, event_parsers=None, default_event_parser_cls=None, **kwargs):
         """
         Build an instance from a path to a trace.dat file created with
         ``trace-cmd``.
@@ -1366,13 +1375,13 @@ class TxtTraceParser(TxtTraceParserBase):
                 for event in (events & kernel_events)
             ))
 
+        default_event_parser_cls, event_parsers = cls._resolve_event_parsers(event_parsers, default_event_parser_cls)
+        event_parsers = event_parsers.values()
+
         non_raw = {
             parser.event
-            for parser in itertools.chain(
-                cls.EVENT_DESCS.values(),
-                event_parsers or[]
-            )
-            if isinstance(parser, TxtEventParser) and not parser.raw
+            for parser in event_parsers
+            if not parser.raw
         }
 
         raw_events = list(itertools.chain.from_iterable(
@@ -1424,6 +1433,7 @@ class TxtTraceParser(TxtTraceParserBase):
             events=events,
             needed_metadata=needed_metadata,
             event_parsers=event_parsers,
+            default_event_parser_cls=default_event_parser_cls,
             pre_filled_metadata=pre_filled_metadata,
         )
         cmd = [
