@@ -538,8 +538,13 @@ def main():
     )
 
     create_parser.add_argument('--tags-suffix',
-        default=datetime.datetime.now().strftime("%Y%m%d"),
-        help='Replace the default tag suffix (current date)'
+        default='',
+        help='Replace the default tag suffix (current date). Implies --tags'
+    )
+
+    create_parser.add_argument('--refs-suffix',
+        default='',
+        help='Used as a suffix for both the created branch and tags (if enabled with --tags)'
     )
 
     # Stat action
@@ -563,10 +568,16 @@ def main():
         temp_repo = None
         try:
             if args.subcommand == 'create':
+                refs_suffix = args.refs_suffix
                 conf = BatchRebaseManifest.from_yaml_map(args.manifest)
-                new_branch = args.create_branch
-                persistent_tags = args.tags
-                tags_suffix = args.tags_suffix
+                new_branch = '{}-{}'.format(args.create_branch, refs_suffix)
+                persistent_tags = args.tags or args.tags_suffix
+
+                # If the user passed an explicit suffix, use it rather than the date
+                if args.tags_suffix or args.refs_suffix:
+                    tags_suffix = '{}{}'.format(args.tags_suffix, args.refs_suffix)
+                else:
+                    tags_suffix = datetime.datetime.now().strftime("%Y%m%d")
 
                 # Make sure we use resolved absolute path
                 conf_folder = Path(args.manifest).parent
