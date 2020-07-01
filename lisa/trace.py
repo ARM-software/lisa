@@ -3064,6 +3064,44 @@ class Trace(Loggable, TraceBase):
     :ivar available_events: Events available in the parsed trace, exposed as
         some kind of set-ish smart container. Querying for event might trigger
         the parsing of it.
+
+    :Supporting more events:
+        Subclasses of :class:`TraceParserBase` can usually auto-detect the
+        event format, but there may be a number of reasons to pass a custom
+        event parser:
+
+            * The event format produced by a given kernel differs from the
+              description bundled with the parser, leading to incorrect parse
+              (missing field).
+
+            * The event cannot be parsed in raw format in case text output of
+              ``trace-cmd`` is used, because of a ``const char*`` field displayed
+              as a pointer for example.
+
+            * Automatic detection can take a heavy performance toll. This is
+              why parsers needing descriptions will come with pre-defined
+              descritption of most used events.
+
+        Custom event parsers can be passed as extra parameters to the parser,
+        which can be set manually::
+
+            from functools import partial
+
+            # Event parsers provided by TxtTraceParser can also be overridden
+            # with user-provided ones in case they fail to parse what a given
+            # kernel produced
+            event_parsers = [
+                TxtEventParser('foobar', fields={'foo': int, 'bar': 'string'}, raw=True)
+            ]
+
+            # Pre-fill the "event_parsers" parameter of
+            # TxtEventParser.from_dat() using a partial application.
+            #
+            # Note: you need to choose the parser appropriately for the
+            # format of the trace, since the automatic filetype detection is
+            # bypassed.
+            parser = partial(TxtTraceParser.from_dat, event_parsers=event_parsers)
+            trace = Trace('foobar.dat', parser=parser)
     """
 
     def _select_userspace(source_event, meta_event, df):
