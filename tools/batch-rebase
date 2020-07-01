@@ -144,7 +144,7 @@ def empty_staging_area(repo):
 def do_create(conf_folder, repo, temp_repo, new_branch, conf, persistent_tags, tags_suffix):
     # Use --shared to avoid copying the git objects, so we only pay for a
     # checkout
-    call_git(['clone', '--shared', repo, temp_repo])
+    call_git(['clone', '--shared', '--', repo, temp_repo])
 
     # From now on, only act on the temp repo
     git = make_git_func(temp_repo)
@@ -172,11 +172,11 @@ def do_create(conf_folder, repo, temp_repo, new_branch, conf, persistent_tags, t
         'url': repo,
     }
     for name, remote in conf['remotes'].items():
-        git(['remote', 'add', name, remote['url']])
+        git(['remote', 'add', '--', name, remote['url']])
 
     # Create the new branch at the beginning of the cherry picking session
     base = conf['base']
-    git(['fetch', base['remote'], base['ref']])
+    git(['fetch', '--', base['remote'], base['ref']])
     git(['checkout', '-b', new_branch, 'FETCH_HEAD'])
 
     # Start cherry picking topics
@@ -233,7 +233,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             suffix='-{}'.format(suffix) if suffix else '',
         )
         # Force create the tag
-        git(['tag', '-f', tag_name])
+        git(['tag', '-f', '--', tag_name])
         return tag_name
 
     persistent_refs = set()
@@ -287,7 +287,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
 
             # Fetch the topic base and tip
             for ref in (base, tip):
-                git(['fetch', remote, ref])
+                git(['fetch', '--', remote, ref])
 
             range_ref = 'refs/remotes/{remote}/{base}..refs/remotes/{remote}/{tip}'.format(
                 remote=remote,
@@ -296,7 +296,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
             )
 
             nr_commits = int(
-                git(['rev-list', '--count', range_ref], capture=True)
+                git(['rev-list', '--count', '--', range_ref], capture=True)
             )
             info('Cherry-picking topic "{name}" from {remote} ({nr_commits} commits)\nremote: {remote}\nbase: {base}\ntip: {tip}\n'.format(
                 name=name,
@@ -349,7 +349,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
 def cherry_pick_ref(repo, ref):
     git = make_git_func(repo)
     try:
-        git(['cherry-pick', ref])
+        git(['cherry-pick', '--', ref])
     # There is a conflict
     except subprocess.CalledProcessError:
         # Let Git rerere do its job
@@ -394,15 +394,15 @@ def do_stat(repo, tip, base):
     git = make_git_func(repo=repo, capture=True, quiet=True)
 
     git_range = '{}..{}'.format(base, tip)
-    sha1s = git(['rev-list', '--simplify-by-decoration', '--topo-order', git_range]).splitlines()
+    sha1s = git(['rev-list', '--simplify-by-decoration', '--topo-order', '--', git_range]).splitlines()
     tag_map = {
-        sha1: ' + '.join(git(['tag', '--sort=taggerdate', '--points-at', sha1]).splitlines())
+        sha1: ' + '.join(git(['tag', '--sort=taggerdate', '--points-at', '--', sha1]).splitlines())
         for sha1 in sha1s
     }
 
     total = None
     def count(base, tip, display=False):
-        nr = int(git(['rev-list', '--count', '{}..{}'.format(base, tip)]))
+        nr = int(git(['rev-list', '--count', '--', '{}..{}'.format(base, tip)]))
         if display:
             pct = 100 * nr/total
             return '{nr}/{pct:.0f}%'.format(nr=nr, pct=pct).rjust(8)
@@ -621,7 +621,7 @@ def main():
 
                 git = make_git_func(repo)
                 if args.checkout:
-                    git(['checkout', new_branch])
+                    git(['checkout', '--', new_branch])
 
             elif args.subcommand == 'resume':
                 temp_repo = repo
