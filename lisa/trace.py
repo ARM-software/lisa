@@ -3161,6 +3161,13 @@ class Trace(Loggable, TraceBase):
             # bypassed.
             parser = partial(TxtTraceParser.from_dat, event_parsers=event_parsers)
             trace = Trace('foobar.dat', parser=parser)
+
+        .. warning:: Custom event parsers are not tracked by the :class:`Trace`
+            object, which means the swap will not evict a
+            :class:`pandas.DataFrame` if the event is not parsed with the same
+            parser. In order to avoid such issues, either disable the swap with
+            ``enable_swap=False`` or delete the backing folder after parser
+            changes.
     """
 
     def _select_userspace(source_event, meta_event, df):
@@ -3392,6 +3399,8 @@ class Trace(Loggable, TraceBase):
             self._parser.__module__,
             self._parser.__qualname__
         )
+        # Note: the parser name is an approximation of the state: if custom
+        # event parsers are passed, this will not be tracked.
         return (self.normalize_time, parser_name)
 
     @property
