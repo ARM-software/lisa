@@ -558,6 +558,53 @@ class PrintTxtEventParser(TxtEventParser):
         )
 
 
+class CustomFieldsTxtEventParser(TxtEventParser):
+    """
+    Subclass of :class:`TxtEventParser` to be used for funky formats.
+
+    When the format of the textual event does not respect at all the raw
+    ``trace-cmd`` format, and if raw format cannot be used (e.g. because of
+    ``const char*`` fields), this class provides a way out. For example, this
+    event can be parsed with this class, but would be impossible to be parse
+    using :class:`TxtEventParser`::
+
+        # non-raw format lacks a field delimiter for the "reason"
+        kworker/u16:6-262   [003]   177.417147: ipi_raise:            target_mask=00000000,00000020 (Function call interrupts)
+        # raw format, even less usable because of the const char* pointer not being resolved
+        kworker/u16:6-262   [003]   177.417147: ipi_raise:             target_cpus=ARRAY[20, 00, 00, 00, 00, 00, 00, 00] reason=0xffffff8c0774fe6b
+
+    .. note:: Use :class:`TxtEventParser` if possible, since it provides a more
+        optimized fields regex than what you are likely to come up with, and
+        can deal with missing fields.
+
+    :param event: Name of the event.
+    :type event: str
+
+    :param fields_regex: Regex to parse the fields part of the event occurence.
+        Regex groups are used to delimit fields, e.g.
+        ``r"field1=(?P<field1>[0-9]+)"`` would recognize ``"field1=42"`` as a
+        ``field1`` column.
+    :type fields_regex: str
+
+    :param fields: Mapping of field names (group names in the regex) to dtype
+        to use in the :class:`pandas.DataFrame`. This is passed to
+        :func:`lisa.datautils.series_convert` so the accepted values are a bit
+        wider than :mod:`pandas` dtypes.
+    :type fields: dict(str, object)
+
+    :param raw: If ``True``, the event will be parsed as raw by ``trace-cmd``.
+        If you have ``const char*`` fields, this must be ``False`` in order to
+        get the string instead of the pointer.
+    :type raw: bool
+    """
+    def __init__(self, event, fields_regex, fields, raw):
+        self._fields_regex = fields_regex
+        super().__init__(event=event, fields=fields, raw=raw)
+
+    def _get_fields_regex(self, event, fields, positional_field, greedy_field):
+        return self._fields_regex
+
+
 class TxtTraceParserBase(TraceParserBase):
     """
     Text trace parser base class.
@@ -1187,6 +1234,15 @@ class TxtTraceParser(TxtTraceParserBase):
             },
             positional_field='reason',
             # const char* reason is not displayed properly in raw mode
+            raw=False,
+        ),
+        'ipi_raise': CustomFieldsTxtEventParser(
+            event='ipi_raise',
+            fields_regex=r'target_mask=(?P<target_cpus>[0-9,]+) +\((?P<reason>[^)]+)\)',
+            fields={
+                'target_cpus': 'string',
+                'reason': 'string',
+            },
             raw=False,
         ),
         'sched_switch': dict(
@@ -3078,6 +3134,9 @@ class Trace(Loggable, TraceBase):
               ``trace-cmd`` is used, because of a ``const char*`` field displayed
               as a pointer for example.
 
+              .. seealso:: For events not following the regular field syntax,
+                use :class:`CustomFieldsTxtEventParser`
+
             * Automatic detection can take a heavy performance toll. This is
               why parsers needing descriptions will come with pre-defined
               descritption of most used events.
@@ -3102,6 +3161,13 @@ class Trace(Loggable, TraceBase):
             # bypassed.
             parser = partial(TxtTraceParser.from_dat, event_parsers=event_parsers)
             trace = Trace('foobar.dat', parser=parser)
+
+        .. warning:: Custom event parsers are not tracked by the :class:`Trace`
+            object, which means the swap will not evict a
+            :class:`pandas.DataFrame` if the event is not parsed with the same
+            parser. In order to avoid such issues, either disable the swap with
+            ``enable_swap=False`` or delete the backing folder after parser
+            changes.
     """
 
     def _select_userspace(source_event, meta_event, df):
@@ -3333,6 +3399,8 @@ class Trace(Loggable, TraceBase):
             self._parser.__module__,
             self._parser.__qualname__
         )
+        # Note: the parser name is an approximation of the state: if custom
+        # event parsers are passed, this will not be tracked.
         return (self.normalize_time, parser_name)
 
     @property
@@ -4311,6 +4379,51 @@ class Trace(Loggable, TraceBase):
             df['func'] = df['func'].astype('category', copy=False)
         return df
 
+    @staticmethod
+    def _expand_bitmask_field(mask):
+        """
+        Turn a bitmask (like cpu_mask) formated by trace-cmd in non-raw mode
+        into a list of integers for each bitmask position that is set.
+
+        ``mask`` is a string with comma-separated hex numbers like
+        "000001,12345,..."
+        """
+        numbers = mask.split(',')
+
+        # hex number, so 4 bit per digit
+        nr_bits = len(numbers[0]) * 4
+
+        def bit_pos(number):
+            # Little endian
+            number = int(number, base=16)
+            return [
+                i
+                for i in range(nr_bits)
+                if number & (1 << i)
+            ]
+
+        return [
+            i + (nr_bits * offset)
+            for offset, positions in enumerate(
+                # LSB is in the number at the end of the list so we reverse it
+                map(bit_pos, reversed(numbers))
+            )
+            for i in positions
+        ]
+
+    @_sanitize_event('ipi_raise')
+    def _sanitize_ipi_raise(self, event, df, aspects):
+        df = df.copy(deep=False)
+        df['target_cpus'] = df['target_cpus'].apply(self._expand_bitmask_field)
+        df['reason'] = df['reason'].str.strip('()')
+        return df
+
+    @_sanitize_event('ipi_entry')
+    @_sanitize_event('ipi_exit')
+    def _sanitize_ipi_enty_exit(self, event, df, aspects):
+        df = df.copy(deep=False)
+        df['reason'] = df['reason'].str.strip('()')
+        return df
 
 class TraceEventCheckerBase(abc.ABC, Loggable):
     """
