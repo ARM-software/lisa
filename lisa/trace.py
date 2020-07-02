@@ -4409,6 +4409,12 @@ class Trace(Loggable, TraceBase):
         df['reason'] = df['reason'].str.strip('()')
         return df
 
+    @_sanitize_event('ipi_entry')
+    @_sanitize_event('ipi_exit')
+    def _sanitize_ipi_enty_exit(self, event, df, aspects):
+        df = df.copy(deep=False)
+        df['reason'] = df['reason'].str.strip('()')
+        return df
 
 class TraceEventCheckerBase(abc.ABC, Loggable):
     """
