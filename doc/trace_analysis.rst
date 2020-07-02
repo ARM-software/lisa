@@ -71,7 +71,7 @@ Trace
 
 .. automodule:: lisa.trace
    :members:
-   :exclude-members: Trace, TraceParserBase, EventParserBase, ParallelTraceParser, TxtTraceParserBase, MetaTxtTraceParser, TxtTraceParser, SimpleTxtTraceParser, HRTxtTraceParser, SysTraceParser, TxtEventParser, PrintTxtEventParser, TrappyTraceParser
+   :exclude-members: Trace, TraceParserBase, EventParserBase, ParallelTraceParser, TxtTraceParserBase, MetaTxtTraceParser, TxtTraceParser, SimpleTxtTraceParser, HRTxtTraceParser, SysTraceParser, TxtEventParser, CustomFieldsTxtEventParser, PrintTxtEventParser, TrappyTraceParser
 
 Analysis proxy
 ++++++++++++++
@@ -199,6 +199,9 @@ Trace parsers
    :members:
 
 .. autoclass:: lisa.trace.TxtEventParser
+   :members:
+
+.. autoclass:: lisa.trace.CustomFieldsTxtEventParser
    :members:
 
 .. autoclass:: lisa.trace.PrintTxtEventParser

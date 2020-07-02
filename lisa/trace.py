@@ -558,6 +558,53 @@ class PrintTxtEventParser(TxtEventParser):
         )
 
 
+class CustomFieldsTxtEventParser(TxtEventParser):
+    """
+    Subclass of :class:`TxtEventParser` to be used for funky formats.
+
+    When the format of the textual event does not respect at all the raw
+    ``trace-cmd`` format, and if raw format cannot be used (e.g. because of
+    ``const char*`` fields), this class provides a way out. For example, this
+    event can be parsed with this class, but would be impossible to be parse
+    using :class:`TxtEventParser`::
+
+        # non-raw format lacks a field delimiter for the "reason"
+        kworker/u16:6-262   [003]   177.417147: ipi_raise:            target_mask=00000000,00000020 (Function call interrupts)
+        # raw format, even less usable because of the const char* pointer not being resolved
+        kworker/u16:6-262   [003]   177.417147: ipi_raise:             target_cpus=ARRAY[20, 00, 00, 00, 00, 00, 00, 00] reason=0xffffff8c0774fe6b
+
+    .. note:: Use :class:`TxtEventParser` if possible, since it provides a more
+        optimized fields regex than what you are likely to come up with, and
+        can deal with missing fields.
+
+    :param event: Name of the event.
+    :type event: str
+
+    :param fields_regex: Regex to parse the fields part of the event occurence.
+        Regex groups are used to delimit fields, e.g.
+        ``r"field1=(?P<field1>[0-9]+)"`` would recognize ``"field1=42"`` as a
+        ``field1`` column.
+    :type fields_regex: str
+
+    :param fields: Mapping of field names (group names in the regex) to dtype
+        to use in the :class:`pandas.DataFrame`. This is passed to
+        :func:`lisa.datautils.series_convert` so the accepted values are a bit
+        wider than :mod:`pandas` dtypes.
+    :type fields: dict(str, object)
+
+    :param raw: If ``True``, the event will be parsed as raw by ``trace-cmd``.
+        If you have ``const char*`` fields, this must be ``False`` in order to
+        get the string instead of the pointer.
+    :type raw: bool
+    """
+    def __init__(self, event, fields_regex, fields, raw):
+        self._fields_regex = fields_regex
+        super().__init__(event=event, fields=fields, raw=raw)
+
+    def _get_fields_regex(self, event, fields, positional_field, greedy_field):
+        return self._fields_regex
+
+
 class TxtTraceParserBase(TraceParserBase):
     """
     Text trace parser base class.
@@ -3077,6 +3124,9 @@ class Trace(Loggable, TraceBase):
             * The event cannot be parsed in raw format in case text output of
               ``trace-cmd`` is used, because of a ``const char*`` field displayed
               as a pointer for example.
+
+              .. seealso:: For events not following the regular field syntax,
+                use :class:`CustomFieldsTxtEventParser`
 
             * Automatic detection can take a heavy performance toll. This is
               why parsers needing descriptions will come with pre-defined
