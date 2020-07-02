@@ -1236,6 +1236,15 @@ class TxtTraceParser(TxtTraceParserBase):
             # const char* reason is not displayed properly in raw mode
             raw=False,
         ),
+        'ipi_raise': CustomFieldsTxtEventParser(
+            event='ipi_raise',
+            fields_regex=r'target_mask=(?P<target_cpus>[0-9,]+) +\((?P<reason>[^)]+)\)',
+            fields={
+                'target_cpus': 'string',
+                'reason': 'string',
+            },
+            raw=False,
+        ),
         'sched_switch': dict(
             fields={
                 'prev_comm': _KERNEL_DTYPE['comm'],
@@ -4359,6 +4368,45 @@ class Trace(Loggable, TraceBase):
         # Reduce memory usage and speedup selection based on function
         with contextlib.suppress(KeyError):
             df['func'] = df['func'].astype('category', copy=False)
+        return df
+
+    @staticmethod
+    def _expand_bitmask_field(mask):
+        """
+        Turn a bitmask (like cpu_mask) formated by trace-cmd in non-raw mode
+        into a list of integers for each bitmask position that is set.
+
+        ``mask`` is a string with comma-separated hex numbers like
+        "000001,12345,..."
+        """
+        numbers = mask.split(',')
+
+        # hex number, so 4 bit per digit
+        nr_bits = len(numbers[0]) * 4
+
+        def bit_pos(number):
+            # Little endian
+            number = int(number, base=16)
+            return [
+                i
+                for i in range(nr_bits)
+                if number & (1 << i)
+            ]
+
+        return [
+            i + (nr_bits * offset)
+            for offset, positions in enumerate(
+                # LSB is in the number at the end of the list so we reverse it
+                map(bit_pos, reversed(numbers))
+            )
+            for i in positions
+        ]
+
+    @_sanitize_event('ipi_raise')
+    def _sanitize_ipi_raise(self, event, df, aspects):
+        df = df.copy(deep=False)
+        df['target_cpus'] = df['target_cpus'].apply(self._expand_bitmask_field)
+        df['reason'] = df['reason'].str.strip('()')
         return df
 
 
