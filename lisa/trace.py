@@ -53,7 +53,7 @@ import devlib
 from devlib.target import KernelVersion
 
 import lisa.utils
-from lisa.utils import Loggable, HideExekallID, memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, take
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, take
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.generic import TypedList
 from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta, df_combine_duplicates, series_convert, df_deduplicate
@@ -3162,12 +3162,11 @@ class Trace(Loggable, TraceBase):
             parser = partial(TxtTraceParser.from_dat, event_parsers=event_parsers)
             trace = Trace('foobar.dat', parser=parser)
 
-        .. warning:: Custom event parsers are not tracked by the :class:`Trace`
-            object, which means the swap will not evict a
-            :class:`pandas.DataFrame` if the event is not parsed with the same
-            parser. In order to avoid such issues, either disable the swap with
-            ``enable_swap=False`` or delete the backing folder after parser
-            changes.
+        .. warning:: Custom event parsers that are not types (such as
+            :func:`functools.partial` values) will tie the on-disc swap entries
+            to the parser :class:`Trace` instance, incurring higher
+            :class:`pandas.DataFrame` load time when a new :class:`Trace`
+            object is created.
     """
 
     def _select_userspace(source_event, meta_event, df):
@@ -3392,15 +3391,29 @@ class Trace(Loggable, TraceBase):
             return [event]
 
     @property
+    # Memoization is necessary to ensure the parser always gets the same name
+    # on a given Trace instance when the parser is not a type.
+    @lru_memoized(first_param_maxsize=None, other_params_maxsize=None)
     def trace_state(self):
+        parser = self._parser
         # The parser type will potentially change the exact content in raw
         # dataframes
-        parser_name = '{}.{}'.format(
-            self._parser.__module__,
-            self._parser.__qualname__
-        )
-        # Note: the parser name is an approximation of the state: if custom
-        # event parsers are passed, this will not be tracked.
+        def get_name(parser):
+            return '{}.{}'.format(
+                parser.__module__,
+                parser.__qualname__
+            )
+
+        try:
+            parser_name = get_name(parser)
+        # If the parser is an instance of something, we cannot safely track its
+        # state so just make a unique name for it
+        except AttributeError:
+            parser_name = '{}-instance:{}'.format(
+                get_name(parser.__class__),
+                uuid.uuid4().hex
+            )
+
         return (self.normalize_time, parser_name)
 
     @property
