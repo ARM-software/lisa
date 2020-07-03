@@ -119,7 +119,7 @@ context.output_directory
         This is the output directory for the current iteration. This will an
         iteration-specific subdirectory under the main results location. If
         there is no current iteration (e.g. when processing overall run results)
-        this will point to the same location as ``root_output_directory``.
+        this will point to the same location as ``run_output_directory``.
 
 
 Additionally, the global ``wa.settings`` object exposes on other location:
