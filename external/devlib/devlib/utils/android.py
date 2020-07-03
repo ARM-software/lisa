@@ -789,7 +789,7 @@ class LogcatMonitor(object):
         if outfile:
             self._logfile = open(outfile, 'w')
         else:
-            self._logfile = tempfile.NamedTemporaryFile()
+            self._logfile = tempfile.NamedTemporaryFile(mode='w')
 
         self.target.clear_logcat()
 

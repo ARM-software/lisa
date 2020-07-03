@@ -33,7 +33,7 @@ class SerialTraceCollector(CollectorBase):
         self.serial_port = serial_port
         self.baudrate = baudrate
         self.timeout = timeout
-        self.output_path - None
+        self.output_path = None
 
         self._serial_target = None
         self._conn = None
@@ -54,7 +54,7 @@ class SerialTraceCollector(CollectorBase):
         if self.output_path is None:
             raise RuntimeError("Output path was not set.")
 
-        self._outfile_fh = open(self.output_path, 'w')
+        self._outfile_fh = open(self.output_path, 'wb')
         start_marker = "-------- Starting serial logging --------\n"
         self._outfile_fh.write(start_marker.encode('utf-8'))
 
