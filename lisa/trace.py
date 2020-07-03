@@ -2398,7 +2398,7 @@ class TraceCacheSwapVersionError(ValueError):
     pass
 
 
-class TraceCache:
+class TraceCache(Loggable):
     """
     Cache of a :class:`Trace`.
 
@@ -2741,27 +2741,34 @@ class TraceCache:
             if self._estimate_data_swap_size(data) + self._swap_size > self.max_swap_size:
                 self.scrub_swap()
 
+            def log_error(e):
+                self.get_logger().error('Could not write {} to swap: {}'.format(pd_desc, e))
+
             # Write the Parquet file and update the write speed
-            with measure_time() as measure:
-                self._write_data(data, df_path)
+            try:
+                with measure_time() as measure:
+                    self._write_data(data, df_path)
+            # PyArrow fails to save dataframes containing integers > 64bits
+            except OverflowError as e:
+                log_error(e)
+            else:
+                # Update the swap
+                swap_entry_path = os.path.join(self.swap_dir, swap_entry.meta_filename)
+                swap_entry.to_path(swap_entry_path)
+                self._swap_content[swap_entry.pd_desc_nf] = swap_entry
 
-            # Update the swap
-            swap_entry_path = os.path.join(self.swap_dir, swap_entry.meta_filename)
-            swap_entry.to_path(swap_entry_path)
-            self._swap_content[swap_entry.pd_desc_nf] = swap_entry
+                # Assume that reading from the swap will take as much time as
+                # writing to it. We cannot do better anyway, but that should
+                # mostly bias to keeping things in memory if possible.
+                swap_cost = measure.exclusive_delta
+                data_swapped_size = os.stat(df_path).st_size
 
-            # Assume that reading from the swap will take as much time as
-            # writing to it. We cannot do better anyway, but that should
-            # mostly bias to keeping things in memory if possible.
-            swap_cost = measure.exclusive_delta
-            data_swapped_size = os.stat(df_path).st_size
-
-            mem_usage = self._data_mem_usage(data)
-            if mem_usage:
-                self._update_swap_cost(data, swap_cost, mem_usage, data_swapped_size)
-            self._swap_size += data_swapped_size
-            self._update_data_swap_size_estimation(data, data_swapped_size)
-            self.scrub_swap()
+                mem_usage = self._data_mem_usage(data)
+                if mem_usage:
+                    self._update_swap_cost(data, swap_cost, mem_usage, data_swapped_size)
+                self._swap_size += data_swapped_size
+                self._update_data_swap_size_estimation(data, data_swapped_size)
+                self.scrub_swap()
 
     def _get_swap_size(self):
         if self.swap_dir:
