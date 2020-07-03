@@ -145,7 +145,7 @@ class Jankbench(ApkWorkload):
             results.columns = ['mean', 'std_dev', 'count_jank', 'jank_p']
 
             for test_name, rep in results.index:
-                test_results = results.ix[test_name, rep]
+                test_results = results.loc[test_name, rep]
                 for metric, value in test_results.items():
                     context.add_metric(metric, value, units=None, lower_is_better=True,
                                        classifiers={'test_name': test_name, 'rep': rep})

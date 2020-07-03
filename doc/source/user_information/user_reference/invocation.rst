@@ -40,7 +40,7 @@ Will display help for this subcommand that will look something like this:
           AGENDA                Agenda for this workload automation run. This defines
                                 which workloads will be executed, how many times, with
                                 which tunables, etc. See example agendas in
-                                /usr/local/lib/python2.7/dist-packages/wa for an
+                                /usr/local/lib/python3.X/dist-packages/wa for an
                                 example of how this file should be structured.
 
         optional arguments:

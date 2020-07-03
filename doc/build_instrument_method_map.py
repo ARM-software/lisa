@@ -28,8 +28,9 @@ OUTPUT_TEMPLATE_FILE =  os.path.join(os.path.dirname(__file__), 'source', 'instr
 def generate_instrument_method_map(outfile):
     signal_table = format_simple_table([(k, v) for k, v in SIGNAL_MAP.items()],
                                        headers=['method name', 'signal'], align='<<')
-    priority_table = format_simple_table(zip(CallbackPriority.names, CallbackPriority.values),
-                                         headers=['decorator', 'priority'],  align='<>')
+    decorator_names = map(lambda x: x.replace('high', 'fast').replace('low', 'slow'), CallbackPriority.names)
+    priority_table = format_simple_table(zip(decorator_names, CallbackPriority.names, CallbackPriority.values),
+            headers=['decorator', 'CallbackPriority name', 'CallbackPriority value'],  align='<>')
     with open(OUTPUT_TEMPLATE_FILE) as fh:
         template = string.Template(fh.read())
     with open(outfile, 'w') as wfh:
