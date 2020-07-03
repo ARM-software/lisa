@@ -130,7 +130,7 @@ class VexpressBootModule(BootModule):
                                     init_dtr=0) as tty:
             self.get_through_early_boot(tty)
             self.perform_boot_sequence(tty)
-            self.wait_for_android_prompt(tty)
+            self.wait_for_shell_prompt(tty)
 
     def perform_boot_sequence(self, tty):
         raise NotImplementedError()
@@ -159,8 +159,8 @@ class VexpressBootModule(BootModule):
         menu.wait(timeout=self.timeout)
         return menu
 
-    def wait_for_android_prompt(self, tty):
-        self.logger.debug('Waiting for the Android prompt.')
+    def wait_for_shell_prompt(self, tty):
+        self.logger.debug('Waiting for the shell prompt.')
         tty.expect(self.target.shell_prompt, timeout=self.timeout)
         # This delay is needed to allow the platform some time to finish
         # initilizing; querying the ip address too early from connect() may
