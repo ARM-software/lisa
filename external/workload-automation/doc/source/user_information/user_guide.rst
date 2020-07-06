@@ -20,7 +20,7 @@ Install
 .. note:: This is a quick summary. For more detailed instructions, please see
           the :ref:`installation` section.
 
-Make sure you have Python 2.7 or Python 3 and a recent Android SDK with API
+Make sure you have Python 3.5+ and a recent Android SDK with API
 level 18 or above installed on your system. A complete install of the Android
 SDK is required, as WA uses a number of its utilities, not just adb. For the
 SDK, make sure that either ``ANDROID_HOME`` environment variable is set, or that

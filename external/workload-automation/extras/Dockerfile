@@ -39,6 +39,11 @@
 #
 # When you are finished, please run `exit` to leave the container.
 #
+# The relevant environment variables are stored in a separate
+# file which is automatically sourced in an interactive shell.
+# If running from a non-interactive environment this can
+# be manually sourced with `source /home/wa/.wa_environment`
+#
 # NOTE: Please make sure that the ADB server is NOT running on the
 # host. If in doubt, run `adb kill-server` before running the docker
 # container.
@@ -122,11 +127,14 @@ RUN mkdir -p /home/wa/monsoon
 RUN curl https://android.googlesource.com/platform/cts/+/master/tools/utils/monsoon.py\?format\=TEXT | base64 --decode > /home/wa/monsoon/monsoon.py
 RUN chmod +x /home/wa/monsoon/monsoon.py
 
-# Update the path
-RUN echo 'export PATH=/home/wa/monsoon:${PATH}' >> /home/wa/.bashrc
-RUN echo 'export PATH=/home/wa/AndroidSDK/platform-tools:${PATH}' >> /home/wa/.bashrc
-RUN echo 'export PATH=/home/wa/AndroidSDK/build-tools:${PATH}' >> /home/wa/.bashrc
-RUN echo 'export ANDROID_HOME=/home/wa/AndroidSDK' >> /home/wa/.bashrc
+# Update WA's required environment variables.
+RUN echo 'export PATH=/home/wa/monsoon:${PATH}' >> /home/wa/.wa_environment
+RUN echo 'export PATH=/home/wa/AndroidSDK/platform-tools:${PATH}' >> /home/wa/.wa_environment
+RUN echo 'export PATH=/home/wa/AndroidSDK/build-tools:${PATH}' >> /home/wa/.wa_environment
+RUN echo 'export ANDROID_HOME=/home/wa/AndroidSDK' >> /home/wa/.wa_environment
+
+# Source WA environment variables in an interactive environment
+RUN echo 'source /home/wa/.wa_environment' >> /home/wa/.bashrc
 
 # Generate some ADB keys. These will change each time the image is build but will otherwise persist.
 RUN /home/wa/AndroidSDK/platform-tools/adb keygen /home/wa/.android/adbkey

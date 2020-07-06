@@ -404,7 +404,7 @@ class Executor(object):
             attempts = context.cm.run_config.max_retries
             while attempts:
                 try:
-                    self.target_manager.reboot()
+                    self.target_manager.reboot(context)
                 except TargetError as e:
                     if attempts:
                         attempts -= 1

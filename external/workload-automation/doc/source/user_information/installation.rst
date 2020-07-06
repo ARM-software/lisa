@@ -73,7 +73,7 @@ the install location of the SDK (i.e. ``<path_to_android_sdk>/sdk``).
 Python
 ------
 
-Workload Automation 3 currently supports both Python 2.7 and Python 3.
+Workload Automation 3 currently supports Python 3.5+
 
 .. _pip:
 
@@ -95,11 +95,11 @@ similar distributions, this may be done with APT::
                   sudo -H pip install --upgrade pip
                   sudo -H pip install --upgrade setuptools
 
-          If you do run  into this issue after already installing some packages,
+          If you do run into this issue after already installing some packages,
           you can resolve it by running ::
 
-                  sudo chmod -R a+r /usr/local/lib/python2.7/dist-packages
-                  sudo find /usr/local/lib/python2.7/dist-packages -type d -exec chmod a+x {} \;
+                  sudo chmod -R a+r /usr/local/lib/python3.X/dist-packages
+                  sudo find /usr/local/lib/python3.X/dist-packages -type d -exec chmod a+x {} \;
 
           (The paths above will work for Ubuntu; they may need to be adjusted
           for other distros).

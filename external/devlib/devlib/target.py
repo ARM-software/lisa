@@ -550,7 +550,7 @@ class Target(object):
     def reset(self):
         try:
             self.execute('reboot', as_root=self.needs_su, timeout=2)
-        except (DevlibTransientError, subprocess.CalledProcessError):
+        except (TargetError, subprocess.CalledProcessError):
             # on some targets "reboot" doesn't return gracefully
             pass
         self.conn.connected_as_root = None

@@ -13,10 +13,11 @@ these signals are dispatched during execution please see the
 $signal_names
 
 The methods above may be decorated with on the listed decorators to set the
-priority of the Instrument method relative to other callbacks registered for the
-signal (within the same priority level, callbacks are invoked in the order they
-were registered). The table below shows the mapping of the decorator to the
-corresponding priority:
+priority (a value in the ``wa.framework.signal.CallbackPriority`` enum) of the
+Instrument method relative to other callbacks registered for the signal (within
+the same priority level, callbacks are invoked in the order they were
+registered). The table below shows the mapping of the decorator to the
+corresponding priority name and level:
 
 $priority_prefixes
 
