@@ -3533,7 +3533,7 @@ class Trace(Loggable, TraceBase):
 
         proxy.base_trace = trace
 
-    def _get_parser(self, events=tuple(), needed_metadata=None):
+    def _get_parser(self, events=tuple(), needed_metadata=None, update_metadata=True):
         logger = self.get_logger()
         path = self.trace_path
         events = set(events)
@@ -3543,23 +3543,24 @@ class Trace(Loggable, TraceBase):
         # While we are at it, gather a bunch of metadata. Since we did not
         # explicitly asked for it, the parser will only give
         # it if it was a cheap byproduct.
+        if update_metadata:
 
-        # Since we got a parser here, use it to get basetime/endtime as well
-        with contextlib.suppress(MissingMetadataError):
-            self._get_time_range(parser=parser)
+            # Since we got a parser here, use it to get basetime/endtime as well
+            with contextlib.suppress(MissingMetadataError):
+                self._get_time_range(parser=parser)
 
-        # Populate the list of available events, and inform the rest of the
-        # code that this list is definitive.
-        try:
-            available_events = self._get_metadata('available-events', parser=parser)
-        except MissingMetadataError:
-            pass
-        else:
-            self._update_parseable_events({
-                event: True
-                for event in available_events
-            })
-            self._strict_events = True
+            # Populate the list of available events, and inform the rest of the
+            # code that this list is definitive.
+            try:
+                available_events = self._get_metadata('available-events', parser=parser)
+            except MissingMetadataError:
+                pass
+            else:
+                self._update_parseable_events({
+                    event: True
+                    for event in available_events
+                })
+                self._strict_events = True
 
         return parser
 
@@ -3850,15 +3851,62 @@ class Trace(Loggable, TraceBase):
 
         return df_map
 
+    def _apply_normalize_time(self, df, inplace):
+        df = df if inplace else df.copy(deep=False)
+
+        if self.normalize_time:
+            df.index -= self.basetime
+
+        return df
+
+    def _mp_parse_worker(self, event):
+        # Do not update the metadata to avoid concurrency issues while updating
+        # the cache
+        parser = self._get_parser([event], update_metadata=False)
+
+        try:
+            data = parser.parse_event(event)
+        except MissingTraceEventError as e:
+            data = e
+        else:
+            data = self._apply_normalize_time(data, inplace=True)
+
+        return data
+
     def _parse_raw_events(self, events):
         if not events:
             return {}
-        parser = self._get_parser(events)
-        df_map = parser.parse_events(events, best_effort=True)
 
-        if self.normalize_time:
-            for event, df in df_map.items():
-                df.index -= self.basetime
+        nr_processes = min(
+            len(events),
+            multiprocessing.cpu_count(),
+        )
+        chunk_size = int(math.ceil(len(events) / nr_processes))
+
+        # Only use multiprocessing if there is no memory limit, since the peak
+        # consumption will increase
+        use_mp = self._cache.max_mem_size >= math.inf and nr_processes > 1
+
+        if use_mp:
+            with multiprocessing.Pool(processes=nr_processes) as pool:
+                data_list = pool.map(self._mp_parse_worker, events, chunksize=chunk_size)
+
+            df_map = {
+                event: df
+                for event, df in zip(
+                    events,
+                    data_list,
+                )
+                # similar to best_effort=True
+                if not isinstance(df, BaseException)
+            }
+        else:
+            parser = self._get_parser(events, update_metadata=True)
+            df_map = parser.parse_events(events, best_effort=True)
+
+            for df in df_map.values():
+                self._apply_normalize_time(df, inplace=True)
+
         return df_map
 
     def _parse_meta_events(self, meta_events):
