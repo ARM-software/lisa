@@ -282,53 +282,6 @@ class TraceParserBase(abc.ABC, Loggable):
         }
 
 
-class ParallelTraceParser(TraceParserBase):
-    """
-    Parse multiple events in parallel in subprocesses.
-    """
-
-    def parse_events(self, events, best_effort=False):
-        """
-        Call :meth:`~TraceParserBase.parse_event` for each event in a subprocess and collect the
-        result back.
-
-        .. note:: Since there is currently no way of sharing a
-            :class:`pandas.DataFrame` between multiple Python processes, all
-            data have to be pickled and sent over a socket back to the parent
-            process. This is costly enough to offset any benefit for a
-            reasonably optimized regex parser. If the parser is very
-            inefficient, it could still speed things up a bit, at the expense
-            of a large increase in peak memory consumption.
-        """
-        events = list(events)
-
-        nr_processes=min(
-            len(events),
-            multiprocessing.cpu_count(),
-        )
-
-        def parse(*args, **kwargs):
-            try:
-                return self.parse_event(*args, **kwargs)
-            except MissingTraceEventError:
-                if best_effort:
-                    return None
-                else:
-                    raise
-
-        with multiprocessing.Pool(processes=nr_processes) as pool:
-            df_list = pool.map(parse, events)
-
-        mapping = dict(zip(events, df_list))
-        mapping = {
-            event: df
-            for event, df in mapping.items()
-            if df is not None
-        }
-
-        return mapping
-
-
 class EventParserBase:
     """
     Base class for trace event parser.
