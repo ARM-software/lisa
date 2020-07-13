@@ -376,6 +376,9 @@ class TestEstimateFromTrace(TestCase):
                 normalize_time=False,
                 # Disable swap since the folder is going to get removed
                 enable_swap=False,
+                # Parse all the events eagerly since the trace file is going to
+                # be removed.
+                strict_events=True,
             )
 
         energy_df = em.estimate_from_trace(trace)
