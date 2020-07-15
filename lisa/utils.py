@@ -858,13 +858,17 @@ def deduplicate(seq, keep_last=True, key=lambda x: x):
         items. Otherwise, keep the first occurence.
     :type keep_last: bool
     """
-    reorder = (lambda seq: seq) if keep_last else reversed
-    # Use an OrderedDict to keep original ordering of the sequence
-    dedup = OrderedDict(
-        (key(x), x)
-        for x in reorder(seq)
-    )
-    return list(reorder(dedup.values()))
+    reorder = reversed if keep_last else (lambda seq: seq)
+
+    out = []
+    visited = set()
+    for x in reorder(seq):
+        k = key(x)
+        if k not in visited:
+            out.append(x)
+            visited.add(k)
+
+    return list(reorder(out))
 
 
 def take(n, iterable):
