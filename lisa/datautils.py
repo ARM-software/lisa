@@ -334,7 +334,7 @@ def df_squash(df, start, end, column='delta'):
 
 
 @DataFrameAccessor.register_accessor
-def df_filter(df, filter_columns):
+def df_filter(df, filter_columns, exclude=False):
     """
     Filter the content of a dataframe.
 
@@ -344,16 +344,26 @@ def df_filter(df, filter_columns):
     :param filter_columns: Dict of `{"column": value)` that rows has to match
         to be selected.
     :type filter_columns: dict(str, object)
-    """
-    key = functools.reduce(
-        operator.and_,
-        (
-            df[col] == val
-            for col, val in filter_columns.items()
-        )
-    )
 
-    return df[key]
+    :param exclude: If ``True``, the matching rows will be excluded rather than
+        selected.
+    :type exclude: bool
+    """
+    if filter_columns:
+        key = functools.reduce(
+            operator.and_,
+            (
+                df[col] == val
+                for col, val in filter_columns.items()
+            )
+        )
+        return df[~key if exclude else key]
+    else:
+        if exclude:
+            return df
+        else:
+            return df_make_empty_clone(df)
+
 
 
 def df_merge(df_list, drop_columns=None, drop_inplace=False, filter_columns=None):
