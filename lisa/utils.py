@@ -1863,4 +1863,43 @@ def sphinx_nitpick_ignore():
     import_all_submodules(lisa)
     return _SPHINX_NITPICK_IGNORE
 
+class FrozenDict(Mapping):
+    """
+    Read-only mapping that is therefore hashable.
+
+    .. note:: The content of the iterable passed to the constructor is
+        deepcopied to ensure non-mutability.
+
+    .. note:: Hashability allows to use it as a key in other mappings.
+    """
+    def __init__(self, x):
+        self._dct = copy.deepcopy(dict(x))
+        # We cannot use memoized() since it would create an infinite loop
+        self._hash = hash(tuple(sorted(self._dct.items())))
+
+    def __getitem__(self, key):
+        return self._dct[key]
+
+    def __hash__(self):
+        return self._hash
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self._dct == other._dct
+        else:
+            return False
+
+    def __iter__(self):
+        return iter(self._dct)
+
+    def __len__(self):
+        return len(self._dct)
+
+    def __str__(self):
+        return str(self._dct)
+
+    def __repr__(self):
+        return repr(self._dct)
+
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
