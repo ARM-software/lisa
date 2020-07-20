@@ -62,7 +62,7 @@ setup(
     license='LICENSE.txt',
     description='A stick to probe the kernel with',
     long_description=long_description,
-    python_requires='>= 3.5',
+    python_requires='>= 3.6',
     install_requires=[
         "psutil >= 4.4.2",
         # Figure.savefig() (without pyplot) does not work in
