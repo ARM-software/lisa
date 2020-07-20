@@ -482,9 +482,16 @@ class RTAEventsAnalysis(TraceAnalysisBase):
             return (phase, start, end)
 
         _, _, last_phase_end = get_info(df.iloc[-1])
-        if timestamp > last_phase_end:
-            raise ValueError('timestamp={} is after last phase end: {}'.format(
-                timestamp, last_phase_end))
+        _, first_phase_start, _ = get_info(df.iloc[0])
+
+        if timestamp < first_phase_start:
+            raise KeyError('timestamp={} is before the first phase start: {}'.format(
+                timestamp, first_phase_start,
+            ))
+        elif timestamp > last_phase_end:
+            raise KeyError('timestamp={} is after last phase end: {}'.format(
+                timestamp, last_phase_end
+            ))
 
         i = df.index.get_loc(timestamp, method='ffill')
         phase_id, phase_start, phase_end = get_info(df.iloc[i])
