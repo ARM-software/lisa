@@ -276,8 +276,10 @@ class UtilConvergence(UtilTrackingBase):
 
         # Get list of task's activations
         df = self.trace.analysis.tasks.df_task_states(task)
-        activations = df[(df.curr_state == TaskState.TASK_WAKING) &
-                         (df.next_state == TaskState.TASK_ACTIVE)].index
+        activations = df[
+            (df.curr_state == TaskState.TASK_WAKING) &
+            (df.next_state == TaskState.TASK_ACTIVE)
+        ].index
 
         # Check task signals at each activation
         df = self.trace.df_event('sched_util_est_se')
@@ -285,6 +287,12 @@ class UtilConvergence(UtilTrackingBase):
 
 
         for idx, activation in enumerate(activations):
+            # If we are outside a phase, ignore the activation
+            try:
+                phase = self.trace.analysis.rta.task_phase_at(task, activation)
+            except KeyError:
+                continue
+
             # Get the value of signals at their first update after the activation
             row = df_window(df, (activation, None), method='post').iloc[0]
             util = row['util']
@@ -312,8 +320,6 @@ class UtilConvergence(UtilTrackingBase):
 
             # Running on (legacy) non FastRamp kernels:
             else:
-
-                phase = self.trace.analysis.rta.task_phase_at(task, activation)
                 # TODO: remove that once we have named phases to skip the buffer phase
                 if phase.id == 0:
                     continue
