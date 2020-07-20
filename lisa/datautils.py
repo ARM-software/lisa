@@ -1374,6 +1374,92 @@ def df_combine(series_list, func, fill_value=None):
     return _data_combine(series_list, func, fill_value)
 
 
+def series_dereference(series, sources, inplace=False):
+    """
+    Replace each value in ``series`` by the value at the corresponding index by
+    the source indicated by ``series``'s value.
+
+    :param series: Series of "pointer" values.
+    :type series: pandas.Series
+
+    :param sources: Dictionary with keys corresponding to ``series`` values.
+        For each value of ``series``, a source will be chosen and its value at the
+        current index will be used. If a :class:`pandas.DataFrame` is passed,
+        the column names will be used as keys and the column series as values.
+
+        .. note:: Unless ``series`` and the ``sources`` share the same index,
+            the ``sources`` will be reindexed with ``ffill`` method.
+    :type sources: collections.abc.Mapping or pandas.DataFrame
+
+    :param inplace: If ``True``, modify the series inplace.
+    :type inplace: bool
+    """
+    def reindex(values):
+        # Skip the reindex if they are in the same dataframe
+        if values.index is not series.index:
+            values = values.reindex(series.index, method='ffill')
+        return values
+
+    if isinstance(sources, pd.DataFrame):
+        sources = reindex(sources)
+        sources = {
+            col: sources[col]
+            for col in sources.columns
+        }
+    else:
+        sources = {
+            col: reindex(val)
+            for col, val in sources.items()
+        }
+
+    for key, values in sources.items():
+        _series = series.mask(series == key, values, inplace=inplace)
+        series = series if inplace else _series
+
+    return series
+
+
+def df_dereference(df, col, pointer_col=None, sources=None, inplace=False):
+    """
+    Similar to :func:`series_dereference`.
+
+    **Example**::
+
+        df = pd.DataFrame({
+            'ptr': ['A', 'B'],
+            'A'  : ['A1', 'A2'],
+            'B'  : ['B1', 'B2'],
+        })
+        df = df_dereference(df, 'dereferenced', pointer_col='ptr')
+        #   ptr   A   B dereferenced
+        # 0   A  A1  B1           A1
+        # 1   B  A2  B2           B2
+
+
+    :param df: Dataframe to act on.
+    :type df: pandas.DataFrame
+
+    :param col: Name of the column to create.
+    :type col: str
+
+    :param pointer_col: Name of the column containing "pointer" values.
+        Defaults to the same value as ``col``.
+    :type pointer_col: str or None
+
+    :param sources: Same meaning as in :func:`series_dereference`. If omitted,
+        ``df`` is used.
+    :type sources: collections.abc.Mapping or pandas.DataFrame
+
+    :param inplace: If ``True``, the dataframe is modified inplace.
+    :type inplace: bool
+    """
+    pointer_col = pointer_col or col
+    sources = df if sources is None else sources
+    df = df if inplace else df.copy(deep=False)
+    df[col] = series_dereference(df[pointer_col], sources, inplace=inplace)
+    return df
+
+
 def _data_combine(datas, func, fill_value=None):
     state = datas[0]
     for data in datas[1:]:
