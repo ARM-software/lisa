@@ -28,7 +28,7 @@ from lisa.trace import FtraceCollector, requires_events
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
-from lisa.datautils import df_window, series_mean, df_filter_task_ids
+from lisa.datautils import df_window, df_refit_index, series_mean, df_filter_task_ids
 
 from lisa.tests.scheduler.load_tracking import LoadTrackingHelpers
 
@@ -186,7 +186,7 @@ class UtilConvergence(UtilTrackingBase):
             if phase.id == 0:
                 continue
 
-            apply_phase_window = functools.partial(df_window, window=(phase.start, phase.end))
+            apply_phase_window = functools.partial(df_refit_index, window=(phase.start, phase.end))
 
             ue_phase_df = apply_phase_window(ue_df)
             mean_enqueued = series_mean(ue_phase_df['enqueued'])
