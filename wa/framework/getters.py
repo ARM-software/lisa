@@ -31,7 +31,7 @@ import requests
 from wa import Parameter, settings, __file__ as _base_filepath
 from wa.framework.resource import ResourceGetter, SourcePriority, NO_ONE
 from wa.framework.exception import ResourceError
-from wa.utils.misc import (ensure_directory_exists as _d, lock_file,
+from wa.utils.misc import (ensure_directory_exists as _d, atomic_write_path,
                            ensure_file_directory_exists as _f, sha256, urljoin)
 from wa.utils.types import boolean, caseless_string
 
@@ -239,7 +239,7 @@ class Http(ResourceGetter):
         index_url = urljoin(self.url, 'index.json')
         response = self.geturl(index_url)
         if response.status_code != http.client.OK:
-            message = 'Could not fetch "{}"; recieved "{} {}"'
+            message = 'Could not fetch "{}"; received "{} {}"'
             self.logger.error(message.format(index_url,
                                              response.status_code,
                                              response.reason))
@@ -254,21 +254,22 @@ class Http(ResourceGetter):
         url = urljoin(self.url, owner_name, asset['path'])
         local_path = _f(os.path.join(settings.dependencies_directory, '__remote',
                                      owner_name, asset['path'].replace('/', os.sep)))
-        with lock_file(local_path, timeout=5 * 60):
-            if os.path.exists(local_path) and not self.always_fetch:
-                local_sha = sha256(local_path)
-                if local_sha == asset['sha256']:
-                    self.logger.debug('Local SHA256 matches; not re-downloading')
-                    return local_path
-            self.logger.debug('Downloading {}'.format(url))
-            response = self.geturl(url, stream=True)
-            if response.status_code != http.client.OK:
-                message = 'Could not download asset "{}"; recieved "{} {}"'
-                self.logger.warning(message.format(url,
-                                                   response.status_code,
-                                                   response.reason))
-                return
-            with open(local_path, 'wb') as wfh:
+
+        if os.path.exists(local_path) and not self.always_fetch:
+            local_sha = sha256(local_path)
+            if local_sha == asset['sha256']:
+                self.logger.debug('Local SHA256 matches; not re-downloading')
+                return local_path
+        self.logger.debug('Downloading {}'.format(url))
+        response = self.geturl(url, stream=True)
+        if response.status_code != http.client.OK:
+            message = 'Could not download asset "{}"; received "{} {}"'
+            self.logger.warning(message.format(url,
+                                               response.status_code,
+                                               response.reason))
+            return
+        with atomic_write_path(local_path) as at_path:
+            with open(at_path, 'wb') as wfh:
                 for chunk in response.iter_content(chunk_size=self.chunk_size):
                     wfh.write(chunk)
         return local_path

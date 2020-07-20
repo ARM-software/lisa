@@ -19,6 +19,7 @@ Miscellaneous functions that don't fit anywhere else.
 
 """
 
+import errno
 import hashlib
 import imp
 import logging
@@ -26,15 +27,17 @@ import math
 import os
 import random
 import re
+import shutil
 import string
 import subprocess
 import sys
 import traceback
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from functools import reduce  # pylint: disable=redefined-builtin
 from operator import mul
-from tempfile import gettempdir
+from tempfile import gettempdir, NamedTemporaryFile
 from time import sleep
 if sys.version_info[0] == 3:
     from io import StringIO
@@ -58,6 +61,7 @@ from devlib.utils.misc import (ABI_MAP, check_output, walk_modules,
 check_output_logger = logging.getLogger('check_output')
 
 file_lock_logger = logging.getLogger('file_lock')
+at_write_logger = logging.getLogger('at_write')
 
 
 # Defined here rather than in wa.exceptions due to module load dependencies
@@ -645,6 +649,63 @@ def format_ordered_dict(od):
     """
     return '{{{}}}'.format(', '.join('{}={}'.format(k, v)
                                      for k, v in od.items()))
+
+
+@contextmanager
+def atomic_write_path(path, mode='w'):
+    """
+    Gets a file path to write to which will be replaced with the original
+     file path to simulate an atomic write from the point of view
+    of other processes. This is achieved by writing to a tmp file and
+    replacing the exiting file to prevent inconsistencies.
+    """
+    tmp_file = None
+    try:
+        tmp_file = NamedTemporaryFile(mode=mode, delete=False,
+                                      suffix=os.path.basename(path))
+        at_write_logger.debug('')
+        yield tmp_file.name
+        os.fsync(tmp_file.file.fileno())
+    finally:
+        if tmp_file:
+            tmp_file.close()
+    at_write_logger.debug('Moving {} to {}'.format(tmp_file.name, path))
+    safe_move(tmp_file.name, path)
+
+
+def safe_move(src, dst):
+    """
+    Taken from: https://alexwlchan.net/2019/03/atomic-cross-filesystem-moves-in-python/
+
+    Rename a file from ``src`` to ``dst``.
+
+    *   Moves must be atomic.  ``shutil.move()`` is not atomic.
+    *   Moves must work across filesystems and ``os.rename()`` can
+        throw errors if run across filesystems.
+
+    So we try ``os.rename()``, but if we detect a cross-filesystem copy, we
+    switch to ``shutil.move()`` with some wrappers to make it atomic.
+    """
+    try:
+        os.rename(src, dst)
+    except OSError as err:
+
+        if err.errno == errno.EXDEV:
+            # Generate a unique ID, and copy `<src>` to the target directory
+            # with a temporary name `<dst>.<ID>.tmp`.  Because we're copying
+            # across a filesystem boundary, this initial copy may not be
+            # atomic.  We intersperse a random UUID so if different processes
+            # are copying into `<dst>`, they don't overlap in their tmp copies.
+            copy_id = uuid.uuid4()
+            tmp_dst = "%s.%s.tmp" % (dst, copy_id)
+            shutil.copyfile(src, tmp_dst)
+
+            # Then do an atomic rename onto the new name, and clean up the
+            # source image.
+            os.rename(tmp_dst, dst)
+            os.unlink(src)
+        else:
+            raise
 
 
 @contextmanager

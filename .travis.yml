@@ -22,6 +22,7 @@ install:
     - pip install nose
     - pip install nose2
     - pip install flake8
+    - pip install isort==4.3.21
     - pip install pylint==1.9.2
     - git clone -v https://github.com/ARM-software/devlib.git /tmp/devlib && cd /tmp/devlib && python setup.py install
     - cd $TRAVIS_BUILD_DIR && python setup.py install

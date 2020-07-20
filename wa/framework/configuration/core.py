@@ -538,6 +538,10 @@ class MetaConfiguration(Configuration):
     def target_info_cache_file(self):
         return os.path.join(self.cache_directory, 'targets.json')
 
+    @property
+    def apk_info_cache_file(self):
+        return os.path.join(self.cache_directory, 'apk_info.json')
+
     def __init__(self, environ=None):
         super(MetaConfiguration, self).__init__()
         if environ is None:

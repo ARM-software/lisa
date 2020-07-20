@@ -22,3 +22,7 @@
   during the run.
 ## 1.5
 - Change the type of the "hostid" in TargetInfo from Int to Bigint.
+## 1.6
+- Add cascading deletes to most tables to allow easy deletion of a run
+  and its associated data
+- Add rule to delete associated large object on deletion of artifact

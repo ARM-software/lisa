@@ -21,9 +21,11 @@ import tempfile
 import threading
 import time
 
-from wa.framework.plugin import Parameter
 from wa.framework.exception import WorkerThreadError
+from wa.framework.plugin import Parameter
+from wa.utils.android import LogcatParser
 from wa.utils.misc import touch
+import wa.framework.signal as signal
 
 
 class LinuxAssistant(object):
@@ -73,6 +75,13 @@ class AndroidAssistant(object):
         self.logcat_poll_period = logcat_poll_period
         self.disable_selinux = disable_selinux
         self.logcat_poller = None
+        self.logger = logging.getLogger('logcat')
+        self._logcat_marker_msg = None
+        self._logcat_marker_tag = None
+        signal.connect(self._before_workload, signal.BEFORE_WORKLOAD_EXECUTION)
+        if self.logcat_poll_period:
+            signal.connect(self._after_workload, signal.AFTER_WORKLOAD_EXECUTION)
+
         if self.target.is_rooted and self.disable_selinux:
             self.do_disable_selinux()
 
@@ -80,6 +89,10 @@ class AndroidAssistant(object):
         if self.logcat_poll_period:
             self.logcat_poller = LogcatPoller(self.target, self.logcat_poll_period)
             self.logcat_poller.start()
+        else:
+            if not self._logcat_marker_msg:
+                self._logcat_marker_msg = 'WA logcat marker for wrap detection'
+                self._logcat_marker_tag = 'WAlog'
 
     def stop(self):
         if self.logcat_poller:
@@ -90,16 +103,52 @@ class AndroidAssistant(object):
         self.dump_logcat(logcat_file)
         context.add_artifact('logcat', logcat_file, kind='log')
         self.clear_logcat()
+        if not self._check_logcat_nowrap(logcat_file):
+            self.logger.warning('The main logcat buffer wrapped and lost data;'
+                                ' results that rely on this buffer may be'
+                                ' inaccurate or incomplete.'
+                                )
 
     def dump_logcat(self, outfile):
         if self.logcat_poller:
             self.logcat_poller.write_log(outfile)
         else:
-            self.target.dump_logcat(outfile)
+            self.target.dump_logcat(outfile, logcat_format='threadtime')
 
     def clear_logcat(self):
         if self.logcat_poller:
             self.logcat_poller.clear_buffer()
+        else:
+            self.target.clear_logcat()
+
+    def _before_workload(self, _):
+        if self.logcat_poller:
+            self.logcat_poller.start_logcat_wrap_detect()
+        else:
+            self.insert_logcat_marker()
+
+    def _after_workload(self, _):
+        self.logcat_poller.stop_logcat_wrap_detect()
+
+    def _check_logcat_nowrap(self, outfile):
+        if self.logcat_poller:
+            return self.logcat_poller.check_logcat_nowrap(outfile)
+        else:
+            parser = LogcatParser()
+            for event in parser.parse(outfile):
+                if (event.tag == self._logcat_marker_tag and
+                        event.message == self._logcat_marker_msg):
+                    return True
+
+            return False
+
+    def insert_logcat_marker(self):
+        self.logger.debug('Inserting logcat marker')
+        self.target.execute(
+            'log -t "{}" "{}"'.format(
+                self._logcat_marker_tag, self._logcat_marker_msg
+            )
+        )
 
     def do_disable_selinux(self):
         # SELinux was added in Android 4.3 (API level 18). Trying to
@@ -119,15 +168,21 @@ class LogcatPoller(threading.Thread):
         self.period = period
         self.timeout = timeout
         self.stop_signal = threading.Event()
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.buffer_file = tempfile.mktemp()
         self.last_poll = 0
         self.daemon = True
         self.exc = None
+        self._logcat_marker_tag = 'WALog'
+        self._logcat_marker_msg = 'WA logcat marker for wrap detection:{}'
+        self._marker_count = 0
+        self._start_marker = None
+        self._end_marker = None
 
     def run(self):
         self.logger.debug('Starting polling')
         try:
+            self.insert_logcat_marker()
             while True:
                 if self.stop_signal.is_set():
                     break
@@ -135,6 +190,7 @@ class LogcatPoller(threading.Thread):
                     current_time = time.time()
                     if (current_time - self.last_poll) >= self.period:
                         self.poll()
+                        self.insert_logcat_marker()
                 time.sleep(0.5)
         except Exception:  # pylint: disable=W0703
             self.exc = WorkerThreadError(self.name, sys.exc_info())
@@ -170,8 +226,48 @@ class LogcatPoller(threading.Thread):
 
     def poll(self):
         self.last_poll = time.time()
-        self.target.dump_logcat(self.buffer_file, append=True, timeout=self.timeout)
+        self.target.dump_logcat(self.buffer_file, append=True, timeout=self.timeout, logcat_format='threadtime')
         self.target.clear_logcat()
+
+    def insert_logcat_marker(self):
+        self.logger.debug('Inserting logcat marker')
+        with self.lock:
+            self.target.execute(
+                'log -t "{}" "{}"'.format(
+                    self._logcat_marker_tag,
+                    self._logcat_marker_msg.format(self._marker_count)
+                )
+            )
+            self._marker_count += 1
+
+    def check_logcat_nowrap(self, outfile):
+        parser = LogcatParser()
+        counter = self._start_marker
+        for event in parser.parse(outfile):
+            message = self._logcat_marker_msg.split(':')[0]
+            if not (event.tag == self._logcat_marker_tag and
+                    event.message.split(':')[0] == message):
+                continue
+
+            number = int(event.message.split(':')[1])
+            if number > counter:
+                return False
+            elif number == counter:
+                counter += 1
+
+            if counter == self._end_marker:
+                return True
+
+        return False
+
+    def start_logcat_wrap_detect(self):
+        with self.lock:
+            self._start_marker = self._marker_count
+            self.insert_logcat_marker()
+
+    def stop_logcat_wrap_detect(self):
+        with self.lock:
+            self._end_marker = self._marker_count
 
 
 class ChromeOsAssistant(LinuxAssistant):
