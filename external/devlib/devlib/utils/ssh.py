@@ -14,6 +14,7 @@
 #
 
 
+import glob
 import os
 import stat
 import logging
@@ -299,15 +300,21 @@ class SshConnectionBase(ConnectionBase):
         self.options = {}
         logger.debug('Logging in {}@{}'.format(username, host))
 
-    def push(self, source, dest, timeout=30):
-        dest = '{}@{}:{}'.format(self.username, self.host, dest)
-        return self._scp(source, dest, timeout)
+    def push(self, sources, dest, timeout=30):
+        # Quote the destination as SCP would apply globbing too
+        dest = '{}@{}:{}'.format(self.username, self.host, quote(dest))
+        paths = sources + [dest]
+        return self._scp(paths, timeout)
 
-    def pull(self, source, dest, timeout=30):
-        source = '{}@{}:{}'.format(self.username, self.host, source)
-        return self._scp(source, dest, timeout)
+    def pull(self, sources, dest, timeout=30):
+        # First level of escaping for the remote shell
+        sources = ' '.join(map(quote, sources))
+        # All the sources are merged into one scp parameter
+        sources = '{}@{}:{}'.format(self.username, self.host, sources)
+        paths = [sources, dest]
+        self._scp(paths, timeout)
 
-    def _scp(self, source, dest, timeout=30):
+    def _scp(self, paths, timeout=30):
         # NOTE: the version of scp in Ubuntu 12.04 occasionally (and bizarrely)
         # fails to connect to a device if port is explicitly specified using -P
         # option, even if it is the default port, 22. To minimize this problem,
@@ -316,12 +323,12 @@ class SshConnectionBase(ConnectionBase):
         keyfile_string = '-i {}'.format(quote(self.keyfile)) if self.keyfile else ''
         options = " ".join(["-o {}={}".format(key, val)
                             for key, val in self.options.items()])
-        command = '{} {} -r {} {} {} {}'.format(scp,
+        paths = ' '.join(map(quote, paths))
+        command = '{} {} -r {} {} {}'.format(scp,
                                                 options,
                                                 keyfile_string,
                                                 port_string,
-                                                quote(source),
-                                                quote(dest))
+                                                paths)
         command_redacted = command
         logger.debug(command)
         if self.password:
@@ -444,28 +451,45 @@ class SshConnection(SshConnectionBase):
         try:
             sftp.put(src, dst)
         # Maybe the dst was a folder
-        except OSError as e:
-            logger.debug('sftp transfer error: {}'.format(repr(e)))
-            # This might fail if the folder already exists
-            with contextlib.suppress(IOError):
-                sftp.mkdir(dst)
-
+        except OSError as orig_excep:
+            # If dst was an existing folder, we add the src basename to create
+            # a new destination for the file as cp would do
             new_dst = os.path.join(
                 dst,
                 os.path.basename(src),
             )
             logger.debug('Trying: {} -> {}'.format(src, new_dst))
-            sftp.put(src, new_dst)
+            try:
+                sftp.put(src, new_dst)
+            # This still failed, which either means:
+            # * There are some missing folders in the dirnames
+            # * Something else SFTP-related is wrong
+            except OSError as e:
+                # Raise the original exception, as it is closer to what the
+                # user asked in the first place
+                raise orig_excep
 
+    @classmethod
+    def _path_exists(cls, sftp, path):
+        try:
+            sftp.lstat(path)
+        except FileNotFoundError:
+            return False
+        else:
+            return True
 
     @classmethod
     def _push_folder(cls, sftp, src, dst):
         # Behave like the "mv" command or adb push: a new folder is created
-        # inside the destination folder, rather than merging the trees.
-        dst = os.path.join(
-            dst,
-            os.path.basename(src),
-        )
+        # inside the destination folder, rather than merging the trees, but
+        # only if the destination already exists. Otherwise, it is use as-is as
+        # the new hierarchy name.
+        if cls._path_exists(sftp, dst):
+            dst = os.path.join(
+                dst,
+                os.path.basename(os.path.normpath(src)),
+            )
+
         return cls._push_folder_internal(sftp, src, dst)
 
     @classmethod
@@ -534,21 +558,23 @@ class SshConnection(SshConnectionBase):
             # Maybe that was a directory, so retry as such
             cls._pull_folder(sftp, src, dst)
 
-    def push(self, source, dest, timeout=30):
+    def push(self, sources, dest, timeout=30):
         # If using scp, use implementation from base class
         if self.use_scp:
-            super().push(source, dest, timeout)
+            super().push(sources, dest, timeout)
         else:
             with _handle_paramiko_exceptions(), self._get_sftp(timeout) as sftp:
-                self._push_path(sftp, source, dest)
+                for source in sources:
+                    self._push_path(sftp, source, dest)
 
-    def pull(self, source, dest, timeout=30):
+    def pull(self, sources, dest, timeout=30):
         # If using scp, use implementation from base class
         if self.use_scp:
-            super().pull(source, dest, timeout)
+            super().pull(sources, dest, timeout)
         else:
             with _handle_paramiko_exceptions(), self._get_sftp(timeout) as sftp:
-                self._pull_path(sftp, source, dest)
+                for source in sources:
+                    self._pull_path(sftp, source, dest)
 
     def execute(self, command, timeout=None, check_exit_code=True,
                 as_root=False, strip_colors=True, will_succeed=False): #pylint: disable=unused-argument
@@ -1012,7 +1038,7 @@ class Gem5Connection(TelnetConnection):
                     .format(self.gem5_input_dir, indir))
         self.gem5_input_dir = indir
 
-    def push(self, source, dest, timeout=None):
+    def push(self, sources, dest, timeout=None):
         """
         Push a file to the gem5 device using VirtIO
 
@@ -1024,28 +1050,29 @@ class Gem5Connection(TelnetConnection):
         # First check if the connection is set up to interact with gem5
         self._check_ready()
 
-        filename = os.path.basename(source)
-        logger.debug("Pushing {} to device.".format(source))
-        logger.debug("gem5interactdir: {}".format(self.gem5_interact_dir))
-        logger.debug("dest: {}".format(dest))
-        logger.debug("filename: {}".format(filename))
+        for source in sources:
+            filename = os.path.basename(source)
+            logger.debug("Pushing {} to device.".format(source))
+            logger.debug("gem5interactdir: {}".format(self.gem5_interact_dir))
+            logger.debug("dest: {}".format(dest))
+            logger.debug("filename: {}".format(filename))
 
-        # We need to copy the file to copy to the temporary directory
-        self._move_to_temp_dir(source)
+            # We need to copy the file to copy to the temporary directory
+            self._move_to_temp_dir(source)
 
-        # Dest in gem5 world is a file rather than directory
-        if os.path.basename(dest) != filename:
-            dest = os.path.join(dest, filename)
-        # Back to the gem5 world
-        filename = quote(self.gem5_input_dir + filename)
-        self._gem5_shell("ls -al {}".format(filename))
-        self._gem5_shell("cat {} > {}".format(filename, quote(dest)))
-        self._gem5_shell("sync")
-        self._gem5_shell("ls -al {}".format(quote(dest)))
-        self._gem5_shell("ls -al {}".format(quote(self.gem5_input_dir)))
-        logger.debug("Push complete.")
+            # Dest in gem5 world is a file rather than directory
+            if os.path.basename(dest) != filename:
+                dest = os.path.join(dest, filename)
+            # Back to the gem5 world
+            filename = quote(self.gem5_input_dir + filename)
+            self._gem5_shell("ls -al {}".format(filename))
+            self._gem5_shell("cat {} > {}".format(filename, quote(dest)))
+            self._gem5_shell("sync")
+            self._gem5_shell("ls -al {}".format(quote(dest)))
+            self._gem5_shell("ls -al {}".format(quote(self.gem5_input_dir)))
+            logger.debug("Push complete.")
 
-    def pull(self, source, dest, timeout=0): #pylint: disable=unused-argument
+    def pull(self, sources, dest, timeout=0): #pylint: disable=unused-argument
         """
         Pull a file from the gem5 device using m5 writefile
 
@@ -1057,40 +1084,41 @@ class Gem5Connection(TelnetConnection):
         # First check if the connection is set up to interact with gem5
         self._check_ready()
 
-        result = self._gem5_shell("ls {}".format(source))
-        files = strip_bash_colors(result).split()
+        for source in sources:
+            result = self._gem5_shell("ls {}".format(source))
+            files = strip_bash_colors(result).split()
 
-        for filename in files:
-            dest_file = os.path.basename(filename)
-            logger.debug("pull_file {} {}".format(filename, dest_file))
-            # writefile needs the file to be copied to be in the current
-            # working directory so if needed, copy to the working directory
-            # We don't check the exit code here because it is non-zero if the
-            # source and destination are the same. The ls below will cause an
-            # error if the file was not where we expected it to be.
-            if os.path.isabs(source):
-                if os.path.dirname(source) != self.execute('pwd',
-                                              check_exit_code=False):
-                    self._gem5_shell("cat {} > {}".format(quote(filename),
-                                                              quote(dest_file)))
-            self._gem5_shell("sync")
-            self._gem5_shell("ls -la {}".format(dest_file))
-            logger.debug('Finished the copy in the simulator')
-            self._gem5_util("writefile {}".format(dest_file))
+            for filename in files:
+                dest_file = os.path.basename(filename)
+                logger.debug("pull_file {} {}".format(filename, dest_file))
+                # writefile needs the file to be copied to be in the current
+                # working directory so if needed, copy to the working directory
+                # We don't check the exit code here because it is non-zero if the
+                # source and destination are the same. The ls below will cause an
+                # error if the file was not where we expected it to be.
+                if os.path.isabs(source):
+                    if os.path.dirname(source) != self.execute('pwd',
+                                                check_exit_code=False):
+                        self._gem5_shell("cat {} > {}".format(quote(filename),
+                                                                quote(dest_file)))
+                self._gem5_shell("sync")
+                self._gem5_shell("ls -la {}".format(dest_file))
+                logger.debug('Finished the copy in the simulator')
+                self._gem5_util("writefile {}".format(dest_file))
 
-            if 'cpu' not in filename:
-                while not os.path.exists(os.path.join(self.gem5_out_dir,
-                                                      dest_file)):
-                    time.sleep(1)
+                if 'cpu' not in filename:
+                    while not os.path.exists(os.path.join(self.gem5_out_dir,
+                                                        dest_file)):
+                        time.sleep(1)
 
-            # Perform the local move
-            if os.path.exists(os.path.join(dest, dest_file)):
-                logger.warning(
-                            'Destination file {} already exists!'\
-                            .format(dest_file))
-            else:
-                shutil.move(os.path.join(self.gem5_out_dir, dest_file), dest)
-            logger.debug("Pull complete.")
+                # Perform the local move
+                if os.path.exists(os.path.join(dest, dest_file)):
+                    logger.warning(
+                                'Destination file {} already exists!'\
+                                .format(dest_file))
+                else:
+                    shutil.move(os.path.join(self.gem5_out_dir, dest_file), dest)
+                logger.debug("Pull complete.")
 
     def execute(self, command, timeout=1000, check_exit_code=True,
                 as_root=False, strip_colors=True, will_succeed=False):

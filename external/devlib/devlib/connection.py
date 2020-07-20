@@ -27,7 +27,7 @@ _KILL_TIMEOUT = 3
 
 
 def _kill_pgid_cmd(pgid, sig):
-    return 'kill -{} -{}'.format(sig.name, pgid)
+    return 'kill -{} -{}'.format(sig.value, pgid)
 
 
 class ConnectionBase(InitCheckpoint):

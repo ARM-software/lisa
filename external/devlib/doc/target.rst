@@ -218,25 +218,33 @@ Target
         operations during reboot process to detect if the reboot has failed and
         the device has hung.
 
-.. method:: Target.push(source, dest [,as_root , timeout])
+.. method:: Target.push(source, dest [,as_root , timeout, globbing])
 
    Transfer a file from the host machine to the target device.
 
-   :param source: path of to the file on the host
-   :param dest: path of to the file on the target
+   :param source: path on the host
+   :param dest: path on the target
    :param as_root: whether root is required. Defaults to false.
    :param timeout: timeout (in seconds) for the transfer; if the transfer does
        not  complete within this period, an exception will be raised.
+   :param globbing: If ``True``, the ``source`` is interpreted as a globbing
+        pattern instead of being take as-is. If the pattern has mulitple
+        matches, ``dest`` must be a folder (or will be created as such if it
+        does not exists yet).
 
-.. method:: Target.pull(source, dest [, as_root, timeout])
+.. method:: Target.pull(source, dest [, as_root, timeout, globbing])
 
    Transfer a file from the target device to the host machine.
 
-   :param source: path of to the file on the target
-   :param dest: path of to the file on the host
+   :param source: path on the target
+   :param dest: path on the host
    :param as_root: whether root is required. Defaults to false.
    :param timeout: timeout (in seconds) for the transfer; if the transfer does
        not  complete within this period, an exception will be raised.
+   :param globbing: If ``True``, the ``source`` is interpreted as a globbing
+        pattern instead of being take as-is. If the pattern has mulitple
+        matches, ``dest`` must be a folder (or will be created as such if it
+        does not exists yet).
 
 .. method:: Target.execute(command [, timeout [, check_exit_code [, as_root [, strip_colors [, will_succeed [, force_locale]]]]]])
 
@@ -435,6 +443,10 @@ Target
 
    Return a list of :class:`PsEntry` instances for all running processes on the
    system.
+
+.. method:: Target.makedirs(self, path)
+
+   Create a directory at the given path and all its ancestors if needed.
 
 .. method:: Target.file_exists(self, filepath)
 
