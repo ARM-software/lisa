@@ -128,7 +128,7 @@ class UtilConvergence(UtilTrackingBase):
     def fast_ramp(self):
         min_kernel = KernelVersion('5.5.0').parts
         cur_kernel = self.plat_info['kernel']['version'].parts
-        return cur_kernel < min_kernel
+        return cur_kernel >= min_kernel
 
     def _plot_signals(self, task, test, failures):
         signals = ['util', 'enqueued', 'ewma']
