@@ -162,14 +162,13 @@ class RTA(Workload):
         with capa_cm:
             super().run(cpus, cgroup, as_root)
 
-        if not self.log_stats:
-            return
-        logger.debug('Pulling logfiles to: {}'.format(self.res_dir))
-        for task in self.tasks:
-            # RT-app appends some number to the logs, so we can't predict the
-            # exact filename
-            logfile = self.target.path.join(self.run_dir, '*{}*.log'.format(task))
-            self.target.pull(logfile, self.res_dir)
+        if self.log_stats:
+            logger.debug('Pulling logfiles to: {}'.format(self.res_dir))
+            for task in self.tasks:
+                # RT-app appends some number to the logs, so we can't predict the
+                # exact filename
+                logfile = self.target.path.join(self.run_dir, '*{}*.log'.format(task))
+                self.target.pull(logfile, self.res_dir, globbing=True)
 
     def _process_calibration(self, calibration):
         """
