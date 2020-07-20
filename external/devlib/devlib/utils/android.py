@@ -19,6 +19,7 @@ Utility functions for working with Android devices through adb.
 
 """
 # pylint: disable=E1103
+import glob
 import os
 import re
 import sys
@@ -203,10 +204,10 @@ class ApkInfo(object):
     @property
     def activities(self):
         if self._activities is None:
-            file_flag = '--file' if aapt_version == 2 else ''
-            cmd = [aapt, 'dump', 'xmltree',
-                   self._apk_path, '{}'.format(file_flag),
-                   'AndroidManifest.xml']
+            cmd = [aapt, 'dump', 'xmltree', self._apk_path]
+            if aapt_version == 2:
+                cmd += ['--file']
+            cmd += ['AndroidManifest.xml']
             matched_activities = self.activity_regex.finditer(self._run(cmd))
             self._activities = [m.group('name') for m in matched_activities]
         return self._activities
@@ -214,12 +215,13 @@ class ApkInfo(object):
     @property
     def methods(self):
         if self._methods is None:
-            with zipfile.ZipFile(self._apk_path, 'r') as z:
-                extracted = z.extract('classes.dex', tempfile.gettempdir())
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                with zipfile.ZipFile(self._apk_path, 'r') as z:
+                    extracted = z.extract('classes.dex', tmp_dir)
 
-            dexdump = os.path.join(os.path.dirname(aapt), 'dexdump')
-            command = [dexdump, '-l', 'xml', extracted]
-            dump = self._run(command)
+                dexdump = os.path.join(os.path.dirname(aapt), 'dexdump')
+                command = [dexdump, '-l', 'xml', extracted]
+                dump = self._run(command)
 
             xml_tree = xml.etree.ElementTree.fromstring(dump)
 
@@ -287,28 +289,24 @@ class AdbConnection(ConnectionBase):
         self._setup_ls()
         self._setup_su()
 
-    def push(self, source, dest, timeout=None):
+    def _push_pull(self, action, sources, dest, timeout):
         if timeout is None:
             timeout = self.timeout
-        command = "push {} {}".format(quote(source), quote(dest))
-        if not os.path.exists(source):
-            raise HostError('No such file "{}"'.format(source))
-        return adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
 
-    def pull(self, source, dest, timeout=None):
-        if timeout is None:
-            timeout = self.timeout
-        # Pull all files matching a wildcard expression
-        if os.path.isdir(dest) and \
-           ('*' in source or '?' in source):
-            command = 'shell {} {}'.format(self.ls_command, source)
-            output = adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
-            for line in output.splitlines():
-                command = "pull {} {}".format(quote(line.strip()), quote(dest))
-                adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
-            return
-        command = "pull {} {}".format(quote(source), quote(dest))
-        return adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
+        paths = sources + [dest]
+
+        # Quote twice to avoid expansion by host shell, then ADB globbing
+        do_quote = lambda x: quote(glob.escape(x))
+        paths = ' '.join(map(do_quote, paths))
+
+        command = "{} {}".format(action, paths)
+        adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
+
+    def push(self, sources, dest, timeout=None):
+        return self._push_pull('push', sources, dest, timeout)
+
+    def pull(self, sources, dest, timeout=None):
+        return self._push_pull('pull', sources, dest, timeout)
 
     # pylint: disable=unused-argument
     def execute(self, command, timeout=None, check_exit_code=False,
@@ -574,7 +572,7 @@ def adb_background_shell(conn, command,
     uuid_var = 'BACKGROUND_COMMAND_UUID={}'.format(uuid_)
     command = "{} sh -c {}".format(uuid_var, quote(command))
 
-    adb_cmd = get_adb_command(None, 'shell', adb_server)
+    adb_cmd = get_adb_command(device, 'shell', adb_server)
     full_command = '{} {}'.format(adb_cmd, quote(command))
     logger.debug(full_command)
     p = subprocess.Popen(full_command, stdout=stdout, stderr=stderr, shell=True)

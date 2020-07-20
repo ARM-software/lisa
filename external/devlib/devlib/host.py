@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from glob import iglob
+import glob
 import os
 import signal
 import shutil
@@ -64,22 +64,34 @@ class LocalConnection(ConnectionBase):
         self.unrooted = unrooted
         self.password = password
 
-    def push(self, source, dest, timeout=None, as_root=False):  # pylint: disable=unused-argument
-        self.logger.debug('cp {} {}'.format(source, dest))
-        shutil.copy(source, dest)
 
-    def pull(self, source, dest, timeout=None, as_root=False): # pylint: disable=unused-argument
-        self.logger.debug('cp {} {}'.format(source, dest))
-        if ('*' in source or '?' in source) and os.path.isdir(dest):
-            # Pull all files matching a wildcard expression
-            for each_source in iglob(source):
-                shutil.copy(each_source, dest)
+    def _copy_path(self, source, dest):
+        self.logger.debug('copying {} to {}'.format(source, dest))
+        if os.path.isdir(source):
+            # Behave similarly as cp, scp, adb push, etc. by creating a new
+            # folder instead of merging hierarchies
+            if os.path.exists(dest):
+                dest = os.path.join(dest, os.path.basename(os.path.normpath(src)))
+
+            # Use distutils copy_tree since it behaves the same as
+            # shutils.copytree except that it won't fail if some folders
+            # already exist.
+            #
+            # Mirror the behavior of all other targets which only copy the
+            # content without metadata
+            copy_tree(source, dest, preserve_mode=False, preserve_times=False)
         else:
-            if os.path.isdir(source):
-                # Use distutils to allow copying into an existing directory structure.
-                copy_tree(source, dest)
-            else:
-                shutil.copy(source, dest)
+            shutil.copy(source, dest)
+
+    def _copy_paths(self, sources, dest):
+        for source in sources:
+            self._copy_path(source, dest)
+
+    def push(self, sources, dest, timeout=None, as_root=False):  # pylint: disable=unused-argument
+        self._copy_paths(sources, dest)
+
+    def pull(self, sources, dest, timeout=None, as_root=False): # pylint: disable=unused-argument
+        self._copy_paths(sources, dest)
 
     # pylint: disable=unused-argument
     def execute(self, command, timeout=None, check_exit_code=True,

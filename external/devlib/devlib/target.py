@@ -15,7 +15,9 @@
 
 import io
 import base64
+import functools
 import gzip
+import glob
 import os
 import re
 import time
@@ -26,6 +28,7 @@ import sys
 import tarfile
 import tempfile
 import threading
+import uuid
 import xml.dom.minidom
 import copy
 from collections import namedtuple, defaultdict
@@ -47,13 +50,13 @@ from devlib.platform import Platform
 from devlib.exception import (DevlibTransientError, TargetStableError,
                               TargetNotRespondingError, TimeoutError,
                               TargetTransientError, KernelConfigKeyError,
-                              TargetError) # pylint: disable=redefined-builtin
+                              TargetError, HostError) # pylint: disable=redefined-builtin
 from devlib.utils.ssh import SshConnection
 from devlib.utils.android import AdbConnection, AndroidProperties, LogcatMonitor, adb_command, adb_disconnect, INTENT_FLAGS
 from devlib.utils.misc import memoized, isiterable, convert_new_lines
 from devlib.utils.misc import commonprefix, merge_lists
 from devlib.utils.misc import ABI_MAP, get_cpu_name, ranges_to_list
-from devlib.utils.misc import batch_contextmanager, tls_property
+from devlib.utils.misc import batch_contextmanager, tls_property, nullcontext
 from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_string, bytes_regex
 
 
@@ -364,25 +367,137 @@ class Target(object):
 
     # file transfer
 
-    def push(self, source, dest, as_root=False, timeout=None):  # pylint: disable=arguments-differ
-        if not as_root:
-            self.conn.push(source, dest, timeout=timeout)
-        else:
-            device_tempfile = self.path.join(self._file_transfer_cache, source.lstrip(self.path.sep))
-            self.execute("mkdir -p {}".format(quote(self.path.dirname(device_tempfile))))
-            self.conn.push(source, device_tempfile, timeout=timeout)
-            self.execute("cp {} {}".format(quote(device_tempfile), quote(dest)), as_root=True)
+    @contextmanager
+    def _xfer_cache_path(self, name):
+        """
+        Context manager to provide a unique path in the transfer cache with the
+        basename of the given name.
+        """
+        # Use a UUID to avoid race conditions on the target side
+        xfer_uuid = uuid.uuid4().hex
+        folder = self.path.join(self._file_transfer_cache, xfer_uuid)
+        # Make sure basename will work on folders too
+        name = os.path.normpath(name)
+        # Ensure the name is relative so that os.path.join() will actually
+        # join the paths rather than ignoring the first one.
+        name = './{}'.format(os.path.basename(name))
 
-    def pull(self, source, dest, as_root=False, timeout=None):  # pylint: disable=arguments-differ
-        if not as_root:
-            self.conn.pull(source, dest, timeout=timeout)
+        check_rm = False
+        try:
+            self.makedirs(folder)
+            # Don't check the exit code as the folder might not even exist
+            # before this point, if creating it failed
+            check_rm = True
+            yield self.path.join(folder, name)
+        finally:
+            self.execute('rm -rf -- {}'.format(quote(folder)), check_exit_code=check_rm)
+
+    def _prepare_xfer(self, action, sources, dest):
+        """
+        Check the sanity of sources and destination and prepare the ground for
+        transfering multiple sources.
+        """
+        if action == 'push':
+            src_excep = HostError
+            dst_excep = TargetStableError
+            dst_path_exists = self.file_exists
+            dst_is_dir = self.directory_exists
+            dst_mkdir = self.makedirs
+
+            for source in sources:
+                if not os.path.exists(source):
+                    raise HostError('No such file "{}"'.format(source))
         else:
-            device_tempfile = self.path.join(self._file_transfer_cache, source.lstrip(self.path.sep))
-            self.execute("mkdir -p {}".format(quote(self.path.dirname(device_tempfile))))
-            self.execute("cp -r {} {}".format(quote(source), quote(device_tempfile)), as_root=True)
-            self.execute("chmod 0644 {}".format(quote(device_tempfile)), as_root=True)
-            self.conn.pull(device_tempfile, dest, timeout=timeout)
-            self.execute("rm -r {}".format(quote(device_tempfile)), as_root=True)
+            src_excep = TargetStableError
+            dst_excep = HostError
+            dst_path_exists = os.path.exists
+            dst_is_dir = os.path.isdir
+            dst_mkdir = functools.partial(os.makedirs, exist_ok=True)
+
+        if not sources:
+            raise src_excep('No file matching: {}'.format(source))
+        elif len(sources) > 1:
+            if dst_path_exists(dest):
+                if not dst_is_dir(dest):
+                    raise dst_excep('A folder dest is required for multiple matches but destination is a file: {}'.format(dest))
+            else:
+                dst_makedirs(dest)
+
+
+    def push(self, source, dest, as_root=False, timeout=None, globbing=False):  # pylint: disable=arguments-differ
+        sources = glob.glob(source) if globbing else [source]
+        self._prepare_xfer('push', sources, dest)
+
+        def do_push(sources, dest):
+            return self.conn.push(sources, dest, timeout=timeout)
+
+        if as_root:
+            for source in sources:
+                with self._xfer_cache_path(source) as device_tempfile:
+                    do_push([source], device_tempfile)
+                    self.execute("mv -f -- {} {}".format(quote(device_tempfile), quote(dest)), as_root=True)
+        else:
+            do_push(sources, dest)
+
+    def _expand_glob(self, pattern, **kwargs):
+        """
+        Expand the given path globbing pattern on the target using the shell
+        globbing.
+        """
+        # Since we split the results based on new lines, forbid them in the
+        # pattern
+        if '\n' in pattern:
+            raise ValueError(r'Newline character \n are not allowed in globbing patterns')
+
+        # If the pattern is in fact a plain filename, skip the expansion on the
+        # target to avoid an unncessary command execution.
+        #
+        # fnmatch char list from: https://docs.python.org/3/library/fnmatch.html
+        special_chars = ['*', '?', '[', ']']
+        if not any(char in pattern for char in special_chars):
+            return [pattern]
+
+        # Characters to escape that are impacting parameter splitting, since we
+        # want the pattern to be given in one piece. Unfortunately, there is no
+        # fool-proof way of doing that without also escaping globbing special
+        # characters such as wildcard which would defeat the entire purpose of
+        # that function.
+        for c in [' ', "'", '"']:
+            pattern = pattern.replace(c, '\\' + c)
+
+        cmd = "exec printf '%s\n' {}".format(pattern)
+        # Make sure to use the same shell everywhere for the path globbing,
+        # ensuring consistent results no matter what is the default platform
+        # shell
+        cmd = '{} sh -c {} 2>/dev/null'.format(quote(self.busybox), quote(cmd))
+        # On some shells, match failure will make the command "return" a
+        # non-zero code, even though the command was not actually called
+        result = self.execute(cmd, strip_colors=False, check_exit_code=False, **kwargs)
+        paths = result.splitlines()
+        if not paths:
+            raise TargetStableError('No file matching: {}'.format(pattern))
+
+        return paths
+
+    def pull(self, source, dest, as_root=False, timeout=None, globbing=False):  # pylint: disable=arguments-differ
+        if globbing:
+            sources = self._expand_glob(source, as_root=as_root)
+        else:
+            sources = [source]
+
+        self._prepare_xfer('pull', sources, dest)
+
+        def do_pull(sources, dest):
+            self.conn.pull(sources, dest, timeout=timeout)
+
+        if as_root:
+            for source in sources:
+                with self._xfer_cache_path(source) as device_tempfile:
+                    self.execute("cp -r -- {} {}".format(quote(source), quote(device_tempfile)), as_root=True)
+                    self.execute("chmod 0644 -- {}".format(quote(device_tempfile)), as_root=True)
+                    do_pull([device_tempfile], dest)
+        else:
+            do_pull(sources, dest)
 
     def get_directory(self, source_dir, dest, as_root=False):
         """ Pull a directory from the device, after compressing dir """
@@ -395,27 +510,28 @@ class Target(object):
         tmpfile = os.path.join(dest, tar_file_name)
 
         # If root is required, use tmp location for tar creation.
-        if as_root:
-            tar_file_name = self.path.join(self._file_transfer_cache, tar_file_name)
+        tar_file_cm = self._xfer_cache_path if as_root else nullcontext
 
         # Does the folder exist?
         self.execute('ls -la {}'.format(quote(source_dir)), as_root=as_root)
-        # Try compressing the folder
-        try:
-            self.execute('{} tar -cvf {} {}'.format(
-                quote(self.busybox), quote(tar_file_name), quote(source_dir)
-            ), as_root=as_root)
-        except TargetStableError:
-            self.logger.debug('Failed to run tar command on target! ' \
-                              'Not pulling directory {}'.format(source_dir))
-        # Pull the file
-        if not os.path.exists(dest):
-            os.mkdir(dest)
-        self.pull(tar_file_name, tmpfile)
-        # Decompress
-        f = tarfile.open(tmpfile, 'r')
-        f.extractall(outdir)
-        os.remove(tmpfile)
+
+        with tar_file_cm(tar_file_name) as tar_file_name:
+            # Try compressing the folder
+            try:
+                self.execute('{} tar -cvf {} {}'.format(
+                    quote(self.busybox), quote(tar_file_name), quote(source_dir)
+                ), as_root=as_root)
+            except TargetStableError:
+                self.logger.debug('Failed to run tar command on target! ' \
+                                'Not pulling directory {}'.format(source_dir))
+            # Pull the file
+            if not os.path.exists(dest):
+                os.mkdir(dest)
+            self.pull(tar_file_name, tmpfile)
+            # Decompress
+            with tarfile.open(tmpfile, 'r') as f:
+                f.extractall(outdir)
+            os.remove(tmpfile)
 
     # execution
 
@@ -585,6 +701,9 @@ class Target(object):
 
     # files
 
+    def makedirs(self, path):
+        self.execute('mkdir -p {}'.format(quote(folder)))
+
     def file_exists(self, filepath):
         command = 'if [ -e {} ]; then echo 1; else echo 0; fi'
         output = self.execute(command.format(quote(filepath)), as_root=self.is_rooted)
@@ -628,7 +747,7 @@ class Target(object):
         raise IOError('No usable temporary filename found')
 
     def remove(self, path, as_root=False):
-        self.execute('rm -rf {}'.format(quote(path)), as_root=as_root)
+        self.execute('rm -rf -- {}'.format(quote(path)), as_root=as_root)
 
     # misc
     def core_cpus(self, core):

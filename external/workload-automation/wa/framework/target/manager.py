@@ -24,7 +24,8 @@ from wa.framework.plugin import Parameter
 from wa.framework.target.descriptor import (get_target_description,
                                             instantiate_target,
                                             instantiate_assistant)
-from wa.framework.target.info import get_target_info, get_target_info_from_cache, cache_target_info
+from wa.framework.target.info import (get_target_info, get_target_info_from_cache,
+                                      cache_target_info, read_target_info_cache)
 from wa.framework.target.runtime_parameter_manager import RuntimeParameterManager
 from wa.utils.types import module_name_set
 
@@ -92,18 +93,19 @@ class TargetManager(object):
 
     @memoized
     def get_target_info(self):
-        info = get_target_info_from_cache(self.target.system_id)
+        cache = read_target_info_cache()
+        info = get_target_info_from_cache(self.target.system_id, cache=cache)
 
         if info is None:
             info = get_target_info(self.target)
-            cache_target_info(info)
+            cache_target_info(info, cache=cache)
         else:
             # If module configuration has changed form when the target info
             # was previously cached, it is possible additional info will be
             # available, so should re-generate the cache.
             if module_name_set(info.modules) != module_name_set(self.target.modules):
                 info = get_target_info(self.target)
-                cache_target_info(info, overwrite=True)
+                cache_target_info(info, overwrite=True, cache=cache)
 
         return info
 

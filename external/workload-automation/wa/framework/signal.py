@@ -15,7 +15,7 @@
 
 
 """
-This module wraps louie signalling mechanism. It relies on modified version of loiue
+This module wraps louie signalling mechanism. It relies on modified version of louie
 that has prioritization added to handler invocation.
 
 """
@@ -23,8 +23,9 @@ import sys
 import logging
 from contextlib import contextmanager
 
+from louie import dispatcher, saferef  # pylint: disable=wrong-import-order
+from louie.dispatcher import _remove_receiver
 import wrapt
-from louie import dispatcher  # pylint: disable=wrong-import-order
 
 from wa.utils.types import prioritylist, enum
 
@@ -242,8 +243,8 @@ def connect(handler, signal, sender=dispatcher.Any, priority=0):
         receivers = signals[signal]
     else:
         receivers = signals[signal] = _prioritylist_wrapper()
-    receivers.add(handler, priority)
     dispatcher.connect(handler, signal, sender)
+    receivers.add(saferef.safe_ref(handler, on_delete=_remove_receiver), priority)
 
 
 def disconnect(handler, signal, sender=dispatcher.Any):
@@ -268,7 +269,7 @@ def send(signal, sender=dispatcher.Anonymous, *args, **kwargs):
     """
     Sends a signal, causing connected handlers to be invoked.
 
-    Paramters:
+    Parameters:
 
         :signal: Signal to be sent. This must be an instance of :class:`wa.core.signal.Signal`
                  or its subclasses.

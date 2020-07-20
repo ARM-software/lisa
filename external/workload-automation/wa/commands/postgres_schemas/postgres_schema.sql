@@ -1,4 +1,4 @@
---!VERSION!1.5!ENDVERSION!
+--!VERSION!1.6!ENDVERSION!
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "lo";
 
@@ -61,7 +61,7 @@ CREATE TABLE Runs (
 
 CREATE TABLE Jobs (
     oid uuid NOT NULL,
-    run_oid uuid NOT NULL references Runs(oid),
+    run_oid uuid NOT NULL references Runs(oid) ON DELETE CASCADE,
     status status_enum,
     retry int,
     label text,
@@ -76,7 +76,7 @@ CREATE TABLE Jobs (
 
 CREATE TABLE Targets (
     oid uuid NOT NULL,
-    run_oid uuid NOT NULL references Runs(oid),
+    run_oid uuid NOT NULL references Runs(oid) ON DELETE CASCADE,
     target text,
     modules text[],
     cpus text[],
@@ -103,7 +103,7 @@ CREATE TABLE Targets (
 
 CREATE TABLE Events (
     oid uuid NOT NULL,
-    run_oid uuid NOT NULL references Runs(oid),
+    run_oid uuid NOT NULL references Runs(oid) ON DELETE CASCADE,
     job_oid uuid references Jobs(oid),
     timestamp timestamp,
     message text,
@@ -114,28 +114,28 @@ CREATE TABLE Events (
 
 CREATE TABLE Resource_Getters (
     oid uuid NOT NULL,
-    run_oid uuid NOT NULL references Runs(oid),
+    run_oid uuid NOT NULL references Runs(oid) ON DELETE CASCADE,
     name text,
     PRIMARY KEY (oid)
 );
 
 CREATE TABLE Augmentations (
     oid uuid NOT NULL,
-    run_oid uuid NOT NULL references Runs(oid),
+    run_oid uuid NOT NULL references Runs(oid) ON DELETE CASCADE,
     name text,
     PRIMARY KEY (oid)
 );
 
 CREATE TABLE Jobs_Augs (
     oid uuid NOT NULL,
-    job_oid uuid NOT NULL references Jobs(oid),
-    augmentation_oid uuid NOT NULL references Augmentations(oid),
+    job_oid uuid NOT NULL references Jobs(oid) ON DELETE CASCADE,
+    augmentation_oid uuid NOT NULL references Augmentations(oid) ON DELETE CASCADE,
     PRIMARY KEY (oid)
 );
 
 CREATE TABLE Metrics (
     oid uuid NOT NULL,
-    run_oid uuid NOT NULL references Runs(oid),
+    run_oid uuid NOT NULL references Runs(oid) ON DELETE CASCADE,
     job_oid uuid references Jobs(oid),
     name text,
     value double precision,
@@ -158,7 +158,7 @@ CREATE TRIGGER t_raster BEFORE UPDATE OR DELETE ON LargeObjects
 
 CREATE TABLE Artifacts (
     oid uuid NOT NULL,
-    run_oid uuid NOT NULL references Runs(oid),
+    run_oid uuid NOT NULL references Runs(oid) ON DELETE CASCADE,
     job_oid uuid references Jobs(oid),
     name text,
     large_object_uuid uuid NOT NULL references LargeObjects(oid),
@@ -170,12 +170,18 @@ CREATE TABLE Artifacts (
     PRIMARY KEY (oid)
 );
 
+CREATE RULE del_lo AS
+    ON DELETE TO Artifacts
+    DO DELETE FROM LargeObjects
+        WHERE LargeObjects.oid = old.large_object_uuid
+;
+
 CREATE TABLE Classifiers (
     oid uuid NOT NULL,
-    artifact_oid uuid references Artifacts(oid),
-    metric_oid uuid references Metrics(oid),
-    job_oid uuid references Jobs(oid),
-    run_oid uuid references Runs(oid),
+    artifact_oid uuid references Artifacts(oid) ON DELETE CASCADE,
+    metric_oid uuid references Metrics(oid) ON DELETE CASCADE,
+    job_oid uuid references Jobs(oid) ON DELETE CASCADE,
+    run_oid uuid references Runs(oid) ON DELETE CASCADE,
     key text,
     value text,
     PRIMARY KEY (oid)
@@ -183,7 +189,7 @@ CREATE TABLE Classifiers (
 
 CREATE TABLE Parameters (
     oid uuid NOT NULL,
-    run_oid uuid NOT NULL references Runs(oid),
+    run_oid uuid NOT NULL references Runs(oid) ON DELETE CASCADE,
     job_oid uuid references Jobs(oid),
     augmentation_oid uuid references Augmentations(oid),
     resource_getter_oid uuid references Resource_Getters(oid),
