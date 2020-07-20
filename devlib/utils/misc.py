@@ -737,6 +737,23 @@ def batch_contextmanager(f, kwargs_list):
             stack.enter_context(f(**kwargs))
         yield
 
+
+@contextmanager
+def nullcontext(enter_result=None):
+    """
+    Backport of Python 3.7 ``contextlib.nullcontext``
+
+    This context manager does nothing, so it can be used as a default
+    placeholder for code that needs to select at runtime what context manager
+    to use.
+
+    :param enter_result: Object that will be bound to the target of the with
+        statement, or `None` if nothing is specified.
+    :type enter_result: object
+    """
+    yield enter_result
+
+
 class tls_property:
     """
     Use it like `property` decorator, but the result will be memoized per

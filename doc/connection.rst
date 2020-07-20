@@ -21,25 +21,25 @@ they do not derive from a common base. Instead, a :class:`Connection` is any
 class that implements the following methods.
 
 
-.. method:: push(self, source, dest, timeout=None)
+.. method:: push(self, sources, dest, timeout=None)
 
-   Transfer a file from the host machine to the connected device.
+   Transfer a list of files from the host machine to the connected device.
 
-   :param source: path of to the file on the host
-   :param dest: path of to the file on the connected device.
-   :param timeout: timeout (in seconds) for the transfer; if the transfer does
-       not  complete within this period, an exception will be raised.
+   :param sources: list of paths on the host
+   :param dest: path to the file or folder on the connected device.
+   :param timeout: timeout (in seconds) for the transfer of each file; if the
+       transfer does not complete within this period, an exception will be
+       raised.
 
-.. method:: pull(self, source, dest, timeout=None)
+.. method:: pull(self, sources, dest, timeout=None)
 
-   Transfer a file, or files matching a glob pattern, from the connected device
-   to the host machine.
+   Transfer a list of files from the connected device to the host machine.
 
-   :param source: path of to the file on the connected device. If ``dest`` is a
-       directory, may be a glob pattern.
-   :param dest: path of to the file on the host
-   :param timeout: timeout (in seconds) for the transfer; if the transfer does
-       not  complete within this period, an exception will be raised.
+   :param sources: list of paths on the connected device.
+   :param dest: path to the file or folder on the host
+   :param timeout: timeout (in seconds) for the transfer for each file; if the
+       transfer does not complete within this period, an exception will be
+       raised.
 
 .. method:: execute(self, command, timeout=None, check_exit_code=False, as_root=False, strip_colors=True, will_succeed=False)
 
