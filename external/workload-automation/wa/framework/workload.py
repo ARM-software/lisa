@@ -22,8 +22,8 @@ try:
 except ImportError:
     from pipes import quote
 
-from devlib.utils.android import ApkInfo
 
+from wa.utils.android import get_cacheable_apk_info
 from wa.framework.plugin import TargetedPlugin, Parameter
 from wa.framework.resource import (ApkFile, ReventFile,
                                    File, loose_version_matching,
@@ -32,7 +32,7 @@ from wa.framework.exception import WorkloadError, ConfigError
 from wa.utils.types import ParameterDict, list_or_string, version_tuple
 from wa.utils.revent import ReventRecorder
 from wa.utils.exec_control import once_per_instance
-from wa.utils.misc import lock_file
+from wa.utils.misc import atomic_write_path
 
 
 class Workload(TargetedPlugin):
@@ -523,7 +523,7 @@ class UiAutomatorGUI(object):
     def init_resources(self, resolver):
         self.uiauto_file = resolver.get(ApkFile(self.owner, uiauto=True))
         if not self.uiauto_package:
-            uiauto_info = ApkInfo(self.uiauto_file)
+            uiauto_info = get_cacheable_apk_info(self.uiauto_file)
             self.uiauto_package = uiauto_info.package
 
     def init_commands(self):
@@ -732,33 +732,31 @@ class PackageHandler(object):
             raise WorkloadError(msg)
 
         self.error_msg = None
-        with lock_file(os.path.join(self.owner.dependencies_directory, self.owner.name)):
-            if self.prefer_host_package:
-                self.resolve_package_from_host(context)
-                if not self.apk_file:
-                    self.resolve_package_from_target()
-            else:
+        if self.prefer_host_package:
+            self.resolve_package_from_host(context)
+            if not self.apk_file:
                 self.resolve_package_from_target()
-                if not self.apk_file:
-                    self.resolve_package_from_host(context)
+        else:
+            self.resolve_package_from_target()
+            if not self.apk_file:
+                self.resolve_package_from_host(context)
 
-            if self.apk_file:
-                with lock_file(self.apk_file):
-                    self.apk_info = ApkInfo(self.apk_file)
+        if self.apk_file:
+            self.apk_info = get_cacheable_apk_info(self.apk_file)
+        else:
+            if self.error_msg:
+                raise WorkloadError(self.error_msg)
             else:
-                if self.error_msg:
-                    raise WorkloadError(self.error_msg)
+                if self.package_name:
+                    message = 'Package "{package}" not found for workload {name} '\
+                              'on host or target.'
+                elif self.version:
+                    message = 'No matching package found for workload {name} '\
+                              '(version {version}) on host or target.'
                 else:
-                    if self.package_name:
-                        message = 'Package "{package}" not found for workload {name} '\
-                                  'on host or target.'
-                    elif self.version:
-                        message = 'No matching package found for workload {name} '\
-                                  '(version {version}) on host or target.'
-                    else:
-                        message = 'No matching package found for workload {name} on host or target'
-                    raise WorkloadError(message.format(name=self.owner.name, version=self.version,
-                                                       package=self.package_name))
+                    message = 'No matching package found for workload {name} on host or target'
+                raise WorkloadError(message.format(name=self.owner.name, version=self.version,
+                                                   package=self.package_name))
 
     def resolve_package_from_host(self, context):
         self.logger.debug('Resolving package on host system')
@@ -901,8 +899,8 @@ class PackageHandler(object):
         package_info = self.target.get_package_info(package)
         apk_name = self._get_package_name(package_info.apk_path)
         host_path = os.path.join(self.owner.dependencies_directory, apk_name)
-        with lock_file(host_path, timeout=self.install_timeout):
-            self.target.pull(package_info.apk_path, host_path,
+        with atomic_write_path(host_path) as at_path:
+            self.target.pull(package_info.apk_path, at_path,
                              timeout=self.install_timeout)
         return host_path
 

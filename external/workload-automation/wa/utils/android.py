@@ -14,16 +14,25 @@
 #
 
 import logging
+import os
 from datetime import datetime
 
+from devlib.utils.android import ApkInfo as _ApkInfo
+
+from wa.framework.configuration import settings
+from wa.utils.serializer import read_pod, write_pod, Podable
 from wa.utils.types import enum
+from wa.utils.misc import atomic_write_path
 
 
 LogcatLogLevel = enum(['verbose', 'debug', 'info', 'warn', 'error', 'assert'], start=2)
 
 log_level_map = ''.join(n[0].upper() for n in LogcatLogLevel.names)
 
-logger = logging.getLogger('logcat')
+logcat_logger = logging.getLogger('logcat')
+apk_info_cache_logger = logging.getLogger('apk_info_cache')
+
+apk_info_cache = None
 
 
 class LogcatEvent(object):
@@ -74,7 +83,116 @@ class LogcatParser(object):
             tag = (parts.pop(0) if parts else '').strip()
         except Exception as e:  # pylint: disable=broad-except
             message = 'Invalid metadata for line:\n\t{}\n\tgot: "{}"'
-            logger.warning(message.format(line, e))
+            logcat_logger.warning(message.format(line, e))
             return None
 
         return LogcatEvent(timestamp, pid, tid, level, tag, message)
+
+
+# pylint: disable=protected-access,attribute-defined-outside-init
+class ApkInfo(_ApkInfo, Podable):
+    '''Implement ApkInfo as a Podable class.'''
+
+    _pod_serialization_version = 1
+
+    @staticmethod
+    def from_pod(pod):
+        instance = ApkInfo()
+        instance.path = pod['path']
+        instance.package = pod['package']
+        instance.activity = pod['activity']
+        instance.label = pod['label']
+        instance.version_name = pod['version_name']
+        instance.version_code = pod['version_code']
+        instance.native_code = pod['native_code']
+        instance.permissions = pod['permissions']
+        instance._apk_path = pod['_apk_path']
+        instance._activities = pod['_activities']
+        instance._methods = pod['_methods']
+        return instance
+
+    def __init__(self, path=None):
+        super().__init__(path)
+        self._pod_version = self._pod_serialization_version
+
+    def to_pod(self):
+        pod = super().to_pod()
+        pod['path'] = self.path
+        pod['package'] = self.package
+        pod['activity'] = self.activity
+        pod['label'] = self.label
+        pod['version_name'] = self.version_name
+        pod['version_code'] = self.version_code
+        pod['native_code'] = self.native_code
+        pod['permissions'] = self.permissions
+        pod['_apk_path'] = self._apk_path
+        pod['_activities'] = self.activities  # Force extraction
+        pod['_methods'] = self.methods  # Force extraction
+        return pod
+
+    @staticmethod
+    def _pod_upgrade_v1(pod):
+        pod['_pod_version'] = pod.get('_pod_version', 1)
+        return pod
+
+
+class ApkInfoCache:
+
+    @staticmethod
+    def _check_env():
+        if not os.path.exists(settings.cache_directory):
+            os.makedirs(settings.cache_directory)
+
+    def __init__(self, path=settings.apk_info_cache_file):
+        self._check_env()
+        self.path = path
+        self.last_modified = None
+        self.cache = {}
+        self._update_cache()
+
+    def store(self, apk_info, apk_id, overwrite=True):
+        self._update_cache()
+        if apk_id in self.cache and not overwrite:
+            raise ValueError('ApkInfo for {} is already in cache.'.format(apk_info.path))
+        self.cache[apk_id] = apk_info.to_pod()
+        with atomic_write_path(self.path) as at_path:
+            write_pod(self.cache, at_path)
+        self.last_modified = os.stat(self.path)
+
+    def get_info(self, key):
+        self._update_cache()
+        pod = self.cache.get(key)
+
+        info = ApkInfo.from_pod(pod) if pod else None
+        return info
+
+    def _update_cache(self):
+        if not os.path.exists(self.path):
+            return
+        if self.last_modified != os.stat(self.path):
+            apk_info_cache_logger.debug('Updating cache {}'.format(self.path))
+            self.cache = read_pod(self.path)
+            self.last_modified = os.stat(self.path)
+
+
+def get_cacheable_apk_info(path):
+    # pylint: disable=global-statement
+    global apk_info_cache
+    if not path:
+        return
+    stat = os.stat(path)
+    modified = stat.st_mtime
+    apk_id = '{}-{}'.format(path, modified)
+    info = apk_info_cache.get_info(apk_id)
+
+    if info:
+        msg = 'Using ApkInfo ({}) from cache'.format(info.package)
+    else:
+        info = ApkInfo(path)
+        apk_info_cache.store(info, apk_id, overwrite=True)
+        msg = 'Storing ApkInfo ({}) in cache'.format(info.package)
+    apk_info_cache_logger.debug(msg)
+    return info
+
+
+apk_info_cache = ApkInfoCache()

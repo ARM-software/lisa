@@ -30,6 +30,27 @@ class Callable(object):
         return self.val
 
 
+class TestSignalDisconnect(unittest.TestCase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.callback_ctr = 0
+
+    def setUp(self):
+        signal.connect(self._call_me_once, 'first')
+        signal.connect(self._call_me_once, 'second')
+
+    def test_handler_disconnected(self):
+        signal.send('first')
+        signal.send('second')
+
+    def _call_me_once(self):
+        assert_equal(self.callback_ctr, 0)
+        self.callback_ctr += 1
+        signal.disconnect(self._call_me_once, 'first')
+        signal.disconnect(self._call_me_once, 'second')
+
+
 class TestPriorityDispatcher(unittest.TestCase):
 
     def setUp(self):
@@ -61,12 +82,16 @@ class TestPriorityDispatcher(unittest.TestCase):
 
     def test_wrap_propagate(self):
         d = {'before': False, 'after': False, 'success': False}
+
         def before():
             d['before'] = True
+
         def after():
             d['after'] = True
+
         def success():
             d['success'] = True
+
         signal.connect(before, signal.BEFORE_WORKLOAD_SETUP)
         signal.connect(after, signal.AFTER_WORKLOAD_SETUP)
         signal.connect(success, signal.SUCCESSFUL_WORKLOAD_SETUP)
@@ -76,7 +101,7 @@ class TestPriorityDispatcher(unittest.TestCase):
             with signal.wrap('WORKLOAD_SETUP'):
                 raise RuntimeError()
         except RuntimeError:
-            caught=True
+            caught = True
 
         assert_true(d['before'])
         assert_true(d['after'])

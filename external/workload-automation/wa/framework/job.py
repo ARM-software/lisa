@@ -23,6 +23,7 @@ from datetime import datetime
 from wa.framework import pluginloader, signal, instrument
 from wa.framework.configuration.core import Status
 from wa.utils.log import indentcontext
+from wa.framework.run import JobState
 
 
 class Job(object):
@@ -39,17 +40,26 @@ class Job(object):
 
     @property
     def status(self):
-        return self._status
+        return self.state.status
 
     @property
     def has_been_initialized(self):
         return self._has_been_initialized
 
+    @property
+    def retries(self):
+        return self.state.retries
+
     @status.setter
     def status(self, value):
-        self._status = value
+        self.state.status = value
+        self.state.timestamp = datetime.utcnow()
         if self.output:
             self.output.status = value
+
+    @retries.setter
+    def retries(self, value):
+        self.state.retries = value
 
     def __init__(self, spec, iteration, context):
         self.logger = logging.getLogger('job')
@@ -59,10 +69,9 @@ class Job(object):
         self.workload = None
         self.output = None
         self.run_time = None
-        self.retries = 0
         self.classifiers = copy(self.spec.classifiers)
         self._has_been_initialized = False
-        self._status = Status.NEW
+        self.state = JobState(self.id, self.label, self.iteration, Status.NEW)
 
     def load(self, target, loader=pluginloader):
         self.logger.info('Loading job {}'.format(self))
@@ -88,7 +97,6 @@ class Job(object):
                 self.workload.initialize(context)
             self.set_status(Status.PENDING)
             self._has_been_initialized = True
-            context.update_job_state(self)
 
     def configure_augmentations(self, context, pm):
         self.logger.info('Configuring augmentations')
