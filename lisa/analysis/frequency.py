@@ -64,21 +64,34 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 axis=1,
             )
 
-        df = self.trace.df_event('cpu_frequency', signals_init=signals_init)
-        df = rename(df)
-        if not signals_init:
-            return df
+        def check_empty(df, excep):
+            if df.empty:
+                raise excep
+            else:
+                return df
 
         try:
-            devlib_df = self.trace.df_event('userspace@devlib_cpu_frequency')
-        except MissingTraceEventError:
-            return df
+            df = self.trace.df_event('cpu_frequency', signals_init=signals_init)
+        except MissingTraceEventError as e:
+            excep = e
+            df = pd.DataFrame(columns=['cpu', 'frequency'])
         else:
-            devlib_df = rename(df)
+            excep = None
+            df = rename(df)
+
+        if not signals_init:
+            return check_empty(df, excep)
+
+        try:
+            devlib_df = self.trace.df_event('userspace@cpu_frequency_devlib')
+        except MissingTraceEventError as e:
+            return check_empty(df, e)
+        else:
+            devlib_df = rename(devlib_df)
 
         # Get the initial values for each CPU
         def init_freq(df, devlib):
-            df = df.groupby('cpu_id', observed=True, sort=False).head(1).copy()
+            df = df.groupby('cpu', observed=True, sort=False).head(1).copy()
             df['devlib'] = devlib
             return df
 
@@ -91,7 +104,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         # * the 2nd value if that comes from cpufreq
         init_df = pd.concat([init_df, init_devlib_df])
         init_df.sort_index(inplace=True)
-        init_groups = init_df.groupby('cpu_id', observed=True, sort=False)
+        init_groups = init_df.groupby('cpu', observed=True, sort=False)
 
         first_df = init_groups.head(1)
         # devlib == False means it's already in the existing dataframe, and we
@@ -110,7 +123,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         df = pd.concat([df, first_df, second_df])
         df.sort_index(inplace=True)
-        return df
+        return check_empty(df, None)
 
     @df_cpus_frequency.used_events
     def df_cpu_frequency(self, cpu, **kwargs):
