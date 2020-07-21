@@ -881,6 +881,24 @@ def deduplicate(seq, keep_last=True, key=lambda x: x):
     return list(reorder(out))
 
 
+def fold(f, xs, init=None):
+    """
+    Fold the given function over ``xs``, with ``init`` initial accumulator
+    value.
+
+    This is very similar to :func:`functools.reduce`, except that it is not
+    assumed that the function returns values of the same type as the item type.
+
+    This means that this function enforces non-empty input.
+    """
+
+    first, *xs = xs
+    return functools.reduce(
+        f,
+        xs,
+        f(init, first),
+    )
+
 def take(n, iterable):
     """
     Yield the first ``n`` items of an iterator, if ``n`` positive, or last
