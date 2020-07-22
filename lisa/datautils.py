@@ -1791,6 +1791,7 @@ _SIGNALS = [
     SignalDesc('cpu_idle', ['cpu_id']),
     SignalDesc('cpu_capacity', ['cpu_id']),
     SignalDesc('cpu_frequency', ['cpu_id']),
+    SignalDesc('userspace@cpu_frequency_devlib', ['cpu_id']),
     SignalDesc('sched_compute_energy', ['comm', 'pid']),
 
     SignalDesc('sched_pelt_se', ['comm', 'pid']),
