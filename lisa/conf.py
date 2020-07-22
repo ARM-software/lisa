@@ -1344,35 +1344,54 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 key=key,
             )
 
-    def _eval_deferred_val(self, src, key):
+    def _eval_deferred_val(self, src, key, error='raise'):
+        error = error or 'raise'
         key_desc = self._structure[key]
         val = self._key_map[key][src]
+        validate = True
         if isinstance(val, DeferredValue):
             try:
                 val = val(key_desc=key_desc)
-            # Propagate ConfigKeyError as-is
-            except ConfigKeyError:
-                raise
             # Wrap into a ConfigKeyError so that the user code can easily
             # handle missing keys, and the original exception is still
             # available as excep.__cause__ since it was chained with "from"
             except Exception as e:
-                key = key_desc.qualname
-                raise DeferredValueComputationError(
-                    'Could not compute "{key}" from source "{src}": {excep}'.format(
-                        key=key,
-                        src=src,
-                        excep=e,
-                    ),
-                    key=key,
-                    excep=e,
+                key_qualname = key_desc.qualname
+                msg = 'Could not compute "{key}" from source "{src}": {excep}'.format(
+                    key=key_qualname,
                     src=src,
-                ) from e
-            key_desc.validate_val(val)
+                    excep=e,
+                )
+
+                # Propagate ConfigKeyError as-is
+                if isinstance(e, ConfigKeyError):
+                    excep = e
+                else:
+                    excep = DeferredValueComputationError(
+                        msg,
+                        key=key_qualname,
+                        excep=e,
+                        src=src,
+                    )
+                    # Chain explicitly like "raise X from Y" in case it needs
+                    # to be wrapped to be raised later
+                    excep.__cause__ = e
+
+                if error == 'raise':
+                    raise excep from e
+                elif error == 'log':
+                    self.get_logger().error(msg)
+                    # Setup a bomb that will explode during a later access
+                    val = DeferredExcep(excep)
+                    validate = False
+
+            if validate:
+                key_desc.validate_val(val)
+
             self._key_map[key][src] = val
         return val
 
-    def eval_deferred(self, cls=DeferredValue, src=None, resolve_src=True):
+    def eval_deferred(self, cls=DeferredValue, src=None, resolve_src=True, error='raise'):
         """
         Evaluate instances of :class:`DeferredValue` that can be used for
         values that are expensive to compute.
@@ -1389,6 +1408,10 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         :param resolve_src: If ``True``, resolve the source of each key and
             only compute deferred values for this source.
         :type resolve_src: bool
+
+        :param error: If ``'raise'`` or ``None``, exception are raised as
+            usual. If ``log``, the exception is logged at error level.
+        :type error: str or None
         """
         for key, src_map in self._key_map.items():
 
@@ -1400,10 +1423,10 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 if src is not None and src != src_:
                     continue
                 if isinstance(val, cls):
-                    self._eval_deferred_val(src_, key)
+                    self._eval_deferred_val(src_, key, error=error)
 
         for sublevel in self._sublevel_map.values():
-            sublevel.eval_deferred(cls, src, resolve_src)
+            sublevel.eval_deferred(cls, src, resolve_src, error=error)
 
     def __getstate__(self):
         """
@@ -1492,7 +1515,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 )
 
             if eval_deferred:
-                val = self._eval_deferred_val(src, key)
+                val = self._eval_deferred_val(src, key, error='raise')
 
         logger = self.get_logger()
         if not quiet and logger.isEnabledFor(logging.DEBUG):
@@ -1539,7 +1562,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             ), key)
 
         return OrderedDict(
-            (src, self._eval_deferred_val(src, key))
+            (src, self._eval_deferred_val(src, key, error='raise'))
             for src in self._resolve_prio(key)
         )
 
