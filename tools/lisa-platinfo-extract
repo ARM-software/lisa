@@ -33,7 +33,7 @@ def main():
 
     # Make sure we get all the information we can, even if it means running for
     # a bit longer. RTapp calibration will be computed as it is a DeferredValue
-    plat_info.eval_deferred()
+    plat_info.eval_deferred(error='log')
 
     print(plat_info)
 
