@@ -365,7 +365,7 @@ class EnergyModel(Serializable, Loggable):
 
         # Check that freq_domains is a partition of the CPUs
         fd_intersection = set.intersection(*domains_as_set)
-        if fd_intersection:
+        if len(domains_as_set) > 1 and fd_intersection:
             raise ValueError('CPUs {} exist in multiple freq domains'.format(
                 fd_intersection))
         fd_difference = set(self.cpus) - set.union(*domains_as_set)
