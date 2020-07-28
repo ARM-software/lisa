@@ -651,6 +651,8 @@ def do_run(args, parser, run_parser, argv):
     def best_effort(mod, e):
         return
 
+    import_error_code = 1
+
     module_set = set()
     for path in args.python_files:
         try:
@@ -664,7 +666,13 @@ def do_run(args, parser, run_parser, argv):
 
     # Look for a customization submodule in one of the parent packages of the
     # modules we specified on the command line.
-    utils.find_customization_module_set(module_set)
+    try:
+        utils.find_customization_module_set(module_set)
+    except Exception as e:
+        error('Could not import the customization module:\n{}'.format(
+            utils.format_exception(e),
+        ))
+        return import_error_code
 
     adaptor_name = args.adaptor
     adaptor_cls = AdaptorBase.get_adaptor_cls(adaptor_name)
@@ -696,7 +704,7 @@ def do_run(args, parser, run_parser, argv):
     module_set = utils.import_modules(args.python_files, excep_handler=excep_handler)
 
     if exit_after_import:
-        return 1
+        return import_error_code
 
     # Make sure the module in which adaptor_cls is defined is used
     module_set.add(inspect.getmodule(adaptor_cls))
