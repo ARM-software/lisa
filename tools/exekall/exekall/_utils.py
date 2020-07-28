@@ -522,7 +522,7 @@ def find_customization_module_set(module_set):
         # specific module, we don't want to hide issues inside the module
         # itself.
         module_exists = False
-        with contextlib.suppress(import_excep):
+        with contextlib.suppress(import_excep, ValueError):
             module_exists = importlib.util.find_spec(customize_name)
 
         if module_exists:
@@ -534,36 +534,36 @@ def find_customization_module_set(module_set):
     return customization_module_set
 
 
-def import_modules(paths_or_names, best_effort=False):
+def import_modules(paths_or_names, excep_handler=None):
     """
     Import the modules in the given list of paths.
 
     If a folder is passed, all Python sources are recursively imported.
     """
-    def import_it(path_or_name, best_effort):
+    def import_it(path_or_name):
         # Recursively import all modules when passed folders
         if path_or_name.is_dir():
-            yield from import_folder(path_or_name, best_effort=best_effort)
+            yield from import_folder(path_or_name, excep_handler=excep_handler)
         # If passed a file, a symlink or something like that
         elif path_or_name.exists():
             try:
                 yield import_file(path_or_name)
-            except ImportError:
-                if best_effort:
-                    return
+            except Exception as e:
+                if excep_handler:
+                    return excep_handler(str(path_or_name), e)
                 else:
                     raise
         # Otherwise, assume it is just a module name
         else:
-            yield from import_name_recursively(path_or_name, best_effort=best_effort)
+            yield from import_name_recursively(path_or_name, excep_handler=excep_handler)
 
     return set(itertools.chain.from_iterable(
-        import_it(pathlib.Path(path), best_effort=best_effort)
+        import_it(pathlib.Path(path))
         for path in paths_or_names
     ))
 
 
-def import_name_recursively(name, best_effort=False):
+def import_name_recursively(name, excep_handler=None):
     """
     Import a module by its name.
 
@@ -573,11 +573,12 @@ def import_name_recursively(name, best_effort=False):
     If it's a package, import all submodules recursively.
     """
 
+    name_str = str(name)
     try:
-        mod = importlib.import_module(str(name))
-    except ImportError:
-        if best_effort:
-            return
+        mod = importlib.import_module(name_str)
+    except Exception as e:
+        if excep_handler:
+            return excep_handler(name_str, e)
         else:
             raise
     try:
@@ -588,18 +589,19 @@ def import_name_recursively(name, best_effort=False):
     # This is a package, so we import all the submodules recursively
     else:
         for path in paths:
-            yield from import_folder(pathlib.Path(path), best_effort=best_effort)
+            yield from import_folder(pathlib.Path(path), excep_handler=excep_handler)
 
 
-def import_folder(path, best_effort=False):
+def import_folder(path, excep_handler=None):
     """
     Import all modules contained in the given folder, recurisvely.
     """
     for python_src in glob.iglob(str(path / '**' / '*.py'), recursive=True):
         try:
             yield import_file(python_src)
-        except ImportError:
-            if best_effort:
+        except Exception as e:
+            if excep_handler:
+                excep_handler(python_src, e)
                 continue
             else:
                 raise
@@ -673,10 +675,14 @@ def import_file(python_src, module_name=None, is_package=False):
             spec = importlib.util.spec_from_file_location(module_name, str(python_src),
                 submodule_search_locations=submodule_search_locations)
             if spec is None:
-                raise ValueError('Could not find module "{module}" at {path}'.format(
-                    module=module_name,
-                    path=python_src
-                ))
+                raise ModuleNotFoundError(
+                    'Could not find module "{module}" at {path}'.format(
+                        module=module_name,
+                        path=python_src
+                    ),
+                    name=module_name,
+                    path=python_src,
+                )
 
         module = importlib.util.module_from_spec(spec)
         if not is_namespace_package:
