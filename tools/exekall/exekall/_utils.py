@@ -522,7 +522,7 @@ def find_customization_module_set(module_set):
         # specific module, we don't want to hide issues inside the module
         # itself.
         module_exists = False
-        with contextlib.suppress(import_excep):
+        with contextlib.suppress(import_excep, ValueError):
             module_exists = importlib.util.find_spec(customize_name)
 
         if module_exists:
@@ -673,10 +673,14 @@ def import_file(python_src, module_name=None, is_package=False):
             spec = importlib.util.spec_from_file_location(module_name, str(python_src),
                 submodule_search_locations=submodule_search_locations)
             if spec is None:
-                raise ValueError('Could not find module "{module}" at {path}'.format(
-                    module=module_name,
-                    path=python_src
-                ))
+                raise ModuleNotFoundError(
+                    'Could not find module "{module}" at {path}'.format(
+                        module=module_name,
+                        path=python_src
+                    ),
+                    name=module_name,
+                    path=python_src,
+                )
 
         module = importlib.util.module_from_spec(spec)
         if not is_namespace_package:
