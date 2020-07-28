@@ -648,12 +648,19 @@ def do_merge(artifact_dirs, output_dir, use_hardlink=True, output_exist=False):
 
 def do_run(args, parser, run_parser, argv):
     # Import all modules, before selecting the adaptor
+    def best_effort(mod, e):
+        return
+
     module_set = set()
     for path in args.python_files:
+        try:
+            imported = utils.import_modules([path], excep_handler=best_effort)
         # This might fail, since some adaptor options may introduce "fake"
         # positional arguments, since these options are not registered yet.
-        with contextlib.suppress(ValueError, ImportError):
-            module_set.update(utils.import_modules([path], best_effort=True))
+        except Exception:
+            pass
+        else:
+            module_set.update(imported)
 
     # Look for a customization submodule in one of the parent packages of the
     # modules we specified on the command line.
@@ -677,7 +684,19 @@ def do_run(args, parser, run_parser, argv):
     args = parser.parse_args(argv)
 
     # Re-import now that we are sure to have the correct list of sources
-    module_set = utils.import_modules(args.python_files)
+    exit_after_import = False
+    def excep_handler(module, e):
+        nonlocal exit_after_import
+        error('Could not import "{}":\n{}'.format(
+            module,
+            utils.format_exception(e),
+        ))
+        exit_after_import = True
+
+    module_set = utils.import_modules(args.python_files, excep_handler=excep_handler)
+
+    if exit_after_import:
+        return 1
 
     # Make sure the module in which adaptor_cls is defined is used
     module_set.add(inspect.getmodule(adaptor_cls))
