@@ -45,7 +45,7 @@ from IPython.display import display
 
 from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython, nullcontext, measure_time
 from lisa.trace import MissingTraceEventError, PandasDataDesc
-from lisa.notebook import axis_link_dataframes, axis_cursor_delta, WrappingHBox
+from lisa.notebook import axis_link_dataframes, axis_cursor_delta, WrappingHBox, make_figure
 from lisa.generic import TypedList
 
 # Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
@@ -114,42 +114,27 @@ class AnalysisHelpers(Loggable, abc.ABC):
           array of, if ``nrows`` > 1))
         """
 
-        running_ipython = is_running_ipython()
-        if interactive is None:
-            interactive = running_ipython
-
-        if tuple(map(int, matplotlib.__version__.split('.'))) <= (3, 0, 3):
-            warnings.warn('This version of matplotlib does not allow saving figures from axis created using Figure(), forcing interactive=True')
-            interactive = True
-
-        if interactive:
-            figure, axes = plt.subplots(
-                ncols=ncols, nrows=nrows, figsize=(width, height * nrows),
-                **kwargs
-            )
-        else:
-            figure = Figure(figsize=(width, height * nrows))
-            axes = figure.subplots(ncols=ncols, nrows=nrows, **kwargs)
-
-        if isinstance(axes, Iterable):
-            ax_list = axes
-        else:
-            ax_list = [axes]
-
+        figure, axes = make_figure(
+            interactive=interactive,
+            width=width,
+            height=height,
+            ncols=ncols,
+            nrows=nrows,
+        )
         use_widgets = interactive and running_ipython
 
         if link_dataframes:
             if not use_widgets:
                 cls.get_logger().error('Dataframes can only be linked to axes in interactive widget plots')
             else:
-                for axis in ax_list:
+                for axis in figure.axes:
                     axis_link_dataframes(axis, link_dataframes)
 
         if cursor_delta or cursor_delta is None and use_widgets:
             if not use_widgets and cursor_delta is not None:
                 cls.get_logger().error('Cursor delta can only be used in interactive widget plots')
             else:
-                for axis in ax_list:
+                for axis in figure.axes:
                     axis_cursor_delta(axis)
 
         # Needed for multirow plots to not overlap with each other
