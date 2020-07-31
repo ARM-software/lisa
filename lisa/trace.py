@@ -215,7 +215,10 @@ class TraceParserBase(abc.ABC, Loggable):
 
         .. note:: A given metadata can only be expected to be available if
             asked for in the constructor, but bear in mind that there is no
-            promise on the availability of any.
+            promise on the availability of any except for the following that
+            *must* be provided if asked for:
+
+                * ``time-range``
 
             Metadata may still be made available if not asked for, but only if
             it's a very cheap byproduct of parsing that incurs no extra cost.
