@@ -316,4 +316,52 @@ def pelt_interpolate(util, clock, interpolate_at=None):
 
     return df_util['util']
 
+def simulate_pelt_clock(capacity, clock, scale=PELT_SCALE):
+    """
+    Simulate a PELT clock of an entity from the capacities of the CPU it's
+    residing on.
+    :param capacity: CPU capacity over time.
+    :type capacity: pandas.Series
+    :param clock: A series of timestamps at which the clock is to be observed.
+        The returned :class:`pandas.Series` will provide the simulated clock
+        values at these instants.
+    :type clock: pandas.Series
+    :param scale: Maximum value allowed for CPU capacity.
+    :type scale: float
+    """
+    # Ensures the clock's index is the same as the clock
+    clock = clock.copy(deep=False)
+    clock.index = clock
+    df = pd.DataFrame(
+        dict(
+            clock=clock,
+            capacity=capacity,
+        ),
+    )
+    # Remember which row is part of the user-provided clock
+    df['orig_clock'] = ~df['clock'].isna()
+    # Needed for "time" interpolation
+    df.index = pd.TimedeltaIndex(df.index, unit='s')
+    # Shift so that the capacity is aligned with the corresponding delta
+    df['capacity'] = df['capacity'].fillna(method='ffill').shift()
+    # Time flows linearly between 2 samples of the clock
+    df['clock'].interpolate(method='time', inplace=True)
+    # If there is an initial NaN in the clock or capacity, remove it since
+    # interpolate() cannot cope with that correctly even with
+    # limit_direction='both'
+    df.dropna(inplace=True)
+    df['delta'] = df['clock'].diff()
+    # Scale each delta independantly
+    df['delta'] *= df['capacity'] / scale
+    # Fill the NaN with the initial value for the cumsum() fold
+    df['delta'].iat[0] = df['clock'].iat[0]
+    # Reverse df_add_delta() now that we scaled each delta
+    df['new_clock'] = df['delta'].cumsum()
+    # Back to Float64Index
+    df.index = df.index.total_seconds()
+    # Filter-out all the rows that were introduced by the capacity changes but
+    # are not part of the clock requested by the user
+    df = df[df['orig_clock'] == True]
+    return df['new_clock']
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
