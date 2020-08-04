@@ -26,7 +26,11 @@ from enum import Enum
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
+
+from cycler import cycler as make_cycler
+
 import mplcursors
+
 from ipywidgets import widgets, Output, HBox, Layout, interact
 from IPython.display import display
 
@@ -41,6 +45,19 @@ except ImportError:
         LEFT = 1
         MIDDLE = 2
         RIGHT = 3
+
+
+COLOR_CYCLE = [
+    '#377eb8', '#ff7f00', '#4daf4a',
+    '#f781bf', '#a65628', '#984ea3',
+    '#999999', '#e41a1c', '#dede00'
+]
+"""
+Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
+"""
+
+plt.rcParams['axes.prop_cycle'] = make_cycler(color=COLOR_CYCLE)
+
 
 class WrappingHBox(widgets.HBox):
     """

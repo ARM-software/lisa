@@ -18,7 +18,8 @@
 import pandas as pd
 import numpy as np
 
-from lisa.analysis.base import TraceAnalysisBase, COLOR_CYCLES
+from lisa.analysis.base import TraceAnalysisBase
+from lisa.notebook import COLOR_CYCLE
 from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.datautils import df_refit_index
 from lisa.trace import TaskID
@@ -34,8 +35,8 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     name = 'latency'
 
-    LATENCY_THRESHOLD_ZONE_COLOR = COLOR_CYCLES[2]
-    LATENCY_THRESHOLD_COLOR = COLOR_CYCLES[3]
+    LATENCY_THRESHOLD_ZONE_COLOR = COLOR_CYCLE[2]
+    LATENCY_THRESHOLD_COLOR = COLOR_CYCLE[3]
 
 ###############################################################################
 # DataFrame Getter Methods

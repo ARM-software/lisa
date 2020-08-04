@@ -28,7 +28,7 @@ from lisa.trace import requires_events, FtraceCollector, FtraceConf
 from lisa.datautils import df_merge, series_mean, df_filter_task_ids
 from lisa.utils import ArtifactPath
 
-from lisa.analysis.base import COLOR_CYCLES
+from lisa.notebook import COLOR_CYCLE
 from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
@@ -193,7 +193,7 @@ class RampBoostTestBase(RTATestBundle):
         self.trace.analysis.frequency.plot_cpu_frequencies(self.cpu, axis=freq_axis, average=False)
 
         self.trace.analysis.load_tracking.plot_task_signals(task, axis=util_axis, signals=['util', 'enqueued'], colors=['orange', 'red'])
-        self.trace.analysis.tasks.plot_task_activation(task, axis=util_axis, overlay=True, colors=[COLOR_CYCLES[0]])
+        self.trace.analysis.tasks.plot_task_activation(task, axis=util_axis, overlay=True, colors=[COLOR_CYCLE[0]])
 
         boost_axis.legend(loc='upper left', bbox_to_anchor=(0.1, 1))
         boost_axis.set_title('Ramp boost for 5% => 75% util step')

@@ -48,15 +48,6 @@ from lisa.trace import MissingTraceEventError, PandasDataDesc
 from lisa.notebook import axis_link_dataframes, axis_cursor_delta, WrappingHBox, make_figure
 from lisa.generic import TypedList
 
-# Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
-COLOR_CYCLES = [
-    '#377eb8', '#ff7f00', '#4daf4a',
-    '#f781bf', '#a65628', '#984ea3',
-    '#999999', '#e41a1c', '#dede00']
-
-plt.rcParams['axes.prop_cycle'] = make_cycler(color=COLOR_CYCLES)
-
-
 
 class AnalysisHelpers(Loggable, abc.ABC):
     """
