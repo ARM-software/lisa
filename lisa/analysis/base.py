@@ -319,7 +319,16 @@ class AnalysisHelpers(Loggable, abc.ABC):
             img_format=img_format,
             plot_name=caller,
         )
-        figure.savefig(filepath, format=img_format, bbox_inches='tight')
+
+        # The suptitle is not taken into account by tight layout by default:
+        # https://stackoverflow.com/questions/48917631/matplotlib-how-to-return-figure-suptitle
+        suptitle = figure._suptitle
+        figure.savefig(
+            filepath,
+            bbox_extra_artists=[suptitle] if suptitle else None,
+            format=img_format,
+            bbox_inches='tight'
+        )
 
     def do_plot(self, plotter, axis=None, **kwargs):
         """
