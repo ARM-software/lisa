@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.utils import memoized
+from lisa.utils import memoized, filter_values
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates
 from lisa.trace import requires_events, may_use_events, TaskID, CPU, MissingTraceEventError
 from lisa.pelt import PELT_SCALE
@@ -547,24 +547,20 @@ class TasksAnalysis(TraceAnalysisBase):
           * CPU IDs as index
           * A ``runtime`` column (the time the task spent being active)
         """
-        cpus = set(range(self.trace.cpus_count))
-
         df = self.df_task_states(task)
         # Get the correct delta for the window we want.
-        df = df_add_delta(df, window=self.trace.window)
-        df = df[df.curr_state == TaskState.TASK_ACTIVE]
+        df = df_add_delta(df, window=self.trace.window, col='runtime')
+        df = df[df['curr_state'] == TaskState.TASK_ACTIVE]
 
-        residency_df = pd.DataFrame(df.groupby("cpu", observed=True, sort=False)["delta"].sum())
-        residency_df.rename(columns={"delta": "runtime"}, inplace=True)
+        # For each CPU, sum the time spent on each by each task
+        by_cpu = df.groupby('cpu', observed=True, sort=False)
+        residency_df = by_cpu['runtime'].sum().to_frame()
 
-        cpus_present = set(residency_df.index.unique())
-
-        for cpu in cpus.difference(cpus_present):
-            residency_df.loc[cpu] = 0.
-
-        residency_df.sort_index(inplace=True)
-
-        return residency_df
+        # Add runtime for CPUs that did not appear in the window
+        residency_df = residency_df.reindex(
+            residency_df.index.union(range(self.trace.cpus_count))
+        )
+        return residency_df.fillna(0).sort_index()
 
     @df_task_total_residency.used_events
     def df_tasks_total_residency(self, tasks=None, ascending=False, count=None):
@@ -589,23 +585,29 @@ class TasksAnalysis(TraceAnalysisBase):
                 for task in tasks
             )
 
-        res_df = pd.DataFrame()
-        for task_id in task_ids:
-            mapping = {'runtime': str(task_id)}
+        def get_task_df(task):
             try:
-                _df = self.trace.analysis.tasks.df_task_total_residency(task_id).T.rename(index=mapping)
+                df = self.trace.analysis.tasks.df_task_total_residency(task)
             # Not all tasks may be available, e.g. tasks outside the TraceView
             # window
             except Exception:
-                continue
-            res_df = res_df.append(_df)
+                return None
+            else:
+                return df.T.rename(index={'runtime': str(task)})
 
-        res_df['Total'] = res_df.iloc[:, :].sum(axis=1)
+        res_df = pd.concat(
+            filter_values(
+                map(get_task_df, task_ids),
+                values=[None],
+            )
+        )
+
+        res_df['Total'] = res_df.sum(axis=1)
         res_df.sort_values(by='Total', ascending=ascending, inplace=True)
-        if count is None:
-            count = len(res_df)
+        if count is not None:
+            res_df = res_df.head(count)
 
-        return res_df[:count]
+        return res_df
 
     @TraceAnalysisBase.cache
     @df_task_states.used_events
