@@ -38,7 +38,7 @@ if sys.version_info < (3, 6):
         file=sys.stderr,
     )
 
-packages = find_namespace_packages(include=['lisa*'])
+packages = find_namespace_packages(where='lisa', include=['lisa*'])
 package_data = {
     package: ['*']
     for package in packages
