@@ -776,9 +776,13 @@ def init_job_output(run_output, job):
 
 
 def discover_wa_outputs(path):
-    for root, dirs, _ in os.walk(path):
+    # Use topdown=True to allow pruning dirs
+    for root, dirs, _ in os.walk(path, topdown=True):
         if '__meta' in dirs:
             yield RunOutput(root)
+            # Avoid recursing into the artifact as it can be very lengthy if a
+            # large number of file is present (sysfs dump)
+            dirs.clear()
 
 
 def _save_raw_config(meta_dir, state):
