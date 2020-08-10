@@ -421,7 +421,7 @@ class Target(object):
                 if not dst_is_dir(dest):
                     raise dst_excep('A folder dest is required for multiple matches but destination is a file: {}'.format(dest))
             else:
-                dst_makedirs(dest)
+                dst_mkdir(dest)
 
 
     def push(self, source, dest, as_root=False, timeout=None, globbing=False):  # pylint: disable=arguments-differ
@@ -494,7 +494,7 @@ class Target(object):
             for source in sources:
                 with self._xfer_cache_path(source) as device_tempfile:
                     self.execute("cp -r -- {} {}".format(quote(source), quote(device_tempfile)), as_root=True)
-                    self.execute("chmod 0644 -- {}".format(quote(device_tempfile)), as_root=True)
+                    self.execute("{} chmod 0644 -- {}".format(self.busybox, quote(device_tempfile)), as_root=True)
                     do_pull([device_tempfile], dest)
         else:
             do_pull(sources, dest)
@@ -702,7 +702,7 @@ class Target(object):
     # files
 
     def makedirs(self, path):
-        self.execute('mkdir -p {}'.format(quote(folder)))
+        self.execute('mkdir -p {}'.format(quote(path)))
 
     def file_exists(self, filepath):
         command = 'if [ -e {} ]; then echo 1; else echo 0; fi'
@@ -1163,16 +1163,20 @@ class LinuxTarget(Target):
         else:
             return []
 
-    def ps(self, **kwargs):
-        command = 'ps -eo user,pid,ppid,vsize,rss,wchan,pcpu,state,fname'
+    def ps(self, threads=False, **kwargs):
+        ps_flags = '-eo'
+        if threads:
+            ps_flags = '-eLo'
+        command = 'ps {} user,pid,tid,ppid,vsize,rss,wchan,pcpu,state,fname'.format(ps_flags)
+
         lines = iter(convert_new_lines(self.execute(command)).split('\n'))
         next(lines)  # header
 
         result = []
         for line in lines:
-            parts = re.split(r'\s+', line, maxsplit=8)
+            parts = re.split(r'\s+', line, maxsplit=9)
             if parts and parts != ['']:
-                result.append(PsEntry(*(parts[0:1] + list(map(int, parts[1:5])) + parts[5:])))
+                result.append(PsEntry(*(parts[0:1] + list(map(int, parts[1:6])) + parts[6:])))
 
         if not kwargs:
             return result
@@ -1419,18 +1423,32 @@ class AndroidTarget(Target):
                 result.append(entry.pid)
         return result
 
-    def ps(self, **kwargs):
-        lines = iter(convert_new_lines(self.execute('ps')).split('\n'))
+    def ps(self, threads=False, **kwargs):
+        maxsplit = 9 if threads else 8
+        command = 'ps'
+        if threads:
+            command = 'ps -AT'
+
+        lines = iter(convert_new_lines(self.execute(command)).split('\n'))
         next(lines)  # header
         result = []
         for line in lines:
-            parts = line.split(None, 8)
+            parts = line.split(None, maxsplit)
             if not parts:
                 continue
-            if len(parts) == 8:
+
+            wchan_missing = False
+            if len(parts) == maxsplit:
+                wchan_missing = True
+
+            if not threads:
+                # Duplicate PID into TID location.
+                parts.insert(2, parts[1])
+
+            if wchan_missing:
                 # wchan was blank; insert an empty field where it should be.
-                parts.insert(5, '')
-            result.append(PsEntry(*(parts[0:1] + list(map(int, parts[1:5])) + parts[5:])))
+                parts.insert(6, '')
+            result.append(PsEntry(*(parts[0:1] + list(map(int, parts[1:6])) + parts[6:])))
         if not kwargs:
             return result
         else:
@@ -1854,7 +1872,7 @@ class AndroidTarget(Target):
         self.write_value(self._charging_enabled_path, int(bool(enabled)))
 
 FstabEntry = namedtuple('FstabEntry', ['device', 'mount_point', 'fs_type', 'options', 'dump_freq', 'pass_num'])
-PsEntry = namedtuple('PsEntry', 'user pid ppid vsize rss wchan pc state name')
+PsEntry = namedtuple('PsEntry', 'user pid tid ppid vsize rss wchan pc state name')
 LsmodEntry = namedtuple('LsmodEntry', ['name', 'size', 'use_count', 'used_by'])
 
 
