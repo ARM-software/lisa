@@ -785,6 +785,16 @@ def value_range(start, stop, step=None, inclusive=False):
     return itertools.takewhile(comp, itertools.count(start, step))
 
 
+def filter_values(iterable, values):
+    """
+    Yield value from ``iterable`` unless they are in ``values``.
+    """
+    return itertools.filterfalse(
+        (lambda x: x in values),
+        iterable,
+    )
+
+
 def groupby(iterable, key=None, reverse=False):
     """
     Equivalent of :func:`itertools.groupby`, with a pre-sorting so it works as
