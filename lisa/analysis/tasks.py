@@ -51,6 +51,11 @@ class StateInt(int):
             int(self) | int(other),
             char=(self.char + other.char))
 
+    # This is needed for some obscure reason (maybe a bug in std library ?)
+    # In any case, if we don't provide that, Enum's metaclass will "sabbotage"
+    # pickling, and by doing so, will set cls.__module__ = '<unknown>'
+    __reduce__ = int.__reduce__
+
 
 class TaskState(StateInt, Enum):
     """

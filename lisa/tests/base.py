@@ -790,7 +790,11 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         return bundle
 
     @classmethod
-    def _filepath(cls, res_dir):
+    def _get_filepath(cls, res_dir):
+        """
+        Returns the path of the file containing the serialized object in
+        ``res_dir`` folder.
+        """
         return ArtifactPath.join(res_dir, "{}.yaml".format(cls.__qualname__))
 
     @classmethod
@@ -798,12 +802,15 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         """
         Wrapper around :meth:`lisa.utils.Serializable.from_path`.
 
-        It uses :meth:`_filepath` to get the name of the serialized file to
+        It uses :meth:`_get_filepath` to get the name of the serialized file to
         reload.
+
+
+         .. automethod:: _get_filepath
         """
         res_dir = ArtifactPath(root=res_dir, relative='')
 
-        bundle = super().from_path(cls._filepath(res_dir))
+        bundle = super().from_path(cls._get_filepath(res_dir))
         # We need to update the res_dir to the one we were given
         if update_res_dir:
             bundle.res_dir = res_dir
@@ -814,7 +821,7 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         """
         See :meth:`lisa.utils.Serializable.to_path`
         """
-        super().to_path(self._filepath(res_dir))
+        super().to_path(self._get_filepath(res_dir))
 
 
 class FtraceTestBundleMeta(TestBundleMeta):

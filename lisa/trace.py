@@ -577,6 +577,7 @@ class TxtTraceParserBase(TraceParserBase):
         be inferred from the fields parsed in the trace, which is costly and
         can lead to using larger dtypes than necessary (e.g. ``int64`` rather
         than ``uint16``).
+
         .. seealso:: :class:`TxtEventParser`
     :type event_parsers: list(EventParserBase)
 
@@ -1141,6 +1142,7 @@ class TxtTraceParser(TxtTraceParserBase):
         be inferred from the fields parsed in the trace, which is costly and can
         lead to using larger dtypes than necessary (e.g. ``int64`` rather than
         ``uint16``).
+
         .. seealso:: :class:`TxtEventParser`
     :type event_parsers: list(EventParserBase)
 
@@ -3015,6 +3017,7 @@ class Trace(Loggable, TraceBase):
 
     :param events: events to be parsed. Since events can be loaded on-demand,
         that is optional but still recommended to improve trace parsing speed.
+
         .. seealso:: :meth:`df_event` for event formats accepted.
     :type events: list(str) or None
 
