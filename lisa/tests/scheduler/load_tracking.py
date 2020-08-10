@@ -85,7 +85,9 @@ class LoadTrackingHelpers:
     @classmethod
     def filter_capacity_classes(cls, plat_info):
         """
-        Filter out capacity-classes key of ``plat_info`` to remove blacklisted CPUs.
+        Filter out capacity-classes key of ``plat_info`` to remove blacklisted
+        CPUs.
+
         .. seealso:: :meth:`_get_blacklisted_cpus`
         """
         blacklisted_cpus = set(cls._get_blacklisted_cpus(plat_info))
