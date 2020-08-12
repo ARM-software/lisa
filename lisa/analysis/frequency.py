@@ -89,39 +89,29 @@ class FrequencyAnalysis(TraceAnalysisBase):
         else:
             devlib_df = rename(devlib_df)
 
+        def groupby_cpu(df):
+            return df.groupby('cpu', observed=True, sort=False)
+
         # Get the initial values for each CPU
-        def init_freq(df, devlib):
-            df = df.groupby('cpu', observed=True, sort=False).head(1).copy()
-            df['devlib'] = devlib
+        def init_freq(df, from_devlib):
+            df = groupby_cpu(df).head(1).copy()
+            df['from_devlib'] = from_devlib
             return df
 
         init_df = init_freq(df, False)
         init_devlib_df = init_freq(devlib_df, True)
 
-        # Get the initial values as given by devlib and cpufreq.
-        # We want to select:
-        # * the first value
-        # * the 2nd value if that comes from cpufreq
+        # Get the first frequency for each CPU as given by devlib and cpufreq.
         init_df = pd.concat([init_df, init_devlib_df])
         init_df.sort_index(inplace=True)
-        init_groups = init_df.groupby('cpu', observed=True, sort=False)
+        # Get the first value for each CPU
+        first_df = groupby_cpu(init_df).head(1)
+        # Only keep the ones coming from devlib, as the other ones are already
+        # in the cpufreq df
+        first_df = first_df[first_df['from_devlib'] == True]
+        del first_df['from_devlib']
 
-        first_df = init_groups.head(1)
-        # devlib == False means it's already in the existing dataframe, and we
-        # don't want duplicates
-        first_df = first_df[first_df['devlib'] == True]
-        del first_df['devlib']
-
-        # The dataframe of the second values.
-        # If they are from cpufreq, we keep them, but if they are from devlib,
-        # they are useless (and actually harmful, since they correspond to no
-        # CPU transition)
-        second_df = init_groups.tail(1)
-        # Only keep non-devlib second events
-        second_df = second_df[second_df['devlib'] == False]
-        del second_df['devlib']
-
-        df = pd.concat([df, first_df, second_df])
+        df = pd.concat([first_df, df])
         df.sort_index(inplace=True)
         return check_empty(df, None)
 
