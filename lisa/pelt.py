@@ -20,7 +20,7 @@ import math
 import pandas as pd
 import numpy as np
 
-from lisa.datautils import series_envelope_mean
+from lisa.datautils import series_envelope_mean, df_add_delta, series_extend_index
 
 PELT_WINDOW = 1024 * 1024 * 1e-9
 """
@@ -265,5 +265,55 @@ def kernel_util_mean(util, plat_info):
         utilisation mean.
     """
     return series_envelope_mean(util)
+
+def pelt_interpolate(util, clock, interpolate_at=None):
+    """
+    Interpolate the utilization with an interpolate_at signal and
+    re-indexing on clock.
+
+    :param util: CPU utilization over time.
+    :type util: pandas.Series
+
+    :param clock: A series of timestamps providing the simulated PELT clock.
+    :type clock: pandas.Series
+
+    :param interpolate_at: A series of additional timestamps for which the
+        CPU utilization has to be calculated. It can be omitted in case
+        util already contains those extra timestamps.
+    :type interpolate_at: pandas.Series
+    """
+    if interpolate_at is not None:
+        util = series_extend_index(util, interpolate_at)
+
+    df_util = util.to_frame()
+    df_util = df_util.assign(new_index=clock.values)
+    df_util = df_util.set_index('new_index')
+
+    df_util = df_add_delta(df_util)
+    df_util['delta'] = df_util['delta'].shift()
+    df_util['prev_util'] = df_util['util'].shift()
+
+    df_util = df_util.dropna(subset=['delta'])
+
+    def compute_switch_phase_df(row):
+        # Applying the function on an empty dataframe will lead to being called
+        # with a Series, so the return value will not matter.
+        if row.empty:
+            return
+
+        timestamp = row.name
+        last_update = timestamp - row.delta
+        prev_util = row.prev_util
+        window_shrink = 1e3
+        activations = pd.Series([1, 1], index=[last_update, timestamp])
+        simulated_phase_df = simulate_pelt(activations, init=prev_util,
+                                           window=PELT_WINDOW/window_shrink,
+                                           half_life=PELT_HALF_LIFE*window_shrink)
+        return simulated_phase_df.iloc[-1]
+
+    switch_loc = df_util['util'].isnull()
+    df_util.loc[switch_loc, 'util'] = df_util.loc[switch_loc].apply(compute_switch_phase_df, axis='columns')
+
+    return df_util['util']
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
