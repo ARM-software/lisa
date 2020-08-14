@@ -1851,4 +1851,29 @@ SignalDesc._SIGNALS_MAP = {
     for event, signal_descs in groupby(_SIGNALS, key=attrgetter('event'))
 }
 
+def _data_extend_index(data, extension):
+    """
+    ``data`` can either be a :class:`pandas.DataFrame` or :class:`pandas.Series`
+    """
+    return data.join(extension, how='outer')
+
+@SeriesAccessor.register_accessor
+def series_extend_index(series, extension):
+    """
+    Extending the index of a :class:`pandas.Series
+
+    :param: series: series to extend
+    :type series: :class:`pandas.Series`
+
+    :param extension: series holding the extension
+    :type extension: class:`pandas.Series`
+    """
+    return _data_extend_index(series, extension)
+
+@DataFrameAccessor.register_accessor
+def df_extend_index(df, extension):
+    """
+    Same as :func:`series_extend_index` but acting on a :class:`pandas.DataFrame`
+    """
+    return _data_extend_index(df, extension)
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
