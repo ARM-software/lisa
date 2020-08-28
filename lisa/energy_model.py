@@ -626,12 +626,19 @@ class EnergyModel(Serializable, Loggable):
             _idle_power = max(node.idle_states[idle_states[c]] for c in cpus)
             idle_power = _idle_power * (1 - active_time)
 
+            if cpus not in ret:
+                if combine:
+                    ret[cpus] = 0
+                else:
+                    ret[cpus] = {}
+                    ret[cpus]["active"] = 0
+                    ret[cpus]["idle"] = 0
+
             if combine:
-                ret[cpus] = active_power + idle_power
+                ret[cpus] += active_power + idle_power
             else:
-                ret[cpus] = {}
-                ret[cpus]["active"] = active_power
-                ret[cpus]["idle"] = idle_power
+                ret[cpus]["active"] += active_power
+                ret[cpus]["idle"] += idle_power
 
         return ret
 
