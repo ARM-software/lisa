@@ -1591,8 +1591,13 @@ def series_convert(series, dtype):
         """
         Tree of converters to guide what to do in case of failure
         """
-        def __init__(self, *args, name=None):
-            super().__init__(args)
+        def __init__(self, *items, name=None):
+            items = [
+                item
+                for item in items
+                if item is not None
+            ]
+            super().__init__(items)
             self.name = name
 
     class Pipeline(Tree):
@@ -1723,6 +1728,24 @@ def series_convert(series, dtype):
         ))
 
     elif dtype == 'string':
+
+        # Sadly, pandas==1.1.1 (and maybe later) series.astype('string') turns
+        # b'hello' into "b'hello'" instead of "hello", so basic decoder becomes
+        # unusable
+        if (
+            series.dtype.name == 'object' and
+            series.apply(isinstance, args=(bytes,), convert_dtype=False).any()
+        ):
+            string_basic = None
+            # Handle mixed dtypes
+            str_basic = lambda x : x.apply(
+                lambda x: x.decode('ascii') if isinstance(x, bytes) else str(x),
+                convert_dtype=False
+            )
+        else:
+            string_basic = basic
+            str_basic = make_converter(str)
+
         # Faster than Series.str.decode()
         basic_decode = lambda x : x.apply(bytes.decode, args=('ascii',), convert_dtype=False)
 
@@ -1744,7 +1767,7 @@ def series_convert(series, dtype):
             return astype('string')(x)
 
         pipelines.extend((
-            basic,
+            string_basic,
             # We need to attempt conversion from bytes before using Python str,
             # otherwise it will include the b'' inside the string
             fast_decode,
@@ -1755,7 +1778,7 @@ def series_convert(series, dtype):
             # whatever the type was to actual strings using the Python
             # constructor
             Pipeline(
-                make_convert(str),
+                str_basic,
                 Alternative(
                     basic,
                     # basic might fail on older version of pandas where
