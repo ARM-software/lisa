@@ -444,7 +444,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 :type filepath: str or None
 
                 :param always_save: When ``True``, the plot is always saved
-                    even if no ``filepath`` has explicitely been set. In that
+                    even if no ``filepath`` has explicitly been set. In that
                     case, a default path will be used.
                 :type always_save: bool
 
@@ -479,7 +479,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     else:
                         # Passing kwargs=42 to a function taking **kwargs
                         # should not return True here, as we only consider
-                        # explicitely listed arguments
+                        # explicitly listed arguments
                         return desc.kind not in (
                             inspect.Parameter.VAR_KEYWORD,
                             inspect.Parameter.VAR_POSITIONAL,

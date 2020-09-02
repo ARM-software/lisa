@@ -769,7 +769,7 @@ class TxtTraceParserBase(TraceParserBase):
             # groups() tuple of the regex match
             key=lambda field: regex.groupindex[field]
         )
-        # Rename regex columns to avoid clashes that were explicitely added as
+        # Rename regex columns to avoid clashes that were explicitly added as
         # extra
         columns = [
             '__parsed_{}'.format(col) if col in extra_cols else col

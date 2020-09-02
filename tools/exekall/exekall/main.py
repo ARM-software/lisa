@@ -53,7 +53,7 @@ def build_op_set(callable_pool, non_reusable_type_set, allowed_pattern_set, adap
     }
 
     filtered_op_set = adaptor.filter_op_set(op_set)
-    # Make sure we have all the explicitely allowed operators
+    # Make sure we have all the explicitly allowed operators
     filtered_op_set.update(
         op for op in op_set
         if utils.match_name(op.get_name(full_qual=True), allowed_pattern_set)
@@ -888,11 +888,11 @@ def do_run(args, parser, run_parser, argv):
             utils.match_base_cls(op.value_type, type_goal_pattern_set)
         ) and (
             # Only keep the Expression where the outermost (root) operator is
-            # defined in one of the files that were explicitely specified on the
+            # defined in one of the files that were explicitly specified on the
             # command line.
             inspect.getmodule(op.callable_) in module_set or
             # Also include all methods (including the inherited ones) of
-            # classes that are defined in the files explicitely specified
+            # classes that are defined in the files explicitly specified
             (
                 isinstance(op.callable_, engine.UnboundMethod) and
                 op.callable_.cls.__module__ in map(attrgetter('__name__'), module_set)
