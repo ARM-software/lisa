@@ -31,6 +31,7 @@ import random
 import shutil
 import sys
 import pdb
+from operator import attrgetter
 
 from exekall.customization import AdaptorBase
 import exekall.utils as utils
@@ -881,15 +882,22 @@ def do_run(args, parser, run_parser, argv):
     root_op_set = OrderedSet([
         op for op in op_set
         if (
-            utils.match_name(op.get_name(full_qual=True), callable_goal_pattern_set)
-            or
+            utils.match_name(op.get_name(full_qual=True), callable_goal_pattern_set) or
             # All producers of the goal types can be a root operator in the
             # expressions we are going to build, i.e. the outermost function call
             utils.match_base_cls(op.value_type, type_goal_pattern_set)
+        ) and (
             # Only keep the Expression where the outermost (root) operator is
             # defined in one of the files that were explicitely specified on the
             # command line.
-        ) and inspect.getmodule(op.callable_) in module_set
+            inspect.getmodule(op.callable_) in module_set or
+            # Also include all methods (including the inherited ones) of
+            # classes that are defined in the files explicitely specified
+            (
+                isinstance(op.callable_, engine.UnboundMethod) and
+                op.callable_.cls.__module__ in map(attrgetter('__name__'), module_set)
+            )
+        )
     ])
 
     # Build the class context from the set of Operator's that we collected
