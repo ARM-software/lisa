@@ -30,6 +30,10 @@ import textwrap
 import functools
 import inspect
 import abc
+import pickle
+import tempfile
+from types import ModuleType, FunctionType
+from operator import itemgetter
 
 import devlib
 from devlib.exception import TargetStableError
@@ -872,6 +876,253 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
     def get_tags(self):
         return {'board': self.name}
+
+    @classmethod
+    def _make_remote_snippet(cls, name, code_str, module, kwargs, global_vars, out_tempfiles):
+        def init_vars(variables, in_dict=None):
+            if in_dict:
+                dict_entry = lambda name: '{}[{}]'.format(in_dict, repr(name))
+                dict_def = '{} = {{}}\n'.format(in_dict)
+            else:
+                dict_entry = lambda name: name
+                dict_def = ''
+
+
+            return dict_def + '\n'.join(
+                '{} = pickle.loads({})'.format(dict_entry(name), repr(pickle.dumps(val)))
+                for name, val in variables.items()
+            )
+
+        # Inject the parameters inside the wrapper's globals so that it can
+        # access them. It's harmless as they would shadow any global name
+        # anyway, and it's restricted to the wrapper using eval()
+        global_vars = {
+            **global_vars,
+            **kwargs,
+        }
+
+        # Treat the modules separately as they cannot be pickled
+        modules = {
+            name: mod
+            for name, mod in global_vars.items()
+            if isinstance(mod, ModuleType)
+        }
+
+        def can_include(f):
+            return (
+                isinstance(f, FunctionType) and
+                # Only allow inlining of functions defined in the same module so that:
+                # 1. there is no name clash risk
+                # 2. we don't inline the whole world, which could lead to a
+                #    number of problems that could appear after another module
+                #    is updated or so. We only inline local things that are in
+                #    direct control
+                f.__module__ == module
+            )
+
+        def add_func(f, name):
+            # Disallow decorated functions since their definition depends on
+            # external callable we cannot control
+            if hasattr(f, '__wrapped__'):
+                raise TypeError('Decorated functions cannot be called from remote functions')
+
+            closure_vars = {
+                name: val
+                for var_dct in inspect.getclosurevars(f)
+                if isinstance(var_dct, Mapping)
+                for name, val in var_dct.items()
+            }
+
+            funcs[name] = (f, cls._get_code(f)[1])
+
+            for _name, _f in closure_vars.items():
+                if _f is not f and can_include(_f):
+                    add_func(_f, _name)
+
+            modules.update(
+                (name, mod)
+                for name, mod in closure_vars.items()
+                if isinstance(mod, ModuleType)
+            )
+
+        funcs = {}
+        for f_name, f in global_vars.items():
+            if can_include(f):
+                add_func(f, f_name)
+
+        code_str += '\n' + '\n'.join(map(itemgetter(1), funcs.values()))
+
+        non_pickled = set(modules.keys()) | set(funcs.keys())
+        global_vars = {
+            name: val
+            for name, val in global_vars.items()
+            if name not in non_pickled
+        }
+
+        if modules:
+            modules = 'import {}'.format(', '.join(sorted(modules)))
+        else:
+            modules = ''
+
+        script = textwrap.dedent('''
+            import pickle
+            import sys
+
+            def wrapper():
+                {modules}
+
+                {code}
+                return {f}({kwargs})
+
+            try:
+                out = eval(wrapper.__code__, pickle.loads({globals}))
+            except BaseException as e:
+                out = e
+                out_is_excep = True
+            else:
+                out_is_excep = False
+
+            out = pickle.dumps(out)
+            out_tempfile = {out_tempfiles}[1] if out_is_excep else {out_tempfiles}[0]
+
+            with open(out_tempfile, 'wb') as f:
+                f.write(out)
+        ''').format(
+            f=name,
+            code=textwrap.dedent(code_str).replace('\n', '\n' + ' ' * 4),
+            modules=modules,
+            out_tempfiles=repr(out_tempfiles),
+            globals=repr(pickle.dumps(global_vars)),
+            kwargs=', '.join(
+                '{}={}'.format(name, name)
+                for name in kwargs.keys()
+            )
+        )
+        return script
+
+    @staticmethod
+    def _get_code(f):
+        lines, _ = inspect.getsourcelines(f)
+        # Remove decorators, as they are either undefined or just were used to
+        # feed the function to us
+        lines = [
+            line
+            for line in lines
+            if not line.strip().startswith('@')
+        ]
+        code_str = textwrap.dedent(''.join(lines))
+        name = f.__name__
+        return (name, code_str)
+
+    def execute_python(self, f, args, kwargs, **execute_kwargs):
+        """
+        Executes the given Python function ``f`` with the provided positional
+        and keyword arguments.
+
+        The return value or any exception is pickled back and is
+        returned/raised in the host caller.
+
+        :Variable keyword arguments: Forwarded to :meth:`execute` that
+            will spawn the Python interpreter on the target
+
+        .. note:: Closure variables are supported, but mutating them will not
+            be reflected in the caller's context. Also, functions that are
+            referred to will be:
+
+                * bundled in the script if it is defined in the same module
+                * referred to by name, assuming it comes from a module that is
+                  installed on the target and that this module is in scope. If
+                  that is not the case, a :exc:`NameError` will be raised.
+
+        .. attention:: Decorators are ignored and not applied.
+        """
+        sig = inspect.signature(f)
+        kwargs = sig.bind(*args, **kwargs).arguments
+        closure_vars = inspect.getclosurevars(f)
+
+        name, code_str = self._get_code(f)
+
+        def mktemp():
+            return self.execute(
+                'mktemp -p {}'.format(
+                    shlex.quote(self.working_directory),
+                )
+            ).strip()
+
+        def read_output(path):
+            with tempfile.TemporaryDirectory() as d:
+                name = os.path.join(d, 'out')
+                self.pull(path, name)
+                with open(name, 'rb') as f:
+                    return pickle.loads(f.read())
+
+        def parse_output(paths, err):
+            val, excep = paths
+            try:
+                return read_output(val)
+            # If the file is empty, we probably got an exception
+            except EOFError:
+                try:
+                    excep = read_output(excep)
+                # If we can't even read the exception, raise the initial one
+                # from devlib
+                except EOFError:
+                    raise err if err is not None else ValueError('No exception was raised or value returned by the function')
+                else:
+                    raise excep
+
+
+        out_tempfiles = tuple()
+        try:
+            out_tempfiles = (mktemp(), mktemp())
+            snippet = self._make_remote_snippet(
+                name=name,
+                code_str=code_str,
+                module=f.__module__,
+                kwargs=kwargs,
+                global_vars={
+                    **closure_vars.globals,
+                    **closure_vars.nonlocals,
+                },
+                out_tempfiles=out_tempfiles
+            )
+            cmd = ['python3', '-c', snippet]
+            cmd = ' '.join(map(shlex.quote, cmd))
+            try:
+                self.execute(cmd, **execute_kwargs)
+            except Exception as e:
+                err = e
+            else:
+                err = None
+            return parse_output(out_tempfiles, err)
+        finally:
+            for path in out_tempfiles:
+                self.remove(path)
+
+
+    def remote_func(self, **kwargs):
+        """
+        Decorates a given function to execute remotely using
+        :meth:`execute_python`::
+
+            target = Target(...)
+
+            @target.remote_func(timeout=42)
+            def foo(x, y):
+                return x + y
+
+            # Execute the function on the target transparently
+            val = foo(1, y=2)
+
+        :Variable keyword arguments: Forwarded to :meth:`execute` that
+            will spawn the Python interpreter on the target
+        """
+        def wrapper_param(f):
+            @functools.wraps(f)
+            def wrapper(*f_args, **f_kwargs):
+                return self.execute_python(f, f_args, f_kwargs, **kwargs)
+            return wrapper
+        return wrapper_param
 
 
 class Gem5SimulationPlatformWrapper(Gem5SimulationPlatform):
