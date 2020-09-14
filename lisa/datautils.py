@@ -1744,7 +1744,7 @@ def series_convert(series, dtype):
             )
         else:
             string_basic = basic
-            str_basic = make_converter(str)
+            str_basic = make_convert(str)
 
         # Faster than Series.str.decode()
         basic_decode = lambda x : x.apply(bytes.decode, args=('ascii',), convert_dtype=False)
