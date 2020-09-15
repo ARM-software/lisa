@@ -20,14 +20,16 @@ import sys
 import random
 import os.path
 import collections
+import time
 from time import sleep
 from subprocess import DEVNULL
+from threading import Thread
+from operator import itemgetter
 
 from devlib.module.hotplug import HotplugModule
 from devlib.exception import TargetNotRespondingError
 
 from lisa.tests.base import TestMetric, ResultBundle, TestBundle
-from lisa.target_script import TargetScript
 from lisa.target import Target
 from lisa.utils import ArtifactPath
 
@@ -111,33 +113,48 @@ class HotplugBase(TestBundle):
         pass
 
     @classmethod
-    def _cpuhp_script(cls, target, res_dir, sequence, sleep_min_ms,
+    def _cpuhp_func(cls, target, res_dir, sequence, sleep_min_ms,
                       sleep_max_ms, random_gen):
         """
         Generate a script consisting of a random sequence of hotplugs operations
 
         Two consecutive hotplugs can be separated by a random sleep in the script.
         """
-        script = TargetScript(target, 'random_cpuhp.sh', res_dir)
 
-        # Record configuration
-        # script.append('# File generated automatically')
-        # script.append('# Configuration:')
-        # script.append('# {}'.format(cls.hp_stress))
-        # script.append('# Hotpluggable CPUs:')
-        # script.append('# {}'.format(cls.hotpluggable_cpus))
+        def make_sleep():
+            if sleep_max_ms:
+                return random_gen.randint(sleep_min_ms, sleep_max_ms) / 1000
+            else:
+                return 0
 
-        for cpu, plug_way in sequence:
-            # Write in sysfs entry
-            cmd = 'echo {} > {}'.format(plug_way, HotplugModule._cpu_path(target, cpu))
-            script.append(cmd)
+        sequence = [
+            dict(
+                path=HotplugModule._cpu_path(target, cpu),
+                sleep=make_sleep(),
+                way=plug_way,
+            )
+            for cpu, plug_way in sequence
+        ]
 
-            # Sleep if necessary
-            if sleep_max_ms > 0:
-                sleep_dur_sec = random_gen.randint(sleep_min_ms, sleep_max_ms) / 1000.0
-                script.append('sleep {}'.format(sleep_dur_sec))
+        # The main contributor to the execution time are sleeps, so set a
+        # timeout to 10 times the total sleep time. This should be enough to
+        # take into account sysfs writes too
+        timeout = 10 * sum(map(itemgetter('sleep'), sequence))
 
-        return script
+        # This function will be executed on the target directly to avoid the
+        # overhead of executing the calls one by one, which could mask
+        # concurrency issues in the kernel
+        @target.remote_func(timeout=timeout, as_root=True)
+        def do_hotplug():
+            for desc in sequence:
+                with open(desc['path'], 'w') as f:
+                    f.write(str(desc['way']))
+
+                sleep = desc['sleep']
+                if sleep:
+                    time.sleep(sleep)
+
+        return do_hotplug
 
     @classmethod
     def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, seed=None,
@@ -176,28 +193,28 @@ class HotplugBase(TestBundle):
         cls._check_cpuhp_seq_consistency(nr_operations, hotpluggable_cpus,
             max_cpus_off, sequence)
 
-        script = cls._cpuhp_script(
+        do_hotplug = cls._cpuhp_func(
             target, res_dir, sequence, sleep_min_ms, sleep_max_ms, random_gen)
 
-        script.push()
-
         # We don't want a timeout but we do want to detect if/when the target
-        # stops responding. So start a background shell and poll on it
+        # stops responding. So handle the hotplug remote func in a separate
+        # thread and keep polling the target
+        thread = Thread(target=do_hotplug, daemon=True)
         try:
-            # Using DEVNULL is important to prevent the command from blocking
-            # on its outputs
-            with script.background(as_root=True, stdout=DEVNULL, stderr=DEVNULL) as bg:
-                while bg.poll() is None:
-                    if not script.target.check_responsive():
-                        break
-
-                    sleep(0.1)
+            thread.start()
+            while thread.is_alive():
+                # We might have a thread hanging off in that case, but there is
+                # not much we can do since the remote func cannot really be
+                # canceled. Since it was spawned with a timeout, it will
+                # eventually die.
+                if not target.check_responsive():
+                    break
+                sleep(0.1)
         finally:
-            target_alive = bool(script.target.check_responsive())
+            target_alive = bool(target.check_responsive())
             target.hotplug.online_all()
 
         live_cpus = target.list_online_cpus() if target_alive else []
-
         return cls(target.plat_info, target_alive, hotpluggable_cpus, live_cpus)
 
     def test_target_alive(self) -> ResultBundle:
