@@ -20,7 +20,20 @@ import contextlib
 
 from time import sleep
 
+from lisa.utils import deprecate
+from lisa.target import Target
 
+
+@deprecate(
+    msg="""
+    This class is deprecated as it provides a leaky abstraction. What it is
+    used for can typically be achieved more easily with
+    :meth:`lisa.target.Target.remote_func`.
+    """,
+    replaced_by=Target.remote_func,
+    deprecated_in='2.0',
+    removed_in='2.1',
+)
 class TargetScript:
     """
     This class provides utility to create and run a script
