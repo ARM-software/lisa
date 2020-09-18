@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.utils import memoized, filter_values
+from lisa.utils import memoized
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates
 from lisa.trace import requires_events, may_use_events, TaskID, CPU, MissingTraceEventError
 from lisa.pelt import PELT_SCALE
@@ -596,10 +596,9 @@ class TasksAnalysis(TraceAnalysisBase):
                 return df.T.rename(index={'runtime': str(task)})
 
         res_df = pd.concat(
-            filter_values(
-                map(get_task_df, task_ids),
-                values=[None],
-            )
+            df
+            for df in map(get_task_df, task_ids)
+            if df is not None
         )
 
         res_df['Total'] = res_df.sum(axis=1)
