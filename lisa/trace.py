@@ -4695,11 +4695,10 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
 
     def _str_internal(self, style=None, wrapped=True):
         op_str = ' {} '.format(self.op_str)
-        # Sort for stable output
-        checker_list = sorted(self.checkers, key=lambda c: str(c))
         unwrapped_str = self.prefix_str + op_str.join(
             c._str_internal(style=style, wrapped=True)
-            for c in checker_list
+            # Sort for stable output
+            for c in sorted(self.checkers, key=str)
         )
 
         template = '({})' if len(self.checkers) > 1 and wrapped else '{}'
@@ -4787,7 +4786,7 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
         rst = joiner + joiner.join(
             '* {}'.format(c._str_internal(style='rst', wrapped=False))
             # Sort for stable output
-            for c in sorted(self.checkers, key=lambda c: str(c))
+            for c in sorted(self.checkers, key=str)
         )
         return rst
 
