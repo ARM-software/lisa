@@ -2167,7 +2167,10 @@ class PandasDataDesc(Mapping):
         )
 
     def __eq__(self, other):
-        return self.normal_form == other.normal_form
+        if isinstance(other, self.__class__):
+            return self.normal_form == other.normal_form
+        else:
+            return False
 
     def __hash__(self):
         return hash(self.normal_form)
@@ -2235,7 +2238,10 @@ class PandasDataDescNF:
         return str(self._nf)
 
     def __eq__(self, other):
-        return self._nf == other._nf
+        if isinstance(other, self.__class__):
+            return self._nf == other._nf
+        else:
+            return False
 
     def __hash__(self):
         return self._hash

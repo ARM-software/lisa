@@ -905,7 +905,10 @@ class _HashableMultiSrcConf:
         return id(self.conf)
 
     def __eq__(self, other):
-        return self.conf is other.conf
+        if isinstance(other, self.__class__):
+            return self.conf is other.conf
+        else:
+            return False
 
 class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     """
