@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import gc
 import enum
 import functools
 import os
@@ -798,6 +799,57 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         return ArtifactPath.join(res_dir, "{}.yaml".format(cls.__qualname__))
 
     @classmethod
+    def _get_referred_objs(cls, obj, predicate=lambda x: True):
+        visited = set()
+        objs = []
+
+        def update_refs(obj):
+            obj_id = id(obj)
+            # Avoid cycles. Use the id() of the objects directly since the
+            # inclusion check is orders of magnitude faster than checking for
+            # inclusing on the object directly. It also handles well non hashable
+            # objects and broken __eq__ implementations.
+            if obj_id in visited:
+                return
+            else:
+                visited.add(obj_id)
+                # Filter-out weird objects that end up in the list and that can
+                # trigger a coredump on the interpreter
+                if hasattr(obj, '__class__') and predicate(obj):
+                    objs.append(obj)
+
+                for sub in gc.get_referents(obj):
+                    update_refs(sub)
+
+        update_refs(obj)
+        return objs
+
+    @property
+    def _children_test_bundles(self):
+        """
+        List of references to :class:`TestBundle` instances ``self`` relies on
+        (directly *and* indirectly).
+
+        This is used for some post-deserialization fixup that need to walk the
+        whole graph of :class:`TestBundle`.
+        """
+        return set(self._get_referred_objs(
+            self,
+            lambda x: isinstance(x, TestBundle)
+        ))
+
+    def _fixup_res_dir(self, orig_root, new_root):
+        def fixup(obj):
+            rel = os.path.relpath(obj.res_dir, orig_root)
+            absolute = os.path.abspath(os.path.join(new_root, rel))
+            obj.res_dir = absolute
+
+        fixup(self)
+
+        for child in self._children_test_bundles:
+            fixup(child)
+
+    @classmethod
     def from_dir(cls, res_dir, update_res_dir=True):
         """
         Wrapper around :meth:`lisa.utils.Serializable.from_path`.
@@ -813,7 +865,7 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         bundle = super().from_path(cls._get_filepath(res_dir))
         # We need to update the res_dir to the one we were given
         if update_res_dir:
-            bundle.res_dir = res_dir
+            bundle._fixup_res_dir(bundle.res_dir, res_dir)
 
         return bundle
 
