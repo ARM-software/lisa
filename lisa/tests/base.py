@@ -838,10 +838,12 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
             lambda x: isinstance(x, TestBundle)
         ))
 
-    def _fixup_res_dir(self, orig_root, new_root):
+    def _fixup_res_dir(self, new):
+        orig_root = self.res_dir
+
         def fixup(obj):
             rel = os.path.relpath(obj.res_dir, orig_root)
-            absolute = os.path.abspath(os.path.join(new_root, rel))
+            absolute = os.path.abspath(os.path.join(new, rel))
             obj.res_dir = absolute
 
         fixup(self)
@@ -865,7 +867,7 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         bundle = super().from_path(cls._get_filepath(res_dir))
         # We need to update the res_dir to the one we were given
         if update_res_dir:
-            bundle._fixup_res_dir(bundle.res_dir, res_dir)
+            bundle._fixup_res_dir(res_dir)
 
         return bundle
 
