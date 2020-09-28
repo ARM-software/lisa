@@ -2037,7 +2037,8 @@ class LISATestStep(ShellStep):
         filtered_step_res_seq = list()
         for step_res_item in step_res_seq:
             i_stack, step_res = step_res_item
-            bisect_ret = None
+            bisect_ret = BisectRet.NA
+            any_entries = False
 
             # Ignore the iterations we are not interested in
             if considered_iteration_set and i_stack[0] not in considered_iteration_set:
@@ -2153,13 +2154,10 @@ class LISATestStep(ShellStep):
                         bisect_ret = BisectRet.BAD
                     elif entry['result'] == 'passed':
                         # Only change from None to GOOD but not from BAD to GOOD
-                        bisect_ret = BisectRet.GOOD if bisect_ret is None else bisect_ret
+                        bisect_ret = BisectRet.GOOD if bisect_ret is BisectRet.NA else bisect_ret
 
+                    any_entries = True
                     testcase_map.setdefault(testcase_id, []).append(entry)
-
-            any_entries = bisect_ret is not None
-            if not any_entries:
-                bisect_ret = BisectRet.NA
 
             # Update the ExekallStepResult bisect result based on the DB
             # content.
