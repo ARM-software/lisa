@@ -277,15 +277,15 @@ def pelt_interpolate(util, clock, interpolate_at=None):
     :param clock: A series of timestamps providing the simulated PELT clock.
     :type clock: pandas.Series
 
-    :param interpolate_at: A series of additional timestamps for which the
-        CPU utilization has to be calculated. It can be omitted in case
-        util already contains those extra timestamps.
+    :param interpolate_at: A series of additional timestamps for which the CPU
+        utilization has to be calculated. It can be omitted in case util
+        already contains those extra timestamps.
     :type interpolate_at: pandas.Series
     """
     if interpolate_at is not None:
         util = series_extend_index(util, interpolate_at)
 
-    df_util = util.to_frame()
+    df_util = pd.DataFrame(dict(util=util))
     df_util = df_util.assign(new_index=clock.values)
     df_util = df_util.set_index('new_index')
 
@@ -306,9 +306,12 @@ def pelt_interpolate(util, clock, interpolate_at=None):
         prev_util = row.prev_util
         window_shrink = 1e3
         activations = pd.Series([1, 1], index=[last_update, timestamp])
-        simulated_phase_df = simulate_pelt(activations, init=prev_util,
-                                           window=PELT_WINDOW/window_shrink,
-                                           half_life=PELT_HALF_LIFE*window_shrink)
+        simulated_phase_df = simulate_pelt(
+            activations,
+            init=prev_util,
+            window=PELT_WINDOW / window_shrink,
+            half_life=PELT_HALF_LIFE * window_shrink
+        )
         return simulated_phase_df.iloc[-1]
 
     switch_loc = df_util['util'].isnull()
@@ -320,12 +323,15 @@ def simulate_pelt_clock(capacity, clock, scale=PELT_SCALE):
     """
     Simulate a PELT clock of an entity from the capacities of the CPU it's
     residing on.
+
     :param capacity: CPU capacity over time.
     :type capacity: pandas.Series
+
     :param clock: A series of timestamps at which the clock is to be observed.
         The returned :class:`pandas.Series` will provide the simulated clock
         values at these instants.
     :type clock: pandas.Series
+
     :param scale: Maximum value allowed for CPU capacity.
     :type scale: float
     """
