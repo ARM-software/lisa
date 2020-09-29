@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+from math import ceil
+
 import pandas as pd
 
 from devlib.module.sched import SchedDomain, SchedDomainFlag
@@ -273,7 +275,11 @@ class StaggeredFinishes(MisfitMigrationBase):
         are not idle for more than :attr:`allowed_idle_time_s`
         """
         if allowed_idle_time_s is None:
-            allowed_idle_time_s = 1e-3 * self.plat_info["cpus-count"]
+            # Regular interval is 1 ms * nr_cpus, rounded to closest jiffy multiple
+            jiffy = 1 / self.plat_info['kernel']['config']['CONFIG_HZ']
+            interval = 1e-3 * self.plat_info["cpus-count"]
+
+            allowed_idle_time_s = ceil(interval / jiffy) * jiffy
 
         res = ResultBundle.from_bool(True)
 
