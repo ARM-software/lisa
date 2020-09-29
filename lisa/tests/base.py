@@ -846,9 +846,7 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
             absolute = os.path.abspath(os.path.join(new, rel))
             obj.res_dir = absolute
 
-        fixup(self)
-
-        for child in self._children_test_bundles:
+        for child in self._children_test_bundles | {self}:
             fixup(child)
 
     @classmethod
