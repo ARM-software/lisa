@@ -833,10 +833,13 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         This is used for some post-deserialization fixup that need to walk the
         whole graph of :class:`TestBundle`.
         """
-        return set(self._get_referred_objs(
+        objs = set(self._get_referred_objs(
             self,
             lambda x: isinstance(x, TestBundle)
         ))
+
+        objs.discard(self)
+        return objs
 
     def _fixup_res_dir(self, new):
         orig_root = self.res_dir
