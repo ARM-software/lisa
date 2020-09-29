@@ -4275,7 +4275,7 @@ class Trace(Loggable, TraceBase):
             if pid is None and comm is None:
                 raise ValueError('TaskID needs to have at least one of PID or comm specified')
 
-            if update:
+            if update and (pid is None or comm is None):
                 non_none = pid if comm is None else comm
                 task_ids = self.get_task_ids(non_none)
             else:
