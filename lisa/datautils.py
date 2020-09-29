@@ -1468,6 +1468,39 @@ def _data_combine(datas, func, fill_value=None):
     return state
 
 
+def _data_extend_index(data, extension):
+    # DO NOT USE THE sort PARAMETER
+    # read the documentation and you will understand why it should not be
+    # touched even with a stick
+    new_index = data.index.union(extension).sort_values()
+    return data.reindex(new_index)
+
+
+@SeriesAccessor.register_accessor
+def series_extend_index(series, extension):
+    """
+    Extends the index of a :class:`pandas.Series`
+
+    :param series: Series to extend the index of
+    :type series: pandas.Series
+
+    :param extension: Extra index values to add to the series.
+    :type extension: pandas.Series or pandas.Index
+
+    .. note:: The index will be sorted.
+    """
+    return _data_extend_index(series, extension)
+
+
+@DataFrameAccessor.register_accessor
+def df_extend_index(df, extension):
+    """
+    Same as :func:`series_extend_index` but acting on a :class:`pandas.DataFrame`
+    """
+    return _data_extend_index(df, extension)
+
+
+
 class SignalDesc:
     """
     Define a signal to be used by various signal-oriented APIs.
@@ -1851,29 +1884,4 @@ SignalDesc._SIGNALS_MAP = {
     for event, signal_descs in groupby(_SIGNALS, key=attrgetter('event'))
 }
 
-def _data_extend_index(data, extension):
-    """
-    ``data`` can either be a :class:`pandas.DataFrame` or :class:`pandas.Series`
-    """
-    return data.join(extension, how='outer')
-
-@SeriesAccessor.register_accessor
-def series_extend_index(series, extension):
-    """
-    Extending the index of a :class:`pandas.Series
-
-    :param: series: series to extend
-    :type series: :class:`pandas.Series`
-
-    :param extension: series holding the extension
-    :type extension: class:`pandas.Series`
-    """
-    return _data_extend_index(series, extension)
-
-@DataFrameAccessor.register_accessor
-def df_extend_index(df, extension):
-    """
-    Same as :func:`series_extend_index` but acting on a :class:`pandas.DataFrame`
-    """
-    return _data_extend_index(df, extension)
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
