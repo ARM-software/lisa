@@ -3210,6 +3210,12 @@ class Trace(Loggable, TraceBase):
         max_swap_size=None,
         write_swap=True,
     ):
+        # Bail-out straightaway if the specified trace file does not exist
+        # There is not much point in continuing here if that is the case
+        if not os.path.exists(trace_path):
+            raise FileNotFoundError("Unable to locate specified trace file: {}"
+                                    .format(trace_path))
+
         super().__init__()
 
         sanitization_functions = sanitization_functions or {}
