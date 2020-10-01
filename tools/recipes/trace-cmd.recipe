@@ -6,9 +6,10 @@ download() {
     # So we use the personal one from Steven Rostedt
     git clone git://git.kernel.org/pub/scm/linux/kernel/git/rostedt/trace-cmd.git
 
-    # 2.8.3 + the following fix:
-    # trace-cmd: Check if ftrace file exists, before writing in it.
-    git -C trace-cmd checkout 6bc13cbbd203df952edb16894788b268bdcff562
+    # 2.9.1 + the following fixes:
+    # trace-cmd: Fix "trace-cmd extract" temp files path
+    # trace-cmd libtraceevent: Fix build warning on 32-bit arches
+    git -C trace-cmd checkout 5dd424eaaf4cb411c2f66cfba91958871dc12db6
 }
 
 # For trace-cmd v2.8.3
