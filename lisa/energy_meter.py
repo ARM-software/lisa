@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Copyright (C) 2015, ARM Limited and contributors.
+# Copyright (C) 2015-2020, ARM Limited and contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import psutil
 import time
 import logging
 import inspect
-import abc
+import shutil
 
 from collections import namedtuple
 from collections.abc import Mapping
