@@ -60,7 +60,7 @@ class BundleCheck(StorageTestCase):
         """
         Test that creating a dummy bundle works
         """
-        bundle = DummyTestBundle(None, "42")
+        bundle = DummyTestBundle("/foo", "42")
 
     def test_target_init(self):
         """
@@ -72,7 +72,7 @@ class BundleCheck(StorageTestCase):
         """
         Test that bundle serialization works correctly
         """
-        bundle = DummyTestBundle(None, "42")
+        bundle = DummyTestBundle("/foo", "42")
         output = bundle.shell_output
 
         bundle.to_dir(self.res_dir)
