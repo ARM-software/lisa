@@ -38,11 +38,14 @@ class PcMark(ApkUiautoWorkload):
     1. Open PCMark application
     2. Swipe right to the Benchmarks screen
     3. Select the Work 2.0 benchmark
-    4. Install the Work 2.0 benchmark
+    4. If needed, install the Work 2.0 benchmark (requires an internet connection)
     5. Execute the Work 2.0 benchmark
 
     Known working APK version: 2.0.3716
     '''
+
+    # Do not delete Work 2.0 data-set before each run
+    clear_data_on_reset = False
 
     def __init__(self, target, **kwargs):
         super(PcMark, self).__init__(target, **kwargs)

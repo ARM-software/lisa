@@ -726,6 +726,17 @@ class RunConfiguration(Configuration):
             '''
         ),
         ConfigurationPoint(
+            'bail_on_job_failure',
+            kind=bool,
+            default=False,
+            description='''
+            When a job fails during its run phase, WA will attempt to retry the
+            job, then continue with remaining jobs after. Setting this to
+            ``True`` means WA will skip remaining jobs and end the run if a job
+            has retried the maximum number of times, and still fails.
+            '''
+        ),
+        ConfigurationPoint(
             'allow_phone_home',
             kind=bool, default=True,
             description='''

@@ -35,6 +35,9 @@ class LinuxAssistant(object):
     def __init__(self, target):
         self.target = target
 
+    def initialize(self):
+        pass
+
     def start(self):
         pass
 
@@ -42,6 +45,9 @@ class LinuxAssistant(object):
         pass
 
     def stop(self):
+        pass
+
+    def finalize(self):
         pass
 
 
@@ -68,12 +74,29 @@ class AndroidAssistant(object):
                   temporary locaiton on the host. Setting the value of the poll
                   period enables this behavior.
                   """),
+        Parameter('stay_on_mode', kind=int,
+                  constraint=lambda x: 0 <= x <= 7,
+                  description="""
+                  Specify whether the screen should stay on while the device is
+                  charging:
+
+                    0: never stay on
+                    1: with AC charger
+                    2: with USB charger
+                    4: with wireless charger
+
+                  Values can be OR-ed together to produce combinations, for
+                  instance ``7`` will cause the screen to stay on when charging
+                  under any method.
+                  """),
     ]
 
-    def __init__(self, target, logcat_poll_period=None, disable_selinux=True):
+    def __init__(self, target, logcat_poll_period=None, disable_selinux=True, stay_on_mode=None):
         self.target = target
         self.logcat_poll_period = logcat_poll_period
         self.disable_selinux = disable_selinux
+        self.stay_on_mode = stay_on_mode
+        self.orig_stay_on_mode = self.target.get_stay_on_mode() if stay_on_mode is not None else None
         self.logcat_poller = None
         self.logger = logging.getLogger('logcat')
         self._logcat_marker_msg = None
@@ -82,8 +105,11 @@ class AndroidAssistant(object):
         if self.logcat_poll_period:
             signal.connect(self._after_workload, signal.AFTER_WORKLOAD_EXECUTION)
 
+    def initialize(self):
         if self.target.is_rooted and self.disable_selinux:
             self.do_disable_selinux()
+        if self.stay_on_mode is not None:
+            self.target.set_stay_on_mode(self.stay_on_mode)
 
     def start(self):
         if self.logcat_poll_period:
@@ -97,6 +123,10 @@ class AndroidAssistant(object):
     def stop(self):
         if self.logcat_poller:
             self.logcat_poller.stop()
+
+    def finalize(self):
+        if self.stay_on_mode is not None:
+            self.target.set_stay_on_mode(self.orig_stay_on_mode)
 
     def extract_results(self, context):
         logcat_file = os.path.join(context.output_directory, 'logcat.log')

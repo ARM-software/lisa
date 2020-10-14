@@ -1,0 +1,7 @@
+The speedometer_archive.tgz file is a tarball containing the following archives from WebKit:
+
+  the PerformanceTests/Speedometer directory state taken from https://github.com/WebKit/webkit as of:
+    commit 5f402692d5f3406527dc107b5d20cc47dac929e8 Tue Jul 14 14:06:17 2020 +0000
+
+WebKit is open source software with portions licensed under the LGPL and BSD
+licenses available at https://webkit.org/licensing-webkit/
