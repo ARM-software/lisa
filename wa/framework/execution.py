@@ -25,7 +25,7 @@ from datetime import datetime
 import wa.framework.signal as signal
 from wa.framework import instrument as instrumentation
 from wa.framework.configuration.core import Status
-from wa.framework.exception import TargetError, HostError, WorkloadError
+from wa.framework.exception import TargetError, HostError, WorkloadError, ExecutionError
 from wa.framework.exception import TargetNotRespondingError, TimeoutError  # pylint: disable=redefined-builtin
 from wa.framework.job import Job
 from wa.framework.output import init_job_output
@@ -657,6 +657,9 @@ class Runner(object):
                 self.logger.error(msg.format(job.id, job.iteration, job.status))
                 self.context.failed_jobs += 1
                 self.send(signal.JOB_FAILED)
+                if rc.bail_on_job_failure:
+                    raise ExecutionError('Job {} failed, bailing.'.format(job.id))
+
         else:  # status not in retry_on_status
             self.logger.info('Job completed with status {}'.format(job.status))
             if job.status != 'ABORTED':

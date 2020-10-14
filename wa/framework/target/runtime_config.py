@@ -694,7 +694,7 @@ class CpufreqRuntimeConfig(RuntimeConfig):
             else:
                 common_freqs = common_freqs.intersection(self.supported_cpu_freqs.get(cpu) or set())
                 all_freqs = all_freqs.union(self.supported_cpu_freqs.get(cpu) or set())
-                common_gov = common_gov.intersection(self.supported_cpu_governors.get(cpu))
+                common_gov = common_gov.intersection(self.supported_cpu_governors.get(cpu) or set())
 
         return all_freqs, common_freqs, common_gov
 

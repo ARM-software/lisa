@@ -29,6 +29,7 @@ from wa.framework.output import RunOutput, init_run_output
 from wa.framework.output_processor import ProcessorManager
 import wa.framework.signal as signal
 from wa.framework.run import JobState
+from wa.framework.exception import ExecutionError
 
 
 class MockConfigManager(Mock):
@@ -42,17 +43,13 @@ class MockConfigManager(Mock):
         return []
 
     @property
-    def run_config(self):
-        return RunConfiguration()
-
-    @property
     def plugin_cache(self):
         return MockPluginCache()
 
     def __init__(self, *args, **kwargs):
         super(MockConfigManager, self).__init__(*args, **kwargs)
         self._joblist = None
-        self._run_config = RunConfiguration()
+        self.run_config = RunConfiguration()
 
     def to_pod(self):
         return {}
@@ -105,6 +102,16 @@ class Job_force_retry(Job):
     def __init__(self, to_retry, *args, **kwargs):
         super(Job_force_retry, self).__init__(*args, **kwargs)
         self.state = JobState_force_retry(to_retry, self.id, self.label, self.iteration, Status.NEW)
+        self.initialized = False
+        self.finalized = False
+
+    def initialize(self, context):
+        self.initialized = True
+        return super().initialize(context)
+    
+    def finalize(self, context):
+        self.finalized = True
+        return super().finalize(context)
 
 
 class TestRunState(TestCase):
@@ -113,15 +120,8 @@ class TestRunState(TestCase):
         self.path = tempfile.mkstemp()[1]
         os.remove(self.path)
         self.initialise_signals()
-
-        config = MockConfigManager()
-        output = init_run_output(self.path, config)
-
-        self.context = ExecutionContext(config, Mock(), output)
-
-        self.job_spec = JobSpec()
-        self.job_spec.augmentations = {}
-        self.job_spec.finalize()
+        self.context = get_context(self.path)
+        self.job_spec = get_jobspec()
 
     def tearDown(self):
         signal.disconnect(self._verify_serialized_state, signal.RUN_INITIALIZED)
@@ -191,35 +191,125 @@ class TestRunState(TestCase):
 
 class TestJobState(TestCase):
 
-    def setUp(self):
-        path = tempfile.mkstemp()[1]
-        os.remove(path)
-        self.initialise_signals()
-
-        config = MockConfigManager()
-        output = init_run_output(path, config)
-
-        self.context = ExecutionContext(config, Mock(), output)
-
     def test_job_retry_status(self):
-        job_spec = JobSpec()
-        job_spec.augmentations = {}
-        job_spec.finalize()
+        job_spec = get_jobspec()
+        context = get_context()
 
-        self.job = Job_force_retry(2, job_spec, 1, self.context)
-        self.job.workload = Mock()
+        job = Job_force_retry(2, job_spec, 1, context)
+        job.workload = Mock()
 
-        self.context.cm._joblist = [self.job]
-        self.context.run_state.add_job(self.job)
+        context.cm._joblist = [job]
+        context.run_state.add_job(job)
 
-        runner = Runner(self.context, MockProcessorManager())
+        verifier = lambda _: assert_equal(job.status, Status.PENDING)
+        signal.connect(verifier, signal.JOB_RESTARTED)
+
+        runner = Runner(context, MockProcessorManager())
+        runner.run()
+        signal.disconnect(verifier, signal.JOB_RESTARTED)
+
+    def test_skipped_job_state(self):
+        # Test, if the first job fails and the bail parameter set,
+        # that the remaining jobs have status: SKIPPED
+        job_spec = get_jobspec()
+        context = get_context()
+
+        context.cm.run_config.bail_on_job_failure = True
+
+        job1 = Job_force_retry(3, job_spec, 1, context)
+        job2 = Job(job_spec, 1, context)
+        job1.workload = Mock()
+        job2.workload = Mock()
+
+        context.cm._joblist = [job1, job2]
+        context.run_state.add_job(job1)
+        context.run_state.add_job(job2)
+
+        runner = Runner(context, MockProcessorManager())
+        try:
+            runner.run()
+        except ExecutionError:
+            assert_equal(job2.status, Status.SKIPPED)
+        else:
+            assert False, "ExecutionError not raised"
+
+    def test_normal_job_finalized(self):
+        # Test that a job is initialized then finalized normally
+        job_spec = get_jobspec()
+        context = get_context()
+
+        job = Job_force_retry(0, job_spec, 1, context)
+        job.workload = Mock()
+
+        context.cm._joblist = [job]
+        context.run_state.add_job(job)
+
+        runner = Runner(context, MockProcessorManager())
         runner.run()
 
-    def initialise_signals(self):
-        signal.connect(self._verify_restarted_job_status, signal.JOB_RESTARTED)
+        assert_equal(job.initialized, True)
+        assert_equal(job.finalized, True)
 
-    def tearDown(self):
-        signal.disconnect(self._verify_restarted_job_status, signal.JOB_RESTARTED)
+    def test_skipped_job_finalized(self):
+        # Test that a skipped job has been finalized
+        job_spec = get_jobspec()
+        context = get_context()
 
-    def _verify_restarted_job_status(self, _):
-        assert_equal(self.job.status, Status.PENDING)
+        context.cm.run_config.bail_on_job_failure = True
+
+        job1 = Job_force_retry(3, job_spec, 1, context)
+        job2 = Job_force_retry(0, job_spec, 1, context)
+        job1.workload = Mock()
+        job2.workload = Mock()
+
+        context.cm._joblist = [job1, job2]
+        context.run_state.add_job(job1)
+        context.run_state.add_job(job2)
+
+        runner = Runner(context, MockProcessorManager())
+        try:
+            runner.run()
+        except ExecutionError:
+            assert_equal(job2.finalized, True)
+        else:
+            assert False, "ExecutionError not raised"
+
+    def test_failed_job_finalized(self):
+        # Test that a failed job, while the bail parameter is set,
+        # is finalized
+        job_spec = get_jobspec()
+        context = get_context()
+
+        context.cm.run_config.bail_on_job_failure = True
+
+        job1 = Job_force_retry(3, job_spec, 1, context)
+        job1.workload = Mock()
+
+        context.cm._joblist = [job1]
+        context.run_state.add_job(job1)
+
+        runner = Runner(context, MockProcessorManager())
+        try:
+            runner.run()
+        except ExecutionError:
+            assert_equal(job1.finalized, True)
+        else:
+            assert False, "ExecutionError not raised"
+
+
+def get_context(path=None):
+    if not path:
+        path = tempfile.mkstemp()[1]
+        os.remove(path)
+
+    config = MockConfigManager()
+    output = init_run_output(path, config)
+
+    return ExecutionContext(config, Mock(), output)
+
+
+def get_jobspec():
+    job_spec = JobSpec()
+    job_spec.augmentations = {}
+    job_spec.finalize()
+    return job_spec

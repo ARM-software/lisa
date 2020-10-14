@@ -352,13 +352,13 @@ in-depth information please see the :ref:`Create Command <create-command>` docum
 
 In order to populate the agenda with relevant information you can supply all of
 the plugins you wish to use as arguments to the command, for example if we want
-to create an agenda file for running ``dhystrone`` on a 'generic android' device and we
+to create an agenda file for running ``dhrystone`` on a `generic_android` device and we
 want to enable the ``execution_time`` and ``trace-cmd`` instruments and display the
 metrics using the ``csv`` output processor. We would use the following command::
 
     wa create agenda generic_android dhrystone execution_time trace-cmd csv -o my_agenda.yaml
 
-This will produce a `my_agenda.yaml` file containing all the relevant
+This will produce a ``my_agenda.yaml`` file containing all the relevant
 configuration for the specified plugins along with their default values as shown
 below:
 

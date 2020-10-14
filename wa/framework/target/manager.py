@@ -57,6 +57,7 @@ class TargetManager(object):
 
     def initialize(self):
         self._init_target()
+        self.assistant.initialize()
 
         # If target supports hotplugging, online all cpus before perform discovery
         # and restore original configuration after completed.
@@ -77,6 +78,7 @@ class TargetManager(object):
     def finalize(self):
         if not self.target:
             return
+        self.assistant.finalize()
         if self.disconnect or isinstance(self.target.platform, Gem5SimulationPlatform):
             self.logger.info('Disconnecting from the device')
             with signal.wrap('TARGET_DISCONNECT'):
