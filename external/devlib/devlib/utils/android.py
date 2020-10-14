@@ -225,12 +225,12 @@ class ApkInfo(object):
 
             xml_tree = xml.etree.ElementTree.fromstring(dump)
 
-            package = next(i for i in xml_tree.iter('package')
-                           if i.attrib['name'] == self.package)
+            package = next((i for i in xml_tree.iter('package')
+                           if i.attrib['name'] == self.package), None)
 
             self._methods = [(meth.attrib['name'], klass.attrib['name'])
                              for klass in package.iter('class')
-                             for meth in klass.iter('method')]
+                             for meth in klass.iter('method')] if package else []
         return self._methods
 
     def _run(self, command):

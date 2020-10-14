@@ -1713,6 +1713,10 @@ class AndroidTarget(Target):
         if verify and not self.is_screen_on():
              raise TargetStableError('Display cannot be turned on.')
 
+    def ensure_screen_is_on_and_stays(self, verify=True, mode=7):
+        self.ensure_screen_is_on(verify=verify)
+        self.set_stay_on_mode(mode)
+
     def ensure_screen_is_off(self, verify=True):
         # Allow 2 attempts to help with cases of ambient display modes
         # where the first attempt will switch the display fully on.
@@ -1755,6 +1759,10 @@ class AndroidTarget(Target):
     def get_airplane_mode(self):
         cmd = 'settings get global airplane_mode_on'
         return boolean(self.execute(cmd).strip())
+
+    def get_stay_on_mode(self):
+        cmd = 'settings get global stay_on_while_plugged_in'
+        return int(self.execute(cmd).strip())
 
     def set_airplane_mode(self, mode):
         root_required = self.get_sdk_version() > 23
@@ -1800,6 +1808,18 @@ class AndroidTarget(Target):
         self.set_auto_rotation(False)
         cmd = 'settings put system user_rotation {}'
         self.execute(cmd.format(rotation))
+
+    def set_stay_on_never(self):
+        self.set_stay_on_mode(0)
+
+    def set_stay_on_while_powered(self):
+        self.set_stay_on_mode(7)
+
+    def set_stay_on_mode(self, mode):
+        if not 0 <= mode <= 7:
+            raise ValueError('Screen stay on mode must be between 0 and 7')
+        cmd = 'settings put global stay_on_while_plugged_in {}'
+        self.execute(cmd.format(mode))
 
     def open_url(self, url, force_new=False):
         """

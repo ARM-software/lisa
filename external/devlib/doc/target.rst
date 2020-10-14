@@ -672,6 +672,26 @@ Android Target
    Returns ``True`` if the targets auto brightness is currently
    enabled and ``False`` otherwise.
 
+.. method:: AndroidTarget.set_stay_on_never()
+
+   Sets the stay-on mode to ``0``, where the screen will turn off
+   as standard after the timeout.
+
+.. method:: AndroidTarget.set_stay_on_while_powered()
+
+   Sets the stay-on mode to ``7``, where the screen will stay on
+   while the device is charging
+
+.. method:: AndroidTarget.set_stay_on_mode(mode)
+
+   Sets the stay-on mode to the specified number between ``0`` and
+   ``7`` (inclusive).
+
+.. method:: AndroidTarget.get_stay_on_mode()
+
+   Returns an integer between ``0`` and ``7`` representing the current
+   stay-on mode of the device. 
+
 .. method:: AndroidTarget.ensure_screen_is_off(verify=True)
 
    Checks if the devices screen is on and if so turns it off.
@@ -684,6 +704,11 @@ Android Target
    Checks if the devices screen is off and if so turns it on.
    If ``verify`` is set to ``True`` then a ``TargetStableError``
    will be raise if the display cannot be turned on.
+
+.. method:: AndroidTarget.ensure_screen_is_on_and_stays(verify=True, mode=7)
+
+   Calls ``AndroidTarget.ensure_screen_is_on(verify)`` then additionally
+   sets the screen stay on mode to ``mode``.
 
 .. method:: AndroidTarget.is_screen_on()
 
