@@ -179,6 +179,10 @@ def df_split_signals(df, signal_cols, align_start=False, window=None):
                 raise ValueError('align_start=True cannot be used with window != None')
             window = (df.index[0], None)
 
+        # Pandas chokes on common iterables like dict key views, so spoon feed
+        # it a list
+        signal_cols = list(signal_cols)
+
         for group, signal in df.groupby(signal_cols, observed=True, sort=False):
             # When only one column is looked at, the group is the value instead of
             # a tuple of values
@@ -330,7 +334,7 @@ def df_squash(df, start, end, column='delta'):
 
 
 @DataFrameAccessor.register_accessor
-def df_filter(df, filter_columns):
+def df_filter(df, filter_columns, exclude=False):
     """
     Filter the content of a dataframe.
 
@@ -340,16 +344,26 @@ def df_filter(df, filter_columns):
     :param filter_columns: Dict of `{"column": value)` that rows has to match
         to be selected.
     :type filter_columns: dict(str, object)
-    """
-    key = functools.reduce(
-        operator.and_,
-        (
-            df[col] == val
-            for col, val in filter_columns.items()
-        )
-    )
 
-    return df[key]
+    :param exclude: If ``True``, the matching rows will be excluded rather than
+        selected.
+    :type exclude: bool
+    """
+    if filter_columns:
+        key = functools.reduce(
+            operator.and_,
+            (
+                df[col] == val
+                for col, val in filter_columns.items()
+            )
+        )
+        return df[~key if exclude else key]
+    else:
+        if exclude:
+            return df
+        else:
+            return df_make_empty_clone(df)
+
 
 
 def df_merge(df_list, drop_columns=None, drop_inplace=False, filter_columns=None):

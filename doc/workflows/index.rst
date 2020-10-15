@@ -7,4 +7,4 @@ Workflows
 
    notebook
    automated_testing
-   wltest
+   workload_automation

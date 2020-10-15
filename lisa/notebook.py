@@ -20,22 +20,44 @@ Various utilities for interactive notebooks.
 
 import functools
 import collections
+from collections.abc import Iterable
 from enum import Enum
 
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+
+from cycler import cycler as make_cycler
+
 import mplcursors
-import matplotlib
+
 from ipywidgets import widgets, Output, HBox, Layout, interact
 from IPython.display import display
+
+from lisa.utils import is_running_ipython
 
 # TODO: remove that when Python <= 3.5 support is removed
 try:
     # Only available since matplotlib 3.1
-    from matplotlib.backend_bases import MouseButton
+    from mpl.backend_bases import MouseButton
 except ImportError:
     class MouseButton(Enum):
         LEFT = 1
         MIDDLE = 2
         RIGHT = 3
+
+
+COLOR_CYCLE = [
+    '#377eb8', '#ff7f00', '#4daf4a',
+    '#f781bf', '#a65628', '#984ea3',
+    '#999999', '#e41a1c', '#dede00'
+]
+"""
+Colorblind-friendly cycle, see https://gist.github.com/thriveth/8560036
+"""
+
+plt.rcParams['axes.prop_cycle'] = make_cycler(color=COLOR_CYCLE)
+
 
 class WrappingHBox(widgets.HBox):
     """
@@ -53,7 +75,7 @@ class WrappingHBox(widgets.HBox):
 
 
 # Make a subclass so we can integrate better with mplcursors
-class _DataframeLinkMarker(matplotlib.lines.Line2D):
+class _DataframeLinkMarker(mpl.lines.Line2D):
     pass
 
 
@@ -67,7 +89,7 @@ def _(artist, event):
 
 def _make_vline(axis, *args, **kwargs):
     vline = axis.axvline(*args, **kwargs)
-    assert type(vline) is matplotlib.lines.Line2D
+    assert type(vline) is mpl.lines.Line2D
     vline.__class__ = _DataframeLinkMarker
     return vline
 
@@ -276,5 +298,49 @@ def interact_tasks(trace, tasks=None, kind=None):
         return wrapper
 
     return decorator
+
+
+def make_figure(width, height, nrows, ncols, interactive=None, **kwargs):
+    """
+    Make a :class:`matplotlib.figure.Figure` and its axes.
+
+    :param width: Width of the figure.
+    :type width: int
+
+    :param height: Height of the figure.
+    :type height: int
+
+    :param interactive: If ``True``, create an interactive figure. Defaults to
+        ``True`` when running under IPython, ``False`` otherwise.
+    :type interactive: bool or None
+
+    :Variable keyword arguments: Forwarded to :class:`matplotlib.figure.Figure`
+
+    :returns: A tuple of:
+        * :class:`matplotlib.figure.Figure`
+        * :class:`matplotlib.axes.Axes` as a scalar, an iterable (1D) or iterable of iterable matrix (2D)
+    """
+    if interactive is None:
+        interactive = is_running_ipython()
+
+    if not interactive and tuple(map(int, mpl.__version__.split('.'))) <= (3, 0, 3):
+        warnings.warn('This version of matplotlib does not allow saving figures from axis created using Figure(), forcing interactive=True')
+        interactive = True
+
+    width *= ncols
+    height *= nrows
+
+    if interactive:
+        figure, axes = plt.subplots(
+            figsize=(width, height),
+            nrows=nrows,
+            ncols=ncols,
+            **kwargs,
+        )
+    else:
+        figure = Figure(figsize=(width, height))
+        axes = figure.subplots(ncols=ncols, nrows=nrows, **kwargs)
+
+    return (figure, axes)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -47,6 +47,7 @@ Contents:
    trace_analysis
    energy_analysis
    misc_utilities
+   stat_comparison
 
    tools_separator
 
