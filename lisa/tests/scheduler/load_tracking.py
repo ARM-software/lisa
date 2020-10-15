@@ -29,14 +29,14 @@ from lisa.tests.base import (
 )
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby, ExekallTaggable
-from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_refit_index, df_split_signals, df_refit_index
+from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_refit_index, df_split_signals, df_refit_index, df_extend_index
 from lisa.wlgen.rta import RTA, Periodic, RTATask
 from lisa.trace import FtraceCollector, requires_events, may_use_events, MissingTraceEventError
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.frequency import FrequencyAnalysis
-from lisa.pelt import PELT_SCALE, simulate_pelt, pelt_settling_time, kernel_util_mean
+from lisa.pelt import PELT_SCALE, simulate_pelt, pelt_settling_time, kernel_util_mean, pelt_interpolate, simulate_pelt_clock
 
 UTIL_SCALE = PELT_SCALE
 
@@ -906,7 +906,6 @@ class CPUMigrationBase(LoadTrackingBase):
                 phase_df = df_window(df, window, clip_window=True)
 
                 for cpu in self.cpus:
-
                     if cpus_rel_freq is None:
                         rel_freq_mean = 1
                     else:
@@ -957,23 +956,59 @@ class CPUMigrationBase(LoadTrackingBase):
         """
         df = self.trace.analysis.load_tracking.df_cpus_signal('util')
         tasks = self.rtapp_task_ids_map.keys()
-        task = sorted(task for task in tasks if task.startswith('migr'))[0]
-        task = self.rtapp_task_ids_map[task][0]
+        migr_task = sorted(task for task in tasks if task.startswith('migr'))[0]
+        migr_task = self.rtapp_task_ids_map[migr_task][0]
 
+        def get_inactive(tasks):
+            task, = tasks
+            activations = self.trace.analysis.tasks.df_task_activation(task)
+            return activations[activations['active'] == 0]
+
+        df_state = {
+            name: get_inactive(tasks)
+            for name, tasks in self.rtapp_task_ids_map.items()
+        }
+
+        cpu_capacities = self.plat_info['cpu-capacities']['rtapp']
         cpu_util = {}
-        for row in self.trace.analysis.rta.df_phases(task).itertuples():
+        cpu_freqs = self.plat_info['freqs']
+
+        freq_df = self.trace.analysis.frequency.df_cpus_frequency()
+        cpus_rel_freq = {
+            # Frequency, normalized according to max frequency on that CPU
+            cols['cpu']: df['frequency'] / max(cpu_freqs[cols['cpu']])
+            for cols, df in df_split_signals(freq_df, ['cpu'])
+        }
+
+        for row in self.trace.analysis.rta.df_phases(migr_task).itertuples():
             phase = row.phase
+
+            # TODO: remove that once we have named phases to skip the buffer phase.
+            if phase == 0:
+                continue
+
             duration = row.duration
             start = row.Index
             end = start + duration
             # Ignore the first quarter of the util signal of each phase, since
             # it's impacted by the phase change, and util can be affected
             # (rtapp does some bookkeeping at the beginning of phases)
-            start += duration / 4
+            # start += duration / 4
             phase_df = df_window(df, (start, end), method='pre', clip_window=True)
 
             for cpu in self.cpus:
-                util = phase_df[phase_df['cpu'] == cpu]['util']
+                cpu_phase_df = phase_df[phase_df['cpu'] == cpu]
+                df_state_clipped = pd.concat(
+                    df_window(df_state[task], (start, end), method='pre', clip_window=True)
+                    for task, wlgen_task in self.rtapp_profile.items()
+                    if cpu in wlgen_task.phases[phase].cpus
+                ).sort_index()
+                df_util = df_extend_index(cpu_phase_df, df_state_clipped.index)
+
+                cpu_capacity = cpu_capacities[cpu] * cpus_rel_freq[cpu]
+                clock = simulate_pelt_clock(cpu_capacity, clock=df_util.index.to_series())
+
+                util = pelt_interpolate(df_util['util'], clock=clock)
                 cpu_util.setdefault(cpu, {})[phase] = kernel_util_mean(util, plat_info=self.plat_info)
 
         return cpu_util
