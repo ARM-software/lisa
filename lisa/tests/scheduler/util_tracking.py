@@ -221,11 +221,11 @@ class UtilConvergence(UtilTrackingBase):
                     issue = make_issue('fast ramp, stable: {ewma} bigger than {enq}')
 
                 # DOWN: ewma ramping down
-                elif phase.id <= 5 and mean_ewma < mean_enqueued:
+                elif phase.id <= 4 and mean_ewma < mean_enqueued:
                     issue = make_issue('fast ramp, down: {ewma} smaller than {enq}')
 
                 # UP: ewma ramping up
-                elif phase.id >= 6 and mean_ewma > mean_enqueued:
+                elif phase.id >= 5 and mean_ewma > mean_enqueued:
                     issue = make_issue('fast ramp, up: {ewma} bigger than {enq}')
 
             metrics[phase.id] = PhaseStats(
@@ -329,11 +329,11 @@ class UtilConvergence(UtilTrackingBase):
                     issue = make_issue('stable: {enq} smaller than {ewma}')
 
                 # ewma ramping down
-                elif phase.id <= 5 and enq > ewma:
+                elif phase.id <= 4 and enq > ewma:
                     issue = make_issue('ramp down: {enq} bigger than {ewma}')
 
                 # ewma ramping up
-                elif phase.id >= 6 and enq < ewma:
+                elif phase.id >= 5 and enq < ewma:
                     issue = make_issue('ramp up: {enq} smaller than {ewma}')
 
             metrics[idx] = ActivationSignals(activation, util, enq, ewma, issue)
