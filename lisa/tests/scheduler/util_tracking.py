@@ -287,14 +287,20 @@ class UtilConvergence(UtilTrackingBase):
 
 
         for idx, activation in enumerate(activations):
+
+            # Get the value of signals at their first update after the activation
+            row = df_window(df, (activation, None), method='post').iloc[0]
+            # It can happen that the first updated after the activation is
+            # actually in the next phase, in which case we need to check the
+            # util values against the right phase
+            activation = row.name
+
             # If we are outside a phase, ignore the activation
             try:
                 phase = self.trace.analysis.rta.task_phase_at(task, activation)
             except KeyError:
                 continue
 
-            # Get the value of signals at their first update after the activation
-            row = df_window(df, (activation, None), method='post').iloc[0]
             util = row['util']
             enq = row['enqueued']
             ewma = row['ewma']
