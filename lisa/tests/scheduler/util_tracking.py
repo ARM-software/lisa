@@ -217,16 +217,19 @@ class UtilConvergence(UtilTrackingBase):
             else:
 
                 # STABLE: ewma ramping up
-                if phase.id == 1 and mean_ewma > mean_enqueued:
-                    issue = make_issue('fast ramp, stable: {ewma} bigger than {enq}')
+                if phase.id == 1:
+                    if mean_ewma > mean_enqueued:
+                        issue = make_issue('fast ramp, stable: {ewma} bigger than {enq}')
 
                 # DOWN: ewma ramping down
-                elif phase.id <= 4 and mean_ewma < mean_enqueued:
-                    issue = make_issue('fast ramp, down: {ewma} smaller than {enq}')
+                elif phase.id <= 4:
+                    if mean_ewma < mean_enqueued:
+                        issue = make_issue('fast ramp, down: {ewma} smaller than {enq}')
 
                 # UP: ewma ramping up
-                elif phase.id >= 5 and mean_ewma > mean_enqueued:
-                    issue = make_issue('fast ramp, up: {ewma} bigger than {enq}')
+                elif phase.id >= 5:
+                    if mean_ewma > mean_enqueued:
+                        issue = make_issue('fast ramp, up: {ewma} bigger than {enq}')
 
             metrics[phase.id] = PhaseStats(
                 phase.start, phase.end, mean_util, mean_enqueued, mean_ewma, issue
@@ -331,16 +334,19 @@ class UtilConvergence(UtilTrackingBase):
                     continue
 
                 # ewma stable
-                if phase.id == 1 and enq < ewma:
-                    issue = make_issue('stable: {enq} smaller than {ewma}')
+                if phase.id == 1:
+                    if enq < ewma:
+                        issue = make_issue('stable: {enq} smaller than {ewma}')
 
                 # ewma ramping down
-                elif phase.id <= 4 and enq > ewma:
-                    issue = make_issue('ramp down: {enq} bigger than {ewma}')
+                elif phase.id <= 4:
+                    if enq > ewma:
+                        issue = make_issue('ramp down: {enq} bigger than {ewma}')
 
                 # ewma ramping up
-                elif phase.id >= 5 and enq < ewma:
-                    issue = make_issue('ramp up: {enq} smaller than {ewma}')
+                elif phase.id >= 5:
+                    if enq < ewma:
+                        issue = make_issue('ramp up: {enq} smaller than {ewma}')
 
             metrics[idx] = ActivationSignals(activation, util, enq, ewma, issue)
 
