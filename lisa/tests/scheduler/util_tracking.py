@@ -198,7 +198,7 @@ class UtilConvergence(UtilTrackingBase):
             def make_issue(msg):
                 return msg.format(
                     util='util={}'.format(mean_util),
-                    enq='enqueud={}'.format(mean_enqueued),
+                    enq='enqueued={}'.format(mean_enqueued),
                     ewma='ewma={}'.format(mean_ewma),
                 )
 
@@ -254,7 +254,7 @@ class UtilConvergence(UtilTrackingBase):
         """
         Test signals are properly "aggregated" at enqueue/dequeue time.
 
-        On fast-ramp systems, `enqueud` is expected to be always
+        On fast-ramp systems, `enqueued` is expected to be always
         smaller than `ewma`.
 
         On non fast-ramp systems, the `enqueued` is expected to be
@@ -301,7 +301,7 @@ class UtilConvergence(UtilTrackingBase):
             def make_issue(msg):
                 return msg.format(
                     util='util={}'.format(util),
-                    enq='enqueud={}'.format(enq),
+                    enq='enqueued={}'.format(enq),
                     ewma='ewma={}'.format(ewma),
                 )
 
