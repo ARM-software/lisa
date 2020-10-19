@@ -198,7 +198,7 @@ class UtilConvergence(UtilTrackingBase):
             def make_issue(msg):
                 return msg.format(
                     util='util={}'.format(mean_util),
-                    enq='enqueud={}'.format(mean_enqueued),
+                    enq='enqueued={}'.format(mean_enqueued),
                     ewma='ewma={}'.format(mean_ewma),
                 )
 
@@ -221,11 +221,11 @@ class UtilConvergence(UtilTrackingBase):
                     issue = make_issue('fast ramp, stable: {ewma} bigger than {enq}')
 
                 # DOWN: ewma ramping down
-                elif phase.id <= 5 and mean_ewma < mean_enqueued:
+                elif phase.id <= 4 and mean_ewma < mean_enqueued:
                     issue = make_issue('fast ramp, down: {ewma} smaller than {enq}')
 
                 # UP: ewma ramping up
-                elif phase.id >= 6 and mean_ewma > mean_enqueued:
+                elif phase.id >= 5 and mean_ewma > mean_enqueued:
                     issue = make_issue('fast ramp, up: {ewma} bigger than {enq}')
 
             metrics[phase.id] = PhaseStats(
@@ -254,7 +254,7 @@ class UtilConvergence(UtilTrackingBase):
         """
         Test signals are properly "aggregated" at enqueue/dequeue time.
 
-        On fast-ramp systems, `enqueud` is expected to be always
+        On fast-ramp systems, `enqueued` is expected to be always
         smaller than `ewma`.
 
         On non fast-ramp systems, the `enqueued` is expected to be
@@ -287,21 +287,27 @@ class UtilConvergence(UtilTrackingBase):
 
 
         for idx, activation in enumerate(activations):
+
+            # Get the value of signals at their first update after the activation
+            row = df_window(df, (activation, None), method='post').iloc[0]
+            # It can happen that the first updated after the activation is
+            # actually in the next phase, in which case we need to check the
+            # util values against the right phase
+            activation = row.name
+
             # If we are outside a phase, ignore the activation
             try:
                 phase = self.trace.analysis.rta.task_phase_at(task, activation)
             except KeyError:
                 continue
 
-            # Get the value of signals at their first update after the activation
-            row = df_window(df, (activation, None), method='post').iloc[0]
             util = row['util']
             enq = row['enqueued']
             ewma = row['ewma']
             def make_issue(msg):
                 return msg.format(
                     util='util={}'.format(util),
-                    enq='enqueud={}'.format(enq),
+                    enq='enqueued={}'.format(enq),
                     ewma='ewma={}'.format(ewma),
                 )
 
@@ -329,11 +335,11 @@ class UtilConvergence(UtilTrackingBase):
                     issue = make_issue('stable: {enq} smaller than {ewma}')
 
                 # ewma ramping down
-                elif phase.id <= 5 and enq > ewma:
+                elif phase.id <= 4 and enq > ewma:
                     issue = make_issue('ramp down: {enq} bigger than {ewma}')
 
                 # ewma ramping up
-                elif phase.id >= 6 and enq < ewma:
+                elif phase.id >= 5 and enq < ewma:
                     issue = make_issue('ramp up: {enq} smaller than {ewma}')
 
             metrics[idx] = ActivationSignals(activation, util, enq, ewma, issue)
