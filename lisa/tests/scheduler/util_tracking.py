@@ -74,7 +74,18 @@ ActivationSignals = namedtuple("ActivationSignals", [
 
 class UtilConvergence(UtilTrackingBase):
     """
-    Basic checks for estimated utilization signals
+    Basic checks for estimated utilization signals.
+
+    .. attention:: Tests methods of this class assume the kernel has the util
+        est EWMA fast ramp behavior, which was merged in v5.5, and backported on
+        Android Common Kernel 4.19 and 5.4. The feature was introduced in
+        mainline in::
+
+            commit b8c96361402aa3e74ad48ceef18aed99153d8da8
+            Author: Patrick Bellasi <patrick.bellasi@matbug.net>
+            Date:   Wed Oct 23 21:56:30 2019 +0100
+
+                sched/fair/util_est: Implement faster ramp-up EWMA on utilization increases
 
     **Expected Behaviour:**
 
@@ -124,11 +135,12 @@ class UtilConvergence(UtilTrackingBase):
         return {'test': task}
 
     @property
-    @memoized
     def fast_ramp(self):
-        min_kernel = KernelVersion('5.5.0').parts
-        cur_kernel = self.plat_info['kernel']['version'].parts
-        return cur_kernel >= min_kernel
+        # If someone wants to check the behavior pre-fast-ramp-up, this would
+        # need to be set to False.
+        # Note that no-one has been checking this other path in a while, so
+        # it's quite likely the test would need fixing anyway
+        return True
 
     def _plot_signals(self, task, test, failures):
         signals = ['util', 'enqueued', 'ewma']
