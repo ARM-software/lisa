@@ -344,7 +344,9 @@ class Stats(Loggable):
         else:
             raise ValueError('No aggregation column can be inferred. Either pass a ref_group or agg_cols')
 
-        agg_cols = sorted(set(agg_cols) - {value_col})
+        agg_cols = sorted(set(agg_cols) - {value_col, unit_col})
+        if not agg_cols:
+            raise ValueError('No aggregation columns have been selected, ensure that each special column has only one use')
 
         # Ultimately, the tags we want to have in the stat dataframe will not
         # include the one we aggregated over
