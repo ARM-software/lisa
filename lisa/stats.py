@@ -823,8 +823,8 @@ class Stats(Loggable):
         Returns a :class:`matplotlib.figure.Figure` containing the statistics
         for the class input :class:`pandas.DataFrame`.
 
-        :param filename: Path to HTML plot file to create
-        :type filename: str
+        :param filename: Path to the image file to write to.
+        :type filename: str or None
         """
         df = self.get_df(
             remove_ref=remove_ref,
@@ -981,7 +981,7 @@ class Stats(Loggable):
         :param nbins: Number of bins for the distribution.
         :type nbins: int or None
 
-        :param filename: Create a HTML file containing the plot.
+        :param filename: Path to the image file to write to.
         :type filename: str or None
         """
         def plot_func(df, group, ax, x_col, y_col):
@@ -1006,7 +1006,8 @@ class Stats(Loggable):
         Returns a :class:`matplotlib.figure.Figure` with the values in the input
         :class:`pandas.DataFrame`.
 
-        :param filename: Create a HTML file containing the plot.
+        :param filename: Path to the image file to write to.
+        :type filename: str or None
         """
 
         def plot_func(df, group, ax, x_col, y_col):
