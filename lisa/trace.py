@@ -4384,13 +4384,23 @@ class Trace(Loggable, TraceBase):
         If ``prev_state`` is a string, turn it back into an integer state by
         parsing it.
         """
+        copied = False
+        def copy_once(x):
+            nonlocal copied
+            if copied:
+                return x
+            else:
+                copied = True
+                return x.copy(deep=False)
+
         if df['prev_state'].dtype.name == 'string':
             # Avoid circular dependency issue by importing at the last moment
             from lisa.analysis.tasks import TaskState
-            df = df.copy(deep=False)
+            df = copy_once(df)
             df['prev_state'] = df['prev_state'].apply(TaskState.from_sched_switch_str).astype('uint16', copy=False)
 
         # Save a lot of memory by using category for strings
+        df = copy_once(df)
         for col in ('next_comm', 'prev_comm'):
             df[col] = df[col].astype('category', copy=False)
 
