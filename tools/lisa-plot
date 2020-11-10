@@ -138,10 +138,15 @@ def make_plot_kwargs(meth, file_path, interactive, extra_options):
 def handle_plot_excep(exit_on_error=True):
     try:
         yield
-    except MissingTraceEventError as e:
-        excep_msg = str(e)
     except ConfigKeyError as e:
-        excep_msg = 'Please specify --plat-info with the "{}" filled in'.format(e.args[1])
+        try:
+            key = e.args[1]
+        except IndexError:
+            excep_msg = str(e)
+        else:
+            excep_msg = 'Please specify --plat-info with the "{}" filled in'.format(e.args[1])
+    except Exception as e:
+        excep_msg = str(e)
     else:
         excep_msg = None
 
