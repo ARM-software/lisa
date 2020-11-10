@@ -4396,6 +4396,27 @@ class Trace(Loggable, TraceBase):
 
         return df
 
+    @_sanitize_event('sched_overutilized')
+    def _sanitize_sched_overutilized(self, event, df, aspects):
+        copied = False
+        def copy_once(x):
+            nonlocal copied
+            if copied:
+                return x
+            else:
+                copied = True
+                return x.copy(deep=False)
+
+        if not df['overutilized'].dtype.name == 'bool':
+            df = copy_once(df)
+            df['overutilized'] = df['overutilized'].astype(bool, copy=False)
+
+        if df['span'].dtype.name == 'string':
+            df = copy_once(df)
+            df['span'] = df['span'].apply(lambda x: x if pd.isna(x) else int(x, base=16))
+
+        return df
+
     @_sanitize_event('thermal_power_cpu_limit')
     @_sanitize_event('thermal_power_cpu_get_power')
     def _sanitize_thermal_power_cpu(self, event, df, aspects):
