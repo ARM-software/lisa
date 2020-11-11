@@ -24,7 +24,7 @@ import copy
 
 from devlib.target import KernelVersion
 
-from lisa.trace import Trace, TaskID
+from lisa.trace import Trace, TxtTraceParser, TaskID
 from lisa.datautils import df_squash
 from lisa.platforms.platinfo import PlatformInfo
 from .utils import StorageTestCase, ASSET_DIR
@@ -53,7 +53,12 @@ class TraceTestCase(StorageTestCase):
         self.plat_info = self._get_plat_info()
 
         self.trace_path = os.path.join(self.traces_dir, 'trace.txt')
-        self.trace = Trace(self.trace_path, self.plat_info, self.events)
+        self.trace = Trace(
+            self.trace_path,
+            plat_info=self.plat_info,
+            events=self.events,
+            parser=TxtTraceParser.from_txt_file,
+        )
 
     def make_trace(self, in_data):
         """
@@ -63,15 +68,25 @@ class TraceTestCase(StorageTestCase):
         with open(trace_path, "w") as fout:
             fout.write(in_data)
 
-        return Trace(trace_path, self.plat_info, self.events,
-                     normalize_time=False, plots_dir=self.res_dir)
+        return Trace(
+            trace_path,
+            plat_info=self.plat_info,
+            events=self.events,
+            normalize_time=False,
+            plots_dir=self.res_dir,
+            parser=TxtTraceParser.from_txt_file,
+        )
 
     def get_trace(self, trace_name):
         """
         Get a trace from a separate provided trace file
         """
         trace_path = os.path.join(self.traces_dir, trace_name, 'trace.dat')
-        return Trace(trace_path, self._get_plat_info(trace_name), self.events)
+        return Trace(
+            trace_path,
+            plat_info=self._get_plat_info(trace_name),
+            events=self.events,
+        )
 
     def _get_plat_info(self, trace_name=None):
         trace_dir = self.traces_dir
@@ -150,10 +165,12 @@ class TestTrace(TraceTestCase):
         """
         expected_duration = 6.676497
 
-        trace = Trace(self.trace_path,
-                      self.plat_info,
-                      self.events,
-                      normalize_time=False
+        trace = Trace(
+            self.trace_path,
+            plat_info=self.plat_info,
+            events=self.events,
+            normalize_time=False,
+            parser=TxtTraceParser.from_txt_file,
         )
 
         self.assertAlmostEqual(trace.time_range, expected_duration)
@@ -365,10 +382,13 @@ class TestTraceView(TraceTestCase):
         super().__init__(*args, **kwargs)
 
         # We don't want normalized time
-        self.trace = Trace(self.trace_path,
-                           self.plat_info,
-                           self.events,
-                           normalize_time=False)
+        self.trace = Trace(
+            self.trace_path,
+            plat_info=self.plat_info,
+            events=self.events,
+            normalize_time=False,
+            parser=TxtTraceParser.from_txt_file,
+        )
 
     def test_lower_slice(self):
         view = self.trace[81:]
@@ -386,10 +406,12 @@ class TestTraceView(TraceTestCase):
     def test_time_range(self):
         expected_duration = 4.0
 
-        trace = Trace(self.trace_path,
-                      self.plat_info,
-                      self.events,
-                      normalize_time=False,
+        trace = Trace(
+            self.trace_path,
+            plat_info=self.plat_info,
+            events=self.events,
+            normalize_time=False,
+            parser=TxtTraceParser.from_txt_file,
         ).get_view((76.402065, 80.402065))
 
         self.assertAlmostEqual(trace.time_range, expected_duration)
@@ -397,10 +419,12 @@ class TestTraceView(TraceTestCase):
     def test_time_range_subscript(self):
         expected_duration = 4.0
 
-        trace = Trace(self.trace_path,
-                      self.plat_info,
-                      self.events,
-                      normalize_time=False,
+        trace = Trace(
+            self.trace_path,
+            plat_info=self.plat_info,
+            events=self.events,
+            normalize_time=False,
+            parser=TxtTraceParser.from_txt_file,
         )[76.402065:80.402065]
 
         self.assertAlmostEqual(trace.time_range, expected_duration)
@@ -410,13 +434,15 @@ class TestNestedTraceView(TestTraceView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # We don't want normalized time
-        self.trace = Trace(self.trace_path,
-                           self.plat_info,
-                           self.events,
-                           normalize_time=False)
+        trace = Trace(
+            self.trace_path,
+            plat_info=self.plat_info,
+            events=self.events,
+            normalize_time=False,
+            parser=TxtTraceParser.from_txt_file,
+        )
 
-        self.trace = self.trace[self.trace.start:self.trace.end]
+        self.trace = trace[trace.start:trace.end]
 
 
 class TestTraceNoClusterData(TestTrace):
