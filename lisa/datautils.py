@@ -1192,7 +1192,13 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
     """
 
     def increment(series):
-        return pd.Series(np.nextafter(series.array, math.inf), index=series.index)
+        array = series.array.copy()
+
+        for i in range(len(array)):
+            arr = array[i:]
+            np.nextafter(arr, math.inf, out=arr)
+
+        return pd.Series(array, index=series.index)
 
     def get_duplicated(series):
         # Keep the first, so we update the second duplicates
