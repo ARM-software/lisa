@@ -451,7 +451,7 @@ class TxtEventParser(EventParserBase):
             __comm=r'\S+',
             __pid=cls.PARSER_REGEX_TERMINALS['integer'],
             __cpu=cls.PARSER_REGEX_TERMINALS['integer'],
-            __time=cls.PARSER_REGEX_TERMINALS['floating'],
+            __timestamp=cls.PARSER_REGEX_TERMINALS['floating'],
             __event=re.escape(event),
         )
 
@@ -461,14 +461,14 @@ class TxtEventParser(EventParserBase):
         }
 
         # We don't need to capture these ones as they have already been parsed
-        # in the skeleton dataframe, and fixed up for __time
+        # in the skeleton dataframe, and fixed up for __timestamp
         compos.update(
             (field, regex)
             for field, regex in regex_map.items()
-            if field in ('__time', '__event')
+            if field in ('__timestamp', '__event')
         )
 
-        regex = r'^{blank}{__comm}-{__pid}{blank}\[{__cpu}\]{blank}{__time}:{blank}{__event}:'.format(**compos, blank=blank)
+        regex = r'^{blank}{__comm}-{__pid}{blank}\[{__cpu}\]{blank}{__timestamp}:{blank}{__event}:'.format(**compos, blank=blank)
         return regex
 
     def _get_regex(self, event, fields, positional_field, greedy_field):
@@ -598,7 +598,7 @@ class TxtTraceParserBase(TraceParserBase):
         '__comm': 'string',
         '__pid': 'uint32',
         '__cpu': 'uint32',
-        '__time': 'float64',
+        '__timestamp': 'float64',
         '__event': 'string',
     }
     """
@@ -753,7 +753,7 @@ class TxtTraceParserBase(TraceParserBase):
         Return a :class:`bytes` regex that provides the following groups:
 
             * ``__event``: name of the event
-            * ``__time``: timestamp of event occurence
+            * ``__timestamp``: timestamp of event occurence
             * ``__fields`` if ``need_fields == True``: a string containing all
               the named fields of each event occurence.
 
@@ -777,7 +777,7 @@ class TxtTraceParserBase(TraceParserBase):
         ]
         columns += extra_cols
 
-        index = '__time' if data and '__time' in columns else None
+        index = '__timestamp' if data and '__timestamp' in columns else None
         return pd.DataFrame.from_records(
             data,
             columns=columns,
@@ -834,7 +834,7 @@ class TxtTraceParserBase(TraceParserBase):
 
         begin_time = None
         end_time = None
-        time_type = getattr(np, self.HEADER_FIELDS['__time'])
+        time_type = getattr(np, self.HEADER_FIELDS['__timestamp'])
 
         # THE FOLLOWING LOOP IS A THE MOST PERFORMANCE-SENSITIVE PART OF THAT
         # CLASS, APPLY EXTREME CARE AND BENCHMARK WHEN MODIFYING
@@ -851,7 +851,7 @@ class TxtTraceParserBase(TraceParserBase):
         nextafter = np.nextafter
         inf = math.inf
         line_time = 0
-        parse_time = '__time' in skeleton_regex.groupindex.keys()
+        parse_time = '__timestamp' in skeleton_regex.groupindex.keys()
 
         for line in lines:
             prev_time = line_time
@@ -862,7 +862,7 @@ class TxtTraceParserBase(TraceParserBase):
             # Stop at the first non-matching line
             try:
                 event = group(match, '__event')
-                line_time = time_type(group(match, '__time'))
+                line_time = time_type(group(match, '__timestamp'))
             # Assume only "time" is not in the regex. Keep that out of the hot
             # path since it's only needed in rare cases (like nesting parsers)
             except IndexError:
@@ -934,7 +934,7 @@ class TxtTraceParserBase(TraceParserBase):
                 pass
             else:
                 decoded_event = event.decode('ascii')
-                df = self._make_df_from_data(parser.regex, data, ['__time'])
+                df = self._make_df_from_data(parser.regex, data, ['__timestamp'])
                 # Post-process immediately to shorten the memory consumption
                 # peak
                 df = self._postprocess_df(decoded_event, parser, df)
@@ -943,7 +943,7 @@ class TxtTraceParserBase(TraceParserBase):
         # Compute the skeleton dataframe for the events that have not been
         # parsed already. It contains the event name, the time, and potentially
         # the fields if they are needed
-        skeleton_df = self._make_df_from_data(skeleton_regex, skeleton_data, ['__time', 'line'])
+        skeleton_df = self._make_df_from_data(skeleton_regex, skeleton_data, ['__timestamp', 'line'])
         # Drop unnecessary columns that might have been parsed by the regex
         to_keep = {'__event', '__fields', 'line'}
         skeleton_df = skeleton_df[sorted(to_keep & set(skeleton_df.columns))]
@@ -1502,7 +1502,7 @@ class TxtTraceParser(TxtTraceParserBase):
                 raise
 
     def _get_skeleton_regex(self, need_fields):
-        regex = r'\] +(?P<__time>{floating}): *(?P<__event>{identifier}):'.format(**TxtEventParser.PARSER_REGEX_TERMINALS)
+        regex = r'\] +(?P<__timestamp>{floating}): *(?P<__event>{identifier}):'.format(**TxtEventParser.PARSER_REGEX_TERMINALS)
         if need_fields:
             regex += r' *(?P<__fields>.*)'
 
@@ -1563,7 +1563,7 @@ class SimpleTxtTraceParser(TxtTraceParserBase):
     Default regex to use to parse event header.
     It must parse the following groups:
 
-        * ``__time``: the timestamp of the event
+        * ``__timestamp``: the timestamp of the event
         * ``__event``: the name of the event
         * ``__cpu`` (optional): the CPU by which the event was emitted
         * ``__pid`` (optional): the currently scheduled PID at the point the event was emitted
@@ -1580,7 +1580,7 @@ class SimpleTxtTraceParser(TxtTraceParserBase):
         # Do not parse for each event unnecessary columns that are already
         # parsed in the skeleton dataframe
         regex = header_regex
-        for field in ('__time', '__event'):
+        for field in ('__timestamp', '__event'):
             regex = regex.replace(r'(?P<{}>'.format(field), r'(?:')
         event_parser_header_regex = regex
 
@@ -1738,7 +1738,7 @@ class HRTxtTraceParser(SimpleTxtTraceParser):
         ),
     }
 
-    HEADER_REGEX = r'(?P<__comm>\S+)-(?P<__pid>\d+)\s*\[(?P<__cpu>\d*)\].*(?P<__time>\d+\.\d+): +(?P<__event>\w+):'
+    HEADER_REGEX = r'(?P<__comm>\S+)-(?P<__pid>\d+)\s*\[(?P<__cpu>\d*)\].*(?P<__timestamp>\d+\.\d+): +(?P<__event>\w+):'
 
 
 class SysTraceParser(HRTxtTraceParser):
