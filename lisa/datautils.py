@@ -1708,41 +1708,59 @@ def series_convert(series, dtype):
                 raise ValueError('pandas version too old for nullable types')
             basic = astype(lower_dtype)
 
-        if is_int:
-            parse = Alternative(
-                # Parse as integer
-                make_convert(int),
-                # Parse as hex int
-                make_convert(functools.partial(int, base=16))
-            )
-        elif is_bool:
-            parse = make_convert(bool)
-        else:
-            assert False
-
         # Strategy assuming it's already a numeric type
         from_numeric = Alternative(
             basic,
             to_nullable
         )
 
-        pipelines.extend((
-            from_numeric,
-            # Maybe we were trying to parse some strings that turned out to
-            # need to go through the Python int constructor to be parsed,
-            # so do that first
-            Pipeline(
-                parse,
-                Alternative(
-                    from_numeric,
-                    # Or just leave the output as it is if nothing else can be
-                    # done, as we already have 'object' of an integer type
-                    to_object,
-                    name='convert parser output',
+        if is_int:
+            parse = Alternative(
+                from_numeric,
+                # Maybe we were trying to parse some strings that turned out to
+                # need to go through the Python int constructor to be parsed,
+                # so do that first
+                Pipeline(
+                    Alternative(
+                        # Parse as integer
+                        make_convert(int),
+                        # Parse as hex int
+                        make_convert(functools.partial(int, base=16))
+                    ),
+                    Alternative(
+                        from_numeric,
+                        # Or just leave the output as it is if nothing else can be
+                        # done, as we already have 'object' of an integer type
+                        to_object,
+                        name='convert parser output',
+                    ),
+                    name='parse',
                 ),
-                name='parse',
             )
-        ))
+        elif is_bool:
+            parse = Alternative(
+                Pipeline(
+                    # Convert to int first, so that input like b'0' is
+                    # converted to int before being interpreted as a bool,
+                    # avoiding turning it into "True"
+                    make_convert(int),
+                    from_numeric,
+                    name='parse as int',
+                ),
+                # If that failed, just feed the input to Python's bool()
+                # builtin, and then convert to the right dtype to avoid ending
+                # up with "object" dtype and bool values
+                Pipeline(
+                    make_convert(bool),
+                    from_numeric,
+                    name='parse as bool',
+                )
+            )
+
+        else:
+            assert False
+
+        pipelines.append(parse)
 
     elif dtype == 'string':
 
