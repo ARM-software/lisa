@@ -3047,6 +3047,10 @@ class Trace(Loggable, TraceBase):
         needed_metadata={'time-range', ...})`` with the events that should be parsed.
         Other parameters must either have default values, or be pre-assigned
         using :func:`functools.partial`.
+        By default, ``.txt`` files will be assumed to be in human-readable
+        format output directly by the kernel (or ``trace-cmd report`` without
+        ``-R``). Support for this format is limited and some events might not
+        be parsed correctly (or at least without custom event parsers).
     :type parser: object or None
 
     :param plots_dir: directory where to save plots
@@ -3263,7 +3267,7 @@ class Trace(Loggable, TraceBase):
             if extension == '.html':
                 parser = SysTraceParser.from_txt_file
             if extension == '.txt':
-                parser = TxtTraceParser.from_txt_file
+                parser = HRTxtTraceParser.from_txt_file
             else:
                 parser = TxtTraceParser.from_dat
         self._parser = parser
