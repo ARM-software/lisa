@@ -26,7 +26,7 @@ from devlib.target import KernelVersion
 from lisa.energy_model import (EnergyModel, ActiveState, EnergyModelCapacityError,
                                EnergyModelNode, EnergyModelRoot, PowerDomain)
 from lisa.platforms.platinfo import PlatformInfo
-from lisa.trace import Trace
+from lisa.trace import Trace, TxtTraceParser
 from .utils import StorageTestCase
 
 """ A very basic test suite for the EnergyModel class."""
@@ -379,6 +379,7 @@ class TestEstimateFromTrace(TestCase):
                 # Parse all the events eagerly since the trace file is going to
                 # be removed.
                 strict_events=True,
+                parser=TxtTraceParser.from_txt_file,
             )
 
         energy_df = em.estimate_from_trace(trace)
