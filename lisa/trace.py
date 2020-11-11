@@ -1106,9 +1106,6 @@ class TxtTraceParserBase(TraceParserBase):
         # fails, so use an explicit loop instead
         for col in set(df.columns) & converters.keys():
             df[col] = converters[col](df[col])
-
-        df.index.name = 'Time'
-        df.name = event
         return df
 
     def get_metadata(self, key):
@@ -3705,6 +3702,8 @@ class Trace(Loggable, TraceBase):
                 available_events=self.available_events,
             )
 
+        # Ensure the event name is set, as this sort of metadata might not be
+        # saved in the swap
         df.name = event
         return df
 
@@ -4000,6 +3999,10 @@ class Trace(Loggable, TraceBase):
             **self._parse_raw_events(regular_events),
             **self._parse_meta_events(meta_events),
         }
+
+        for event, df in df_map.items():
+            df.name = event
+            df.index.name = 'Time'
 
         # Save some memory by changing values of this column into an category
         categorical_fields = [
