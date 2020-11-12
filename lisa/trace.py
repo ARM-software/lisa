@@ -594,6 +594,20 @@ class TxtTraceParserBase(TraceParserBase):
     :type pre_filled_metadata: dict(str, object) or None
     """
 
+    _KERNEL_DTYPE = {
+        'timestamp': 'uint64',
+        'cpu': 'uint16',
+        'pid': 'uint32',
+        'comm': 'string',
+        'cgroup_path': 'string',
+        # prio in [-1, 140]
+        'prio': 'int16',
+        'util': 'uint16',
+    }
+    """
+    Dtypes for various columns that occur frequently in multiple events.
+    """
+
     HEADER_FIELDS = {
         '__comm': 'string',
         '__pid': 'uint32',
@@ -1147,17 +1161,7 @@ class TxtTraceParser(TxtTraceParserBase):
     """
     DEFAULT_EVENT_PARSER_CLS = TxtEventParser
 
-    _KERNEL_DTYPE = {
-        'timestamp': 'uint64',
-        'cpu': 'uint16',
-        'pid': 'uint32',
-        'comm': 'string',
-        'cgroup_path': 'string',
-        # prio in [-1, 140]
-        'prio': 'int16',
-        'util': 'uint16',
-    }
-
+    _KERNEL_DTYPE = TxtTraceParserBase._KERNEL_DTYPE
     EVENT_DESCS = {
         'print': PrintTxtEventParser(
             event='print',
@@ -1717,22 +1721,24 @@ class HRTxtTraceParser(SimpleTxtTraceParser):
 
         For a better supported format, see :class:`TxtTraceParser`.
     """
+
+    _KERNEL_DTYPE = SimpleTxtTraceParser._KERNEL_DTYPE
     EVENT_DESCS = {
         'sched_switch': dict(
             fields_regex=r'prev_comm=(?P<prev_comm>.+?) +prev_pid=(?P<prev_pid>\d+) +prev_prio=(?P<prev_prio>\d+) +prev_state=(?P<prev_state>[^ ]+) ==> next_comm=(?P<next_comm>.+?) +next_pid=(?P<next_pid>\d+) +next_prio=(?P<next_prio>\d+)',
             fields={
-                'prev_comm': 'string',
-                'prev_pid': 'uint32',
-                'prev_prio': 'int16',
+                'prev_comm': _KERNEL_DTYPE['comm'],
+                'prev_pid': _KERNEL_DTYPE['pid'],
+                'prev_prio': _KERNEL_DTYPE['prio'],
                 'prev_state': 'string',
-                'next_comm': 'string',
-                'next_pid': 'uint32',
-                'next_prio': 'int16',
+                'next_comm': _KERNEL_DTYPE['comm'],
+                'next_pid': _KERNEL_DTYPE['pid'],
+                'next_prio': _KERNEL_DTYPE['prio'],
             },
         ),
         'tracing_mark_write': dict(
             fields={
-                'buf': 'string',
+                'buf': 'bytes',
             },
             positional_field='buf',
         ),
