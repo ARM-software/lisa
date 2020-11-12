@@ -3926,6 +3926,15 @@ class Trace(Loggable, TraceBase):
 
                 for (meta_event, event, source_event, source_getter) in specs:
                     source_df, line_field = source_getter(source_event, event, df)
+
+                    # Ensure that we get bytes instead of string, since that is
+                    # what is expected by the parser
+                    source_df = source_df.copy(deep=False)
+                    try:
+                        source_df[line_field] = source_df[line_field].str.encode('utf-8')
+                    except TypeError:
+                        pass
+
                     try:
                         parser = MetaTxtTraceParser(
                             lines=source_df[line_field],
