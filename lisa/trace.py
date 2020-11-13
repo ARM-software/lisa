@@ -3149,7 +3149,7 @@ class Trace(Loggable, TraceBase):
             object is created.
     """
 
-    def _select_userspace(source_event, meta_event, df):
+    def _select_userspace(self, source_event, meta_event, df):
         # tracing_mark_write is the name of the kernel function invoked when
         # writing to: /sys/kernel/debug/tracing/trace_marker
         # That said, it's not the end of the world if we don't filter on that
@@ -3158,7 +3158,7 @@ class Trace(Loggable, TraceBase):
             df = df[df['ip'] == 'tracing_mark_write']
         return (df, 'buf')
 
-    def _select_trace_printk(source_event, meta_event, df):
+    def _select_trace_printk(self, source_event, meta_event, df):
         content_col = {
             'bprint': 'buf',
             'bputs': 'str',
@@ -3168,7 +3168,8 @@ class Trace(Loggable, TraceBase):
         func_prefix = 'func@'
         if meta_event.startswith(func_prefix):
             func_name = meta_event[len(func_prefix):]
-            df = df[df['ip'] == func_name]
+            df = self.analysis.functions.df_resolve_ksym(df, addr_col='ip', name_col='func_name', exact=False)
+            df = df[df['func_name'] == func_name]
             df = df.copy(deep=False)
             # Prepend the meta event name so it will be matched
             fake_event = meta_event.encode('ascii') + b': '
@@ -3936,7 +3937,7 @@ class Trace(Loggable, TraceBase):
                 merged_df = df[extra_fields]
 
                 for (meta_event, event, source_event, source_getter) in specs:
-                    source_df, line_field = source_getter(source_event, event, df)
+                    source_df, line_field = source_getter(self, source_event, event, df)
                     try:
                         parser = MetaTxtTraceParser(
                             lines=source_df[line_field],
