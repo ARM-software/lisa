@@ -315,12 +315,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             )
 
         def meta_getter(key):
-            def get_meta():
-                try:
-                    return trace.get_metadata(key)
-                except KeyError:
-                    return None
-            return get_meta
+            return functools.partial(trace.get_metadata, key)
 
         infos = {
             'kernel': {
