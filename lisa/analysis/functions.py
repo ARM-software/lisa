@@ -20,6 +20,8 @@ import json
 import os
 
 import pandas as pd
+from pandas.api.types import is_numeric_dtype
+
 from lisa.analysis.base import TraceAnalysisBase, AnalysisHelpers
 from lisa.trace import requires_events, requires_one_event_of
 from lisa.conf import ConfigKeyError
@@ -35,6 +37,10 @@ class FunctionsAnalysis(TraceAnalysisBase):
     def df_resolve_ksym(self, df, addr_col, name_col='func_name', addr_map=None, exact=True):
         """
         Resolve the kernel function names.
+
+        .. note:: If the ``addr_col`` is not of a numeric dtype, it will be
+            assumed to be function names already and the content will be copied
+            to ``name_col``.
 
         :param df: Dataframe to augment
         :type df: pandas.DataFrame
@@ -59,11 +65,17 @@ class FunctionsAnalysis(TraceAnalysisBase):
         :type exact: bool
         """
         trace = self.trace
+        df = df.copy(deep=False)
+
+        # Names already resolved, we can just copy the address column to the
+        # name one
+        if not is_numeric_dtype(df[addr_col].dtype):
+            df[name_col] = df[addr_col]
+            return df
 
         if addr_map is None:
             addr_map = trace.plat_info['kernel']['symbols-address']
 
-        df = df.copy(deep=False)
         if exact:
             df[name_col] = df[addr_col].map(addr_map)
         # Not exact means the function addresses will be used as ranges, so
