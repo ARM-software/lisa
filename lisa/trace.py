@@ -47,6 +47,7 @@ import itertools
 import pandas as pd
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_numeric_dtype
 import pyarrow.lib
 
 import devlib
@@ -1165,17 +1166,17 @@ class TxtTraceParser(TxtTraceParserBase):
     EVENT_DESCS = {
         'print': PrintTxtEventParser(
             event='print',
-            func_field='func',
+            func_field='ip',
             content_field='buf',
         ),
         'bprint': PrintTxtEventParser(
             event='bprint',
-            func_field='func',
+            func_field='ip',
             content_field='buf',
         ),
         'bputs': PrintTxtEventParser(
             event='bputs',
-            func_field='func',
+            func_field='ip',
             content_field='str',
         ),
 
@@ -3151,7 +3152,10 @@ class Trace(Loggable, TraceBase):
     def _select_userspace(source_event, meta_event, df):
         # tracing_mark_write is the name of the kernel function invoked when
         # writing to: /sys/kernel/debug/tracing/trace_marker
-        df = df[df['func'] == 'tracing_mark_write']
+        # That said, it's not the end of the world if we don't filter on that
+        # as the meta event name is supposed to be unique anyway
+        if not is_numeric_dtype(df['ip'].dtype):
+            df = df[df['ip'] == 'tracing_mark_write']
         return (df, 'buf')
 
     def _select_trace_printk(source_event, meta_event, df):
@@ -3164,7 +3168,8 @@ class Trace(Loggable, TraceBase):
         func_prefix = 'func@'
         if meta_event.startswith(func_prefix):
             func_name = meta_event[len(func_prefix):]
-            df = df[df['func'] == func_name].copy(deep=False)
+            df = df[df['ip'] == func_name]
+            df = df.copy(deep=False)
             # Prepend the meta event name so it will be matched
             fake_event = meta_event.encode('ascii') + b': '
             df[content_col] = fake_event + df[content_col]
@@ -4465,10 +4470,14 @@ class Trace(Loggable, TraceBase):
     @_sanitize_event('bprint')
     @_sanitize_event('bputs')
     def _sanitize_print(self, event, df, aspects):
-        df = df.copy(deep=False)
-        # Reduce memory usage and speedup selection based on function
-        with contextlib.suppress(KeyError):
-            df['func'] = df['func'].astype('category', copy=False)
+        # Only process string "ip" (function name), not if it is a numeric
+        # address
+        if not is_numeric_dtype(df['ip'].dtype):
+            df = df.copy(deep=False)
+            # Reduce memory usage and speedup selection based on function
+            with contextlib.suppress(KeyError):
+                df['ip'] = df['ip'].astype('category', copy=False)
+
         return df
 
     @staticmethod
