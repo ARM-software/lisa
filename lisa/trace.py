@@ -4440,7 +4440,7 @@ class Trace(Loggable, TraceBase):
             df = copy_once(df)
             df['overutilized'] = df['overutilized'].astype(bool, copy=False)
 
-        if df['span'].dtype.name == 'string':
+        if 'span' in df.columns and df['span'].dtype.name == 'string':
             df = copy_once(df)
             df['span'] = df['span'].apply(lambda x: x if pd.isna(x) else int(x, base=16))
 
