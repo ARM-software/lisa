@@ -3937,15 +3937,6 @@ class Trace(Loggable, TraceBase):
 
                 for (meta_event, event, source_event, source_getter) in specs:
                     source_df, line_field = source_getter(source_event, event, df)
-
-                    # Ensure that we get bytes instead of string, since that is
-                    # what is expected by the parser
-                    source_df = source_df.copy(deep=False)
-                    try:
-                        source_df[line_field] = source_df[line_field].str.encode('utf-8')
-                    except TypeError:
-                        pass
-
                     try:
                         parser = MetaTxtTraceParser(
                             lines=source_df[line_field],
@@ -4470,13 +4461,36 @@ class Trace(Loggable, TraceBase):
     @_sanitize_event('bprint')
     @_sanitize_event('bputs')
     def _sanitize_print(self, event, df, aspects):
+        df = df.copy(deep=False)
+
         # Only process string "ip" (function name), not if it is a numeric
         # address
         if not is_numeric_dtype(df['ip'].dtype):
-            df = df.copy(deep=False)
             # Reduce memory usage and speedup selection based on function
             with contextlib.suppress(KeyError):
                 df['ip'] = df['ip'].astype('category', copy=False)
+
+        content_col = 'str' if event == 'bputs' else 'buf'
+
+        # Ensure we have "bytes" values, since some parsers might give
+        # str type.
+        try:
+            df[content_col] = df[content_col].str.encode('utf-8')
+        except TypeError:
+            pass
+
+        if event == 'print':
+            # Print event is mainly used through the trace_marker sysfs file.
+            # Since userspace application typically end the write with a
+            # newline char, strip it from the values, as some parsers will not
+            # include that in the output.
+            try:
+                last_char = df['buf'].iat[0][-1]
+            except (KeyError, IndexError):
+                pass
+            else:
+                if last_char == ord(b'\n'):
+                    df['buf'] = df['buf'].apply(lambda x: x.rstrip(b'\n'))
 
         return df
 
