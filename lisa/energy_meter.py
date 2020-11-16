@@ -127,6 +127,7 @@ class HWMonConf(SimpleMultiSrcConf, HideExekallID):
     Configuration class for :class:`HWMon`.
 
     {generated_help}
+    {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('hwmon-conf', 'HWMon Energy Meter configuration', (
         # TODO: find a better help and maybe a better type
@@ -307,6 +308,7 @@ class AEPConf(SimpleMultiSrcConf, HideExekallID):
     Configuration class for :class:`AEP`.
 
     {generated_help}
+    {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('aep-conf', 'AEP Energy Meter configuration', (
         KeyDesc('channel-map', 'Channels to use', [Mapping]),
@@ -353,6 +355,7 @@ class MonsoonConf(SimpleMultiSrcConf, HideExekallID):
     Configuration class for :class:`Monsoon`.
 
     {generated_help}
+    {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('monsoon-conf', 'Monsoon Energy Meter configuration', (
         KeyDesc('channel-map', 'Channels to use', [Mapping]),
@@ -395,6 +398,7 @@ class ACMEConf(SimpleMultiSrcConf, HideExekallID):
     Configuration class for :class:`ACME`.
 
     {generated_help}
+    {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('acme-conf', 'ACME Energy Meter configuration', (
         KeyDesc('channel-map', 'Channels to use', [Mapping]),
@@ -605,6 +609,7 @@ class Gem5EnergyMeterConf(SimpleMultiSrcConf, HideExekallID):
     Configuration class for :class:`Gem5EnergyMeter`.
 
     {generated_help}
+    {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('gem5-energy-meter-conf', 'Gem5 Energy Meter configuration', (
         KeyDesc('channel-map', 'Channels to use', [Mapping]),

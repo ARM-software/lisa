@@ -4943,6 +4943,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
 
     Available keys:
     {generated_help}
+    {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('ftrace-conf', 'FTrace configuration', (
         KeyDesc('events', 'FTrace events to trace', [TypedList[str]]),

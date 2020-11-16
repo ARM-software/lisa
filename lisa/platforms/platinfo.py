@@ -80,6 +80,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     Platform-specific information made available to tests.
 
     {generated_help}
+    {yaml_example}
 
     """
 

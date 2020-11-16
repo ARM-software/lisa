@@ -225,6 +225,7 @@ class DocPlotConf(SimpleMultiSrcConf):
     Analysis plot method arguments configuration for the documentation.
 
     {generated_help}
+    {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('doc-plot-conf', 'Plot methods configuration', (
         # Avoid deepcopy of the value, since it contains a Trace object that we

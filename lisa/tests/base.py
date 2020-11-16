@@ -1003,6 +1003,7 @@ class DmesgTestConf(SimpleMultiSrcConf):
     Configuration class for :meth:`lisa.tests.base.DmesgTestBundle.test_dmesg`.
 
     {generated_help}
+    {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('dmesg-test-conf', 'Dmesg test configuration', (
         KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries content to be whitelisted', [TypedList[str]]),
