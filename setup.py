@@ -104,7 +104,7 @@ setup(
         ],
 
         "test": [
-            "nose",
+            "pytest",
         ],
     },
 

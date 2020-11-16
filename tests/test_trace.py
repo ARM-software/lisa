@@ -22,6 +22,8 @@ import numpy as np
 import pandas as pd
 import copy
 
+import pytest
+
 from devlib.target import KernelVersion
 
 from lisa.trace import Trace, TxtTraceParser, TaskID
@@ -40,11 +42,6 @@ class TraceTestCase(StorageTestCase):
         'sched_load_avg_task',
         'sched_load_se'
     ]
-
-    FLOAT_PLACES = 6
-
-    def assertAlmostEqual(self, first, second, places=FLOAT_PLACES, msg=None, delta=None):
-        super().assertAlmostEqual(first, second, places, msg, delta)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -112,9 +109,9 @@ class TestTrace(TraceTestCase):
             task_id_tuple = TaskID(pid=None, comm=name)
 
             for x in (pid, name, task_id, task_id2, task_id3, task_id_tuple):
-                self.assertEqual(self.trace.get_task_id(x), task_id)
+                assert self.trace.get_task_id(x) == task_id
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             for x in ('sh', 'sshd', 1639, 1642, 1702, 1717, 1718):
                 self.trace.get_task_id(x)
 
@@ -123,9 +120,9 @@ class TestTrace(TraceTestCase):
             ('watchdog/0', [12]),
             ('sh', [1642, 1702, 1714, 1717, 1718]),
         ]:
-            self.assertEqual(self.trace.get_task_name_pids(name), pids)
+            assert self.trace.get_task_name_pids(name) == pids
 
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             self.trace.get_task_name_pids('NOT_A_TASK')
 
     def test_get_task_pid_names(self):
@@ -133,9 +130,9 @@ class TestTrace(TraceTestCase):
             (15, ['watchdog/1']),
             (1639, ['sshd']),
         ]:
-            self.assertEqual(self.trace.get_task_pid_names(pid), names)
+            assert self.trace.get_task_pid_names(pid) == names
 
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             self.trace.get_task_pid_names(987654321)
 
     def test_get_tasks(self):
@@ -144,7 +141,7 @@ class TestTrace(TraceTestCase):
         for pid, name in [(1, ['init']),
                           (9, ['rcu_sched']),
                           (1383, ['jbd2/sda2-8'])]:
-            self.assertEqual(tasks_dict[pid], name)
+            assert tasks_dict[pid] == name
 
     def test_setTaskName(self):
         """TestTrace: getTaskBy{Pid,Name}() properly track tasks renaming"""
@@ -154,10 +151,10 @@ class TestTrace(TraceTestCase):
         """
         trace = self.make_trace(in_data)
 
-        self.assertEqual(trace.get_task_pid_names(1234), ['father'])
-        self.assertEqual(trace.get_task_pid_names(5678), ['father', 'child'])
-        self.assertEqual(trace.get_task_name_pids('father'), [1234])
-        self.assertEqual(trace.get_task_name_pids('father', ignore_fork=False), [1234, 5678])
+        assert trace.get_task_pid_names(1234) == ['father']
+        assert trace.get_task_pid_names(5678) == ['father', 'child']
+        assert trace.get_task_name_pids('father') == [1234]
+        assert trace.get_task_name_pids('father', ignore_fork=False) == [1234, 5678]
 
     def test_time_range(self):
         """
@@ -173,7 +170,7 @@ class TestTrace(TraceTestCase):
             parser=TxtTraceParser.from_txt_file,
         )
 
-        self.assertAlmostEqual(trace.time_range, expected_duration)
+        assert trace.time_range == pytest.approx(expected_duration)
 
     def test_squash_df(self):
         """
@@ -192,12 +189,12 @@ class TestTrace(TraceTestCase):
         df1 = df_squash(df, 16.5, 17.5,)
         head = df1.head(1)
         tail = df1.tail(1)
-        self.assertEqual(len(df1.index), 2)
-        self.assertEqual(df1.index.tolist(), [16.5, 17])
-        self.assertAlmostEqual(head['delta'].values[0], 0.5)
-        self.assertAlmostEqual(tail['delta'].values[0], 0.5)
-        self.assertEqual(head['state'].values[0], 0)
-        self.assertEqual(tail['state'].values[0], 1)
+        assert len(df1.index) == 2
+        assert df1.index.tolist() == [16.5, 17]
+        assert head['delta'].values[0] == pytest.approx(0.5)
+        assert tail['delta'].values[0] == pytest.approx(0.5)
+        assert head['state'].values[0] == 0
+        assert tail['state'].values[0] == 1
 
         # Test slice where no event exists in the interval
 
@@ -205,10 +202,11 @@ class TestTrace(TraceTestCase):
         # Time delta state
         # 16.2  .6   0
         df2 = df_squash(df, 16.2, 16.8)
-        self.assertEqual(len(df2.index), 1)
-        self.assertEqual(df2.index[0], 16.2)
-        self.assertAlmostEqual(df2['delta'].values[0], 0.6)
-        self.assertEqual(df2['state'].values[0], 0)
+        assert len(df2.index) == 1
+        assert df2.index[0] == 16.2
+
+        assert df2['delta'].values[0] == pytest.approx(0.6)
+        assert df2['state'].values[0] == 0
 
         # Test slice that matches an event's index
 
@@ -216,28 +214,28 @@ class TestTrace(TraceTestCase):
         # Time delta state
         # 16   1   0
         df3 = df_squash(df, 16, 17)
-        self.assertEqual(len(df3.index), 1)
-        self.assertEqual(df3.index[0], 16)
-        self.assertAlmostEqual(df3['delta'].values[0], 1)
-        self.assertEqual(df3['state'].values[0], 0)
+        assert len(df3.index) == 1
+        assert df3.index[0] == 16
+        assert df3['delta'].values[0] == pytest.approx(1)
+        assert df3['state'].values[0] == 0
 
         # Test slice past last event
         # The df here should be:
         # Time delta state
         # 19.5  .5  1
         df4 = df_squash(df, 19.5, 22)
-        self.assertEqual(len(df4.index), 1)
-        self.assertEqual(df4.index[0], 19.5)
-        self.assertAlmostEqual(df4['delta'].values[0], 0.5)
-        self.assertEqual(df4['state'].values[0], 1)
+        assert len(df4.index) == 1
+        assert df4.index[0] == 19.5
+        assert df4['delta'].values[0] == pytest.approx(0.5)
+        assert df4['state'].values[0] == 1
 
         # Test slice where there's no past event
         df5 = df_squash(df, 10, 30)
-        self.assertEqual(len(df5.index), 5)
+        assert len(df5.index) == 5
 
         # Test slice where that should contain nothing
         df6 = df_squash(df, 8, 9)
-        self.assertEqual(len(df6.index), 0)
+        assert len(df6.index) == 0
 
     def test_overutilized_time(self):
         """
@@ -249,7 +247,7 @@ class TestTrace(TraceTestCase):
         expected_pct = overutilized_time / trace.time_range * 100
         overutilized_pct = trace.analysis.status.get_overutilized_pct()
 
-        self.assertAlmostEqual(overutilized_pct, expected_pct)
+        assert overutilized_pct == pytest.approx(expected_pct)
 
     def test_plot_cpu_idle_state_residency(self):
         """
@@ -283,7 +281,7 @@ class TestTrace(TraceTestCase):
         plat_info.force_src('cpus-count', ['SOURCE THAT DOES NOT EXISTS'])
         trace.plat_info = plat_info
 
-        self.assertEqual(trace.cpus_count, 3)
+        assert trace.cpus_count == 3
 
     def test_df_cpus_wakeups(self):
         """
@@ -306,24 +304,24 @@ class TestTrace(TraceTestCase):
 
         exp_index = [519.021928, 519.022641, 519.022642, 519.022643, 519.022867]
         exp_cpus = [4, 4, 1, 2, 3]
-        self.assertListEqual(df.index.tolist(), exp_index)
-        self.assertListEqual(df.cpu.tolist(), exp_cpus)
+        assert df.index.tolist() == exp_index
+        assert df.cpu.tolist() == exp_cpus
 
         df = df[df.cpu == 2]
 
-        self.assertListEqual(df.index.tolist(), [519.022643])
-        self.assertListEqual(df.cpu.tolist(), [2])
+        assert df.index.tolist() == [519.022643]
+        assert df.cpu.tolist() == [2]
 
     def _test_tasks_dfs(self, trace_name):
         """Helper for smoke testing _dfg methods in tasks_analysis"""
         trace = self.get_trace(trace_name)
 
-        lt_df = trace.analysis.load_tracking.df_tasks_signals()
-        columns = ['comm', 'pid', 'load', 'util', '__cpu']
+        lt_df = trace.analysis.load_tracking.df_tasks_signal('util')
+        columns = ['comm', 'pid', 'util', 'cpu']
         for column in columns:
             msg = 'Task signals parsed from {} missing {} column'.format(
                 trace.trace_path, column)
-            self.assertIn(column, lt_df, msg=msg)
+            assert column in lt_df, msg
 
         # Pick an arbitrary PID to try plotting signals for.
         pid = lt_df['pid'].unique()[0]
@@ -360,20 +358,20 @@ class TestTrace(TraceTestCase):
         df = trace.analysis.frequency.df_peripheral_clock_effective_rate(clk_name='bus_clk')
         exp_effective_rate = [float('NaN'), 750000000, 0.0, 750000000, 100000000, 0.0]
         effective_rate = df['effective_rate'].tolist()
-        self.assertEqual(len(exp_effective_rate), len(effective_rate))
+        assert len(exp_effective_rate) == len(effective_rate)
 
         for e, r in zip(exp_effective_rate, effective_rate):
             if (np.isnan(e)):
-                self.assertTrue(np.isnan(r))
+                assert np.isnan(r)
                 continue
-            self.assertEqual(e, r)
+            assert e == r
 
     def test_df_tasks_states(self):
         df = self.trace.analysis.tasks.df_tasks_states()
 
-        self.assertEqual(len(df), 4780)
+        assert len(df) == 4780
         # Proxy check for detecting delta computation changes
-        self.assertAlmostEqual(df.delta.sum(), 134.568219)
+        assert df.delta.sum() == pytest.approx(134.568219)
 
 
 class TestTraceView(TraceTestCase):
@@ -392,16 +390,16 @@ class TestTraceView(TraceTestCase):
 
     def test_lower_slice(self):
         view = self.trace[81:]
-        self.assertEqual(len(view.analysis.status.df_overutilized()), 2)
+        assert len(view.analysis.status.df_overutilized()) == 2
 
     def test_upper_slice(self):
         view = self.trace[:80.402065]
         df = view.analysis.status.df_overutilized()
-        self.assertEqual(len(view.analysis.status.df_overutilized()), 1)
+        assert len(view.analysis.status.df_overutilized()) == 1
 
     def test_full_slice(self):
         view = self.trace[80:81]
-        self.assertEqual(len(view.analysis.status.df_overutilized()), 2)
+        assert len(view.analysis.status.df_overutilized()) == 2
 
     def test_time_range(self):
         expected_duration = 4.0
@@ -414,7 +412,7 @@ class TestTraceView(TraceTestCase):
             parser=TxtTraceParser.from_txt_file,
         ).get_view((76.402065, 80.402065))
 
-        self.assertAlmostEqual(trace.time_range, expected_duration)
+        assert trace.time_range == pytest.approx(expected_duration)
 
     def test_time_range_subscript(self):
         expected_duration = 4.0
@@ -427,7 +425,7 @@ class TestTraceView(TraceTestCase):
             parser=TxtTraceParser.from_txt_file,
         )[76.402065:80.402065]
 
-        self.assertAlmostEqual(trace.time_range, expected_duration)
+        assert trace.time_range == pytest.approx(expected_duration)
 
 
 class TestNestedTraceView(TestTraceView):

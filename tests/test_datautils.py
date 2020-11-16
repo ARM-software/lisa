@@ -33,6 +33,6 @@ class DfCheck(TestCase):
 
         for ident, subdf in du.df_split_signals(df, ["bar"]):
             if ident["bar"] == 0:
-                self.assertEqual(len(subdf), 3)
+                assert len(subdf) == 3
             else:
-                self.assertEqual(len(subdf), 2)
+                assert len(subdf) == 2

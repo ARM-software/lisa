@@ -58,7 +58,7 @@ class TestTarget(LocalLinuxTarget):
         self.execute_calls = []
 
 
-class WlgenSelfBase(TestCase):
+class WlgenBase(TestCase):
     """
     Base class for wlgen self-tests
 
@@ -85,7 +85,7 @@ class WlgenSelfBase(TestCase):
             os.getenv('LISA_HOME'), 'results',
             'lisa_selftest_out_{}'.format(self.__class__.__name__))
 
-    def setUp(self):
+    def setup_method(self, method):
         self.target = TestTarget()
 
         tools_path = os.path.join(os.getenv('LISA_HOME'),

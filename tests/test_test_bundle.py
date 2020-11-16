@@ -20,11 +20,18 @@ from lisa.platforms.platinfo import PlatformInfo
 from lisa.tests.base import TestBundle, ResultBundle
 from .utils import create_local_target, StorageTestCase
 
+class TestBundle(TestBundle):
+    """
+    Dummy proxy class so that pytest does not try to build it, since it
+    contains "Test" in the name.
+    """
+    __test__ = False
 
 class DummyTestBundle(TestBundle):
     """
     A dummy bundle that only does some simple target interaction
     """
+    __test__ = False
 
     def __init__(self, res_dir, shell_output):
         plat_info = PlatformInfo()
@@ -52,8 +59,8 @@ class BundleCheck(StorageTestCase):
     base behaviours.
     """
 
-    def setUp(self):
-        super().setUp()
+    def setup_method(self, method):
+        super().setup_method(method)
         self.target = create_local_target()
 
     def test_init(self):
@@ -78,4 +85,4 @@ class BundleCheck(StorageTestCase):
         bundle.to_dir(self.res_dir)
         bundle = DummyTestBundle.from_dir(self.res_dir)
 
-        self.assertEqual(output, bundle.shell_output)
+        assert output == bundle.shell_output

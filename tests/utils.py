@@ -55,8 +55,8 @@ class StorageTestCase(TestCase):
     A base class for tests that also provides a directory
     """
 
-    def setUp(self):
+    def setup_method(self, method):
         self.res_dir = tempfile.mkdtemp()
 
-    def tearDown(self):
+    def teardown_method(self, method):
         shutil.rmtree(self.res_dir)

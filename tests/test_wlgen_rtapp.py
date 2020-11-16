@@ -21,6 +21,8 @@ import os
 import re
 import copy
 
+import pytest
+
 from lisa.wlgen.rta import RTA, Periodic, Ramp, Step, RunAndSync
 
 from .utils import StorageTestCase, create_local_target, ASSET_DIR
@@ -35,10 +37,8 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 class RTABase(StorageTestCase):
     """
     Common functionality for testing RTA
-
-    Doesn't have "Test" in the name so that nosetests doesn't try to run it
-    directly
     """
+    __test__ = False
 
     tools = ['rt-app']
 
@@ -48,24 +48,27 @@ class RTABase(StorageTestCase):
         json_path = os.path.join(rta_wload.run_dir, rta_wload.json)
         return '{} {} 2>&1'.format(rta_path, json_path)
 
-    def setUp(self):
-        super().setUp()
+    def setup_method(self, method):
+        super().setup_method(method)
         self.target = create_local_target()
 
     def assert_output_file_exists(self, path):
         """Assert that a file was created"""
         path = os.path.join(self.res_dir, path)
-        self.assertTrue(os.path.isfile(path),
-                        'No output file {} from rt-app'.format(path))
+        msg = 'No output file {} from rt-app'.format(path)
+        assert os.path.isfile(path), msg
 
     def assert_can_read_logfile(self, exp_tasks):
         """Assert that the perf_analysis module understands the log output"""
-        analysis = PerfAnalysis.from_dir(self.res_dir)
-        exp_tasks = [re.sub(r'-[0-9]+', '', task) for task in exp_tasks]
-        self.assertSetEqual(set(exp_tasks), set(analysis.tasks))
+        with pytest.warns(DeprecationWarning):
+            analysis = PerfAnalysis.from_dir(self.res_dir)
+            exp_tasks = [re.sub(r'-[0-9]+', '', task) for task in exp_tasks]
+            assert set(exp_tasks) == set(analysis.tasks)
 
 
 class TestRTAProfile(RTABase):
+    __test__ = True
+
     def _do_test(self, profile, exp_phases):
         rtapp = RTA.by_profile(
             self.target, name='test', profile=profile, res_dir=self.res_dir,
@@ -76,7 +79,7 @@ class TestRTAProfile(RTABase):
 
         # Check that the configuration looks like we expect it to
         phases = list(conf['tasks']['test']['phases'].values())
-        self.assertEqual(len(phases), len(exp_phases), 'Wrong number of phases')
+        assert len(phases) == len(exp_phases), 'Wrong number of phases'
         for phase, exp_phase in zip(phases, exp_phases):
             if 'cpus' not in exp_phase:
                 exp_phase = copy.copy(exp_phase)
@@ -84,14 +87,14 @@ class TestRTAProfile(RTABase):
                     cpus=sorted(range(self.target.plat_info['cpus-count'])),
                     nodes_membind=sorted(range(self.target.plat_info['numa-nodes-count'])),
                 )
-            self.assertDictEqual(phase, exp_phase)
+            assert phase == exp_phase
 
         # Try running the workload and check that it produces the expected log
         # files
         rtapp.run()
 
         # rtapp_cmds = [c for c in self.target.executed_commands if 'rt-app' in c]
-        # self.assertListEqual(rtapp_cmds, [self.get_expected_command(rtapp)])
+        # assert rtapp_cmds == [self.get_expected_command(rtapp)]
 
         self.assert_output_file_exists('output.log')
         self.assert_output_file_exists('test.json')
@@ -252,11 +255,13 @@ class TestRTAProfile(RTABase):
             raise AssertionError("Couldn't compose tasks: {}".format(e))
 
         # But not the other way around
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             t3 = t1 + t2
 
 
 class TestRTACustom(RTABase):
+    __test__ = True
+
     def _test_custom_smoke(self, calibration):
         """
         Test RTA custom workload
@@ -278,10 +283,14 @@ class TestRTACustom(RTABase):
         with open(rtapp.local_json, 'r') as fh:
             conf = json.load(fh)
 
-        self.assertSetEqual(
-            set(conf['tasks'].keys()),
-            {'AudioTick', 'AudioOut', 'AudioTrack',
-             'mp3.decoder', 'OMXCall'})
+        tasks = {
+            'AudioTick',
+            'AudioOut',
+            'AudioTrack',
+            'mp3.decoder',
+            'OMXCall'
+        }
+        assert conf['tasks'].keys() == tasks
 
         # Would like to try running the workload but mp3-short.json has nonzero
         # 'priority' fields, and we probably don't have permission for that
@@ -291,7 +300,7 @@ class TestRTACustom(RTABase):
 
             # rtapp_cmds = [c for c in self.target.executed_commands
             #               if 'rt-app' in c]
-            # self.assertListEqual(rtapp_cmds, [self.get_expected_command(rtapp)])
+            # assert rtapp_cmds == [self.get_expected_command(rtapp)]
 
             self.assert_output_file_exists('output.log')
             self.assert_output_file_exists('test.json')
@@ -308,6 +317,7 @@ class TestRTACustom(RTABase):
 
 class TestRTACalibrationConf(RTABase):
     """Test setting the "calibration" field of rt-app config"""
+    __test__ = True
 
     def _get_calib_conf(self, calibration):
         profile = {"test": Periodic()}
@@ -321,16 +331,16 @@ class TestRTACalibrationConf(RTABase):
     def test_calibration_conf_pload_nodata(self):
         """Test that the smallest pload value is used"""
         conf = self._get_calib_conf(None)
-        self.assertEqual(conf, 100, 'Calibration not set to minimum pload value')
+        assert conf == 100, 'Calibration not set to minimum pload value'
 
     def test_calibration_conf_pload_int(self):
         """Test that the calibration value is returned as expected"""
         conf = self._get_calib_conf(666)
-        self.assertEqual(conf, 666, 'Calibration value modified')
+        assert conf == 666, 'Calibration value modified'
 
     def test_calibration_conf_pload_str(self):
         """Test that the calibration value is returned as expected"""
         conf = self._get_calib_conf('CPU0')
-        self.assertEqual(conf, 'CPU0', 'Calibration value modified')
+        assert conf == 'CPU0', 'Calibration value modified'
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

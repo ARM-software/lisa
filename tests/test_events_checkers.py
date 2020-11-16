@@ -16,6 +16,7 @@
 #
 
 from unittest import TestCase
+import pytest
 
 from lisa.utils import nullcontext
 from lisa.trace import TraceEventChecker, AndTraceEventChecker, OrTraceEventChecker, MissingTraceEventError
@@ -23,10 +24,12 @@ from lisa.trace import TraceEventChecker, AndTraceEventChecker, OrTraceEventChec
 """ A test suite for event checking infrastructure."""
 
 
-class TestEventCheckerBase:
+class TestEventCheckerBase(TestCase):
     """
     A test class that verifies checkers work as expected
     """
+    __test__ = False
+
     EVENTS_SET = {'foo', 'bar', 'baz'}
     expected_success = True
 
@@ -34,59 +37,79 @@ class TestEventCheckerBase:
         if self.expected_success:
             cm = nullcontext()
         else:
-            cm = self.assertRaises(MissingTraceEventError)
+            cm = pytest.raises(MissingTraceEventError)
 
         with cm:
             print('Checking: {}'.format(self.checker))
             self.checker.check_events(self.EVENTS_SET)
 
 
-class TestEventChecker_and1(TestEventCheckerBase, TestCase):
+class TestEventChecker_and1(TestEventCheckerBase):
+    __test__ = True
+
     checker = AndTraceEventChecker.from_events(['foo', 'bar'])
 
 
-class TestEventChecker_and2(TestEventCheckerBase, TestCase):
+class TestEventChecker_and2(TestEventCheckerBase):
+    __test__ = True
+
     checker = AndTraceEventChecker.from_events(['foo', 'lancelot'])
     expected_success = False
 
 
-class TestEventChecker_or1(TestEventCheckerBase, TestCase):
+class TestEventChecker_or1(TestEventCheckerBase):
+    __test__ = True
+
     checker = OrTraceEventChecker.from_events(['foo', 'bar'])
 
 
-class TestEventChecker_or2(TestEventCheckerBase, TestCase):
+class TestEventChecker_or2(TestEventCheckerBase):
+    __test__ = True
+
     checker = OrTraceEventChecker.from_events(['foo', 'lancelot'])
 
 
-class TestEventChecker_or3(TestEventCheckerBase, TestCase):
+class TestEventChecker_or3(TestEventCheckerBase):
+    __test__ = True
+
     checker = OrTraceEventChecker.from_events(['arthur', 'lancelot'])
     expected_success = False
 
 
-class TestEventChecker_single1(TestEventCheckerBase, TestCase):
+class TestEventChecker_single1(TestEventCheckerBase):
+    __test__ = True
+
     checker = TraceEventChecker('bar')
 
 
-class TestEventChecker_single2(TestEventCheckerBase, TestCase):
+class TestEventChecker_single2(TestEventCheckerBase):
+    __test__ = True
+
     checker = TraceEventChecker('non-existing-event')
     expected_success = False
 
 
-class TestEventChecker_and3(TestEventCheckerBase, TestCase):
+class TestEventChecker_and3(TestEventCheckerBase):
+    __test__ = True
+
     checker = AndTraceEventChecker.from_events([
         TestEventChecker_and1.checker,
         TestEventChecker_or1.checker,
     ])
 
 
-class TestEventChecker_and4(TestEventCheckerBase, TestCase):
+class TestEventChecker_and4(TestEventCheckerBase):
+    __test__ = True
+
     checker = AndTraceEventChecker.from_events([
         TestEventChecker_and1.checker,
         TestEventChecker_or2.checker,
     ])
 
 
-class TestEventChecker_and5(TestEventCheckerBase, TestCase):
+class TestEventChecker_and5(TestEventCheckerBase):
+    __test__ = True
+
     checker = AndTraceEventChecker.from_events([
         TestEventChecker_and1.checker,
         TestEventChecker_and2.checker,

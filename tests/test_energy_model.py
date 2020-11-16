@@ -21,6 +21,8 @@ import os
 import shutil
 import tempfile
 
+import pytest
+
 from devlib.target import KernelVersion
 
 from lisa.energy_model import (EnergyModel, ActiveState, EnergyModelCapacityError,
@@ -152,7 +154,7 @@ class TestInvalid(TestCase):
         def cpu_pd(cpu):
             return PowerDomain(idle_states=[], cpu=cpu)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             EnergyModel(root_node=root_node,
                         root_power_domain=PowerDomain(
                             idle_states=[], children=[cpu_pd(0), cpu_pd(1)]),
@@ -160,63 +162,67 @@ class TestInvalid(TestCase):
 
 
 class TestOptimalPlacement(TestCase):
-    def assertPlacementListEqual(self, l1, l2):
+    def assert_placement_list_equal(self, l1, l2):
         """
         Assert that a pair of lists of lists contain the same lists in any order
         """
         s1 = {tuple(l) for l in l1}
         s2 = {tuple(l) for l in l2}
-        self.assertSetEqual(s1, s2)
+        assert s1 == s2
 
     def test_single_small(self):
         placements = em.get_optimal_placements({'task0': 1})
-        self.assertPlacementListEqual(placements, [[1, 0, 0, 0],
+        self.assert_placement_list_equal(placements, [[1, 0, 0, 0],
                                                    [0, 1, 0, 0]])
 
     def test_single_big(self):
         placements = em.get_optimal_placements({'task0': 350})
-        self.assertPlacementListEqual(placements, [[0, 0, 350, 0],
+        self.assert_placement_list_equal(placements, [[0, 0, 350, 0],
                                                    [0, 0, 0, 350]])
 
     def test_packing(self):
         tasks = {'task' + str(i): 10 for i in list(range(5))}
         placements = em.get_optimal_placements(tasks)
         total_util = sum(tasks.values())
-        self.assertPlacementListEqual(placements, [[total_util, 0, 0, 0],
+        self.assert_placement_list_equal(placements, [[total_util, 0, 0, 0],
                                                    [0, total_util, 0, 0]])
 
     def test_overutilized_single(self):
-        self.assertRaises(EnergyModelCapacityError,
-                          em.get_optimal_placements, {'task0': 401})
+        with pytest.raises(EnergyModelCapacityError):
+            em.get_optimal_placements({'task0': 401})
 
     def test_capacity_margin_single(self):
-        self.assertRaises(EnergyModelCapacityError,
-                          em.get_optimal_placements, {'task0': 350},
-                          capacity_margin_pct=20)
+        with pytest.raises(EnergyModelCapacityError):
+            em.get_optimal_placements(
+                {'task0': 350},
+                capacity_margin_pct=20
+            )
 
     def test_overutilized_many(self):
         total_cap = 400 * 2 + 200 * 2
         task_size = 200
-        tasks = {'task' + str(i): task_size
-                 for i in list(range((total_cap // task_size) + 1))}
-        self.assertRaises(EnergyModelCapacityError,
-                          em.get_optimal_placements, tasks)
+        tasks = {
+            'task' + str(i): task_size
+            for i in range((total_cap // task_size) + 1)
+        }
+        with pytest.raises(EnergyModelCapacityError):
+            em.get_optimal_placements(tasks)
 
 
 class TestBiggestCpus(TestCase):
     def test_biggest_cpus(self):
-        self.assertEqual(em.biggest_cpus, [2, 3])
+        assert em.biggest_cpus == [2, 3]
 
 
 class TestLittlestCpus(TestCase):
     def test_littlest_cpus(self):
-        self.assertEqual(em.littlest_cpus, [0, 1])
+        assert em.littlest_cpus == [0, 1]
 
 
 class TestMaxCap(TestCase):
     def test_max_cap(self):
         max_caps = [n.max_capacity for n in em.cpu_nodes]
-        self.assertEqual(max_caps, [200, 200, 400, 400])
+        assert max_caps == [200, 200, 400, 400]
 
 
 class TestEnergyEst(TestCase):
@@ -238,85 +244,98 @@ class TestEnergyEst(TestCase):
             (2, 3): {'active': big_cluster, 'idle': 0}
         }
         for k, v in power.items():
-            self.assertAlmostEqual(v, power[k])
+            assert v == pytest.approx(power[k])
 
     def test_all_idle(self):
-        self.assertEqual(sum(em.estimate_from_cpu_util([0, 0, 0, 0]).values()),
-                         0 * 4  # CPU power = 0
-                         + 2   # big cluster power
-                         + 1)  # LITTLE cluster power
+        nrg = (
+            # CPU power = 0
+            0 * 4
+            # big cluster power
+            + 2
+            # LITTLE cluster power
+            + 1
+        )
+        assert sum(em.estimate_from_cpu_util([0, 0, 0, 0]).values()) == nrg
 
     def test_one_little_half_lowest(self):
         cpu0_util = 100 * 0.5
-        self.assertEqual(
-            sum(em.estimate_from_cpu_util([cpu0_util, 0, 0, 0]).values()),
-            (0.5 * 100)  # CPU0 active power
-            + (0.5 * 5)  # CPU0 idle power
-            + (0.5 * 5)  # LITTLE cluster idle power
-            + (0.5 * 10)  # LITTLE cluster active power
-            + 2)         # big cluster power
+        nrg = (
+            # CPU0 active power
+            (0.5 * 100)
+            # CPU0 idle power
+            + (0.5 * 5)
+            # LITTLE cluster idle power
+            + (0.5 * 5)
+            # LITTLE cluster active power
+            + (0.5 * 10)
+            # big cluster power
+            + 2
+        )
+        assert sum(em.estimate_from_cpu_util([cpu0_util, 0, 0, 0]).values()) == nrg
 
 
 class TestIdleStates(TestCase):
     def test_zero_util_deepest(self):
-        self.assertEqual(em.guess_idle_states([0] * 4), ['cluster-sleep-0'] * 4)
+        assert em.guess_idle_states([0] * 4) == ['cluster-sleep-0'] * 4
 
     def test_single_cpu_used(self):
         states = em.guess_idle_states([0, 0, 0, 1])
-        self.assertEqual(states, ['cluster-sleep-0', 'cluster-sleep-0',
-                                  'cpu-sleep-0', 'WFI'])
+        assert states == [
+            'cluster-sleep-0',
+            'cluster-sleep-0',
+            'cpu-sleep-0',
+            'WFI'
+        ]
 
         states = em.guess_idle_states([0, 1, 0, 0])
-        self.assertEqual(states, ['cpu-sleep-0', 'WFI',
-                                  'cluster-sleep-0', 'cluster-sleep-0', ])
+        assert states == [
+            'cpu-sleep-0',
+            'WFI',
+            'cluster-sleep-0',
+            'cluster-sleep-0'
+        ]
 
     def test_all_cpus_used(self):
         states = em.guess_idle_states([1, 1, 1, 1])
-        self.assertEqual(states, ['WFI'] * 4)
+        assert states == ['WFI'] * 4
 
     def test_one_cpu_per_cluster(self):
         states = em.guess_idle_states([0, 1, 0, 1])
-        self.assertEqual(states, ['cpu-sleep-0', 'WFI'] * 2)
+        assert states == ['cpu-sleep-0', 'WFI'] * 2
 
 
 class TestFreqs(TestCase):
 
     def test_zero_util_slowest(self):
-        self.assertEqual(em.guess_freqs([0] * 4),
-                         [1000, 1000, 3000, 3000])
+        assert em.guess_freqs([0] * 4) == [1000, 1000, 3000, 3000]
 
     def test_high_util_fastest(self):
-        self.assertEqual(em.guess_freqs([100000] * 4),
-                         [2000, 2000, 4000, 4000])
+        assert em.guess_freqs([100000] * 4) == [2000, 2000, 4000, 4000]
 
     def test_freq_domains(self):
-        self.assertEqual(em.guess_freqs([0, 0, 0, 10000]),
-                         [1000, 1000, 4000, 4000])
+        assert em.guess_freqs([0, 0, 0, 10000]) == [1000, 1000, 4000, 4000]
 
-        self.assertEqual(em.guess_freqs([0, 10000, 0, 10000]),
-                         [2000, 2000, 4000, 4000])
+        assert em.guess_freqs([0, 10000, 0, 10000]) == [2000, 2000, 4000, 4000]
 
-        self.assertEqual(em.guess_freqs([0, 10000, 0, 0]),
-                         [2000, 2000, 3000, 3000])
+        assert em.guess_freqs([0, 10000, 0, 0]) == [2000, 2000, 3000, 3000]
 
     def test_middle_freq(self):
-        self.assertEqual(em.guess_freqs([0, 110, 0, 0]),
-                         [1500, 1500, 3000, 3000])
+        assert em.guess_freqs([0, 110, 0, 0]) == [1500, 1500, 3000, 3000]
 
 
 class TestNames(TestCase):
     """Test that the default names for CPU nodes get set"""
 
     def test_names(self):
-        self.assertListEqual([n.name for n in em.cpu_nodes],
-                             ['cpu0', 'cpu1', 'cpu2', 'cpu3'])
+        names = ['cpu0', 'cpu1', 'cpu2', 'cpu3']
+        assert [n.name for n in em.cpu_nodes] == names
 
 
 class TestCpuGroups(TestCase):
     """Test the cpu_groups property"""
 
     def test_cpu_groups(self):
-        self.assertListEqual(em.cpu_groups, [[0, 1], [2, 3]])
+        assert em.cpu_groups == [[0, 1], [2, 3]]
 
 
 class TestGetCpuCapacity(TestCase):
@@ -325,10 +344,9 @@ class TestGetCpuCapacity(TestCase):
     def test_get_cpu_capacity(self):
         for node in em.root.iter_leaves():
             [cpu] = node.cpus
-            self.assertEqual(em.get_cpu_capacity(cpu), node.max_capacity)
+            assert em.get_cpu_capacity(cpu) == node.max_capacity
             for freq, active_state in node.active_states.items():
-                self.assertEqual(em.get_cpu_capacity(cpu, freq),
-                                 active_state.capacity)
+                assert em.get_cpu_capacity(cpu, freq) == active_state.capacity
 
 
 class TestEstimateFromTrace(TestCase):
@@ -452,8 +470,8 @@ class TestEstimateFromTrace(TestCase):
 
         for i, (exp_index, exp_values) in enumerate(exp_entries):
             row = df.iloc[i]
-            self.assertAlmostEqual(row.name, exp_index, places=4)
-            self.assertDictEqual(row.to_dict(), exp_values)
+            assert row.name == pytest.approx(exp_index, abs=1e-4)
+            assert row.to_dict() == exp_values
 
 
 class TestSerialization(StorageTestCase):
