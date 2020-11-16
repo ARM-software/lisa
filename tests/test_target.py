@@ -30,4 +30,4 @@ class TargetEnvCheck(TestCase):
         args = "--kind host --password 'foobar'"
         target = Target.from_cli(shlex.split(args))
 
-        self.assertNotEqual(target.os, None)
+        assert target.os is not None

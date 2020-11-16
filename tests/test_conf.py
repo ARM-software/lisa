@@ -20,6 +20,8 @@ import os
 import copy
 from unittest import TestCase
 
+import pytest
+
 from lisa.conf import MultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc, DerivedKeyDesc, DeferredValue
 from lisa.generic import TypedList
 from .utils import StorageTestCase, HOST_PLAT_INFO, HOST_TARGET_CONF
@@ -27,10 +29,11 @@ from .utils import StorageTestCase, HOST_PLAT_INFO, HOST_TARGET_CONF
 """ A test suite for the MultiSrcConf subclasses."""
 
 
-class TestMultiSrcConfBase:
+class TestMultiSrcConfBase(StorageTestCase):
     """
     A test class that exercise various APIs of MultiSrcConf
     """
+    __test__ = False
 
     def test_serialization(self):
         path = os.path.join(self.res_dir, "conf.serialized.yml")
@@ -46,27 +49,31 @@ class TestMultiSrcConfBase:
         updated_conf = copy.deepcopy(self.conf)
         # Add the same values in a new source. This is guaranteed to be valid
         updated_conf.add_src('foo', self.conf)
-        self.assertEqual(dict(updated_conf), dict(self.conf))
+        assert dict(updated_conf) == dict(self.conf)
 
     def test_disallowed_key(self):
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             self.conf['this-key-does-not-exists-and-is-not-allowed']
 
     def test_copy(self):
-        self.assertEqual(dict(self.conf), dict(copy.copy(self.conf)))
+        assert dict(self.conf) == dict(copy.copy(self.conf))
 
     def test_deepcopy(self):
-        self.assertEqual(dict(self.conf), dict(copy.deepcopy(self.conf)))
+        assert dict(self.conf) == dict(copy.deepcopy(self.conf))
 
 
-class TestPlatformInfo(StorageTestCase, TestMultiSrcConfBase):
+class TestPlatformInfo(TestMultiSrcConfBase):
+    __test__ = True
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Make copies to avoid mutating the original one
         self.conf = copy.copy(HOST_PLAT_INFO)
 
 
-class TestTargetConf(StorageTestCase, TestMultiSrcConfBase):
+class TestTargetConf(TestMultiSrcConfBase):
+    __test__ = True
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Make copies to avoid mutating the original one
@@ -90,12 +97,16 @@ INTERNAL_STRUCTURE = (
 
 
 class TestConf(MultiSrcConf):
+    __test__ = False
+
     STRUCTURE = TopLevelKeyDesc('lisa-self-test-test-conf', 'lisa self test',
         INTERNAL_STRUCTURE
     )
 
 
 class TestConfWithDefault(MultiSrcConf):
+    __test__ = False
+
     STRUCTURE = TopLevelKeyDesc('lisa-self-test-test-conf-with-default', 'lisa self test',
         INTERNAL_STRUCTURE
     )
@@ -114,12 +125,12 @@ class TestMultiSrcConf(TestMultiSrcConfBase):
 
         goal = dict(self.conf)
         goal.update(conf_src)
-        self.assertEqual(dict(conf), goal)
+        assert dict(conf) == goal
 
-        self.assertEqual(conf.resolve_src('foo'), 'mysrc')
+        assert conf.resolve_src('foo') == 'mysrc'
 
     def test_disallowed_val(self):
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             self.conf.add_src('bar', {'foo': ['a', 'b']})
 
     def test_multitypes(self):
@@ -129,20 +140,22 @@ class TestMultiSrcConf(TestMultiSrcConfBase):
         conf.add_src('mysrc', {'multitypes': None})
 
 
-class TestTestConf(StorageTestCase, TestMultiSrcConf):
+class TestTestConf(TestMultiSrcConf):
+    __test__ = True
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.conf = TestConf()
 
     def test_unset_key(self):
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             self.conf['foo']
 
     def test_derived(self):
         conf = copy.deepcopy(self.conf)
         conf.add_src('mysrc', {'foo': 1})
         # Two missing base keys
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             conf['derived']
         conf.add_src('mysrc2', {
             'bar': [1, 2],
@@ -150,7 +163,7 @@ class TestTestConf(StorageTestCase, TestMultiSrcConf):
                 'subkey': 42
             }
         })
-        self.assertEqual(conf['derived'], 46)
+        assert conf['derived'] == 46
 
     def test_derived_with_deferred_base(self):
         conf = copy.deepcopy(self.conf)
@@ -163,10 +176,10 @@ class TestTestConf(StorageTestCase, TestMultiSrcConf):
         })
         # Check that the value we get is transitively a DeferredValue
         val = conf.get_key('derived', eval_deferred=False)
-        self.assertIsInstance(val, DeferredValue)
+        assert isinstance(val, DeferredValue)
 
         # Regular access will evaluate all the bases
-        self.assertEqual(conf['derived'], 46)
+        assert conf['derived'] == 46
 
     def test_force_src_nested(self):
         conf = copy.deepcopy(self.conf)
@@ -176,28 +189,30 @@ class TestTestConf(StorageTestCase, TestMultiSrcConf):
         conf.force_src_nested({
             'bar': ['src-that-does-not-exist', 'another-one-that-does-not-exists'],
         })
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             conf['bar']
 
         # Check the first existing source is taken
         conf.force_src_nested({
             'bar': ['src-that-does-not-exist', 'mysrc2', 'mysrc', 'this-src-does-not-exist', 'mysrc'],
         })
-        self.assertEqual(conf['bar'], [6, 7])
+        assert conf['bar'] == [6, 7]
 
         # Add one source that was specified earlier, and that has priority
         conf.add_src('mysrc2', {'bar': [99, 100]})
-        self.assertEqual(conf['bar'], [99, 100])
+        assert conf['bar'] == [99, 100]
 
         # Reset the source priority, so the last source added will win
         conf.force_src('bar', None)
-        self.assertEqual(conf['bar'], [99, 100])
+        assert conf['bar'] == [99, 100]
 
         src_map = conf.get_src_map('bar')
-        self.assertEqual(list(src_map.keys()), ['mysrc2', 'mysrc'])
+        assert list(src_map.keys()) == ['mysrc2', 'mysrc']
 
 
-class TestTestConfWithDefault(StorageTestCase, TestMultiSrcConf):
+class TestTestConfWithDefault(TestMultiSrcConf):
+    __test__ = True
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.conf = TestConfWithDefault()
@@ -207,7 +222,7 @@ class TestTestConfWithDefault(StorageTestCase, TestMultiSrcConf):
         # A freshly built object still has all the level keys, even if it has
         # no leaves
         ref['sublevel'] = {}
-        self.assertEqual(dict(self.conf), ref)
+        assert dict(self.conf) == ref
 
     def test_add_src_one_key_fallback(self):
         conf = copy.deepcopy(self.conf)
@@ -217,7 +232,7 @@ class TestTestConfWithDefault(StorageTestCase, TestMultiSrcConf):
 
         conf.add_src('bar', conf_src, fallback=True)
 
-        self.assertEqual(dict(conf), dict(self.conf))
-        self.assertEqual(conf.resolve_src('bar'), 'default')
+        assert dict(conf) == dict(self.conf)
+        assert conf.resolve_src('bar') == 'default'
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

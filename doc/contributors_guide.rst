@@ -17,9 +17,7 @@ Updating the subtrees
 
 If you got a Pull Request merged in e.g. :mod:`devlib` and want to use some of
 the features you introduced in LISA, you'll need to update the subtrees. There is
-a handy LISA shell command available for that:
-
-  >>> lisa-update-subtrees
+a handy LISA shell command available for that: ``lisa-update-subtrees``.
 
 This will update every subtree in the repository with the right incantation, and
 the result can be pushed straight away to LISA as a Pull Request (or included in
@@ -56,11 +54,15 @@ self-tests, which is a mix of unit and behavioural tests.
 
 From the root of LISA, you can run those tests like so:
 
->>> python3 -m nose
->>> # You can also target specific test modules
->>> python3 -m nose tests/test_test_bundle.py
->>> # Or even specific test classes
->>> python3 -m nose tests/test_test_bundle.py:BundleCheck
+    .. code-block:: shell
+
+        python3 -m pytest
+        # You can also target specific test modules
+        python3 -m pytest tests/test_test_bundle.py
+        # Or even specific test classes
+        python3 -m pytest tests/test_test_bundle.py::BundleCheck
+        # Or even specific test method
+        python3 -m pytest tests/test_test_bundle.py::BundleCheck::test_init
 
 Writing self-tests
 ++++++++++++++++++

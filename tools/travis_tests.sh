@@ -36,8 +36,8 @@ source init_env || exit 1
 # Failing commands will make the script return with an error code
 set -e
 
-echo "Starting nosetests ..."
-python3 -m nose -vv
+echo "Starting self tests ..."
+python3 -m pytest -vv
 
 echo "Starting exekall self tests"
 exekall run "$LISA_HOME/tools/exekall/exekall/tests"
