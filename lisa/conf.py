@@ -272,25 +272,47 @@ class KeyDesc(KeyDescBase):
             checkinstance(key, val, classinfo)
 
     def get_help(self, style=None):
-        prefix = '*' if style == 'rst' else '|-'
+        base_fmt = '{prefix}{key} ({classinfo}){prefixed_help}.'
+        if style == 'rst':
+            prefix = '* '
+            key = self.name
+            fmt = base_fmt
+        elif style == 'yaml':
+            prefix = ''
+            key = ''
+            fmt = '{key}{help}\ntype: {classinfo}'
+        else:
+            prefix = '|- '
+            key = self.name
+            fmt = base_fmt
+
         if self.help:
-            joiner = '\n{} '.format(' ' * len(prefix))
+            joiner = '\n{}'.format(' ' * len(prefix))
             wrapped_lines = textwrap.wrap(self.help, width=60)
             # If more than one line, output a paragraph on its own starting on
             # a new line
-            if len(wrapped_lines) > 1:
+            multiline = len(wrapped_lines) > 1
+            if multiline:
                 wrapped_lines.insert(0, '')
-            help_ = ': ' + joiner.join(wrapped_lines)
+            help_ = joiner.join(wrapped_lines)
+            prefixed_help = (':' if multiline else ': ') + help_
         else:
             help_ = ''
-        return '{prefix} {key} ({classinfo}){help}.'.format(
+            prefixed_help = help_
+
+        return fmt.format(
             prefix=prefix,
-            key=self.name,
+            key=key,
             classinfo=' or '.join(
-                get_cls_name(key_cls, style=style)
+                get_cls_name(
+                    key_cls,
+                    style=style,
+                    fully_qualified=False,
+                )
                 for key_cls in self.classinfo
             ),
             help=help_,
+            prefixed_help=prefixed_help,
         )
 
     def pretty_format(self, v):
@@ -638,7 +660,11 @@ class TopLevelKeyDesc(LevelKeyDesc):
     This top-level key is omitted in all interfaces except for the
     configuration file, since it only reflects the configuration class
     """
-    pass
+    def get_help(self, style):
+        if style == 'yaml':
+            return self.help
+        else:
+            return super().get_help(style=style)
 
 
 class MultiSrcConfMeta(abc.ABCMeta):
@@ -646,8 +672,12 @@ class MultiSrcConfMeta(abc.ABCMeta):
     Metaclass of :class:`MultiSrcConf`.
 
     It will use the docstring of the class, using it as a ``str.format``
-    template with the ``{generated_help}`` placeholder replaced by a snippet of
-    ResStructuredText containing the list of allowed keys.
+    template with the following placeholders:
+
+        * ``{generated_help}``: snippet of ResStructuredText containing the
+          list of allowed keys.
+
+        * ``{yaml_example}``: example snippet of YAML
 
     It will also create the types specified using ``newtype`` in the
     :class:`KeyDesc`, along with a getter to expose it to ``exekall``.
@@ -664,7 +694,22 @@ class MultiSrcConfMeta(abc.ABCMeta):
                 # with Sphinx
                 style = 'rst' if is_running_sphinx() else None
                 generated_help = '\n' + new_cls.get_help(style=style)
-                new_cls.__doc__ = doc.format(generated_help=generated_help)
+                indent = '\n    '
+                try:
+                    # Not all classes support these parameters
+                    yaml_example = new_cls().to_yaml_map_str(
+                        add_placeholder=True,
+                        placeholder='_'
+                    )
+                except TypeError:
+                    yaml_example = new_cls().to_yaml_map_str()
+
+                if yaml_example:
+                    yaml_example = ':Example YAML:\n\n.. code-block:: YAML\n' + indent + yaml_example.replace('\n', indent)
+                new_cls.__doc__ = doc.format(
+                    generated_help=generated_help,
+                    yaml_example=yaml_example
+                )
 
         # Create the types for the keys that specify it, along with the getters
         # to expose the values to exekall
@@ -1716,7 +1761,8 @@ class SimpleMultiSrcConf(MultiSrcConf):
         """
 
         def format_comment(key_desc):
-            comment = key_desc.help
+            comment = key_desc.get_help(style='yaml')
+
             if not comment:
                 return comment
             else:
