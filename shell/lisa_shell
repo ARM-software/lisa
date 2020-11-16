@@ -191,7 +191,7 @@ function _lisa-install-nbextensions {
     if which node &>/dev/null; then
         echo
         echo "Installing jupyter lab extensions..."
-        jupyter labextension install                    \
+        jupyter labextension install --minimize=False   \
             @jupyter-widgets/jupyterlab-manager         \
             jupyter-matplotlib
         return
