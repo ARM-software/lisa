@@ -41,12 +41,49 @@ def get_callable_set(module_set, verbose=False):
     }
     callable_set = set()
     visited_obj_set = set()
-    for module in get_recursive_module_set(module_set, package_set):
-        callable_set.update(_get_callable_set(
-            module,
-            visited_obj_set,
-            verbose=verbose,
-        ))
+    visited_module_set = set()
+
+    def get(module_set):
+        new_module_set = set()
+        callable_set = set()
+        for module in get_recursive_module_set(module_set, package_set, visited_module_set):
+            visited_module_set.add(module)
+
+            callable_set_ = _get_callable_set(
+                module,
+                visited_obj_set,
+                verbose=verbose,
+            )
+
+            def is_class_attr(obj):
+                try:
+                    name = obj.__qualname__
+                except AttributeError:
+                    return False
+                else:
+                    return '.' in name and '<locals>' not in name
+
+
+            class_attr = {
+                callable_
+                for callable_ in callable_set_
+                if is_class_attr(callable_)
+            }
+
+            # We might have included callables that are defined in another
+            # module via inherited methods, so recurse in these modules too
+            new_module_set.update(
+                map(inspect.getmodule, class_attr)
+            )
+            callable_set.update(callable_set_)
+
+        new_module_set.discard(None)
+        new_module_set -= visited_module_set
+        return (callable_set, new_module_set)
+
+    while module_set:
+        callable_set_, module_set = get(module_set)
+        callable_set.update(callable_set_)
 
     return callable_set
 

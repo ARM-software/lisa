@@ -921,37 +921,42 @@ def get_subclasses(cls):
     return subcls_set
 
 
-def get_recursive_module_set(module_set, package_set):
+def get_recursive_module_set(module_set, package_set, visited_module_set=None):
     """
     Retrieve the set of all modules recursively imported from the modules in
     ``module_set`` if they are (indirectly) part of one of the packages named
     in ``package_set``.
     """
+    visited_modules = set(visited_module_set) if visited_module_set else set()
+
+    def select_module(module):
+        # We only recurse into modules that are part of the given set
+        # of packages
+        return any(
+            # Either a submodule of one of the packages or one of the
+            # packages themselves
+            module.__name__.split('.', 1)[0] == package
+            for package in package_set
+        )
+
+    def _get_recursive_module_set(modules, module_set, package_set):
+        for module in modules:
+            if not isinstance(module, types.ModuleType):
+                continue
+
+            if module in visited_modules:
+                continue
+            else:
+                visited_modules.add(module)
+
+            if select_module(module):
+                module_set.add(module)
+                _get_recursive_module_set(vars(module).values(), module_set, package_set)
 
     recursive_module_set = set()
-    for module in module_set:
-        _get_recursive_module_set(module, recursive_module_set, package_set)
+    _get_recursive_module_set(module_set, recursive_module_set, package_set)
 
     return recursive_module_set
-
-
-def _get_recursive_module_set(module, module_set, package_set):
-    if module in module_set:
-        return
-    module_set.add(module)
-    for imported_module in vars(module).values():
-        if (
-            isinstance(imported_module, types.ModuleType)
-            # We only recurse into modules that are part of the given set
-            # of packages
-            and any(
-                # Either a submodule of one of the packages or one of the
-                # packages themselves
-                imported_module.__name__.split('.', 1)[0] == package
-                for package in package_set
-            )
-        ):
-            _get_recursive_module_set(imported_module, module_set, package_set)
 
 
 @contextlib.contextmanager
