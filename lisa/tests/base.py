@@ -565,6 +565,7 @@ class TestBundleMeta(abc.ABCMeta):
             @update_wrapper_doc(
                 wrapped_test,
                 added_by=func,
+                sig_from=func,
                 description=textwrap.dedent(
                     """
                     The returned ``ResultBundle.result`` will be changed to
@@ -1462,7 +1463,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
 
     @TestBundle.add_undecided_filter
     @TasksAnalysis.df_tasks_runtime.used_events
-    def test_noisy_tasks(self, noise_threshold_pct=None, noise_threshold_ms=None):
+    def test_noisy_tasks(self, *, noise_threshold_pct=None, noise_threshold_ms=None):
         """
         Test that no non-rtapp ("noisy") task ran for longer than the specified thresholds
 
