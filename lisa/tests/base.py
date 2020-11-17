@@ -1028,7 +1028,8 @@ class DmesgTestBundle(TestBundle):
     }
     """
     Mapping of canned patterns to avoid repetition while defining
-    :attr:`DMESG_IGNORED_PATTERNS` in subclasses.
+    :attr:`lisa.tests.base.DmesgTestBundle.DMESG_IGNORED_PATTERNS` in
+    subclasses.
     """
 
     DMESG_IGNORED_PATTERNS = [
@@ -1070,8 +1071,9 @@ class DmesgTestBundle(TestBundle):
         :type facility: str or None
 
         :param ignored_patterns: List of regexes to ignore some messages. The
-            pattern list is combined with :attr:`DMESG_IGNORED_PATTERNS` class
-            attribute.
+            pattern list is combined with
+            :attr:`~lisa.tests.base.DmesgTestBundle.DMESG_IGNORED_PATTERNS`
+            class attribute.
         :type ignored_patterns: list or None
         """
         levels = DmesgCollector.LOG_LEVELS
