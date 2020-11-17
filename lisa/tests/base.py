@@ -1006,7 +1006,7 @@ class DmesgTestConf(SimpleMultiSrcConf):
     {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('dmesg-test-conf', 'Dmesg test configuration', (
-        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries content to be whitelisted', [TypedList[str]]),
+        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries *content* to be whitelisted (see :class:`devlib.collector.dmesg.KernelLogEntry` for how the message is split)', [TypedList[str]]),
     ))
 
 
