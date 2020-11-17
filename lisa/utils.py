@@ -1117,6 +1117,42 @@ def get_short_doc(obj):
     return docstring
 
 
+def optional_kwargs(func):
+    """
+    Decorator used to allow another decorator to both take keyword parameters
+    when called, and none when not called::
+
+        @optional_kwargs
+        def decorator(func, xxx=42):
+            ...
+
+        # Both of these work:
+
+        @decorator
+        def foo(...):
+           ...
+
+        @decorator(xxx=42)
+        def foo(...):
+           ...
+
+    .. note:: This only works for keyword parameters.
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if not kwargs and len(args) == 1 and callable(args[0]):
+            return func(args[0])
+        else:
+            if args:
+                raise TypeError('Positional parameters are not allowed when applying {} decorator, please use keyword arguments'.format(
+                    func.__qualname__
+                ))
+            return functools.partial(func, **kwargs)
+
+    return wrapper
+
+
 def update_wrapper_doc(func, added_by=None, description=None, remove_params=None, include_kwargs=False):
     """
     Equivalent to :func:`functools.wraps` that updates the signature by taking
