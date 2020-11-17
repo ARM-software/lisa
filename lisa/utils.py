@@ -1128,7 +1128,7 @@ def update_wrapper_doc(func, added_by=None, description=None, remove_params=None
 
     :param added_by: Add some kind of reference to give a sense of where the
         new behaviour of the wraps function comes from.
-    :type added_by: str or None
+    :type added_by: collections.abc.Callable or str or None
 
     :param description: Extra description output in the docstring.
     :type description: str or None
@@ -1200,9 +1200,19 @@ def update_wrapper_doc(func, added_by=None, description=None, remove_params=None
             parameters=f_params + added_params + f_var_keyword_params,
         )
 
+        if added_by:
+            if callable(added_by):
+                added_by_ = get_sphinx_name(added_by, style='rst')
+            else:
+                added_by_ = added_by
+
+            added_by_ = '**Added by** {}:\n'.format(added_by_)
+        else:
+            added_by_ = ''
+
         # Replace the one-liner f description
         extra_doc = "\n\n{added_by}{description}".format(
-            added_by='**Added by** {}:\n'.format(added_by) if added_by else '',
+            added_by=added_by_,
             description=description if description else '',
         )
 
