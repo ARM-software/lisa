@@ -1460,6 +1460,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         )
         return trace.get_view(self.trace_window(trace), clear_base_cache=True)
 
+    @TestBundle.add_undecided_filter
     @TasksAnalysis.df_tasks_runtime.used_events
     def test_noisy_tasks(self, noise_threshold_pct=None, noise_threshold_ms=None):
         """
@@ -1537,50 +1538,6 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         res.add_metric("noisiest task", metric)
 
         return res
-
-    @classmethod
-    #pylint: disable=unused-argument
-    def check_noisy_tasks(cls, noise_threshold_pct=None, noise_threshold_ms=None):
-        """
-        Decorator that applies :meth:`test_noisy_tasks` to the trace of the
-        :class:`TestBundle` returned by the underlying method. The :class:`Result`
-        will be changed to :attr:`Result.UNDECIDED` if that test fails.
-
-        We also expose :meth:`test_noisy_tasks` parameters to the decorated
-        function.
-        """
-        def decorator(func):
-            @update_wrapper_doc(
-                func,
-                added_by=':meth:`lisa.tests.base.RTATestBundle.test_noisy_tasks`',
-                description=textwrap.dedent(
-                    """
-                The returned ``ResultBundle.result`` will be changed to
-                :attr:`~lisa.tests.base.Result.UNDECIDED` if the environment was
-                too noisy:
-                {}
-                """).strip().format(
-                    inspect.getdoc(cls.test_noisy_tasks)
-                )
-            )
-            @cls.test_noisy_tasks.used_events
-            def wrapper(self, *args,
-                        noise_threshold_pct=noise_threshold_pct,
-                        noise_threshold_ms=noise_threshold_ms,
-                        **kwargs):
-                res = func(self, *args, **kwargs)
-
-                noise_res = self.test_noisy_tasks(
-                    noise_threshold_pct, noise_threshold_ms)
-                res.metrics.update(noise_res.metrics)
-
-                if not noise_res:
-                    res.result = Result.UNDECIDED
-
-                return res
-
-            return wrapper
-        return decorator
 
     @classmethod
     def unscaled_utilization(cls, plat_info, cpu, utilization_pct):

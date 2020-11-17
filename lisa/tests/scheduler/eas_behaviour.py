@@ -356,7 +356,7 @@ class EASBehaviour(RTATestBundle):
 
     @_get_expected_power_df.used_events
     @_get_estimated_power_df.used_events
-    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
+    @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_task_placement(self, energy_est_threshold_pct=5,
             nrg_model: EnergyModel = None, capacity_margin_pct=20) -> ResultBundle:
         """
