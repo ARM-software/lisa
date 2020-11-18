@@ -95,8 +95,8 @@ def diff_sysfs_dirs(before, after, result):  # pylint: disable=R0914
                         logger.debug('Token length mismatch in {} on line {}'.format(bfile, i))
                         dfh.write('xxx ' + bline)
                         continue
-                    if ((len([c for c in bchunks if c.strip()]) == len([c for c in achunks if c.strip()]) == 2) and
-                            (bchunks[0] == achunks[0])):
+                    if ((len([c for c in bchunks if c.strip()]) == len([c for c in achunks if c.strip()]) == 2)
+                            and (bchunks[0] == achunks[0])):
                         # if there are only two columns and the first column is the
                         # same, assume it's a "header" column and do not diff it.
                         dchunks = [bchunks[0]] + [diff_tokens(b, a) for b, a in zip(bchunks[1:], achunks[1:])]

@@ -201,16 +201,16 @@ class DelayInstrument(Instrument):
             reading = self.target.read_int(self.temperature_file)
 
     def validate(self):
-        if (self.temperature_between_specs is not None and
-                self.fixed_between_specs is not None):
+        if (self.temperature_between_specs is not None
+                and self.fixed_between_specs is not None):
             raise ConfigError('Both fixed delay and thermal threshold specified for specs.')
 
-        if (self.temperature_between_jobs is not None and
-                self.fixed_between_jobs is not None):
+        if (self.temperature_between_jobs is not None
+                and self.fixed_between_jobs is not None):
             raise ConfigError('Both fixed delay and thermal threshold specified for jobs.')
 
-        if (self.temperature_before_start is not None and
-                self.fixed_before_start is not None):
+        if (self.temperature_before_start is not None
+                and self.fixed_before_start is not None):
             raise ConfigError('Both fixed delay and thermal threshold specified before start.')
 
         if not any([self.temperature_between_specs, self.fixed_between_specs,

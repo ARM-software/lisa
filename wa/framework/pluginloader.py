@@ -35,6 +35,7 @@ class __LoaderWrapper(object):
     def reset(self):
         # These imports cannot be done at top level, because of
         # sys.modules manipulation below
+        # pylint: disable=import-outside-toplevel
         from wa.framework.plugin import PluginLoader
         from wa.framework.configuration.core import settings
         self._loader = PluginLoader(settings.plugin_packages,

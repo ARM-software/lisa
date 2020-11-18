@@ -65,7 +65,6 @@ class SubCommand(object):
         options to the command's parser). ``context`` is always ``None``.
 
         """
-        pass
 
     def execute(self, state, args):
         """

@@ -45,7 +45,7 @@ def get_terminal_size():
 
 
 def _get_terminal_size_windows():
-    # pylint: disable=unused-variable,redefined-outer-name,too-many-locals
+    # pylint: disable=unused-variable,redefined-outer-name,too-many-locals, import-outside-toplevel
     try:
         from ctypes import windll, create_string_buffer
         # stdin handle is -10
@@ -77,6 +77,7 @@ def _get_terminal_size_tput():
 
 
 def _get_terminal_size_linux():
+    # pylint: disable=import-outside-toplevel
     def ioctl_GWINSZ(fd):
         try:
             import fcntl

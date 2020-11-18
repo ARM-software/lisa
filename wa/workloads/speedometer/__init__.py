@@ -131,6 +131,12 @@ class Speedometer(Workload):
                 "Device must be rooted for the speedometer workload currently"
             )
 
+        if not self.target.package_is_installed(self.chrome_package):
+            raise WorkloadError(
+                "Could not find '{}' on the device. Please ensure it is installed, "
+                "or specify the correct package name using 'chrome_package' "
+                "parameter.".format(self.chrome_package))
+
         if self.target.adb_server is not None:
             raise WorkloadError(
                 "Workload does not support the adb_server parameter, due to the webpage "
@@ -259,8 +265,8 @@ class Speedometer(Workload):
         while not benchmark_complete:
             if self.target_file_was_created(local_storage):
                 if (
-                    iterations % (find_period_s // sleep_period_s) == 0 or
-                    not local_storage_seen
+                    iterations % (find_period_s // sleep_period_s) == 0
+                    or not local_storage_seen
                 ):
                     # There's a chance we don't see the localstorage file immediately, and there's a
                     # chance more of them could be created later, so check for those files every ~30

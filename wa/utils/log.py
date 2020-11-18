@@ -78,8 +78,8 @@ def init(verbosity=logging.INFO, color=True, indent_with=4,
         _console_handler.setFormatter(formatter(regular_fmt))
     root_logger.addHandler(_console_handler)
 
-    buffer_capacity = os.getenv('WA_LOG_BUFFER_CAPACITY',
-                                DEFAULT_INIT_BUFFER_CAPACITY)
+    buffer_capacity = int(os.getenv('WA_LOG_BUFFER_CAPACITY',
+                                    str(DEFAULT_INIT_BUFFER_CAPACITY)))
     _init_handler = InitHandler(buffer_capacity)
     _init_handler.setLevel(logging.DEBUG)
     root_logger.addHandler(_init_handler)

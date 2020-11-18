@@ -58,6 +58,14 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     public void clearPopups() throws Exception {
+
+        UiObject agreement =
+            mDevice.findObject(new UiSelector().textContains("NEXT"));
+        agreement.waitForExists(5000);
+        if (agreement.exists()) {
+            agreement.click();
+        }
+
         UiSelector selector = new UiSelector();
 
         UiObject cancel = mDevice.findObject(selector.textContains("CANCEL")
@@ -66,8 +74,6 @@ public class UiAutomation extends BaseUiAutomation {
         if (cancel.exists()){
             cancel.click();
         }
-        //waitObject(cancel);
-        //cancel.click();
     }
 
     public void downloadAssets() throws Exception {
@@ -106,7 +112,7 @@ public class UiAutomation extends BaseUiAutomation {
             .getChild(selector.index(4))
             .getChild(selector.resourceId("com.antutu.aibenchmark:id/textViewAIModelName"));
         //Log the scores and models
-        UiObject totalScore = 
+        UiObject totalScore =
             mDevice.findObject(selector.resourceId("com.antutu.aibenchmark:id/textViewTotalScore"));
         Log.d(TAG, "Overall Score " + totalScore.getText());
         UiObject imageTotal =

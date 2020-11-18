@@ -166,8 +166,8 @@ class AndroidAssistant(object):
         else:
             parser = LogcatParser()
             for event in parser.parse(outfile):
-                if (event.tag == self._logcat_marker_tag and
-                        event.message == self._logcat_marker_msg):
+                if (event.tag == self._logcat_marker_tag
+                        and event.message == self._logcat_marker_msg):
                     return True
 
             return False
@@ -275,8 +275,8 @@ class LogcatPoller(threading.Thread):
         counter = self._start_marker
         for event in parser.parse(outfile):
             message = self._logcat_marker_msg.split(':')[0]
-            if not (event.tag == self._logcat_marker_tag and
-                    event.message.split(':')[0] == message):
+            if not (event.tag == self._logcat_marker_tag
+                    and event.message.split(':')[0] == message):
                 continue
 
             number = int(event.message.split(':')[1])

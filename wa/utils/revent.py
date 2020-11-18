@@ -155,8 +155,8 @@ class ReventRecording(object):
             else:  # not streaming
                 if not self._events:
                     self._duration = 0
-                self._duration = (self._events[-1].time -
-                                  self._events[0].time).total_seconds()
+                self._duration = (self._events[-1].time
+                                  - self._events[0].time).total_seconds()
         return self._duration
 
     @property
@@ -188,7 +188,7 @@ class ReventRecording(object):
             self._parse_header_and_devices(self.fh)
             self._events_start = self.fh.tell()
             if not self.stream:
-                self._events = [e for e in self._iter_events()]
+                self._events = list(self._iter_events())
         finally:
             if self._close_when_done:
                 self.close()

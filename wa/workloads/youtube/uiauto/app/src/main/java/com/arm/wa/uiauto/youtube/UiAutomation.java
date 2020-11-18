@@ -122,7 +122,7 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     public void disableAutoplay() throws Exception {
-        UiObject moreoptions = 
+        UiObject moreoptions =
             mDevice.findObject(new UiSelector().descriptionContains("More options"));
         if (moreoptions.exists()) {
             moreoptions.click();
@@ -151,6 +151,14 @@ public class UiAutomation extends BaseUiAutomation {
         }
     }
 
+    private void playFirstVideo() throws Exception {
+        UiObject resultsList =
+                mDevice.findObject(new UiSelector().resourceId(packageID + "results"));
+        UiObject firstVideo =
+                resultsList.getFromParent(new UiSelector().clickable(true));
+        firstVideo.clickAndWaitForNewWindow();
+    }
+
     public void testPlayVideo(String source, String searchTerm) throws Exception {
         String testTag = "play";
         ActionLogger logger = new ActionLogger(testTag + "_" + source, parameters);
@@ -162,16 +170,13 @@ public class UiAutomation extends BaseUiAutomation {
             mDevice.pressEnter();
             // If a video exists whose title contains the exact search term, then play it
             // Otherwise click the first video in the search results
-            UiObject thumbnail =
-                mDevice.findObject(new UiSelector().resourceId(packageID + "thumbnail"));
-            UiObject matchedVideo =
-                thumbnail.getFromParent(new UiSelector().textContains(searchTerm));
+            UiObject matchedVideo = mDevice.findObject(new UiSelector().descriptionContains(searchTerm));
 
             logger.start();
             if (matchedVideo.exists()) {
                 matchedVideo.clickAndWaitForNewWindow();
             } else {
-                thumbnail.clickAndWaitForNewWindow();
+                playFirstVideo();
             }
             logger.stop();
 
@@ -180,14 +185,15 @@ public class UiAutomation extends BaseUiAutomation {
             clickUiObject(BY_TEXT, "My Videos", true);
 
             logger.start();
-            clickUiObject(BY_ID, packageID + "thumbnail", true);
+            playFirstVideo();
             logger.stop();
 
         } else if (SOURCE_TRENDING.equalsIgnoreCase(source)) {
-            clickUiObject(BY_DESC, "Trending");
+            clickUiObject(BY_DESC, "Explore", true);
+            clickUiObject(BY_DESC, "Trending", true);
 
             logger.start();
-            clickUiObject(BY_ID, packageID + "thumbnail", true);
+            playFirstVideo();
             logger.stop();
 
         } else { // homepage videos
@@ -198,7 +204,7 @@ public class UiAutomation extends BaseUiAutomation {
             }
 
             logger.start();
-            clickUiObject(BY_ID, packageID + "thumbnail", true);
+            playFirstVideo();
             logger.stop();
 
         }

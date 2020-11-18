@@ -84,9 +84,9 @@ class PluginCache(object):
                   'defined in a config file, move the entry content into the top level'
             raise ConfigError(msg.format((plugin_name)))
 
-        if (not self.loader.has_plugin(plugin_name) and
-                plugin_name not in self.targets and
-                plugin_name not in GENERIC_CONFIGS):
+        if (not self.loader.has_plugin(plugin_name)
+                and plugin_name not in self.targets
+                and plugin_name not in GENERIC_CONFIGS):
             msg = 'configuration provided for unknown plugin "{}"'
             raise ConfigError(msg.format(plugin_name))
 
@@ -95,8 +95,8 @@ class PluginCache(object):
             raise ConfigError(msg.format(plugin_name, repr(values), type(values)))
 
         for name, value in values.items():
-            if (plugin_name not in GENERIC_CONFIGS and
-                    name not in self.get_plugin_parameters(plugin_name)):
+            if (plugin_name not in GENERIC_CONFIGS
+                    and name not in self.get_plugin_parameters(plugin_name)):
                 msg = "'{}' is not a valid parameter for '{}'"
                 raise ConfigError(msg.format(name, plugin_name))
 
