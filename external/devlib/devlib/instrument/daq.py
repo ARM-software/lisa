@@ -48,7 +48,7 @@ class DaqInstrument(Instrument):
                  sample_rate_hz=10000,
                  channel_map=(0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23),
                  keep_raw=False,
-                 time_as_clock_monotonic=True
+                 time_as_clock_boottime=True
                  ):
         # pylint: disable=no-member
         super(DaqInstrument, self).__init__(target)
@@ -56,7 +56,7 @@ class DaqInstrument(Instrument):
         self._need_reset = True
         self._raw_files = []
         self.tempdir = None
-        self.target_monotonic_clock_at_start = 0.0
+        self.target_boottime_clock_at_start = 0.0
         if DaqClient is None:
             raise HostError('Could not import "daqpower": {}'.format(import_error_mesg))
         if labels is None:
@@ -80,29 +80,29 @@ class DaqInstrument(Instrument):
                                                  channel_map=channel_map,
                                                  labels=labels)
         self.sample_rate_hz = sample_rate_hz
-        self.time_as_clock_monotonic = time_as_clock_monotonic
+        self.time_as_clock_boottime = time_as_clock_boottime
 
         self.add_channel('Time', 'time')
         for label in labels:
             for kind in ['power', 'voltage']:
                 self.add_channel(label, kind)
 
-        if time_as_clock_monotonic:
+        if time_as_clock_boottime:
             host_path = os.path.join(PACKAGE_BIN_DIRECTORY, self.target.abi,
-                                     'get_clock_monotonic')
-            self.clock_monotonic_cmd = self.target.install_if_needed(host_path,
-                                                                     search_system_binaries=False)
+                                     'get_clock_boottime')
+            self.clock_boottime_cmd = self.target.install_if_needed(host_path,
+                                                                    search_system_binaries=False)
 
-    def calculate_monotonic_offset(self):
+    def calculate_boottime_offset(self):
         time_before = time.time()
-        out = self.target.execute(self.clock_monotonic_cmd)
+        out = self.target.execute(self.clock_boottime_cmd)
         time_after = time.time()
 
-        remote_clock_monotonic = float(out)
+        remote_clock_boottime = float(out)
         propagation_delay = (time_after - time_before) / 2
-        monotonic_at_end = remote_clock_monotonic + propagation_delay
+        boottime_at_end = remote_clock_boottime + propagation_delay
 
-        return time_after - monotonic_at_end
+        return time_after - boottime_at_end
 
     def reset(self, sites=None, kinds=None, channels=None):
         super(DaqInstrument, self).reset(sites, kinds, channels)
@@ -116,15 +116,15 @@ class DaqInstrument(Instrument):
             # Preserve channel order
             self.reset(channels=self.channels.keys())
 
-        if self.time_as_clock_monotonic:
-            target_monotonic_offset = self.calculate_monotonic_offset()
+        if self.time_as_clock_boottime:
+            target_boottime_offset = self.calculate_boottime_offset()
             time_start = time.time()
 
         self.daq_client.start()
 
-        if self.time_as_clock_monotonic:
+        if self.time_as_clock_boottime:
             time_end = time.time()
-            self.target_monotonic_clock_at_start = (time_start + time_end) / 2 - target_monotonic_offset
+            self.target_boottime_clock_at_start = (time_start + time_end) / 2 - target_boottime_offset
 
     def stop(self):
         self.daq_client.stop()
@@ -169,7 +169,7 @@ class DaqInstrument(Instrument):
                     yield raw_row
                     _read_rows.row_time_s += 1.0 / self.sample_rate_hz
 
-            _read_rows.row_time_s = self.target_monotonic_clock_at_start
+            _read_rows.row_time_s = self.target_boottime_clock_at_start
 
             with csvwriter(outfile) as writer:
                 field_names = [c.label for c in self.active_channels]

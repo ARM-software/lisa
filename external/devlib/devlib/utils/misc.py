@@ -155,9 +155,22 @@ check_output_logger = logging.getLogger('check_output')
 check_output_lock = threading.Lock()
 
 
-def check_output(command, timeout=None, ignore=None, inputtext=None, **kwargs):
-    """This is a version of subprocess.check_output that adds a timeout parameter to kill
-    the subprocess if it does not return within the specified time."""
+def get_subprocess(command, **kwargs):
+    if 'stdout' in kwargs:
+        raise ValueError('stdout argument not allowed, it will be overridden.')
+    with check_output_lock:
+        process = subprocess.Popen(command,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE,
+                                   stdin=subprocess.PIPE,
+                                   preexec_fn=preexec_function,
+                                   **kwargs)
+    return process
+
+
+def check_subprocess_output(process, timeout=None, ignore=None, inputtext=None):
+    output = None
+    error = None
     # pylint: disable=too-many-branches
     if ignore is None:
         ignore = []
@@ -166,19 +179,7 @@ def check_output(command, timeout=None, ignore=None, inputtext=None, **kwargs):
     elif not isinstance(ignore, list) and ignore != 'all':
         message = 'Invalid value for ignore parameter: "{}"; must be an int or a list'
         raise ValueError(message.format(ignore))
-    if 'stdout' in kwargs:
-        raise ValueError('stdout argument not allowed, it will be overridden.')
 
-    with check_output_lock:
-        process = subprocess.Popen(command,
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE,
-                                   stdin=subprocess.PIPE,
-                                   preexec_fn=preexec_function,
-                                   **kwargs)
-
-    output = None
-    error = None
     try:
         output, error = process.communicate(inputtext, timeout=timeout)
     except subprocess.TimeoutExpired as e:
@@ -188,15 +189,23 @@ def check_output(command, timeout=None, ignore=None, inputtext=None, **kwargs):
 
     # Currently errors=replace is needed as 0x8c throws an error
     output = output.decode(sys.stdout.encoding or 'utf-8', "replace") if output else ''
-    error = error.decode(sys.stderr.encoding or 'utf-8', "replace") if output else ''
+    error = error.decode(sys.stderr.encoding or 'utf-8', "replace") if error else ''
 
     if timeout_expired:
-        raise TimeoutError(command, output='\n'.join([output, error]))
+        raise TimeoutError(process.args, output='\n'.join([output, error]))
 
     retcode = process.poll()
     if retcode and ignore != 'all' and retcode not in ignore:
-        raise subprocess.CalledProcessError(retcode, command, output='\n'.join([output, error]))
+        raise subprocess.CalledProcessError(retcode, process.args, output='\n'.join([output, error]))
+
     return output, error
+
+
+def check_output(command, timeout=None, ignore=None, inputtext=None, **kwargs):
+    """This is a version of subprocess.check_output that adds a timeout parameter to kill
+    the subprocess if it does not return within the specified time."""
+    process = get_subprocess(command, **kwargs)
+    return check_subprocess_output(process, timeout=timeout, ignore=ignore, inputtext=inputtext)
 
 
 def walk_modules(path):
@@ -486,7 +495,7 @@ def escape_spaces(text):
 
     .. note:: :func:`pipes.quote` should be favored where possible.
     """
-    return text.replace(' ', '\ ')
+    return text.replace(' ', '\\ ')
 
 
 def getch(count=1):

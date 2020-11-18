@@ -18,7 +18,7 @@ import logging
 from devlib.utils.types import numeric
 
 
-GEM5STATS_FIELD_REGEX = re.compile("^(?P<key>[^- ]\S*) +(?P<value>[^#]+).+$")
+GEM5STATS_FIELD_REGEX = re.compile(r"^(?P<key>[^- ]\S*) +(?P<value>[^#]+).+$")
 GEM5STATS_DUMP_HEAD = '---------- Begin Simulation Statistics ----------'
 GEM5STATS_DUMP_TAIL = '---------- End Simulation Statistics   ----------'
 GEM5STATS_ROI_NUMBER = 8
