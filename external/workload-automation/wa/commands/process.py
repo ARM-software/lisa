@@ -78,7 +78,7 @@ class ProcessCommand(Command):
         if not args.recursive:
             output_list = [RunOutput(process_directory)]
         else:
-            output_list = [output for output in discover_wa_outputs(process_directory)]
+            output_list = list(discover_wa_outputs(process_directory))
 
         pc = ProcessContext()
         for run_output in output_list:

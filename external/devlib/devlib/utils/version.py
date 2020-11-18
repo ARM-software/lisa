@@ -21,7 +21,7 @@ from subprocess import Popen, PIPE
 
 VersionTuple = namedtuple('Version', ['major', 'minor', 'revision', 'dev'])
 
-version = VersionTuple(1, 2, 1, 'dev3')
+version = VersionTuple(1, 2, 1, 'dev5')
 
 
 def get_devlib_version():

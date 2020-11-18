@@ -343,7 +343,7 @@ def _read_pod(fh, fmt=None):
         fmt = os.path.splitext(fh.name)[1].lower().strip('.')
         if fmt == '':
             # Special case of no given file extension
-            message = ("Could not determine format " +
+            message = ("Could not determine format "
                        "from file extension for \"{}\". "
                        "Please specify it or modify the fmt parameter.")
             raise ValueError(message.format(getattr(fh, 'name', '<none>')))

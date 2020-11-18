@@ -128,8 +128,8 @@ class ExecutionContext(object):
         self.run_state.status = status
         self.run_output.status = status
         self.run_output.info.end_time = datetime.utcnow()
-        self.run_output.info.duration = (self.run_output.info.end_time -
-                                         self.run_output.info.start_time)
+        self.run_output.info.duration = (self.run_output.info.end_time
+                                         - self.run_output.info.start_time)
         self.write_output()
 
     def finalize(self):
@@ -337,7 +337,7 @@ class Executor(object):
     returning.
 
     The initial context set up involves combining configuration from various
-    sources, loading of requided workloads, loading and installation of
+    sources, loading of required workloads, loading and installation of
     instruments and output processors, etc. Static validation of the combined
     configuration is also performed.
 
@@ -353,7 +353,7 @@ class Executor(object):
     def execute(self, config_manager, output):
         """
         Execute the run specified by an agenda. Optionally, selectors may be
-        used to only selecute a subset of the specified agenda.
+        used to only execute a subset of the specified agenda.
 
         Params::
 
@@ -449,7 +449,7 @@ class Executor(object):
         for status in reversed(Status.levels):
             if status in counter:
                 parts.append('{} {}'.format(counter[status], status))
-        self.logger.info(status_summary + ', '.join(parts))
+        self.logger.info('{}{}'.format(status_summary, ', '.join(parts)))
 
         self.logger.info('Results can be found in {}'.format(output.basepath))
 

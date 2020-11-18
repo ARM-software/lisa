@@ -91,4 +91,4 @@ class Chrome(ApkUiautoWorkload):
         owner = self.target.execute("{} stat -c '%u' {}".format(self.target.busybox, offline_pages), as_root=True).strip()
         self.target.execute('{} tar -xvf {} -C {}'.format(self.target.busybox, archives_src, archives_dst), as_root=True)
         self.target.execute('{} cp {} {}'.format(self.target.busybox, metadata_src, metadata_dst), as_root=True)
-        self.target.execute('{} chown -R {}:{} {}'.format(self.target.busybox, owner, owner, offline_pages), as_root=True)
+        self.target.execute('{0} chown -R {1}:{1} {2}'.format(self.target.busybox, owner, offline_pages), as_root=True)

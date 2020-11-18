@@ -257,7 +257,7 @@ class GBScoreCalculator(object):
         'memory': 0.1926489,
         'stream': 0.1054738,
     }
-    # pylint: disable=C0326
+
     workloads = [
         #          ID    Name        Power Mac ST  Power Mac MT
         GBWorkload(101, 'Blowfish',         43971,   40979),  # NOQA

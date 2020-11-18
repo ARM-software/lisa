@@ -50,6 +50,7 @@ def init_user_directory(overwrite_existing=False):  # pylint: disable=R0914
         # If running with sudo on POSIX, change the ownership to the real user.
         real_user = os.getenv('SUDO_USER')
         if real_user:
+            # pylint: disable=import-outside-toplevel
             import pwd  # done here as module won't import on win32
             user_entry = pwd.getpwnam(real_user)
             uid, gid = user_entry.pw_uid, user_entry.pw_gid

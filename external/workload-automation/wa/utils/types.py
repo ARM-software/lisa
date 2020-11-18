@@ -226,7 +226,7 @@ def module_name_set(l):  # noqa: E741
     modules = set()
     for m in l:
         if m and isinstance(m, dict):
-            modules.update({k for k in m.keys()})
+            modules.update(m.keys())
         else:
             modules.add(m)
     return modules
@@ -374,9 +374,8 @@ class prioritylist(object):
         else:
             raise ValueError('Invalid index {}'.format(index))
         current_global_offset = 0
-        priority_counts = {priority: count for (priority, count) in
-                           zip(self.priorities, [len(self.elements[p])
-                                                 for p in self.priorities])}
+        priority_counts = dict(zip(self.priorities, [len(self.elements[p])
+                                                     for p in self.priorities]))
         for priority in self.priorities:
             if not index_range:
                 break
@@ -462,7 +461,7 @@ class toggle_set(set):
         """
         returns a list of enabled items.
         """
-        return set([item for item in self if not item.startswith('~')])
+        return {item for item in self if not item.startswith('~')}
 
     def conflicts_with(self, other):
         """
@@ -581,7 +580,7 @@ class level(object):
         return repr(self)
 
     def __str__(self):
-        return self.name
+        return str(self.name)
 
     def __repr__(self):
         return '{}({})'.format(self.name, self.value)
@@ -806,7 +805,7 @@ class ParameterDict(dict):
 
     def update(self, *args, **kwargs):
         for d in list(args) + [kwargs]:
-            for k, v in d:
+            for k, v in d.items():
                 self[k] = v
 
 

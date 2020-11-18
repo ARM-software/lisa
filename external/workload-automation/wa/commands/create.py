@@ -106,8 +106,8 @@ class CreateDatabaseSubcommand(SubCommand):
     def execute(self, state, args):  # pylint: disable=too-many-branches
         if not psycopg2:
             raise CommandError(
-                'The module psycopg2 is required for the wa ' +
-                'create database command.')
+                'The module psycopg2 is required for the wa '
+                + 'create database command.')
 
         if args.dbname == 'postgres':
             raise ValueError('Databasename to create cannot be postgres.')
@@ -131,8 +131,8 @@ class CreateDatabaseSubcommand(SubCommand):
             config = yaml.load(config_file)
             if 'postgres' in config and not args.force_update_config:
                 raise CommandError(
-                    "The entry 'postgres' already exists in the config file. " +
-                    "Please specify the -F flag to force an update.")
+                    "The entry 'postgres' already exists in the config file. "
+                    + "Please specify the -F flag to force an update.")
 
         possible_connection_errors = [
             (
@@ -261,8 +261,8 @@ class CreateDatabaseSubcommand(SubCommand):
         else:
             if not self.force:
                 raise CommandError(
-                    "Database {} already exists. ".format(self.dbname) +
-                    "Please specify the -f flag to create it from afresh."
+                    "Database {} already exists. ".format(self.dbname)
+                    + "Please specify the -f flag to create it from afresh."
                 )
 
     def _create_database_postgres(self):
@@ -400,14 +400,14 @@ class CreateWorkloadSubcommand(SubCommand):
         self.parser.add_argument('name', metavar='NAME',
                                  help='Name of the workload to be created')
         self.parser.add_argument('-p', '--path', metavar='PATH', default=None,
-                                 help='The location at which the workload will be created. If not specified, ' +
-                                      'this defaults to "~/.workload_automation/plugins".')
+                                 help='The location at which the workload will be created. If not specified, '
+                                      + 'this defaults to "~/.workload_automation/plugins".')
         self.parser.add_argument('-f', '--force', action='store_true',
-                                 help='Create the new workload even if a workload with the specified ' +
-                                      'name already exists.')
+                                 help='Create the new workload even if a workload with the specified '
+                                      + 'name already exists.')
         self.parser.add_argument('-k', '--kind', metavar='KIND', default='basic', choices=list(create_funcs.keys()),
-                                 help='The type of workload to be created. The available options ' +
-                                      'are: {}'.format(', '.join(list(create_funcs.keys()))))
+                                 help='The type of workload to be created. The available options '
+                                      + 'are: {}'.format(', '.join(list(create_funcs.keys()))))
 
     def execute(self, state, args):  # pylint: disable=R0201
         where = args.path or 'local'
@@ -430,8 +430,8 @@ class CreatePackageSubcommand(SubCommand):
         self.parser.add_argument('name', metavar='NAME',
                                  help='Name of the package to be created')
         self.parser.add_argument('-p', '--path', metavar='PATH', default=None,
-                                 help='The location at which the new package will be created. If not specified, ' +
-                                      'current working directory will be used.')
+                                 help='The location at which the new package will be created. If not specified, '
+                                      + 'current working directory will be used.')
         self.parser.add_argument('-f', '--force', action='store_true',
                                  help='Create the new package even if a file or directory with the same name '
                                       'already exists at the specified location.')

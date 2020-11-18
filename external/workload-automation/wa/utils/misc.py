@@ -335,7 +335,7 @@ def load_struct_from_yaml(filepath=None, text=None):
     of basic Python types (strings, ints, lists, dicts, etc.)."""
 
     # Import here to avoid circular imports
-    # pylint: disable=wrong-import-position,cyclic-import
+    # pylint: disable=wrong-import-position,cyclic-import, import-outside-toplevel
     from wa.utils.serializer import yaml
 
     if not (filepath or text) or (filepath and text):
@@ -361,7 +361,7 @@ def load_struct_from_file(filepath):
 
     """
     extn = os.path.splitext(filepath)[1].lower()
-    if (extn == '.py') or (extn == '.pyc') or (extn == '.pyo'):
+    if extn in ('.py', '.pyc', '.pyo'):
         return load_struct_from_python(filepath)
     elif extn == '.yaml':
         return load_struct_from_yaml(filepath)
@@ -404,8 +404,8 @@ def istextfile(fileobj, blocksize=512):
         If more than 30% of the chars in the block are non-text, or there
         are NUL ('\x00') bytes in the block, assume this is a binary file.
     """
-    _text_characters = (b''.join(chr(i) for i in range(32, 127)) +
-                        b'\n\r\t\f\b')
+    _text_characters = (b''.join(chr(i) for i in range(32, 127))
+                        + b'\n\r\t\f\b')
 
     block = fileobj.read(blocksize)
     if b'\x00' in block:
@@ -718,7 +718,7 @@ def lock_file(path, timeout=30):
     """
 
     # Import here to avoid circular imports
-    # pylint: disable=wrong-import-position,cyclic-import
+    # pylint: disable=wrong-import-position,cyclic-import, import-outside-toplevel
     from wa.framework.exception import ResourceError
 
     locked = False

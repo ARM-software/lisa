@@ -281,7 +281,7 @@ def apk_version_matches(path, version):
     version = list_or_string(version)
     info = get_cacheable_apk_info(path)
     for v in version:
-        if info.version_name == v or info.version_code == v:
+        if v in (info.version_name, info.version_code):
             return True
         if loose_version_matching(v, info.version_name):
             return True

@@ -151,7 +151,7 @@ class PowerStateProcessor(object):
 
     def __init__(self, cpus, wait_for_marker=True, no_idle=None):
         if no_idle is None:
-            no_idle = False if cpus[0].cpuidle and cpus[0].cpuidle.states else True
+            no_idle = not (cpus[0].cpuidle and cpus[0].cpuidle.states)
         self.power_state = SystemPowerState(len(cpus), no_idle=no_idle)
         self.requested_states = {}  # cpu_id -> requeseted state
         self.wait_for_marker = wait_for_marker
@@ -405,7 +405,7 @@ class ParallelStats(object):
 
         for i, clust in enumerate(clusters):
             self.clusters[str(i)] = set(clust)
-        self.clusters['all'] = set([cpu.id for cpu in cpus])
+        self.clusters['all'] = {cpu.id for cpu in cpus}
 
         self.first_timestamp = None
         self.last_timestamp = None

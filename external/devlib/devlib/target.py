@@ -215,7 +215,7 @@ class Target(object):
     @memoized
     def page_size_kb(self):
         cmd = "cat /proc/self/smaps | {0} grep KernelPageSize | {0} head -n 1 | {0} awk '{{ print $2 }}'"
-        return int(self.execute(cmd.format(self.busybox)))
+        return int(self.execute(cmd.format(self.busybox)) or 0)
 
     @property
     def shutils(self):
@@ -299,7 +299,8 @@ class Target(object):
         self._resolve_paths()
         self.execute('mkdir -p {}'.format(quote(self.working_directory)))
         self.execute('mkdir -p {}'.format(quote(self.executables_directory)))
-        self.busybox = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, self.abi, 'busybox'))
+        self.busybox = self.install(os.path.join(PACKAGE_BIN_DIRECTORY, self.abi, 'busybox'), timeout=30)
+        self.conn.busybox = self.busybox
         self.platform.update_from_target(self)
         self._update_modules('connected')
         if self.platform.big_core and self.load_default_modules:
@@ -2403,7 +2404,9 @@ class ChromeOsTarget(LinuxTarget):
         # Pull out ssh connection settings
         ssh_conn_params = ['host', 'username', 'password', 'keyfile',
                            'port', 'timeout', 'sudo_cmd',
-                           'strict_host_check', 'use_scp']
+                           'strict_host_check', 'use_scp',
+                           'total_timeout', 'poll_transfers',
+                           'start_transfer_poll_delay']
         self.ssh_connection_settings = {}
         for setting in ssh_conn_params:
             if connection_settings.get(setting, None):

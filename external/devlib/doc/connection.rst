@@ -59,7 +59,7 @@ class that implements the following methods.
    :param will_succeed: The command is assumed to always succeed, unless there is
        an issue in the environment like the loss of network connectivity. That
        will make the method always raise an instance of a subclass of
-       :class:`DevlibTransientError' when the command fails, instead of a
+       :class:`DevlibTransientError` when the command fails, instead of a
        :class:`DevlibStableError`.
 
 .. method:: background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False)
@@ -104,7 +104,9 @@ Connection Types
 
 .. module:: devlib.utils.android
 
-.. class:: AdbConnection(device=None, timeout=None, adb_server=None, adb_as_root=False, connection_attempts=MAX_ATTEMPTS)
+.. class:: AdbConnection(device=None, timeout=None, adb_server=None, adb_as_root=False, connection_attempts=MAX_ATTEMPTS,\
+                         poll_transfers=False, start_transfer_poll_delay=30, total_transfer_timeout=3600,\
+                         transfer_poll_period=30)
 
     A connection to an android device via ``adb`` (Android Debug Bridge).
     ``adb`` is part of the Android SDK (though stand-alone versions are also
@@ -122,12 +124,32 @@ Connection Types
     :param connection_attempts: Specify how many connection attempts, 10 seconds
                                 apart, should be attempted to connect to the device.
                                 Defaults to 5.
+    :param poll_transfers: Specify whether file transfers should be polled. Polling
+                           monitors the progress of file transfers and periodically
+                           checks whether they have stalled, attempting to cancel
+                           the transfers prematurely if so.
+    :param start_transfer_poll_delay: If transfers are polled, specify the length of
+                                      time after a transfer has started before polling
+                                      should start.
+    :param total_transfer_timeout: If transfers are polled, specify the total amount of time
+                                   to elapse before the transfer is cancelled, regardless
+                                   of its activity.
+    :param transfer_poll_period: If transfers are polled, specify the period at which
+                                 the transfers are sampled for activity. Too small values
+                                 may cause the destination size to appear the same over
+                                 one or more sample periods, causing improper transfer
+                                 cancellation.
+
+
 
 .. module:: devlib.utils.ssh
 
-.. class:: SshConnection(host, username, password=None, keyfile=None, port=None,\
-                         timeout=None, password_prompt=None, \
-                         sudo_cmd="sudo -- sh -c {}", options=None)
+.. class:: SshConnection(host, username, password=None, keyfile=None, port=22,\
+                         timeout=None, platform=None, \
+                         sudo_cmd="sudo -- sh -c {}", strict_host_check=True, \
+                         use_scp=False, poll_transfers=False,
+                         start_transfer_poll_delay=30, total_transfer_timeout=3600,\
+                         transfer_poll_period=30)
 
     A connection to a device on the network over SSH.
 
@@ -152,12 +174,26 @@ Connection Types
     :param timeout: Timeout for the connection in seconds. If a connection
                     cannot be established within this time, an error will be
                     raised.
-    :param password_prompt: A string with the password prompt used by
-                            ``sshpass``. Set this if your version of ``sshpass``
-                            uses something other than ``"[sudo] password"``.
+    :param platform: Specify the platform to be used. The generic :class:`~devlib.platform.Platform`
+                     class is used by default.
     :param sudo_cmd: Specify the format of the command used to grant sudo access.
-    :param options: A dictionary with extra ssh configuration options.
-
+    :param strict_host_check: Specify the ssh connection parameter ``StrictHostKeyChecking``,              
+    :param use_scp: Use SCP for file transfers, defaults to SFTP.
+    :param poll_transfers: Specify whether file transfers should be polled. Polling
+                           monitors the progress of file transfers and periodically
+                           checks whether they have stalled, attempting to cancel
+                           the transfers prematurely if so.
+    :param start_transfer_poll_delay: If transfers are polled, specify the length of
+                                      time after a transfer has started before polling
+                                      should start.
+    :param total_transfer_timeout: If transfers are polled, specify the total amount of time
+                                   to elapse before the transfer is cancelled, regardless
+                                   of its activity.
+    :param transfer_poll_period: If transfers are polled, specify the period at which
+                                 the transfers are sampled for activity. Too small values
+                                 may cause the destination size to appear the same over
+                                 one or more sample periods, causing improper transfer
+                                 cancellation.
 
 .. class:: TelnetConnection(host, username, password=None, port=None,\
                             timeout=None, password_prompt=None,\
@@ -217,7 +253,7 @@ Connection Types
 
     .. note:: Some of the following input parameters are optional and will be ignored during
               initialisation. They were kept to keep the analogy with a :class:`TelnetConnection`
-              (i.e. ``host``, `username``, ``password``, ``port``,
+              (i.e. ``host``, ``username``, ``password``, ``port``,
               ``password_prompt`` and ``original_promp``)
 
 

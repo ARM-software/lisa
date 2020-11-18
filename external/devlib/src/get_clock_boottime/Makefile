@@ -1,6 +1,6 @@
 CFLAGS=-Wall --pedantic-errors -O2 -static
 
-all: get_clock_monotonic
+all: get_clock_boottime
 
-get_clock_monotonic: get_clock_monotonic.c
+get_clock_boottime: get_clock_boottime.c
 	$(CC) $(CFLAGS) $^ -o $@

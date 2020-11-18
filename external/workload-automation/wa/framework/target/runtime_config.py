@@ -732,7 +732,7 @@ class IdleStateValue(object):
         '''Checks passed state and converts to its ID'''
         value = caseless_string(value)
         for s_id, s_name, s_desc in self.values:
-            if value == s_id or value == s_name or value == s_desc:
+            if value in (s_id, s_name, s_desc):
                 return s_id
         msg = 'Invalid IdleState: "{}"; Must be in {}'
         raise ValueError(msg.format(value, self.values))

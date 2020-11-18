@@ -157,6 +157,7 @@ class Alias(object):
                 raise ConfigError(msg.format(param, self.name, ext.name))
 
 
+# pylint: disable=bad-mcs-classmethod-argument
 class PluginMeta(type):
     """
     This basically adds some magic to plugins to make implementing new plugins,
@@ -367,7 +368,7 @@ class Plugin(with_metaclass(PluginMeta, object)):
         self._modules.append(module)
 
     def __str__(self):
-        return self.name
+        return str(self.name)
 
     def __repr__(self):
         params = []

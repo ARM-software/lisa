@@ -134,8 +134,8 @@ class CpuStatesProcessor(OutputProcessor):
                 parallel_rows.append([job_id, workload, iteration] + record)
             for state in sorted(powerstate_report.state_stats):
                 stats = powerstate_report.state_stats[state]
-                powerstate_rows.append([job_id, workload, iteration, state] +
-                                       ['{:.3f}'.format(s if s is not None else 0)
+                powerstate_rows.append([job_id, workload, iteration, state]
+                                       + ['{:.3f}'.format(s if s is not None else 0)
                                            for s in stats])
 
         outpath = output.get_path('parallel-stats.csv')

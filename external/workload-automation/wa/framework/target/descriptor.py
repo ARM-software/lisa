@@ -20,6 +20,7 @@ from devlib import (LinuxTarget, AndroidTarget, LocalLinuxTarget,
                     AdbConnection, SshConnection, LocalConnection,
                     TelnetConnection, Gem5Connection)
 from devlib.target import DEFAULT_SHELL_PROMPT
+from devlib.utils.ssh import DEFAULT_SSH_SUDO_COMMAND
 
 from wa.framework import pluginloader
 from wa.framework.configuration.core import get_config_point_map
@@ -301,6 +302,37 @@ CONNECTION_PARAMS = {
             description="""
             ADB server to connect to.
             """),
+        Parameter(
+            'poll_transfers', kind=bool,
+            default=True,
+            description="""
+            File transfers will be polled for activity. Inactive
+            file transfers are cancelled.
+            """),
+        Parameter(
+            'start_transfer_poll_delay', kind=int,
+            default=30,
+            description="""
+            How long to wait (s) for a transfer to complete
+            before polling transfer activity. Requires ``poll_transfers``
+            to be set.
+            """),
+        Parameter(
+            'total_transfer_timeout', kind=int,
+            default=3600,
+            description="""
+            The total time to elapse before a transfer is cancelled, regardless
+            of its activity. Requires ``poll_transfers`` to be set.
+            """),
+        Parameter(
+            'transfer_poll_period', kind=int,
+            default=30,
+            description="""
+            The period at which transfer activity is sampled. Requires
+            ``poll_transfers`` to be set. Too small values may cause
+            the destination size to appear the same over one or more sample
+            periods, causing improper transfer cancellation.
+            """),
     ],
     SshConnection: [
         Parameter(
@@ -338,7 +370,7 @@ CONNECTION_PARAMS = {
             their host key does not match the systems known host keys. """),
         Parameter(
             'sudo_cmd', kind=str,
-            default="sudo -- sh -c {}",
+            default=DEFAULT_SSH_SUDO_COMMAND,
             description="""
             Sudo command to use. Must have ``{}`` specified
             somewhere in the string it indicate where the command
@@ -351,7 +383,38 @@ CONNECTION_PARAMS = {
             Allow using SCP as method of file transfer instead
             of the default SFTP.
             """),
-        # Depreciated Parameters
+        Parameter(
+            'poll_transfers', kind=bool,
+            default=True,
+            description="""
+            File transfers will be polled for activity. Inactive
+            file transfers are cancelled.
+            """),
+        Parameter(
+            'start_transfer_poll_delay', kind=int,
+            default=30,
+            description="""
+            How long to wait (s) for a transfer to complete
+            before polling transfer activity. Requires ``poll_transfers``
+            to be set.
+            """),
+        Parameter(
+            'total_transfer_timeout', kind=int,
+            default=3600,
+            description="""
+            The total time to elapse before a transfer is cancelled, regardless
+            of its activity. Requires ``poll_transfers`` to be set.
+            """),
+        Parameter(
+            'transfer_poll_period', kind=int,
+            default=30,
+            description="""
+            The period at which transfer activity is sampled. Requires
+            ``poll_transfers`` to be set. Too small values may cause
+            the destination size to appear the same over one or more sample
+            periods, causing improper transfer cancellation.
+            """),
+        # Deprecated Parameters
         Parameter(
             'telnet', kind=str,
             description="""

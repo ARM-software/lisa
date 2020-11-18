@@ -78,7 +78,8 @@ class TargetManager(object):
     def finalize(self):
         if not self.target:
             return
-        self.assistant.finalize()
+        if self.assistant:
+            self.assistant.finalize()
         if self.disconnect or isinstance(self.target.platform, Gem5SimulationPlatform):
             self.logger.info('Disconnecting from the device')
             with signal.wrap('TARGET_DISCONNECT'):

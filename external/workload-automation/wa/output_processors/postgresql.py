@@ -124,8 +124,8 @@ class PostgresqlResultProcessor(OutputProcessor):
 
         if not psycopg2:
             raise ImportError(
-                'The psycopg2 module is required for the ' +
-                'Postgresql Output Processor: {}'.format(import_error_msg))
+                'The psycopg2 module is required for the '
+                + 'Postgresql Output Processor: {}'.format(import_error_msg))
         # N.B. Typecasters are for postgres->python and adapters the opposite
         self.connect_to_database()
 
@@ -515,8 +515,8 @@ class PostgresqlResultProcessor(OutputProcessor):
             self.conn = connect(dsn=dsn)
         except Psycopg2Error as e:
             raise OutputProcessorError(
-                "Database error, if the database doesn't exist, " +
-                "please use 'wa create database' to create the database: {}".format(e))
+                "Database error, if the database doesn't exist, "
+                + "please use 'wa create database' to create the database: {}".format(e))
         self.cursor = self.conn.cursor()
         self.verify_schema_versions()
 

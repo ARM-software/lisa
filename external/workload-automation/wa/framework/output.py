@@ -268,8 +268,8 @@ class RunOutput(Output, RunOutputCommon):
         self._combined_config = None
         self.jobs = []
         self.job_specs = []
-        if (not os.path.isfile(self.statefile) or
-                not os.path.isfile(self.infofile)):
+        if (not os.path.isfile(self.statefile)
+                or not os.path.isfile(self.infofile)):
             msg = '"{}" does not exist or is not a valid WA output directory.'
             raise ValueError(msg.format(self.basepath))
         self.reload()

@@ -62,7 +62,7 @@ def get_type_name(obj):
     elif match.group(1) == 'function':
         text = str(obj)
         name = text.split()[1]
-        if name == '<lambda>':
+        if name.endswith('<lambda>'):
             source = inspect.getsource(obj).strip().replace('\n', ' ')
             match = re.search(r'lambda\s+(\w+)\s*:\s*(.*?)\s*[\n,]', source)
             if not match:

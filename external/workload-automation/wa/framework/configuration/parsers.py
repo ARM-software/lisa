@@ -297,7 +297,7 @@ def merge_augmentations(raw):
             raise ConfigError(msg.format(value, n, exc))
 
     # Make sure none of the specified aliases conflict with each other
-    to_check = [e for e in entries]
+    to_check = list(entries)
     while len(to_check) > 1:
         check_entry = to_check.pop()
         for e in to_check:
