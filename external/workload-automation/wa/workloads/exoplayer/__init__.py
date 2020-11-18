@@ -173,7 +173,7 @@ class ExoPlayer(ApkWorkload):
                                                        os.path.basename(self.host_video_file))
         if self.force_dependency_push or not self.target.file_exists(self.device_video_file):
             self.logger.info('Copying {} to device.'.format(self.host_video_file))
-            self.target.push(self.host_video_file, self.device_video_file, timeout=120)
+            self.target.push(self.host_video_file, self.device_video_file)
 
         self._original_orientation = self.target.get_rotation()
         self.target.set_rotation(1 if self.landscape else 0)

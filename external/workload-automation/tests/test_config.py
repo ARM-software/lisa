@@ -16,6 +16,7 @@
 import unittest
 from nose.tools import assert_equal
 
+from wa.framework.configuration.execution import ConfigManager
 from wa.utils.misc import merge_config_values
 
 
@@ -38,3 +39,21 @@ class TestConfigUtils(unittest.TestCase):
             if v2 is not None:
                 assert_equal(type(result), type(v2))
 
+
+
+class TestConfigParser(unittest.TestCase):
+
+    def test_param_merge(self):
+        config = ConfigManager()
+
+        config.load_config({'workload_params': {'one': 1, 'three': {'ex': 'x'}}, 'runtime_params': {'aye': 'a'}}, 'file_one')
+        config.load_config({'workload_params': {'two': 2, 'three': {'why': 'y'}}, 'runtime_params': {'bee': 'b'}}, 'file_two')
+
+        assert_equal(
+            config.jobs_config.job_spec_template['workload_parameters'],
+            {'one': 1, 'two': 2, 'three': {'why': 'y'}},
+        )
+        assert_equal(
+            config.jobs_config.job_spec_template['runtime_parameters'],
+            {'aye': 'a', 'bee': 'b'},
+        )

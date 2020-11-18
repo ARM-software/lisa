@@ -33,6 +33,7 @@ class JobSpecSource(object):
     def id(self):
         return self.config['id']
 
+    @property
     def name(self):
         raise NotImplementedError()
 

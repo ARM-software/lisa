@@ -109,4 +109,4 @@ class Gmail(ApkUiautoWorkload):
         owner = self.target.execute("{} stat -c '%u' {}".format(self.target.busybox, database_dst), as_root=True).strip()
         self.target.execute('{} rm {}'.format(self.target.busybox, existing_mailstores), as_root=True)
         self.target.execute('{} tar -xvf {} -C {}'.format(self.target.busybox, database_src, database_dst), as_root=True)
-        self.target.execute('{} chown -R {}:{} {}'.format(self.target.busybox, owner, owner, database_dst), as_root=True)
+        self.target.execute('{0} chown -R {1}:{1} {2}'.format(self.target.busybox, owner, database_dst), as_root=True)

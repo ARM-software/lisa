@@ -53,7 +53,7 @@ class Youtube(ApkUiautoWorkload):
     5.  Scroll down to the end of related videos and comments under the info card, and then
         back up to the start. A maximum of 5 swipe actions is performed in either direction.
 
-    Known working APK version: 12.21.57
+    Known working APK version: 15.45.32
     '''
     package_names = ['com.google.android.youtube']
 

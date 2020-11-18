@@ -124,13 +124,11 @@ class Workload(TargetedPlugin):
         Execute the workload. This is the method that performs the actual
         "work" of the workload.
         """
-        pass
 
     def extract_results(self, context):
         """
         Extract results on the target
         """
-        pass
 
     def update_output(self, context):
         """
@@ -138,11 +136,9 @@ class Workload(TargetedPlugin):
         metrics and artifacts for this workload iteration.
 
         """
-        pass
 
     def teardown(self, context):
         """ Perform any final clean up for the Workload. """
-        pass
 
     @once_per_instance
     def finalize(self, context):
@@ -325,7 +321,6 @@ class ApkWorkload(Workload):
         Perform the setup necessary to rerun the workload. Only called if
         ``requires_rerun`` is set.
         """
-        pass
 
     def teardown(self, context):
         super(ApkWorkload, self).teardown(context)

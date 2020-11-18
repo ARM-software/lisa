@@ -30,60 +30,49 @@ class WAError(Exception):
 
 class NotFoundError(WAError):
     """Raised when the specified item is not found."""
-    pass
 
 
 class ValidationError(WAError):
     """Raised on failure to validate an extension."""
-    pass
 
 
 class ExecutionError(WAError):
     """Error encountered by the execution framework."""
-    pass
 
 
 class WorkloadError(WAError):
     """General Workload error."""
-    pass
 
 
 class JobError(WAError):
     """Job execution error."""
-    pass
 
 
 class InstrumentError(WAError):
     """General Instrument error."""
-    pass
 
 
 class OutputProcessorError(WAError):
     """General OutputProcessor error."""
-    pass
 
 
 class ResourceError(WAError):
     """General Resolver error."""
-    pass
 
 
 class CommandError(WAError):
     """Raised by commands when they have encountered an error condition
     during execution."""
-    pass
 
 
 class ToolError(WAError):
     """Raised by tools when they have encountered an error condition
     during execution."""
-    pass
 
 
 class ConfigError(WAError):
     """Raised when configuration provided is invalid. This error suggests that
     the user should modify their config and try again."""
-    pass
 
 
 class SerializerSyntaxError(Exception):

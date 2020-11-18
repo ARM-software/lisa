@@ -85,4 +85,4 @@ class GoogleMaps(ApkUiautoWorkload):
         owner = self.target.execute("{} stat -c '%u' {}".format(self.target.busybox, package_data_dir), as_root=True).strip()
         self.target.execute('{} tar -xvf {} -C {}'.format(self.target.busybox, databases_src, databases_dst), as_root=True)
         self.target.execute('{} tar -xvf {} -C {}'.format(self.target.busybox, files_src, files_dst), as_root=True)
-        self.target.execute('{} chown -R {}:{} {}'.format(self.target.busybox, owner, owner, package_data_dir), as_root=True)
+        self.target.execute('{0} chown -R {1}:{1} {2}'.format(self.target.busybox, owner, package_data_dir), as_root=True)

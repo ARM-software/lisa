@@ -96,8 +96,8 @@ class RecordCommand(Command):
         if args.workload and args.output:
             self.logger.error("Output file cannot be specified with Workload")
             sys.exit()
-        if not args.workload and (args.setup or args.extract_results or
-                                  args.teardown or args.all):
+        if not args.workload and (args.setup or args.extract_results
+                                  or args.teardown or args.all):
             self.logger.error("Cannot specify a recording stage without a Workload")
             sys.exit()
         if args.workload and not any([args.all, args.teardown, args.extract_results, args.run, args.setup]):

@@ -90,8 +90,8 @@ class CsvReportProcessor(OutputProcessor):
 
         outfile = output.get_path('results.csv')
         with csvwriter(outfile) as writer:
-            writer.writerow(['id', 'workload', 'iteration', 'metric', ] +
-                            extra_columns + ['value', 'units'])
+            writer.writerow(['id', 'workload', 'iteration', 'metric', ]
+                            + extra_columns + ['value', 'units'])
 
             for o in outputs:
                 if o.kind == 'job':
@@ -106,8 +106,8 @@ class CsvReportProcessor(OutputProcessor):
                         'Output of kind "{}" unrecognised by csvproc'.format(o.kind))
 
                 for metric in o.result.metrics:
-                    row = (header + [metric.name] +
-                           [str(metric.classifiers.get(c, ''))
-                            for c in extra_columns] +
-                           [str(metric.value), metric.units or ''])
+                    row = (header + [metric.name]
+                           + [str(metric.classifiers.get(c, ''))
+                           for c in extra_columns]
+                           + [str(metric.value), metric.units or ''])
                     writer.writerow(row)
