@@ -222,6 +222,11 @@ Target
 
    Transfer a file from the host machine to the target device.
 
+   If transfer polling is supported (ADB connections and SSH connections),
+   ``poll_transfers`` is set in the connection, and a timeout is not specified,
+   the push will be polled for activity. Inactive transfers will be
+   cancelled. (See :ref:`connection-types`\ for more information on polling).
+
    :param source: path on the host
    :param dest: path on the target
    :param as_root: whether root is required. Defaults to false.
@@ -235,6 +240,11 @@ Target
 .. method:: Target.pull(source, dest [, as_root, timeout, globbing])
 
    Transfer a file from the target device to the host machine.
+
+   If transfer polling is supported (ADB connections and SSH connections),
+   ``poll_transfers`` is set in the connection, and a timeout is not specified,
+   the pull will be polled for activity. Inactive transfers will be
+   cancelled. (See :ref:`connection-types`\ for more information on polling).
 
    :param source: path on the target
    :param dest: path on the host

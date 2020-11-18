@@ -39,8 +39,8 @@ except ImportError:
     from pipes import quote
 
 from devlib.exception import TargetTransientError, TargetStableError, HostError
-from devlib.utils.misc import check_output, which, ABI_MAP, redirect_streams
-from devlib.connection import ConnectionBase, AdbBackgroundCommand
+from devlib.utils.misc import check_output, which, ABI_MAP, redirect_streams, get_subprocess
+from devlib.connection import ConnectionBase, AdbBackgroundCommand, PopenBackgroundCommand, PopenTransferManager
 
 
 logger = logging.getLogger('android')
@@ -263,18 +263,21 @@ class AdbConnection(ConnectionBase):
     @property
     def connected_as_root(self):
         if self._connected_as_root[self.device] is None:
-                result = self.execute('id')
-                self._connected_as_root[self.device] = 'uid=0(' in result
+            result = self.execute('id')
+            self._connected_as_root[self.device] = 'uid=0(' in result
         return self._connected_as_root[self.device]
 
     @connected_as_root.setter
     def connected_as_root(self, state):
         self._connected_as_root[self.device] = state
 
-
     # pylint: disable=unused-argument
     def __init__(self, device=None, timeout=None, platform=None, adb_server=None,
-                 adb_as_root=False, connection_attempts=MAX_ATTEMPTS):
+                 adb_as_root=False, connection_attempts=MAX_ATTEMPTS,
+                 poll_transfers=False,
+                 start_transfer_poll_delay=30,
+                 total_transfer_timeout=3600,
+                 transfer_poll_period=30,):
         super().__init__()
         self.timeout = timeout if timeout is not None else self.default_timeout
         if device is None:
@@ -282,6 +285,13 @@ class AdbConnection(ConnectionBase):
         self.device = device
         self.adb_server = adb_server
         self.adb_as_root = adb_as_root
+        self.poll_transfers = poll_transfers
+        if poll_transfers:
+            transfer_opts = {'start_transfer_poll_delay': start_transfer_poll_delay,
+                            'total_timeout': total_transfer_timeout,
+                            'poll_period': transfer_poll_period,
+                            }
+        self.transfer_mgr = PopenTransferManager(self, **transfer_opts) if poll_transfers else None
         if self.adb_as_root:
             self.adb_root(enable=True)
         adb_connect(self.device, adb_server=self.adb_server, attempts=connection_attempts)
@@ -289,10 +299,13 @@ class AdbConnection(ConnectionBase):
         self._setup_ls()
         self._setup_su()
 
-    def _push_pull(self, action, sources, dest, timeout):
-        if timeout is None:
-            timeout = self.timeout
+    def push(self, sources, dest, timeout=None):
+        return self._push_pull('push', sources, dest, timeout)
 
+    def pull(self, sources, dest, timeout=None):
+        return self._push_pull('pull', sources, dest, timeout)
+
+    def _push_pull(self, action, sources, dest, timeout):
         paths = sources + [dest]
 
         # Quote twice to avoid expansion by host shell, then ADB globbing
@@ -300,13 +313,12 @@ class AdbConnection(ConnectionBase):
         paths = ' '.join(map(do_quote, paths))
 
         command = "{} {}".format(action, paths)
-        adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
-
-    def push(self, sources, dest, timeout=None):
-        return self._push_pull('push', sources, dest, timeout)
-
-    def pull(self, sources, dest, timeout=None):
-        return self._push_pull('pull', sources, dest, timeout)
+        if timeout or not self.poll_transfers:
+            adb_command(self.device, command, timeout=timeout, adb_server=self.adb_server)
+        else:
+            with self.transfer_mgr.manage(sources, dest, action):
+                bg_cmd = adb_command_background(self.device, command, adb_server=self.adb_server)
+                self.transfer_mgr.set_transfer_and_wait(bg_cmd)
 
     # pylint: disable=unused-argument
     def execute(self, command, timeout=None, check_exit_code=False,
@@ -321,6 +333,11 @@ class AdbConnection(ConnectionBase):
                 raise
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
+        bg_cmd = self._background(command, stdout, stderr, as_root)
+        self._current_bg_cmds.add(bg_cmd)
+        return bg_cmd
+
+    def _background(self, command, stdout, stderr, as_root):
         adb_shell, pid = adb_background_shell(self, command, stdout, stderr, as_root)
         bg_cmd = AdbBackgroundCommand(
             conn=self,
@@ -328,7 +345,6 @@ class AdbConnection(ConnectionBase):
             pid=pid,
             as_root=as_root
         )
-        self._current_bg_cmds.add(bg_cmd)
         return bg_cmd
 
     def _close(self):
@@ -610,11 +626,21 @@ def get_adb_command(device, command, adb_server=None):
     device_string += ' -s {}'.format(device) if device else ''
     return "adb{} {}".format(device_string, command)
 
+
 def adb_command(device, command, timeout=None, adb_server=None):
     full_command = get_adb_command(device, command, adb_server)
     logger.debug(full_command)
     output, _ = check_output(full_command, timeout, shell=True)
     return output
+
+
+def adb_command_background(device, command, adb_server=None):
+    full_command = get_adb_command(device, command, adb_server)
+    logger.debug(full_command)
+    proc = get_subprocess(full_command, shell=True)
+    cmd = PopenBackgroundCommand(proc)
+    return cmd
+
 
 def grant_app_permissions(target, package):
     """
@@ -623,7 +649,7 @@ def grant_app_permissions(target, package):
     dumpsys = target.execute('dumpsys package {}'.format(package))
 
     permissions = re.search(
-        'requested permissions:\s*(?P<permissions>(android.permission.+\s*)+)', dumpsys
+        r'requested permissions:\s*(?P<permissions>(android.permission.+\s*)+)', dumpsys
     )
     if permissions is None:
         return
@@ -808,7 +834,7 @@ class LogcatMonitor(object):
         if self._logcat_format:
             logcat_cmd = "{} -v {}".format(logcat_cmd, quote(self._logcat_format))
 
-        logcat_cmd = get_adb_command(self.target.conn.device, logcat_cmd)
+        logcat_cmd = get_adb_command(self.target.conn.device, logcat_cmd, self.target.adb_server)
 
         logger.debug('logcat command ="{}"'.format(logcat_cmd))
         self._logcat = pexpect.spawn(logcat_cmd, logfile=self._logfile, encoding='utf-8')

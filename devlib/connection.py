@@ -13,13 +13,20 @@
 # limitations under the License.
 #
 
-import os
-import time
-import subprocess
-import signal
-import threading
-from weakref import WeakSet
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
+from datetime import datetime
+from functools import partial
+from weakref import WeakSet
+from shlex import quote
+from time import monotonic
+import os
+import signal
+import socket
+import subprocess
+import threading
+import time
+import logging
 
 from devlib.utils.misc import InitCheckpoint
 
@@ -38,6 +45,7 @@ class ConnectionBase(InitCheckpoint):
         self._current_bg_cmds = WeakSet()
         self._closed = False
         self._close_lock = threading.Lock()
+        self.busybox = None
 
     def cancel_running_command(self):
         bg_cmds = set(self._current_bg_cmds)
@@ -203,11 +211,11 @@ class PopenBackgroundCommand(BackgroundCommand):
 
     def cancel(self, kill_timeout=_KILL_TIMEOUT):
         popen = self.popen
-        popen.send_signal(signal.SIGTERM)
+        os.killpg(os.getpgid(popen.pid), signal.SIGTERM)
         try:
             popen.wait(timeout=_KILL_TIMEOUT)
         except subprocess.TimeoutExpired:
-            popen.kill()
+            os.killpg(os.getpgid(popen.pid), signal.SIGKILL)
 
     def close(self):
         self.popen.__exit__(None, None, None)
@@ -219,6 +227,7 @@ class PopenBackgroundCommand(BackgroundCommand):
 
     def __exit__(self, *args, **kwargs):
         self.popen.__exit__(*args, **kwargs)
+
 
 class ParamikoBackgroundCommand(BackgroundCommand):
     """
@@ -349,3 +358,166 @@ class AdbBackgroundCommand(BackgroundCommand):
 
     def __exit__(self, *args, **kwargs):
         self.adb_popen.__exit__(*args, **kwargs)
+
+
+class TransferManagerBase(ABC):
+
+    def _pull_dest_size(self, dest):
+        if os.path.isdir(dest):
+            return sum(
+                os.stat(os.path.join(dirpath, f)).st_size
+	            for dirpath, _, fnames in os.walk(dest)
+	            for f in fnames
+            )
+        else:
+            return os.stat(dest).st_size
+        return 0
+
+    def _push_dest_size(self, dest):
+        cmd = '{} du -s {}'.format(quote(self.conn.busybox), quote(dest))
+        out = self.conn.execute(cmd)
+        try:
+            return int(out.split()[0])
+        except ValueError:
+            return 0
+
+    def __init__(self, conn, poll_period, start_transfer_poll_delay, total_timeout):
+        self.conn = conn
+        self.poll_period = poll_period
+        self.total_timeout = total_timeout
+        self.start_transfer_poll_delay = start_transfer_poll_delay
+
+        self.logger = logging.getLogger('FileTransfer')
+        self.managing = threading.Event()
+        self.transfer_started = threading.Event()
+        self.transfer_completed = threading.Event()
+        self.transfer_aborted = threading.Event()
+
+        self.monitor_thread = None
+        self.sources = None
+        self.dest = None
+        self.direction = None
+
+    @abstractmethod
+    def _cancel(self):
+        pass
+
+    def cancel(self, reason=None):
+        msg = 'Cancelling file transfer {} -> {}'.format(self.sources, self.dest)
+        if reason is not None:
+            msg += ' due to \'{}\''.format(reason)
+        self.logger.warning(msg)
+        self.transfer_aborted.set()
+        self._cancel()
+
+    @abstractmethod
+    def isactive(self):
+        pass
+
+    @contextmanager
+    def manage(self, sources, dest, direction):
+        try:
+            self.sources, self.dest, self.direction = sources, dest, direction
+            m_thread = threading.Thread(target=self._monitor)
+
+            self.transfer_completed.clear()
+            self.transfer_aborted.clear()
+            self.transfer_started.set()
+
+            m_thread.start()
+            yield self
+        except BaseException:
+            self.cancel(reason='exception during transfer')
+            raise
+        finally:
+            self.transfer_completed.set()
+            self.transfer_started.set()
+            m_thread.join()
+            self.transfer_started.clear()
+            self.transfer_completed.clear()
+            self.transfer_aborted.clear()
+    
+    def _monitor(self):
+        start_t = monotonic()
+        self.transfer_completed.wait(self.start_transfer_poll_delay)
+        while not self.transfer_completed.wait(self.poll_period):
+            if not self.isactive():
+                self.cancel(reason='transfer inactive')
+            elif monotonic() - start_t > self.total_timeout:
+                self.cancel(reason='transfer timed out')
+
+
+class PopenTransferManager(TransferManagerBase):
+
+    def __init__(self, conn, poll_period=30, start_transfer_poll_delay=30, total_timeout=3600):
+        super().__init__(conn, poll_period, start_transfer_poll_delay, total_timeout)
+        self.transfer = None
+        self.last_sample = None
+
+    def _cancel(self):
+        if self.transfer:
+            self.transfer.cancel()
+            self.transfer = None
+
+    def isactive(self):
+        size_fn = self._push_dest_size if self.direction == 'push' else self._pull_dest_size
+        curr_size = size_fn(self.dest)
+        self.logger.debug('Polled file transfer, destination size {}'.format(curr_size))
+        active = True if self.last_sample is None else curr_size > self.last_sample
+        self.last_sample = curr_size
+        return active
+
+    def set_transfer_and_wait(self, popen_bg_cmd):
+        self.transfer = popen_bg_cmd
+        ret = self.transfer.wait()
+      
+        if ret and not self.transfer_aborted.is_set():
+            raise subprocess.CalledProcessError(ret, self.transfer.popen.args)
+        elif self.transfer_aborted.is_set():
+            raise TimeoutError(self.transfer.popen.args)
+
+
+class SSHTransferManager(TransferManagerBase):
+
+    def __init__(self, conn, poll_period=30, start_transfer_poll_delay=30, total_timeout=3600):
+        super().__init__(conn, poll_period, start_transfer_poll_delay, total_timeout)
+        self.transferer = None
+        self.progressed = False
+        self.transferred = None
+        self.to_transfer = None
+
+    def _cancel(self):
+        self.transferer.close()
+
+    def isactive(self):
+        progressed = self.progressed
+        self.progressed = False
+        msg = 'Polled transfer: {}% [{}B/{}B]'
+        pc = format((self.transferred / self.to_transfer) * 100, '.2f')
+        self.logger.debug(msg.format(pc, self.transferred, self.to_transfer))
+        return progressed
+
+    @contextmanager
+    def manage(self, sources, dest, direction, transferer):
+        with super().manage(sources, dest, direction):
+            try:
+                self.progressed = False
+                self.transferer = transferer  # SFTPClient or SCPClient
+                yield self
+            except socket.error as e:
+                if self.transfer_aborted.is_set():
+                    self.transfer_aborted.clear()
+                    method = 'SCP' if self.conn.use_scp else 'SFTP'
+                    raise TimeoutError('{} {}: {} -> {}'.format(method, self.direction, sources, self.dest))
+                else:
+                    raise e
+
+    def progress_cb(self, *args):
+        if self.transfer_started.is_set():
+            self.progressed = True
+            if len(args) == 3:  # For SCPClient callbacks
+                self.transferred = args[2]
+                self.to_transfer = args[1]
+            elif len(args) == 2:  # For SFTPClient callbacks
+                self.transferred = args[0]
+                self.to_transfer = args[1]

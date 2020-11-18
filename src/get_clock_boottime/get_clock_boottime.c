@@ -6,7 +6,7 @@ int main(void) {
     int ret;
     struct timespec tp;
 
-    ret = clock_gettime(CLOCK_MONOTONIC, &tp);
+    ret = clock_gettime(CLOCK_BOOTTIME, &tp);
     if (ret) {
         perror("clock_gettime()");
         return EXIT_FAILURE;
