@@ -134,7 +134,7 @@ class WAOutput(StatsProp, Mapping, Loggable):
 
         wa_output = WAOutput('wa/output/path')
         # Pick a specific collector. See also WAOutput.get_collector()
-        stats = wa_output['results']
+        stats = wa_output['results'].stats
         stats.plot_stats(filename='stats.html')
     """
 
