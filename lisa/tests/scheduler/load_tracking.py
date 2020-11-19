@@ -459,7 +459,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         )
 
     @_test_behaviour.used_events
-    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
+    @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_util_behaviour(self, error_margin_pct=5) -> ResultBundle:
         """
         Check the utilization mean is linked to the task duty cycle.
@@ -477,7 +477,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         return self._test_behaviour('util', error_margin_pct)
 
     @_test_behaviour.used_events
-    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
+    @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_load_behaviour(self, error_margin_pct=5) -> ResultBundle:
         """
         Same as :meth:`test_util_behaviour` but checking the load.
@@ -1024,7 +1024,7 @@ class CPUMigrationBase(LoadTrackingBase):
     @get_trace_cpu_util.used_events
     @get_expected_cpu_util.used_events
     @_plot_util.used_events
-    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
+    @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_util_task_migration(self, allowed_error_pct=3) -> ResultBundle:
         """
         Test that a migrated task properly propagates its utilization at the CPU level

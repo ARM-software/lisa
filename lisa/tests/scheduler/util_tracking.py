@@ -154,7 +154,7 @@ class UtilConvergence(UtilTrackingBase):
     @requires_events('sched_util_est_se')
     @LoadTrackingAnalysis.df_tasks_signal.used_events
     @RTAEventsAnalysis.task_phase_windows.used_events
-    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
+    @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_means(self) -> ResultBundle:
         """
         Test signals are properly "dominated".
@@ -264,7 +264,7 @@ class UtilConvergence(UtilTrackingBase):
 
     @requires_events('sched_util_est_se')
     @TasksAnalysis.df_task_states.used_events
-    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
+    @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_activations(self) -> ResultBundle:
         """
         Test signals are properly "aggregated" at enqueue/dequeue time.

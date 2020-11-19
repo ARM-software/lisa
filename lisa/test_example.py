@@ -186,7 +186,7 @@ class ExampleTestBundle(RTATestBundle):
     # tasks executing) while running the workload. If that was the case, the
     # returned result_bundle.result will be set to Result.UNDECIDED, expressing
     # that the data don't allow drawing a pass/fail conclusion.
-    @RTATestBundle.check_noisy_tasks(noise_threshold_pct=1)
+    @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_output(self, util_margin=50) -> ResultBundle:
         """
         Actual test method that looks at the collected data and draws a

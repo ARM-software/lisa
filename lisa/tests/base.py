@@ -28,6 +28,7 @@ import inspect
 import copy
 import contextlib
 import itertools
+import types
 
 from datetime import datetime
 from collections import OrderedDict, ChainMap
@@ -47,7 +48,7 @@ from lisa.target import Target
 from lisa.utils import (
     Serializable, memoized, lru_memoized, ArtifactPath, non_recursive_property,
     update_wrapper_doc, ExekallTaggable, annotations_from_signature,
-    nullcontext,
+    nullcontext, get_sphinx_name, optional_kwargs,
 )
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector
@@ -406,8 +407,14 @@ class TestBundleMeta(abc.ABCMeta):
     """
     Metaclass of :class:`TestBundle`.
 
-    Method with a return annotation of :class:`ResultBundleBase` are wrapped to
-    update the ``context`` attribute of a returned :class:`ResultBundleBase`.
+    Method with a return annotation of :class:`ResultBundleBase` are wrapped to:
+
+        * Update the ``context`` attribute of a returned
+          :class:`ResultBundleBase`
+
+        * Add an ``undecided_filter`` attribute, with
+          :meth:`add_undecided_filter` decorator, so that any test method can
+          be used as a pre-filter for another one right away.
 
     If ``_from_target`` is defined in the class but ``from_target`` is not, a
     stub is created and the annotation of ``_from_target`` is copied to the
@@ -417,8 +424,8 @@ class TestBundleMeta(abc.ABCMeta):
     The signature of ``from_target`` is the result of merging the original
     ``cls.from_target`` parameters with the ones defined in ``_from_target``.
     """
-    @staticmethod
-    def test_method(func):
+    @classmethod
+    def test_method(metacls, func):
         """
         Decorator to intercept returned :class:`ResultBundle` and attach some contextual information.
         """
@@ -450,22 +457,170 @@ class TestBundleMeta(abc.ABCMeta):
 
             return res
 
+        wrapper = metacls.add_undecided_filter(wrapper)
         return wrapper
+
+    @staticmethod
+    def add_undecided_filter(func):
+        """
+        Turn any method returning a :class:`ResultBundleBase` into a decorator
+        that can be used as a test method filter.
+
+        The filter decorator is accessible as the ``undecided_filter``
+        attribute of the decorated method.
+
+        Once a test is decorated, the filter method will be run in addition to
+        the wrapped test, and if the filter does not succeed, the
+        :class:`ResultBundleBase` result will be set to
+        :attr:`Result.UNDECIDED`.
+
+        :Example:
+
+        .. code-block ::
+
+            class Foo(TestBundle):
+                @TestBundle.add_undecided_filter
+                def test_foo(self, xxx=42, ...):
+                    ...
+
+                # Alternatively, ResultBundle return annotation will
+                # automatically decorate the method with TestBundleMeta
+                # metaclass.
+                def test_foo(self, xxx=42, ...) -> ResultBundle:
+                    ...
+
+            class Bar(Foo):
+                # Set xxx=55 as default, but this can be overriden when
+                # test_bar() is called.
+                @Foo.test_foo.undecided_filter(xxx=77)
+                def test_bar(self, yyy=43, ...) -> ResultBundle:
+                    ...
+
+        The resulting decorated method can take the union of keyword
+        parameters::
+
+            bar = Bar()
+            bar.test_bar(xxx=33, yyy=55)
+            # Same as
+            bar.test_bar(33, yyy=55)
+            # But this fails, since only keyword arguments can be passed to the
+            # wrapping pre-test
+            bar.test_bar(33, 55)
+
+        If there is a parameter conflict, it is detected at import time and will
+        result in a :exc:`TypeError`.
+
+        .. note:: Even if the pre-test does not succeed, the wrapped test is
+            still executed, so that the ResultBundle metrics are updated and
+            the artifacts still produced. This can be important in order to
+            manually analyse results in case the pre-filter was overly
+            conservative and marked a usable result as UNDECIDED.
+
+        """
+        def only_keywords(params):
+            return {
+                param.name
+                # Skip the first param, as it is "self"
+                for param in list(params)[1:]
+                if param.kind in (
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    inspect.Parameter.KEYWORD_ONLY,
+                )
+            }
+
+        def filter_keys(dct, keys):
+            return {k: v for k, v in dct.items() if k in keys}
+
+        @optional_kwargs
+        def decorator(wrapped_test, **preset_kwargs):
+            keywords_test = only_keywords(inspect.signature(wrapped_test).parameters.values())
+            keywords_filter = only_keywords(inspect.signature(func).parameters.values())
+
+            overlap = keywords_test & keywords_filter
+            if any(overlap):
+                raise TypeError('Overlapping argument between {} and {}: {}'.format(
+                    get_sphinx_name(wrapped_test, style=None),
+                    get_sphinx_name(func, style=None),
+                    overlap
+                ))
+
+            def dispatch_kwargs(kwargs):
+                filter_kwargs = filter_keys(kwargs, keywords_filter)
+                # Merge-in the presets
+                filter_kwargs_ = {
+                    **preset_kwargs,
+                    **filter_kwargs,
+                }
+                return (
+                    filter_keys(kwargs, keywords_test),
+                    filter_kwargs_,
+                )
+
+            # Propagate the events used by the filter
+            try:
+                used_events = func.used_events
+            except AttributeError:
+                used_events = lambda x: x
+
+            @update_wrapper_doc(
+                wrapped_test,
+                added_by=func,
+                sig_from=func,
+                description=textwrap.dedent(
+                    """
+                    The returned ``ResultBundle.result`` will be changed to
+                    :attr:`~lisa.tests.base.Result.UNDECIDED` if {} does not
+                    succeed (i.e. either
+                    :attr:`~lisa.tests.base.Result.UNDECIDED` or
+                    :attr:`~lisa.tests.base.Result.FAILED`).
+
+                    {}
+                    """).strip().format(
+                        get_sphinx_name(func, style='rst', abbrev=True),
+                        inspect.getdoc(func),
+                    ),
+            )
+            @used_events
+            def filter_wrapper(self, *args, **kwargs):
+                # Run the wrapped test no matter what, so we get the metrics
+                # and also the artifacts
+                test_kwargs, filter_kwargs = dispatch_kwargs(kwargs)
+
+                res = wrapped_test(self, *args, **test_kwargs)
+                filter_res = func(self, **filter_kwargs)
+                res.metrics.update(filter_res.metrics)
+
+                if not filter_res:
+                    res.result = Result.UNDECIDED
+
+                return res
+
+            return filter_wrapper
+
+        func.undecided_filter = decorator
+        return func
+
+    @classmethod
+    def __prepare__(metacls, cls_name, bases, **kwargs):
+        # Decorate each method when it is bound to its name in the class'
+        # namespace, so that other methods can use e.g. undecided_filter
+        # If we do that from __new__, the decoration will happen after all
+        # methods are defined, just before the class object is created.
+        class NS(dict):
+            def __setitem__(self, name, f):
+                if isinstance(f, types.FunctionType):
+                    # Wrap the test methods to add contextual information
+                    sig = signature(f)
+                    annotation = sig.return_annotation
+                    if isinstance(annotation, type) and issubclass(annotation, ResultBundleBase):
+                        f = metacls.test_method(f)
+
+                super().__setitem__(name, f)
+
+        return NS()
 
     def __new__(metacls, cls_name, bases, dct, **kwargs):
         new_cls = super().__new__(metacls, cls_name, bases, dct, **kwargs)
-
-        # Wrap the test methods to add contextual information
-        for name, f in dct.items():
-            try:
-                sig = signature(f)
-            except TypeError:
-                continue
-
-            annotation = sig.return_annotation
-            if isinstance(annotation, type) and issubclass(annotation, ResultBundleBase):
-                f = metacls.test_method(f)
-                setattr(new_cls, name, f)
 
         # If that class defines _from_target, stub from_target and move the
         # annotations of _from_target to from_target. If from_target was
@@ -1028,7 +1183,8 @@ class DmesgTestBundle(TestBundle):
     }
     """
     Mapping of canned patterns to avoid repetition while defining
-    :attr:`DMESG_IGNORED_PATTERNS` in subclasses.
+    :attr:`lisa.tests.base.DmesgTestBundle.DMESG_IGNORED_PATTERNS` in
+    subclasses.
     """
 
     DMESG_IGNORED_PATTERNS = [
@@ -1070,8 +1226,9 @@ class DmesgTestBundle(TestBundle):
         :type facility: str or None
 
         :param ignored_patterns: List of regexes to ignore some messages. The
-            pattern list is combined with :attr:`DMESG_IGNORED_PATTERNS` class
-            attribute.
+            pattern list is combined with
+            :attr:`~lisa.tests.base.DmesgTestBundle.DMESG_IGNORED_PATTERNS`
+            class attribute.
         :type ignored_patterns: list or None
         """
         levels = DmesgCollector.LOG_LEVELS
@@ -1304,8 +1461,9 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         )
         return trace.get_view(self.trace_window(trace), clear_base_cache=True)
 
+    @TestBundle.add_undecided_filter
     @TasksAnalysis.df_tasks_runtime.used_events
-    def test_noisy_tasks(self, noise_threshold_pct=None, noise_threshold_ms=None):
+    def test_noisy_tasks(self, *, noise_threshold_pct=None, noise_threshold_ms=None):
         """
         Test that no non-rtapp ("noisy") task ran for longer than the specified thresholds
 
@@ -1381,50 +1539,6 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         res.add_metric("noisiest task", metric)
 
         return res
-
-    @classmethod
-    #pylint: disable=unused-argument
-    def check_noisy_tasks(cls, noise_threshold_pct=None, noise_threshold_ms=None):
-        """
-        Decorator that applies :meth:`test_noisy_tasks` to the trace of the
-        :class:`TestBundle` returned by the underlying method. The :class:`Result`
-        will be changed to :attr:`Result.UNDECIDED` if that test fails.
-
-        We also expose :meth:`test_noisy_tasks` parameters to the decorated
-        function.
-        """
-        def decorator(func):
-            @update_wrapper_doc(
-                func,
-                added_by=':meth:`lisa.tests.base.RTATestBundle.test_noisy_tasks`',
-                description=textwrap.dedent(
-                    """
-                The returned ``ResultBundle.result`` will be changed to
-                :attr:`~lisa.tests.base.Result.UNDECIDED` if the environment was
-                too noisy:
-                {}
-                """).strip().format(
-                    inspect.getdoc(cls.test_noisy_tasks)
-                )
-            )
-            @cls.test_noisy_tasks.used_events
-            def wrapper(self, *args,
-                        noise_threshold_pct=noise_threshold_pct,
-                        noise_threshold_ms=noise_threshold_ms,
-                        **kwargs):
-                res = func(self, *args, **kwargs)
-
-                noise_res = self.test_noisy_tasks(
-                    noise_threshold_pct, noise_threshold_ms)
-                res.metrics.update(noise_res.metrics)
-
-                if not noise_res:
-                    res.result = Result.UNDECIDED
-
-                return res
-
-            return wrapper
-        return decorator
 
     @classmethod
     def unscaled_utilization(cls, plat_info, cpu, utilization_pct):

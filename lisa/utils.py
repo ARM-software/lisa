@@ -1117,7 +1117,43 @@ def get_short_doc(obj):
     return docstring
 
 
-def update_wrapper_doc(func, added_by=None, description=None, remove_params=None, include_kwargs=False):
+def optional_kwargs(func):
+    """
+    Decorator used to allow another decorator to both take keyword parameters
+    when called, and none when not called::
+
+        @optional_kwargs
+        def decorator(func, xxx=42):
+            ...
+
+        # Both of these work:
+
+        @decorator
+        def foo(...):
+           ...
+
+        @decorator(xxx=42)
+        def foo(...):
+           ...
+
+    .. note:: This only works for keyword parameters.
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if not kwargs and len(args) == 1 and callable(args[0]):
+            return func(args[0])
+        else:
+            if args:
+                raise TypeError('Positional parameters are not allowed when applying {} decorator, please use keyword arguments'.format(
+                    func.__qualname__
+                ))
+            return functools.partial(func, **kwargs)
+
+    return wrapper
+
+
+def update_wrapper_doc(func, added_by=None, sig_from=None, description=None, remove_params=None, include_kwargs=False):
     """
     Equivalent to :func:`functools.wraps` that updates the signature by taking
     into account the wrapper's extra *keyword-only* parameters and the given
@@ -1128,7 +1164,12 @@ def update_wrapper_doc(func, added_by=None, description=None, remove_params=None
 
     :param added_by: Add some kind of reference to give a sense of where the
         new behaviour of the wraps function comes from.
-    :type added_by: str or None
+    :type added_by: collections.abc.Callable or str or None
+
+    :param sig_from: By default, the signature containing the added parameters
+        will be taken from ``func``. This allows overriding that, in case ``func``
+        is just a wrapper around something else.
+    :type sig_from: collections.abc.Callable
 
     :param description: Extra description output in the docstring.
     :type description: str or None
@@ -1155,7 +1196,7 @@ def update_wrapper_doc(func, added_by=None, description=None, remove_params=None
     remove_params = remove_params if remove_params else set()
 
     def decorator(f):
-        wrapper_sig = inspect.signature(f)
+        wrapper_sig = inspect.signature(f if sig_from is None else sig_from)
         f = functools.wraps(func)(f)
         f_sig = inspect.signature(f)
 
@@ -1200,9 +1241,19 @@ def update_wrapper_doc(func, added_by=None, description=None, remove_params=None
             parameters=f_params + added_params + f_var_keyword_params,
         )
 
+        if added_by:
+            if callable(added_by):
+                added_by_ = get_sphinx_name(added_by, style='rst')
+            else:
+                added_by_ = added_by
+
+            added_by_ = '**Added by** {}:\n'.format(added_by_)
+        else:
+            added_by_ = ''
+
         # Replace the one-liner f description
         extra_doc = "\n\n{added_by}{description}".format(
-            added_by='**Added by** {}:\n'.format(added_by) if added_by else '',
+            added_by=added_by_,
             description=description if description else '',
         )
 
