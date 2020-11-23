@@ -62,6 +62,13 @@ class MisfitMigrationBase(RTATestBundle):
         HZ = plat_info['kernel']['config']['CONFIG_HZ']
         return ((HZ * plat_info['cpus-count']) // 10) * (1. / HZ)
 
+    @classmethod
+    def _get_lb_interval(cls, plat_info):
+        # Regular interval is 1 ms * nr_cpus, rounded to closest jiffy multiple
+        jiffy = 1 / plat_info['kernel']['config']['CONFIG_HZ']
+        interval = 1e-3 * plat_info["cpus-count"]
+
+        return ceil(interval / jiffy) * jiffy
 
 class StaggeredFinishes(MisfitMigrationBase):
     """
@@ -159,7 +166,12 @@ class StaggeredFinishes(MisfitMigrationBase):
         # We're pinning stuff in the first phase, so give it ample time to
         # clean the pinned logic out of balance_interval
         free_time_s = 1.1 * cls._get_max_lb_interval(plat_info)
-        stagger_s = free_time_s // (10 * len(cpus))
+
+        # Ideally we'd like the different tasks not to complete at the same time
+        # (hence the "staggered" name), but this depends on a lot of factors
+        # (capacity ratios, available frequencies, thermal conditions...) so the
+        # best we can do is wing it.
+        stagger_s = cls._get_lb_interval(plat_info) * 1.5
 
         profile = {}
 
@@ -275,11 +287,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         are not idle for more than :attr:`allowed_idle_time_s`
         """
         if allowed_idle_time_s is None:
-            # Regular interval is 1 ms * nr_cpus, rounded to closest jiffy multiple
-            jiffy = 1 / self.plat_info['kernel']['config']['CONFIG_HZ']
-            interval = 1e-3 * self.plat_info["cpus-count"]
-
-            allowed_idle_time_s = ceil(interval / jiffy) * jiffy
+            allowed_idle_time_s = self._get_lb_interval(self.plat_info)
 
         res = ResultBundle.from_bool(True)
 
