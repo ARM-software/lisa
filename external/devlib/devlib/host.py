@@ -97,11 +97,12 @@ class LocalConnection(ConnectionBase):
     def execute(self, command, timeout=None, check_exit_code=True,
                 as_root=False, strip_colors=True, will_succeed=False):
         self.logger.debug(command)
-        if as_root and not self.connected_as_root:
+        use_sudo = as_root and not self.connected_as_root
+        if use_sudo:
             if self.unrooted:
                 raise TargetStableError('unrooted')
             password = self._get_password()
-            command = 'echo {} | sudo -p ' ' -S -- sh -c '.format(quote(password)) + quote(command)
+            command = "echo {} | sudo -p ' ' -S -- sh -c {}".format(quote(password), quote(command))
         ignore = None if check_exit_code else 'all'
         try:
             stdout, stderr = check_output(command, shell=True, timeout=timeout, ignore=ignore)
@@ -112,6 +113,11 @@ class LocalConnection(ConnectionBase):
                 raise TargetTransientError(message)
             else:
                 raise TargetStableError(message)
+
+        # Remove the one-character prompt of sudo -S -p
+        if use_sudo and stderr:
+            stderr = stderr[1:]
+
         return stdout + stderr
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
@@ -119,7 +125,9 @@ class LocalConnection(ConnectionBase):
             if self.unrooted:
                 raise TargetStableError('unrooted')
             password = self._get_password()
-            command = 'echo {} | sudo -p ' ' -S '.format(quote(password)) + command
+            # The sudo prompt will add a space on stderr, but we cannot filter
+            # it out here
+            command = "echo {} | sudo -p ' ' -S -- sh -c {}".format(quote(password), quote(command))
 
         # Make sure to get a new PGID so PopenBackgroundCommand() can kill
         # all sub processes that could be started without troubles.
