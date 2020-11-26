@@ -263,8 +263,8 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
     @abc.abstractclassmethod
     def _get_job_df(cls, job):
         """
-        Process a :class:`wa.framework.JobOutput` and return a list of
-        dataframes with the results.
+        Process a :class:`wa.framework.JobOutput` and return a
+        :class:`pandas.DataFrame` with the results.
 
         :param job: WA job run output to process
         :type job: wa.framework.JobOutput
