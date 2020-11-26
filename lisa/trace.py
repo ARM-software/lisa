@@ -346,7 +346,7 @@ class TxtEventParser(EventParserBase):
     Parses events with the following format::
 
           <idle>-0     [001]    76.214046: sched_wakeup: something here: comm=watchdog/1 pid=15 prio=0 success=1 target_cpu=1
-          \____________________________________________/ \____________/  \__________________________________________________/
+          \\____________________________________________/ \\____________/  \\__________________________________________________/
                              header                        positional                          fields
 
     """
