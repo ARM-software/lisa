@@ -268,6 +268,24 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
 
         :param job: WA job run output to process
         :type job: wa.framework.JobOutput
+
+        It is a good idea to then feed the dataframe to :meth:`_add_job_info`
+        to get all the tags from WA before returning it.
+
+        .. note:: If one of these column provides the same information as some
+            column from artifact dataframe, consider the following:
+
+            * Which column have values looking better ?
+              Values will be used in legends, titles etc
+
+            * If the :meth:`_add_job_info` column looks worst, can there still
+              be value in keeping it ?
+              Maybe its values can be fed back to other WA APIs ?
+
+            * Are you sure the column is *always* provided by
+              :meth:`_add_job_info` ?
+              User can inject arbitrary classifier from WA config, so you might
+              have some columns that cannot be relied upon.
         """
         pass
 
@@ -335,6 +353,8 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
     def _add_job_info(job, df):
         df['iteration'] = job.iteration
         df['workload'] = job.label
+        df['id'] = job.id
+        df = df.assign(**job.classifiers)
         return df
 
     @staticmethod
@@ -394,7 +414,6 @@ class WAResultsCollector(WACollectorBase):
                 'metric': metric.name,
                 'value': metric.value,
                 'unit': metric.units or '',
-                **metric.classifiers
             }
             for metric in job.metrics
         )
