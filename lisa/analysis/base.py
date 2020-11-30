@@ -112,7 +112,10 @@ class AnalysisHelpers(Loggable, abc.ABC):
             ncols=ncols,
             nrows=nrows,
         )
-        use_widgets = interactive and running_ipython
+        if interactive is None:
+            interactive = is_running_ipython()
+
+        use_widgets = interactive
 
         if link_dataframes:
             if not use_widgets:
