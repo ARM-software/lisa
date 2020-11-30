@@ -91,6 +91,7 @@ def _make_vline(axis, *args, **kwargs):
     vline = axis.axvline(*args, **kwargs)
     assert type(vline) is mpl.lines.Line2D
     vline.__class__ = _DataframeLinkMarker
+    vline.set_visible(False)
     return vline
 
 
@@ -142,6 +143,7 @@ def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', f
 
     def show_loc(loc):
         cursor_vline.set_xdata(loc)
+        cursor_vline.set_visible(True)
 
         for df, output in zip(df_list, output_list):
             if loc < df.index[0]:
@@ -229,6 +231,7 @@ def axis_cursor_delta(axis, colors=['blue', 'green'], buttons=[MouseButton.LEFT,
         vline = vlines_map[button]
         vlines_loc[button] = loc
         vline.set_xdata(loc)
+        vline.set_visible(True)
         locs = [
             vlines_loc[button]
             for button in buttons
