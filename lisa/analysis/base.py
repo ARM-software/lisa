@@ -131,6 +131,10 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 for axis in figure.axes:
                     axis_cursor_delta(axis)
 
+        for axis in figure.axes:
+            axis.relim(visible_only=True)
+            axis.autoscale_view(True)
+
         # Needed for multirow plots to not overlap with each other
         figure.set_tight_layout(dict(h_pad=3.5))
         return figure, axes
