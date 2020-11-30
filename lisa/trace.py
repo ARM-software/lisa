@@ -57,7 +57,7 @@ import lisa.utils
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, take
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.generic import TypedList
-from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta, df_combine_duplicates, series_convert, df_deduplicate
+from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta, df_combine_duplicates, series_convert, df_deduplicate, df_update_duplicates
 from lisa.version import VERSION_TOKEN
 from lisa.typeclass import FromString, IntListFromStringInstance
 
@@ -1937,7 +1937,9 @@ class TraceBase(abc.ABC):
 
         series = pd.concat(series_list)
         series.sort_index(inplace=True)
-        return pd.DataFrame({'info': series})
+        df = pd.DataFrame({'info': series})
+        df_update_duplicates(df, inplace=True)
+        return df
 
 
 class TraceView(Loggable, TraceBase):
