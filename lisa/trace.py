@@ -585,11 +585,6 @@ class TxtTraceParserBase(TraceParserBase):
     :param default_event_parser_cls: Class used to build event parsers inferred from the trace.
     :type default_event_parser_cls: type
 
-    :param pre_filtered_lines: Set to ``True`` if the lines provided were
-        already pre-filtered externally, meaning that it will not accurately
-        reflect all the events that are available in that trace.
-    :type pre_filtered_lines: bool
-
     :param pre_filled_metadata: Metadata pre-filled by the caller of the
         constructor.
     :type pre_filled_metadata: dict(str, object) or None
@@ -656,11 +651,9 @@ class TxtTraceParserBase(TraceParserBase):
         needed_metadata=None,
         event_parsers=None,
         default_event_parser_cls=None,
-        pre_filtered_lines=False,
         pre_filled_metadata=None,
     ):
         super().__init__(events, needed_metadata=needed_metadata)
-        self._pre_filtered_lines = pre_filtered_lines
         self._pre_filled_metadata = pre_filled_metadata or {}
         events = set(events or [])
 
@@ -1128,15 +1121,16 @@ class TxtTraceParserBase(TraceParserBase):
         # not match the beginning of the trace
         if key == 'time-range' and key in self._needed_metadata:
             return self._time_range
+
         # If we filtered some events, we are not exhaustive anymore so we
         # cannot return the list
-        if key == 'available-events' and not self._pre_filtered_lines:
+        if key == 'available-events':
             return self._available_events
-        else:
-            try:
-                return self._pre_filled_metadata[key]
-            except KeyError:
-                return super().get_metadata(key)
+
+        try:
+            return self._pre_filled_metadata[key]
+        except KeyError:
+            return super().get_metadata(key)
 
 class TxtTraceParser(TxtTraceParserBase):
     """
@@ -1387,48 +1381,31 @@ class TxtTraceParser(TxtTraceParserBase):
         ``trace-cmd``.
 
         :Variable keyword arguments: Forwarded to ``__init__``
+
+        .. note:: We unfortunately cannot use ``-F`` filter option to
+            pre-filter on some events, since global timestamp deduplication has
+            to happen. The returned dataframe must be stable, because it could
+            be reused in another context (cached on disk), and the set of
+            events in a :class:`Trace` object can be expanded dynamically.
         """
         needed_metadata = set(needed_metadata or [])
         events = set(events)
-        # We need all the events to detect the timestamp of the first and last
-        # event
-        if 'time-range' in needed_metadata:
-            event_filters = []
-        else:
-            # First get the list of events this kernel can contain, since
-            # filtering on non-existant events will make the whole trace-cmd
-            # report command abort.
-            kernel_events = {
-                event.split(':', 1)[1]
-                for event in subprocess.check_output(
-                    ['trace-cmd', 'report', '-E', '--', path],
-                    stderr=subprocess.DEVNULL,
-                ).decode('ascii').splitlines()
-            }
-            # Filtering on event name from trace-cmd can speed up a lot the
-            # partial parsing
-            event_filters = list(itertools.chain.from_iterable(
-                ('-F', event)
-                for event in (events & kernel_events)
-            ))
-
         default_event_parser_cls, event_parsers = cls._resolve_event_parsers(event_parsers, default_event_parser_cls)
         event_parsers = event_parsers.values()
 
-        non_raw = {
+        all_raw_events = {
             parser.event
             for parser in event_parsers
-            if not parser.raw
+            if parser.raw
         }
 
         raw_events = list(itertools.chain.from_iterable(
-            ('-r', event) if event not in non_raw else []
+            ('-r', event) if event in all_raw_events else []
             for event in events
         ))
 
         pre_filled_metadata = {}
 
-        no_filter_cmd = ['trace-cmd', 'report', '-N', '-f', '--', path]
 
         if 'symbols-address' in needed_metadata:
             # Get the symbol addresses in that trace
@@ -1441,7 +1418,7 @@ class TxtTraceParser(TxtTraceParserBase):
             symbols_address = dict(
                 parse(line)
                 for line in subprocess.check_output(
-                    no_filter_cmd,
+                    ['trace-cmd', 'report', '-N', '-f', '--', path],
                     stderr=subprocess.DEVNULL,
                     universal_newlines=True,
                 ).splitlines()
@@ -1455,7 +1432,7 @@ class TxtTraceParser(TxtTraceParserBase):
         if 'cpus-count' in needed_metadata:
             regex = re.compile(rb'cpus=(?P<cpus>\d+)')
             with subprocess.Popen(
-                no_filter_cmd,
+                ['trace-cmd', 'report', '-N', '--', path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
             ) as p:
@@ -1482,29 +1459,15 @@ class TxtTraceParser(TxtTraceParserBase):
             '-t',
             # All events in raw format
             *raw_events,
-            *event_filters,
             '--', path
         ]
         # A fairly large buffer reduces the interaction overhead
         bufsize = 10 * 1024 * 1024
-        try:
-            with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=bufsize) as p:
-                # Consume the lines as they come straight from the stdout object to
-                # avoid the memory overhead of storing the whole output in one
-                # gigantic string
-                return cls(lines=p.stdout, pre_filtered_lines=bool(event_filters), **kwargs)
-        except ValueError as e:
-            # Maybe there were no lines in the output because no event matched the
-            # filter
-            if event_filters:
-                _kwargs = copy.copy(kwargs)
-                del _kwargs['events']
-                # Make a dummy parser that will raise MissingTraceEventError
-                # for any event, since the pre_filtering lead to everything
-                # being discarded
-                return cls(lines=[], events=[], pre_filtered_lines=True, **_kwargs)
-            else:
-                raise
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=bufsize) as p:
+            # Consume the lines as they come straight from the stdout object to
+            # avoid the memory overhead of storing the whole output in one
+            # gigantic string
+            return cls(lines=p.stdout, **kwargs)
 
     def _get_skeleton_regex(self, need_fields):
         regex = r'\] +(?P<__timestamp>{floating}): *(?P<__event>{identifier}):'.format(**TxtEventParser.PARSER_REGEX_TERMINALS)
