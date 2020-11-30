@@ -26,6 +26,7 @@ from enum import Enum
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
+from matplotlib.backend_bases import MouseButton
 
 from cycler import cycler as make_cycler
 
@@ -35,17 +36,6 @@ from ipywidgets import widgets, Output, HBox, Layout, interact
 from IPython.display import display
 
 from lisa.utils import is_running_ipython
-
-# TODO: remove that when Python <= 3.5 support is removed
-try:
-    # Only available since matplotlib 3.1
-    from mpl.backend_bases import MouseButton
-except ImportError:
-    class MouseButton(Enum):
-        LEFT = 1
-        MIDDLE = 2
-        RIGHT = 3
-
 
 COLOR_CYCLE = [
     '#377eb8', '#ff7f00', '#4daf4a',
