@@ -222,7 +222,9 @@ def axis_cursor_delta(axis, colors=['blue', 'green'], buttons=[MouseButton.LEFT,
 
     assert len(vlines) == 2
     vlines_map = dict(zip(buttons, vlines))
-    vlines_loc = collections.defaultdict(int)
+    vlines_loc = collections.defaultdict(
+        lambda: min(axis.get_xbound())
+    )
 
     def handler(event):
         loc = event.xdata
