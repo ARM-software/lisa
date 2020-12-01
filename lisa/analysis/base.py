@@ -111,6 +111,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
             height=height,
             ncols=ncols,
             nrows=nrows,
+            **kwargs,
         )
         if interactive is None:
             interactive = is_running_ipython()
