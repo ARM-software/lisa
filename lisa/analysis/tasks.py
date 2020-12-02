@@ -678,13 +678,17 @@ class TasksAnalysis(TraceAnalysisBase):
         # Once we removed the duplicates, we can compute the time spent while sleeping or activating
         df_add_delta(df, col='duration', inplace=True)
 
-        # Make a dataframe where the rows corresponding to preempted time are removed
-        preempt_free_df = df.dropna().copy()
+        if not np.isnan(preempted_value):
+            df['active'].fillna(preempted_value, inplace=True)
 
         # Merge consecutive activations' duration. They could have been
         # split in two by a bit of preemption, and we don't want that to
         # affect the duty cycle.
-        df_combine_duplicates(preempt_free_df, cols=['active'], func=lambda df: df['duration'].sum(), output_col='duration', inplace=True)
+        df_combine_duplicates(df, cols=['active'], func=lambda df: df['duration'].sum(), output_col='duration', inplace=True)
+
+        # Make a dataframe where the rows corresponding to preempted time are
+        # removed, unless preempted_value is set to non-NA
+        preempt_free_df = df.dropna().copy()
 
         sleep = preempt_free_df[preempt_free_df['active'] == sleep_value]['duration']
         active = preempt_free_df[preempt_free_df['active'] == active_value]['duration']
@@ -694,9 +698,6 @@ class TasksAnalysis(TraceAnalysisBase):
 
         df['duty_cycle'] = duty_cycle
         df['duty_cycle'].fillna(inplace=True, method='ffill')
-
-        if not np.isnan(preempted_value):
-            df['active'].fillna(preempted_value, inplace=True)
 
         return df
 
