@@ -1488,6 +1488,79 @@ def _data_combine(datas, func, fill_value=None):
     return state
 
 
+def series_dereference(series, value_df, method='ffill'):
+    """
+    Use a :class:`pandas.Series` values as pointers into a
+    :class:`pandas.DataFrame`, where there must be a column for each potential
+    value of the :class`pandas.Series`.
+
+    :param series: Series containing values used as pointers into ``value_df``
+        columns. If the column does not exist, ``pandas.NA`` will be used
+        instead.
+    :type series: pandas.Series
+
+    :param value_df: DataFrame of values, with one column per possible value of
+        ``series``. It is reindexed to match the index of ``series``.
+    :type value_df: pandas.DataFrame
+
+    :param method: ``value_df`` is reindexed so that it shares the same index
+        as ``series``. ``method`` is forwarded to :meth:`pandas.Series.reindex`.
+    :type method: str
+    """
+
+    value_df = value_df.reindex(series.index, method=method)
+    # Reset the index since iat[] is much faster on a RangeIndex (O(1) lookup
+    # rather than a binary search on other index types
+    orig_index = series.index
+    df = series.reset_index(drop=True).to_frame('ptr')
+    value_df = value_df.reset_index(drop=True)
+
+    def deref(x):
+        ptr = x['ptr']
+        try:
+            values = value_df[ptr]
+        except KeyError:
+            return pd.NA
+        else:
+            i = x.name
+            return values.iat[i]
+
+    df['deref'] = df.apply(deref, axis=1)
+    series = df['deref']
+    series.index = orig_index
+    return series
+
+
+def df_dereference(df, ptr_col, value_df, dst_col=None, inplace=False, **kwargs):
+    """
+    Same as :func:`series_dereference` but acting on a
+    :class:`pandas.DataFrame`'s column.
+
+    :param df: DataFrame to act on.
+    :type param_df: pandas.DataFrame
+
+    :param ptr_col: Pointer column with values that will be looked up as
+        columns in ``value_df``.
+    :type ptr_col: str
+
+    :param dst_col: Column with the result of the operation. If ``None``,
+        ``ptr_col`` will be used.
+    :type dst_col: str or None
+
+    :param value_df: DataFrame with one column per possible value found in
+        ``df[ptr_col]``.
+    :type value_df: pandas.DataFrame
+
+    :Variable keyword arguments: Forwarded to :func:`series_dereference`.
+    """
+    series = df[ptr_col]
+    dst_col = dst_col if dst_col is not None else ptr_col
+
+    df = df if inplace else df.copy(deep=False)
+    df[dst_col] = series_dereference(series, value_df, **kwargs)
+    return df
+
+
 class SignalDesc:
     """
     Define a signal to be used by various signal-oriented APIs.
