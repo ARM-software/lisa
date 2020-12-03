@@ -23,8 +23,10 @@ import inspect
 import os
 import abc
 import contextlib
+import sqlite3
 
 import pandas as pd
+
 from wa import RunOutput, discover_wa_outputs, Status, HostError
 
 from lisa.version import VERSION_TOKEN
@@ -32,7 +34,6 @@ from lisa.stats import Stats
 from lisa.utils import Loggable, memoized, get_subclasses
 from lisa.git import find_shortest_symref, get_commit_message
 from lisa.trace import Trace
-
 
 def _df_concat(dfs):
     return pd.concat(dfs, ignore_index=True, copy=False, sort=False)
@@ -552,3 +553,56 @@ class WATraceCollector(WAArtifactCollectorBase):
     def _get_artifact_df(self, path):
         trace = Trace(path, **self._trace_kwargs)
         return self._trace_to_df(trace)
+
+class WAJankbenchCollector(WAArtifactCollectorBase):
+    """
+    WA collector for the jankbench frame timings.
+
+    The collector framework will return a single :class:`pandas.DataFrame` with the
+    results from every jankbench job in :class:`lisa.stats.Stats` format (i.e. the returned dataframe
+    is arranged such that each reported metric is separated as a separate row). The metrics
+    reported are:
+
+    . ``total_duration``: Time in milliseconds to complete the frame
+
+    . ``jank_frame``: Boolean indicator of missed frame deadline. ``1`` is a Jank frame, ``0`` is not.
+
+    . ``name``: Subtest name, provided by the Jankbench app
+
+    . ``frame_id``: monotonically increasing frame number, starts from ``1`` for each subtest iteration.
+
+    An example plotter matching the old-style output can be found in the jupyter notebook
+    working directory at :file:`ipynb/wltests/WAOutput-JankbenchDemo.ipynb`
+
+    If you have existing code expecting a more direct translation of the original sqlite database
+    format, you can massage the collected dataframe back into a closer resemblance to the
+    original source database with this sequence of pandas operations::
+
+        wa_output = WAOutput('wa/output/path')
+        df = wa_output['jankbench'].df
+        db_df = df.pivot(index=['iteration', 'id', 'kernel', 'frame_id'], columns=['variable'])
+        db_df = db_df['value'].reset_index()
+        db_df.columns.name = None
+        # db_df now looks more like the original format
+
+    """
+
+    NAME = 'jankbench'
+    _EXPECTED_WORKLOAD_NAME = 'jankbench'
+    _ARTIFACT_NAME = "jankbench-results"
+    def _get_artifact_df(self, path):
+        with contextlib.closing(sqlite3.connect(path)) as con:
+            raw_df = pd.read_sql_query("SELECT total_duration, jank_frame, name, _id as frame_id from ui_results", con)
+
+        df = raw_df.melt(id_vars=['frame_id'], value_vars=['total_duration', 'jank_frame'])
+        # supply units - everything is ms time except jank frames
+        df['unit'] = 'ms'
+        df.loc[df['variable'] == 'jank_frame', 'unit'] = ''
+        return df
+
+    def get_stats(self, **kwargs):
+        return super().get_stats(
+            # Aggregate over pairs (iteration, frame_id)
+            agg_cols=['iteration', 'frame_id'],
+            **kwargs,
+        )
