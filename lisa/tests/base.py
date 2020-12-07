@@ -1330,6 +1330,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         if noise_threshold_ms is not None:
             threshold_s = min(threshold_s, noise_threshold_ms * 1e3)
 
+        threshold_pct = threshold_s * 100 / self.trace.time_range
+
         df = self.trace.analysis.tasks.df_tasks_runtime()
 
         # We don't want to account the test tasks
@@ -1366,7 +1368,9 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         if df_noise.empty:
             return ResultBundle.from_bool(True)
 
-        res = ResultBundle.from_bool(df_noise['runtime'].sum() < threshold_s)
+        total_noise_duration_s = df_noise['runtime'].sum()
+        total_noise_duration_pct = df_noise['runtime_pct'].sum()
+        res = ResultBundle.from_bool(total_noise_duration_s < threshold_s)
 
         pid = df_noise.index[0]
         comm = df_noise['comm'].iloc[0]
@@ -1378,6 +1382,12 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                   "duration (abs)": TestMetric(duration_s, "s"),
                   "duration (rel)": TestMetric(duration_pct, "%")}
         res.add_metric("noisiest task", metric)
+
+        metric = {"total noise duration (abs)": TestMetric(total_noise_duration_s, "s"),
+                  "total noise duration (rel)": TestMetric(total_noise_duration_pct, "%"),
+                  "threshold duration (abs)": TestMetric(threshold_s, "s"),
+                  "threshold duration (rel)": TestMetric(threshold_pct, "%")}
+        res.add_metric("total noise", metric)
 
         return res
 
