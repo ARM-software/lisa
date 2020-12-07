@@ -126,7 +126,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
     @may_use_events(
         requires_one_event_of(*_SCHED_PELT_CFS_NAMES),
         'sched_util_est_cfs',
-        'cpu_capacity',
+        'sched_cpu_capacity',
     )
     def df_cpus_signal(self, signal, cpus: TypedList[CPU]=None):
         """
@@ -154,7 +154,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         elif signal == 'enqueued':
             df = self._df_uniformized_signal('sched_util_est_cfs')
         elif signal == 'capacity':
-            df = self._df_uniformized_signal('cpu_capacity')
+            df = self._df_uniformized_signal('sched_cpu_capacity')
         else:
             raise ValueError('Signal "{}" not supported'.format(signal))
 
@@ -301,7 +301,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.plot_method(return_axis=True)
     @may_use_events(
         StatusAnalysis.plot_overutilized.used_events,
-        'cpu_capacity',
+        'sched_cpu_capacity',
     )
     @df_cpus_signal.used_events
     def plot_cpus_signals(self, cpus: TypedList[CPU]=None, signals: TypedList[str]=['util', 'load'], axis=None, **kwargs):

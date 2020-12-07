@@ -1926,7 +1926,7 @@ _SIGNALS = [
     SignalDesc('sched_wakeup_new', ['comm', 'pid']),
 
     SignalDesc('cpu_idle', ['cpu_id']),
-    SignalDesc('cpu_capacity', ['cpu_id']),
+    SignalDesc('sched_cpu_capacity', ['cpu']),
     SignalDesc('cpu_frequency', ['cpu_id']),
     SignalDesc('userspace@cpu_frequency_devlib', ['cpu_id']),
     SignalDesc('sched_compute_energy', ['comm', 'pid']),
