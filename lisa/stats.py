@@ -741,6 +741,9 @@ class Stats(Loggable):
             (self._ref_group.keys() | {val_col})
         )
         df = self._df_group_apply(df, diff_pct, index_cols=index_cols)
+        # Divisions can end up yielding extremely small values like 1e-14,
+        # which seems to create problems while plotting
+        df[val_col] = df[val_col].round(10)
         return df
 
     def _plot(self, df, title, plot_func, facet_rows, facet_cols, collapse_cols, filename=None, interactive=None):
