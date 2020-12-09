@@ -899,6 +899,10 @@ class Stats(Loggable):
                 except AttributeError:
                     unit = ''
 
+                # 3 chars allow things like 'f/s' or 'ms'
+                if len(unit) > 3:
+                    unit = '\n{}'.format(unit)
+
                 try:
                     ci = [
                         getattr(row, col)
