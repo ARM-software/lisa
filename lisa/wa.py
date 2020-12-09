@@ -256,6 +256,8 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
         :meth:`WAOutput.get_collector` rather than directly.
     """
 
+    _EXPECTED_WORKLOAD_NAME = None
+
     def __init__(self, wa_output, df_postprocess=None):
         self.wa_output = wa_output
         self._df_postprocess = df_postprocess or (lambda x: x)
@@ -325,8 +327,13 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
             try:
                 df = loader(job)
             except Exception as e:
-                self.logger.error('Could not load {} dataframe for job {}: {}'.format(self.NAME, job, e))
-                return None
+                # Swallow the error if that job was not from the expected
+                # workload
+                expected_name = self._EXPECTED_WORKLOAD_NAME
+                if expected_name is None or job.spec.workload_name == expected_name:
+                    self.logger.error('Could not load {} dataframe for job {}: {}'.format(self.NAME, job, e))
+                else:
+                    return None
             else:
                 return self._df_postprocess(df)
 
