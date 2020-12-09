@@ -961,9 +961,16 @@ class Stats(Loggable):
             interactive=interactive,
         )
 
-    def _collapse_cols(self, df, groups):
+    def _collapse_cols(self, df, groups, hide_constant=True):
         groups = {
-            leader: group
+            leader: [
+                col
+                for col in group
+                # If the column to collapse has a constant value, there is
+                # usually no need to display it in titles and such as it is
+                # just noise
+                if (not hide_constant) or df[col].nunique() > 1
+            ]
             for leader, group in groups.items()
             if group
         }
@@ -993,7 +1000,14 @@ class Stats(Loggable):
                 else:
                     combine = lambda leader, group: group
 
-                df[leader] = combine(leader, fold(collapse_group, group))
+                # If there is only one member in the group, there is no need to
+                # add the column name as there is no ambiguity so we avoid the
+                # extra noise
+                if len(group) == 1:
+                    df[leader] = df[group[0]]
+                else:
+                    df[leader] = combine(leader, fold(collapse_group, group))
+
                 df.drop(columns=group, inplace=True)
 
         return df
