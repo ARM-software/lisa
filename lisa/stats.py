@@ -481,7 +481,12 @@ class Stats(Loggable):
 
         def process_subgroup(df, group, subgroup):
             subgroup = FrozenDict(subgroup)
-            ref = subref[subgroup]
+
+            try:
+                ref = subref[subgroup]
+            except KeyError:
+                return None
+
             group = {**group, **subgroup}
 
             # Make sure that the columns/index levels relative to the group are
@@ -535,7 +540,7 @@ class Stats(Loggable):
             for group, df in comparison_groups.items()
             for subgroup, subdf in df_split_signals(df, sub_group_cols)
         ]
-        df = pd.concat(dfs, ignore_index=True, copy=False)
+        df = pd.concat((df for df in dfs if df is not None), ignore_index=True, copy=False)
 
         if melt:
             df = self._melt(df)
