@@ -830,6 +830,14 @@ class Stats(Loggable):
 
         :param filename: Path to the image file to write to.
         :type filename: str or None
+
+        :param remove_ref: If ``True``, do not plot the reference group.
+        :type remove_ref: bool
+
+        :param interactive: Forwarded to :func:`lisa.notebook.make_figure`
+        :type interactive: bool or None
+
+        :Variable keyword arguments: Forwarded to :meth:`get_df`.
         """
         df = self.get_df(
             remove_ref=remove_ref,
