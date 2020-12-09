@@ -823,7 +823,7 @@ class Stats(Loggable):
 
         return figure
 
-    def plot_stats(self, filename=None, remove_ref=False, interactive=None, **kwargs):
+    def plot_stats(self, filename=None, remove_ref=False, interactive=None, groups_as_row=False, **kwargs):
         """
         Returns a :class:`matplotlib.figure.Figure` containing the statistics
         for the class input :class:`pandas.DataFrame`.
@@ -836,6 +836,14 @@ class Stats(Loggable):
 
         :param interactive: Forwarded to :func:`lisa.notebook.make_figure`
         :type interactive: bool or None
+
+        :param groups_as_row: By default, subgroups are used as rows in the
+            subplot matrix so that the values shown on a given graph can be
+            expected to be in the same order of magnitude. However, when there
+            are many subgroups, this can lead to very large and somewhat hard
+            to navigate plot matrix. In this case, using the group for the rows
+            might help a great deal.
+        :type groups_as_row: bool
 
         :Variable keyword arguments: Forwarded to :meth:`get_df`.
         """
@@ -934,6 +942,13 @@ class Stats(Loggable):
         # * one bar per value of the given stat for the given group
         facet_rows = self._restrict_cols(self._plot_group_cols, df)
         facet_cols = [self._stat_col]
+        collapse_cols = set(self._stat_tag_cols) - {self._unit_col, *facet_rows, *facet_cols}
+
+        # If we want each row to be a group (e.g. kernel), swap with the bargraph X axis.
+        # Note that this can create scale issues as the result of multiple
+        # subgroups will be on the same plot (e.g. different benchmarks)
+        if groups_as_row:
+            facet_rows, collapse_cols = collapse_cols, facet_rows
 
         return self._plot(
             df,
@@ -941,7 +956,7 @@ class Stats(Loggable):
             plot_func=plot,
             facet_rows=facet_rows,
             facet_cols=facet_cols,
-            collapse_cols=self._stat_tag_cols,
+            collapse_cols=collapse_cols,
             filename=filename,
             interactive=interactive,
         )
