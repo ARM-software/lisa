@@ -288,7 +288,7 @@ class Stats(Loggable):
 
 
     _STATS_UNIT = {
-        'ks2samp_test': _Unit('p-value', normalizable=False),
+        'ks2samp_test': _Unit('pval', normalizable=False),
         'count': _Unit('samples', normalizable=True),
     }
 
@@ -700,7 +700,7 @@ class Stats(Loggable):
 
         # Summarize each group by the p-value of the test against the reference group
         test_df = self._df_group_apply(self._orig_df, func, melt=True)
-        test_df[self._unit_col] = 'p-value'
+        test_df[self._unit_col] = 'pval'
         test_df = self._df_remove_tweak_cols(test_df)
 
         return df.append(test_df, ignore_index=True)
