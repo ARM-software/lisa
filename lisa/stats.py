@@ -826,7 +826,7 @@ class Stats(Loggable):
 
         return figure
 
-    def plot_stats(self, filename=None, remove_ref=False, interactive=None, groups_as_row=False, **kwargs):
+    def plot_stats(self, filename=None, remove_ref=False, interactive=None, groups_as_row=False, kind=None, **kwargs):
         """
         Returns a :class:`matplotlib.figure.Figure` containing the statistics
         for the class input :class:`pandas.DataFrame`.
@@ -848,8 +848,17 @@ class Stats(Loggable):
             might help a great deal.
         :type groups_as_row: bool
 
+        :param kind: Type of plot. Can be any of:
+
+            * ``horizontal_bar``
+            * ``vertical_bar``
+            * ``None``
+        :type kind: str or None
+
         :Variable keyword arguments: Forwarded to :meth:`get_df`.
         """
+
+        kind = kind if kind is not None else 'horizontal_bar'
         df = self.get_df(
             remove_ref=remove_ref,
             **kwargs
@@ -871,21 +880,34 @@ class Stats(Loggable):
 
         def plot(df, ax, collapsed_col, group):
             try:
-                yerr = [
+                error = [
                     df[col]
                     for col in self._ci_cols
                 ]
             except KeyError:
-                yerr = None
+                error = None
+
+            if kind == 'horizontal_bar':
+                error_bar = dict(xerr=error)
+            else:
+                error_bar = dict(yerr=error)
 
             y_col = self._val_col
-            df.plot.bar(
+
+            if kind == 'horizontal_bar':
+                plot = df.plot.barh
+            elif kind == 'vertical_bar':
+                plot = df.plot.bar
+            else:
+                raise ValueError('Unsupported plot kind: {}'.format(kind))
+
+            plot(
                 ax=ax,
                 x=collapsed_col,
                 y=y_col,
-                yerr=yerr,
                 legend=None,
                 color=COLOR_CYCLE,
+                **error_bar,
             )
             title = ' '.join(
                 '{}={}'.format(k, v)
@@ -926,17 +948,29 @@ class Stats(Loggable):
                 line_height = 0.005
                 nr_lines = len(text.split('\n'))
 
-                ax.annotate(
-                    text,
-                    (
+                if kind == 'horizontal_bar':
+                    coord = (
+                        patch.get_width(),
+                        patch.get_y() + (
+                            (patch.get_height() / 2)
+                            if ci
+                            else 0
+                        ),
+                    )
+                else:
+                    coord = (
                         patch.get_x() + (
                             # Make some room for the error bar
                             (patch.get_width() / 1.9)
                             if ci
                             else 0
                         ),
-                        patch.get_height(),
-                    ),
+                        patch.get_height()
+                    )
+
+                ax.annotate(
+                    text,
+                    coord,
                     xytext=(0, 5),
                     textcoords='offset points',
                 )
