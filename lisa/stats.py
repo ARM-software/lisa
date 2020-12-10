@@ -557,15 +557,21 @@ class Stats(Loggable):
         """
         return self.get_df()
 
-    def get_df(self, remove_ref=False, compare=None):
+    def get_df(self, remove_ref=None, compare=None):
         """
         Returns a :class:`pandas.DataFrame` containing the statistics.
 
+        :param compare: See :class:`Stats` ``compare`` parameter. If ``None``,
+            it will default to the value provided to :class:`Stats`.
+        :type compare: bool or None
+
         :param remove_ref: If ``True``, the rows of the reference group
             described by ``ref_group`` for this object will be removed from the
-            returned dataframe.
+            returned dataframe. If ``None``, it will default to ``compare``.
+        :type remove_ref: bool or None
         """
         compare = compare if compare is not None else self._compare
+        remove_ref = remove_ref if remove_ref is not None else compare
 
         df = self._df_stats()
         df = self._df_stats_test(df)
@@ -826,7 +832,7 @@ class Stats(Loggable):
 
         return figure
 
-    def plot_stats(self, filename=None, remove_ref=False, interactive=None, groups_as_row=True, kind=None, **kwargs):
+    def plot_stats(self, filename=None, remove_ref=None, interactive=None, groups_as_row=True, kind=None, **kwargs):
         """
         Returns a :class:`matplotlib.figure.Figure` containing the statistics
         for the class input :class:`pandas.DataFrame`.
@@ -835,7 +841,8 @@ class Stats(Loggable):
         :type filename: str or None
 
         :param remove_ref: If ``True``, do not plot the reference group.
-        :type remove_ref: bool
+            See :meth:`get_df`.
+        :type remove_ref: bool or None
 
         :param interactive: Forwarded to :func:`lisa.notebook.make_figure`
         :type interactive: bool or None
