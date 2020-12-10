@@ -476,7 +476,7 @@ class TestBundleMeta(abc.ABCMeta):
 
         :Example:
 
-        .. code-block ::
+        .. code-block:: python
 
             class Foo(TestBundle):
                 @TestBundle.add_undecided_filter
