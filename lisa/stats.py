@@ -826,7 +826,7 @@ class Stats(Loggable):
 
         return figure
 
-    def plot_stats(self, filename=None, remove_ref=False, interactive=None, groups_as_row=False, kind=None, **kwargs):
+    def plot_stats(self, filename=None, remove_ref=False, interactive=None, groups_as_row=True, kind=None, **kwargs):
         """
         Returns a :class:`matplotlib.figure.Figure` containing the statistics
         for the class input :class:`pandas.DataFrame`.
