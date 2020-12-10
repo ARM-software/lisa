@@ -908,6 +908,7 @@ class Stats(Loggable):
                 legend=None,
                 color=COLOR_CYCLE,
                 **error_bar,
+                capsize=2,
             )
             title = ' '.join(
                 '{}={}'.format(k, v)
