@@ -367,6 +367,7 @@ class Stats(Loggable):
             'count': None,
             # This one is custom and not from pandas
             'mean': None,
+            'std': None,
         }
         self._ref_group = ref_group
         self._group_cols = group_cols
