@@ -193,12 +193,12 @@ class Stats(Loggable):
         :meth:`pandas.core.groupby.GroupBy.agg`. Otherwise, the provided
         function will be run.
 
-        .. note:: One key is special: ``'mean'``. When value ``None`` is used,
-            a custom function is used instead of the one from :mod:`pandas`, which
-            will compute other related statistics and provide a confidence
-            interval. An attempt will be made to guess the most appropriate kind of
-            mean to use using the ``mean_kind_col``, ``unit_col`` and
-            ``control_var_col``:
+        .. note:: One set of keys is special: ``'mean'``, ``'std'`` and
+            ``'sem'``. When value ``None`` is used, a custom function is used
+            instead of the one from :mod:`pandas`, which will compute other
+            related statistics and provide a confidence interval. An attempt
+            will be made to guess the most appropriate kind of mean to use
+            using the ``mean_kind_col``, ``unit_col`` and ``control_var_col``:
 
                 * The mean itself, as:
 
@@ -585,7 +585,7 @@ class Stats(Loggable):
         df = self._df_format(df)
         return df
 
-    def _df_mean(self, df):
+    def _df_mean(self, df, provide_stats):
         """
         Compute the mean and associated stats
         """
@@ -635,12 +635,26 @@ class Stats(Loggable):
                 return 0 if pd.isna(x) else x
             mean, std, sem, ci = series_mean_stats(series, kind=mean_kind, confidence_level=self._mean_ci_confidence)
             ci = tuple(map(fixup_nan, ci))
-            return pd.DataFrame({
-                self._stat_col:   [mean_name, sem_name, std_name],
-                self._val_col:    [mean,      sem,      std],
-                self._ci_cols[0]: [ci[0],     nan,      nan],
-                self._ci_cols[1]: [ci[1],     nan,      nan],
-            })
+
+            # Only display the stats we were asked for
+            rows = [
+                values
+                for stat, values in (
+                    ('mean', (mean_name, mean, ci[0], ci[1])),
+                    ('sem', (sem_name, sem, nan, nan)),
+                    ('std', (std_name, std, nan, nan)),
+                )
+                if stat in provide_stats
+            ]
+            return pd.DataFrame.from_records(
+                rows,
+                columns=(
+                    self._stat_col,
+                    self._val_col,
+                    self._ci_cols[0],
+                    self._ci_cols[1]
+                )
+            )
 
         return self._df_group_apply(df, mean_func, index_cols=self._agg_cols)
 
@@ -653,9 +667,15 @@ class Stats(Loggable):
         tag_cols = self._restrict_cols(self._stat_tag_cols, df)
 
         # Specific handling for the mean, as it has to be handled per group
-        if 'mean' in stats and stats['mean'] is None:
-            stats.pop('mean')
-            df_mean = self._df_mean(df)
+        special_stats = {
+            stat
+            for stat in ('mean', 'sem', 'std')
+            if stat in stats and stats[stat] is None
+        }
+        if special_stats:
+            df_mean = self._df_mean(df, special_stats)
+            for stat in special_stats:
+                stats.pop(stat)
         else:
             df_mean = df_make_empty_clone(df)
             df_mean.drop(columns=self._agg_cols, inplace=True)
