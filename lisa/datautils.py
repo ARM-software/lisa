@@ -1631,11 +1631,6 @@ class SignalDesc:
                 ]
 
 
-# Before pandas <= 1.0.0 (Python <= 3.5):
-# * 'string' dtype does not exist
-# * nullable integer dtypes are not serializable before
-_PANDAS_HIGHER_THAN_1_1_0 = tuple(map(int, pd.__version__.split('.'))) >= (1, 0, 0)
-
 @SeriesAccessor.register_accessor
 def series_convert(series, dtype):
     """
@@ -1773,19 +1768,13 @@ def series_convert(series, dtype):
         }
 
         # Bare nullable dtype
-        if _PANDAS_HIGHER_THAN_1_1_0:
-            # Already nullable
-            if dtype[0].isupper():
-                nullable = dtype
-            else:
-                nullable = nullable_dtypes[dtype]
-            to_nullable = astype(nullable)
+
+        # Already nullable
+        if dtype[0].isupper():
+            nullable = dtype
         else:
-            # Make it fail so we don't end up with issues with missing parquet
-            # support for nullable types down the line
-            def to_nullable(series):
-                raise ValueError('pandas version too old for nullable types')
-            basic = astype(lower_dtype)
+            nullable = nullable_dtypes[dtype]
+        to_nullable = astype(nullable)
 
         # Strategy assuming it's already a numeric type
         from_numeric = Alternative(
