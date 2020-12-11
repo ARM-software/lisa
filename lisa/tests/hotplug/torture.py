@@ -29,7 +29,7 @@ from operator import itemgetter
 from devlib.module.hotplug import HotplugModule
 from devlib.exception import TargetNotRespondingError
 
-from lisa.tests.base import TestMetric, ResultBundle, TestBundle
+from lisa.tests.base import TestMetric, ResultBundle, DmesgTestBundle
 from lisa.target import Target
 from lisa.utils import ArtifactPath
 
@@ -38,7 +38,7 @@ class CPUHPSequenceError(Exception):
     pass
 
 
-class HotplugBase(TestBundle):
+class HotplugBase(DmesgTestBundle):
     def __init__(self, plat_info, target_alive, hotpluggable_cpus, live_cpus):
         res_dir = None
         super().__init__(res_dir, plat_info)
@@ -200,19 +200,25 @@ class HotplugBase(TestBundle):
         # stops responding. So handle the hotplug remote func in a separate
         # thread and keep polling the target
         thread = Thread(target=do_hotplug, daemon=True)
-        try:
-            thread.start()
-            while thread.is_alive():
-                # We might have a thread hanging off in that case, but there is
-                # not much we can do since the remote func cannot really be
-                # canceled. Since it was spawned with a timeout, it will
-                # eventually die.
-                if not target.check_responsive():
-                    break
-                sleep(0.1)
-        finally:
-            target_alive = bool(target.check_responsive())
-            target.hotplug.online_all()
+
+        dmesg_path = ArtifactPath.join(res_dir, cls.DMESG_PATH)
+        dmesg_coll = DmesgCollector(target)
+        with dmesg_coll:
+            try:
+                thread.start()
+                while thread.is_alive():
+                    # We might have a thread hanging off in that case, but there is
+                    # not much we can do since the remote func cannot really be
+                    # canceled. Since it was spawned with a timeout, it will
+                    # eventually die.
+                    if not target.check_responsive():
+                        break
+                    sleep(0.1)
+            finally:
+                target_alive = bool(target.check_responsive())
+                target.hotplug.online_all()
+
+        dmesg_coll.get_data(dmesg_path)
 
         live_cpus = target.list_online_cpus() if target_alive else []
         return cls(target.plat_info, target_alive, hotpluggable_cpus, live_cpus)
