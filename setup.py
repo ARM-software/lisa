@@ -21,8 +21,11 @@ import itertools
 from setuptools import setup, find_namespace_packages
 
 
-with open('README.rst', 'r') as fh:
-    long_description = fh.read()
+with open('README.rst', 'r') as f:
+    long_description = f.read()
+
+with open('LICENSE.txt', 'r') as f:
+    license_txt = f.read()
 
 with open("lisa/version.py") as f:
     version_globals = dict()
@@ -76,6 +79,7 @@ extras_require["doc"] = [
 
 setup(
     name='LISA',
+    license=license_txt,
     version=lisa_version,
     author='Arm Ltd',
     # TODO: figure out which email to put here
@@ -87,7 +91,6 @@ setup(
         "Documentation": "https://lisa-linux-integrated-system-analysis.readthedocs.io/",
         "Source Code": "https://github.com/ARM-software/lisa",
     },
-    license='LICENSE.txt',
     description='A stick to probe the kernel with',
     long_description=long_description,
     python_requires='>= 3.6',
@@ -124,7 +127,7 @@ setup(
         # This is not a standard classifier, as there is nothing defined for
         # Apache 2.0 yet:
         # https://pypi.org/classifiers/
-        "License :: OSI Approved :: Apache 2.0",
+        "License :: OSI Approved :: Apache Software License 2.0 (Apache-2.0)",
         # It has not been tested under any other OS
         "Operating System :: POSIX :: Linux",
 
