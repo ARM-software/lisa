@@ -17,6 +17,7 @@
 #
 
 import sys
+import itertools
 from setuptools import setup, find_namespace_packages
 
 
@@ -45,6 +46,33 @@ package_data = {
     if package.startswith('lisa.assets.')
 }
 package_data['lisa.assets'] = ['*']
+
+extras_require={
+    "notebook": [
+        "jupyterlab",
+        "ipympl", # For %matplotlib widget under jupyter lab
+        "sphobjinv", # To open intersphinx inventories
+    ],
+
+    "test": [
+        "pytest",
+    ],
+
+    "wa": [
+        "wlauto",
+    ],
+}
+
+extras_require["doc"] = [
+    "sphinx >= 1.8",
+    "sphinx_rtd_theme",
+    "sphinxcontrib-plantuml",
+    "nbsphinx",
+
+    # Add all the other optional dependencies to ensure all modules from lisa
+    # can safely be imported
+    *itertools.chain.from_iterable(extras_require.values())
+]
 
 setup(
     name='LISA',
@@ -89,25 +117,7 @@ setup(
         "devlib",
     ],
 
-    extras_require={
-        "notebook": [
-            "jupyterlab",
-            "ipympl", # For %matplotlib widget under jupyter lab
-            "sphobjinv", # To open intersphinx inventories
-        ],
-
-        "doc": [
-            "sphinx >= 1.8",
-            "sphinx_rtd_theme",
-            "sphinxcontrib-plantuml",
-            "nbsphinx",
-        ],
-
-        "test": [
-            "pytest",
-        ],
-    },
-
+    extras_require=extras_require,
     package_data=package_data,
     classifiers=[
         "Programming Language :: Python :: 3 :: Only",
