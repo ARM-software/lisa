@@ -93,20 +93,20 @@ setup(
     python_requires='>= 3.6',
     install_requires=[
         "psutil >= 4.4.2",
-        # Figure.savefig() (without pyplot) does not work in
-        # matplotlib < 3.1.0, and that is used for non-interactive plots when
-        # building the doc. Unfortunately, extra_requires does not allow
-        # overriding that, and recent versions don't support Python 3.5
-        # anymore. Since don't want to drop support for Python 3.5 for now, so
-        # we mandate a lower version that what is actually required.
-        "matplotlib >= 1.4.2",
-        "pandas >= 0.23.0",
+        # Figure.savefig() (without pyplot) does not work in matplotlib <
+        # 3.1.0, and that is used for non-interactive plots when building the
+        # doc.
+        "matplotlib >= 3.1.0",
+        # Pandas >= 1.0.0 has support for new nullable dtypes
+        "pandas >= 1.0.0",
         "numpy",
         "scipy",
         # Earlier versions have broken __slots__ deserialization
         "ruamel.yaml >= 0.16.6",
-        "docutils", # For the HTML output of analysis plots
-        "pyarrow", # For pandas.to_parquet() dataframe storage
+        # For the HTML output of analysis plots
+        "docutils",
+        # For pandas.to_parquet() dataframe storage
+        "pyarrow",
 
         "ipython",
         "ipywidgets",
