@@ -1247,6 +1247,20 @@ class TxtTraceParser(TxtTraceParserBase):
                 'prev_cpu': _KERNEL_DTYPE['cpu'],
             },
         ),
+        'sched_pre_feec': dict(
+            fields={
+                'comm': _KERNEL_DTYPE['comm'],
+                'prev_cpu': _KERNEL_DTYPE['cpu'],
+                'pid': _KERNEL_DTYPE['pid'],
+            },
+        ),
+        'sched_post_feec': dict(
+            fields={
+                'comm': _KERNEL_DTYPE['comm'],
+                'dst_cpu': _KERNEL_DTYPE['cpu'],
+                'pid': _KERNEL_DTYPE['pid'],
+            },
+        ),
         'sched_pelt_cfs': dict(
             fields={
                 'cpu': _KERNEL_DTYPE['cpu'],
