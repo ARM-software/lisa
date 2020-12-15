@@ -22,6 +22,7 @@ import math
 import itertools
 import warnings
 import contextlib
+import uuid
 from operator import attrgetter
 
 import numpy as np
@@ -420,6 +421,100 @@ def df_merge(df_list, drop_columns=None, drop_inplace=False, filter_columns=None
     else:
         df1, *other_dfs = df_list
         return df1.join(other_dfs, how='outer')
+
+
+@DataFrameAccessor.register_accessor
+def df_delta(pre_df, post_df, group_on=None):
+    """
+    pre_df and post_df containing paired/consecutive events indexed by time,
+    df_delta() merges the two dataframes and adds a ``delta`` column
+    containing the time spent between the two events.
+    A typical usecase would be adding pre/post events at the entry/exit of a
+    function.
+
+    Rows from ``pre_df`` and ``post_df`` are grouped by the ``group_on``
+    columns.
+    E.g.: ``['pid', 'comm']`` to group by task.
+    Except columns listed in ``group_on``, ``pre_df`` and ``post_df`` must
+    have columns with different names.
+
+    Events that cannot be paired are ignored.
+
+    :param pre_df: Dataframe containing the events that start a record.
+    :type pre_df: pandas.DataFrame
+
+    :param post_df: Dataframe containing the events that end a record.
+    :type post_df: pandas.DataFrame
+
+    :param group_on: Columns used to group ``pre_df`` and ``post_df``.
+        E.g.: This would be ``['pid', 'comm']`` to group by task.
+    :type group_on: list(str)
+
+    :returns: a :class:`pandas.DataFrame` indexed by the ``pre_df`` dataframe
+        with:
+
+        * All the columns from the ``pre_df`` dataframe.
+        * All the columns from the ``post_df`` dataframe.
+        * A ``delta`` column (duration between the emission of a 'pre' event
+            and its consecutive 'post' event).
+    """
+    pre_df = pre_df.copy(deep=False)
+    post_df = post_df.copy(deep=False)
+
+    # Tag the rows to remember from which df they are coming from.
+    pre_df["is_pre"] = True
+    post_df["is_pre"] = False
+
+    # Merge on columns common to the two dfs to avoid overlapping of names.
+    on_col = sorted(pre_df.columns & post_df.columns)
+
+    # Merging on nullable types converts columns to object.
+    # Merging on non-nullable types converts integer/boolean to float.
+    # Thus, let the on_col non-nullable and converts the others to nullable.
+    pre_df_cols = sorted(set(pre_df) - set(on_col))
+    post_df_cols = sorted(set(post_df) - set(on_col))
+    pre_df[pre_df_cols] = df_convert_to_nullable(pre_df[pre_df_cols])
+    post_df[post_df_cols] = df_convert_to_nullable(post_df[post_df_cols])
+
+    # Merge. Don't allow column renaming.
+    df = pd.merge(pre_df, post_df, left_index=True, right_index=True, on=on_col,
+                  how='outer', suffixes=(False, False))
+
+    # Save and replace the index name by a tmp name to avoid a clash
+    # with column names.
+    index_name = df.index.name
+    index_tmp_name = uuid.uuid4().hex
+    df.index.name = index_tmp_name
+    df.reset_index(inplace=True)
+
+    # In each group, search for a faulty sequence (where pre/post events are
+    # not interleaving, e.g. pre1->pre2->post1->post2).
+    if group_on:
+        grouped = df.groupby(group_on, observed=True, sort=False)
+    else:
+        grouped = df
+    if grouped['is_pre'].transform(lambda x: x == x.shift()).any():
+        raise ValueError('Unexpected sequence of pre and post event (more than one "pre" or "post" in a row)')
+
+    # Create the 'delta' column and add the columns from post_df
+    # in the rows coming from pre_df.
+    new_columns = dict(
+        delta=grouped[index_tmp_name].transform(lambda time: time.diff().shift(-1)),
+    )
+    new_columns.update({col: grouped[col].shift(-1) for col in post_df_cols})
+    df = df.assign(**new_columns)
+
+    df.set_index(index_tmp_name, inplace=True)
+    df.index.name = index_name
+
+    # Only keep the rows from the pre_df, they have all the necessary info.
+    df = df.loc[df["is_pre"]]
+    # Drop the rows from pre_df with not matching row from post_df.
+    df.dropna(inplace=True)
+
+    df.drop(columns=["is_pre"], inplace=True)
+
+    return df
 
 
 def _resolve_x(y, x):
