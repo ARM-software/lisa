@@ -4691,7 +4691,6 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
     def __init__(self, op_str, event_checkers, check=True, prefix_str=''):
         super().__init__(check=check)
         checker_list = []
-        optional_checker_list = []
         event_checkers = event_checkers or []
         for checker in event_checkers:
             # "unwrap" checkers of the same type, to avoid useless levels of
@@ -4700,11 +4699,22 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
             # that may have different semantics.
             if type(checker) is type(self):
                 checker_list.extend(checker.checkers)
-            # Aggregate them separately to avoid having multiple of them
-            elif isinstance(checker, OptionalTraceEventChecker):
-                optional_checker_list.append(checker)
             else:
                 checker_list.append(checker)
+
+        # Aggregate them separately to avoid having multiple of them, since
+        # they can appear anywhere in the expression tree with the exact same
+        # overall effect
+        optional_checker_list = [
+            checker
+            for checker in checker_list
+            if isinstance(checker, OptionalTraceEventChecker)
+        ]
+        checker_list = [
+            checker
+            for checker in checker_list
+            if checker not in optional_checker_list
+        ]
 
         if optional_checker_list:
             checker_list.append(OptionalTraceEventChecker(optional_checker_list))
