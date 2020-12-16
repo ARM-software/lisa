@@ -35,4 +35,4 @@ install:
 
 script:
   - cd "$TRAVIS_BUILD_DIR"
-  - bash ./tools/travis_tests.sh
+  - bash ./tools/tests.sh
