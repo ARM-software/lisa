@@ -110,7 +110,7 @@ where you have authored all of the code. If you do this on work time
 make sure your employer is cool with this. We also have a `Contributor Guide
 <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/contributors_guide.html>`__
 
-.. |CI status| image:: https://github.com/ARM-software/lisa/workflows/.github/workflows/test.yml/badge.svg?Branch=master
+.. |CI status| image:: https://github.com/ARM-software/lisa/workflows/test/badge.svg?branch=master
    :target: https://github.com/ARM-software/lisa
 .. |Documentation Status| image:: https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=master
    :target: https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/
