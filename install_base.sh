@@ -77,7 +77,7 @@ call_android_sdk() {
     # Android SDK is picky on Java version, so we need to set JAVA_HOME manually.
     # In most distributions, Java is installed under /usr/lib/jvm so use that.
     # according to the distribution
-    local java_bin=$(find /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*java" -print -quit)
+    local java_bin=$(find /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*/bin/java" -not -path '*/jre/bin/*' -print -quit)
     local JAVA_HOME=$(dirname "$java_bin")/../
 
     JAVA_HOME=$JAVA_HOME "$tool" "$@"
