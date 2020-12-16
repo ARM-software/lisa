@@ -1,4 +1,4 @@
-Introduction |Travis status| |Documentation Status|
+Introduction |CI status| |Documentation Status|
 ===================================================
 
 The LISA project provides a toolkit that supports regression testing and
@@ -110,7 +110,7 @@ where you have authored all of the code. If you do this on work time
 make sure your employer is cool with this. We also have a `Contributor Guide
 <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/contributors_guide.html>`__
 
-.. |Travis status| image:: https://travis-ci.org/ARM-software/lisa.svg?branch=master
-   :target: https://travis-ci.org/ARM-software/lisa
+.. |CI status| image:: https://github.com/ARM-software/lisa/.github/workflows/test.yml/badge.svg?branch=master
+   :target: https://github.com/ARM-software/lisa
 .. |Documentation Status| image:: https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=master
-   :target: https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/?badge=master
+   :target: https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/

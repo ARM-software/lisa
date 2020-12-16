@@ -1,0 +1,30 @@
+name: test
+
+# Run this workflow every time a new commit pushed to your repository
+on: [push, pull_request]
+
+jobs:
+  # Set the job key. The key is displayed as the job name
+  # when a job name is not provided
+  test:
+    # Name the Job
+    name: test
+    # Set the type of machine to run on
+    # https://github.com/actions/virtual-environments
+    runs-on: ubuntu-18.04
+
+    # env:
+    #   DEFAULT_BRANCH: master
+      # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      # Checks out a copy of your repository on the virtual machine
+      - uses: actions/checkout@v2
+        with:
+          # Avoid a shallow clone, which breaks the check on external/
+          # modification and and provides inaccurate doc
+          fetch-depth: "0"
+
+      - run: sudo ./install_base.sh --install-all
+      - run: echo "$(python3 --version)"
+      - run: bash ./tools/tests.sh
