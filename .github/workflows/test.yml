@@ -12,6 +12,9 @@ jobs:
     # Set the type of machine to run on
     # https://github.com/actions/virtual-environments
     runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        python-version: ['3.6', '3.7', '3.8']
 
     # env:
     #   DEFAULT_BRANCH: master
@@ -24,6 +27,11 @@ jobs:
           # Avoid a shallow clone, which breaks the check on external/
           # modification and and provides inaccurate doc
           fetch-depth: "0"
+
+      # Install the python version specified in the matrix
+      - uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
 
       - run: sudo ./install_base.sh --install-all
       - run: echo "$(python3 --version)"
