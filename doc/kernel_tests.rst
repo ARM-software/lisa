@@ -299,3 +299,6 @@ actively evaluated.
 
 .. automodule:: lisa.tests.staging.numa_behaviour
    :members:
+
+.. automodule:: lisa.tests.staging.utilclamp
+   :members:
