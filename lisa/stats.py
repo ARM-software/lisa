@@ -914,6 +914,14 @@ class Stats(Loggable):
                 ]
             except KeyError:
                 error = None
+            else:
+                # Avoid warning from numpy inside matplotlib when there is no
+                # confidence interval value at all
+                if all(
+                    series.isna().all()
+                    for series in error
+                ):
+                    error = None
 
             if kind == 'horizontal_bar':
                 error_bar = dict(xerr=error)
