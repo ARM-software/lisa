@@ -496,7 +496,7 @@ def main():
                     url: git://linux-arm.org/linux-power.git
 
 
-        ''').format(manifest_doc=BatchRebaseManifest.get_help()),
+        ''').format(manifest_doc=BatchRebaseManifest.get_help(style=None)),
         formatter_class=argparse.RawDescriptionHelpFormatter,
 
     )
