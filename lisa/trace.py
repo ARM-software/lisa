@@ -1957,11 +1957,13 @@ class TraceView(Loggable, TraceBase):
     :param window: The time window to base this view on
     :type window: tuple(float, float)
 
-    :ivar base_trace: The original :class:`Trace` this view is based on.
-    :ivar analysis: The analysis proxy on the trimmed down :class:`Trace`.
-
-    :ivar start: The timestamp of the first trace event in the view (>= ``window[0]``)
-    :ivar end: The timestamp of the last trace event in the view (<= ``window[1]``)
+    :Attributes:
+        * ``base_trace``: The original :class`:`Trace` this view is based on.
+        * ``analysis``: The analysis proxy on the trimmed down :class`:`Trace`.
+        * ``start``: The timestamp of the first trace event in the view (>=
+          ``window[0]``)
+        * ``end``: The timestamp of the last trace event in the view (<=
+          ``window[1]``)
 
     You can substitute an instance of :class:`Trace` with an instance of
     :class:`TraceView`. This means you can create a view of a trimmed down trace
@@ -2100,9 +2102,9 @@ class PandasDataDesc(Mapping):
     .. note:: Once introduced in a container, instances must not be modified,
         directly or indirectly.
 
-    :ivar normal_form: Normal form of the descriptor. Equality is implemented
-        by comparing this attribute.
-    :vartype normal_form: PandasDataDescNF
+    :Attributes:
+        * ``normal_form``: Normal form of the descriptor. Equality is
+          implemented by comparing this attribute.
     """
 
     def __init__(self, spec):
@@ -3058,13 +3060,14 @@ class Trace(Loggable, TraceBase):
         parameter.
     :type write_swap: bool
 
-    :ivar start: The timestamp of the first trace event in the trace
-    :ivar end: The timestamp of the last trace event in the trace
-    :ivar time_range: Maximum timespan for all collected events
-    :ivar window: Conveniency tuple of ``(start, end)``.
-    :ivar available_events: Events available in the parsed trace, exposed as
-        some kind of set-ish smart container. Querying for event might trigger
-        the parsing of it.
+    :Attributes:
+        * ``start``: The timestamp of the first trace event in the trace
+        * ``end``: The timestamp of the last trace event in the trace
+        * ``time_range``: Maximum timespan for all collected events
+        * ``window``: Conveniency tuple of ``(start, end)``.
+        * ``available_events``: Events available in the parsed trace, exposed
+          as some kind of set-ish smart container. Querying for event might
+          trigger the parsing of it.
 
     :Supporting more events:
         Subclasses of :class:`TraceParserBase` can usually auto-detect the
