@@ -1632,7 +1632,7 @@ class SignalDesc:
 
 
 @SeriesAccessor.register_accessor
-def series_convert(series, dtype):
+def series_convert(series, dtype, nullable=None):
     """
     Convert a :class:`pandas.Series` with a best effort strategy.
 
@@ -1662,9 +1662,35 @@ def series_convert(series, dtype):
             negative values, as there is no way to reliably distinguish between
             conversion failures reasons.
     :type dtype: str or collections.abc.Callable
+
+    :param nullable: If:
+
+        - ``True``, use the nullable dtype equivalent of the requested dtype.
+        - ``None``, use the equivalent nullable dtype if there is any missing
+            data, otherwise a non-nullable dtype will be used for lower
+            memory consumption.
+    :type nullable: bool or None
     """
 
-    if series.dtype.name == dtype:
+    nullable_dtypes = {
+        'int':    'Int64',
+        'int8':   'Int8',
+        'int16':  'Int16',
+        'int32':  'Int32',
+        'int64':  'Int64',
+
+        'uint':   'UInt64',
+        'uint8':  'UInt8',
+        'uint16': 'UInt16',
+        'uint32': 'UInt32',
+        'uint64': 'UInt64',
+
+        'bool':   'boolean',
+    }
+
+    if series.dtype.name == dtype and   \
+            not (nullable and dtype in nullable_dtypes):
+        # If there is a conversion to a nullable dtype, don't skip.
         return series
 
     def to_object(x):
@@ -1675,7 +1701,8 @@ def series_convert(series, dtype):
         return x
 
     astype = lambda dtype: lambda x: x.astype(dtype, copy=False)
-    make_convert = lambda dtype: lambda x: series_convert(x, dtype)
+    make_convert = lambda dtype: lambda x: series_convert(x, dtype,
+                                                            nullable=nullable)
     basic = astype(dtype)
 
     class Tree(list):
@@ -1751,36 +1778,32 @@ def series_convert(series, dtype):
     # Then try with a nullable type.
     # Floats are already nullable so we don't need to do anything
     elif is_bool or is_int:
-        nullable_dtypes = {
-            'int':    'Int64',
-            'int8':   'Int8',
-            'int16':  'Int16',
-            'int32':  'Int32',
-            'int64':  'Int64',
-
-            'uint':   'UInt64',
-            'uint8':  'UInt8',
-            'uint16': 'UInt16',
-            'uint32': 'UInt32',
-            'uint64': 'UInt64',
-
-            'bool':   'boolean',
-        }
 
         # Bare nullable dtype
 
         # Already nullable
         if dtype[0].isupper():
-            nullable = dtype
+            nullable_type = dtype
         else:
-            nullable = nullable_dtypes[dtype]
-        to_nullable = astype(nullable)
+            nullable_type = nullable_dtypes[dtype]
+        to_nullable = astype(nullable_type)
 
-        # Strategy assuming it's already a numeric type
-        from_numeric = Alternative(
-            basic,
-            to_nullable
-        )
+        if nullable:
+            # Only allow nullable dtype conversion.
+            from_numeric = Alternative(
+                to_nullable
+            )
+        elif nullable is None:
+            # (nullable == None): default behaviour, try both.
+            from_numeric = Alternative(
+                basic,
+                to_nullable
+            )
+        else:
+            # Do not convert to nullable dtype unless the user specified one.
+            from_numeric = Alternative(
+                basic
+            )
 
         if is_int:
             parse = Alternative(
