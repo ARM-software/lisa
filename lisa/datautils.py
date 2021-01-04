@@ -1863,6 +1863,23 @@ def series_convert(series, dtype, nullable=None):
     return pipelines(series)
 
 
+@DataFrameAccessor.register_accessor
+def df_convert_to_nullable(df):
+    """
+    Convert the columns of the dataframe to their equivalent nullable dtype,
+    when possible.
+
+    :param df: The dataframe to convert.
+    :type df: pandas.DataFrame
+
+    :returns: The dataframe with converted columns.
+    """
+    def _series_convert(column):
+        return series_convert(column, str(column.dtype), nullable=True)
+
+    return df.apply(_series_convert, raw=False)
+
+
 # Defined outside SignalDesc as it references SignalDesc itself
 _SIGNALS = [
     SignalDesc('sched_switch', ['next_comm', 'next_pid']),
