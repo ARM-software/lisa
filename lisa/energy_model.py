@@ -90,9 +90,10 @@ class _CpuTree(Loggable):
 
     Each node contains either a single CPU or a set of child nodes.
 
-    :ivar cpus: CPUs contained in this node. Includes those of child nodes.
-    :ivar cpu: For convenience, this holds the single CPU contained by leaf
-      nodes. ``None`` for non-leaf nodes.
+    :Attributes:
+        * ``cpus``: CPUs contained in this node. Includes those of child nodes.
+        * ``cpu``: For convenience, this holds the single CPU contained by leaf
+          nodes. ``None`` for non-leaf nodes.
     """
 
     def __init__(self, cpu, children):
@@ -275,8 +276,9 @@ class PowerDomain(_CpuTree):
     :param children: Non-empty list of child :class:`PowerDomain` objects
     :type children:  list(PowerDomain)
 
-    :ivar cpus: CPUs contained in this node. Includes those of child nodes.
-    :type cpus: tuple(int)
+    :Attributes:
+        * ``cpus`` (`tuple(int)`): CPUs contained in this node. Includes
+          those of child nodes.
     """
 
     def __init__(self, idle_states, cpu=None, children=None):
@@ -311,12 +313,12 @@ class EnergyModel(Serializable, Loggable):
       frequencies must be equal (probably because they share a clock). The
       frequency domains must be a partition of the CPUs.
 
-    :ivar cpu_nodes: List of leaf (CPU) :class:`EnergyModelNode`
-    :ivar cpus: List of logical CPU numbers in the system
-    :ivar capacity_scale: The relative computational capacity of the most
-        powerful CPU at its highest available frequency. Utilisation is in the
-        interval ``[0, capacity_scale]``.
-
+    :Attributes:
+        * ``cpu_nodes``: List of leaf (CPU) :class`:`EnergyModelNode`
+        * ``cpus``: List of logical CPU numbers in the system
+        * ``capacity_scale``: The relative computational capacity of the most
+          powerful CPU at its highest available frequency. Utilisation is in
+          the interval ``[0, capacity_scale]``.
 
     :param root_node: Root of :class:`EnergyModelNode` tree
     :param root_power_domain: Root of :class:`PowerDomain` tree
