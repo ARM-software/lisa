@@ -660,7 +660,7 @@ class TopLevelKeyDesc(LevelKeyDesc):
     This top-level key is omitted in all interfaces except for the
     configuration file, since it only reflects the configuration class
     """
-    def get_help(self, style):
+    def get_help(self, style=None):
         if style == 'yaml':
             return self.help
         else:
