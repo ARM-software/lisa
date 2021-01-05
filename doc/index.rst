@@ -67,8 +67,11 @@ Building this documentation
 
 - Install ``doc`` optional dependencies of ``lisa`` package (``lisa-install``
   does that by default)
-- Run::
+- Run:
 
-  $ source init_env
-  $ lisa-doc-build
+  .. code:: shell
+
+    source init_env
+    lisa-doc-build
+
 - Find the HTML in ``doc/_build/html``

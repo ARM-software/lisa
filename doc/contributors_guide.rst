@@ -54,7 +54,7 @@ self-tests, which is a mix of unit and behavioural tests.
 
 From the root of LISA, you can run those tests like so:
 
-    .. code-block:: shell
+    .. code-block:: sh
 
         python3 -m pytest
         # You can also target specific test modules
