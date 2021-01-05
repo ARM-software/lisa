@@ -24,6 +24,10 @@ and then issue these commands:
     # On the first run, it will take care of creating a Python venv and populating it
     source init_env
 
+.. attention:: If you use this installation procedure, make sure to always run
+    ``source init_env`` before anything else in order to activate the venv.
+    Otherwise, importing lisa will fail, commands will not be available etc.
+
 In case the venv becomes unusable for some reason, the ``lisa-install``
 shell command available after sourcing ``init_env`` will allow to create a new
 clean venv from scratch.
