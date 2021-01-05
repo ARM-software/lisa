@@ -24,8 +24,8 @@ without any further configuration.
 
 .. code-block:: sh
 
-  $ source init_env
-  $ wa run <workload|agenda> -d output/
+  source init_env
+  wa run <workload|agenda> -d output/
 
 See the `Workload Automation documentation
 <https://workload-automation.readthedocs.io/en/latest/user_information.html#user-guide>`_
