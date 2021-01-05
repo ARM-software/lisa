@@ -27,19 +27,19 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-   first_separator
+   ==== Getting started ==== <self>
 
    overview
    setup
    lisa_shell/man/man
 
-   guides_separator
+   ==== Guides & workflows ==== <self>
 
    transition_guide
    contributors_guide
    workflows/index
 
-   api_separator
+   ==== API documentation ==== <self>
 
    target
    workloads
@@ -49,7 +49,7 @@ Contents:
    misc_utilities
    stat_comparison
 
-   tools_separator
+   ==== Tools documentation ==== <self>
 
    bisector/index
    exekall/index
