@@ -31,6 +31,7 @@ from devlib.exception import TargetNotRespondingError
 
 from lisa.tests.base import TestMetric, ResultBundle, DmesgTestBundle
 from lisa.target import Target
+from lisa.trace import DmesgCollector
 from lisa.utils import ArtifactPath
 
 
