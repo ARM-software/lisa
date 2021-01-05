@@ -85,6 +85,14 @@ Once the VM installation is complete, you can access that VM with:
 
   vagrant ssh
 
+
+What next ?
+===========
+
+The next step depends on the intended use case, further information at:
+:ref:`workflows-page`
+
+
 Updating
 ========
 
