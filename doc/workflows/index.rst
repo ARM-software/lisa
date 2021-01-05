@@ -1,3 +1,5 @@
+.. _workflows-page:
+
 *********
 Workflows
 *********
