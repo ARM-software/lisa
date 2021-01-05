@@ -26,8 +26,6 @@ In case the venv becomes unusable for some reason, the ``lisa-install``
 shell command available after sourcing ``init_env`` will allow to create a new
 clean venv from scratch.
 
-.. note:: Building the documentation with Python < 3.6 will fail.
-
 Additional Python packages
 --------------------------
 
