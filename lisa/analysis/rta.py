@@ -616,7 +616,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
             else:
                 cpus = ''
 
-            label = 'rt-app phase #{}{}'.format(phase, cpus)
+            label = f'rt-app phase #{phase}{cpus}'
             color = self.get_next_color(axis)
             axis.axvspan(start, end, alpha=0.1, facecolor=color, label=label)
 
@@ -624,7 +624,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         if local_fig:
             task = self.trace.get_task_id(task)
-            axis.set_title("Task {} phases".format(task))
+            axis.set_title(f"Task {task} phases")
 
     @AnalysisHelpers.plot_method()
     @df_rtapp_stats.used_events
@@ -665,7 +665,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         is negative the more the task is late with respect to its deadline.
         """
         task = self.trace.get_task_id(task)
-        axis.set_title('Task {} Performance Index'.format(task))
+        axis.set_title(f'Task {task} Performance Index')
         data = self.df_rtapp_stats(task)[['perf_index', ]]
         data.plot(ax=axis, drawstyle='steps-post')
         axis.set_ylim(0, 2)
@@ -702,7 +702,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         .. seealso:: :meth:`plot_perf` for the slack definition.
         """
         task = self.trace.get_task_id(task)
-        ylabel = 'slack of "{}"'.format(task)
+        ylabel = f'slack of "{task}"'
         series = self.df_rtapp_stats(task)['slack']
         series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel, figure=axis.get_figure())
         axis.axvline(series.mean(), linestyle='--', linewidth=2, label='mean')
@@ -727,7 +727,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         """
         task = self.trace.get_task_id(task)
-        ylabel = 'perf index of "{}"'.format(task)
+        ylabel = f'perf index of "{task}"'
         series = self.df_rtapp_stats(task)['perf_index']
         mean = series.mean()
         self.get_logger().info('perf index of task "{}": avg={:.2f} std={:.2f}'
@@ -797,7 +797,7 @@ class PerfAnalysis(AnalysisHelpers):
             regex = cls.RTA_LOG_PATTERN.format(task=r'(.+)-[0-9]+')
             match = re.search(regex, logfile)
             if not match:
-                raise ValueError('The logfile [{}] is not from rt-app'.format(logfile))
+                raise ValueError(f'The logfile [{logfile}] is not from rt-app')
             return match.group(1)
 
         task_log_map = {
@@ -900,7 +900,7 @@ class PerfAnalysis(AnalysisHelpers):
             for perf_data in self.perf_data.values()
         }
         if len(dirnames) != 1:
-            raise ValueError('A default folder cannot be inferred from logfiles location unambiguously: {}'.format(dirnames))
+            raise ValueError(f'A default folder cannot be inferred from logfiles location unambiguously: {dirnames}')
 
         default_dir = dirnames.pop()
 
@@ -914,7 +914,7 @@ class PerfAnalysis(AnalysisHelpers):
         """
         Plot the performance Index
         """
-        axis.set_title('Task {} Performance Index'.format(task))
+        axis.set_title(f'Task {task} Performance Index')
         data = self.get_df(task)[['PerfIndex', ]]
         data.plot(ax=axis, drawstyle='steps-post')
         axis.set_ylim(0, 2)
@@ -942,7 +942,7 @@ class PerfAnalysis(AnalysisHelpers):
 
         .. seealso:: :meth:`plot_perf_index_histogram`
         """
-        ylabel = 'slack of "{}"'.format(task)
+        ylabel = f'slack of "{task}"'
         series = self.get_df(task)['Slack']
         series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel)
         axis.axvline(series.mean(), linestyle='--', linewidth=2, label='mean')
@@ -969,7 +969,7 @@ class PerfAnalysis(AnalysisHelpers):
             perfIndex = \frac{slack}{period - runtime}
 
         """
-        ylabel = 'perf index of {}'.format(task)
+        ylabel = f'perf index of {task}'
         series = self.get_df(task)['PerfIndex']
         mean = series.mean()
         self.get_logger().info('perf index of task "{}": avg={:.2f} std={:.2f}'.format(

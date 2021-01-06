@@ -61,7 +61,7 @@ def _read_multiple_oneline_files(target, glob_patterns):
     except TargetStableError:
         return {}
 
-    cmd = '{} | {} xargs cat'.format(find_cmd, target.busybox)
+    cmd = f'{find_cmd} | {target.busybox} xargs cat'
     contents = target.execute(cmd).splitlines()
 
     if len(contents) != len(paths):
@@ -111,11 +111,11 @@ class _CpuTree(Loggable):
         else:
             if len(children) == 0:
                 raise ValueError('children cannot be empty')
-            self.cpus = tuple(sorted(set(
+            self.cpus = tuple(sorted({
                 cpu
                 for node in children
                 for cpu in node.cpus
-            )))
+            }))
             self.children = children
             for child in children:
                 child.parent = self
@@ -125,7 +125,7 @@ class _CpuTree(Loggable):
     def __repr__(self):
         name_bit = ''
         if self.name:
-            name_bit = 'name="{}", '.format(self.name)
+            name_bit = f'name="{self.name}", '
 
         if self.children:
             return '{}({}children={})'.format(
@@ -234,7 +234,7 @@ class EnergyModelNode(_CpuTree):
         if self.idle_states and idx < len(self.idle_states):
             return list(self.idle_states.keys())[idx]
 
-        raise KeyError('No idle state with index {}'.format(idx))
+        raise KeyError(f'No idle state with index {idx}')
 
 
 class EnergyModelRoot(EnergyModelNode):
@@ -361,7 +361,7 @@ class EnergyModel(Serializable, Loggable):
         logger = self.get_logger()
         self.cpus = root_node.cpus
         if self.cpus != tuple(range(len(self.cpus))):
-            raise ValueError('CPU IDs [{}] are sparse'.format(self.cpus))
+            raise ValueError(f'CPU IDs [{self.cpus}] are sparse')
 
         domains_as_set = [set(dom) for dom in freq_domains]
 
@@ -821,7 +821,7 @@ class EnergyModel(Serializable, Loggable):
         logger = cls.get_logger('from_target')
 
         subcls = cls._find_subcls(target)
-        logger.info('Attempting to load EM using {}'.format(subcls.__name__))
+        logger.info(f'Attempting to load EM using {subcls.__name__}')
         em = subcls.from_target(target)
 
         cpu_missing_idle_states = sorted(
@@ -1079,7 +1079,7 @@ class LinuxEnergyModel(EnergyModel):
 
         debugfs_em = target.read_tree_values(directory, depth=3, tar=True)
         if not debugfs_em:
-            raise TargetStableError('Energy Model not exposed at {} in debugfs.'.format(directory))
+            raise TargetStableError(f'Energy Model not exposed at {directory} in debugfs.')
 
         pd_attr = {
             pd: parse_pd_attr(pd_em)
@@ -1201,7 +1201,7 @@ class LegacyEnergyModel(EnergyModel):
             try:
                 return sge_file_values[path]
             except KeyError as e:
-                raise TargetStableError('No such file: {}'.format(e))
+                raise TargetStableError(f'No such file: {e}')
 
         def read_active_states(cpu, domain_level):
             cap_states_path = sge_path(cpu, domain_level, 0, 'cap_states')
@@ -1296,7 +1296,7 @@ class LegacyEnergyModel(EnergyModel):
                     # The only other levels we should expect to find are 'book' and
                     # 'shelf', which are not used by architectures we support.
                     raise ValueError(
-                        'Unrecognised topology level "{}"'.format(level))
+                        f'Unrecognised topology level "{level}"')
                 else:
                     ret.add(siblings)
 

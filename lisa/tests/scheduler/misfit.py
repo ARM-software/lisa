@@ -176,7 +176,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         profile = {}
 
         for cpu in cpus:
-            profile["{}{}".format(cls.task_prefix, cpu)] = (
+            profile[f"{cls.task_prefix}{cpu}"] = (
                 Periodic(
                     duty_cycle_pct=0,
                     duration_s=cls.IDLING_DELAY_S,
@@ -236,7 +236,7 @@ class StaggeredFinishes(MisfitMigrationBase):
             preempt_time = state_df.delta.sum()
             preempt_pct = (preempt_time / self.duration) * 100
 
-            res.add_metric("{} preemption".format(task), {
+            res.add_metric(f"{task} preemption", {
                 "ratio": TestMetric(preempt_pct, "%"),
                 "time": TestMetric(preempt_time, "seconds")})
 
@@ -300,7 +300,7 @@ class StaggeredFinishes(MisfitMigrationBase):
                 continue
 
             max_time, max_cpu = max(task_idle_times)
-            res.add_metric("{} max idle".format(task), data={
+            res.add_metric(f"{task} max idle", data={
                 "time": TestMetric(max_time, "seconds"), "cpu": TestMetric(max_cpu)})
 
             if max_time > allowed_idle_time_s:

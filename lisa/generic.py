@@ -68,7 +68,7 @@ class GenericContainerMetaBase(type):
             else:
                 # Add the module name so that Sphinx can establish cross
                 # references
-                return '{}.{}'.format(t.__module__, t.__qualname__)
+                return f'{t.__module__}.{t.__qualname__}'
 
         NewClass.__qualname__ = make_name(
             attrgetter('__qualname__'),

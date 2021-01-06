@@ -13,7 +13,7 @@ from lisa.version import __version__
 warnings.filterwarnings(
     action='error',
     category=DeprecationWarning,
-    module=r'{}\..*'.format(__name__),
+    module=fr'{__name__}\..*',
 )
 
 # When the deprecated APIs are used from __main__ (script or notebook), always

@@ -496,7 +496,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df = df if inplace else df.copy()
 
         for col in columns:
-            df["{}_str".format(col)] = cls.stringify_task_state_series(df[col])
+            df[f"{col}_str"] = cls.stringify_task_state_series(df[col])
 
         return df
 
@@ -731,7 +731,7 @@ class TasksAnalysis(TraceAnalysisBase):
                 else:
                     series = series_refit_index(series, window=self.trace.window)
                     series.plot(ax=axis, style='+',
-                            label="Task running in domain {}".format(domain))
+                            label=f"Task running in domain {domain}")
         else:
             series = series_refit_index(sw_df['__cpu'], window=self.trace.window)
             series.plot(ax=axis, style='+')
@@ -743,7 +743,7 @@ class TasksAnalysis(TraceAnalysisBase):
         # Add an extra CPU lane to make room for the legend
         axis.set_ylim(-0.95, self.trace.cpus_count - 0.05)
 
-        axis.set_title("CPU residency of task \"{}\"".format(task))
+        axis.set_title(f"CPU residency of task \"{task}\"")
         axis.set_ylabel('CPUs')
         axis.grid(True)
         axis.legend()
@@ -761,7 +761,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         def plotter(axis, local_fig):
             df["runtime"].plot.bar(ax=axis)
-            axis.set_title("CPU residency of task \"{}\"".format(task))
+            axis.set_title(f"CPU residency of task \"{task}\"")
             axis.set_xlabel("CPU")
             axis.set_ylabel("Runtime (s)")
             axis.grid(True)
@@ -846,9 +846,9 @@ class TasksAnalysis(TraceAnalysisBase):
         series.plot(ax=axis, legend=False)
 
         if per_sec:
-            axis.set_title("Number of task wakeups per second ({}s windows)".format(window))
+            axis.set_title(f"Number of task wakeups per second ({window}s windows)")
         else:
-            axis.set_title("Number of task wakeups within {}s windows".format(window))
+            axis.set_title(f"Number of task wakeups within {window}s windows")
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup")
@@ -908,9 +908,9 @@ class TasksAnalysis(TraceAnalysisBase):
         series.plot(ax=axis, legend=False)
 
         if per_sec:
-            axis.set_title("Number of task forks per second ({}s windows)".format(window))
+            axis.set_title(f"Number of task forks per second ({window}s windows)")
         else:
-            axis.set_title("Number of task forks within {}s windows".format(window))
+            axis.set_title(f"Number of task forks within {window}s windows")
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup_new")
@@ -1057,7 +1057,7 @@ class TasksAnalysis(TraceAnalysisBase):
                 self.cycle_colors(duration_axis)
 
                 if duty_cycle:
-                    df['duty_cycle'].plot(ax=duration_axis, drawstyle='steps-post', label='Duty cycle of {}'.format(task))
+                    df['duty_cycle'].plot(ax=duration_axis, drawstyle='steps-post', label=f'Duty cycle of {task}')
                     duration_axis.set_ylabel('Duty cycle')
 
                 if duration:
@@ -1069,12 +1069,12 @@ class TasksAnalysis(TraceAnalysisBase):
                         duration_series = df[df['active'] == active]['duration']
                         # Add blanks in the plot when the state is not the one we care about
                         duration_series = duration_series.reindex_like(df)
-                        duration_series.plot(ax=duration_axis, drawstyle='steps-post', label='{} duration of {}'.format(label, task))
+                        duration_series.plot(ax=duration_axis, drawstyle='steps-post', label=f'{label} duration of {task}')
 
                 duration_axis.legend()
 
         if local_fig:
-            axis.set_title('Activations of {}'.format(task))
+            axis.set_title(f'Activations of {task}')
             axis.grid(True)
 
     @TraceAnalysisBase.plot_method()

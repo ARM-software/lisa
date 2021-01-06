@@ -155,7 +155,7 @@ class ThermalAnalysis(TraceAnalysisBase):
 
         series = series_refit_index(df['temp'], window=window)
         series.plot(drawstyle="steps-post", ax=axis,
-                     label="Thermal zone \"{}\"".format(tz_name))
+                     label=f"Thermal zone \"{tz_name}\"")
 
         axis.legend()
 
@@ -183,7 +183,7 @@ class ThermalAnalysis(TraceAnalysisBase):
 
         series = series_refit_index(df['cdev_state'], window=window)
         series.plot(drawstyle="steps-post", ax=axis,
-                           label="\"{}\"".format(cdev_name))
+                           label=f"\"{cdev_name}\"")
 
         axis.legend()
 
@@ -205,7 +205,7 @@ class ThermalAnalysis(TraceAnalysisBase):
         df = df_refit_index(df, window=self.trace.window)
 
         df['cdev_state'].plot(drawstyle="steps-post", ax=axis,
-                           label="Device \"{}\"".format(device))
+                           label=f"Device \"{device}\"")
 
         axis.legend()
 

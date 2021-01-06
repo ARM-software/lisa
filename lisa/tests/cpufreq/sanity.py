@@ -112,7 +112,7 @@ class UserspaceSanity(DmesgTestBundle):
                                   (1 if len(freqs) % 2 else 0)]
 
                 for freq in freqs:
-                    item_res_dir = ArtifactPath.join(res_dir, 'CPU{}@{}'.format(cpu, freq))
+                    item_res_dir = ArtifactPath.join(res_dir, f'CPU{cpu}@{freq}')
                     os.makedirs(item_res_dir)
                     item = UserspaceSanityItem.from_target(
                         target=target,

@@ -242,7 +242,7 @@ class IdleAnalysis(TraceAnalysisBase):
         """
         df = self.df_cpu_idle_state_residency(cpu)
         self._plot_idle_state_residency(df, axis, pct)
-        axis.set_title("CPU{} idle state residency".format(cpu))
+        axis.set_title(f"CPU{cpu} idle state residency")
 
     @TraceAnalysisBase.plot_method()
     @df_cluster_idle_state_residency.used_events
@@ -260,7 +260,7 @@ class IdleAnalysis(TraceAnalysisBase):
         df = self.df_cluster_idle_state_residency(cluster)
 
         self._plot_idle_state_residency(df, axis, pct)
-        axis.set_title("CPUs {} idle state residency".format(cluster))
+        axis.set_title(f"CPUs {cluster} idle state residency")
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cluster_idle_state_residency.used_events

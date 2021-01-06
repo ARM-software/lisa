@@ -515,7 +515,7 @@ def do_compare(parser, compare_parser, argv, db_path_list):
         for db in db_list
     }
     if len(adaptor_cls_set) != 1:
-        raise ValueError('Cannot compare DBs that were built using a different adaptor: {}'.format(adaptor_cls_set))
+        raise ValueError(f'Cannot compare DBs that were built using a different adaptor: {adaptor_cls_set}')
     adaptor_cls = utils.take_first(adaptor_cls_set)
 
     # Add all the CLI arguments of the adaptor before reparsing the
@@ -679,7 +679,7 @@ def do_run(args, parser, run_parser, argv):
     adaptor_cls = AdaptorBase.get_adaptor_cls(adaptor_name)
     if not adaptor_cls:
         if adaptor_name:
-            raise RuntimeError('Adaptor "{}" cannot be found'.format(adaptor_name))
+            raise RuntimeError(f'Adaptor "{adaptor_name}" cannot be found')
         else:
             raise RuntimeError('No adaptor was found')
     # Add all the CLI arguments of the adaptor before reparsing the
@@ -1022,7 +1022,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
 
         (artifact_dir / 'BY_UUID').mkdir()
 
-    out('\nArtifacts dir: {}\n'.format(artifact_dir))
+    out(f'\nArtifacts dir: {artifact_dir}\n')
 
     for expr in utils.flatten_seq(iteration_expr_list):
         expr_short_id = expr.get_id(
@@ -1086,7 +1086,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
     result_map = collections.OrderedDict()
     for i, expr_list in enumerate(iteration_expr_list):
         i += 1
-        info('Iteration #{}\n'.format(i))
+        info(f'Iteration #{i}\n')
 
         for expr in expr_list:
             exec_start_msg = 'Executing: {short_id}\n\nID: {full_id}\nArtifacts: {folder}\nUUID: {uuid_}'.format(
@@ -1121,7 +1121,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                 sys.stderr.flush()
 
             def get_uuid_str(expr_val):
-                return 'UUID={}'.format(expr_val.uuid)
+                return f'UUID={expr_val.uuid}'
 
             computed_expr_val_set = set()
             reused_expr_val_set = set()
@@ -1167,12 +1167,12 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
                 if expr_val.duration is None:
                     duration = ''
                 else:
-                    duration = '{:.2f}s'.format(expr_val.duration)
+                    duration = f'{expr_val.duration:.2f}s'
 
                 cumulative = expr_val.cumulative_duration
-                cumulative = ' (cumulative: {:.2f}s)'.format(cumulative) if cumulative else ''
+                cumulative = f' (cumulative: {cumulative:.2f}s)' if cumulative else ''
 
-                return '{}{}'.format(duration, cumulative)
+                return f'{duration}{cumulative}'
 
             # This returns an iterator
             executor = expr.execute(log_expr_val)
@@ -1266,7 +1266,7 @@ def exec_expr_list(iteration_expr_list, adaptor, artifact_dir, testsession_uuid,
         db = None
 
     out('#' * 80)
-    info('Artifacts dir: {}'.format(artifact_dir))
+    info(f'Artifacts dir: {artifact_dir}')
     info('Result summary:')
 
     # Display the results summary

@@ -86,11 +86,11 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
 
     def __str__(self):
         if self.pid is not None and self.comm is not None:
-            out = '{}:{}'.format(self.pid, self.comm)
+            out = f'{self.pid}:{self.comm}'
         else:
             out = str(self.comm if self.comm is not None else self.pid)
 
-        return '[{}]'.format(out)
+        return f'[{out}]'
 
     _STR_PARSE_REGEX = re.compile(r'\[?([0-9]+):([a-zA-Z0-9_-]+)\]?')
 
@@ -168,7 +168,7 @@ class MissingMetadataError(KeyError):
         self.metadata = metadata
 
     def __str__(self):
-        return 'Missing metadata: {}'.format(self.metadata)
+        return f'Missing metadata: {self.metadata}'
 
 
 class TraceParserBase(abc.ABC, Loggable):
@@ -433,7 +433,7 @@ class TxtEventParser(EventParserBase):
             # If there are more fields to match, use the first ":" or spaces as
             # separator, otherwise just consume everything
             if fields:
-                fields =  r' *:? *{fields}'.format(fields=fields)
+                fields =  fr' *:? *{fields}'
 
             fields = r'(?P<{pos}>.*?){fields}$'.format(pos=positional_field, fields=fields, **cls.PARSER_REGEX_TERMINALS)
 
@@ -457,7 +457,7 @@ class TxtEventParser(EventParserBase):
         )
 
         compos = {
-            field: r'(?P<{field}>{regex})'.format(field=field, regex=regex)
+            field: fr'(?P<{field}>{regex})'
             for field, regex in regex_map.items()
         }
 
@@ -780,7 +780,7 @@ class TxtTraceParserBase(TraceParserBase):
         # Rename regex columns to avoid clashes that were explicitly added as
         # extra
         columns = [
-            '__parsed_{}'.format(col) if col in extra_cols else col
+            f'__parsed_{col}' if col in extra_cols else col
             for col in columns
         ]
         columns += extra_cols
@@ -1549,7 +1549,7 @@ class SimpleTxtTraceParser(TxtTraceParserBase):
         # parsed in the skeleton dataframe
         regex = header_regex
         for field in ('__timestamp', '__event'):
-            regex = regex.replace(r'(?P<{}>'.format(field), r'(?:')
+            regex = regex.replace(fr'(?P<{field}>', r'(?:')
         event_parser_header_regex = regex
 
         class SimpleTxtEventParser(TxtEventParser):
@@ -1759,7 +1759,7 @@ class TrappyTraceParser(TraceParserBase):
         elif trace_format == 'FTrace':
             trace_class = trappy.FTrace
         else:
-            raise ValueError('Unknown trace format: {}'.format(trace_format))
+            raise ValueError(f'Unknown trace format: {trace_format}')
 
         # Since we handle the cache in lisa.trace.Trace, we do not need to duplicate it
         trace_class.disable_cache = True
@@ -1918,7 +1918,7 @@ class TraceBase(abc.ABC):
 
         def make_info_row(row, event):
             fields = ' '.join(
-                '{}={}'.format(key, value)
+                f'{key}={value}'
                 for key, value in row.iteritems()
             )
 
@@ -2132,7 +2132,7 @@ class PandasDataDesc(Mapping):
         return '{}({})'.format(
             self.__class__.__name__,
             ', '.join(
-                '{}={!r}'.format(key, val)
+                f'{key}={val!r}'
                 for key, val in self.__dict__.items()
             )
         )
@@ -2274,14 +2274,14 @@ class PandasDataSwapEntry:
         """
         Filename of the metadata file in the swap.
         """
-        return '{}{}'.format(self.name, self.META_EXTENSION)
+        return f'{self.name}{self.META_EXTENSION}'
 
     @property
     def data_filename(self):
         """
         Filename of the pandas data file in the swap.
         """
-        return '{}{}'.format(self.name, TraceCache.DATAFRAME_SWAP_EXTENSION)
+        return f'{self.name}{TraceCache.DATAFRAME_SWAP_EXTENSION}'
 
     def to_json_map(self):
         """
@@ -2387,7 +2387,7 @@ class TraceCache(Loggable):
     Data storage format used to swap.
     """
 
-    DATAFRAME_SWAP_EXTENSION = '.{}'.format(DATAFRAME_SWAP_FORMAT)
+    DATAFRAME_SWAP_EXTENSION = f'.{DATAFRAME_SWAP_FORMAT}'
     """
     File extension of the data swap format.
     """
@@ -2658,7 +2658,7 @@ class TraceCache(Loggable):
             # Snappy compression seems very fast
             data.to_parquet(path, compression='snappy', index=True)
         else:
-            raise ValueError('Dataframe swap format "{}" not handled'.format(cls.DATAFRAME_SWAP_FORMAT))
+            raise ValueError(f'Dataframe swap format "{cls.DATAFRAME_SWAP_FORMAT}" not handled')
 
     def _write_swap(self, pd_desc, data):
         if not self.swap_dir:
@@ -2677,7 +2677,7 @@ class TraceCache(Loggable):
                 self.scrub_swap()
 
             def log_error(e):
-                self.get_logger().error('Could not write {} to swap: {}'.format(pd_desc, e))
+                self.get_logger().error(f'Could not write {pd_desc} to swap: {e}')
 
             # Write the Parquet file and update the write speed
             try:
@@ -2801,7 +2801,7 @@ class TraceCache(Loggable):
                     if self.DATAFRAME_SWAP_FORMAT == 'parquet':
                         data = pd.read_parquet(path)
                     else:
-                        raise ValueError('Dataframe swap format "{}" not handled'.format(self.DATAFRAME_SWAP_FORMAT))
+                        raise ValueError(f'Dataframe swap format "{self.DATAFRAME_SWAP_FORMAT}" not handled')
                 except (OSError, pyarrow.lib.ArrowIOError):
                     raise e
                 else:
@@ -3210,7 +3210,7 @@ class Trace(Loggable, TraceBase):
                 basename = os.path.basename(trace_path)
                 swap_dir = os.path.join(
                     os.path.dirname(trace_path),
-                    '.{}.lisa-swap'.format(basename)
+                    f'.{basename}.lisa-swap'
                 )
                 try:
                     os.makedirs(swap_dir, exist_ok=True)
@@ -3399,7 +3399,7 @@ class Trace(Loggable, TraceBase):
                     for e in checked_events
                 )
                 count = max_cpu + 1
-                self.get_logger().debug("Estimated CPU count from trace: {}".format(count))
+                self.get_logger().debug(f"Estimated CPU count from trace: {count}")
 
             return count
 
@@ -3637,7 +3637,7 @@ class Trace(Loggable, TraceBase):
         if raw:
             sanitization_f = None
         elif orig_raw == False and not sanitization_f:
-            raise ValueError('Sanitized dataframe for {} does not exist, please pass raw=True or raw=None'.format(event))
+            raise ValueError(f'Sanitized dataframe for {event} does not exist, please pass raw=True or raw=None')
 
         if raw:
             # Make sure all raw descriptors are made the same way, to avoid
@@ -4241,7 +4241,7 @@ class Trace(Loggable, TraceBase):
             try:
                 pid_list = self._task_name_map[comm]
             except IndexError:
-                raise ValueError('trace does not have any task named "{}"'.format(comm))
+                raise ValueError(f'trace does not have any task named "{comm}"')
 
             return pid_list
 
@@ -4249,7 +4249,7 @@ class Trace(Loggable, TraceBase):
             try:
                 comm_list = self._task_pid_map[pid]
             except IndexError:
-                raise ValueError('trace does not have any task PID {}'.format(pid))
+                raise ValueError(f'trace does not have any task PID {pid}')
 
             return comm_list
 
@@ -4294,7 +4294,7 @@ class Trace(Loggable, TraceBase):
         """
         task_ids = self.get_task_ids(task, update=update)
         if len(task_ids) > 1:
-            raise ValueError('More than one TaskID matching: {}'.format(task_ids))
+            raise ValueError(f'More than one TaskID matching: {task_ids}')
 
         return task_ids[0]
 
@@ -4761,7 +4761,7 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
         }, **kwargs)
 
     def _str_internal(self, style=None, wrapped=True):
-        op_str = ' {} '.format(self.op_str)
+        op_str = f' {self.op_str} '
         unwrapped_str = self.prefix_str + op_str.join(
             c._str_internal(style=style, wrapped=True)
             # Sort for stable output
@@ -4963,7 +4963,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
             elif key == 'tracer':
                 return non_mergeable(key)
             else:
-                raise KeyError('Cannot merge key "{}"'.format(key))
+                raise KeyError(f'Cannot merge key "{key}"')
 
         merged = {
             key: merge_conf(key, val)
@@ -5108,7 +5108,7 @@ class FtraceCollector(CollectorBase, Configurable):
         :param conf: Configuration object
         :type conf: FtraceConf
         """
-        cls.get_logger().info('Ftrace configuration:\n{}'.format(conf))
+        cls.get_logger().info(f'Ftrace configuration:\n{conf}')
         kwargs = cls.conf_to_init_kwargs(conf)
         kwargs['target'] = target
         cls.check_init_param(**kwargs)

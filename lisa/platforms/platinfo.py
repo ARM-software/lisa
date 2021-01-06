@@ -202,7 +202,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
                 return None
             else:
                 cpu = 0
-                path = '/sys/devices/system/cpu/cpu{}/cpu_capacity'.format(cpu)
+                path = f'/sys/devices/system/cpu/cpu{cpu}/cpu_capacity'
                 capa = orig_capacities[cpu]
                 test_capa = capa - 1 if capa > 1 else capa + 1
 
@@ -269,7 +269,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
                             try:
                                 return val()
                             except Exception as e:
-                                logger.error('Cannot retrieve value of key {}: {}'.format(key, e))
+                                logger.error(f'Cannot retrieve value of key {key}: {e}')
                                 return DeferredExcep(excep=e)
 
             return {
@@ -356,7 +356,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
             with target.revertable_write_value('/proc/sys/kernel/kptr_restrict', '0'):
                 kallsyms = target.read_value('/proc/kallsyms')
         except TargetStableError as e:
-            raise ConfigKeyError("Couldn't read /proc/kallsyms: {}".format(e))
+            raise ConfigKeyError(f"Couldn't read /proc/kallsyms: {e}")
 
         symbols = dict(map(parse_line, kallsyms.splitlines()))
         if symbols.keys() == {0}:

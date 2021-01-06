@@ -106,12 +106,12 @@ class Workload(Loggable):
         )
         self.run_dir = target.execute(cmd).strip()
 
-        self.get_logger().info("Created workload's run target directory: {}".format(self.run_dir))
+        self.get_logger().info(f"Created workload's run target directory: {self.run_dir}")
 
         res_dir = res_dir if res_dir else target.get_res_dir(
             name='{}{}'.format(
                 self.__class__.__qualname__,
-                '-{}'.format(name) if name else '')
+                f'-{name}' if name else '')
         )
         self.res_dir = res_dir
         self.target.install_tools(self.required_tools)
@@ -125,7 +125,7 @@ class Workload(Loggable):
             context manager.
         """
         logger = self.get_logger()
-        logger.info("Wiping target run directory: {}".format(self.run_dir))
+        logger.info(f"Wiping target run directory: {self.run_dir}")
         self.target.remove(self.run_dir)
 
     def __enter__(self):
@@ -170,21 +170,21 @@ class Workload(Loggable):
                 raise RuntimeError("Could not find 'taskset' executable on the target")
 
             cpumask = list_to_mask(cpus)
-            taskset_cmd = '{} {}'.format(quote(taskset_bin), quote('0x{:x}'.format(cpumask)))
-            _command = '{} {}'.format(taskset_cmd, _command)
+            taskset_cmd = '{} {}'.format(quote(taskset_bin), quote(f'0x{cpumask:x}'))
+            _command = f'{taskset_cmd} {_command}'
 
         if cgroup:
             _command = target.cgroups.run_into_cmd(cgroup, _command)
 
         _command = 'cd {} && {}'.format(quote(self.run_dir), _command)
 
-        logger.info("Execution start: {}".format(_command))
+        logger.info(f"Execution start: {_command}")
 
         self.output = target.execute(_command, as_root=as_root, timeout=timeout)
         logger.info("Execution complete")
 
         logfile = ArtifactPath.join(self.res_dir, 'output.log')
-        logger.debug('Saving stdout to {}...'.format(logfile))
+        logger.debug(f'Saving stdout to {logfile}...')
 
         with open(logfile, 'w') as ofile:
             ofile.write(self.output)

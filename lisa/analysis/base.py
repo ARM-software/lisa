@@ -287,7 +287,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         analysis = self.name
         filepath = os.path.join(
             default_dir,
-            "{}.{}.{}".format(analysis, plot_name, img_format))
+            f"{analysis}.{plot_name}.{img_format}")
 
         return filepath
 
@@ -559,7 +559,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     try:
                         return format_map[fmt]
                     except KeyError:
-                        raise ValueError('Unsupported format: {}'.format(fmt))
+                        raise ValueError(f'Unsupported format: {fmt}')
 
                 if output is None:
                     out = axis
@@ -601,7 +601,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
         try:
             url = get_doc_url(f)
-            doc_link = '`[doc] <{url}>`_'.format(url=url)
+            doc_link = f'`[doc] <{url}>`_'
         except Exception:
             doc_link = ''
 
@@ -642,7 +642,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
             'rc_params',
         }
         args_list = ', '.join(
-            '{}={}'.format(k, v)
+            f'{k}={v}'
             for k, v in sorted(kwargs.items(), key=itemgetter(0))
             if v is not None and k not in hidden_params
         )

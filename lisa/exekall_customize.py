@@ -90,7 +90,7 @@ class ExekallFtraceCollector(FtraceCollector, HideExekallID):
     def from_user_conf(cls, target: Target, consumer: Consumer, user_conf: FtraceConf = None) -> 'ExekallFtraceCollector':
         base_conf = cls._get_consumer_conf(consumer)
         consumer_cls = get_method_class(consumer)
-        merged_src = 'user+{}'.format(consumer_cls.__qualname__)
+        merged_src = f'user+{consumer_cls.__qualname__}'
 
         return super().from_user_conf(
             target,
@@ -175,7 +175,7 @@ class LISAAdaptor(AdaptorBase):
             events_str = joiner + joiner.join(sorted(events))
         else:
             events_str = ' <no events>'
-        return 'Used trace events:{}'.format(events_str)
+        return f'Used trace events:{events_str}'
 
     @staticmethod
     def register_run_param(parser):
@@ -237,12 +237,12 @@ comparison. Can be repeated.""")
             print('No matching test IDs have been found, use "--remove-tag board" to match across "board" tags')
             return
 
-        print('testcase failure rate changes with alpha={}\n'.format(alpha))
+        print(f'testcase failure rate changes with alpha={alpha}\n')
 
         id_len = max(len(regr.testcase_id) for regr in regr_list)
 
         header = '{id:<{id_len}}   old%   new%  delta%       pvalue fix_iter# {regr_column}'.format(
-            id='testcase'.format(alpha),
+            id=f'testcase',
             id_len=id_len,
             regr_column=' significant' if show_non_significant else ''
         )
@@ -308,7 +308,7 @@ comparison. Can be repeated.""")
             try:
                 froz_val = db.get_by_uuid(uuid)
             except KeyError:
-                raise KeyError('UUID={} not found in the database'.format(uuid))
+                raise KeyError(f'UUID={uuid} not found in the database')
             else:
                 return froz_val
 

@@ -214,7 +214,7 @@ class ResultBundleBase:
         self.metrics[name] = TestMetric(data, units)
 
     def display_and_exit(self) -> type(None):
-        print("Test result: {}".format(self))
+        print(f"Test result: {self}")
         if self:
             sys.exit(0)
         else:
@@ -951,7 +951,7 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         Returns the path of the file containing the serialized object in
         ``res_dir`` folder.
         """
-        return ArtifactPath.join(res_dir, "{}.yaml".format(cls.__qualname__))
+        return ArtifactPath.join(res_dir, f"{cls.__qualname__}.yaml")
 
     @classmethod
     def _get_referred_objs(cls, obj, predicate=lambda x: True):
@@ -1091,7 +1091,7 @@ class FtraceTestBundleMeta(TestBundleMeta):
         # Merge-in a new source to FtraceConf that contains the events we
         # collected
         ftrace_conf.add_merged_src(
-            src='{}(required)'.format(new_cls.__qualname__),
+            src=f'{new_cls.__qualname__}(required)',
             conf={
                 'events': sorted(ftrace_events),
             },
@@ -1242,7 +1242,7 @@ class DmesgTestBundle(TestBundle):
         logger = self.get_logger()
 
         if ignored_patterns:
-            logger.info('Will ignore patterns in dmesg output: {}'.format(ignored_patterns))
+            logger.info(f'Will ignore patterns in dmesg output: {ignored_patterns}')
             ignored_regex = [
                 re.compile(pattern)
                 for pattern in ignored_patterns
@@ -1607,7 +1607,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         try:
             ctrl = cgroups.controllers[kind]
         except KeyError:
-            raise CannotCreateError('"{}" cgroup controller unavailable'.format(kind))
+            raise CannotCreateError(f'"{kind}" cgroup controller unavailable')
 
         cg = ctrl.cgroup(cfg['name'])
         cg.set(**cfg['attributes'])
@@ -1693,7 +1693,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             }
 
         wload = RTA.by_profile(target, profile, res_dir=res_dir,
-                               name="rta_{}".format(cls.__name__.casefold()),
+                               name=f"rta_{cls.__name__.casefold()}",
                                trace_events=trace_events)
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
         as_root = cgroup is not None

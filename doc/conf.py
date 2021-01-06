@@ -132,7 +132,7 @@ try:
         ['git', 'describe', '--tags', '--match=v??.??'])
     version = re.match(r'v([0-9][0-9]\.[0-9][0-9]).*', git_description).group(1)
 except Exception as e:
-    logging.info("Couldn't set project version from git: {}".format(e))
+    logging.info(f"Couldn't set project version from git: {e}")
     version = lisa.__version__
 
 version = str(version)
@@ -365,7 +365,7 @@ autodoc_inherit_docstrings = True
 
 
 def nitpick_ignore_module(module):
-    mod_prefix = ('{}.'.format(module.__name__))
+    mod_prefix = (f'{module.__name__}.')
 
     class ContinueException(Exception):
         pass
@@ -401,7 +401,7 @@ def nitpick_ignore_module(module):
             except AttributeError:
                 pass
 
-            name = '{}.{}'.format(mod, name)
+            name = f'{mod}.{name}'
             return (reftype, name)
 
     modules = [module] + import_all_submodules(module, best_effort=True)
@@ -457,7 +457,7 @@ nitpick_ignore.extend([
 ])
 
 nitpick_ignore.extend(
-    (get_xref_type(x), '{}.{}'.format(x.__module__, x.__qualname__))
+    (get_xref_type(x), f'{x.__module__}.{x.__qualname__}')
     for x in sphinx_nitpick_ignore()
 )
 

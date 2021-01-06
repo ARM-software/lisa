@@ -63,7 +63,7 @@ def main():
     ]
 
     doc_map = {
-        var: os.getenv("_DOC_{}".format(var))
+        var: os.getenv(f"_DOC_{var}")
         for var in env_list
     }
 
