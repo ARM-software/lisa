@@ -84,7 +84,7 @@ class RTA(Workload):
         self.trace_events = trace_events or []
 
         if not json_file:
-            json_file = '{}.json'.format(self.name)
+            json_file = f'{self.name}.json'
 
         self.local_json = ArtifactPath.join(self.res_dir, json_file)
         self.remote_json = self.target.path.join(self.run_dir, json_file)
@@ -103,7 +103,7 @@ class RTA(Workload):
           in the json file. Passing them can prevent a needless file read.
         """
         if calibration or not tasks_names:
-            with open(self.local_json, "r") as fh:
+            with open(self.local_json) as fh:
                 desc = json.load(fh)
 
                 if calibration is None:
@@ -133,11 +133,11 @@ class RTA(Workload):
 
         if update_cpu_capacities:
             rtapp_capacities = plat_info['cpu-capacities']['rtapp']
-            logger.info('Will update CPU capacities in sysfs: {}'.format(rtapp_capacities))
+            logger.info(f'Will update CPU capacities in sysfs: {rtapp_capacities}')
 
             write_kwargs = [
                 dict(
-                    path='/sys/devices/system/cpu/cpu{}/cpu_capacity'.format(cpu),
+                    path=f'/sys/devices/system/cpu/cpu{cpu}/cpu_capacity',
                     value=capa,
                     verify=True,
                 )
@@ -163,11 +163,11 @@ class RTA(Workload):
             super().run(cpus, cgroup, as_root)
 
         if self.log_stats:
-            logger.debug('Pulling logfiles to: {}'.format(self.res_dir))
+            logger.debug(f'Pulling logfiles to: {self.res_dir}')
             for task in self.tasks:
                 # RT-app appends some number to the logs, so we can't predict the
                 # exact filename
-                logfile = self.target.path.join(self.run_dir, '*{}*.log'.format(task))
+                logfile = self.target.path.join(self.run_dir, f'*{task}*.log')
                 self.target.pull(logfile, self.res_dir, globbing=True)
 
     def _process_calibration(self, calibration):
@@ -184,7 +184,7 @@ class RTA(Workload):
             calib_map = self.target.plat_info['rtapp']['calib']
             calibration = min(calib_map.values())
         else:
-            raise ValueError('Calibration value "{x}" is cannot be handled'.format(x=calibration))
+            raise ValueError(f'Calibration value "{calibration}" is cannot be handled')
 
         return calibration
 
@@ -278,13 +278,13 @@ class RTA(Workload):
         }
 
         if max_duration_s:
-            logger.warning('Limiting workload duration to {} [s]'.format(max_duration_s))
+            logger.warning(f'Limiting workload duration to {max_duration_s} [s]')
 
         if default_policy:
             if default_policy in self.sched_policies:
-                global_conf['default_policy'] = 'SCHED_{}'.format(default_policy)
+                global_conf['default_policy'] = f'SCHED_{default_policy}'
             else:
-                raise ValueError('scheduling class {} not supported'.format(default_policy))
+                raise ValueError(f'scheduling class {default_policy} not supported')
 
         logger.info('Calibration value: {}'.format(global_conf['calibration']))
         logger.info('Default policy: {}'.format(global_conf['default_policy']))
@@ -299,27 +299,27 @@ class RTA(Workload):
                 task_conf['policy'] = global_conf['default_policy']
                 sched_descr = 'sched: using default policy'
             else:
-                task_conf['policy'] = 'SCHED_{}'.format(task.sched_policy)
+                task_conf['policy'] = f'SCHED_{task.sched_policy}'
                 if task.priority is not None:
                     task_conf['prio'] = task.priority
-                sched_descr = 'sched: {}'.format(task.sched_policy)
+                sched_descr = f'sched: {task.sched_policy}'
 
             logger.info('------------------------')
-            logger.info('task [{}], {}'.format(tid, sched_descr))
+            logger.info(f'task [{tid}], {sched_descr}')
 
             task_conf['delay'] = int(task.delay_s * 1e6)
-            logger.info(' | start delay: {:.6f} [s]'.format(task.delay_s))
+            logger.info(f' | start delay: {task.delay_s:.6f} [s]')
 
             task_conf['loop'] = task.loops
-            logger.info(' | loops count: {}'.format(task.loops))
+            logger.info(f' | loops count: {task.loops}')
 
             task_conf['phases'] = OrderedDict()
             rta_profile['tasks'][tid] = task_conf
 
             for pid, phase in enumerate(task.phases, start=1):
-                phase_name = 'phase_{:0>6}'.format(pid)
+                phase_name = f'phase_{pid:0>6}'
 
-                logger.info(' + {}'.format(phase_name))
+                logger.info(f' + {phase_name}')
                 rta_profile['tasks'][tid]['phases'][phase_name] = phase.get_rtapp_repr(tid, plat_info=target.plat_info)
 
         # Generate JSON configuration on local file
@@ -366,7 +366,7 @@ class RTA(Workload):
         json_str = template
         for placeholder, value in replacements.items():
             if placeholder in template and placeholder is None:
-                raise ValueError('Missing value for {} placeholder'.format(placeholder))
+                raise ValueError(f'Missing value for {placeholder} placeholder')
             else:
                 json_str = json_str.replace(placeholder, json.dumps(value))
 
@@ -421,7 +421,7 @@ class RTA(Workload):
         # Create calibration task
         if target.is_rooted:
             max_rtprio = int(target.execute('ulimit -Hr').split('\r')[0])
-            logger.debug('Max RT prio: {}'.format(max_rtprio))
+            logger.debug(f'Max RT prio: {max_rtprio}')
 
             priority = max_rtprio if max_rtprio <= 10 else 10
             sched_policy = 'FIFO'
@@ -431,7 +431,7 @@ class RTA(Workload):
             sched_policy = None
 
         for cpu in target.list_online_cpus():
-            logger.info('CPU{} calibration...'.format(cpu))
+            logger.info(f'CPU{cpu} calibration...')
 
             # RT-app will run a calibration for us, so we just need to
             # run a dummy task and read the output
@@ -442,9 +442,9 @@ class RTA(Workload):
                 priority=priority,
                 sched_policy=sched_policy,
             )
-            rta = cls.by_profile(target, name="rta_calib_cpu{}".format(cpu),
+            rta = cls.by_profile(target, name=f"rta_calib_cpu{cpu}",
                                  profile={'task1': calib_task},
-                                 calibration="CPU{}".format(cpu),
+                                 calibration=f"CPU{cpu}",
                                  res_dir=res_dir)
 
             with rta, target.freeze_userspace():
@@ -527,7 +527,7 @@ class RTA(Workload):
             cpu: (orig_capacities[cpu], new_capacities[cpu])
             for cpu in orig_capacities.keys() & new_capacities.keys()
         }
-        logger.info('CPU capacities according to rt-app workload: {}'.format(new_capacities))
+        logger.info(f'CPU capacities according to rt-app workload: {new_capacities}')
 
         capa_factors_pct = {
             cpu: new / orig * 100
@@ -536,10 +536,10 @@ class RTA(Workload):
         dispersion_pct = max(abs(100 - factor) for factor in capa_factors_pct.values())
 
         if dispersion_pct > 2:
-            logger.warning('The calibration values are not inversely proportional to the CPU capacities, the duty cycles will be up to {:.2f}% off on some CPUs: {}'.format(dispersion_pct, capa_factors_pct))
+            logger.warning(f'The calibration values are not inversely proportional to the CPU capacities, the duty cycles will be up to {dispersion_pct:.2f}% off on some CPUs: {capa_factors_pct}')
 
         if dispersion_pct > 20:
-            logger.warning('The calibration values are not inversely proportional to the CPU capacities. Either rt-app calibration failed, or the rt-app busy loops has a very different instruction mix compared to the workload used to establish the CPU capacities: {}'.format(capa_factors_pct))
+            logger.warning(f'The calibration values are not inversely proportional to the CPU capacities. Either rt-app calibration failed, or the rt-app busy loops has a very different instruction mix compared to the workload used to establish the CPU capacities: {capa_factors_pct}')
 
         # Map of CPUs X to list of CPUs Ys that are faster than it although CPUs
         # of Ys have a smaller orig capacity than X
@@ -563,7 +563,7 @@ class RTA(Workload):
         }
 
         if faster_than_map:
-            raise CalibrationError('Some CPUs of higher capacities are slower than other CPUs of smaller capacities: {}'.format(faster_than_map))
+            raise CalibrationError(f'Some CPUs of higher capacities are slower than other CPUs of smaller capacities: {faster_than_map}')
 
     @classmethod
     def get_cpu_capacities_from_calibrations(cls, orig_capacities, calibrations):
@@ -823,11 +823,11 @@ class Phase(Loggable):
 
         if self.uclamp_min is not None:
             phase['util_min'] = self.uclamp_min
-            logger.info(' | util_min {:>7}'.format(self.uclamp_min))
+            logger.info(f' | util_min {self.uclamp_min:>7}')
 
         if self.uclamp_max is not None:
             phase['util_max'] = self.uclamp_max
-            logger.info(' | util_max {:>7}'.format(self.uclamp_max))
+            logger.info(f' | util_max {self.uclamp_max:>7}')
 
         # Allow memory allocation from all NUMA nodes in the system
         if self.numa_nodes_membind is None:
@@ -872,7 +872,7 @@ class RTATask:
             sched_policy = sched_policy.upper()
 
             if sched_policy not in RTA.sched_policies:
-                raise ValueError('scheduling class {} not supported'.format(sched_policy))
+                raise ValueError(f'scheduling class {sched_policy} not supported')
 
         self.sched_policy = sched_policy
         self.priority = priority

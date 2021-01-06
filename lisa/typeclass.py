@@ -593,7 +593,7 @@ class TypeClass(metaclass=TypeClassMeta):
                 # If there are some missing methods, then we cannot infer any
                 # instance
                 if cls.REQUIRED.keys() > dct.keys():
-                    raise NotImplementedError('No instance of {} typeclass for {} type'.format(cls.__name__, type_.__name__))
+                    raise NotImplementedError(f'No instance of {cls.__name__} typeclass for {type_.__name__} type')
                 # If all required methods are there, carry on with that
                 else:
                     dct = {**cls.DEFAULTS, **dct}
@@ -604,7 +604,7 @@ class TypeClass(metaclass=TypeClassMeta):
             # Since no existing instance was registered for the specific class
             # of the object, we create a synthetic one for it, so attribute
             # resolution works as expected
-            instance_name = '{}InstanceOf{}'.format(cls.__qualname__, obj.__class__.__name__)
+            instance_name = f'{cls.__qualname__}InstanceOf{obj.__class__.__name__}'
             instance = type(instance_name, (obj.__class__,), dct)
 
             # Register that instance for faster future lookup
@@ -736,7 +736,7 @@ class BoolFromStringInstance(FromString, types=bool):
         elif string in ('1', 'y', 'true'):
             return True
         else:
-            raise ValueError('Cannot parse string as a boolean: {}'.format(string))
+            raise ValueError(f'Cannot parse string as a boolean: {string}')
 
     @classmethod
     def get_format_description(cls, short):

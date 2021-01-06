@@ -63,7 +63,7 @@ def series_mean_stats(series, kind, confidence_level=0.95):
         pre = lambda x: x
         post = pre
     else:
-        raise ValueErrorr('Unrecognized kind of mean: {}'.format(kind))
+        raise ValueErrorr(f'Unrecognized kind of mean: {kind}')
 
     series = pre(series)
 
@@ -620,7 +620,7 @@ class Stats(Loggable):
                     'geometric': ('gmean', 'gse', 'gsd'),
                 }[mean_kind]
             except KeyError:
-                raise ValueError('Unrecognized mean kind: {}'.format(mean_kind))
+                raise ValueError(f'Unrecognized mean kind: {mean_kind}')
 
             series = df[self._val_col]
             min_sample_size = 30
@@ -629,7 +629,7 @@ class Stats(Loggable):
                 self.get_logger().warning('Sample size smaller than {} is being used, the mean confidence interval will only be accurate if the data is normally distributed: {} samples for group {}'.format(
                     min_sample_size,
                     series_len,
-                    ', '.join(sorted('{}={}'.format(k, v) for k, v in group.items())),
+                    ', '.join(sorted(f'{k}={v}' for k, v in group.items())),
                 ))
 
             def fixup_nan(x):
@@ -899,11 +899,11 @@ class Stats(Loggable):
         df.loc[df[self._stat_col] == 'mean', self._stat_col] += mean_suffix
 
         pretty_ref_group = ' and '.join(
-            '{}={}'.format(k, v)
+            f'{k}={v}'
             for k, v in self._ref_group.items()
         )
         title = 'Statistics{}'.format(
-            ' compared against: {}'.format(pretty_ref_group) if self._compare else ''
+            f' compared against: {pretty_ref_group}' if self._compare else ''
         )
 
         def plot(df, ax, collapsed_col, group):
@@ -935,7 +935,7 @@ class Stats(Loggable):
             elif kind == 'vertical_bar':
                 plot = df.plot.bar
             else:
-                raise ValueError('Unsupported plot kind: {}'.format(kind))
+                raise ValueError(f'Unsupported plot kind: {kind}')
 
             plot(
                 ax=ax,
@@ -947,7 +947,7 @@ class Stats(Loggable):
                 capsize=2,
             )
             title = ' '.join(
-                '{}={}'.format(k, v)
+                f'{k}={v}'
                 for k, v in group.items()
             )
             ax.set_title(title)
@@ -963,7 +963,7 @@ class Stats(Loggable):
 
                 # 3 chars allow things like 'f/s' or 'ms'
                 if len(unit) > 3:
-                    unit = '\n{}'.format(unit)
+                    unit = f'\n{unit}'
 
                 try:
                     ci = [
@@ -981,7 +981,7 @@ class Stats(Loggable):
                     else:
                         ci = ''
 
-                text = '{:.2f} {}{}'.format(val, unit, ci)
+                text = f'{val:.2f} {unit}{ci}'
                 line_height = 0.005
                 nr_lines = len(text.split('\n'))
 
@@ -1067,7 +1067,7 @@ class Stats(Loggable):
                     if val == '':
                         return ''
                     else:
-                        return '{}={}{}'.format(col, val, sep)
+                        return f'{col}={val}{sep}'
 
                 return df[col].apply(make_str) + acc
 
@@ -1173,7 +1173,7 @@ class Stats(Loggable):
 
         def plot(df, ax, collapsed_col, group):
             title = ' '.join(
-                '{}={}'.format(k, v)
+                f'{k}={v}'
                 for k, v in group.items()
                 if v != ''
             )

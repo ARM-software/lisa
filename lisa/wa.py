@@ -47,7 +47,7 @@ class WAOutputNotFoundError(Exception):
         return 'Could not find output for collectors{}{}'.format(
             ':' + sep if len(self.collectors) > 1 else ' ',
             sep.join(
-                '{} ({}): {}'.format(collector.NAME, excep.__class__.__qualname__, excep)
+                f'{collector.NAME} ({excep.__class__.__qualname__}): {excep}'
                 for collector, excep in self.collectors.items()
             )
         )
@@ -304,7 +304,7 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
         return self._get_df()
 
     def _get_df(self):
-        self.logger.debug("Collecting dataframe for {}".format(self.NAME))
+        self.logger.debug(f"Collecting dataframe for {self.NAME}")
 
         wa_outputs = list(discover_wa_outputs(self.wa_output.path))
 
@@ -312,7 +312,7 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
             def loader(job):
                 cache_path = os.path.join(
                     job.basepath,
-                    '.{}-cache.{}.parquet'.format(self.NAME, VERSION_TOKEN)
+                    f'.{self.NAME}-cache.{VERSION_TOKEN}.parquet'
                 )
 
                 # _get_job_df usually returns fairly large dataframes, so cache
@@ -331,7 +331,7 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
                 # workload
                 expected_name = self._EXPECTED_WORKLOAD_NAME
                 if expected_name is None or job.spec.workload_name == expected_name:
-                    self.logger.error('Could not load {} dataframe for job {}: {}'.format(self.NAME, job, e))
+                    self.logger.error(f'Could not load {self.NAME} dataframe for job {job}: {e}')
                 else:
                     return None
             else:

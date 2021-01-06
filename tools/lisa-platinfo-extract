@@ -37,9 +37,9 @@ def main():
 
     print(plat_info)
 
-    path = args.plat_info or '{}.plat_info.yml'.format(target.name)
+    path = args.plat_info or f'{target.name}.plat_info.yml'
     plat_info.to_yaml_map(path)
-    print('\nPlatform info written to: {}'.format(path))
+    print(f'\nPlatform info written to: {path}')
 
 if __name__ == "__main__":
     main()

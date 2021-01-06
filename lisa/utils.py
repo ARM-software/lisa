@@ -127,7 +127,7 @@ class Loggable:
         for name, val in call_frame.f_locals.items():
             if var_names and name not in var_names:
                 continue
-            cls.get_logger().log(level, 'Local variable: {}: {}'.format(name, val))
+            cls.get_logger().log(level, f'Local variable: {name}: {val}')
 
 
 def get_subclasses(cls, only_leaves=False, cls_set=None):
@@ -171,7 +171,7 @@ def get_cls_name(cls, style=None, fully_qualified=True):
 
     name = mod_name + cls.__qualname__
     if style == 'rst':
-        name = ':class:`~{}`'.format(name)
+        name = f':class:`~{name}`'
     return name
 
 
@@ -319,7 +319,7 @@ class UnknownTagPlaceholder:
         self.location = location
 
     def __str__(self):
-        return '<UnknownTagPlaceholder of {}>'.format(self.tag)
+        return f'<UnknownTagPlaceholder of {self.tag}>'
 
 
 class Serializable(Loggable):
@@ -466,7 +466,7 @@ class Serializable(Loggable):
         yaml = cls._get_yaml(typ)
 
         with cls._set_relative_include_root(path):
-            with open(path, 'r', encoding=cls.YAML_ENCODING) as f:
+            with open(path, encoding=cls.YAML_ENCODING) as f:
                 return yaml.load(f)
 
     @classmethod
@@ -494,7 +494,7 @@ class Serializable(Loggable):
     # memoize to avoid displaying the same message twice
     @memoized
     def _warn_missing_env(cls, varname):
-        cls.get_logger().warning('Environment variable "{}" not defined, using None value'.format(varname))
+        cls.get_logger().warning(f'Environment variable "{varname}" not defined, using None value')
 
     @classmethod
     def _yaml_var_constructor(cls, loader, node):
@@ -533,7 +533,7 @@ class Serializable(Loggable):
             kwargs = dict(mode='wb')
             dumper = pickle.dump
         else:
-            raise ValueError('Unknown format "{}"'.format(fmt))
+            raise ValueError(f'Unknown format "{fmt}"')
 
         if isinstance(filepath, io.IOBase):
             cm = nullcontext(filepath)
@@ -591,7 +591,7 @@ class Serializable(Loggable):
             kwargs = dict(mode='rb')
             loader = pickle.load
         else:
-            raise ValueError('Unknown format "{}"'.format(fmt))
+            raise ValueError(f'Unknown format "{fmt}"')
 
         with cls._set_relative_include_root(os.path.dirname(filepath)):
             with open(filepath, **kwargs) as fh:
@@ -684,9 +684,9 @@ def setup_logging(filepath='logging.conf', level=None):
 
         if os.path.exists(filepath):
             logging.config.fileConfig(filepath)
-            logging.info('Using LISA logging configuration: {}'.format(filepath))
+            logging.info(f'Using LISA logging configuration: {filepath}')
         else:
-            raise FileNotFoundError('Logging configuration file not found: {}'.format(filepath))
+            raise FileNotFoundError(f'Logging configuration file not found: {filepath}')
 
 
 class ArtifactPath(str, Loggable, HideExekallID):
@@ -773,10 +773,10 @@ def value_range(start, stop, step=None, inclusive=False):
     step = 1 if step is None else step
 
     if stop < start and step > 0:
-        raise ValueError("step ({}) > 0 but stop ({}) < start ({})".format(step, stop, start))
+        raise ValueError(f"step ({step}) > 0 but stop ({stop}) < start ({start})")
 
     if not step:
-        raise ValueError("Step cannot be 0: {}".format(step))
+        raise ValueError(f"Step cannot be 0: {step}")
 
     ops = {
         (True, True): operator.le,
@@ -1191,7 +1191,7 @@ def update_wrapper_doc(func, added_by=None, sig_from=None, description=None, rem
     """
 
     if description:
-        description = '\n{}\n'.format(description)
+        description = f'\n{description}\n'
 
     remove_params = remove_params if remove_params else set()
 
@@ -1247,7 +1247,7 @@ def update_wrapper_doc(func, added_by=None, sig_from=None, description=None, rem
             else:
                 added_by_ = added_by
 
-            added_by_ = '**Added by** {}:\n'.format(added_by_)
+            added_by_ = f'**Added by** {added_by_}:\n'
         else:
             added_by_ = ''
 
@@ -1342,8 +1342,8 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
         name = get_sphinx_name(deprecated_obj, style=style, abbrev=True)
         if parameter:
             if style == 'rst':
-                parameter = '``{}``'.format(parameter)
-            name = '{} parameter of {}'.format(parameter, name)
+                parameter = f'``{parameter}``'
+            name = f'{parameter} parameter of {name}'
 
         if msg is None:
             _msg = ''
@@ -1536,7 +1536,7 @@ def _get_doc_url(obj_name):
             doc_url = urllib.parse.urljoin(doc_base_url, doc_page)
             return doc_url
 
-    raise ValueError('Could not find the doc of: {}'.format(obj_name))
+    raise ValueError(f'Could not find the doc of: {obj_name}')
 
 
 def show_doc(obj, iframe=False):
@@ -1702,7 +1702,7 @@ def namedtuple(*args, module, **kwargs):
 
     # Fixup the inner namedtuple, so it can be pickled
     Augmented._type.__name__ = '_type'
-    Augmented._type.__qualname__ = '{}.{}'.format(Augmented.__qualname__, Augmented._type.__name__)
+    Augmented._type.__qualname__ = f'{Augmented.__qualname__}.{Augmented._type.__name__}'
     return Augmented
 
 class _TimeMeasure:
@@ -1790,7 +1790,7 @@ def checksum(file_, method):
         result = lambda: hex(crc32_state)
         chunk_size = 1 * 1024 * 1024
     else:
-        raise ValueError('Unsupported method: {}'.format(method))
+        raise ValueError(f'Unsupported method: {method}')
 
     while True:
         chunk = file_.read(chunk_size)

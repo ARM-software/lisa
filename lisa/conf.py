@@ -67,7 +67,7 @@ class DeferredValue:
         # Make sure we don't reenter the callback, to avoid infinite loops.
         if self._is_computing:
             key = key_desc.qualname if key_desc else '<unknown>'
-            raise KeyComputationRecursionError('Recursion error while computing deferred value for key: {}'.format(key), key)
+            raise KeyComputationRecursionError(f'Recursion error while computing deferred value for key: {key}', key)
 
         self._is_computing = True
         try:
@@ -76,7 +76,7 @@ class DeferredValue:
             self._is_computing = False
 
     def __str__(self):
-        return '<lazy value of {}>'.format(self.callback.__qualname__)
+        return f'<lazy value of {self.callback.__qualname__}>'
 
 
 class DeferredExcep(DeferredValue):
@@ -95,7 +95,7 @@ class DeferredExcep(DeferredValue):
         super().__init__(callback=callback)
 
     def __str__(self):
-        return '<lazy {} exception>'.format(self.excep.__class__.__qualname__)
+        return f'<lazy {self.excep.__class__.__qualname__} exception>'
 
 
 class KeyDescBase(abc.ABC):
@@ -517,7 +517,7 @@ class DerivedKeyDesc(KeyDesc):
 
         if stack:
             key = self.qualname
-            raise KeyComputationRecursionError('Recursion error while computing derived key: {}'.format(key), key)
+            raise KeyComputationRecursionError(f'Recursion error while computing derived key: {key}', key)
         else:
             stack.append(self)
 
@@ -603,7 +603,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
             except IndexError:
                 closest_match = ''
             else:
-                closest_match = ', maybe you meant "{}" ?'.format(closest_match)
+                closest_match = f', maybe you meant "{closest_match}" ?'
 
             parent = self.qualname
             raise ConfigKeyError(
@@ -750,7 +750,7 @@ class MultiSrcConfMeta(abc.ABCMeta):
                         pass
 
                     Newtype.__name__ = newtype_name
-                    Newtype.__qualname__ = '{}.{}'.format(new_cls.__qualname__, newtype_name)
+                    Newtype.__qualname__ = f'{new_cls.__qualname__}.{newtype_name}'
                     Newtype.__module__ = new_cls.__module__
                     Newtype.__doc__ = key_desc.help
                     setattr(new_cls, newtype_name, Newtype)
@@ -766,9 +766,9 @@ class MultiSrcConfMeta(abc.ABCMeta):
                             except KeyError:
                                 return None
 
-                        getter_name = '_get_typed_key_{}'.format(type_.__name__)
+                        getter_name = f'_get_typed_key_{type_.__name__}'
                         getter.__name__ = getter_name
-                        getter.__qualname__ = '{}.{}'.format(cls.__qualname__, getter_name)
+                        getter.__qualname__ = f'{cls.__qualname__}.{getter_name}'
                         getter.__module__ = cls.__module__
                         return getter
 
@@ -815,7 +815,7 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
         try:
             data = mapping[toplevel_key] or {}
         except KeyError:
-            raise ValueError('Key "{}" needs to appear at the top level'.format(toplevel_key))
+            raise ValueError(f'Key "{toplevel_key}" needs to appear at the top level')
         # "unwrap" an extra layer of toplevel key, to play well with !include
         if len(data) == 1 and toplevel_key in data.keys():
             data = data[toplevel_key]

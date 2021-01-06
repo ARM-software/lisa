@@ -57,7 +57,7 @@ class EnergyMeter(Loggable, Configurable):
     def __init__(self, target, res_dir=None):
         self._target = target
         res_dir = res_dir if res_dir else target.get_res_dir(
-            name='EnergyMeter-{}'.format(self.name),
+            name=f'EnergyMeter-{self.name}',
             symlink=False,
         )
         self._res_dir = res_dir
@@ -87,7 +87,7 @@ class EnergyMeter(Loggable, Configurable):
                 cls = subcls
                 break
 
-        cls.get_logger('{} energy meter configuration:\n{}'.format(cls.name, conf))
+        cls.get_logger(f'{cls.name} energy meter configuration:\n{conf}')
         kwargs = cls.conf_to_init_kwargs(conf)
         kwargs.update(
             target=target,
@@ -187,7 +187,7 @@ class HWMon(EnergyMeter):
 
         # Configure channels for energy measurements
         channels = sorted(self._channels.values())
-        logger.debug('Enabling channels: {}'.format(channels))
+        logger.debug(f'Enabling channels: {channels}')
         self._hwmon.reset(kinds=['energy'], sites=channels)
 
         # Logging enabled channels
@@ -214,7 +214,7 @@ class HWMon(EnergyMeter):
             self.readings[site]['last'] = value
             self.readings[site]['total'] += self.readings[site]['delta']
 
-        logger.debug('SAMPLE: {}'.format(self.readings))
+        logger.debug(f'SAMPLE: {self.readings}')
         return self.readings
 
     def reset(self):
@@ -222,7 +222,7 @@ class HWMon(EnergyMeter):
         for site in self.readings:
             self.readings[site]['delta'] = 0
             self.readings[site]['total'] = 0
-        self.get_logger().debug('RESET: {}'.format(self.readings))
+        self.get_logger().debug(f'RESET: {self.readings}')
 
     def report(self, out_dir, out_file='energy.json'):
         # Retrive energy consumption data
@@ -235,7 +235,7 @@ class HWMon(EnergyMeter):
                                    'Selected channels: {}'.format(
                                        channel, list(nrg.keys())))
             nrg_total = nrg[site]['total']
-            self.get_logger().debug('Energy [{:>16}]: {:.6f}'.format(site, nrg_total))
+            self.get_logger().debug(f'Energy [{site:>16}]: {nrg_total:.6f}')
             clusters_nrg[channel] = nrg_total
 
         # Dump data as JSON file
@@ -347,7 +347,7 @@ class AEP(_DevlibContinuousEnergyMeter):
         logger.info('Channels selected for energy sampling: {}'.format(
             self._instrument.active_channels
         ))
-        logger.debug('Results dir: {}'.format(self._res_dir))
+        logger.debug(f'Results dir: {self._res_dir}')
 
 
 class MonsoonConf(SimpleMultiSrcConf, HideExekallID):
@@ -438,8 +438,8 @@ class ACME(EnergyMeter):
         self._iio = {}
 
         logger.info('ACME configuration:')
-        logger.info('    binary: {}'.format(self._iiocapturebin))
-        logger.info('    device: {}'.format(self._hostname))
+        logger.info(f'    binary: {self._iiocapturebin}')
+        logger.info(f'    device: {self._hostname}')
         logger.info('  channels: {}'.format(', '.join(
             self._str(channel) for channel in self._channels
         )))
@@ -490,7 +490,7 @@ class ACME(EnergyMeter):
             ch_id = self._channels[channel]
 
             # Setup CSV file to collect samples for this channel
-            csv_file = ArtifactPath.join(self._res_dir, 'samples_{}.csv'.format(channel))
+            csv_file = ArtifactPath.join(self._res_dir, f'samples_{channel}.csv')
 
             # Start a dedicated iio-capture instance for this channel
             self._iio[ch_id] = Popen(['stdbuf', '-i0', '-o0', '-e0',
@@ -516,7 +516,7 @@ class ACME(EnergyMeter):
                  ))
                 logger.warning('Make sure there are no iio-capture processes connected to {} and device {}'.format(self._hostname, self._str(channel)))
                 out, _ = self._iio[ch_id].communicate()
-                logger.error('Output: {}'.format(out.strip()))
+                logger.error(f'Output: {out.strip()}')
                 self._iio[ch_id] = None
                 raise RuntimeError('iio-capture connection error')
 
@@ -583,11 +583,11 @@ class ACME(EnergyMeter):
             logger.debug(self._str(channel))
             logger.debug(nrg)
 
-            src = os.path.join(self._res_dir, 'samples_{}.csv'.format(channel))
+            src = os.path.join(self._res_dir, f'samples_{channel}.csv')
             shutil.move(src, out_dir)
 
             # Add channel's energy to return results
-            channels_nrg['{}'.format(channel)] = nrg['energy']
+            channels_nrg[f'{channel}'] = nrg['energy']
 
         # Dump energy data
         nrg_file = os.path.join(out_dir, out_energy)

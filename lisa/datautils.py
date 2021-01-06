@@ -67,7 +67,7 @@ class DataAccessor:
         try:
             f = self.FUNCTIONS[attr]
         except KeyError:
-            raise AttributeError('Unknown method name: {}'.format(attr))
+            raise AttributeError(f'Unknown method name: {attr}')
 
         meth = f.__get__(self.data, self.__class__)
         return meth
@@ -542,7 +542,7 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
     elif sign is None:
         pass
     else:
-        raise ValueError('Unsupported "sign": {}'.format(sign))
+        raise ValueError(f'Unsupported "sign": {sign}')
 
     if method == "rect":
         dx = x.diff()
@@ -565,7 +565,7 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
         return scipy.integrate.simps(y, x)
 
     else:
-        raise ValueError('Unsupported integration method: {}'.format(method))
+        raise ValueError(f'Unsupported integration method: {method}')
 
 
 @SeriesAccessor.register_accessor
@@ -671,7 +671,7 @@ def _data_window(data, window, method, clip_window):
         window = (start, end)
 
     if window[0] > window[1]:
-        raise KeyError('The window starts after its end: {}'.format(window))
+        raise KeyError(f'The window starts after its end: {window}')
 
     if method == 'inclusive':
         method = ('ffill', 'bfill')
@@ -694,7 +694,7 @@ def _data_window(data, window, method, clip_window):
         method = ('bfill', 'bfill')
 
     else:
-        raise ValueError('Slicing method not supported: {}'.format(method))
+        raise ValueError(f'Slicing method not supported: {method}')
 
     window = [
         _get_loc(index, x, method=method) if x is not None else None
@@ -1002,7 +1002,7 @@ def series_local_extremum(series, kind):
     elif kind == 'max':
         comparator = np.greater_equal
     else:
-        raise ValueError('Unsupported kind: {}'.format(kind))
+        raise ValueError(f'Unsupported kind: {kind}')
 
     ilocs = scipy.signal.argrelextrema(series.to_numpy(), comparator=comparator)
     return series.iloc[ilocs]
@@ -1071,7 +1071,7 @@ def series_rolling_apply(series, func, window, window_float_index=True, center=F
     series = pd.Series(series.array, index=index)
 
     window_ns = int(window * 1e9)
-    rolling_window = '{}ns'.format(window_ns)
+    rolling_window = f'{window_ns}ns'
     values = series.rolling(rolling_window).apply(func, raw=False).values
 
     if center:
@@ -1090,7 +1090,7 @@ def _data_find_unique_bool_vector(data, cols, all_col, keep):
     elif keep is None:
         shift = 1
     else:
-        raise ValueError('Unknown keep value: {}'.format(keep))
+        raise ValueError(f'Unknown keep value: {keep}')
 
     dedup_data = data[cols] if cols else data
     # Unique values will be True, duplicate False

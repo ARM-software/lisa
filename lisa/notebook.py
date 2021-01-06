@@ -276,7 +276,7 @@ def interact_tasks(trace, tasks=None, kind=None):
         elif kind == 'rtapp':
             tasks = trace.analysis.rta.rtapp_tasks
         else:
-            raise ValueError('Unknown task kind: {}'.format(kind))
+            raise ValueError(f'Unknown task kind: {kind}')
 
     # Map of friendly names to actual objects
     task_map = {

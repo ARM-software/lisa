@@ -322,7 +322,7 @@ class WaResultsCollector(Loggable):
                 # different workload parameters will be amalgamated.
                 test = workload
 
-            rich_tag = ';'.join('{}={}'.format(k, v) for k, v in iter(classifiers.items()))
+            rich_tag = ';'.join(f'{k}={v}' for k, v in iter(classifiers.items()))
             tag = classifiers.get('tag', rich_tag)
 
             if job_id in tag_map:
@@ -437,17 +437,17 @@ class WaResultsCollector(Loggable):
             else:
                 df = df.reset_index()
                 avg_freq = (df.frequency * df.time).sum() / df.time.sum()
-                metric = 'avg_freq_cluster_{}'.format(name)
+                metric = f'avg_freq_cluster_{name}'
                 metrics.append((metric, avg_freq, 'MHz'))
 
             df = trace.analysis.frequency.df_cpu_frequency(domain[0])
-            metrics.append(('freq_transition_count_{}'.format(name), len(df), None))
+            metrics.append((f'freq_transition_count_{name}', len(df), None))
 
             active_time = series_integrate(trace.analysis.idle.signal_cluster_active(domain))
-            metrics.append(('active_time_cluster_{}'.format(name),
+            metrics.append((f'active_time_cluster_{name}',
                             active_time, 'seconds'))
 
-            metrics.append(('cpu_time_cluster_{}'.format(name),
+            metrics.append((f'cpu_time_cluster_{name}',
                             get_cpu_time(trace, domain), 'cpu-seconds'))
 
         metrics.append(('cpu_time_total',
@@ -473,7 +473,7 @@ class WaResultsCollector(Loggable):
         if trace.has_events('thermal_temperature'):
             df = trace.df_event('thermal_temperature')
             for zone, zone_df in df.groupby('thermal_zone'):
-                metrics.append(('tz_{}_start_temp'.format(zone),
+                metrics.append((f'tz_{zone}_start_temp',
                                 zone_df.iloc[0]['temp_prev'],
                                 'milliCelcius'))
 
@@ -482,7 +482,7 @@ class WaResultsCollector(Loggable):
                 else:
                     avg_tmp = series_mean(zone_df['temp'])
 
-                metrics.append(('tz_{}_avg_temp'.format(zone),
+                metrics.append((f'tz_{zone}_avg_temp',
                                 avg_tmp,
                                 'milliCelcius'))
 
@@ -519,7 +519,7 @@ class WaResultsCollector(Loggable):
             # 'device_power_sample'.
             device_name = artifact_name[len('energy_instrument_output') + 1:]
             name_extra = device_name or 'device'
-            df['metric'] = '{}_power_sample'.format(name_extra)
+            df['metric'] = f'{name_extra}_power_sample'
             df['units'] = 'watts'
 
         elif 'output_power' in df.columns and 'USB_power' in df.columns:
@@ -788,8 +788,8 @@ class WaResultsCollector(Loggable):
         if xlim:
             axes.set_xlim(xlim)
         [units] = df['units'].unique()
-        axes.set_xlabel('{} [{}]'.format(metric, units))
-        axes.set_title('{}:{}'.format(workload, metric))
+        axes.set_xlabel(f'{metric} [{units}]')
+        axes.set_title(f'{workload}:{metric}')
         plt.show()
 
         return axes

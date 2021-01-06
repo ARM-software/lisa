@@ -42,7 +42,7 @@ def find_shortest_symref(repo_path, sha1):
     repo_path = os.path.expanduser(repo_path)
     branches = subprocess.check_output([
         'git', 'for-each-ref',
-        '--points-at={}'.format(sha1),
+        f'--points-at={sha1}',
         '--format=%(refname:short)',
     ],
         universal_newlines=True,
@@ -51,7 +51,7 @@ def find_shortest_symref(repo_path, sha1):
     possibles = branches.splitlines()
 
     if not possibles:
-        raise ValueError('No symbolic reference found for SHA1 {} in {}'.format(sha1, repo_path))
+        raise ValueError(f'No symbolic reference found for SHA1 {sha1} in {repo_path}')
 
     return min(possibles, key=len)
 
@@ -109,10 +109,10 @@ def log(repo, ref='HEAD', format=None, commits_nr=1):
     """
     opts = []
     if format:
-        opts += ['--format={}'.format(format)]
+        opts += [f'--format={format}']
 
     if commits_nr is not None:
-        opts += ['-n{}'.format(commits_nr)]
+        opts += [f'-n{commits_nr}']
 
     return git(repo, 'log', *opts, ref, '--')
 

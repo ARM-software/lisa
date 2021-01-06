@@ -110,7 +110,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
         try:
             return self.df_resolve_ksym(df, event, *args, **kwargs)
         except ConfigKeyError:
-            self.get_logger().warning('Missing symbol addresses, function names will not be resolved: {}'.format(e))
+            self.get_logger().warning(f'Missing symbol addresses, function names will not be resolved: {e}')
             return df
 
     @requires_one_event_of('funcgraph_entry', 'funcgraph_exit')
@@ -128,7 +128,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
             * ``exit`` (``funcgraph_exit`` event)
         :type event: str
         """
-        event = 'funcgraph_{}'.format(event)
+        event = f'funcgraph_{event}'
         return self._df_with_ksym(event, 'func', 'func_name', exact=True)
 
 
@@ -147,7 +147,7 @@ class JSONStatsFunctionsAnalysis(AnalysisHelpers):
         self.stats_path = stats_path
 
         # Opening functions profiling JSON data file
-        with open(self.stats_path, 'r') as f:
+        with open(self.stats_path) as f:
             stats = json.load(f)
 
         # Build DataFrame of function stats

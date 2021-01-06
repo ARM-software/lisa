@@ -79,7 +79,7 @@ class AnalysisProxy(Loggable):
                 try:
                     analysis_cls = super().__getattribute__(attr)
                 except Exception:
-                    logger.debug('{} not found. Registered analysis:'.format(attr))
+                    logger.debug(f'{attr} not found. Registered analysis:')
                     for name, cls in list(self._class_map.items()):
                         src_file = '<unknown source>'
                         with contextlib.suppress(TypeError):

@@ -107,7 +107,7 @@ class TargetScript:
         to the target.
         """
         actions = ['set -e'] + self.commands + ['set +e']
-        actions = ['#!{} sh'.format(self.target.busybox)] + actions
+        actions = [f'#!{self.target.busybox} sh'] + actions
         actions = str.join('\n', actions)
 
         # Create script locally

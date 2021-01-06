@@ -50,11 +50,11 @@ def _compute_version_token():
         # Dirty tree
         if patch:
             patch_sha1 = hashlib.sha1(patch.encode()).hexdigest()
-            patch_sha1 = '-dirty-{}'.format(patch_sha1)
+            patch_sha1 = f'-dirty-{patch_sha1}'
         else:
             patch_sha1 = ''
 
-        return 'git-{}{}'.format(sha1, patch_sha1)
+        return f'git-{sha1}{patch_sha1}'
     else:
         return plain_version_token
 

@@ -14,7 +14,7 @@ def call_subprocess(cmd):
     try:
         subprocess.check_call(cmd)
     except subprocess.CalledProcessError as e:
-        print('Failed with exit code {}'.format(e.returncode))
+        print(f'Failed with exit code {e.returncode}')
 
 def main():
     parser = argparse.ArgumentParser(description="""

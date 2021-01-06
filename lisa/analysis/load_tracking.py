@@ -156,7 +156,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         elif signal == 'capacity':
             df = self._df_uniformized_signal('sched_cpu_capacity')
         else:
-            raise ValueError('Signal "{}" not supported'.format(signal))
+            raise ValueError(f'Signal "{signal}" not supported')
 
         df = df[['cpu', signal]]
         if cpus is not None:
@@ -220,7 +220,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             df['required_capacity'] = df['util'].map(fits_capacity)
 
         else:
-            raise ValueError('Signal "{}" not supported'.format(signal))
+            raise ValueError(f'Signal "{signal}" not supported')
 
         # Select the available columns among
         columns = {'cpu', 'comm', 'pid', 'update_time', signal}
@@ -321,7 +321,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             axes = axes if len(cpus) > 1 else itertools.repeat(axes)
             for cpu, axis in zip(cpus, axes):
                 # Add CPU utilization
-                axis.set_title('CPU{}'.format(cpu))
+                axis.set_title(f'CPU{cpu}')
 
                 for signal in signals:
                     df = self.df_cpus_signal(signal, cpus=[cpu])
@@ -376,7 +376,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
-        axis.set_title('Load-tracking signals of task {}'.format(task))
+        axis.set_title(f'Load-tracking signals of task {task}')
         axis.legend()
         axis.grid(True)
 
@@ -433,7 +433,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         df['capacity'] = df['cpu'].map(cpu_capacities)
 
         def add_placement(df, comp, comp_str):
-            placement = "CPU capacity {} required capacity".format(comp_str)
+            placement = f"CPU capacity {comp_str} required capacity"
             condition = comp(df['capacity'], df['required_capacity'])
             df.loc[condition, 'placement'] = placement
 
@@ -452,7 +452,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             plot_overutilized(axis=axis)
 
         if local_fig:
-            axis.set_title('Utilization vs placement of task "{}"'.format(task))
+            axis.set_title(f'Utilization vs placement of task "{task}"')
 
             axis.grid(True)
             axis.legend()

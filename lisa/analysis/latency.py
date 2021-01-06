@@ -198,7 +198,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         """
 
         axis.axhline(threshold_ms / 1e3, linestyle='--', color=self.LATENCY_THRESHOLD_COLOR,
-                     label="{}ms threshold".format(threshold_ms))
+                     label=f"{threshold_ms}ms threshold")
 
         for do_plot, name, label, df_getter in (
             (wakeup, 'wakeup', 'Wakeup', self.df_latency_wakeup),
@@ -209,12 +209,12 @@ class LatencyAnalysis(TraceAnalysisBase):
 
             df = df_getter(task)
             if df.empty:
-                self.get_logger().warning("No data to plot for {}".format(name))
+                self.get_logger().warning(f"No data to plot for {name}")
             else:
                 df = df_refit_index(df, window=self.trace.window)
                 df.plot(ax=axis, style='+', label=label)
 
-        axis.set_title('Latencies of task "{}"'.format(task))
+        axis.set_title(f'Latencies of task "{task}"')
         axis.set_ylabel("Latency (s)")
         axis.legend()
 
@@ -279,11 +279,11 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         cdf_df.plot(ax=axis, xlim=(0, None), label="CDF")
         axis.axhline(below, linestyle='--', color=self.LATENCY_THRESHOLD_COLOR,
-                     label="Latencies below {}ms".format(threshold_ms))
+                     label=f"Latencies below {threshold_ms}ms")
         axis.axvspan(0, threshold_s, facecolor=self.LATENCY_THRESHOLD_ZONE_COLOR,
-                     alpha=0.5, label="{}ms threshold zone".format(threshold_ms))
+                     alpha=0.5, label=f"{threshold_ms}ms threshold zone")
 
-        axis.set_title('Latencies CDF of task "{}"'.format(task))
+        axis.set_title(f'Latencies CDF of task "{task}"')
         axis.set_xlabel("Latency (s)")
         axis.set_ylabel("Latencies below the x value (%)")
         axis.legend()
@@ -313,9 +313,9 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         df.latency.plot.hist(bins=bins, ax=axis, xlim=(0, 1.1 * df.latency.max()))
         axis.axvspan(0, threshold_s, facecolor=self.LATENCY_THRESHOLD_ZONE_COLOR, alpha=0.5,
-                     label="{}ms threshold zone".format(threshold_ms))
+                     label=f"{threshold_ms}ms threshold zone")
 
-        axis.set_title('Latencies histogram of task "{}"'.format(task))
+        axis.set_title(f'Latencies histogram of task "{task}"')
         axis.set_xlabel("Latency (s)")
         axis.legend()
 
@@ -370,7 +370,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
-        axis.set_title('Activation intervals of task "{}"'.format(task))
+        axis.set_title(f'Activation intervals of task "{task}"')
 
     @TraceAnalysisBase.plot_method()
     @df_runtimes.used_events
@@ -390,7 +390,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         if self.trace.has_events(plot_overutilized.used_events):
             plot_overutilized(axis=axis)
 
-        axis.set_title('Per-activation runtimes of task "{}"'.format(task))
+        axis.set_title(f'Per-activation runtimes of task "{task}"')
 
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

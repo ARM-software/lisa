@@ -99,7 +99,7 @@ class NUMAMultipleTasksPlacement(NUMABehaviour):
 
         rtapp_profile = {}
         for cpu in range(cpu_count):
-            rtapp_profile["{}{}".format(cls.task_prefix, cpu)] = Periodic(
+            rtapp_profile[f"{cls.task_prefix}{cpu}"] = Periodic(
                 duty_cycle_pct=50,
                 duration_s=30,
                 period_ms=cls.TASK_PERIOD_MS

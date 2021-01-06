@@ -31,7 +31,7 @@ class TestColors:
 
     @staticmethod
     def rate(val, positive_is_good=True):
-        str_val = "{:9.2f}%".format(val)
+        str_val = f"{val:9.2f}%"
 
         if not sys.stdout.isatty():
             return str_val

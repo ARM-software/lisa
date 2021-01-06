@@ -223,7 +223,7 @@ class UtilClamp(RTATestBundle):
             ax.axvline(failure, alpha=0.5, color='r')
         if signal is not None:
             signal.plot(ax=ax.twinx(), drawstyle='steps-post')
-        filepath = os.path.join(self.res_dir, 'utilclamp_{}.png'.format(test))
+        filepath = os.path.join(self.res_dir, f'utilclamp_{test}.png')
         self.trace.analysis.rta.save_plot(ax.figure, filepath=filepath)
 
         return ax
@@ -247,9 +247,9 @@ class UtilClamp(RTATestBundle):
             uclamp_val = phase['uclamp_val']
             num_activations = df['active'][df['active'] == 1].count()
             cpus = set(df.cpu.dropna().unique())
-            fitting_cpus = set([cpu for cpu, cap in cpu_max_capacities.items()
+            fitting_cpus = {cpu for cpu, cap in cpu_max_capacities.items()
                                 if (cap == PELT_SCALE) or
-                                (cap * capacity_margin) > uclamp_val])
+                                (cap * capacity_margin) > uclamp_val}
 
             failures = df[(
                 df['active'] == 1) & (df['cpu'].isin(cpus - fitting_cpus))
