@@ -397,7 +397,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         df = df_refit_index(df, window=window)
 
         # Build task names (there could be multiple, during the task lifetime)
-        task_name = 'Task ({})'.format(', '.join(map(str, task_ids)))
+        task_name = f"Task ({', '.join(map(str, task_ids))})"
 
         def plotter(axis, local_fig):
             df["required_capacity"].plot(

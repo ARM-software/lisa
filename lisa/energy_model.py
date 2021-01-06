@@ -190,15 +190,13 @@ class EnergyModelNode(_CpuTree):
             freqs = list(active_states.keys())
             if not is_monotonic(freqs):
                 logger.warning(
-                    'Active states frequencies are expected to be '
-                    'monotonically increasing. Freqs: {}'.format(freqs))
+                    f'Active states frequencies are expected to be monotonically increasing. Freqs: {freqs}')
 
             # Sanity check for active_states's powers
             power_vals = [s.power for s in list(active_states.values())]
             if not is_monotonic(power_vals):
                 logger.warning(
-                    'Active states powers are expected to be '
-                    'monotonically increasing. Values: {}'.format(power_vals))
+                    f'Active states powers are expected to be monotonically increasing. Values: {power_vals}')
 
         if idle_states:
             # This is needed for idle_state_by_idx to work.
@@ -210,8 +208,7 @@ class EnergyModelNode(_CpuTree):
             power_vals = list(idle_states.values())
             if not is_monotonic(power_vals, decreasing=True):
                 logger.warning(
-                    'Idle states powers are expected to be '
-                    'monotonically decreasing. Values: {}'.format(power_vals))
+                    f'Idle states powers are expected to be monotonically decreasing. Values: {power_vals}')
 
         if cpu is not None and not name:
             name = 'cpu' + str(cpu)
@@ -382,9 +379,7 @@ class EnergyModel(Serializable, Loggable):
                 cpu_freq_doms.append(cpu_freq_dom)
             if not all(d == cpu_freq_doms[0] for d in cpu_freq_doms[1:]):
                 raise ValueError(
-                    'Node {} (CPUs {}) '
-                    'has energy data and overlaps freq domains'.format(
-                        node.name, node.cpus))
+                    f'Node {node.name} (CPUs {node.cpus}) has energy data and overlaps freq domains')
 
         def sorted_leaves(root):
             # Get a list of the leaf (cpu) nodes of a _CpuTree in order of the
@@ -673,8 +668,7 @@ class EnergyModel(Serializable, Loggable):
         """
         if len(cpu_utils) != len(self.cpus):
             raise ValueError(
-                'cpu_utils length ({}) must equal CPU count ({})'.format(
-                    len(cpu_utils), len(self.cpus)))
+                f'cpu_utils length ({len(cpu_utils)}) must equal CPU count ({len(self.cpus)})')
 
         if freqs is None:
             freqs = self.guess_freqs(cpu_utils)
@@ -761,8 +755,7 @@ class EnergyModel(Serializable, Loggable):
         if not candidates:
             # The system can't provide full throughput to this workload.
             raise EnergyModelCapacityError(
-                "Can't handle workload: total capacity = {}".format(
-                    sum(capacities.values())))
+                f"Can't handle workload: total capacity = {sum(capacities.values())}")
 
         # Whittle down to those that give the lowest energy estimate
         min_power = min(p for p in iter(candidates.values()))
@@ -1212,8 +1205,7 @@ class LegacyEnergyModel(EnergyModel):
             nr_states = int(nr_cap_states_strs[0])
             em_member_count = int(nr_values / nr_states)
             if em_member_count not in (2, 3):
-                raise ValueError('Unsupported cap_states format '
-                                  'cpu={} domain_level={} path={}'.format(cpu, domain_level, cap_states_path))
+                raise ValueError(f'Unsupported cap_states format cpu={cpu} domain_level={domain_level} path={cap_states_path}')
 
             # Here we split the incoming cap_states_strs list into em_member_count lists, so that
             # we can use the first one (representing capacity) and the last one (representing power)
@@ -1280,9 +1272,7 @@ class LegacyEnergyModel(EnergyModel):
                     if siblings != (cpu,):
                         # SMT systems aren't supported
                         raise ValueError(
-                            'CPU{} thread_siblings is {}. Expected: {}'.format(
-                                cpu, siblings, [cpu]
-                            )
+                            f'CPU{cpu} thread_siblings is {siblings}. Expected: {[cpu]}'
                         )
                 elif level != 'core':
                     # The only other levels we should expect to find are 'book' and

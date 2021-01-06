@@ -787,8 +787,7 @@ class TasksAnalysis(TraceAnalysisBase):
         """
         df = self.df_tasks_total_residency(tasks, ascending, count)
         df.T.plot.barh(ax=axis, stacked=True)
-        axis.set_title("Stacked CPU residency of [{}] selected tasks"
-                       .format(len(df.index)))
+        axis.set_title(f"Stacked CPU residency of [{len(df.index)}] selected tasks")
         axis.set_ylabel("CPU")
         axis.set_xlabel("Runtime (s)")
         axis.grid(True)

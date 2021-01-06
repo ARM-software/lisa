@@ -95,15 +95,10 @@ class Workload(Loggable):
 
         wlgen_dir = self.target.path.join(target.working_directory,
                                           "lisa", "wlgen")
-        target.execute('mkdir -p {}'.format(quote(wlgen_dir)))
+        target.execute(f'mkdir -p {quote(wlgen_dir)}')
 
-        temp_fmt = "{name}_{time}_XXXXXX".format(
-            name=self.name.replace('/', '_'),
-            time=datetime.now().strftime('%Y%m%d_%H%M%S'),
-        )
-        cmd = "mktemp -d -p {} {}".format(
-            quote(wlgen_dir), quote(temp_fmt)
-        )
+        temp_fmt = f"{self.name.replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_XXXXXX"
+        cmd = f"mktemp -d -p {quote(wlgen_dir)} {quote(temp_fmt)}"
         self.run_dir = target.execute(cmd).strip()
 
         self.get_logger().info(f"Created workload's run target directory: {self.run_dir}")
@@ -170,13 +165,13 @@ class Workload(Loggable):
                 raise RuntimeError("Could not find 'taskset' executable on the target")
 
             cpumask = list_to_mask(cpus)
-            taskset_cmd = '{} {}'.format(quote(taskset_bin), quote(f'0x{cpumask:x}'))
+            taskset_cmd = f"{quote(taskset_bin)} {quote(f'0x{cpumask:x}')}"
             _command = f'{taskset_cmd} {_command}'
 
         if cgroup:
             _command = target.cgroups.run_into_cmd(cgroup, _command)
 
-        _command = 'cd {} && {}'.format(quote(self.run_dir), _command)
+        _command = f'cd {quote(self.run_dir)} && {_command}'
 
         logger.info(f"Execution start: {_command}")
 

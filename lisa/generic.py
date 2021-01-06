@@ -108,18 +108,10 @@ class GenericMappingMeta(GenericContainerMetaBase, type(Mapping)):
         k_type, v_type = cls._type
         for k, v in instance.items():
             if not isinstance(k, k_type):
-                raise TypeError('Key "{key}" of type {actual_cls} should be of type {k_type}'.format(
-                    key=k,
-                    actual_cls=type(k).__qualname__,
-                    k_type=k_type.__qualname__,
-                ), k)
+                raise TypeError(f'Key "{k}" of type {type(k).__qualname__} should be of type {k_type.__qualname__}', k)
 
             if not isinstance(v, v_type):
-                raise TypeError('Value of {actual_cls} key "{key}" should be of type {v_type}'.format(
-                    key=k,
-                    actual_cls=type(v).__qualname__,
-                    v_type=v_type.__qualname__,
-                ), k)
+                raise TypeError(f'Value of {type(v).__qualname__} key "{k}" should be of type {v_type.__qualname__}', k)
 
 
 class TypedDict(GenericContainerBase, dict, metaclass=GenericMappingMeta):
@@ -138,12 +130,7 @@ class GenericSequenceMeta(GenericContainerMetaBase, type(Sequence)):
         type_ = cls._type
         for i, x in enumerate(instance):
             if not isinstance(x, type_):
-                raise TypeError('Item #{i} "{val}" of type {actual_cls} should be of type {type_}'.format(
-                    i=i,
-                    val=x,
-                    actual_cls=type(x).__qualname__,
-                    type_=type_.__qualname__
-                ), i)
+                raise TypeError(f'Item #{i} "{x}" of type {type(x).__qualname__} should be of type {type_.__qualname__}', i)
 
 class GenericSortedSequenceMeta(GenericSequenceMeta):
     def instancecheck(cls, instance):

@@ -208,9 +208,7 @@ class JSONStatsFunctionsAnalysis(AnalysisHelpers):
         # Check that all the required metrics are acutally availabe
         available_metrics = df.columns.tolist()
         if not set(metrics).issubset(set(available_metrics)):
-            msg = 'Metrics {} not supported, available metrics are {}'\
-                .format(set(metrics) - set(available_metrics),
-                        available_metrics)
+            msg = f'Metrics {(set(metrics) - set(available_metrics))} not supported, available metrics are {available_metrics}'
             raise ValueError(msg)
 
         for metric in metrics:

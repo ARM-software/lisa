@@ -110,8 +110,7 @@ class SchedTuneBase(TestBundle):
         Creates and returns a TestBundle for a given item class, and a given
         schedtune configuration
         """
-        item_dir = ArtifactPath.join(res_dir, 'boost_{}_prefer_idle_{}'.format(
-                                     boost, int(prefer_idle)))
+        item_dir = ArtifactPath.join(res_dir, f'boost_{boost}_prefer_idle_{int(prefer_idle)}')
         os.makedirs(item_dir)
 
         logger = cls.get_logger()

@@ -227,13 +227,7 @@ class KeyDesc(KeyDescBase):
         def get_excep(key, val, classinfo, cls, msg):
             classinfo = ' or '.join(get_cls_name(cls) for cls in classinfo)
             msg = ': ' + msg if msg else ''
-            return TypeError('Key "{key}" is an instance of {actual_cls}, but should be instance of {classinfo}{msg}. Help: {help}'.format(
-                key=key,
-                actual_cls=get_cls_name(type(val)),
-                classinfo=classinfo,
-                msg=msg,
-                help=self.help,
-            ), key)
+            return TypeError(f'Key "{key}" is an instance of {get_cls_name(type(val))}, but should be instance of {classinfo}{msg}. Help: {self.help}', key)
 
         def checkinstance(key, val, classinfo):
             excep_list = []
@@ -285,7 +279,7 @@ class KeyDesc(KeyDescBase):
             fmt = base_fmt
 
         if self.help:
-            joiner = '\n{}'.format(' ' * len(prefix))
+            joiner = f"\n{(' ' * len(prefix))}"
             wrapped_lines = textwrap.wrap(self.help, width=60)
             # If more than one line, output a paragraph on its own starting on
             # a new line
@@ -909,11 +903,7 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
             # Ensure uniqueness of toplevel key
             toplevel_key = cls.STRUCTURE.name
             if toplevel_key in cls._registered_toplevel_keys:
-                raise RuntimeError('Class {name} cannot reuse top level key "{key}" as it is already used by {user}'.format(
-                    name=cls.__qualname__,
-                    key=toplevel_key,
-                    user=cls._registered_toplevel_keys[toplevel_key]
-                ))
+                raise RuntimeError(f'Class {cls.__qualname__} cannot reuse top level key "{toplevel_key}" as it is already used by {cls._registered_toplevel_keys[toplevel_key]}')
             else:
                 cls._registered_toplevel_keys[toplevel_key] = cls
 
@@ -1958,9 +1948,7 @@ class Configurable(abc.ABC, metaclass=ConfigurableMeta):
                 for param, key_desc in param_key_desc_map.items()
                 if param in missing_param
             )
-            raise ConfigKeyError("Missing mandatory keys: {}".format(
-                ', '.join(missing_key_paths)
-            ))
+            raise ConfigKeyError(f"Missing mandatory keys: {', '.join(missing_key_paths)}")
 
         for param, key_desc in param_key_desc_map.items():
             if param in kwargs:

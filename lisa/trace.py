@@ -1750,7 +1750,7 @@ class TrappyTraceParser(TraceParserBase):
             else:
                 trace_format = 'FTrace'
 
-        self.get_logger().debug('Parsing {} events from {}: {}'.format(trace_format, path, sorted(events)))
+        self.get_logger().debug(f'Parsing {trace_format} events from {path}: {sorted(events)}')
         if trace_format == 'SysTrace':
             trace_class = trappy.SysTrace
         elif trace_format == 'FTrace':
@@ -1883,8 +1883,7 @@ class TraceBase(abc.ABC):
         """
 
         if col_name in df.columns:
-            raise RuntimeError("Column {} is already present in the dataframe".
-                               format(col_name))
+            raise RuntimeError(f"Column {col_name} is already present in the dataframe")
 
         return df_add_delta(df, col=col_name, inplace=inplace, window=self.window)
 
@@ -3188,8 +3187,7 @@ class Trace(Loggable, TraceBase):
         # Bail-out straightaway if the specified trace file does not exist
         # There is not much point in continuing here if that is the case
         if not os.path.exists(trace_path):
-            raise FileNotFoundError("Unable to locate specified trace file: {}"
-                                    .format(trace_path))
+            raise FileNotFoundError(f"Unable to locate specified trace file: {trace_path}")
 
         super().__init__()
 
@@ -3359,10 +3357,7 @@ class Trace(Loggable, TraceBase):
         # If the parser is an instance of something, we cannot safely track its
         # state so just make a unique name for it
         except AttributeError:
-            parser_name = '{}-instance:{}'.format(
-                get_name(parser.__class__),
-                uuid.uuid4().hex
-            )
+            parser_name = f'{get_name(parser.__class__)}-instance:{uuid.uuid4().hex}'
 
         return (self.normalize_time, parser_name)
 
@@ -4335,10 +4330,7 @@ class Trace(Loggable, TraceBase):
         else:
             cmd = 'xdg-open'
 
-        return os.popen("{} {}".format(
-            cmd,
-            shlex.quote(path)
-        ))
+        return os.popen(f"{cmd} {shlex.quote(path)}")
 
 ###############################################################################
 # Trace Events Sanitize Methods
@@ -4639,7 +4631,7 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         Top-level function called by Sphinx's autodoc extension to augment
         docstrings of the functions.
         """
-        return '\n    * {}'.format(self._str_internal(style='rst', wrapped=False))
+        return f"\n    * {self._str_internal(style='rst', wrapped=False)}"
 
     def __str__(self):
         return self._str_internal()
@@ -4840,7 +4832,7 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
     def doc_str(self):
         joiner = '\n' + '    '
         rst = joiner + joiner.join(
-            '* {}'.format(c._str_internal(style='rst', wrapped=False))
+            f"* {c._str_internal(style='rst', wrapped=False)}"
             # Sort for stable output
             for c in sorted(self.checkers, key=str)
         )
@@ -4934,9 +4926,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
                 if self.get(key, val) == val:
                     return val
                 else:
-                    raise KeyError('Cannot merge key "{}": incompatible values specified: {} != {}'.format(
-                        key, self[key], val,
-                    ))
+                    raise KeyError(f'Cannot merge key "{key}": incompatible values specified: {self[key]} != {val}')
 
             if key in ('events', 'functions'):
                 return sorted(set(val) | set(self.get(key, [])))

@@ -688,15 +688,11 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             except Exception as e:
                 logger.warning(f'"adb root" failed: {e}')
 
-        logger.debug('Target info: {}'.format(dict(
-            abi=target.abi,
-            cpuinfo=target.cpuinfo,
-            workdir=target.working_directory,
-        )))
+        logger.debug(f'Target info: {dict(abi=target.abi, cpuinfo=target.cpuinfo, workdir=target.working_directory)}')
 
         target.setup()
 
-        logger.info('Connected to target {}'.format(name or ''))
+        logger.info(f"Connected to target {(name or '')}")
         return target
 
     def get_res_dir(self, name=None, append_time=True, symlink=True):
@@ -836,7 +832,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
                 @contextlib.contextmanager
                 def cm():
-                    logger.info('Freezing all tasks except: {}'.format(','.join(exclude)))
+                    logger.info(f"Freezing all tasks except: {','.join(exclude)}")
                     try:
                         yield self.cgroups.freeze(exclude)
                     finally:
@@ -881,7 +877,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     def _make_remote_snippet(cls, name, code_str, module, kwargs, global_vars, out_tempfiles):
         def init_vars(variables, in_dict=None):
             if in_dict:
-                dict_entry = lambda name: '{}[{}]'.format(in_dict, repr(name))
+                dict_entry = lambda name: f'{in_dict}[{repr(name)}]'
                 dict_def = f'{in_dict} = {{}}\n'
             else:
                 dict_entry = lambda name: name
@@ -960,7 +956,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         }
 
         if modules:
-            modules = 'import {}'.format(', '.join(sorted(modules)))
+            modules = f"import {', '.join(sorted(modules))}"
         else:
             modules = ''
 
@@ -1044,9 +1040,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         def mktemp():
             return self.execute(
-                'mktemp -p {}'.format(
-                    shlex.quote(self.working_directory),
-                )
+                f'mktemp -p {shlex.quote(self.working_directory)}'
             ).strip()
 
         def read_output(path):
@@ -1136,9 +1130,9 @@ class Gem5SimulationPlatformWrapper(Gem5SimulationPlatform):
         simulator_args.append(system_platform['description'])
         simulator_args.extend(system_platform.get('args', []))
 
-        simulator_args += ['--kernel {}'.format(system['kernel']),
-                 '--dtb {}'.format(system['dtb']),
-                 '--disk-image {}'.format(system['disk'])]
+        simulator_args += [f"--kernel {system['kernel']}",
+                 f"--dtb {system['dtb']}",
+                 f"--disk-image {system['disk']}"]
 
         # Quote/escape arguments and build the command line
         gem5_args = ' '.join(shlex.quote(a) for a in simulator_args)

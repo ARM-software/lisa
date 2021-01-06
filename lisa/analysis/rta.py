@@ -73,8 +73,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         task = self.trace.get_task_id(task)
 
         if task not in self.rtapp_tasks:
-            raise ValueError("Task [{}] is not an rt-app task: {}"
-                             .format(task, self.rtapp_tasks))
+            raise ValueError(f"Task [{task}] is not an rt-app task: {self.rtapp_tasks}")
 
         return df_filter_task_ids(df, [task],
                                   pid_col='__pid', comm_col='__comm')
@@ -608,7 +607,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         for phase, start, end, cpus in bands:
             if cpus:
-                cpus = ' (CPUs {})'.format(', '.join(map(str, cpus)))
+                cpus = f" (CPUs {', '.join(map(str, cpus))})"
             else:
                 cpus = ''
 
@@ -678,8 +677,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         .. seealso:: :meth:`plot_perf` for metrics definition.
         """
         task = self.trace.get_task_id(task)
-        axis.set_title('Task {} (start) Latency and (completion) Slack'
-                       .format(task))
+        axis.set_title(f'Task {task} (start) Latency and (completion) Slack')
         data = self.df_rtapp_stats(task)[['slack', 'wu_lat']]
         data.plot(ax=axis, drawstyle='steps-post')
 
@@ -726,8 +724,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         ylabel = f'perf index of "{task}"'
         series = self.df_rtapp_stats(task)['perf_index']
         mean = series.mean()
-        self.get_logger().info('perf index of task "{}": avg={:.2f} std={:.2f}'
-                               .format(task, mean, series.std()))
+        self.get_logger().info(f'perf index of task "{task}": avg={mean:.2f} std={series.std():.2f}')
 
         series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel, figure=axis.get_figure())
         axis.axvline(mean, linestyle='--', linewidth=2, label='mean')
@@ -916,8 +913,7 @@ class PerfAnalysis(AnalysisHelpers):
         """
         Plot the Latency/Slack and Performance data for the specified task.
         """
-        axis.set_title('Task {} (start) Latency and (completion) Slack'
-                .format(task))
+        axis.set_title(f'Task {task} (start) Latency and (completion) Slack')
         data = self.get_df(task)[['Slack', 'WKPLatency']]
         data.plot(ax=axis, drawstyle='steps-post')
 

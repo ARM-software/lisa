@@ -424,10 +424,7 @@ class Serializable(Loggable):
                 break
 
         tag = node.tag
-        cls.get_logger().debug('Could not find constructor for YAML tag "{tag}" ({mark}), using a placeholder'.format(
-            tag=tag,
-            mark=str(node.start_mark).strip()
-        ))
+        cls.get_logger().debug(f'Could not find constructor for YAML tag "{tag}" ({str(node.start_mark).strip()}), using a placeholder')
 
         return UnknownTagPlaceholder(tag, data, location=node.start_mark)
 
@@ -1248,10 +1245,7 @@ def update_wrapper_doc(func, added_by=None, sig_from=None, description=None, rem
             added_by_ = ''
 
         # Replace the one-liner f description
-        extra_doc = "\n\n{added_by}{description}".format(
-            added_by=added_by_,
-            description=description if description else '',
-        )
+        extra_doc = f"\n\n{added_by_}{(description if description else '')}"
 
         f_doc = inspect.getdoc(f) or ''
         f.__doc__ = f_doc + extra_doc
@@ -1320,18 +1314,14 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
             doc_url = ''
             if show_doc_url:
                 with contextlib.suppress(Exception):
-                    doc_url = ' (see: {})'.format(get_doc_url(replaced_by))
+                    doc_url = f' (see: {get_doc_url(replaced_by)})'
 
-            replacement_msg = ', use {} instead{}'.format(
-                get_sphinx_name(replaced_by, style=style), doc_url,
-            )
+            replacement_msg = f', use {get_sphinx_name(replaced_by, style=style)} instead{doc_url}'
         else:
             replacement_msg = ''
 
         if removed_in:
-            removal_msg = ' and will be removed in version {}'.format(
-                format_version(removed_in)
-            )
+            removal_msg = f' and will be removed in version {format_version(removed_in)}'
         else:
             removal_msg = ''
 
@@ -1359,11 +1349,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
         obj_name = get_sphinx_name(obj)
 
         if removed_in and current_version >= removed_in:
-            raise DeprecationWarning('{name} was marked as being removed in version {removed_in} but is still present in current version {version}'.format(
-                name=obj_name,
-                removed_in=format_version(removed_in),
-                version=format_version(current_version),
-            ))
+            raise DeprecationWarning(f'{obj_name} was marked as being removed in version {format_version(removed_in)} but is still present in current version {format_version(current_version)}')
 
         # stacklevel != 1 breaks the filtering for warnings emitted by APIs
         # called from external modules, like __init_subclass__ that is called
@@ -1508,10 +1494,7 @@ def get_doc_url(obj):
     if not hasattr(obj, '__qualname__'):
         obj = obj.__class__
 
-    obj_name = '{}.{}'.format(
-        inspect.getmodule(obj).__name__,
-        obj.__qualname__
-    )
+    obj_name = f'{inspect.getmodule(obj).__name__}.{obj.__qualname__}'
 
     return _get_doc_url(obj_name)
 

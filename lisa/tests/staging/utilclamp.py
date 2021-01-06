@@ -257,7 +257,7 @@ class UtilClamp(RTATestBundle):
             num_failures = len(failures)
             test_failures.extend(failures)
 
-            phase_str = 'Phase-{}'.format(phase['phase'])
+            phase_str = f"Phase-{phase['phase']}"
             metrics[phase_str] = {
                 'uclamp-min': TestMetric(uclamp_val),
                 'cpu-placements': TestMetric(cpus),
@@ -354,7 +354,7 @@ class UtilClamp(RTATestBundle):
             test_failures.extend(failures.index.tolist())
             capacity_dfs.append(df[['capacity']])
 
-            phase_str = 'Phase-{}'.format(phase['phase'])
+            phase_str = f"Phase-{phase['phase']}"
             metrics[phase_str] = {
                 'uclamp-min': TestMetric(uclamp_val),
                 'expected-capacity': TestMetric(expected),
