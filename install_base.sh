@@ -80,7 +80,9 @@ call_android_sdk() {
     local java_bin=$(find /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*/bin/java" -not -path '*/jre/bin/*' -print -quit)
     local JAVA_HOME=$(dirname "$java_bin")/../
 
-    JAVA_HOME=$JAVA_HOME "$tool" "$@"
+    # Use grep to remove the progress bar, as there is no CLI option for the SDK
+    # manager to do that
+    JAVA_HOME=$JAVA_HOME "$tool" "$@" | grep -v '\[='
 }
 
 # Needs install_android_sdk_manager first
