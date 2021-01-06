@@ -66,6 +66,7 @@ install_android_sdk_manager() {
     echo "Extracting $archive ..." &&
     unzip -q -o "$archive" -d "$ANDROID_HOME"
 
+    yes | (call_android_sdk sdkmanager --licenses || true)
     call_android_sdk sdkmanager --list
 }
 
