@@ -708,9 +708,7 @@ class BuiltinFromStringInstance(FromString, types=(int, float, TypedList[float])
     def from_str(cls, string):
         val = ast.literal_eval(string)
         if not isinstance(val, cls):
-            raise ValueError('Value "{}" is of type {} but should be of type {}'.format(
-                val, type(val).__qualname__, cls.__qualname__
-            ))
+            raise ValueError(f'Value "{val}" is of type {type(val).__qualname__} but should be of type {cls.__qualname__}')
         return val
 
     @classmethod

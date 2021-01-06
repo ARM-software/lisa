@@ -538,11 +538,7 @@ class TestBundleMeta(abc.ABCMeta):
 
             overlap = keywords_test & keywords_filter
             if any(overlap):
-                raise TypeError('Overlapping argument between {} and {}: {}'.format(
-                    get_sphinx_name(wrapped_test, style=None),
-                    get_sphinx_name(func, style=None),
-                    overlap
-                ))
+                raise TypeError(f'Overlapping argument between {get_sphinx_name(wrapped_test, style=None)} and {get_sphinx_name(func, style=None)}: {overlap}')
 
             def dispatch_kwargs(kwargs):
                 filter_kwargs = filter_keys(kwargs, keywords_filter)
@@ -1473,8 +1469,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         If both are specified, the smallest threshold (in seconds) will be used.
         """
         if noise_threshold_pct is None and noise_threshold_ms is None:
-            raise ValueError('Both "{}" and "{}" cannot be None'.format(
-                "noise_threshold_pct", "noise_threshold_ms"))
+            raise ValueError('Both "noise_threshold_pct" and "noise_threshold_ms" cannot be None')
 
         # No task can run longer than the recorded duration
         threshold_s = self.trace.time_range
@@ -1511,9 +1506,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                 if df_filter_task_ids(df, [task_id]).iloc[0].runtime_pct <= threshold
             )
 
-        self.get_logger().info("Ignored PIDs for noise contribution: {}".format(
-            ", ".join(map(str, ignored_ids))
-        ))
+        self.get_logger().info(f"Ignored PIDs for noise contribution: {', '.join(map(str, ignored_ids))}")
 
         # Filter out unwanted tasks (rt-app tasks + thresholds)
         df_noise = df_filter_task_ids(df, ignored_ids, invert=True)

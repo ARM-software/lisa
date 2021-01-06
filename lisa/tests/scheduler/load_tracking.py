@@ -253,7 +253,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
 
         with target.cpufreq.use_governor(**cls.cpufreq_conf):
             target.cpufreq.set_frequency(cpu, freq)
-            logger.debug('CPU{} frequency: {}'.format(cpu, target.cpufreq.get_frequency(cpu)))
+            logger.debug(f'CPU{cpu} frequency: {target.cpufreq.get_frequency(cpu)}')
             cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
 
         freq_list = freq_list or [freq]
@@ -794,8 +794,7 @@ class CPUMigrationBase(LoadTrackingBase):
         for name, task in profile.items():
             for phase in task.phases:
                 if len(phase.cpus) != 1:
-                    raise RuntimeError("Each phase must be tied to a single CPU. "
-                                       "Task \"{}\" violates this".format(name))
+                    raise RuntimeError(f"Each phase must be tied to a single CPU. Task \"{name}\" violates this")
 
         super().run_rtapp(target, res_dir, profile, ftrace_coll, cgroup)
 

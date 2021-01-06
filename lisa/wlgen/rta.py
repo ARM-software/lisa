@@ -93,7 +93,7 @@ class RTA(Workload):
         if not rta_cmd:
             raise RuntimeError("No rt-app executable found on the target")
 
-        self.command = '{} {} 2>&1'.format(quote(rta_cmd), quote(self.remote_json))
+        self.command = f'{quote(rta_cmd)} {quote(self.remote_json)} 2>&1'
 
     def _late_init(self, calibration=None, tasks_names=None):
         """
@@ -282,8 +282,8 @@ class RTA(Workload):
             else:
                 raise ValueError(f'scheduling class {default_policy} not supported')
 
-        logger.info('Calibration value: {}'.format(global_conf['calibration']))
-        logger.info('Default policy: {}'.format(global_conf['default_policy']))
+        logger.info(f"Calibration value: {global_conf['calibration']}")
+        logger.info(f"Default policy: {global_conf['default_policy']}")
 
         rta_profile['global'] = global_conf
 
@@ -453,7 +453,7 @@ class RTA(Workload):
                 if pload_match is None:
                     continue
                 pload[cpu] = int(pload_match.group(1))
-                logger.debug('>>> CPU{}: {}'.format(cpu, pload[cpu]))
+                logger.debug(f'>>> CPU{cpu}: {pload[cpu]}')
 
         # Avoid circular import issue
         from lisa.platforms.platinfo import PlatformInfo
@@ -647,8 +647,7 @@ class RTA(Workload):
 
         missing = sorted(prefix for prefix, task_ids in task_map.items() if not task_ids)
         if missing:
-            raise RuntimeError("Missing tasks matching the following rt-app profile names: {}"
-                               .format(', '.join(missing)))
+            raise RuntimeError(f"Missing tasks matching the following rt-app profile names: {', '.join(missing)}")
         return task_map
 
     # Mapping of Trace objects to their task map.
@@ -799,10 +798,8 @@ class Phase(Loggable):
 
             logger.info(' | duration {:.6f} [s] ({} loops)'.format(
                         duration / 1e6, cloops))
-            logger.info(' |  period   {:>3} [us], duty_cycle {:>3,.2f} %'.format(
-                        int(period), self.duty_cycle_pct))
-            logger.info(' |  run_time {:>6} [us], sleep_time {:>6} [us]'.format(
-                        int(running_time), int(sleep_time)))
+            logger.info(f' |  period   {int(period):>3} [us], duty_cycle {self.duty_cycle_pct:>3,.2f} %')
+            logger.info(f' |  run_time {int(running_time):>6} [us], sleep_time {int(sleep_time):>6} [us]')
 
             phase['loop'] = cloops
             phase['run'] = running_time

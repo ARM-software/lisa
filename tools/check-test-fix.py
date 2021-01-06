@@ -214,7 +214,7 @@ EXAMPLE:
     exekall_load_type = args.load_type
     exekall_replay_uuid = result_uuid
 
-    work_area = args.work_area or Path('{}.check-test-fix'.format(Path(bisector_report).name))
+    work_area = args.work_area or Path(f'{Path(bisector_report).name}.check-test-fix')
     work_area.mkdir(exist_ok=True)
 
     # Read-back the options used the previous time. If they are the same,

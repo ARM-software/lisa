@@ -32,7 +32,7 @@ def parse_version(version):
 __version__ = format_version(version_tuple)
 
 def _compute_version_token():
-    plain_version_token = 'v{}'.format(format_version(version_tuple))
+    plain_version_token = f'v{format_version(version_tuple)}'
 
     # When in devmode, use the commit SHA1 and the SHA1 of the patch of
     # uncommitted changes

@@ -593,7 +593,7 @@ class Stats(Loggable):
         def get_const_col(group, df, col):
             vals = df[col].unique()
             if len(vals) > 1:
-                raise ValueError('Column "{}" has more than one value ({}) for the group: {}'.format(col, ', '.join(vals), group))
+                raise ValueError(f"Column \"{col}\" has more than one value ({', '.join(vals)}) for the group: {group}")
             return vals[0]
 
         def mean_func(ref, df, group):

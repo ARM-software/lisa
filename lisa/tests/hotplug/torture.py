@@ -60,9 +60,7 @@ class HotplugBase(DmesgTestBundle):
 
         """
         if len(sequence) != nr_operations:
-            raise CPUHPSequenceError('{} operations requested, but got {}'.format(
-                nr_operations, len(sequence)
-            ))
+            raise CPUHPSequenceError(f'{nr_operations} operations requested, but got {len(sequence)}')
 
         # Assume als CPUs are plugged in at the beginning
         state = collections.defaultdict(lambda: 1)
@@ -84,9 +82,7 @@ class HotplugBase(DmesgTestBundle):
             state[cpu] = plug_way
             cpus_off = [cpu for cpu, state in state.items() if state == 0]
             if len(cpus_off) > max_cpus_off:
-                raise CPUHPSequenceError('A maximum of {} CPUs is allowed to be plugged out, but {} CPUs were plugged out at step {}'.format(
-                    max_cpus_off, len(cpus_off), step,
-                ))
+                raise CPUHPSequenceError(f'A maximum of {max_cpus_off} CPUs is allowed to be plugged out, but {len(cpus_off)} CPUs were plugged out at step {step}')
 
         for cpu, state in state.items():
             if state != 1:

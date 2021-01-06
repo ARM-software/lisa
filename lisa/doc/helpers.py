@@ -397,14 +397,14 @@ def get_deprecated_table():
         if removed_in is None:
             removed_in = ''
         else:
-            removed_in = '*Removed in: {}*\n\n'.format(format_version(removed_in))
+            removed_in = f'*Removed in: {format_version(removed_in)}*\n\n'
 
         name = get_sphinx_name(entry['obj'], style='rst')
         replaced_by = entry.get('replaced_by')
         if replaced_by is None:
             replaced_by = ''
         else:
-            replaced_by = '*Replaced by:* {}\n\n'.format(get_sphinx_name(replaced_by, style='rst'))
+            replaced_by = f"*Replaced by:* {get_sphinx_name(replaced_by, style='rst')}\n\n"
 
         return "* - {name}{msg}{replaced_by}{removed_in}".format(
             name=indent(name + '\n\n'),
@@ -423,7 +423,7 @@ def get_deprecated_table():
                 remove = 'to be removed'
             else:
                 remove = 'removed'
-            removed_in = ' {} in {}'.format(remove, format_version(removed_in))
+            removed_in = f' {remove} in {format_version(removed_in)}'
         else:
             removed_in = ''
 
