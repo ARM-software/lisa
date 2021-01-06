@@ -40,8 +40,7 @@ class CPUHPSequenceError(Exception):
 
 
 class HotplugBase(DmesgTestBundle):
-    def __init__(self, plat_info, target_alive, hotpluggable_cpus, live_cpus):
-        res_dir = None
+    def __init__(self, res_dir, plat_info, target_alive, hotpluggable_cpus, live_cpus):
         super().__init__(res_dir, plat_info)
         self.target_alive = target_alive
         self.hotpluggable_cpus = hotpluggable_cpus
@@ -222,7 +221,7 @@ class HotplugBase(DmesgTestBundle):
         dmesg_coll.get_data(dmesg_path)
 
         live_cpus = target.list_online_cpus() if target_alive else []
-        return cls(target.plat_info, target_alive, hotpluggable_cpus, live_cpus)
+        return cls(res_dir, target.plat_info, target_alive, hotpluggable_cpus, live_cpus)
 
     def test_target_alive(self) -> ResultBundle:
         """
