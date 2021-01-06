@@ -206,3 +206,9 @@ Trace parsers
 
 .. autoclass:: lisa.trace.TrappyTraceParser
    :members:
+
+EAS
++++++++
+
+.. automodule:: lisa.analysis.eas
+    :members:
