@@ -34,14 +34,4 @@ else:
     if not os.getenv('DISPLAY'):
         matplotlib.use('Agg')
 
-if sys.version_info < (3, 6):
-    warnings.warn(
-        'Python 3.6 will soon be required to run LISA, please upgrade from {} to any version higher than 3.6'.format(
-            '.'.join(
-                map(str, tuple(sys.version_info)[:3])
-            ),
-        ),
-        DeprecationWarning,
-    )
-
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
