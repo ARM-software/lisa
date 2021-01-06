@@ -179,7 +179,7 @@ class ThermalAnalysis(TraceAnalysisBase):
 
         df = self.df_cpufreq_cooling_state([cpu])
         df = df_refit_index(df, window=window)
-        cdev_name = "CPUs {}".format(mask_to_list(df.cpus.unique()[0]))
+        cdev_name = f"CPUs {mask_to_list(df.cpus.unique()[0])}"
 
         series = series_refit_index(df['cdev_state'], window=window)
         series.plot(drawstyle="steps-post", ax=axis,

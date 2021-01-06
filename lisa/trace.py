@@ -1917,8 +1917,7 @@ class TraceBase(abc.ABC):
                 f'{key}={value}'
                 for key, value in row.iteritems()
             )
-
-            return '{:<{event_name_len}}: {}'.format(event, fields, event_name_len=max_event_name_len)
+            return f'{event:<{max_event_name_len}}: {fields}'
 
         def make_info_series(event):
             df = self.df_event(event)

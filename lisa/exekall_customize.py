@@ -237,7 +237,7 @@ comparison. Can be repeated.""")
         id_len = max(len(regr.testcase_id) for regr in regr_list)
 
         header = '{id:<{id_len}}   old%   new%  delta%       pvalue fix_iter# {regr_column}'.format(
-            id=f'testcase',
+            id='testcase',
             id_len=id_len,
             regr_column=' significant' if show_non_significant else ''
         )

@@ -68,7 +68,7 @@ class Workload(Loggable):
                 self.command = "echo"
 
             def run(self, cpus=None, cgroup=None, as_root=False, value=42):
-                self.command = "{} {}".format(self.command, shlex.quote(value))
+                self.command = f'{self.command} {shlex.quote(value)}'
                 super().run(cpus, cgroup, as_root)
 
     **Usage example**::

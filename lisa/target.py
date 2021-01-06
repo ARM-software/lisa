@@ -885,7 +885,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
 
             return dict_def + '\n'.join(
-                '{} = pickle.loads({})'.format(dict_entry(name), repr(pickle.dumps(val)))
+                f'{dict_entry(name)} = pickle.loads({pickle.dumps(val)!r})'
                 for name, val in variables.items()
             )
 

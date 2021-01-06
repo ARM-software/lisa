@@ -626,11 +626,8 @@ class Stats(Loggable):
             min_sample_size = 30
             series_len = len(series)
             if series_len < min_sample_size:
-                self.get_logger().warning('Sample size smaller than {} is being used, the mean confidence interval will only be accurate if the data is normally distributed: {} samples for group {}'.format(
-                    min_sample_size,
-                    series_len,
-                    ', '.join(sorted(f'{k}={v}' for k, v in group.items())),
-                ))
+                group_str = ', '.join(sorted(f'{k}={v}' for k, v in group.items()))
+                self.get_logger().warning(f'Sample size smaller than {min_sample_size} is being used, the mean confidence interval will only be accurate if the data is normally distributed: {series_len} samples for group {group_str}')
 
             def fixup_nan(x):
                 return 0 if pd.isna(x) else x
@@ -1147,9 +1144,7 @@ class Stats(Loggable):
                     ax.set_ylabel(unit)
 
         return self._plot_values(
-            title='Values over {}'.format(
-                ', '.join(self._agg_cols)
-            ),
+            title=f"Values over {', '.join(self._agg_cols)}",
             plot_func=plot_func,
             **kwargs,
         )

@@ -1449,7 +1449,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
 
             # Add the extra bits in the right block and join lines of the block
             def update_block(block):
-                if re.match(r':param\s+{}'.format(re.escape(parameter)), block[0]):
+                if re.match(rf':param\s+{re.escape(parameter)}', block[0]):
                     if len(block) > 1:
                         indentation = re.match(r'^(\s*)', block[-1]).group(0)
                     else:
