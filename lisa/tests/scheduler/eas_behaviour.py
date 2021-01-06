@@ -383,8 +383,7 @@ class EASBehaviour(RTATestBundle):
         exp_energy = series_integrate(exp_power.sum(axis=1), method='rect')
         est_energy = series_integrate(est_power.sum(axis=1), method='rect')
 
-        msg = 'Estimated {} bogo-Joules to run workload, expected {}'.format(
-            est_energy, exp_energy)
+        msg = f'Estimated {est_energy} bogo-Joules to run workload, expected {exp_energy}'
         threshold = exp_energy * (1 + (energy_est_threshold_pct / 100))
 
         passed = est_energy < threshold

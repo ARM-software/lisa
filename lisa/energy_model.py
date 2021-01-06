@@ -128,11 +128,9 @@ class _CpuTree(Loggable):
             name_bit = f'name="{self.name}", '
 
         if self.children:
-            return '{}({}children={})'.format(
-                self.__class__.__name__, name_bit, self.children)
+            return f'{self.__class__.__name__}({name_bit}children={self.children})'
         else:
-            return '{}({}cpus={})'.format(
-                self.__class__.__name__, name_bit, self.cpus)
+            return f'{self.__class__.__name__}({name_bit}cpus={self.cpus})'
 
     def _iter(self, include_non_leaves):
         for child in self.children:
@@ -368,12 +366,10 @@ class EnergyModel(Serializable, Loggable):
         # Check that freq_domains is a partition of the CPUs
         fd_intersection = set.intersection(*domains_as_set)
         if len(domains_as_set) > 1 and fd_intersection:
-            raise ValueError('CPUs {} exist in multiple freq domains'.format(
-                fd_intersection))
+            raise ValueError(f'CPUs {fd_intersection} exist in multiple freq domains')
         fd_difference = set(self.cpus) - set.union(*domains_as_set)
         if fd_difference:
-            raise ValueError('CPUs {} not in any frequency domain'.format(
-                fd_difference))
+            raise ValueError(f'CPUs {fd_difference} not in any frequency domain')
         self.freq_domains = freq_domains
 
         # Check that nodes with energy data are all within a frequency domain
@@ -736,9 +732,7 @@ class EnergyModel(Serializable, Loggable):
 
         logger = self.get_logger()
         logger.debug(
-            'Searching {} configurations for optimal task placement...'.format(
-            num_candidates
-        ))
+            f'Searching {num_candidates} configurations for optimal task placement...')
 
         candidates = {}
         excluded = []
@@ -830,9 +824,7 @@ class EnergyModel(Serializable, Loggable):
             if not node.idle_states
         )
         if cpu_missing_idle_states:
-            logger.warning('CPUs missing idle states in cpuidle framework: {}'.format(
-                cpu_missing_idle_states,
-            ))
+            logger.warning(f'CPUs missing idle states in cpuidle framework: {cpu_missing_idle_states}')
 
         return em
 

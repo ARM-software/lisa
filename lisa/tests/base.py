@@ -633,8 +633,7 @@ class TestBundleMeta(abc.ABCMeta):
             # Sanity check on _from_target signature
             for name, param in signature(_from_target).parameters.items():
                 if name != 'target' and param.kind is not inspect.Parameter.KEYWORD_ONLY:
-                    raise TypeError('Non keyword parameters "{}" are not allowed in {} signature'.format(
-                        _from_target.__qualname__, name))
+                    raise TypeError(f'Non keyword parameters "{_from_target.__qualname__}" are not allowed in {name} signature')
 
             def get_keyword_only_names(f):
                 return {
@@ -715,11 +714,7 @@ class TestBundleMeta(abc.ABCMeta):
             from_target_doc = inspect.cleandoc(func.__doc__ or '')
             _from_target_doc = inspect.cleandoc(_from_target.__doc__ or '')
             if _from_target_doc:
-                doc = '{}\n\n(**above inherited from** :meth:`{}.{}`)\n\n{}\n'.format(
-                    from_target_doc,
-                    func.__module__, func.__qualname__,
-                    _from_target_doc,
-                )
+                doc = f'{from_target_doc}\n\n(**above inherited from** :meth:`{func.__module__}.{func.__qualname__}`)\n\n{_from_target_doc}\n'
             else:
                 doc = from_target_doc
 

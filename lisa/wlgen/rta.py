@@ -241,9 +241,7 @@ class RTA(Workload):
         )
         if too_long_tids:
             raise ValueError(
-                'Task names too long, please configure your tasks with names shorter than {} characters: {}'.format(
-                    max_size, too_long_tids
-                ))
+                f'Task names too long, please configure your tasks with names shorter than {max_size} characters: {too_long_tids}')
 
         invalid_tids = sorted(
             tid for tid in profile.keys()
@@ -251,9 +249,7 @@ class RTA(Workload):
         )
         if invalid_tids:
             raise ValueError(
-                'Task names not matching "{}": {}'.format(
-                    cls.ALLOWED_TASK_NAME_REGEX, invalid_tids,
-                ))
+                f'Task names not matching "{cls.ALLOWED_TASK_NAME_REGEX}": {invalid_tids}')
 
         rta_profile = {
             # Keep a stable order for tasks definition, to get stable IDs
@@ -466,9 +462,7 @@ class RTA(Workload):
                 'calib': pload,
             },
         })
-        logger.info('Platform info rt-app calibration configuration:\n{}'.format(
-            snippet_plat_info.to_yaml_map_str()
-        ))
+        logger.info(f'Platform info rt-app calibration configuration:\n{snippet_plat_info.to_yaml_map_str()}')
 
         plat_info = target.plat_info
 

@@ -150,11 +150,7 @@ class GenericSortedSequenceMeta(GenericSequenceMeta):
         super().instancecheck(instance)
         for i, (x, y) in enumerate(zip(instance, instance[1:])):
             if x > y:
-                raise TypeError('Item #{i} "{x}" is higher than the next item "{y}", but the list must be sorted'.format(
-                    i=i,
-                    x=x,
-                    y=y
-                ))
+                raise TypeError(f'Item #{i} "{x}" is higher than the next item "{y}", but the list must be sorted')
 
 
 class TypedList(GenericContainerBase, list, metaclass=GenericSequenceMeta):

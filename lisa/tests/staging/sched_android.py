@@ -115,8 +115,7 @@ class SchedTuneBase(TestBundle):
         os.makedirs(item_dir)
 
         logger = cls.get_logger()
-        logger.info('Running {} with boost={}, prefer_idle={}'.format(
-                    item_cls.__name__, boost, prefer_idle))
+        logger.info(f'Running {item_cls.__name__} with boost={boost}, prefer_idle={prefer_idle}')
         return item_cls.from_target(target,
             boost=boost,
             prefer_idle=prefer_idle,

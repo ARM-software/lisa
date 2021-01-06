@@ -485,13 +485,9 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         _, first_phase_start, _ = get_info(df.iloc[0])
 
         if timestamp < first_phase_start:
-            raise KeyError('timestamp={} is before the first phase start: {}'.format(
-                timestamp, first_phase_start,
-            ))
+            raise KeyError(f'timestamp={timestamp} is before the first phase start: {first_phase_start}')
         elif timestamp > last_phase_end:
-            raise KeyError('timestamp={} is after last phase end: {}'.format(
-                timestamp, last_phase_end
-            ))
+            raise KeyError(f'timestamp={timestamp} is after last phase end: {last_phase_end}')
 
         i = df.index.get_loc(timestamp, method='ffill')
         phase_id, phase_start, phase_end = get_info(df.iloc[i])
@@ -771,9 +767,7 @@ class PerfAnalysis(AnalysisHelpers):
             raise ValueError('No tasks in the task log mapping')
 
         for task_name, logfile in task_log_map.items():
-            logger.debug('rt-app task [{}] logfile: {}'.format(
-                task_name, logfile
-            ))
+            logger.debug(f'rt-app task [{task_name}] logfile: {logfile}')
 
         self.perf_data = {
             task_name: {
@@ -833,9 +827,7 @@ class PerfAnalysis(AnalysisHelpers):
         def find_log_file(task_name, log_dir):
             log_file = os.path.join(log_dir, cls.RTA_LOG_PATTERN.format(task_name))
             if not os.path.isfile(log_file):
-                raise ValueError('No rt-app logfile found for task [{}]'.format(
-                    task_name
-                ))
+                raise ValueError(f'No rt-app logfile found for task [{task_name}]')
             return log_file
 
         task_log_map = {
@@ -972,8 +964,7 @@ class PerfAnalysis(AnalysisHelpers):
         ylabel = f'perf index of {task}'
         series = self.get_df(task)['PerfIndex']
         mean = series.mean()
-        self.get_logger().info('perf index of task "{}": avg={:.2f} std={:.2f}'.format(
-            task, mean, series.std()))
+        self.get_logger().info(f'perf index of task "{task}": avg={mean:.2f} std={series.std():.2f}')
 
         series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel)
         axis.axvline(mean, linestyle='--', linewidth=2, label='mean')

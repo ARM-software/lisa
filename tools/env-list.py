@@ -86,11 +86,7 @@ def main():
             )
             entry = textwrap.indent(entry, ' ' * 2)
         else:
-            entry = "{doc}{var}={val}\n".format(
-                var=var,
-                doc=doc,
-                val=val,
-            )
+            entry = f"{doc}{var}={val}\n"
 
         print(entry)
 

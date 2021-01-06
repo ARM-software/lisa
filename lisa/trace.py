@@ -509,10 +509,7 @@ class PrintTxtEventParser(TxtEventParser):
         super().__init__(event=event, fields=fields, raw=False)
 
     def _get_fields_regex(self, event, fields, positional_field, greedy_field):
-        return r'(?P<{func}>.*?): *(?P<{content}>.*)'.format(
-            func=self._func_field,
-            content=self._content_field,
-        )
+        return fr'(?P<{self._func_field}>.*?): *(?P<{self._content_field}>.*)'
 
 
 class CustomFieldsTxtEventParser(TxtEventParser):
@@ -2197,10 +2194,7 @@ class PandasDataDescNF:
         # In other cases save the name of the type along the value to make
         # sure we are not going to compare apple and oranges in the future
         else:
-            type_name = '{}.{}'.format(
-                val.__class__.__module__,
-                val.__class__.__qualname__
-            )
+            type_name = f'{val.__class__.__module__}.{val.__class__.__qualname__}'
             val = (type_name, val)
 
         return val
@@ -3358,10 +3352,7 @@ class Trace(Loggable, TraceBase):
         # The parser type will potentially change the exact content in raw
         # dataframes
         def get_name(parser):
-            return '{}.{}'.format(
-                parser.__module__,
-                parser.__qualname__
-            )
+            return f'{parser.__module__}.{parser.__qualname__}'
 
         try:
             parser_name = get_name(parser)
@@ -4217,9 +4208,7 @@ class Trace(Loggable, TraceBase):
         name_list = self.get_task_pid_names(pid)
 
         if len(name_list) > 2:
-            raise RuntimeError('The PID {} had more than two names in its life: {}'.format(
-                pid, name_list,
-            ))
+            raise RuntimeError(f'The PID {pid} had more than two names in its life: {name_list}')
 
         return name_list[-1]
 
@@ -4908,10 +4897,7 @@ class MissingTraceEventError(RuntimeError, ValueError):
         else:
             available = ''
 
-        return "Trace is missing the following required events: {}{}".format(
-            self.missing_events,
-            available,
-        )
+        return f"Trace is missing the following required events: {self.missing_events}{available}"
         return msg
 
 
