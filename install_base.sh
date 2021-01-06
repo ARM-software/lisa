@@ -72,7 +72,7 @@ install_android_sdk_manager() {
     call_android_sdkmanager --list
 }
 
-ANDROID_SDK_JAVA_VERSION=8
+ANDROID_SDK_JAVA_VERSION=11
 # Android SDK is picky on Java version, so we need to set JAVA_HOME manually.
 # In most distributions, Java is installed under /usr/lib/jvm so use that.
 # according to the distribution
