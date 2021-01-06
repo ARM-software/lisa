@@ -71,19 +71,18 @@ install_android_sdk_manager() {
 }
 
 ANDROID_SDK_JAVA_VERSION=8
+# Android SDK is picky on Java version, so we need to set JAVA_HOME manually.
+# In most distributions, Java is installed under /usr/lib/jvm so use that.
+# according to the distribution
+_JAVA_BIN=$(find /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*/bin/java" -not -path '*/jre/bin/*' -print -quit)
+_JAVA_HOME=$(dirname "$_JAVA_BIN")/../
 call_android_sdk() {
     local tool="$ANDROID_HOME/tools/bin/$1"
     shift
-
-    # Android SDK is picky on Java version, so we need to set JAVA_HOME manually.
-    # In most distributions, Java is installed under /usr/lib/jvm so use that.
-    # according to the distribution
-    local java_bin=$(find /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*/bin/java" -not -path '*/jre/bin/*' -print -quit)
-    local JAVA_HOME=$(dirname "$java_bin")/../
-
+    echo "Using JAVA_HOME=$_JAVA_HOME for Android SDK" >&2
     # Use grep to remove the progress bar, as there is no CLI option for the SDK
     # manager to do that
-    JAVA_HOME=$JAVA_HOME "$tool" "$@" | grep -v '\[='
+    JAVA_HOME=$_JAVA_HOME "$tool" "$@" | grep -v '\[='
 }
 
 # Needs install_android_sdk_manager first
