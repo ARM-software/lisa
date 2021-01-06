@@ -1089,9 +1089,7 @@ def non_recursive_property(f):
     @functools.wraps(f)
     def wrapper(self, *args, **kwargs):
         if _get(self):
-            raise AttributeError('Recursive access to property "{}.{}" while computing its value'.format(
-                self.__class__.__qualname__, f.__name__,
-            ))
+            raise AttributeError(f'Recursive access to property "{self.__class__.__qualname__}.{f.__name__}" while computing its value')
 
         try:
             _set(self, True)
@@ -1145,9 +1143,7 @@ def optional_kwargs(func):
             return func(args[0])
         else:
             if args:
-                raise TypeError('Positional parameters are not allowed when applying {} decorator, please use keyword arguments'.format(
-                    func.__qualname__
-                ))
+                raise TypeError(f'Positional parameters are not allowed when applying {func.__qualname__} decorator, please use keyword arguments')
             return functools.partial(func, **kwargs)
 
     return wrapper

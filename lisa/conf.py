@@ -110,9 +110,7 @@ class KeyDescBase(abc.ABC):
 
     def __init__(self, name, help):
         if not re.match(self._VALID_NAME_PATTERN, name):
-            raise ValueError('Invalid key name "{}". Key names must match: {}'.format(
-                name, self._VALID_NAME_PATTERN,
-            ))
+            raise ValueError(f'Invalid key name "{name}". Key names must match: {self._VALID_NAME_PATTERN}')
 
         self.name = name
         self.help = help
@@ -476,11 +474,7 @@ class DerivedKeyDesc(KeyDesc):
         except ConfigKeyError as e:
             key = self.qualname
             raise MissingBaseKeyError(
-                'Missing value for base key "{base_key}" in order to compute derived key "{derived_key}": {msg}'.format(
-                    derived_key=key,
-                    base_key=e.key,
-                    msg=e.msg,
-                ),
+                f'Missing value for base key "{e.key}" in order to compute derived key "{key}": {e.msg}',
                 key=key,
             ) from e
 
@@ -607,11 +601,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
 
             parent = self.qualname
             raise ConfigKeyError(
-                'Key "{key}" is not allowed in {parent}{maybe}'.format(
-                    key=key,
-                    parent=parent,
-                    maybe=closest_match,
-                ),
+                f'Key "{key}" is not allowed in {parent}{closest_match}',
                 key=key,
             )
 
@@ -619,9 +609,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         """Validate a mapping to be used as a configuration source"""
         if not isinstance(conf, Mapping):
             key = self.qualname
-            raise TypeError('Configuration of {key} must be a Mapping'.format(
-                key=key,
-            ), key)
+            raise TypeError(f'Configuration of {key} must be a Mapping', key)
         for key, val in conf.items():
             self[key].validate_val(val)
 
@@ -1238,9 +1226,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             # Derived keys cannot be set, since they are purely derived from
             # other keys
             elif isinstance(key_desc, DerivedKeyDesc):
-                raise ValueError('Cannot set a value for a derived key "{key}"'.format(
-                    key=key_desc.qualname,
-                ), key_desc.qualname)
+                raise ValueError(f'Cannot set a value for a derived key "{key_desc.qualname}"', key_desc.qualname)
             # Otherwise that is a leaf value that we store at that level
             else:
                 self._key_map.setdefault(key, {})[src] = val
@@ -1301,13 +1287,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         key_desc = self._structure[key]
         qual_key = key_desc.qualname
         if isinstance(key_desc, LevelKeyDesc):
-            raise ValueError('Cannot force source of the sub-level "{key}"'.format(
-                key=qual_key,
-            ), qual_key)
+            raise ValueError(f'Cannot force source of the sub-level "{qual_key}"', qual_key)
         elif isinstance(key_desc, DerivedKeyDesc):
-            raise ValueError('Cannot force source of a derived key "{key}"'.format(
-                key=qual_key,
-            ), qual_key)
+            raise ValueError(f'Cannot force source of a derived key "{qual_key}"', qual_key)
         else:
             # None means removing the src override for that key
             if src_prio is None:
@@ -1374,9 +1356,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
         if isinstance(key_desc, LevelKeyDesc):
             key = key_desc.qualname
-            raise ValueError('Key "{key}" is a nested configuration level, it does not have a source on its own.'.format(
-                key=key,
-            ), key)
+            raise ValueError(f'Key "{key}" is a nested configuration level, it does not have a source on its own.', key)
 
         # Get the priority list from the prio override list, or just the
         # default prio list
@@ -1386,9 +1366,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         else:
             key = key_desc.qualname
             raise ConfigKeyError(
-                'Could not find any source for key "{key}"'.format(
-                    key=key,
-                ),
+                f'Could not find any source for key "{key}"',
                 key=key,
             )
 
@@ -1405,11 +1383,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             # available as excep.__cause__ since it was chained with "from"
             except Exception as e:
                 key_qualname = key_desc.qualname
-                msg = 'Could not compute "{key}" from source "{src}": {excep}'.format(
-                    key=key_qualname,
-                    src=src,
-                    excep=e,
-                )
+                msg = f'Could not compute "{key_qualname}" from source "{src}": {e}'
 
                 # Propagate ConfigKeyError as-is
                 if isinstance(e, ConfigKeyError):
@@ -1537,10 +1511,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             # Specifying a source is an error for a derived key
             if src is not None:
                 key = key_desc.qualname
-                raise ValueError('Cannot specify the source when getting "{key}" since it is a derived key'.format(
-                    key=key,
-                    src=src,
-                ), key)
+                raise ValueError(f'Cannot specify the source when getting "{key}" since it is a derived key', key)
 
             val = key_desc.compute_val(self, eval_deferred=eval_deferred)
             src = self.resolve_src(key)
@@ -1554,10 +1525,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             except KeyError:
                 key = key_desc.qualname
                 raise ConfigKeyError(
-                    'Key "{key}" is not available from source "{src}"'.format(
-                        key=key,
-                        src=src,
-                    ),
+                    f'Key "{key}" is not available from source "{src}"',
                     key=key,
                     src=src,
                 )
@@ -1605,9 +1573,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         key_desc = self._structure[key]
         if isinstance(key_desc, LevelKeyDesc):
             key = key_desc.qualname
-            raise ValueError('Key "{key}" is a nested configuration level, it does not have a source on its own.'.format(
-                key=key,
-            ), key)
+            raise ValueError(f'Key "{key}" is a nested configuration level, it does not have a source on its own.', key)
 
         return OrderedDict(
             (src, self._eval_deferred_val(src, key, error='raise'))

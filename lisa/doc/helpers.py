@@ -283,10 +283,7 @@ def autodoc_process_analysis_methods(app, what, name, obj, options, lines):
     except (KeyError, TypeError):
         return
     else:
-        on_trace_name = 'trace.analysis.{}.{}'.format(
-            cls.name,
-            obj.__name__
-        )
+        on_trace_name = f'trace.analysis.{cls.name}.{obj.__name__}'
         extra_doc = f"\n*Called on* :class:`~lisa.trace.Trace` *instances as* ``{on_trace_name}()``\n\n"
         # prepend
         lines[:0] = extra_doc.splitlines()
@@ -320,11 +317,7 @@ def get_analysis_list(meth_type):
         ]
 
         rst_list += [
-            ":class:`{analysis_name}<{cls}>`::meth:`~{cls}.{meth}`".format(
-                analysis_name=subclass.name,
-                cls=class_path,
-                meth=meth,
-            )
+            f":class:`{subclass.name}<{class_path}>`::meth:`~{class_path}.{meth}`"
             for meth in meth_list
         ]
 

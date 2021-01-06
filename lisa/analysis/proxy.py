@@ -85,11 +85,7 @@ class AnalysisProxy(Loggable):
                         with contextlib.suppress(TypeError):
                             src_file = inspect.getsourcefile(cls) or src_file
 
-                        logger.debug('{name} ({cls}) defined in {src}'.format(
-                            name=name,
-                            cls=cls,
-                            src=src_file
-                        ))
+                        logger.debug(f'{name} ({cls}) defined in {src_file}')
 
                     raise
             else:

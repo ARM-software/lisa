@@ -335,9 +335,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
             signal_name == 'load'
             and kernel_version.parts[:2] < (5, 1)
         ):
-            logger().warning('Load signal is assumed to be CPU invariant, which is true for recent mainline kernels, but may be wrong for {}'.format(
-                kernel_version,
-            ))
+            logger().warning(f'Load signal is assumed to be CPU invariant, which is true for recent mainline kernels, but may be wrong for {kernel_version}')
 
         df['error'] = df[signal_name] - df['simulated']
         df = df.dropna()
@@ -585,11 +583,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
 
         for cpu, (all_freqs, freq_list) in sorted(cpu_freqs.items()):
             for freq in freq_list:
-                item_dir = ArtifactPath.join(res_dir, "{prefix}_{cpu}@{freq}".format(
-                    prefix=InvarianceItem.task_prefix,
-                    cpu=cpu,
-                    freq=freq,
-                ))
+                item_dir = ArtifactPath.join(res_dir, f"{InvarianceItem.task_prefix}_{cpu}@{freq}")
                 os.makedirs(item_dir)
 
                 logger.info(f'Running experiment for CPU {cpu}@{freq}')
@@ -733,10 +727,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             # different frequencies
             bundle.add_metric('cpu', cpu)
 
-            logger.info('Util avg invariance {res} for CPU {cpu}'.format(
-                res=bundle.result.lower_name,
-                cpu=cpu,
-            ))
+            logger.info(f'Util avg invariance {bundle.result.lower_name} for CPU {cpu}')
             return bundle
 
         group_result_bundles = [
@@ -852,8 +843,7 @@ class CPUMigrationBase(LoadTrackingBase):
                 return cpus[:nr_required_cpu]
 
         raise CannotCreateError(
-            "This workload requires {} CPUs of identical capacity".format(
-                nr_required_cpu))
+            f"This workload requires {nr_required_cpu} CPUs of identical capacity")
 
     # Don't strictly check for cpu_frequency, since there might be no occurence
     # of the event.

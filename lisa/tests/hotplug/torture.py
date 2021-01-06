@@ -90,9 +90,7 @@ class HotplugBase(DmesgTestBundle):
 
         for cpu, state in state.items():
             if state != 1:
-                raise CPUHPSequenceError('CPU {} is plugged out but not plugged in at the end of the sequence'.format(
-                    cpu
-                ))
+                raise CPUHPSequenceError(f'CPU {cpu} is plugged out but not plugged in at the end of the sequence')
 
     @classmethod
     @abc.abstractmethod

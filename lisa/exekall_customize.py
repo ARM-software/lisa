@@ -59,10 +59,7 @@ class ExekallArtifactPath(ArtifactPath, NonReusable):
                 artifact_dir = artifact_dir_
                 break
 
-        cls.get_logger().info('Creating {consumer} artifact storage: {path}'.format(
-            consumer=consumer_name,
-            path=artifact_dir
-        ))
+        cls.get_logger().info(f'Creating {consumer_name} artifact storage: {artifact_dir}')
         artifact_dir.mkdir(parents=True)
         # Get canonical absolute paths
         artifact_dir = artifact_dir.resolve()
@@ -81,9 +78,7 @@ class ExekallFtraceCollector(FtraceCollector, HideExekallID):
         # there is no legitimate use case where it could happen, and it is very
         # likely that it comes from a design issue in the class
         if not conf['events'] and issubclass(consumer_cls, TestBundle):
-            raise ValueError("Empty events list in {}.{}".format(
-                consumer_cls.__qualname__, attr,
-            ))
+            raise ValueError(f"Empty events list in {consumer_cls.__qualname__}.{attr}")
         return conf
 
     @classmethod

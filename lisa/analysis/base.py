@@ -405,10 +405,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         def decorator(f):
             @update_wrapper_doc(
                 f,
-                added_by=':meth:`{}.{}.plot_method`'.format(
-                    AnalysisHelpers.__module__,
-                    AnalysisHelpers.__qualname__,
-                ),
+                added_by=f':meth:`{AnalysisHelpers.__module__}.{AnalysisHelpers.__qualname__}.plot_method`',
                 description=textwrap.dedent("""
                 :returns: An :class:`matplotlib.axes.Axes` containing the plot,
                     or rich formats depending on ``output`` value.
@@ -821,10 +818,7 @@ class TraceAnalysisBase(AnalysisHelpers):
                 continue
             break
         else:
-            raise ValueError('{} is not a method of any subclasses of {}'.format(
-                meth.__qualname__,
-                cls.__qualname__,
-            ))
+            raise ValueError(f'{meth.__qualname__} is not a method of any subclasses of {cls.__qualname__}')
 
         # Create an analysis instance and bind the method to it
         analysis = subcls(trace=trace)

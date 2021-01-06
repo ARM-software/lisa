@@ -167,9 +167,7 @@ class WAOutput(StatsProp, Mapping, Loggable):
     def __getitem__(self, key):
         cls = self._available_collectors[key]
         if key not in self._auto_collectors:
-            raise KeyError("Collector {name} needs mandatory parameter, use get_collector('{name}', ...) instead".format(
-                name=key
-            ))
+            raise KeyError(f"Collector {key} needs mandatory parameter, use get_collector('{key}', ...) instead")
         else:
             return cls(self)
 
@@ -196,9 +194,7 @@ class WAOutput(StatsProp, Mapping, Loggable):
                 df = collector.df
             except Exception as e:
                 exceps[collector] = e
-                self.get_logger().debug('Could not get dataframe of collector {}: {}'.format(
-                    name, e,
-                ))
+                self.get_logger().debug(f'Could not get dataframe of collector {name}: {e}')
             else:
                 dfs.append(df)
 
