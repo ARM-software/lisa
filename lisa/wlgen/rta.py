@@ -632,7 +632,7 @@ class RTA(Workload):
     @classmethod
     def _compute_task_map(cls, trace, names):
         prefix_regexps = {
-            prefix: re.compile(r"^{}(-[0-9]+)*$".format(re.escape(prefix)))
+            prefix: re.compile(rf"^{re.escape(prefix)}(-[0-9]+)*$")
             for prefix in names
         }
 

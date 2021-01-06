@@ -230,9 +230,9 @@ class HWMon(EnergyMeter):
         clusters_nrg = {}
         for channel, site in self._channels.items():
             if site not in nrg:
-                raise RuntimeError('hwmon channel "{}" not available. '
-                                   'Selected channels: {}'.format(
-                                       channel, list(nrg.keys())))
+                raise RuntimeError(
+                    f'hwmon channel "{channel}" not available. Selected channels: {list(nrg.keys())}'
+                )
             nrg_total = nrg[site]['total']
             self.get_logger().debug(f'Energy [{site:>16}]: {nrg_total:.6f}')
             clusters_nrg[channel] = nrg_total
@@ -280,8 +280,8 @@ class _DevlibContinuousEnergyMeter(EnergyMeter):
             if set(headers) != set(exp_headers):
                 raise ValueError(
                     'Unexpected headers in CSV from devlib instrument. '
-                    'Expected {}, found {}'.format(sorted(headers),
-                                                   sorted(exp_headers)))
+                    f'Expected {sorted(headers)}, found {sorted(exp_headers)}'
+                )
             columns = [tuple(h.rsplit('_', 1)) for h in headers]
             # Passing `names` means read_csv doesn't expect to find headers in
             # the CSV (i.e. expects every line to hold data). This works because
@@ -343,9 +343,7 @@ class AEP(_DevlibContinuousEnergyMeter):
         self._instrument.reset()
 
         # Logging enabled channels
-        logger.info('Channels selected for energy sampling: {}'.format(
-            self._instrument.active_channels
-        ))
+        logger.info(f'Channels selected for energy sampling: {self._instrument.active_channels}')
         logger.debug(f'Results dir: {self._res_dir}')
 
 
@@ -447,9 +445,7 @@ class ACME(EnergyMeter):
         try:
             p = subprocess.call([self._iiocapturebin, '-h'], stdout=PIPE, stderr=STDOUT)
         except FileNotFoundError as e:
-            logger.error('iio-capture binary {} not available'.format(
-                 self._iiocapturebin
-             ))
+            logger.error(f'iio-capture binary {self._iiocapturebin} not available')
             logger.warning(_acme_install_instructions)
             raise FileNotFoundError('Missing iio-capture binary') from e
 
@@ -457,10 +453,10 @@ class ACME(EnergyMeter):
         raise NotImplementedError('Not available for ACME')
 
     def _iio_device(self, channel):
-        return 'iio:device{}'.format(self._channels[channel])
+        return f'iio:device{self._channels[channel]}'
 
     def _str(self, channel):
-        return '{} ({})'.format(channel, self._iio_device(channel))
+        return f'{channel} ({self._iio_device(channel)})'
 
     def reset(self):
         """
@@ -475,8 +471,7 @@ class ACME(EnergyMeter):
                 continue
             for channel in self._channels:
                 if self._iio_device(channel) in proc.cmdline():
-                    logger.debug('Killing previous iio-capture for {}'.format(
-                                 self._iio_device(channel)))
+                    logger.debug(f'Killing previous iio-capture for {self._iio_device(channel)}')
                     logger.debug(proc.cmdline())
                     proc.kill()
                     wait_for_termination = 2
@@ -510,17 +505,14 @@ class ACME(EnergyMeter):
 
             self._iio[ch_id].poll()
             if self._iio[ch_id].returncode:
-                logger.error('Failed to run {} for {}'.format(
-                   self._iiocapturebin, self._str(channel)
-                 ))
-                logger.warning('Make sure there are no iio-capture processes connected to {} and device {}'.format(self._hostname, self._str(channel)))
+                logger.error(f'Failed to run {self._iiocapturebin} for {self._str(channel)}')
+                logger.warning(f'Make sure there are no iio-capture processes connected to {self._hostname} and device {self._str(channel)}')
                 out, _ = self._iio[ch_id].communicate()
                 logger.error(f'Output: {out.strip()}')
                 self._iio[ch_id] = None
                 raise RuntimeError('iio-capture connection error')
 
-        logger.debug('Started {} on {}...'.format(
-                     self._iiocapturebin, self._str(channel)))
+        logger.debug(f'Started {self._iiocapturebin} on {self._str(channel)}...')
         self.reset_time = time.monotonic()
 
     def report(self, out_dir, out_energy='energy.json'):
@@ -551,9 +543,7 @@ class ACME(EnergyMeter):
                 # returncode not None means that iio-capture has terminated
                 # already, so there must have been an error
                 out, _ = self._iio[ch_id].communicate()
-                logger.error('{} terminated for {}: {}'.format(
-                    self._iiocapturebin, self._str(channel), out
-                ))
+                logger.error(f'{self._iiocapturebin} terminated for {self._str(channel)}: {out}')
                 self._iio[ch_id] = None
                 continue
 
@@ -565,12 +555,10 @@ class ACME(EnergyMeter):
 
             # iio-capture return "energy=value", add a simple format check
             if '=' not in out:
-                logger.error('Bad output format for {}: {}'.format(
-                    self._str(channel), out
-                ))
+                logger.error(f'Bad output format for {self._str(channel)}: {out}')
                 continue
             else:
-                logger.debug('{}: {}'.format(self._str(channel), out))
+                logger.debug(f'{self._str(channel)}: {out}')
 
             # Build energy counter object
             nrg = {}

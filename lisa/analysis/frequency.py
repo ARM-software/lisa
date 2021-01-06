@@ -564,8 +564,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 )
                 for axis in local_axes:
                     title = axis.get_title()
-                    axis.set_title(title.replace(
-                        "CPU{}".format(domain[0]), f"CPUs {domain}"))
+                    axis.set_title(title.replace(f'CPU{domain[0]}', f"CPUs {domain}"))
 
         return self.do_plot(plotter, nrows=2 * len(domains), sharex=True, axis=axis, **kwargs)
 
@@ -620,8 +619,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 )
 
                 title = axis.get_title()
-                axis.set_title(title.replace("CPU{}".format(domain[0]),
-                                             f"CPUs {domain}"))
+                axis.set_title(title.replace(f'CPU{domain[0]}', f"CPUs {domain}"))
 
         return self.do_plot(plotter, nrows=len(domains), axis=axis, **kwargs)
 

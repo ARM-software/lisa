@@ -88,7 +88,7 @@ def _nested_formatter(multiline):
             elif isinstance(data, Mapping):
                 data = sort_mapping(data)
                 body = '\n'.join(
-                    '{}: {}'.format(key, format_data(data, level + 1))
+                    f'{key}: {format_data(data, level + 1)}'
                     for key, data in data.items()
                 )
                 out = indent(body)
@@ -103,7 +103,7 @@ def _nested_formatter(multiline):
             if isinstance(data, Mapping):
                 data = sort_mapping(data)
                 return '{' + ', '.join(
-                    '{}={}'.format(key, format_data(data))
+                    f'{key}={format_data(data)}'
                     for key, data in data.items()
                 ) + '}'
 
@@ -146,8 +146,7 @@ class TestMetric:
         return result
 
     def __repr__(self):
-        return '{cls}({self.data}, {self.units})'.format(
-            cls=type(self).__name__, self=self)
+        return f'{type(self).__name__}({self.data}, {self.units})'
 
 
 @enum.unique

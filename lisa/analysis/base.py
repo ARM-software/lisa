@@ -602,16 +602,12 @@ class AnalysisHelpers(Loggable, abc.ABC):
         except Exception:
             doc_link = ''
 
-        return textwrap.dedent("""
+        return textwrap.dedent(f"""
                 {name}
-                {name_underline}
+                {'=' * len(name)}
 
-                {docstring} {link}
-            """).format(
-            name=name,
-            link=doc_link,
-            name_underline='=' * len(name),
-            docstring=get_short_doc(f),
+                {get_short_doc(f)} {doc_link}
+            """
         )
 
     @classmethod
@@ -644,19 +640,14 @@ class AnalysisHelpers(Loggable, abc.ABC):
             if v is not None and k not in hidden_params
         )
 
-        return textwrap.dedent("""
-            .. figure:: data:image/{fmt};base64,{data}
-                :alt: {name}
+        return textwrap.dedent(f"""
+            .. figure:: data:image/{fmt};base64,{b64_image}
+                :alt: {f.__qualname__}
                 :align: center
                 :width: 100%
 
-                {arguments}
-        """).format(
-            fmt=fmt,
-            data=b64_image,
-            arguments=args_list,
-            name=f.__qualname__,
-        )
+                {args_list}
+        """)
 
     @classmethod
     def _get_rst(cls, f, args, kwargs, axis):
