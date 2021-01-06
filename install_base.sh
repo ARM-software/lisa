@@ -87,9 +87,9 @@ call_android_sdk() {
 
 # Needs install_android_sdk_manager first
 install_android_tools() {
-    yes | call_android_sdk sdkmanager "build-tools;29.0.1"
-    # We could use install_android_platform_tools here if the SDK starts being annoying
-    yes | call_android_sdk sdkmanager "platform-tools"
+    # We could use install_android_platform_tools here for platform-tools if the
+    # SDK starts being annoying
+    yes | call_android_sdk sdkmanager --verbose --channel=0 --install "build-tools;30.0.3" "platform-tools"
 }
 
 # Install nodejs from snap packages instead of the main package manager
