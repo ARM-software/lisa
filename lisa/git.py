@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-import logging
 import os
 import subprocess
 
@@ -76,6 +75,8 @@ def get_commit_message(repo, ref='HEAD', format='%s'):
     :param format: Format string passed to ``git show --format``. Default to subject.
     :type format: str
     """
+    # pylint: disable=redefined-builtin
+
     return git(repo, 'show', '--format=' + format, '-s', ref)
 
 def find_commits(repo, ref='HEAD', grep=None):
@@ -107,6 +108,8 @@ def log(repo, ref='HEAD', format=None, commits_nr=1):
     :param commits_nr: Number of commits to display. ``None`` means no limit.
     :type commits_nr: int or None
     """
+    # pylint: disable=redefined-builtin
+
     opts = []
     if format:
         opts += [f'--format={format}']

@@ -17,26 +17,22 @@
 #
 
 import argparse
-import copy
 import contextlib
 import itertools
 import re
 import os.path
 from pathlib import Path
-from collections import OrderedDict, namedtuple
-
-from lisa.target import Target, TargetConf
-from lisa.trace import FtraceCollector, FtraceConf
-from lisa.platforms.platinfo import PlatformInfo
-from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable, get_nested_key, ExekallTaggable
-from lisa.conf import MultiSrcConf
-from lisa.tests.base import TestBundle, ResultBundleBase, Result, RTATestBundle
-from lisa.tests.scheduler.load_tracking import InvarianceItem
-from lisa.regression import compute_regressions
 
 from exekall.utils import get_name, get_method_class, add_argument, NoValue, flatten_seq
 from exekall.engine import ExprData, Consumer, PrebuiltOperator
 from exekall.customization import AdaptorBase
+
+from lisa.target import Target, TargetConf
+from lisa.trace import FtraceCollector, FtraceConf
+from lisa.utils import HideExekallID, ArtifactPath, Serializable, get_nested_key, ExekallTaggable
+from lisa.conf import MultiSrcConf
+from lisa.tests.base import TestBundle, ResultBundleBase, Result
+from lisa.regression import compute_regressions
 
 
 class NonReusable:
@@ -96,6 +92,9 @@ class ExekallFtraceCollector(FtraceCollector, HideExekallID):
 
 class LISAAdaptor(AdaptorBase):
     name = 'LISA'
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.hidden_op_set = None
 
     def get_non_reusable_type_set(self):
         return {NonReusable}
@@ -302,8 +301,8 @@ comparison. Can be repeated.""")
         def get_uuid(uuid):
             try:
                 froz_val = db.get_by_uuid(uuid)
-            except KeyError:
-                raise KeyError(f'UUID={uuid} not found in the database')
+            except KeyError as e:
+                raise KeyError(f'UUID={uuid} not found in the database') from e
             else:
                 return froz_val
 
@@ -375,7 +374,8 @@ comparison. Can be repeated.""")
 
         if len(yaml_show_spec_list) == 1:
             yaml_show_format = '{yaml}'
-            def yaml_indent(x): return x
+            def yaml_indent(x):
+                return x
         else:
             yaml_show_format = 'UUID={uuid} {type}:\n\n{yaml}'
             yaml_indent = indent
@@ -491,7 +491,7 @@ comparison. Can be repeated.""")
 
                 symlink.symlink_to(target, target_is_directory=True)
 
-        for param, param_expr_val in expr_val.param_map.items():
+        for param_expr_val in expr_val.param_map.values():
             self._finalize_expr_val(param_expr_val, artifact_dir, expr_artifact_dir)
 
     @classmethod

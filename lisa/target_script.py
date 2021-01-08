@@ -16,9 +16,6 @@
 #
 
 import os.path
-import contextlib
-
-from time import sleep
 
 from lisa.utils import deprecate
 from lisa.target import Target

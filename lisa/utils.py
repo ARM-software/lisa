@@ -31,7 +31,7 @@ import re
 import abc
 import copy
 import collections
-from collections.abc import Mapping, MutableMapping, Sequence
+from collections.abc import Mapping
 from collections import OrderedDict
 import contextlib
 import inspect
@@ -45,8 +45,6 @@ import os
 import importlib
 import pkgutil
 import operator
-import numbers
-import difflib
 import threading
 import itertools
 import weakref
@@ -70,8 +68,7 @@ except ImportError:
 
 import lisa
 import lisa.assets
-from lisa.version import version_tuple, parse_version, format_version
-from lisa.assets import ASSETS_PATH
+from lisa.version import parse_version, format_version
 
 
 # Do not infer the value using __file__, since it will break later on when
@@ -296,7 +293,7 @@ def import_all_submodules(pkg, best_effort=False):
 
 def _import_all_submodules(pkg_name, pkg_path, best_effort=False):
     modules = []
-    for finder, module_name, is_pkg in (
+    for _, module_name, _ in (
         pkgutil.walk_packages(pkg_path, prefix=pkg_name + '.')
     ):
         try:
@@ -626,7 +623,7 @@ class Serializable(Loggable):
             for attr in self.serialized_blacklist:
                 dct.pop(attr, None)
 
-        for attr, placeholder in self.serialized_placeholders.items():
+        for attr, _ in self.serialized_placeholders.items():
             dct.pop(attr, None)
 
         return dct
@@ -848,7 +845,8 @@ def group_by_value(mapping, key_sort=lambda x: x):
     """
     if not key_sort:
         # Just conserve the order
-        def key_sort(x): return 0
+        def key_sort(_):
+            return 0
 
     return OrderedDict(
         (val, sorted((k for k, v in key_group), key=key_sort))
@@ -1536,6 +1534,7 @@ def show_doc(obj, iframe=False):
         return IFrame(src=doc_url, width="100%", height="600em")
     else:
         webbrowser.open(doc_url)
+        return None
 
 
 def split_paragraphs(string):
@@ -1758,8 +1757,8 @@ def checksum(file_, method):
     """
     if method in ('md5', 'sha256'):
         h = getattr(hashlib, method)()
-        update = lambda data: h.update(data)
-        result = lambda: h.hexdigest()
+        update = h.update
+        result = h.hexdigest
         chunk_size = h.block_size
     elif method == 'crc32':
         crc32_state = 0
@@ -1863,7 +1862,7 @@ def newtype(cls, name, doc=None, module=None):
         def __instancecheck__(self, x):
             return isinstance(x, cls)
 
-    class New(cls, metaclass=Meta):
+    class New(cls, metaclass=Meta): # pylint: disable=invalid-metaclass
         pass
 
     New.__name__ = name.split('.')[-1]
@@ -1872,7 +1871,7 @@ def newtype(cls, name, doc=None, module=None):
     if module is None:
         try:
             module = sys._getframe(1).f_globals.get('__name__', '__main__')
-        except Exception:
+        except Exception: # pylint: disable=broad-except
             module = cls.__module__
     New.__module__ = module
     New.__doc__ = doc

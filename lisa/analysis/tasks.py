@@ -16,9 +16,7 @@
 #
 
 from enum import Enum
-from collections import defaultdict
 import itertools
-import functools
 
 import numpy as np
 import pandas as pd

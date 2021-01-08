@@ -14,17 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""Classes for modeling and estimating energy usage of CPU systems"""
 
-from collections import namedtuple, OrderedDict, defaultdict
-from collections.abc import Mapping
+from collections import namedtuple, OrderedDict
 from itertools import product
-import logging
 import operator
-import warnings
 import re
 
-import pandas as pd
-import numpy as np
+import pandas
 
 from devlib.utils.misc import mask_to_list, ranges_to_list
 from devlib.exception import TargetStableError
@@ -33,7 +30,6 @@ from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses
 from lisa.datautils import df_deduplicate
 from lisa.analysis.frequency import FrequencyAnalysis
 
-"""Classes for modeling and estimating energy usage of CPU systems"""
 
 
 def _read_multiple_oneline_files(target, glob_patterns):
@@ -353,7 +349,6 @@ class EnergyModel(Serializable, Loggable):
     """
 
     def __init__(self, root_node, root_power_domain, freq_domains):
-        logger = self.get_logger()
         self.cpus = root_node.cpus
         if self.cpus != tuple(range(len(self.cpus))):
             raise ValueError(f'CPU IDs [{self.cpus}] are sparse')
@@ -592,7 +587,6 @@ class EnergyModel(Serializable, Loggable):
 
         If combine=False, return idle and active power as separate components.
         """
-        power = 0
         ret = {}
 
         assert all(0.0 <= a <= 1.0 for a in cpu_active_time)
@@ -731,10 +725,10 @@ class EnergyModel(Serializable, Loggable):
         candidates = {}
         excluded = []
         for cpus in product(self.cpus, repeat=len(tasks)):
-            placement = {task: cpu for task, cpu in zip(tasks, cpus)}
+            placement = dict(zip(tasks, cpus))
 
-            util = [0 for _ in self.cpus]
-            for task, cpu in list(placement.items()):
+            util = [0] * len(self.cpus)
+            for task, cpu in placement.items():
                 util[cpu] += capacities[task]
             util = tuple(util)
 
@@ -872,7 +866,7 @@ class EnergyModel(Serializable, Loggable):
         idle = trace.analysis.idle.df_cpu_idle().pivot(columns='cpu')['state']
         freqs = trace.analysis.frequency.df_cpus_frequency().pivot(columns='cpu')['frequency']
 
-        inputs = pd.concat([idle, freqs], axis=1, keys=['idle', 'freq']).ffill()
+        inputs = pandas.concat([idle, freqs], axis=1, keys=['idle', 'freq']).ffill()
 
         # Drop stuff at the beginning where we don't have the inputs
         # (e.g. where we have had our first cpu_idle event but no cpu_frequency)
@@ -920,7 +914,7 @@ class EnergyModel(Serializable, Loggable):
 
             nrg = {'-'.join(str(c) for c in k): v for k, v in iter(nrg.items())}
 
-            ret = pd.Series(nrg)
+            ret = pandas.Series(nrg)
             memo_cache[memo_key] = ret
             return ret
 
@@ -1186,7 +1180,7 @@ class LegacyEnergyModel(EnergyModel):
             try:
                 return sge_file_values[path]
             except KeyError as e:
-                raise TargetStableError(f'No such file: {e}')
+                raise TargetStableError(f'No such file: {e}') from e
 
         def read_active_states(cpu, domain_level):
             cap_states_path = sge_path(cpu, domain_level, 0, 'cap_states')

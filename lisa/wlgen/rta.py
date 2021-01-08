@@ -17,17 +17,13 @@
 
 import math
 import json
-import logging
-import os
 import re
-import sys
 from collections import OrderedDict
 from shlex import quote
 import copy
 import itertools
 import weakref
 from statistics import mean
-import contextlib
 from operator import itemgetter
 
 from devlib import TargetStableError

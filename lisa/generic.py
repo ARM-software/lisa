@@ -45,15 +45,15 @@ class GenericContainerMetaBase(type):
     # Fully memoize the function so that this always holds:
     # assert Container[Foo] is Container[Foo]
     @functools.lru_cache(maxsize=None, typed=True)
-    def __getitem__(self, type_):
-        class NewClass(self):
+    def __getitem__(cls, type_):
+        class NewClass(cls):
             _type = type_
 
         types = type_ if isinstance(type_, Sequence) else [type_]
 
         def make_name(self_getter, sub_getter):
             return '{}[{}]'.format(
-                self_getter(self),
+                self_getter(cls),
                 ','.join(sub_getter(type_) for type_ in types)
             )
 
@@ -74,7 +74,7 @@ class GenericContainerMetaBase(type):
             attrgetter('__qualname__'),
             type_param_name,
         )
-        NewClass.__module__ = self.__module__
+        NewClass.__module__ = cls.__module__
 
         # Since this type name is not resolvable, avoid cross reference
         # warnings from Sphinx

@@ -15,8 +15,6 @@
 # limitations under the License.
 #
 
-import logging
-import os
 from shlex import quote
 
 from shlex import quote

@@ -18,7 +18,6 @@
 import abc
 import os
 import itertools
-import collections
 from statistics import mean
 
 import pandas as pd
