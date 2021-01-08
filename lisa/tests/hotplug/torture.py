@@ -22,7 +22,6 @@ import os.path
 import collections
 import time
 from time import sleep
-from subprocess import DEVNULL
 from threading import Thread
 from operator import itemgetter
 

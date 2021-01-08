@@ -18,9 +18,6 @@
 """ Helper module for registering Analysis classes methods """
 
 import contextlib
-import os
-import sys
-import logging
 import inspect
 import itertools
 

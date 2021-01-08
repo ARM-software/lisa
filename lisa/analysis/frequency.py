@@ -17,7 +17,6 @@
 
 """ Frequency Analysis Module """
 
-import os
 import itertools
 
 import matplotlib.gridspec as gridspec

@@ -17,10 +17,8 @@
 
 """ Notebook Analysis Module """
 
-import sys
 import pandas as pd
 import functools
-import operator
 
 import __main__ as main
 

@@ -33,14 +33,14 @@ import functools
 import threading
 import weakref
 
-import lisa
+from ruamel.yaml.comments import CommentedMap
 
+import lisa
 from lisa.utils import (
     Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
     is_running_sphinx, get_cls_name, HideExekallID, get_subclasses, groupby,
     import_all_submodules,
 )
-from ruamel.yaml.comments import CommentedMap
 
 
 class DeferredValue:
@@ -109,6 +109,8 @@ class KeyDescBase(abc.ABC):
     _VALID_NAME_PATTERN = r'^[a-zA-Z0-9-]+$'
 
     def __init__(self, name, help):
+        # pylint: disable=redefined-builtin
+
         if not re.match(self._VALID_NAME_PATTERN, name):
             raise ValueError(f'Invalid key name "{name}". Key names must match: {self._VALID_NAME_PATTERN}')
 
@@ -194,6 +196,8 @@ class KeyDesc(KeyDescBase):
     """
 
     def __init__(self, name, help, classinfo, newtype=None, deepcopy_val=True):
+        # pylint: disable=redefined-builtin
+
         super().__init__(name=name, help=help)
         # isinstance's style classinfo
         self.classinfo = tuple(classinfo)
@@ -225,6 +229,7 @@ class KeyDesc(KeyDescBase):
         key = self.qualname
 
         def get_excep(key, val, classinfo, cls, msg):
+            # pylint: disable=unused-argument
             classinfo = ' or '.join(get_cls_name(cls) for cls in classinfo)
             msg = ': ' + msg if msg else ''
             return TypeError(f'Key "{key}" is an instance of {get_cls_name(type(val))}, but should be instance of {classinfo}{msg}. Help: {self.help}', key)
@@ -307,7 +312,8 @@ class KeyDesc(KeyDescBase):
             prefixed_help=prefixed_help,
         )
 
-    def pretty_format(self, v):
+    @staticmethod
+    def pretty_format(v):
         """
         Format the value for pretty printing.
 
@@ -324,6 +330,7 @@ class ConfigKeyError(KeyError):
     Exception raised when a key is not found in the config instance.
     """
     def __init__(self, msg, key=None, src=None):
+        # pylint: disable=super-init-not-called
         self.msg = msg
         self.key = key
         self.src = src
@@ -380,6 +387,7 @@ class DerivedKeyDesc(KeyDesc):
     """
 
     def __init__(self, name, help, classinfo, base_key_paths, compute, newtype=None):
+        # pylint: disable=redefined-builtin
         super().__init__(name=name, help=help, classinfo=classinfo, newtype=newtype)
         self._base_key_paths = base_key_paths
         self._compute = compute
@@ -551,6 +559,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
     """
 
     def __init__(self, name, help, children):
+        # pylint: disable=redefined-builtin
         super().__init__(name=name, help=help)
         self.children = children
 
@@ -580,8 +589,9 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         Checks that a given key is allowed under that levels
         """
         try:
-            key_desc = self._key_map[key]
+            self._key_map[key]
         except KeyError:
+            # pylint: disable=raise-missing-from
             try:
                 closest_match = difflib.get_close_matches(
                     word=str(key),
@@ -621,7 +631,6 @@ class LevelKeyDesc(KeyDescBase, Mapping):
             suffix=suffix,
             key=self.name,
             help=' ' + self.help if self.help else '',
-            idt=idt,
         )
         nl = '\n' + idt
         help_ += nl.join(
@@ -712,7 +721,10 @@ class MultiSrcConfMeta(abc.ABCMeta):
                     # right object, otherwise it will be referred by name only
                     # and will always have the value during the last iteration
                     # of the loop
-                    def make_metacls(key_desc):
+                    # FIXME: pylint complains about make_metacls being unused,
+                    # which is a bug:
+                    # https://github.com/PyCQA/pylint/issues/4020
+                    def make_metacls(key_desc): # pylint: disable=unused-variable
                         # Implement __instancecheck__ on the metaclass allows
                         # isinstance(x, Newtype) to be true for any instance of any
                         # type given in KeyDesc.__init__(classinfo=...)
@@ -797,6 +809,7 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
         try:
             data = mapping[toplevel_key] or {}
         except KeyError:
+            # pylint: disable=raise-missing-from
             raise ValueError(f'Key "{toplevel_key}" needs to appear at the top level')
         # "unwrap" an extra layer of toplevel key, to play well with !include
         if len(data) == 1 and toplevel_key in data.keys():
@@ -1149,6 +1162,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 return super().__new__(cls, value)
 
             def __repr__(self):
+                # pylint: disable=invalid-repr-returned
                 return self
 
         def format_conf(conf):
@@ -1237,6 +1251,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         Adding sources using :meth:`add_src` in the right order is preferable,
         but the default priority order can be specified using that method.
         """
+        # pylint: disable=attribute-defined-outside-init
 
         # Make a copy of the list to make sure it is not modified behind our back
         self._src_prio = list(src_prio)
@@ -1371,7 +1386,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             # Wrap into a ConfigKeyError so that the user code can easily
             # handle missing keys, and the original exception is still
             # available as excep.__cause__ since it was chained with "from"
-            except Exception as e:
+            except Exception as e: # pylint: disable=broad-except
                 key_qualname = key_desc.qualname
                 msg = f'Could not compute "{key_qualname}" from source "{src}": {e}'
 
@@ -1513,6 +1528,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             try:
                 val = self._key_map[key][src]
             except KeyError:
+                # pylint: disable=raise-missing-from
                 key = key_desc.qualname
                 raise ConfigKeyError(
                     f'Key "{key}" is not available from source "{src}"',
@@ -1682,6 +1698,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
     def _repr_pretty_(self, p, cycle):
         "Pretty print instances in Jupyter notebooks"
+        # pylint: disable=unused-argument
         p.text(self.pretty_format())
 
 class SimpleMultiSrcConf(MultiSrcConf):
@@ -1806,7 +1823,8 @@ class ConfigurableMeta(abc.ABCMeta):
 
         return new_cls
 
-    def _get_kwargs_key_map(cls, sig, conf_cls):
+    @staticmethod
+    def _get_kwargs_key_map(sig, conf_cls):
         """
         Map implicitely keys in the conf class that matches param names.
         """
@@ -1848,6 +1866,7 @@ class ConfigurableMeta(abc.ABCMeta):
         }
 
     def _get_rst_param_doc(cls):
+        # pylint: disable=no-value-for-parameter
         return '\n'.join(
             ':param {param}: {help}\n:type {param}: {type}\n'.format(
                 param=param,

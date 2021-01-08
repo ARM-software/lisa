@@ -19,10 +19,7 @@ import abc
 import json
 import os
 import os.path
-import psutil
 import time
-import logging
-import inspect
 import shutil
 
 from collections import namedtuple
@@ -33,6 +30,7 @@ from time import sleep
 
 import numpy as np
 import pandas as pd
+import psutil
 
 import devlib
 
@@ -42,7 +40,6 @@ from lisa.conf import (
     SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable,
 )
 from lisa.generic import TypedList
-from lisa.target import Target
 
 # Default energy measurements for each board
 EnergyReport = namedtuple('EnergyReport',
@@ -84,17 +81,20 @@ class EnergyMeter(Loggable, Configurable):
             except AttributeError:
                 continue
             if isinstance(conf, conf_cls):
-                cls = subcls
+                chosen_cls = subcls
                 break
+        else:
+            chosen_cls = cls
 
-        cls.get_logger(f'{cls.name} energy meter configuration:\n{conf}')
-        kwargs = cls.conf_to_init_kwargs(conf)
+
+        chosen_cls.get_logger(f'{chosen_cls.name} energy meter configuration:\n{conf}')
+        kwargs = chosen_cls.conf_to_init_kwargs(conf)
         kwargs.update(
             target=target,
             res_dir=res_dir,
         )
-        cls.check_init_param(**kwargs)
-        return cls(**kwargs)
+        chosen_cls.check_init_param(**kwargs)
+        return chosen_cls(**kwargs)
 
     @abc.abstractmethod
     def name():
@@ -294,7 +294,8 @@ class _DevlibContinuousEnergyMeter(EnergyMeter):
         df.index = np.linspace(0, sample_period * len(df), num=len(df))
         return df
 
-    def _compute_energy(self, df):
+    @staticmethod
+    def _compute_energy(df):
         channels_nrg = {}
         for site, measure in df:
             if measure == 'power':
@@ -421,14 +422,17 @@ class ACME(EnergyMeter):
     """
 
     def __init__(self, target,
-          channel_map={'CH0': 0},
-          host='baylibre-acme.local', iio_capture_bin='iio-capture',
-          res_dir=None):
+        # pylint: disable=dangerous-default-value
+        channel_map={'CH0': 0},
+        host='baylibre-acme.local', iio_capture_bin='iio-capture',
+        res_dir=None
+    ):
         super().__init__(target, res_dir)
         logger = self.get_logger()
 
         self._iiocapturebin = iio_capture_bin
         self._hostname = host
+        self.reset_time = None
 
         # Make a copy to be sure to never modify the default value
         self._channels = dict(channel_map)
@@ -443,7 +447,7 @@ class ACME(EnergyMeter):
 
         # Check if iio-capture binary is available
         try:
-            p = subprocess.call([self._iiocapturebin, '-h'], stdout=PIPE, stderr=STDOUT)
+            subprocess.call([self._iiocapturebin, '-h'], stdout=PIPE, stderr=STDOUT)
         except FileNotFoundError as e:
             logger.error(f'iio-capture binary {self._iiocapturebin} not available')
             logger.warning(_acme_install_instructions)

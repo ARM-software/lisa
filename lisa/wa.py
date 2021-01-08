@@ -16,16 +16,13 @@
 #
 from collections.abc import Mapping
 from collections import defaultdict
-from operator import attrgetter
-import functools
-import subprocess
 import inspect
 import os
 import abc
 import contextlib
 
 import pandas as pd
-from wa import RunOutput, discover_wa_outputs, Status, HostError
+from wa import discover_wa_outputs, Status
 
 from lisa.version import VERSION_TOKEN
 from lisa.stats import Stats
@@ -40,6 +37,7 @@ def _df_concat(dfs):
 
 class WAOutputNotFoundError(Exception):
     def __init__(self, collectors):
+        # pylint: disable=super-init-not-called
         self.collectors = collectors
 
     def __str__(self):
@@ -192,7 +190,7 @@ class WAOutput(StatsProp, Mapping, Loggable):
         for name, collector in self.items():
             try:
                 df = collector.df
-            except Exception as e:
+            except Exception as e: # pylint: disable=broad-except
                 exceps[collector] = e
                 self.get_logger().debug(f'Could not get dataframe of collector {name}: {e}')
             else:
@@ -322,7 +320,7 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
 
             try:
                 df = loader(job)
-            except Exception as e:
+            except Exception as e: # pylint: disable=broad-except
                 # Swallow the error if that job was not from the expected
                 # workload
                 expected_name = self._EXPECTED_WORKLOAD_NAME

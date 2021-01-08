@@ -20,7 +20,6 @@ import contextlib
 import subprocess
 import inspect
 import itertools
-import logging
 import functools
 import re
 import types

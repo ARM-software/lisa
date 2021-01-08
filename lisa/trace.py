@@ -29,14 +29,13 @@ import io
 import os
 import os.path
 import json
-import warnings
 import inspect
 import shlex
 import contextlib
 import tempfile
-from functools import lru_cache, reduce, wraps
-from collections.abc import Iterable, Set, Mapping, Sequence
-from collections import namedtuple, OrderedDict
+from functools import lru_cache, wraps
+from collections.abc import Set, Mapping, Sequence
+from collections import namedtuple
 from operator import itemgetter
 from numbers import Number, Integral, Real
 import multiprocessing
@@ -44,20 +43,17 @@ import textwrap
 import subprocess
 import itertools
 
-import pandas as pd
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 import pyarrow.lib
 
 import devlib
-from devlib.target import KernelVersion
 
-import lisa.utils
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, take
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.generic import TypedList
-from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta, df_combine_duplicates, series_convert, df_deduplicate, df_update_duplicates
+from lisa.datautils import df_window, df_window_signals, SignalDesc, df_add_delta, series_convert, df_deduplicate, df_update_duplicates
 from lisa.version import VERSION_TOKEN
 from lisa.typeclass import FromString, IntListFromStringInstance
 
@@ -79,6 +75,8 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
     __slots__ = []
 
     def __init__(self, *args, **kwargs):
+        # pylint: disable=unused-argument
+        super().__init__()
         # This happens when the number of saved PID/comms entries in the trace
         # is too low
         if self.comm == '<...>':
@@ -101,6 +99,7 @@ class TaskIDFromStringInstance(FromString, types=TaskID):
     """
     @classmethod
     def from_str(cls, string):
+        # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
         try:
             pid = int(string)
             comm = None
@@ -165,6 +164,7 @@ class MissingMetadataError(KeyError):
     Raised when a given metadata is not available.
     """
     def __init__(self, metadata):
+        # pylint: disable=super-init-not-called
         self.metadata = metadata
 
     def __str__(self):
@@ -184,6 +184,7 @@ class TraceParserBase(abc.ABC, Loggable):
     """
 
     def __init__(self, events, needed_metadata):
+        # pylint: disable=unused-argument
         self._needed_metadata = set(needed_metadata or [])
 
     def get_metadata(self, key):
@@ -224,6 +225,7 @@ class TraceParserBase(abc.ABC, Loggable):
             Metadata may still be made available if not asked for, but only if
             it's a very cheap byproduct of parsing that incurs no extra cost.
         """
+        # pylint: disable=no-self-use
         raise MissingMetadataError(key)
 
     @abc.abstractmethod
@@ -265,12 +267,12 @@ class TraceParserBase(abc.ABC, Loggable):
             Must default to ``False``.
         :type best_effort: bool
 
-        :param kwargs: See :meth:`parse_event`
+        :Variable keyword arguments: Forwarded to :meth:`parse_event`
         """
 
         def parse(event):
             try:
-                return self.parse_event(event)
+                return self.parse_event(event, **kwargs)
             except MissingTraceEventError:
                 if best_effort:
                     return None
@@ -392,6 +394,7 @@ class TxtEventParser(EventParserBase):
             an event
         :type greedy_field: str or None
         """
+        # pylint: disable=unused-argument
         fields = fields.keys() - {positional_field}
 
         if fields:
@@ -767,7 +770,8 @@ class TxtTraceParserBase(TraceParserBase):
         """
 
     @staticmethod
-    def _make_df_from_data(regex, data, extra_cols=[]):
+    def _make_df_from_data(regex, data, extra_cols=None):
+        extra_cols = extra_cols or []
         columns = sorted(
             regex.groupindex.keys(),
             # Order columns so that we can directly append the
@@ -878,7 +882,7 @@ class TxtTraceParserBase(TraceParserBase):
                 else:
                     # Otherwise, make sure "event" is defined so that we only
                     # go a match failure on "time"
-                    event
+                    event # pylint: disable=pointless-statement
             # The line did not match the skeleton regex, so skip it
             except TypeError:
                 continue
@@ -1057,8 +1061,8 @@ class TxtTraceParserBase(TraceParserBase):
     def parse_event(self, event):
         try:
             parser = self._event_parsers[event]
-        except KeyError:
-            raise MissingTraceEventError([event])
+        except KeyError as e:
+            raise MissingTraceEventError([event]) from e
 
         # Maybe it was eagerly parsed
         try:
@@ -1079,6 +1083,8 @@ class TxtTraceParserBase(TraceParserBase):
         """
         ALL THE PROCESSING MUST HAPPEN INPLACE on the dataframe
         """
+        # pylint: disable=unused-argument
+
         # Convert fields from extracted strings to appropriate dtype
         all_fields = {
             **parser.fields,
@@ -1735,7 +1741,7 @@ class TrappyTraceParser(TraceParserBase):
         super().__init__(events, needed_metadata=needed_metadata)
 
         # Lazy import so that it's not a required dependency
-        import trappy
+        import trappy # pylint: disable=import-outside-toplevel,import-error
 
         events = set(events)
         # Make sure we won't attempt parsing 'print' events, so that this
@@ -1800,6 +1806,8 @@ class TraceBase(abc.ABC):
     def __init__(self):
         # Import here to avoid a circular dependency issue at import time
         # with lisa.analysis.base
+
+        # pylint: disable=import-outside-toplevel
         from lisa.analysis.proxy import AnalysisProxy
         self.analysis = AnalysisProxy(self)
 
@@ -2470,8 +2478,8 @@ class TraceCache(Loggable):
         """
         try:
             return self._metadata[key]
-        except KeyError:
-            raise MissingMetadataError(key)
+        except KeyError as e:
+            raise MissingMetadataError(key) from e
 
     def to_json_map(self):
         """
@@ -2547,6 +2555,7 @@ class TraceCache(Loggable):
                     try:
                         swap_entry = PandasDataSwapEntry.from_path(path)
                     # If there is any issue with that entry, just ignore it
+                    # pylint: disable=broad-except
                     except Exception:
                         continue
                     else:
@@ -2606,7 +2615,8 @@ class TraceCache(Loggable):
             if mem_usage:
                 self._update_ewma('_data_mem_swap_ratio', size / mem_usage)
 
-    def _data_mem_usage(self, data):
+    @staticmethod
+    def _data_mem_usage(data):
         mem = data.memory_usage()
         try:
             return mem.sum()
@@ -2737,7 +2747,7 @@ class TraceCache(Loggable):
                 os.unlink(path)
 
             def by_mtime(path_stat):
-                path, stat = path_stat
+                _, stat = path_stat
                 return stat.st_mtime
 
             # Sort by modification time, so we discard the oldest caches
@@ -2782,6 +2792,7 @@ class TraceCache(Loggable):
         try:
             return self._cache[pd_desc]
         except KeyError as e:
+            # pylint: disable=raise-missing-from
             try:
                 path = self._swap_path_of(pd_desc)
             # If there is no swap, bail out
@@ -3110,6 +3121,8 @@ class Trace(Loggable, TraceBase):
     """
 
     def _select_userspace(self, source_event, meta_event, df):
+        # pylint: disable=unused-argument,no-self-use
+
         # tracing_mark_write is the name of the kernel function invoked when
         # writing to: /sys/kernel/debug/tracing/trace_marker
         # That said, it's not the end of the world if we don't filter on that
@@ -3243,6 +3256,7 @@ class Trace(Loggable, TraceBase):
         # The platform information used to run the experiments
         if plat_info is None:
             # Delay import to avoid circular dependency
+            # pylint: disable=import-outside-toplevel
             from lisa.platforms.platinfo import PlatformInfo
             plat_info = PlatformInfo()
         else:
@@ -3437,6 +3451,7 @@ class Trace(Loggable, TraceBase):
                 try:
                     base_trace = self.__dict__['base_trace']
                 except KeyError:
+                    # pylint: disable=raise-missing-from
                     raise RuntimeError('The trace instance can only be used outside its "with" statement.')
                 else:
                     return getattr(base_trace, attr)
@@ -3464,14 +3479,14 @@ class Trace(Loggable, TraceBase):
                 strict_events=True,
                 plat_info=plat_info,
                 # Disable swap if the folder is going to disappear
-                enable_swap=True if filepath else False,
+                enable_swap=bool(filepath),
                 **kwargs
             )
 
+        # pylint: disable=attribute-defined-outside-init
         proxy.base_trace = trace
 
     def _get_parser(self, events=tuple(), needed_metadata=None, update_metadata=True):
-        logger = self.get_logger()
         path = self.trace_path
         events = set(events)
         needed_metadata = set(needed_metadata or [])
@@ -3619,9 +3634,10 @@ class Trace(Loggable, TraceBase):
             else:
                 raw = True
 
+
         if raw:
             sanitization_f = None
-        elif orig_raw == False and not sanitization_f:
+        elif orig_raw == False and not sanitization_f: # pylint: disable=singleton-comparison
             raise ValueError(f'Sanitized dataframe for {event} does not exist, please pass raw=True or raw=None')
 
         if raw:
@@ -3684,7 +3700,6 @@ class Trace(Loggable, TraceBase):
         )
 
     def _load_df(self, pd_desc, sanitization_f=None, write_swap=None):
-        raw = pd_desc['raw']
         event = pd_desc['event']
 
         # Do not even bother loading the event if we know it cannot be
@@ -3889,8 +3904,8 @@ class Trace(Loggable, TraceBase):
                 extra_fields = [x for x in df.columns if x.startswith('__')]
                 merged_df = df[extra_fields]
 
-                for (meta_event, event, source_event, source_getter) in specs:
-                    source_df, line_field = source_getter(self, source_event, event, df)
+                for (meta_event, event, _source_event, source_getter) in specs:  # pylint: disable=unused-variable
+                    source_df, line_field = source_getter(self, _source_event, event, df)
                     try:
                         parser = MetaTxtTraceParser(
                             lines=source_df[line_field],
@@ -4029,6 +4044,7 @@ class Trace(Loggable, TraceBase):
             _load(event, *args, **kwargs)
 
         # Import here to avoid circular dependency
+        # pylint: disable=import-outside-toplevel
         from lisa.analysis.load_tracking import LoadTrackingAnalysis
         # All events with a "comm" and "pid" column
         events = {
@@ -4224,6 +4240,7 @@ class Trace(Loggable, TraceBase):
             try:
                 pid_list = self._task_name_map[comm]
             except IndexError:
+                # pylint: disable=raise-missing-from
                 raise ValueError(f'trace does not have any task named "{comm}"')
 
             return pid_list
@@ -4232,6 +4249,7 @@ class Trace(Loggable, TraceBase):
             try:
                 comm_list = self._task_pid_map[pid]
             except IndexError:
+                # pylint: disable=raise-missing-from
                 raise ValueError(f'trace does not have any task PID {pid}')
 
             return comm_list
@@ -4340,6 +4358,8 @@ class Trace(Loggable, TraceBase):
         """
         Sanitization functions must not modify their input.
         """
+        # pylint: disable=dangerous-default-value,no-self-argument
+
         def decorator(f):
             mapping[event] = f
             return f
@@ -4351,6 +4371,7 @@ class Trace(Loggable, TraceBase):
         If ``prev_state`` is a string, turn it back into an integer state by
         parsing it.
         """
+        # pylint: disable=unused-argument,no-self-use
         copied = False
         def copy_once(x):
             nonlocal copied
@@ -4362,6 +4383,7 @@ class Trace(Loggable, TraceBase):
 
         if df['prev_state'].dtype.name == 'string':
             # Avoid circular dependency issue by importing at the last moment
+            # pylint: disable=import-outside-toplevel
             from lisa.analysis.tasks import TaskState
             df = copy_once(df)
             df['prev_state'] = df['prev_state'].apply(TaskState.from_sched_switch_str).astype('uint16', copy=False)
@@ -4375,6 +4397,7 @@ class Trace(Loggable, TraceBase):
 
     @_sanitize_event('sched_overutilized')
     def _sanitize_sched_overutilized(self, event, df, aspects):
+        # pylint: disable=unused-argument,no-self-use
         copied = False
         def copy_once(x):
             nonlocal copied
@@ -4397,6 +4420,7 @@ class Trace(Loggable, TraceBase):
     @_sanitize_event('thermal_power_cpu_limit')
     @_sanitize_event('thermal_power_cpu_get_power')
     def _sanitize_thermal_power_cpu(self, event, df, aspects):
+        # pylint: disable=unused-argument,no-self-use
 
         def f(mask):
             # Replace '00000000,0000000f' format in more usable int
@@ -4410,6 +4434,8 @@ class Trace(Loggable, TraceBase):
     @_sanitize_event('bprint')
     @_sanitize_event('bputs')
     def _sanitize_print(self, event, df, aspects):
+        # pylint: disable=unused-argument,no-self-use
+
         df = df.copy(deep=False)
 
         # Only process string "ip" (function name), not if it is a numeric
@@ -4477,6 +4503,8 @@ class Trace(Loggable, TraceBase):
 
     @_sanitize_event('ipi_raise')
     def _sanitize_ipi_raise(self, event, df, aspects):
+        # pylint: disable=unused-argument,no-self-use
+
         df = df.copy(deep=False)
         df['target_cpus'] = df['target_cpus'].apply(self._expand_bitmask_field)
         df['reason'] = df['reason'].str.strip('()')
@@ -4485,6 +4513,8 @@ class Trace(Loggable, TraceBase):
     @_sanitize_event('ipi_entry')
     @_sanitize_event('ipi_exit')
     def _sanitize_ipi_enty_exit(self, event, df, aspects):
+        # pylint: disable=unused-argument,no-self-use
+
         df = df.copy(deep=False)
         df['reason'] = df['reason'].str.strip('()')
         return df
@@ -4876,6 +4906,8 @@ class MissingTraceEventError(RuntimeError, ValueError):
     """
 
     def __init__(self, missing_events, available_events=None):
+        # pylint: disable=super-init-not-called
+
         self.missing_events = missing_events
         # Forcibly turn into a list, to avoid carrying around an
         # _AvailableTraceEventsSet with its Trace instance
@@ -4889,7 +4921,6 @@ class MissingTraceEventError(RuntimeError, ValueError):
             available = ''
 
         return f"Trace is missing the following required events: {self.missing_events}{available}"
-        return msg
 
 
 class FtraceConf(SimpleMultiSrcConf, HideExekallID):

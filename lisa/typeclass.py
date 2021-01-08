@@ -214,13 +214,14 @@ import inspect
 import itertools
 import contextlib
 import textwrap
-from operator import attrgetter
-from collections.abc import Mapping, MutableMapping, Sequence, Iterable
+from collections.abc import Iterable
 
 from devlib.utils.misc import ranges_to_list
 
 from lisa.utils import deduplicate
-from lisa.generic import TypedList
+# TODO: revisit pylint annotation once this is solved:
+# https://github.com/PyCQA/pylint/issues/1630
+from lisa.generic import TypedList # pylint: disable=unused-import
 
 class TypeClassMeta(type):
     """
@@ -249,6 +250,8 @@ class TypeClassMeta(type):
     # type.__init__(), so filter them out:
     # https://stackoverflow.com/questions/27258557/how-to-pass-arguments-to-the-metaclass-from-the-class-definition-in-python-3-x/27259275#27259275
     def __init__(cls, name, bases, dct, *args, types=None, **kwargs):
+        # pylint: disable=unused-argument
+
         super().__init__(name, bases, dct)
 
     def __new__(cls, name, bases, dct, *args, types=None, **kwargs):
@@ -369,6 +372,7 @@ class TypeClassMeta(type):
                 # Only add the attribute if it does not exist already on the
                 # target class
                 def update_attr(attr, val):
+                    # pylint: disable=cell-var-from-loop
                     if not hasattr(type_, attr):
                         setattr(type_, attr, val)
 
@@ -402,22 +406,23 @@ class TypeClassMeta(type):
         f.__required__ = True
         return f
 
-    def __matmul__(self, obj):
+    def __matmul__(cls, obj):
         """
         Use the matrix multiplication operator (``@``) as a "cast" operator, to
         cast a value or a type to a typeclass.
         """
-        return self(obj)
+        # pylint: disable=no-value-for-parameter
+        return cls(obj)
 
     # Also makes it work when operands are swapped.
     __rmatmul__ = __matmul__
 
-    def __and__(self, other):
+    def __and__(cls, other):
         """
         Allow quick combination of multiple typeclasses with bitwise ``&``
         operator.
         """
-        class Combined(self, other):
+        class Combined(cls, other):
             pass
 
         return Combined
@@ -427,7 +432,7 @@ class TypeClass(metaclass=TypeClassMeta):
     Base class to inherit from to define a new typeclass.
     """
     def __new__(cls, obj):
-        safe_to_memoize, instance, dct = cls._find_instance_dct(obj)
+        safe_to_memoize, instance, dct = cls._find_instance_dct(obj) # pylint: disable=unused-variable
         # Shallow copy to allow "casting" to the right type. Using a made-up
         # class allows piggy backing on regular attribute lookup, which is much
         # faster than any pure-python __getattribute__ implementation
@@ -467,10 +472,10 @@ class TypeClass(metaclass=TypeClassMeta):
         the original type.
         """
         class TypeProxyMeta(type):
-            def __instancecheck__(self, x):
+            def __instancecheck__(cls, x):
                 return isinstance(x, obj)
 
-            def __subclasscheck__(self, x):
+            def __subclasscheck__(cls, x):
                 return issubclass(x, obj)
 
             # Allow calling the class as usual, which is necessary to
@@ -546,7 +551,7 @@ class TypeClass(metaclass=TypeClassMeta):
             # precedence rule (i.e. MRO computed according to the C3 class
             # graph linearization algo).
             for typeclass in reversed(cls.SUPERCLASSES):
-                safe_to_memoize_, instance_, dct_ = typeclass._find_instance_dct(obj)
+                safe_to_memoize_, instance_, dct_ = typeclass._find_instance_dct(obj) # pylint: disable=unused-variable
                 dct.update(dct_)
                 # As soon as part of the methods are not safe to memoize, the
                 # whole instance becomes unsafe

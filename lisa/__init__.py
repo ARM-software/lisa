@@ -2,7 +2,6 @@
 
 import warnings
 import os
-import sys
 
 
 from lisa.version import __version__

@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-from lisa.utils import ArtifactPath, show_doc
+from lisa.utils import ArtifactPath
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, requires_events
 from lisa.wlgen.rta import Periodic

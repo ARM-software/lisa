@@ -66,8 +66,8 @@ class DataAccessor:
     def __getattr__(self, attr):
         try:
             f = self.FUNCTIONS[attr]
-        except KeyError:
-            raise AttributeError(f'Unknown method name: {attr}')
+        except KeyError as e:
+            raise AttributeError(f'Unknown method name: {attr}') from e
 
         meth = f.__get__(self.data, self.__class__)
         return meth
@@ -310,7 +310,7 @@ def df_squash(df, start, end, column='delta'):
     middle_df = df[start:end]
 
     # Tweak the closest previous event to include it in the slice
-    if not prev_df.empty and not (start in middle_df.index):
+    if not prev_df.empty and start not in middle_df.index:
         res_df = res_df.append(prev_df.tail(1))
         res_df.index = [start]
         e1 = end
@@ -448,7 +448,7 @@ def series_derivate(y, x=None, order=1):
     """
     x = _resolve_x(y, x)
 
-    for i in range(order):
+    for _ in range(order):
         y = y.diff() / x.diff()
 
     return y
@@ -906,7 +906,8 @@ def series_align_signal(ref, to_align, max_shift=None):
     # Resample so that we operate on a fixed sampled rate signal, which is
     # necessary in order to be able to do a meaningful interpretation of
     # correlation argmax
-    def get_period(series): return pd.Series(series.index).diff().min()
+    def get_period(series):
+        return pd.Series(series.index).diff().min()
     period = min(get_period(ref), get_period(to_align))
     num = math.ceil((end - start) / period)
     new_index = pd.Float64Index(np.linspace(start, end, num))
@@ -1063,6 +1064,7 @@ def series_rolling_apply(series, func, window, window_float_index=True, center=F
     # Wrap the func to turn the index into nanosecond Float64Index
     if window_float_index:
         def func(s, func=func):
+            # pylint: disable=function-redefined
             s.index = s.index.astype('int64') * 1e-9
             return func(s)
 
@@ -1204,9 +1206,6 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
         # Keep the first, so we update the second duplicates
         locs = series.duplicated(keep='first')
         return locs, series.loc[locs]
-
-    def copy(series):
-        return series.copy() if inplace else series
 
     use_index = col is None
     # Indices already gets copied with to_series()
@@ -1364,7 +1363,7 @@ def df_add_delta(df, col='delta', src_col=None, window=None, inplace=False):
 
     # When use_refit_index=True, the last delta will already be sensible
     if not use_refit_index and window:
-        start, end = window
+        _, end = window
         if end is not None:
             new_end = end - src.iloc[-1]
             new_end = new_end if new_end > 0 else 0
@@ -1394,7 +1393,15 @@ def df_combine(series_list, func, fill_value=None):
     return _data_combine(series_list, func, fill_value)
 
 
-def series_dereference(series, sources, inplace=False):
+def _data_combine(datas, func, fill_value=None):
+    state = datas[0]
+    for data in datas[1:]:
+        state = state.combine(data, func=func, fill_value=fill_value)
+
+    return state
+
+
+def series_dereference(series, sources, inplace=False, method='ffill'):
     """
     Replace each value in ``series`` by the value at the corresponding index by
     the source indicated by ``series``'s value.
@@ -1413,11 +1420,15 @@ def series_dereference(series, sources, inplace=False):
 
     :param inplace: If ``True``, modify the series inplace.
     :type inplace: bool
+
+    :param method: ``sources`` is reindexed so that it shares the same index
+        as ``series``. ``method`` is forwarded to :meth:`pandas.Series.reindex`.
+    :type method: str
     """
     def reindex(values):
         # Skip the reindex if they are in the same dataframe
         if values.index is not series.index:
-            values = values.reindex(series.index, method='ffill')
+            values = values.reindex(series.index, method=method)
         return values
 
     if isinstance(sources, pd.DataFrame):
@@ -1439,7 +1450,7 @@ def series_dereference(series, sources, inplace=False):
     return series
 
 
-def df_dereference(df, col, pointer_col=None, sources=None, inplace=False):
+def df_dereference(df, col, pointer_col=None, sources=None, inplace=False, **kwargs):
     """
     Similar to :func:`series_dereference`.
 
@@ -1472,92 +1483,13 @@ def df_dereference(df, col, pointer_col=None, sources=None, inplace=False):
 
     :param inplace: If ``True``, the dataframe is modified inplace.
     :type inplace: bool
+
+    :Variable keyword arguments: Forwarded to :func:`series_dereference`.
     """
     pointer_col = pointer_col or col
     sources = df if sources is None else sources
     df = df if inplace else df.copy(deep=False)
-    df[col] = series_dereference(df[pointer_col], sources, inplace=inplace)
-    return df
-
-
-def _data_combine(datas, func, fill_value=None):
-    state = datas[0]
-    for data in datas[1:]:
-        state = state.combine(data, func=func, fill_value=fill_value)
-
-    return state
-
-
-def series_dereference(series, value_df, method='ffill'):
-    """
-    Use a :class:`pandas.Series` values as pointers into a
-    :class:`pandas.DataFrame`, where there must be a column for each potential
-    value of the :class`pandas.Series`.
-
-    :param series: Series containing values used as pointers into ``value_df``
-        columns. If the column does not exist, ``pandas.NA`` will be used
-        instead.
-    :type series: pandas.Series
-
-    :param value_df: DataFrame of values, with one column per possible value of
-        ``series``. It is reindexed to match the index of ``series``.
-    :type value_df: pandas.DataFrame
-
-    :param method: ``value_df`` is reindexed so that it shares the same index
-        as ``series``. ``method`` is forwarded to :meth:`pandas.Series.reindex`.
-    :type method: str
-    """
-
-    value_df = value_df.reindex(series.index, method=method)
-    # Reset the index since iat[] is much faster on a RangeIndex (O(1) lookup
-    # rather than a binary search on other index types
-    orig_index = series.index
-    df = series.reset_index(drop=True).to_frame('ptr')
-    value_df = value_df.reset_index(drop=True)
-
-    def deref(x):
-        ptr = x['ptr']
-        try:
-            values = value_df[ptr]
-        except KeyError:
-            return pd.NA
-        else:
-            i = x.name
-            return values.iat[i]
-
-    df['deref'] = df.apply(deref, axis=1)
-    series = df['deref']
-    series.index = orig_index
-    return series
-
-
-def df_dereference(df, ptr_col, value_df, dst_col=None, inplace=False, **kwargs):
-    """
-    Same as :func:`series_dereference` but acting on a
-    :class:`pandas.DataFrame`'s column.
-
-    :param df: DataFrame to act on.
-    :type param_df: pandas.DataFrame
-
-    :param ptr_col: Pointer column with values that will be looked up as
-        columns in ``value_df``.
-    :type ptr_col: str
-
-    :param dst_col: Column with the result of the operation. If ``None``,
-        ``ptr_col`` will be used.
-    :type dst_col: str or None
-
-    :param value_df: DataFrame with one column per possible value found in
-        ``df[ptr_col]``.
-    :type value_df: pandas.DataFrame
-
-    :Variable keyword arguments: Forwarded to :func:`series_dereference`.
-    """
-    series = df[ptr_col]
-    dst_col = dst_col if dst_col is not None else ptr_col
-
-    df = df if inplace else df.copy(deep=False)
-    df[dst_col] = series_dereference(series, value_df, **kwargs)
+    df[col] = series_dereference(df[pointer_col], sources, inplace=inplace, **kwargs)
     return df
 
 
@@ -1728,7 +1660,7 @@ def series_convert(series, dtype):
         def convert(x):
             try:
                 return dtype(x)
-            except Exception:
+            except Exception: # pylint: disable=broad-except
                 # Make sure None will be propagated as None.
                 # note: We use an exception handler rather than checking first
                 # in order to speed up the expected path where the conversion

@@ -19,9 +19,9 @@ import os
 import os.path
 import abc
 
-from lisa.wlgen.rta import RTA, Periodic
-from lisa.tests.base import TestBundle, Result, ResultBundle, RTATestBundle, AggregatedResultBundle
-from lisa.trace import Trace, FtraceCollector, FtraceConf, requires_events
+from lisa.wlgen.rta import Periodic
+from lisa.tests.base import TestBundle, ResultBundle, RTATestBundle, AggregatedResultBundle
+from lisa.trace import FtraceCollector, requires_events
 from lisa.target import Target
 from lisa.utils import ArtifactPath
 from lisa.analysis.frequency import FrequencyAnalysis
