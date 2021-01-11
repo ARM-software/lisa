@@ -97,6 +97,8 @@ Test commands
 * ``exekall``               - See :ref:`exekall main documentation<exekall-doc>`
 * ``bisector``              - See :ref:`bisector main documentation<bisector-doc>`
 
+.. _buildroot-commands:
+
 Buildroot commands
 ------------------
 

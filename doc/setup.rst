@@ -7,8 +7,11 @@ Setup
 Installation
 ============
 
+Host installation
++++++++++++++++++
+
 Native installation
-+++++++++++++++++++
+-------------------
 
 For now, you will need to clone LISA from `github <https://github.com/ARM-software/lisa>`_ ,
 and then issue these commands:
@@ -33,7 +36,7 @@ shell command available after sourcing ``init_env`` will allow to create a new
 clean venv from scratch.
 
 Additional Python packages
---------------------------
+..........................
 
 ``lisa-install`` will also install the content of
 ``$LISA_HOME/custom_requirements.txt`` if the file exists. That allows
@@ -41,7 +44,7 @@ re-installing a custom set of packages automatically when the venv needs to
 regenerated.
 
 Without automatic ``venv``
---------------------------
+..........................
 
 Sometimes, LISA needs to operate in an environment setup for multiple tools. In
 that case, it may be easier to manage manually a venv/virtualenv instead of
@@ -59,7 +62,7 @@ editable mode (including those that are not developped in that repository, but
 still included for convenience).
 
 Virtual machine installation
-++++++++++++++++++++++++++++++++++
+----------------------------
 
 LISA provides a Vagrant recipe which automates the generation of a
 VirtualBox based virtual machine pre-configured to run LISA. To generate and
@@ -84,6 +87,32 @@ Once the VM installation is complete, you can access that VM with:
 .. code:: shell
 
   vagrant ssh
+
+
+Target installation
++++++++++++++++++++
+
+LISA's "device under test" is called target. In order to be able to run e.g.
+tests on a target, you will need the provide a minimal environment composed of:
+
+    * An ``adb`` or ``ssh`` server
+    * For some tests, a working Python 3 installation
+
+This can be provided by a a regular GNU/Linux or Android distribution, but can
+also be done with a minimal buildroot environment. The benefits are:
+
+    * Almost no background task that can create issues when testing the Linux
+      kernel scheduler
+    * Can be used as a in-memory initramfs, thereby avoiding activity of USB or
+      NFS-related kthreads, as it has been the source of issues on some boards
+      with wonky USB support.
+    * Using initramfs has the added advantages of ease of deployment (can be
+      integrated in the kernel image, reducing the amount of assets to flash)
+      and avoids issues related to board state (a reboot fully resets the
+      userspace).
+
+Buildroot image creation is assisted with these commands, available in lisa
+shell :ref:`buildroot-commands`.
 
 
 What next ?
