@@ -115,11 +115,81 @@ Buildroot image creation is assisted with these commands, available in lisa
 shell :ref:`buildroot-commands`.
 
 
-What next ?
-===========
+Kernel modules
+--------------
 
-The next step depends on the intended use case, further information at:
-:ref:`workflows-page`
+The following modules are required to run Lisa tests against some kernels.
+
+sched_tp
+........
+
+From Linux v5.3, sched_load_cfs_rq and sched_load_se tracepoints are present in
+mainline as bare tracepoints without any events in tracefs associated with
+them.
+
+To help expose these tracepoints (and any additional one we might require in
+the future) as trace events, an external module is required and is provided
+under the name of sched_tp in $LISA_HOME/tools/kmodules/sched_tp
+
+Building a module
+-----------------
+
+The process is standard Linux external module build step. Helper scripts are
+provides too.
+
+Build
+.....
+
+.. code-block:: sh
+
+  $LISA_HOME/tools/kmodules/build_module path/to/kernel path/to/kmodule [path/to/install/modules]
+
+This will build the module against the provided kernel tree and install it in
+``path/to/install/module`` if provided otherwise install it in
+``$LISA_HOME/tools/kmodules``.
+
+Clean
+.....
+
+.. code-block:: sh
+
+  $LISA_HOME/tools/kmodules/clean_module path/to/kenrel path/to/kmodule
+
+Highly recommended to clean when switching kernel trees to avoid unintentional
+breakage for using stale binaries.
+
+Pushing the module into the target
+..................................
+
+You need to push the module into your rootfs either by installing it directly
+there or use commands like ``scp`` to copy it into your device.
+
+.. code-block:: sh
+
+  scp -r $LISA_HOME/tools/kmoudles/lib username@ip:/
+
+Loading the module
+..................
+
+On the target run:
+
+.. code-block:: sh
+
+  modprobe sched_tp
+
+Integrating the module in your kernel tree
+------------------------------------------
+
+If you're rebuilding your kernel tree anyway, it might be easier to integrate
+the module into your kernel tree as a built-in module so that it's always
+present.
+
+Integrate using provided patch
+..............................
+
+.. code-block:: sh
+
+  cd path/to/kernel && git am path/to/patch
 
 
 Updating
@@ -131,81 +201,9 @@ packages still match those dependencies. Sourcing ``init_env`` from a
 new shell should suffice, which will hint the user if running ``lisa-install``
 again is needed.
 
-External dependencies
-=====================
 
-Kernel modules
-++++++++++++++
+What next ?
+===========
 
-The following modules are required to run Lisa tests against some kernels.
-
-sched_tp
---------
-
-From Linux v5.3, sched_load_cfs_rq and sched_load_se tracepoints are present in
-mainline as bare tracepoints without any events in tracefs associated with
-them.
-
-To help expose these tracepoints (and any additional one we might require in
-the future) as trace events, an external module is required and is provided
-under the name of sched_tp in $LISA_HOME/tools/kmodules/sched_tp
-
-Building a module
-+++++++++++++++++
-
-The process is standard Linux external module build step. Helper scripts are
-provides too.
-
-Build
------
-
-.. code-block:: sh
-
-  $LISA_HOME/tools/kmodules/build_module path/to/kenrel path/to/kmodule [path/to/install/modules]
-
-This will build the module against the provided kernel tree and install it in
-``path/to/install/module`` if provided otherwise install it in
-``$LISA_HOME/tools/kmodules``.
-
-Clean
------
-
-.. code-block:: sh
-
-  $LISA_HOME/tools/kmodules/clean_module path/to/kenrel path/to/kmodule
-
-Highly recommended to clean when switching kernel trees to avoid unintentional
-breakage for using stale binaries.
-
-Pushing the module into the target
-----------------------------------
-
-You need to push the module into your rootfs either by installing it directly
-there or use commands like ``scp`` to copy it into your device.
-
-.. code-block:: sh
-
-  scp -r $LISA_HOME/tools/kmoudles/lib username@ip:/
-
-Loading the module
-------------------
-
-On the target run:
-
-.. code-block:: sh
-
-  modprobe sched_tp
-
-Integrating the module in your kernel tree
-++++++++++++++++++++++++++++++++++++++++++
-
-If you're rebuilding your kernel tree anyway, it might be easier to integrate
-the module into your kernel tree as a built-in module so that it's always
-present.
-
-Integrate using provided patch
-------------------------------
-
-.. code-block:: sh
-
-  cd path/to/kernel && git am path/to/patch
+The next step depends on the intended use case, further information at
+:ref:`workflows-page`
