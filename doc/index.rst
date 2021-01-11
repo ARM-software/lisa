@@ -31,13 +31,13 @@ Contents:
 
    overview
    setup
-   lisa_shell/man/man
-
-   ==== Guides & workflows ==== <self>
-
-   transition_guide
-   contributors_guide
    workflows/index
+
+   ==== Tools documentation ==== <self>
+
+   lisa_shell/man/man
+   bisector/index
+   exekall/index
 
    ==== API documentation ==== <self>
 
@@ -49,10 +49,11 @@ Contents:
    misc_utilities
    stat_comparison
 
-   ==== Tools documentation ==== <self>
+   ==== Guides ==== <self>
 
-   bisector/index
-   exekall/index
+   transition_guide
+   contributors_guide
+
 
 Indices and tables
 ==================
