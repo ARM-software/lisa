@@ -410,8 +410,16 @@ def df_merge(df_list, drop_columns=None, drop_inplace=False, filter_columns=None
             for df in df_list
         ]
 
-    df1, *other_dfs = df_list
-    return df1.join(other_dfs, how='outer')
+    if any(
+        not (df1.columns & df2.columns).empty
+        for (df1, df2)  in itertools.combinations(df_list, 2)
+    ):
+        df = pd.concat(df_list)
+        df.sort_index(inplace=True)
+        return df
+    else:
+        df1, *other_dfs = df_list
+        return df1.join(other_dfs, how='outer')
 
 
 def _resolve_x(y, x):
