@@ -410,10 +410,8 @@ def df_merge(df_list, drop_columns=None, drop_inplace=False, filter_columns=None
             for df in df_list
         ]
 
-    def merge(df1, df2):
-        return pd.merge(df1, df2, left_index=True, right_index=True, how='outer')
-
-    return functools.reduce(merge, df_list)
+    df1, *other_dfs = df_list
+    return df1.join(other_dfs, how='outer')
 
 
 def _resolve_x(y, x):
