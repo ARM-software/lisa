@@ -1667,7 +1667,7 @@ class AndroidTarget(Target):
         self.remove(on_device_executable, as_root=self.needs_su)
 
     def dump_logcat(self, filepath, filter=None, logcat_format=None, append=False,
-                    timeout=30):  # pylint: disable=redefined-builtin
+                    timeout=60):  # pylint: disable=redefined-builtin
         op = '>>' if append else '>'
         filtstr = ' -s {}'.format(quote(filter)) if filter else ''
         formatstr = ' -v {}'.format(quote(logcat_format)) if logcat_format else ''
