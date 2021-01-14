@@ -70,7 +70,7 @@ class GoogleSlides(ApkUiautoWorkload):
     It MAY NOT ALWAYS WORK on your device. If you do run into problems, it might help to
     set ``do_text_entry`` parameter to ``False``.
 
-    Known working APK version: 1.7.032.06
+    Known working APK version: 1.20.442.04.40
     '''
 
     parameters = [

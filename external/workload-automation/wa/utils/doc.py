@@ -285,7 +285,7 @@ def get_params_rst(parameters):
             text += indent('\nallowed values: {}\n'.format(', '.join(map(format_literal, param.allowed_values))))
         elif param.constraint:
             text += indent('\nconstraint: ``{}``\n'.format(get_type_name(param.constraint)))
-        if param.default:
+        if param.default is not None:
             value = param.default
             if isinstance(value, str) and value.startswith(USER_HOME):
                 value = value.replace(USER_HOME, '~')

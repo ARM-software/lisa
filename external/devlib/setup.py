@@ -92,6 +92,7 @@ params = dict(
         'numpy; python_version>="3"',
         'pandas<=0.24.2; python_version<"3"',
         'pandas; python_version>"3"',
+        'lxml', # More robust xml parsing
     ],
     extras_require={
         'daq': ['daqpower>=2'],

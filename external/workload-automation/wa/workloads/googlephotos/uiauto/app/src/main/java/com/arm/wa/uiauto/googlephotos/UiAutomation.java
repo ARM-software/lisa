@@ -102,6 +102,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         // Clear the initial run dialogues of the application launch.
         dismissWelcomeView();
         closePromotionPopUp();
+        closeMissingOutPopUp();
     }
 
     // Returns the launch command for the application.
@@ -173,6 +174,14 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
             mDevice.findObject(new UiSelector().resourceId(packageID + "promo_close_button"));
         if (promoCloseButton.exists()) {
             promoCloseButton.click();
+        }
+    }
+
+    public void closeMissingOutPopUp() throws Exception {
+        UiObject missingPopup =
+               mDevice.findObject(new UiSelector().textContains("Not now"));
+        if (missingPopup.waitForExists(3000)) {
+            missingPopup.click();
         }
     }
 
@@ -304,9 +313,9 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         Iterator<Entry<String, PositionPair>> it = testParams.entrySet().iterator();
 
         clickUiObject(BY_ID, packageID + "edit", "android.widget.ImageView");
-        UiObject enhance = 
+        UiObject enhance =
             mDevice.findObject(new UiSelector().description("Enhance photo"));
-        if (enhance.exists()){
+        if (enhance.waitForExists(timeout)){
             enhance.click();
         }
 
