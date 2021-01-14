@@ -3637,7 +3637,7 @@ class Trace(Loggable, TraceBase):
 
         if raw:
             sanitization_f = None
-        elif orig_raw == False and not sanitization_f: # pylint: disable=singleton-comparison
+        elif not orig_raw and orig_raw is not None and not sanitization_f:
             raise ValueError(f'Sanitized dataframe for {event} does not exist, please pass raw=True or raw=None')
 
         if raw:
