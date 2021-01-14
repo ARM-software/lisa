@@ -1394,16 +1394,20 @@ class TxtTraceParser(TxtTraceParserBase):
         needed_metadata = set(needed_metadata or [])
         events = set(events)
         default_event_parser_cls, event_parsers = cls._resolve_event_parsers(event_parsers, default_event_parser_cls)
-        event_parsers = event_parsers.values()
 
-        all_raw_events = {
-            parser.event
-            for parser in event_parsers
-            if parser.raw
-        }
+        def use_raw(event):
+            try:
+                parser = event_parsers[event]
+            except KeyError:
+                # If we don't have a known parser, use the raw output by
+                # default, since it will be either the same as human readable,
+                # or unparseable without a dedicated parser.
+                return True
+            else:
+                return parser.raw
 
         raw_events = list(itertools.chain.from_iterable(
-            ('-r', event) if event in all_raw_events else []
+            ('-r', event) if use_raw(event) else []
             for event in events
         ))
 
@@ -1449,7 +1453,7 @@ class TxtTraceParser(TxtTraceParserBase):
         kwargs.update(
             events=events,
             needed_metadata=needed_metadata,
-            event_parsers=event_parsers,
+            event_parsers=event_parsers.values(),
             default_event_parser_cls=default_event_parser_cls,
             pre_filled_metadata=pre_filled_metadata,
         )
