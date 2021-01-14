@@ -3,6 +3,91 @@ What's New in Workload Automation
 =================================
 
 ***********
+Version 3.3
+***********
+
+New Features:
+==============
+
+Commands:
+---------
+    - Add ``report`` command to provide a summary of a run.
+
+Instruments:
+------------
+    - Add ``proc_stat`` instrument to monitor CPU load using data from ``/proc/stat``.
+
+Framework:
+----------
+    - Add support for simulating atomic writes to prevent race conditions when running current instances of WA.
+    - Add support file transfer for SSH connections via SFTP and falling back to using SCP implementation.
+    - Support detection of logcat buffer overflow and present a warning if this occurs.
+    - Allow skipping all remaining jobs if a job had exhausted all of its retires.
+    - Add polling mechanism for file transfers rather than relying on timeouts.
+    - Add `run_completed` reboot policy to enable rebooting a target after a run has been completed.
+
+
+Android Devices:
+----------------
+    - Enable configuration of whether to keep the screen on while the device is plugged in.
+
+Output Processors:
+------------------
+    - Enable the use of cascading deletion in Postgres databases to clean up after deletion of a run entry.
+
+
+Fixes/Improvements
+==================
+
+Framework:
+----------
+    - Improvements to the ``process`` command to correctly handle skipped and in process jobs.
+    - Add support for deprecated parameters allowing for a warning to be raised when providing
+      a parameter that will no longer have an effect.
+    - Switch implementation of SSH connections to use Paramiko for greater stability.
+    - By default use sftp for file transfers with SSH connections, allow falling back to scp
+      by setting ``use_scp``.
+    - Fix callbacks not being disconnected correctly when requested.
+    - ``ApkInfo`` objects are now cached to reduce re-parsing of APK files.
+    - Speed up discovery of wa output directories.
+    - Fix merge handling of parameters from multiple files.
+
+Dockerfile:
+-----------
+    - Install additional instruments for use in the docker environment.
+    - Fix environment variables not being defined in non interactive environments.
+
+Instruments:
+------------
+    - ``trace_cmd`` additional fixes for python 3 support.
+
+Output Processors:
+------------------
+    - ``postgres``: Fixed SQL command when creating a new event.
+
+Workloads:
+----------
+    - ``aitutu``: Improve reliability of results extraction.
+    - ``androbench``: Enabling dismissing of additional popups on some devices.
+    - ``antutu``: Now supports major version 8 in additional to version 7.X.
+    - ``exoplayer``: Add support for Android 10.
+    - ``googlephotos``: Support newer apk version.
+    - ``gfxbench``: Allow user configuration for which tests should be ran.
+    - ``gfxbench``: Improved score detection for a wider range of devices.
+    - ``gfxbench``: Moved results extraction out of run stage.
+    - ``jankbench``: Support newer versions of Pandas for processing.
+    - ``pcmark``: Add support for handling additional popups and installation flows.
+    - ``pcmark``: No longer clear and re-download test data before each execution.
+    - ``speedometer``: Enable the workload to run offline and drops requirement for
+      UiAutomator. To support this root access is now required to run the workload.
+    - ``youtube``: Update to support later versions of the apk.
+
+Other:
+------
+    - ``cpustates``: Improved name handling for unknown idle states.
+
+
+***********
 Version 3.2
 ***********
 

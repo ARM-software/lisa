@@ -21,9 +21,9 @@ from subprocess import Popen, PIPE
 
 VersionTuple = namedtuple('Version', ['major', 'minor', 'revision', 'dev'])
 
-version = VersionTuple(3, 2, 1, 'dev4')
+version = VersionTuple(3, 3, 1, 'dev1')
 
-required_devlib_version = VersionTuple(1, 2, 1, 'dev5')
+required_devlib_version = VersionTuple(1, 3, 1, 'dev1')
 
 
 def format_version(v):
@@ -48,8 +48,11 @@ def get_wa_version_with_commit():
 
 
 def get_commit():
-    p = Popen(['git', 'rev-parse', 'HEAD'],
-              cwd=os.path.dirname(__file__), stdout=PIPE, stderr=PIPE)
+    try:
+        p = Popen(['git', 'rev-parse', 'HEAD'],
+                  cwd=os.path.dirname(__file__), stdout=PIPE, stderr=PIPE)
+    except FileNotFoundError:
+        return None
     std, _ = p.communicate()
     p.wait()
     if p.returncode:

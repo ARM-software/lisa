@@ -98,7 +98,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         removeNote();
         searchForWord(searchWord);
         switchPageStyles();
-        aboutBook();
+        aboutBook(libraryBookTitle);
         pressBack();
     }
 
@@ -232,21 +232,28 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         UiObject resultList =
             mDevice.findObject(new UiSelector().resourceId("com.android.vending:id/search_results_list"));
         if (!resultList.waitForExists(viewTimeout)) {
-            throw new UiObjectNotFoundException("Could not find \"search results list view\".");
+            resultList =
+            mDevice.findObject(new UiSelector().className("android.support.v7.widget.RecyclerView")
+                                               .scrollable(true));
+            if (!resultList.waitForExists(viewTimeout)) {
+                throw new UiObjectNotFoundException("Could not find search results list.");
+            }
         }
 
         // Create a selector so that we can search for siblings of the desired
         // book that contains a "free" or "purchased" book identifier
-        UiObject label =
-            mDevice.findObject(new UiSelector().description(String.format("Book: " + bookTitle))
-                                               .className("android.widget.TextView"))
-                                               .resourceId("com.android.vending:id/li_label")
-                                               .descriptionMatches("^(Purchased|Free)$"));
+        // For some reason regex matching seem to be failing so explicitally check for both.
+        UiObject labelPurchased =
+            mDevice.findObject(new UiSelector().descriptionContains(String.format("Book: %s", bookTitle))
+                                               .descriptionContains("Purchased"));
+        UiObject labelFree =
+            mDevice.findObject(new UiSelector().descriptionContains(String.format("Book: %s", bookTitle))
+                                            .descriptionContains("Free"));
 
         final int maxSearchTime = 30;
         int searchTime = maxSearchTime;
 
-        while (!label.exists()) {
+        while (!(labelPurchased.exists() || labelFree.exists())) {
             if (searchTime > 0) {
                 uiDeviceSwipeDown(100);
                 sleep(1);
@@ -260,7 +267,12 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
 
         // Click on either the first "free" or "purchased" book found that
         // matches the book title
-        label.click();
+        if (labelPurchased.exists()) {
+            labelPurchased.click();
+        }
+        else {
+            labelFree.click();
+        }
     }
 
     private void addToLibrary() throws Exception {
@@ -583,7 +595,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         waitForPage();
     }
 
-    private void aboutBook() throws Exception {
+    private void aboutBook(final String bookTitle) throws Exception {
         String testTag = "open_about";
         ActionLogger logger = new ActionLogger(testTag, parameters);
 
@@ -598,7 +610,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
         bookInfo.clickAndWaitForNewWindow(uiAutoTimeout);
 
         UiObject detailsPanel =
-            mDevice.findObject(new UiSelector().resourceId("com.android.vending:id/item_details_panel"));
+            mDevice.findObject(new UiSelector().textContains(bookTitle));
         waitObject(detailsPanel, viewTimeoutSecs);
 
         logger.stop();
@@ -695,7 +707,7 @@ public class UiAutomation extends BaseUiAutomation implements ApplaunchInterface
     }
 
     private void dismissNightLight() throws Exception {
-        UiObject night = 
+        UiObject night =
             mDevice.findObject(new UiSelector().text("Night Light makes reading easy"));
         if (night.exists()) {
             clickUiObject(BY_TEXT, "DISMISS");
