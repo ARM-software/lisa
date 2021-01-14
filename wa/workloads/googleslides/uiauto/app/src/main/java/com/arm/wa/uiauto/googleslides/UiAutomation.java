@@ -114,9 +114,9 @@ public class UiAutomation extends BaseUiAutomation {
 
     public void enterTextInSlide(String viewName, String textToEnter) throws Exception {
         UiObject view =
-                mDevice.findObject(new UiSelector().resourceId(packageID + "main_canvas")
-                                         .childSelector(new UiSelector()
-                                         .descriptionMatches(viewName)));
+                mDevice.findObject(new UiSelector().descriptionMatches(".*[Cc]anvas.*")
+                                        .childSelector(new UiSelector()
+                                        .descriptionMatches(viewName)));
         view.click();
         mDevice.pressEnter();
         view.legacySetText(textToEnter);
@@ -132,6 +132,12 @@ public class UiAutomation extends BaseUiAutomation {
     public void insertSlide(String slideLayout) throws Exception {
         UiObject add_slide =
                 mDevice.findObject(new UiSelector().descriptionContains("Add slide"));
+
+        // If we can't see the add slide button the keyboard might still be visiable.
+        if (!add_slide.exists()) {
+            mDevice.pressBack();
+        }
+        add_slide.waitForExists(WAIT_TIMEOUT_1SEC);
         add_slide.click();
 
         UiObject slide_layout = mDevice.findObject(new UiSelector().textContains(slideLayout));
@@ -255,41 +261,43 @@ public class UiAutomation extends BaseUiAutomation {
         clickUiObject(BY_DESC, "Open presentation");
         clickUiObject(BY_TEXT, "Device storage", true);
 
+        // Allow access to internal storage
+        UiObject optionBtn =
+            mDevice.findObject(new UiSelector().descriptionContains("More options"));
+        if (optionBtn.waitForExists(WAIT_TIMEOUT_1SEC)) {
+            optionBtn.click();
+            UiObject showInternalBtn =
+                mDevice.findObject(new UiSelector().textContains("Show internal storage"));
+            // Show internal storage, otherwise already shown so exit menu.
+            if (showInternalBtn.exists()) {
+                showInternalBtn.click();
+            }
+            else {
+                mDevice.pressBack();
+            }
+        }
         UiObject workingDirectory = mDevice.findObject(new UiSelector().text(workingDirectoryName));
-        UiObject nav_button = mDevice.findObject(new UiSelector().resourceId(packageID + "file_picker_nav_up_btn"));
         UiObject folderEntry = mDevice.findObject(new UiSelector().textContains(workingDirectoryName));
-        if (workingDirectory.exists()) {
-            folderEntry.clickAndWaitForNewWindow();
-        }
-        else if (nav_button.exists()) {
-            while (nav_button.exists()) {
-                nav_button.click();
-            }
-            clickUiObject(BY_TEXT, "Internal Storage", true);
-        }
-        else {
-            showRoots();
-            UiObject localDevice = mDevice.findObject(new UiSelector().textMatches(".*[GM]B free"));
-            localDevice.click();
-            UiScrollable list = new UiScrollable(new UiSelector().scrollable(true));
-            if (!folderEntry.exists() && list.waitForExists(WAIT_TIMEOUT_1SEC)) {
-                list.scrollIntoView(folderEntry);
-            } else {
-                folderEntry.waitForExists(WAIT_TIMEOUT_1SEC*10);
-            }
-        }
 
-        UiScrollable list =
-                new UiScrollable(new UiSelector().className("android.widget.ListView"));
-        if (list.exists()){
-            list.scrollIntoView(new UiSelector().textMatches(workingDirectoryName));
-            clickUiObject(BY_TEXT, workingDirectoryName);
-            list.scrollIntoView(new UiSelector().textContains(docName));
+        showRoots();
+        UiObject localDevice = mDevice.findObject(new UiSelector().textMatches(".*[GM]B free"));
+        localDevice.click();
+        UiScrollable list = new UiScrollable(new UiSelector().scrollable(true));
+        if (!folderEntry.exists() && list.waitForExists(WAIT_TIMEOUT_1SEC)) {
+            list.scrollIntoView(folderEntry);
         } else {
-            UiScrollable listAlternate =
-                new UiScrollable(new UiSelector().className("android.support.v7.widget.RecyclerView"));
-            listAlternate.scrollIntoView(new UiSelector().textContains(docName));
+            folderEntry.waitForExists(WAIT_TIMEOUT_1SEC);
         }
+        clickUiObject(BY_TEXT, workingDirectoryName);
+
+        UiScrollable fileList =
+                new UiScrollable(new UiSelector().className("android.support.v7.widget.RecyclerView"));
+        // Older versions of android seem to use a differnt layout
+        if (!fileList.waitForExists(WAIT_TIMEOUT_1SEC)) {
+            fileList =
+                new UiScrollable(new UiSelector().resourceId("com.android.documentsui:id/list"));
+        }
+        fileList.scrollIntoView(new UiSelector().textContains(docName));
 
         logger.start();
         clickUiObject(BY_TEXT, docName);
@@ -316,7 +324,7 @@ public class UiAutomation extends BaseUiAutomation {
        ActionLogger logger = new ActionLogger(testTag, parameters);
 
        UiObject saveActionButton =
-           mDevice.findObject(new UiSelector().textMatches("save|SAVE"));
+           mDevice.findObject(new UiSelector().textMatches("[Ss]ave|SAVE|"));
        UiObject unsavedIndicator =
            mDevice.findObject(new UiSelector().textContains("Unsaved changes"));
        logger.start();
@@ -327,6 +335,14 @@ public class UiAutomation extends BaseUiAutomation {
        }
        clickUiObject(BY_TEXT, "Device");
        UiObject save = clickUiObject(BY_TEXT, "Save", "android.widget.Button");
+
+       // Save in Downloads if present, otherwise assume a sensible defaul location
+       UiObject downloadsDir =
+            mDevice.findObject(new UiSelector().textContains("Downloads"));
+        if (downloadsDir.waitForExists(WAIT_TIMEOUT_1SEC * 5)) {
+            downloadsDir.click();
+        }
+
        if (save.waitForExists(WAIT_TIMEOUT_1SEC)) {
            save.click();
        }
@@ -351,6 +367,13 @@ public class UiAutomation extends BaseUiAutomation {
         String testTag = "document_delete";
         ActionLogger logger = new ActionLogger(testTag, parameters);
 
+        // Switch to Device file tab if present
+        UiObject deviceTab =
+            mDevice.findObject(new UiSelector().textContains("Device files"));
+        if (deviceTab.waitForExists(WAIT_TIMEOUT_1SEC)){
+            deviceTab.click();
+        }
+
         UiObject doc =
             mDevice.findObject(new UiSelector().textContains("WORKLOAD"));
         UiObject moreActions =
@@ -368,12 +391,12 @@ public class UiAutomation extends BaseUiAutomation {
             UiScrollable scrollable =
                     new UiScrollable(new UiSelector().scrollable(true)
                             .childSelector(new UiSelector()
-                                    .textContains("Add people")));
+                                    .textMatches(".*(Add people|Save to Drive).*")));
             if (scrollable.exists()) {
                 scrollable.scrollIntoView(deleteButton);
             } else {
                 UiObject content =
-                    mDevice.findObject(new UiSelector().resourceId(packageID + "content"));
+                    mDevice.findObject(new UiSelector().resourceIdMatches(packageID + "(content|menu_recycler_view)"));
                 int attemptsLeft = 10; // try a maximum of 10 swipe attempts
                 while (!deleteButton.exists() && attemptsLeft > 0) {
                     content.swipeUp(DEFAULT_SWIPE_STEPS);
@@ -474,13 +497,18 @@ public class UiAutomation extends BaseUiAutomation {
         Rect canvasBounds = slideCanvas.getVisibleBounds();
         int leftEdge = canvasBounds.left + 10;
         int rightEdge = canvasBounds.right - 10;
-        int yCoordinate = canvasBounds.top + 5;
+        int topEdge = (canvasBounds.top + canvasBounds.bottom) * 1/3 ;
+        int bottomEdge = (canvasBounds.top + canvasBounds.bottom) * 2/3 ;
+
+        int yCoordinate = (canvasBounds.top + canvasBounds.bottom) / 2;
+        int xCoordinate = (canvasBounds.left + canvasBounds.right) / 2;
         int slideIndex = 0;
 
         // scroll forward in edit mode
         ActionLogger logger = new ActionLogger(testTag + "_editforward", parameters);
         logger.start();
         while (slideIndex++ < slideCount) {
+            uiDeviceSwipeVertical(topEdge, bottomEdge, xCoordinate, DEFAULT_SWIPE_STEPS);
             uiDeviceSwipeHorizontal(rightEdge, leftEdge, yCoordinate, DEFAULT_SWIPE_STEPS);
             waitForProgress(WAIT_TIMEOUT_1SEC*5);
         }
@@ -491,6 +519,7 @@ public class UiAutomation extends BaseUiAutomation {
         logger = new ActionLogger(testTag + "_editbackward", parameters);
         logger.start();
         while (slideIndex-- > 0) {
+            uiDeviceSwipeVertical(bottomEdge, topEdge, xCoordinate, DEFAULT_SWIPE_STEPS);
             uiDeviceSwipeHorizontal(leftEdge, rightEdge, yCoordinate, DEFAULT_SWIPE_STEPS);
             waitForProgress(WAIT_TIMEOUT_1SEC*5);
         }
@@ -498,6 +527,12 @@ public class UiAutomation extends BaseUiAutomation {
         sleep(1);
 
         // run slideshow
+        UiObject startBtn =
+            mDevice.findObject(new UiSelector().descriptionContains("Start slideshow"));
+        if (!startBtn.exists()) {
+            tapDisplayCentre();
+        }
+
         logger = new ActionLogger(testTag + "_run", parameters);
         logger.start();
         clickUiObject(BY_DESC, "Start slideshow", true);

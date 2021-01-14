@@ -40,6 +40,7 @@ class Speedometer(Workload):
     connected via USB.
 
     Test description:
+
     1. Host a local copy of the Speedometer website, and make it visible to the device via ADB.
     2. Open chrome via an intent to access the local copy.
     3. Execute the benchmark - the copy has been modified to trigger the start of the benchmark.
@@ -55,27 +56,29 @@ class Speedometer(Workload):
     2. Copy PerformanceTests/Speedometer to a directory called document_root, renaming Speedometer to Speedometer2.0
 
     3. Modify document_root/Speedometer2.0/index.html:
+
       3a. Remove the 'defer' attribute from the <script> tags within the <head> section.
       3b. Add '<script>startTest();</script>' to the very end of the <body> section.
 
     4. Modify document_root/Speedometer2.0/resources/main.js:
+
       4a. Add the listed code after this line:
 
             document.getElementById('result-number').textContent = results.formattedMean;
 
-          Code to add:
+        Code to add::
 
-      if (location.search.length > 1) {
-        var parts = location.search.substring(1).split('&');
-        for (var i = 0; i < parts.length; i++) {
-          var keyValue = parts[i].split('=');
-          var key = keyValue[0];
-          var value = keyValue[1];
-          if (key === "reportEndId") {
-            window.localStorage.setItem('reportEndId', value);
-          }
-        }
-      }
+                if (location.search.length > 1) {
+                    var parts = location.search.substring(1).split('&');
+                    for (var i = 0; i < parts.length; i++) {
+                        var keyValue = parts[i].split('=');
+                        var key = keyValue[0];
+                        var value = keyValue[1];
+                        if (key === "reportEndId") {
+                            window.localStorage.setItem('reportEndId', value);
+                        }
+                    }
+                }
 
     5. Run 'tar -cpzf speedometer_archive.tgz document_root'
 

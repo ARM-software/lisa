@@ -101,6 +101,7 @@ public class UiAutomation extends BaseUiAutomation {
     }
 
     public void getScores() throws Exception {
+        mDevice.waitForIdle(5000);
         UiSelector selector = new UiSelector();
         //Declare the models used
         UiObject imageMod =
