@@ -20,18 +20,20 @@ Utility functions for working with Android devices through adb.
 """
 # pylint: disable=E1103
 import glob
-import os
-import re
-import sys
-import time
 import logging
-import tempfile
-import subprocess
-from collections import defaultdict
+import os
 import pexpect
-import xml.etree.ElementTree
-import zipfile
+import re
+import subprocess
+import sys
+import tempfile
+import time
 import uuid
+import zipfile
+
+from collections import defaultdict
+from io import StringIO
+from lxml import etree
 
 try:
     from shlex import quote
@@ -215,15 +217,22 @@ class ApkInfo(object):
     @property
     def methods(self):
         if self._methods is None:
+            # Only try to extract once
+            self._methods = []
             with tempfile.TemporaryDirectory() as tmp_dir:
                 with zipfile.ZipFile(self._apk_path, 'r') as z:
-                    extracted = z.extract('classes.dex', tmp_dir)
-
+                    try:
+                        extracted = z.extract('classes.dex', tmp_dir)
+                    except KeyError:
+                        return []
                 dexdump = os.path.join(os.path.dirname(aapt), 'dexdump')
                 command = [dexdump, '-l', 'xml', extracted]
                 dump = self._run(command)
 
-            xml_tree = xml.etree.ElementTree.fromstring(dump)
+            # Dexdump from build tools v30.0.X does not seem to produce
+            # valid xml from certain APKs so ignore errors and attempt to recover.
+            parser = etree.XMLParser(encoding='utf-8', recover=True)
+            xml_tree = etree.parse(StringIO(dump), parser)
 
             package = next((i for i in xml_tree.iter('package')
                            if i.attrib['name'] == self.package), None)
@@ -730,11 +739,13 @@ def _discover_aapt(env):
         aapt2_path = ''
         versions = os.listdir(env.build_tools)
         for version in reversed(sorted(versions)):
-            if not aapt2_path and not os.path.isfile(aapt2_path):
+            if not os.path.isfile(aapt2_path):
                 aapt2_path = os.path.join(env.build_tools, version, 'aapt2')
-            if not aapt_path and not os.path.isfile(aapt_path):
+            if not os.path.isfile(aapt_path):
                 aapt_path = os.path.join(env.build_tools, version, 'aapt')
                 aapt_version = 1
+            # Use latest available version for aapt/appt2 but ensure at least one is valid.
+            if os.path.isfile(aapt2_path) or os.path.isfile(aapt_path):
                 break
 
         # Use aapt2 only if present and we have a suitable version
