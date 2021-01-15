@@ -1277,9 +1277,9 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         TaskID(pid=0, comm=None): 100,
         # Feeble boards like Juno/TC2 spend a while in sugov
         r"^sugov:\d+$": 5,
-        # The mailbox controller (MHU), now threaded, creates work that sometimes
-        # exceeds the 1% threshold.
-        r"^irq/\d+-mhu_link$": 1.5
+        # Some boards like Hikey960 have noisy threaded IRQs (thermal sensor
+        # mailbox ...)
+        r"^irq/\d+-.*$": 1.5,
     }
     """
     PID/comm specific tuning for :meth:`test_noisy_tasks`
@@ -1481,12 +1481,12 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                 # used to indicate a "dont care" value
                 task_ids = [self.trace.get_task_id(key, update=False)]
 
-            # For those tasks, check the threshold
-            ignored_ids.extend(
-                task_id
-                for task_id in task_ids
-                if df_filter_task_ids(df, [task_id]).iloc[0].runtime_pct <= threshold
-            )
+            # For those tasks, check the cumulative threshold
+            runtime_pct_sum = df_filter_task_ids(df,
+                task_ids)['runtime_pct'].sum()
+            if runtime_pct_sum <= threshold:
+                 ignored_ids.extend(task_ids)
+
 
         self.get_logger().info(f"Ignored PIDs for noise contribution: {', '.join(map(str, ignored_ids))}")
 
