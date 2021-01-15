@@ -18,9 +18,11 @@
 """ Functions Analysis Module """
 import json
 import os
+from operator import itemgetter
 
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
+import numpy as np
 
 from lisa.analysis.base import TraceAnalysisBase, AnalysisHelpers
 from lisa.trace import requires_events, requires_one_event_of
