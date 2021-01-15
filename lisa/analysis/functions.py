@@ -131,7 +131,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
         :type event: str
         """
         event = f'funcgraph_{event}'
-        return self._df_with_ksym(event, 'func', 'func_name', exact=True)
+        return self._df_with_ksym(event, 'func', 'func_name', exact=False)
 
 
 class JSONStatsFunctionsAnalysis(AnalysisHelpers):
