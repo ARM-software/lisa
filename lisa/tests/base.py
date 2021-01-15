@@ -1452,6 +1452,49 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         )
         return trace.get_view(self.trace_window(trace), clear_base_cache=True)
 
+    def df_noisy_tasks(self, with_threshold_exclusion=True):
+        """
+        :returns: a DataFrame containing all tasks that participate to the test
+        noise. i.e. all non rt-app tasks.
+
+        :param with_threshold_exclusion: When set to True, known noisy services
+        will be ignored.
+        """
+        df = self.trace.analysis.tasks.df_tasks_runtime()
+
+        # We don't want to account the test tasks
+        ignored_ids = self.rtapp_task_ids
+
+        df['runtime_pct'] = df['runtime'] * (100 / self.trace.time_range)
+        df['pid'] = df.index
+
+        threshold_exclusion = self.NOISE_ACCOUNTING_THRESHOLDS if with_threshold_exclusion else {}
+
+        # Figure out which PIDs to exclude from the thresholds
+        for key, threshold in threshold_exclusion.items():
+            # Find out which task(s) this threshold is about
+            if isinstance(key, str):
+                comms = df.loc[df['comm'].str.match(key), 'comm']
+                task_ids = comms.apply(self.trace.get_task_id)
+            else:
+                # Use update=False to let None fields propagate, as they are
+                # used to indicate a "dont care" value
+                task_ids = [self.trace.get_task_id(key, update=False)]
+
+            # For those tasks, check the threshold
+            ignored_ids.extend(
+                task_id
+                for task_id in task_ids
+                if df_filter_task_ids(df, [task_id]).iloc[0].runtime_pct <= threshold
+            )
+
+        self.get_logger().info(f"Ignored PIDs for noise contribution: {', '.join(map(str, ignored_ids))}")
+
+        # Filter out unwanted tasks (rt-app tasks + thresholds)
+        df = df_filter_task_ids(df, ignored_ids, invert=True)
+
+        return df.loc[df['runtime'] > 0]
+
     @TestBundle.add_undecided_filter
     @TasksAnalysis.df_tasks_runtime.used_events
     def test_noisy_tasks(self, *, noise_threshold_pct=None, noise_threshold_ms=None):
@@ -1479,36 +1522,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         if noise_threshold_ms is not None:
             threshold_s = min(threshold_s, noise_threshold_ms * 1e3)
 
-        df = self.trace.analysis.tasks.df_tasks_runtime()
-
-        # We don't want to account the test tasks
-        ignored_ids = self.rtapp_task_ids
-
-        df['runtime_pct'] = df['runtime'] * (100 / self.trace.time_range)
-        df['pid'] = df.index
-
-        # Figure out which PIDs to exclude from the thresholds
-        for key, threshold in self.NOISE_ACCOUNTING_THRESHOLDS.items():
-            # Find out which task(s) this threshold is about
-            if isinstance(key, str):
-                comms = df.loc[df['comm'].str.match(key), 'comm']
-                task_ids = comms.apply(self.trace.get_task_id)
-            else:
-                # Use update=False to let None fields propagate, as they are
-                # used to indicate a "dont care" value
-                task_ids = [self.trace.get_task_id(key, update=False)]
-
-            # For those tasks, check the threshold
-            ignored_ids.extend(
-                task_id
-                for task_id in task_ids
-                if df_filter_task_ids(df, [task_id]).iloc[0].runtime_pct <= threshold
-            )
-
-        self.get_logger().info(f"Ignored PIDs for noise contribution: {', '.join(map(str, ignored_ids))}")
-
-        # Filter out unwanted tasks (rt-app tasks + thresholds)
-        df_noise = df_filter_task_ids(df, ignored_ids, invert=True)
+        df_noise = self.df_noisy_tasks()
 
         if df_noise.empty:
             return ResultBundle.from_bool(True)
