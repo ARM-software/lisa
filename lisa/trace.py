@@ -615,7 +615,7 @@ class TxtTraceParserBase(TraceParserBase):
     Pandas dtype of the header fields.
     """
 
-    DTYPE_INFERENCE_ORDER = ['int64', 'uint64', 'float64', 'string']
+    DTYPE_INFERENCE_ORDER = ['int64', 'uint64', 'float64']
     """
     When the dtype of a field is not provided by a user-defined parser, these
     dtypes will be tried in order to convert the column from string to
@@ -1092,13 +1092,30 @@ class TxtTraceParserBase(TraceParserBase):
         }
 
         def default_converter(x):
+            first_success = None
+
             for dtype in cls.DTYPE_INFERENCE_ORDER:
                 convert = make_converter(dtype)
                 with contextlib.suppress(ValueError, TypeError):
-                    return convert(x)
+                    converted = convert(x)
+                    # If we got the dtype we wanted, use it immediately.
+                    # Otherwise, record the first conversion (i.e. the most
+                    # specific) that did no completely fail so we can reuse it
+                    # instead of "string"
+                    if converted.dtype == dtype:
+                        return converted
+                    elif first_success is None:
+                        first_success = converted
 
-            # If all conversions failed, just return the initial series
-            return x
+            # If we got no perfect conversion, return the most specific one
+            # that gave a result, otherwise bailout to just strings
+            if first_success is None:
+                try:
+                    return make_converter('string')(x)
+                except (ValueError, TypeError):
+                    return x
+            else:
+                return first_success
 
         def make_converter(dtype):
             # If the dtype is already known, just use that
