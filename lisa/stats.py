@@ -945,6 +945,9 @@ class Stats(Loggable):
             )
             ax.set_title(title)
 
+            def format_val(val):
+                return f'{val:.2f}' if val > 1e-2 else f'{val:.2e}'
+
             # Display the value on the bar
             for row, patch in zip(df.itertuples(), ax.patches):
                 val = getattr(row, y_col)
@@ -968,13 +971,13 @@ class Stats(Loggable):
                 else:
                     if not any(map(pd.isna, ci)):
                         if ci[0] == ci[1]:
-                            ci = '\n(+/-{:.2f})'.format(ci[0])
+                            ci = '\n(+/-{})'.format(format_val(ci[0]))
                         else:
-                            ci = '\n(+{:.2f}/-{:.2f})'.format(*ci)
+                            ci = '\n(+{}/-{})'.format(*(map(format_val, ci)))
                     else:
                         ci = ''
 
-                text = f'{val:.2f} {unit}{ci}'
+                text = f'{format_val(val)} {unit}{ci}'
 
                 if kind == 'horizontal_bar':
                     coord = (
