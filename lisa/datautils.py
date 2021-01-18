@@ -386,6 +386,7 @@ def df_merge(df_list, drop_columns=None, drop_inplace=False, filter_columns=None
     :type filter_columns: dict(str, object)
     """
 
+    df_list = list(df_list)
     drop_columns = drop_columns if drop_columns else []
 
     if filter_columns:
