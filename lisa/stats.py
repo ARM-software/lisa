@@ -368,7 +368,7 @@ class Stats(Loggable):
         }
         self._ref_group = ref_group
         self._group_cols = group_cols
-        self._compare = compare
+        self._compare = compare and bool(ref_group)
         self._val_col = value_col
         self._tag_cols = tag_cols
         self._stat_tag_cols = stat_tag_cols
