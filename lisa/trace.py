@@ -592,6 +592,7 @@ class TxtTraceParserBase(TraceParserBase):
 
     _KERNEL_DTYPE = {
         'timestamp': 'uint64',
+        'pointer': 'uint64',
         'cpu': 'uint16',
         'pid': 'uint32',
         'comm': 'string',
@@ -1197,7 +1198,21 @@ class TxtTraceParser(TxtTraceParserBase):
             func_field='ip',
             content_field='str',
         ),
-
+        'funcgraph_entry': dict(
+            fields={
+                'func': _KERNEL_DTYPE['pointer'],
+                'depth': 'uint16',
+            },
+        ),
+        'funcgraph_exit': dict(
+            fields={
+                'func': _KERNEL_DTYPE['pointer'],
+                'depth': 'uint16',
+                'overrun': 'bool',
+                'calltime': 'uint64',
+                'rettime': 'uint64',
+            },
+        ),
         'ipi_entry': dict(
             fields={
                 'reason': 'string',
