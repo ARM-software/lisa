@@ -1035,8 +1035,8 @@ class Stats(Loggable):
 
     @staticmethod
     def _collapse_cols(df, groups, hide_constant=True):
-        groups = {
-            leader: [
+        def trim_group(group):
+            trimmed = [
                 col
                 for col in group
                 # If the column to collapse has a constant value, there is
@@ -1044,6 +1044,12 @@ class Stats(Loggable):
                 # just noise
                 if (not hide_constant) or df[col].nunique() > 1
             ]
+            # If we got rid of all columns, keep them all. Otherwise we will
+            # end up with nothing to display which is problematic
+            return trimmed if trimmed else group
+
+        groups = {
+            leader: trim_group(group)
             for leader, group in groups.items()
             if group
         }
@@ -1078,8 +1084,11 @@ class Stats(Loggable):
                 # extra noise
                 if len(group) == 1:
                     df[leader] = df[group[0]]
-                else:
+                elif group:
                     df[leader] = combine(leader, fold(collapse_group, group))
+                # If len(group) == 0, there is nothing to be done
+                else:
+                    df[leader] = ''
 
                 df.drop(columns=group, inplace=True)
 
