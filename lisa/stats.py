@@ -390,8 +390,8 @@ class Stats(Loggable):
 
         # Sub groups that allows treating tag columns that are not part of
         # the group not as an aggregation column
-        sub_group_cols = set(stat_tag_cols) - ref_group.keys()
-        plot_group_cols = set(stat_tag_cols) - set(group_cols) - {unit_col}
+        sub_group_cols = set(stat_tag_cols) - set(group_cols)
+        plot_group_cols = sub_group_cols - {unit_col}
 
         self._orig_df = df
         self._stats = stats or {
