@@ -18,6 +18,7 @@ import functools
 from operator import itemgetter
 import contextlib
 from math import nan
+from itertools import combinations
 
 import scipy.stats
 import pandas as pd
@@ -141,6 +142,9 @@ class Stats(Loggable):
 
     :param df: Dataframe in database format, i.e. meaningless index, and values
         in a given column with the other columns used as tags.
+
+        .. note:: Redundant tag columns (aka that are equal) will be removed
+            from the dataframe.
     :type df: pandas.DataFrame
 
     :param value_col: Name of the column containing the values.
@@ -160,6 +164,9 @@ class Stats(Loggable):
             * Most statistics will be normalized against the reference group as
               a difference percentage, except for a few non-normalizable
               values.
+
+        .. note:: The group referenced must exist, otherwise unexpected
+            behaviours might occur.
 
     :type ref_group: dict(str, object)
 
@@ -327,6 +334,34 @@ class Stats(Loggable):
         tag_cols = sorted(
             (set(df.columns) - {value_col, *ci_cols} - tweak_cols) | {unit_col}
         )
+
+        # TODO: see if the grouping machinery can be changed to accomodate redundant tags
+        # Having duplicate tags will break various grouping mechanisms, so we
+        # need to get rid of them
+        for col1, col2 in combinations(tag_cols.copy(), 2):
+            try:
+                if (df[col1] == df[col2]).all():
+                    if col1 not in ref_group:
+                        to_remove = col1
+                    elif col2 not in ref_group:
+                        to_remove = col2
+                    elif ref_group[col1] == ref_group[col2]:
+                        to_remove = col2
+                        ref_group.pop(to_remove)
+                    else:
+                        raise ValueError(f'ref_group has different values for "{col1}" and "{col2}" but the columns are equal')
+
+                    df = df.drop(columns=[to_remove])
+                else:
+                    to_remove = None
+            except KeyError:
+                pass
+            else:
+                if to_remove is not None:
+                    try:
+                        tag_cols.remove(to_remove)
+                    except ValueError:
+                        pass
 
         if agg_cols:
             pass
