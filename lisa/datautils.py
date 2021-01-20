@@ -1077,15 +1077,17 @@ def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=Fals
 
         return pid & comm
 
-    tasks_filters = map(make_filter, task_ids)
+    tasks_filters = list(map(make_filter, task_ids))
+    if tasks_filters:
+        # Combine all the task filters with OR
+        tasks_filter = functools.reduce(operator.or_, tasks_filters)
 
-    # Combine all the task filters with OR
-    tasks_filter = functools.reduce(operator.or_, tasks_filters, False)
+        if invert:
+            tasks_filter = ~tasks_filter
 
-    if invert:
-        tasks_filter = ~tasks_filter
-
-    return df[tasks_filter]
+        return df[tasks_filter]
+    else:
+        return df if invert else df.iloc[0:0]
 
 
 @SeriesAccessor.register_accessor
