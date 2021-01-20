@@ -1461,9 +1461,10 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
           will be ignored.
         """
         df = self.trace.analysis.tasks.df_tasks_runtime()
+        df = df.copy(deep=False)
 
         # We don't want to account the test tasks
-        ignored_ids = self.rtapp_task_ids
+        ignored_ids = copy.copy(self.rtapp_task_ids)
 
         df['runtime_pct'] = df['runtime'] * (100 / self.trace.time_range)
         df['pid'] = df.index
