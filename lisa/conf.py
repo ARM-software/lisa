@@ -658,122 +658,8 @@ class TopLevelKeyDesc(LevelKeyDesc):
             return super().get_help(style=style)
 
 
-class MultiSrcConfMeta(abc.ABCMeta):
-    """
-    Metaclass of :class:`MultiSrcConf`.
-
-    It will use the docstring of the class, using it as a ``str.format``
-    template with the following placeholders:
-
-        * ``{generated_help}``: snippet of ResStructuredText containing the
-          list of allowed keys.
-
-        * ``{yaml_example}``: example snippet of YAML
-
-    It will also create the types specified using ``newtype`` in the
-    :class:`KeyDesc`, along with a getter to expose it to ``exekall``.
-
-    .. note:: Since the dosctring is interpreted as a template, "{" and "}"
-        characters must be doubled to appear in the final output.
-    """
-    def __new__(metacls, name, bases, dct, **kwargs):
-        new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
-        if not inspect.isabstract(new_cls):
-            if new_cls.__doc__:
-                doc = inspect.getdoc(new_cls)
-                # Create a ResStructuredText preformatted block when rendering
-                # with Sphinx
-                style = 'rst' if is_running_sphinx() else None
-                generated_help = '\n' + new_cls.get_help(style=style)
-                indent = '\n    '
-                try:
-                    # Not all classes support these parameters
-                    yaml_example = new_cls().to_yaml_map_str(
-                        add_placeholder=True,
-                        placeholder='_'
-                    )
-                except TypeError:
-                    yaml_example = new_cls().to_yaml_map_str()
-
-                if yaml_example:
-                    yaml_example = ':Example YAML:\n\n.. code-block:: YAML\n' + indent + yaml_example.replace('\n', indent)
-                new_cls.__doc__ = doc.format(
-                    generated_help=generated_help,
-                    yaml_example=yaml_example
-                )
-
-        # Create the types for the keys that specify it, along with the getters
-        # to expose the values to exekall
-        if hasattr(new_cls, 'STRUCTURE') and isinstance(new_cls.STRUCTURE, TopLevelKeyDesc):
-
-            def flatten(structure):
-                for key_desc in structure.values():
-                    if isinstance(key_desc, LevelKeyDesc):
-                        yield from flatten(key_desc)
-                    else:
-                        yield key_desc
-
-            for key_desc in flatten(new_cls.STRUCTURE):
-                newtype_name = key_desc.newtype
-                if isinstance(key_desc, KeyDesc):
-
-                    # We need a helper to make sure "key_desc" is bound to the
-                    # right object, otherwise it will be referred by name only
-                    # and will always have the value during the last iteration
-                    # of the loop
-                    # FIXME: pylint complains about make_metacls being unused,
-                    # which is a bug:
-                    # https://github.com/PyCQA/pylint/issues/4020
-                    def make_metacls(key_desc): # pylint: disable=unused-variable
-                        # Implement __instancecheck__ on the metaclass allows
-                        # isinstance(x, Newtype) to be true for any instance of any
-                        # type given in KeyDesc.__init__(classinfo=...)
-                        class NewtypeMeta(type):
-                            def __instancecheck__(cls, x):
-                                classinfo = tuple(
-                                    c if c is not None else type(None)
-                                    for c in key_desc.classinfo
-                                )
-                                return isinstance(x, classinfo)
-
-                        return NewtypeMeta
-
-                    # Inherit from HideExekallID, since we don't want it to be
-                    # shown in the exekall IDs.
-                    class Newtype(HideExekallID, metaclass=make_metacls(key_desc)):
-                        pass
-
-                    Newtype.__name__ = newtype_name
-                    Newtype.__qualname__ = f'{new_cls.__qualname__}.{newtype_name}'
-                    Newtype.__module__ = new_cls.__module__
-                    Newtype.__doc__ = key_desc.help
-                    setattr(new_cls, newtype_name, Newtype)
-
-                    def make_getter(cls, type_, key_desc):
-                        def getter(self: cls) -> type_:
-                            try:
-                                return self.get_nested_key(key_desc.path[1:])
-                            # We cannot afford to raise here, as the
-                            # configuration instance might not hold a value for
-                            # that key, but we still need to pass something to
-                            # the user function.
-                            except KeyError:
-                                return None
-
-                        getter_name = f'_get_typed_key_{type_.__name__}'
-                        getter.__name__ = getter_name
-                        getter.__qualname__ = f'{cls.__qualname__}.{getter_name}'
-                        getter.__module__ = cls.__module__
-                        return getter
-
-                    newtype_getter = make_getter(new_cls, Newtype, key_desc)
-                    setattr(new_cls, newtype_getter.__name__, newtype_getter)
-
-        return new_cls
-
-
-class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
-    _registered_toplevel_keys = {}
+class MultiSrcConfABC(Serializable, abc.ABC):
+    _REGISTERED_TOPLEVEL_KEYS = {}
 
     @abc.abstractmethod
     def to_map(self):
@@ -907,20 +793,108 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
         self.to_yaml_map(content, **kwargs)
         return content.getvalue()
 
-    # Only used with Python >= 3.6, but since that is just a sanity check it
-    # should be okay
     @classmethod
     def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
         # Ignore abstract classes, since there can be no instance of them
         if not inspect.isabstract(cls):
+            if cls.__doc__:
+                doc = inspect.getdoc(cls)
+                # Create a ResStructuredText preformatted block when rendering
+                # with Sphinx
+                style = 'rst' if is_running_sphinx() else None
+                generated_help = '\n' + cls.get_help(style=style)
+                indent = '\n    '
+                try:
+                    # Not all classes support these parameters
+                    yaml_example = cls().to_yaml_map_str(
+                        add_placeholder=True,
+                        placeholder='_'
+                    )
+                except TypeError:
+                    yaml_example = cls().to_yaml_map_str()
+
+                if yaml_example:
+                    yaml_example = ':Example YAML:\n\n.. code-block:: YAML\n' + indent + yaml_example.replace('\n', indent)
+                cls.__doc__ = doc.format(
+                    generated_help=generated_help,
+                    yaml_example=yaml_example
+                )
+
+        # Create the types for the keys that specify it, along with the getters
+        # to expose the values to exekall
+        if hasattr(cls, 'STRUCTURE') and isinstance(cls.STRUCTURE, TopLevelKeyDesc):
             # Ensure uniqueness of toplevel key
             toplevel_key = cls.STRUCTURE.name
-            if toplevel_key in cls._registered_toplevel_keys:
-                raise RuntimeError(f'Class {cls.__qualname__} cannot reuse top level key "{toplevel_key}" as it is already used by {cls._registered_toplevel_keys[toplevel_key]}')
+            if toplevel_key in cls._REGISTERED_TOPLEVEL_KEYS:
+                raise RuntimeError(f'Class {cls.__qualname__} cannot reuse top level key "{toplevel_key}" as it is already used by {cls._REGISTERED_TOPLEVEL_KEYS[toplevel_key]}')
             else:
-                cls._registered_toplevel_keys[toplevel_key] = cls
+                cls._REGISTERED_TOPLEVEL_KEYS[toplevel_key] = cls
 
-        super().__init_subclass__(**kwargs)
+            def flatten(structure):
+                for key_desc in structure.values():
+                    if isinstance(key_desc, LevelKeyDesc):
+                        yield from flatten(key_desc)
+                    else:
+                        yield key_desc
+
+            for key_desc in flatten(cls.STRUCTURE):
+                newtype_name = key_desc.newtype
+                if isinstance(key_desc, KeyDesc):
+
+                    # We need a helper to make sure "key_desc" is bound to the
+                    # right object, otherwise it will be referred by name only
+                    # and will always have the value during the last iteration
+                    # of the loop
+                    # FIXME: pylint complains about make_metacls being unused,
+                    # which is a bug:
+                    # https://github.com/PyCQA/pylint/issues/4020
+                    def make_metacls(key_desc): # pylint: disable=unused-variable
+                        # Implement __instancecheck__ on the metaclass allows
+                        # isinstance(x, Newtype) to be true for any instance of any
+                        # type given in KeyDesc.__init__(classinfo=...)
+                        class NewtypeMeta(type):
+                            def __instancecheck__(cls, x):
+                                classinfo = tuple(
+                                    c if c is not None else type(None)
+                                    for c in key_desc.classinfo
+                                )
+                                return isinstance(x, classinfo)
+
+                        return NewtypeMeta
+
+                    # Inherit from HideExekallID, since we don't want it to be
+                    # shown in the exekall IDs.
+                    class Newtype(HideExekallID, metaclass=make_metacls(key_desc)):
+                        pass
+
+                    Newtype.__name__ = newtype_name
+                    Newtype.__qualname__ = f'{cls.__qualname__}.{newtype_name}'
+                    Newtype.__module__ = cls.__module__
+                    Newtype.__doc__ = key_desc.help
+                    setattr(cls, newtype_name, Newtype)
+
+                    def make_getter(cls, type_, key_desc):
+                        def getter(self: cls) -> type_:
+                            try:
+                                return self.get_nested_key(key_desc.path[1:])
+                            # We cannot afford to raise here, as the
+                            # configuration instance might not hold a value for
+                            # that key, but we still need to pass something to
+                            # the user function.
+                            except KeyError:
+                                return None
+
+                        getter_name = f'_get_typed_key_{type_.__name__}'
+                        getter.__name__ = getter_name
+                        getter.__qualname__ = f'{cls.__qualname__}.{getter_name}'
+                        getter.__module__ = cls.__module__
+                        return getter
+
+                    newtype_getter = make_getter(cls, Newtype, key_desc)
+                    setattr(cls, newtype_getter.__name__, newtype_getter)
+
 
 class _HashableMultiSrcConf:
     """
@@ -945,6 +919,7 @@ class _HashableMultiSrcConf:
             return self.conf is other.conf
         else:
             return False
+
 
 class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     """
@@ -972,6 +947,20 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     be defined for a specific key if needed.
 
     .. seealso:: :class:`KeyDescBase`
+
+    This base class will modify the docstring of subclasses, using it as an
+    ``str.format`` template with the following placeholders:
+
+        * ``{generated_help}``: snippet of ResStructuredText containing the
+          list of allowed keys.
+
+        * ``{yaml_example}``: example snippet of YAML
+
+    It will also create the types specified using ``newtype`` in the
+    :class:`KeyDesc`, along with a getter to expose it to ``exekall``.
+
+    .. note:: Since the dosctring is interpreted as a template, "{" and "}"
+        characters must be doubled to appear in the final output.
     """
 
     @abc.abstractmethod
