@@ -1780,105 +1780,7 @@ class SimpleMultiSrcConf(MultiSrcConf):
             return None
 
 
-class ConfigurableMeta(abc.ABCMeta):
-    def __new__(metacls, name, bases, dct, **kwargs):
-        new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
-        try:
-            # inherited CONF_CLASS will not be taken into account if we look at
-            # the dictionary directly
-            conf_cls = dct['CONF_CLASS']
-        except KeyError:
-            return new_cls
-
-        # Link the configuration to the signature of __init__
-        sig = inspect.signature(new_cls.__init__)
-        init_kwargs_key_map = new_cls._get_kwargs_key_map(sig, conf_cls)
-        # What was already there has priority over auto-detected bindings
-        init_kwargs_key_map.update(dct.get('INIT_KWARGS_KEY_MAP', {}))
-        new_cls.INIT_KWARGS_KEY_MAP = init_kwargs_key_map
-
-        # Create an instance with default configuration, to merge it with
-        # defaults taken from __init__
-        default_conf = conf_cls()
-        default_conf.add_src(
-            src='__init__-default',
-            conf=metacls._get_default_conf(sig, init_kwargs_key_map),
-            # Default configuration set in the conf class still has priority
-            fallback=True,
-            # When an __init__ parameter has a None default value, we don't
-            # add any default value. That avoids failing the type check for
-            # keys that really need to be of a certain type when specified.
-            filter_none=True,
-        )
-        # Convert to a dict so that the Sphinx documentation is able to show
-        # the content of the source
-        conf_cls.DEFAULT_SRC = dict(default_conf._get_effective_map())
-
-        # Update the docstring by using the configuration help
-        docstring = inspect.getdoc(new_cls)
-        if docstring:
-            new_cls.__doc__ = docstring.format(
-                configurable_params=new_cls._get_rst_param_doc()
-            )
-
-        return new_cls
-
-    @staticmethod
-    def _get_kwargs_key_map(sig, conf_cls):
-        """
-        Map implicitely keys in the conf class that matches param names.
-        """
-        def iter_param_key(sig):
-            return (
-                (param, param.replace('_', '-'))
-                for param in sig.parameters.keys()
-            )
-
-        return {
-            param: [key]
-            for param, key in iter_param_key(sig)
-            if key in conf_cls.STRUCTURE
-        }
-
-    @staticmethod
-    def _get_default_conf(sig, kwargs_key_map):
-        """
-        Get a default configuration source based on the the default parameter
-        values.
-        """
-        default_conf = {}
-        for param, param_desc in sig.parameters.items():
-            try:
-                conf_path = kwargs_key_map[param]
-            except KeyError:
-                continue
-            else:
-                default = param_desc.default
-                if default is not param_desc.empty:
-                    set_nested_key(default_conf, conf_path, default)
-
-        return default_conf
-
-    def _get_param_key_desc_map(cls):
-        return {
-            param: get_nested_key(cls.CONF_CLASS.STRUCTURE, conf_path)
-            for param, conf_path in cls.INIT_KWARGS_KEY_MAP.items()
-        }
-
-    def _get_rst_param_doc(cls):
-        # pylint: disable=no-value-for-parameter
-        return '\n'.join(
-            ':param {param}: {help}\n:type {param}: {type}\n'.format(
-                param=param,
-                help=key_desc.help,
-                type=' or '.join(get_cls_name(t) for t in key_desc.classinfo),
-            )
-            for param, key_desc
-            in cls._get_param_key_desc_map().items()
-        )
-
-
-class Configurable(abc.ABC, metaclass=ConfigurableMeta):
+class Configurable(abc.ABC):
     """
     Pair a regular class with a configuration class.
 
@@ -1917,6 +1819,105 @@ class Configurable(abc.ABC, metaclass=ConfigurableMeta):
 
     """
     INIT_KWARGS_KEY_MAP = {}
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        dct = cls.__dict__
+
+        try:
+            # inherited CONF_CLASS will not be taken into account if we look at
+            # the dictionary directly
+            conf_cls = dct['CONF_CLASS']
+        except KeyError:
+            return
+
+        # Link the configuration to the signature of __init__
+        sig = inspect.signature(cls.__init__)
+        init_kwargs_key_map = cls._get_kwargs_key_map(sig, conf_cls)
+        # What was already there has priority over auto-detected bindings
+        init_kwargs_key_map.update(dct.get('INIT_KWARGS_KEY_MAP', {}))
+        cls.INIT_KWARGS_KEY_MAP = init_kwargs_key_map
+
+        # Create an instance with default configuration, to merge it with
+        # defaults taken from __init__
+        default_conf = conf_cls()
+        default_conf.add_src(
+            src='__init__-default',
+            conf=cls._get_default_conf(sig, init_kwargs_key_map),
+            # Default configuration set in the conf class still has priority
+            fallback=True,
+            # When an __init__ parameter has a None default value, we don't
+            # add any default value. That avoids failing the type check for
+            # keys that really need to be of a certain type when specified.
+            filter_none=True,
+        )
+        # Convert to a dict so that the Sphinx documentation is able to show
+        # the content of the source
+        conf_cls.DEFAULT_SRC = dict(default_conf._get_effective_map())
+
+        # Update the docstring by using the configuration help
+        docstring = inspect.getdoc(cls)
+        if docstring:
+            cls.__doc__ = docstring.format(
+                configurable_params=cls._get_rst_param_doc()
+            )
+
+    @staticmethod
+    def _get_kwargs_key_map(sig, conf_cls):
+        """
+        Map implicitely keys in the conf class that matches param names.
+        """
+        def iter_param_key(sig):
+            return (
+                (param, param.replace('_', '-'))
+                for param in sig.parameters.keys()
+            )
+
+        return {
+            param: [key]
+            for param, key in iter_param_key(sig)
+            if key in conf_cls.STRUCTURE
+        }
+
+    @staticmethod
+    def _get_default_conf(sig, kwargs_key_map):
+        """
+        Get a default configuration source based on the the default parameter
+        values.
+        """
+        default_conf = {}
+        for param, param_desc in sig.parameters.items():
+            try:
+                conf_path = kwargs_key_map[param]
+            except KeyError:
+                continue
+            else:
+                default = param_desc.default
+                if default is not param_desc.empty:
+                    set_nested_key(default_conf, conf_path, default)
+
+        return default_conf
+
+    @classmethod
+    def _get_param_key_desc_map(cls):
+        return {
+            param: get_nested_key(cls.CONF_CLASS.STRUCTURE, conf_path)
+            for param, conf_path in cls.INIT_KWARGS_KEY_MAP.items()
+        }
+
+    @classmethod
+    def _get_rst_param_doc(cls):
+        # pylint: disable=no-value-for-parameter
+        return '\n'.join(
+            ':param {param}: {help}\n:type {param}: {type}\n'.format(
+                param=param,
+                help=key_desc.help,
+                type=' or '.join(get_cls_name(t) for t in key_desc.classinfo),
+            )
+            for param, key_desc
+            in cls._get_param_key_desc_map().items()
+        )
 
     @classmethod
     def conf_to_init_kwargs(cls, conf):
