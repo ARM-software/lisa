@@ -1024,11 +1024,16 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         super().to_path(self._get_filepath(res_dir))
 
 
-class FtraceTestBundleMeta(TestBundleMeta):
+class FtraceTestBundle(TestBundle):
     """
-    Metaclass of :class:`FtraceTestBundle`.
+    Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
 
-    This metaclass ensures that each class will get its own copy of
+    Optionally, an ``ftrace_conf`` class attribute can be defined to hold
+    additional FTrace configuration used to record a trace while the synthetic
+    workload is being run. By default, the required events are extracted from
+    decorated test methods.
+
+    This base class ensures that each subclass will get its own copy of
     ``ftrace_conf`` attribute, and that the events specified in that
     configuration are a superset of what is needed by methods using the family
     of decorators :func:`lisa.trace.requires_events`. This makes sure that the
@@ -1048,13 +1053,19 @@ class FtraceTestBundleMeta(TestBundleMeta):
           :meth:`lisa.trace.FtraceCollector.from_user_conf`
     """
 
-    def __new__(metacls, name, bases, dct, **kwargs):
-        new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
+    TRACE_PATH = 'trace.dat'
+    """
+    Path to the ``trace-cmd`` trace.dat file in the result directory.
+    """
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
 
         # Collect all the events that can be used by all methods available on
         # that class.
         ftrace_events = set()
-        for name, obj in inspect.getmembers(new_cls, callable):
+        for name, obj in inspect.getmembers(cls, callable):
             try:
                 used_events = obj.used_events
             except AttributeError:
@@ -1066,47 +1077,26 @@ class FtraceTestBundleMeta(TestBundleMeta):
         # unique to that class (i.e. not shared with any other parent or
         # sibling classes)
         try:
-            ftrace_conf = new_cls.ftrace_conf
+            ftrace_conf = cls.ftrace_conf
         except AttributeError:
-            ftrace_conf = FtraceConf(src=new_cls.__qualname__)
+            ftrace_conf = FtraceConf(src=cls.__qualname__)
         else:
             # If the ftrace_conf attribute has been defined in a base class,
             # make sure that class gets its own copy since we are going to
             # modify it
-            if 'ftrace_conf' not in dct:
+            if 'ftrace_conf' not in cls.__dict__:
                 ftrace_conf = copy.copy(ftrace_conf)
 
-        new_cls.ftrace_conf = ftrace_conf
+        cls.ftrace_conf = ftrace_conf
 
         # Merge-in a new source to FtraceConf that contains the events we
         # collected
         ftrace_conf.add_merged_src(
-            src=f'{new_cls.__qualname__}(required)',
+            src=f'{cls.__qualname__}(required)',
             conf={
                 'events': sorted(ftrace_events),
             },
         )
-
-        return new_cls
-
-
-class FtraceTestBundle(TestBundle, metaclass=FtraceTestBundleMeta):
-    """
-    Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
-
-    Optionally, an ``ftrace_conf`` class attribute can be defined to hold
-    additional FTrace configuration used to record a trace while the synthetic
-    workload is being run. By default, the required events are extracted from
-    decorated test methods.
-
-    .. seealso: :class:`lisa.tests.base.FtraceTestBundleMeta` for default
-        ``ftrace_conf`` content.
-    """
-
-    TRACE_PATH = 'trace.dat'
-    """
-    Path to the ``trace-cmd`` trace.dat file in the result directory.
-    """
 
     @property
     def trace_path(self):
@@ -1261,7 +1251,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     """
     Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
 
-    .. seealso: :class:`lisa.tests.base.FtraceTestBundleMeta` for default
+    .. seealso: :class:`lisa.tests.base.FtraceTestBundle` for default
         ``ftrace_conf`` content.
     """
 
