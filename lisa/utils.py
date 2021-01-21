@@ -934,6 +934,29 @@ def consume(n, iterator):
         next(itertools.islice(iterator, n, n), None)
 
 
+def unzip_into(n, iterator):
+    """
+    Unzip a given ``iterator`` into ``n`` variables.
+
+    **Example**::
+
+        orig_a = [1, 3]
+        orig_b = [2, 4]
+        a, b = unzip(zip(orig_a, orig_b))
+        assert a == orig_a
+        assert b == orig_b
+
+
+    .. note:: ``n`` is needed in order to handle properly the case where an
+        empty iterator is passed.
+    """
+    xs = list(iterator)
+    if xs:
+        return zip(*xs)
+    else:
+        return [tuple()] * n
+
+
 def get_nested_key(mapping, key_path, getitem=operator.getitem):
     """
     Get a key in a nested mapping
