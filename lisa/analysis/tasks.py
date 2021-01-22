@@ -1011,6 +1011,8 @@ class TasksAnalysis(TraceAnalysisBase):
             else:
                 return df_refit_index(df, window=(None, df.index[-1]+df['duration'].iat[-1]))
 
+        label = ' '.join(map(str, self.trace.get_task_ids(task)))
+
         if not df.empty:
             color = self.get_next_color(axis)
 
@@ -1024,7 +1026,7 @@ class TasksAnalysis(TraceAnalysisBase):
                     # Reversed limits so 0 is at the top, kernelshark-style
                     axis.set_ylim((cpus_count, 0))
 
-                for cpu in range(cpus_count):
+                for cpu, _label in zip(range(cpus_count), itertools.chain([label], itertools.repeat(None))):
                     # The y tick is not reversed, so we need to change the
                     # level manually to match kernelshark behavior
                     if overlay:
@@ -1048,6 +1050,7 @@ class TasksAnalysis(TraceAnalysisBase):
                             color=color,
                             # Avoid ugly lines striking through sleep times
                             linewidth=0,
+                            label=_label,
                         )
 
                 if not overlay:
@@ -1062,6 +1065,7 @@ class TasksAnalysis(TraceAnalysisBase):
                     alpha=_alpha,
                     color=color,
                     linewidth=0,
+                    label=label,
                 )
 
             if duty_cycle or duration:
@@ -1093,6 +1097,7 @@ class TasksAnalysis(TraceAnalysisBase):
         if local_fig:
             axis.set_title(f'Activations of {task}')
             axis.grid(True)
+            axis.legend()
 
     @TraceAnalysisBase.plot_method()
     @plot_task_activation.used_events
