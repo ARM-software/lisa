@@ -3658,7 +3658,7 @@ def check_report_path(path, probe_file):
     path = pathlib.Path(path)
     compo = path.name.split('.')
     # By default, assume YAML unless pickle is explicitly present
-    is_yaml = 'pickle' not in path.name.split('.')
+    is_yaml = '.pickle' not in path.name
     return (open_f, is_yaml)
 
 
