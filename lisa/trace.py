@@ -1452,9 +1452,20 @@ class TxtTraceParser(TxtTraceParserBase):
                 selector.extend(('-r', event))
             return selector
 
+        # Make sure we only ask to trace-cmd events that can exist, otherwise
+        # it might bail out and give nothing at all, especially with -F
+        kernel_events = {
+            event.split(':', 1)[1]
+            for event in subprocess.check_output(
+                ['trace-cmd', 'report', '-N', '-E', '--', path],
+                stderr=subprocess.DEVNULL,
+                universal_newlines=True,
+            ).splitlines()
+        }
+        events = [event for event in events if event in kernel_events]
+
         raw_events = list(itertools.chain.from_iterable(map(make_selector, events)))
         pre_filled_metadata = {}
-
 
         if 'symbols-address' in needed_metadata:
             # Get the symbol addresses in that trace
