@@ -98,7 +98,7 @@ class TaskState(StateInt, Enum):
 
         See include/linux/sched.h:TASK_REPORT
         """
-        return [state for state in list(cls) if state <= cls.TASK_DEAD]
+        return [state for state in cls if 0 <= state <= cls.TASK_DEAD]
 
     # Could use IntFlag instead once we move to Python 3.6
     @classmethod
