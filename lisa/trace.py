@@ -923,10 +923,8 @@ class TxtTraceParserBase(TraceParserBase):
         # This should have been set on the first line.
         # Note: we don't raise the exception if no events were asked for, to
         # allow creating dummy parsers without any line
-        # TODO: Reenable that when this is fixed:
-        # https://bugzilla.kernel.org/show_bug.cgi?id=211255
-        # if begin_time is None and events:
-        #     raise ValueError('No lines containing events have been found')
+        if begin_time is None and events:
+            raise ValueError('No lines containing events have been found')
 
         end_time = line_time
         available_events.update(
@@ -1145,12 +1143,10 @@ class TxtTraceParserBase(TraceParserBase):
         if key == 'time-range' and key in self._needed_metadata:
             return self._time_range
 
-        # TODO: reenable that once this trace-cmd bug is solved:
-        # https://bugzilla.kernel.org/show_bug.cgi?id=211255
         # If we filtered some events, we are not exhaustive anymore so we
         # cannot return the list
-        # if key == 'available-events':
-        #     return self._available_events
+        if key == 'available-events':
+            return self._available_events
 
         try:
             return self._pre_filled_metadata[key]
@@ -1442,15 +1438,10 @@ class TxtTraceParser(TxtTraceParserBase):
             else:
                 return parser.raw
 
-        def make_selector(event):
-            # trace-cmd has a bug that makes it drop some events
-            # arbitrarily when -r is used and if -F is not specified, so
-            # use it:
-            # https://bugzilla.kernel.org/show_bug.cgi?id=211255
-            selector = ['-F', event]
-            if use_raw(event):
-                selector.extend(('-r', event))
-            return selector
+        raw_events = list(itertools.chain.from_iterable(
+            ('-r', event) if use_raw(event) else []
+            for event in events
+        ))
 
         # Make sure we only ask to trace-cmd events that can exist, otherwise
         # it might bail out and give nothing at all, especially with -F
@@ -1464,7 +1455,6 @@ class TxtTraceParser(TxtTraceParserBase):
         }
         events = [event for event in events if event in kernel_events]
 
-        raw_events = list(itertools.chain.from_iterable(map(make_selector, events)))
         pre_filled_metadata = {}
 
         if 'symbols-address' in needed_metadata:
