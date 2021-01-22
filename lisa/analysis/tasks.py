@@ -1003,6 +1003,14 @@ class TasksAnalysis(TraceAnalysisBase):
         sleep_value = sleep_value if sleep_value is not None else 0
         preempted_value = sleep_value
 
+        def ensure_last_rectangle(df):
+            # Make sure we will draw the last rectangle, which could be
+            # critical for tasks that are never sleeping
+            if df.empty:
+                return df
+            else:
+                return df_refit_index(df, window=(None, df.index[-1]+df['duration'].iat[-1]))
+
         if not df.empty:
             color = self.get_next_color(axis)
 
@@ -1025,24 +1033,27 @@ class TasksAnalysis(TraceAnalysisBase):
                         y_level = level_height * cpu
 
                     cpu_df = df[df['cpu'] == cpu]
-                    active = cpu_df['active'].fillna(preempted_value)
-                    if height_duty_cycle:
-                        active *= cpu_df['duty_cycle']
+                    if not cpu_df.empty:
+                        cpu_df = ensure_last_rectangle(cpu_df)
+                        active = cpu_df['active'].fillna(preempted_value)
+                        if height_duty_cycle:
+                            active *= cpu_df['duty_cycle']
 
-                    axis.fill_between(
-                        x=cpu_df.index,
-                        y1=y_level,
-                        y2=y_level + active * level_height,
-                        step='post',
-                        alpha=_alpha,
-                        color=color,
-                        # Avoid ugly lines striking through sleep times
-                        linewidth=0,
-                    )
+                        axis.fill_between(
+                            x=cpu_df.index,
+                            y1=y_level,
+                            y2=y_level + active * level_height,
+                            step='post',
+                            alpha=_alpha,
+                            color=color,
+                            # Avoid ugly lines striking through sleep times
+                            linewidth=0,
+                        )
 
                 if not overlay:
                     axis.set_ylabel('CPU')
             else:
+                df = ensure_last_rectangle(df)
                 axis.fill_between(
                     x=df.index,
                     y1=sleep_value,
