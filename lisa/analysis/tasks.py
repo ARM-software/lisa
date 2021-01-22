@@ -102,6 +102,7 @@ class TaskState(StateInt, Enum):
 
     # Could use IntFlag instead once we move to Python 3.6
     @classmethod
+    @memoized
     def sched_switch_str(cls, value):
         """
         Get the task state string that would be used in a ``sched_switch`` event
@@ -111,16 +112,24 @@ class TaskState(StateInt, Enum):
 
         Tries to emulate what is done in include/trace/events:TRACE_EVENT(sched_switch)
         """
-        if any([value & state.value for state in cls.list_reported_states()]):
-            res = "|".join([state.char for state in cls.list_reported_states()
-                            if state.value & value])
-        else:
-            res = cls.TASK_RUNNING.char
+        def find_states(value, states):
+            return [
+                state.char
+                for state in states
+                if value & state.value
+            ]
+
+        reported_states = cls.list_reported_states()
+        res = '|'.join(find_states(value, reported_states))
+        res = res if res else cls.TASK_RUNNING.char
 
         # Flag the presence of unreportable states with a "+"
-        if any([value & state.value for state in list(cls)
-                if state not in cls.list_reported_states()]):
-            res += "+"
+        unreportable_states = [
+            state for state in cls
+            if state.value >= 0 and state not in reported_states
+        ]
+        if find_states(value, unreportable_states):
+            res += '+'
 
         return res
 
