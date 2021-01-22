@@ -538,7 +538,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
                     f_kwargs.update(
                         axis=axis,
-                        local_fig=local_fig,
+                        local_fig=f_kwargs.get('local_fig', local_fig),
                     )
                     with set_cycler(axis), set_rc_params(axis):
                         f(**f_kwargs)
