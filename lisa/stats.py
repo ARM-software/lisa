@@ -316,6 +316,9 @@ class Stats(Loggable):
             if not unit.normalizable
         },
     ):
+        if df.empty:
+            raise ValueError('Empty dataframes are not handled')
+
         if filter_rows:
             df = df_filter(df, filter_rows)
 
