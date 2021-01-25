@@ -984,7 +984,7 @@ class Stats(Loggable):
             ax.set_title(title)
 
             def format_val(val):
-                return f'{val:.2f}' if val > 1e-2 else f'{val:.2e}'
+                return f'{val:.2f}' if abs(val) > 1e-2 else f'{val:.2e}'
 
             # Display the value on the bar
             for row, patch in zip(df.itertuples(), ax.patches):
