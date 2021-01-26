@@ -33,6 +33,7 @@ import importlib
 import sys
 import io
 import datetime
+import io
 from operator import attrgetter
 
 import exekall._utils as utils
@@ -64,6 +65,37 @@ class IndentationManager:
 
     def __str__(self):
         return str(self.style) * self.level
+
+
+class _ExceptionPickler(pickle.Pickler):
+    """
+    Fix pickling of exceptions so they can be reloaded without troubles, even
+    when called with keyword arguments:
+
+    https://bugs.python.org/issue40917
+    """
+
+    def reducer_override(self, obj):
+        if isinstance(obj, Exception):
+            # Will call obj.__new__(obj.__class__) to create an "empty"
+            # instance and then set the __dict__. It is not clear why
+            # Exception.__reduce__ fiddles with arguments passed to __init__,
+            # but since it is broken anyway, give this a go
+            return (obj.__new__, (obj.__class__, ), obj.__dict__)
+        else:
+            # Fallback to default behaviour
+            return NotImplemented
+
+    @classmethod
+    def dump_bytestring(cls, obj, **kwargs):
+        f = io.BytesIO()
+        cls.dump_file(f, obj, **kwargs)
+        return f.getvalue()
+
+    @classmethod
+    def dump_file(cls, f, obj, **kwargs):
+        pickler = cls(f, **kwargs)
+        return pickler.dump(obj)
 
 
 class ValueDB:
@@ -287,12 +319,16 @@ class ValueDB:
             loading/file size.
         :type optimize: bool
         """
+        protocol = self.PICKLE_PROTOCOL
+
         if optimize:
-            bytes_ = pickle.dumps(self, protocol=self.PICKLE_PROTOCOL)
-            bytes_ = pickletools.optimize(bytes_)
-            def dumper(f): return f.write(bytes_)
+            def dumper(f):
+                bytes_ = _ExceptionPickler.dump_bytestring(self, protocol=protocol)
+                bytes_ = pickletools.optimize(bytes_)
+                return f.write(bytes_)
         else:
-            def dumper(f): return pickle.dump(self, f, protocol=self.PICKLE_PROTOCOL)
+            def dumper(f):
+                return _ExceptionPickler.dump_file(f, self, protocol=protocol)
 
         with lzma.open(str(path), 'wb') as f:
             dumper(f)
