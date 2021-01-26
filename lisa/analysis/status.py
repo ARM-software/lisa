@@ -50,11 +50,12 @@ class StatusAnalysis(TraceAnalysisBase):
         """
         # Build sequence of overutilization "bands"
         df = self.trace.df_event('sched_overutilized')
+        # There might be a race between multiple CPUs to emit the
+        # sched_overutilized event, so get rid of duplicated events
+        df = df_deduplicate(df, cols=['overutilized'], keep='first', consecutives=True)
         df = df_add_delta(df, col='len', window=self.trace.window)
         # Ignore the last line added by df_refit_index() with a NaN len
         df = df.iloc[:-1]
-        # Remove duplicated index events
-        df = df_deduplicate(df, keep='last', consecutives=True)
         return df[['len', 'overutilized']]
 
     def get_overutilized_time(self):
