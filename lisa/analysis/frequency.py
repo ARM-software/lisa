@@ -211,18 +211,18 @@ class FrequencyAnalysis(TraceAnalysisBase):
         # - freq_active, square wave of the form:
         #     freq_active[t] == 1 if at time t the frequency is f
         #     freq_active[t] == 0 otherwise
-        available_freqs = sorted(cluster_freqs.frequency.unique())
         cluster_freqs = cluster_freqs.join(
             cluster_active.to_frame(name='active'), how='outer')
         cluster_freqs.fillna(method='ffill', inplace=True)
-        nonidle_time = []
-        for freq in available_freqs:
-            freq_active = cluster_freqs.frequency.apply(lambda x: 1 if x == freq else 0)
-            active_t = cluster_freqs.active * freq_active
-            # Compute total time by integrating the square wave
-            nonidle_time.append(series_integrate(active_t))
 
-        time_df["active_time"] = pd.DataFrame(index=available_freqs, data=nonidle_time)
+        # Compute total time by integrating the square wave
+        time_df['active_time'] = pd.Series({
+            freq: series_integrate(
+                cluster_freqs['active'] * (cluster_freqs['frequency'] == freq)
+            )
+            for freq in cluster_freqs['frequency'].unique()
+        })
+
         return time_df
 
 
