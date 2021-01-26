@@ -44,6 +44,17 @@ class LatencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.cache
     @TasksAnalysis.df_task_states.used_events
+    def _df_latency(self, task, name, curr_state, next_state):
+        df = self.trace.analysis.tasks.df_task_states(task)
+        df = df[
+            (df.curr_state == curr_state) &
+            (df.next_state == next_state)
+        ][["delta"]]
+
+        df = df.rename(columns={'delta': name}, copy=False)
+        return df
+
+    @_df_latency.used_events
     def df_latency_wakeup(self, task):
         """
         DataFrame of a task's wakeup latencies
@@ -55,17 +66,14 @@ class LatencyAnalysis(TraceAnalysisBase):
 
           * A ``wakeup_latency`` column (the wakeup latency at that timestamp).
         """
+        return self._df_latency(
+            task,
+            'wakeup_latency',
+            TaskState.TASK_WAKING,
+            TaskState.TASK_ACTIVE
+        )
 
-        df = self.trace.analysis.tasks.df_task_states(task)
-
-        df = df[(df.curr_state == TaskState.TASK_WAKING) &
-                (df.next_state == TaskState.TASK_ACTIVE)][["delta"]]
-
-        df = df.rename(columns={'delta': 'wakeup_latency'}, copy=False)
-        return df
-
-    @TraceAnalysisBase.cache
-    @TasksAnalysis.df_task_states.used_events
+    @_df_latency.used_events
     def df_latency_preemption(self, task):
         """
         DataFrame of a task's preemption latencies
@@ -77,13 +85,12 @@ class LatencyAnalysis(TraceAnalysisBase):
 
           * A ``preempt_latency`` column (the preemption latency at that timestamp).
         """
-        df = self.trace.analysis.tasks.df_task_states(task)
-
-        df = df[(df.curr_state == TaskState.TASK_RUNNING) &
-                (df.next_state == TaskState.TASK_ACTIVE)][["delta"]]
-
-        df = df.rename(columns={'delta': 'preempt_latency'}, copy=False)
-        return df
+        return self._df_latency(
+            task,
+            'preempt_latency',
+            TaskState.TASK_RUNNING,
+            TaskState.TASK_ACTIVE
+        )
 
     @TraceAnalysisBase.cache
     @TasksAnalysis.df_task_states.used_events
