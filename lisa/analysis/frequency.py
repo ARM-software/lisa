@@ -259,10 +259,17 @@ class FrequencyAnalysis(TraceAnalysisBase):
           * A ``total_time`` column (the total time spent at a frequency)
           * A ``active_time`` column (the non-idle time spent at a frequency)
         """
-        domains = self.trace.plat_info['freq-domains']
-        for domain in domains:
-            if cpu in domain:
-                return self._get_frequency_residency(tuple(domain))
+        domains = [
+            domain
+            for domain in self.trace.plat_info['freq-domains']
+            if cpu in domain
+        ]
+
+        if not domains:
+            raise ValueError(f'The given CPU "{cpu}" does not belong to any domain')
+        else:
+            domain, = domains
+            return self._get_frequency_residency(tuple(domain))
 
     @TraceAnalysisBase.cache
     @df_cpu_frequency.used_events
