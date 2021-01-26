@@ -863,7 +863,7 @@ class EnergyModel(Serializable, Loggable):
                   the returned DataFrame to get a Series that shows overall
                   estimated power usage over time.
         """
-        idle = trace.analysis.idle.df_cpu_idle().pivot(columns='cpu')['state']
+        idle = trace.analysis.idle.df_cpus_idle().pivot(columns='cpu')['state']
         freqs = trace.analysis.frequency.df_cpus_frequency().pivot(columns='cpu')['frequency']
 
         inputs = pandas.concat([idle, freqs], axis=1, keys=['idle', 'freq']).ffill()
