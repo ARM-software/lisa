@@ -23,27 +23,6 @@ class, see the documentation for common functionalities.
 rt-app
 ++++++
 
-`rt-app <https://github.com/scheduler-tools/rt-app>`_ lets you run configurable
-workloads described in JSON, and is the backbone of our scheduler tests. See
-the github page for more information.
-
-Our :class:`~lisa.wlgen.rta.RTA` class is a python wrapper around rt-app, which
-lets us abstract away the generation of the JSON files. On top of that, the
-:class:`~lisa.wlgen.rta.RTATask` class (and its children) facilitate the workload
-description. For instance, creating a workload with 4 tasks with a 50% duty
-cycle is as simple as this::
-
-   profile = {}
-
-   for i in range(4):
-       profile["task_{}".format(i)] = Periodic(duty_cycle_pct=50)
-
-   wload = RTA.by_profile(target, profile, name="4_50_tasks")
-   wload.run()
-
-See the :class:`~lisa.wlgen.rta.RTA` & :class:`~lisa.wlgen.rta.RTATask`
-documentations for more details.
-
 Sysbench
 ++++++++
 
@@ -74,21 +53,7 @@ Base class
 rt-app
 ++++++
 
-.. autoclass:: lisa.wlgen.rta.RTA
-   :members:
-
-.. autoclass:: lisa.wlgen.rta.Phase
-   :members:
-
-.. autoclass:: lisa.wlgen.rta.RTATask
-   :members:
-
 .. automodule:: lisa.wlgen.rta
-   :exclude-members: RTA, RTATask, Phase
-   :members:
-
-.. autoclass:: lisa.analysis.rta.PerfAnalysis
-   :exclude-members: RTAEventsAnalysis
    :members:
 
 Sysbench
