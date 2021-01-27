@@ -193,7 +193,8 @@ function _lisa-install-nbextensions {
         echo "Installing jupyter lab extensions..."
         jupyter labextension install --minimize=False   \
             @jupyter-widgets/jupyterlab-manager         \
-            jupyter-matplotlib
+            jupyter-matplotlib                          \
+            jupyterlab-plotly
         return
     fi
 

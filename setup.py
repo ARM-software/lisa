@@ -110,6 +110,8 @@ setup(
         # Depdendencies that are shipped as part of the LISA repo as
         # subtree/submodule
         "devlib",
+
+        "plotly"
     ],
 
     extras_require=extras_require,
