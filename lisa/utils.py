@@ -807,7 +807,12 @@ def groupby(iterable, key=None, reverse=False):
     # We need to sort before feeding to groupby, or it will fail to establish
     # the groups as expected.
     iterable = sorted(iterable, key=key, reverse=reverse)
-    return itertools.groupby(iterable, key=key)
+    return (
+        # It is necessary to turn the group into a list *before* iterating on
+        # the groupby object, otherwise we end up with an empty list
+        (key, list(group))
+        for key, group in itertools.groupby(iterable, key=key)
+    )
 
 
 def grouper(iterable, n, fillvalue=None):
