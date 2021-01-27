@@ -263,8 +263,14 @@ wlgen
 The :class:`lisa.wlgen.rta.RTA` class has been simplified somewhat:
 
 * :class:`lisa.wlgen.rta.RTATask` no longer has a superfluous ``get()`` method
+* There is no longer a split between task and phases.
+  :class:`lisa.wlgen.rta.RTAPhase` can be arranged into a tree with arbitrary
+  depth, instead of the previous split of toplevel class
+  :class:`~lisa.wlgen.rta.RTATask` and :class:`~lisa.wlgen.rta.Phase`.
 * ``RTA.conf()`` has been squashed inside alternative constructors, see
-  :meth:`lisa.wlgen.rta.RTA.by_str` and :meth:`lisa.wlgen.rta.RTA.by_profile`.
+  :meth:`lisa.wlgen.rta.RTA.from_str` and :meth:`lisa.wlgen.rta.RTA.from_profile`.
+* It is now possible to create a full JSON file without a live target using
+  :class:`~lisa.wlgen.rta.RTAConf`.
 
 **LISA legacy**::
 
@@ -276,10 +282,17 @@ The :class:`lisa.wlgen.rta.RTA` class has been simplified somewhat:
 
 **LISA next**::
 
-  profile = {}
-  profile["my_task"] = Periodic(duty_cycle_pct=30)
+  profile = {
+      'my_task': RTAPhase(
+          prop_wload=PeriodicWload(
+              duty_cycle_pct=30,
+              period=16e-3,
+              duration=1,
+          )
+      )
+  }
 
-  wload = RTA.by_profile(te, "foo", profile, res_dir, calibration)
+  wload = RTA.from_profile(te, "foo", profile, res_dir, calibration)
 
 Kernel tests
 ++++++++++++

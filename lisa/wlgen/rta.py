@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Copyright (C) 2018, Arm Limited and contributors.
+# Copyright (C) 2021, Arm Limited and contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License.
@@ -13,24 +13,184 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-import math
-import json
-import re
-from collections import OrderedDict
-from shlex import quote
+"""
+This module implements an `rt-app <https://github.com/scheduler-tools/rt-app>`_
+JSON programmatic configuration file generator, along the class to run it
+directly on a :class:`~lisa.target.Target`. This is the backbone of our
+scheduler tests, allowing to easily run custom workloads.
+
+The most important classes are:
+
+    * :class:`RTA`: Subclass of :class:`lisa.wlgen.workload.Workload` that can
+      run rt-app on a given :class:`~lisa.target.Target`.
+
+    * :class:`RTAConf`: An rt-app configuration file. It can be created either
+      from a template JSON or using a programmatic API.
+
+    * :class:`RTAPhase`: The entry point of the programmatic API to build
+      rt-app configuration, phase by phase.
+
+    * :class:`WloadPropertyBase`: The base class of all workloads that can be
+      given to an :class:`RTAPhase`. It has the following subclasses:
+
+        .. exec::
+            from lisa.doc.helpers import get_subclasses_bullets
+            from lisa.wlgen.rta import WloadPropertyBase
+
+            print(
+                get_subclasses_bullets(
+                    WloadPropertyBase,
+                    abbrev=True,
+                    only_leaves=True,
+                    style='rst',
+                )
+            )
+
+A typical workload would be created this way::
+
+    from lisa.wlgen import RTA, RTAPhase, PeriodicWload
+
+    task = (
+        # Phases can be added together so they will be executed in order
+        RTAPhase(
+            prop_name='first',
+            # The workload of a phase is a subclass of WloadPropertyBase
+            prop_wload=RunWload(1),
+            prop_uclamp=(256, 512),
+        ) +
+        RTAPhase(
+            prop_name='second',
+            prop_wload=(
+                # Workloads can be added together too
+                SleepWload(5) +
+                PeriodicWload(
+                    duty_cycle_pct=20,
+                    period=16e-3,
+                    duration=2,
+                )
+            )
+        )
+    )
+
+    # Important note: all the classes in this module are immutable. Modifying
+    # attributes is not allowed, use the RTAPhase.with_props() if you want to
+    # get a new object with updated properties.
+
+    # You can create a modified RTAPhase using with_props(), and the property
+    # will be combined with the existing ones.
+    # For util clamp, it means taking the toughest restrictions, which in this
+    # case are (300, 512).
+    task = task.with_props(uclamp=(300, 800))
+
+    # If you want to set the clamp and override any existing value rather than
+    # combining it, you can use the override() function
+    task = task.with_props(uclamp=override((300, 800)))
+
+    # Similarly, you can delete any property that was already set with delete()
+    task = task.with_props(uclamp=delete())
+
+    # Connect to a target
+    target = Target.from_default_conf()
+
+    # Mapping of rt-app task names to the phases they will execute
+    profile = {'task1': task}
+
+    # Create the RTA object that configures the profile for the given target
+    wload = RTA.from_profile(target, profile=profile)
+
+    # Workloads are context managers to do some cleanup on exit
+    with wload:
+        wload.run()
+
+"""
+
+import abc
 import copy
+import functools
+import inspect
 import itertools
+import json
+import math
+import operator
+import re
 import weakref
+from collections import OrderedDict
+from collections.abc import Iterable, Mapping
+from itertools import chain, product, starmap
+from operator import attrgetter, itemgetter
+from shlex import quote
 from statistics import mean
-from operator import itemgetter
+from textwrap import dedent
 
 from devlib import TargetStableError
 
-from lisa.wlgen.workload import Workload
-from lisa.utils import Loggable, ArtifactPath, TASK_COMM_MAX_LEN, group_by_value, nullcontext, value_range
 from lisa.pelt import PELT_SCALE
+from lisa.utils import (
+    TASK_COMM_MAX_LEN,
+    ArtifactPath,
+    FrozenDict,
+    Loggable,
+    SimpleHash,
+    deprecate,
+    fixedpoint,
+    fold,
+    get_cls_name,
+    get_subclasses,
+    group_by_value,
+    groupby,
+    loopify,
+    memoized,
+    nullcontext,
+    order_as,
+    unzip_into,
+    value_range,
+    get_sphinx_name,
+    get_cls_name,
+    get_short_doc,
+)
+from lisa.wlgen.workload import Workload
+
+
+def _to_us(x):
+    """
+    Convert seconds to microseconds.
+    """
+    return math.ceil(x * 1e6)
+
+
+def _make_dict(items):
+    """
+    Make an OrderedDict out of the provided items, checking for any duplicated
+    key.
+    """
+    # Deduplicate any iterable, even if it contains non-hashable types
+    def dedup(xs):
+        res = []
+        for x in xs:
+            if x not in res:
+                res.append(x)
+        return res
+
+    def check(key, vals):
+        vals = dedup(map(itemgetter(1), vals))
+        if len(vals) > 1:
+            vals = ', '.join(map(str, vals))
+            raise KeyError(f'Value for key "{key}" was set multiple times: {vals}')
+        else:
+            val, = vals
+            return (key, val)
+
+    key = itemgetter(0)
+    items = list(items)
+    order = map(key, items)
+
+    # OrderedDict is important here, even if dict() preserves insertion order
+    # for Python >= 3.6. OrderedDict.__eq__ takes order into account unlike
+    # dict.__eq__
+    return OrderedDict(
+        starmap(check, order_as(list(groupby(items, key=key)), order, key=key))
+    )
 
 
 class CalibrationError(RuntimeError):
@@ -39,6 +199,256 @@ class CalibrationError(RuntimeError):
     CPU capacities in a way or another.
     """
     pass
+
+
+class RTAConf(Loggable, Mapping):
+    """
+    JSON configuration for rt-app.
+
+    :param conf: Python object graph with the JSON content.
+    :type conf: object
+    """
+
+    ALLOWED_TASK_NAME_REGEX = r'^[a-zA-Z0-9_]+$'
+
+    def __init__(self, conf):
+        self.conf = conf
+
+    def __str__(self):
+        return str(self.conf)
+
+    def __getitem__(self, key):
+        return self.conf[key]
+
+    def __len__(self):
+        return len(self.conf)
+
+    def __iter__(self):
+        return iter(self.conf)
+
+    @property
+    def json(self):
+        """
+        rt-app configuration file content as a JSON string.
+        """
+        return json.dumps(self.conf, indent=4, separators=(',', ': ')) + '\n'
+
+    @staticmethod
+    def _process_calibration(plat_info, calibration):
+        """
+        Select CPU or pload value for task calibration
+        """
+        # This is done at init time rather than at run time, because the
+        # calibration value lives in the file
+        if isinstance(calibration, int):
+            pass
+        elif isinstance(calibration, str):
+            calibration = calibration.upper()
+        elif calibration is None:
+            calib_map = plat_info['rtapp']['calib']
+            calibration = min(calib_map.values())
+        else:
+            raise ValueError(f'Calibration value "{calibration}" is cannot be handled')
+
+        return calibration
+
+    @classmethod
+    def from_profile(cls, profile,
+        *,
+        plat_info,
+        force_defaults=False,
+        max_duration_s=None,
+        calibration=None,
+        log_stats=False,
+        trace_events=None,
+        run_dir=None,
+    ):
+        """
+        Create an rt-app workload using :class:`RTAPhase` instances
+
+        :param profile: The workload description in a {task_name : :class:`RTATask`}
+          shape
+        :type profile: dict
+
+        :param plat_info: Platform information used to tweak the configuration
+            file according to the target.
+        :type plat_info: lisa.platforms.platinfo.PlatformInfo
+
+        :param force_defaults: If ``True``, default values for all settings
+            will be set in the first phase (unless they are set by the profile).
+            If ``False``, defaults will be removed from the file (even if they
+            were explicitly set by the user).
+        :type force_defaults: bool
+
+        :param max_duration_s: Maximum duration of the workload. Will be determined
+          by the longest running task if not specified.
+        :type max_duration_s: int
+
+        :param calibration: The calibration value to be used by rt-app. This can
+          be an integer value or a CPU string (e.g. "CPU0").
+        :type calibration: int or str
+
+        :param log_stats: Generate a log file with stats for each task
+        :type log_stats: bool
+
+        :param trace_events: A list of trace events to generate.
+            For a full list of trace events which can be generated by rt-app,
+            refer to the tool documentation:
+            https://github.com/scheduler-tools/rt-app/blob/master/doc/tutorial.txt
+            By default, no events are generated.
+        :type trace_events: list(str)
+        """
+        logger = cls.get_logger()
+
+        # Sanity check for task names rt-app uses pthread_setname_np(3) which
+        # limits the task name to 16 characters including the terminal '\0' and
+        # the rt-app suffix.
+        max_size = TASK_COMM_MAX_LEN - len('-XX-XXXX')
+        too_long_tids = sorted(
+            tid for tid in profile.keys()
+            if len(tid) > max_size
+        )
+        if too_long_tids:
+            raise ValueError(
+                f'Task names too long, please configure your tasks with names shorter than {max_size} characters: {too_long_tids}')
+
+        invalid_tids = sorted(
+            tid for tid in profile.keys()
+            if not re.match(cls.ALLOWED_TASK_NAME_REGEX, tid)
+        )
+        if invalid_tids:
+            raise ValueError(
+                f'Task names not matching "{cls.ALLOWED_TASK_NAME_REGEX}": {invalid_tids}')
+
+        if max_duration_s:
+            logger.warning(f'Limiting workload duration to {max_duration_s} [s]')
+
+        calibration = cls._process_calibration(plat_info, calibration)
+
+        def make_phases(task_name, task):
+            return task.get_rtapp_repr(
+                task_name=task_name,
+                plat_info=plat_info,
+                force_defaults=force_defaults,
+            )
+
+        conf = OrderedDict((
+            (
+                'global',
+                {
+                    'duration': -1 if not max_duration_s else max_duration_s,
+                    'calibration': calibration,
+                    # TODO: this can only be enabled when rt-app is running as root.
+                    # unfortunately, that's currently decided when calling
+                    # run(as_root=True), at which point we already generated and pushed
+                    # the JSON
+                    'lock_pages': False,
+                    'log_size': 'file' if log_stats else 'disable',
+                    'ftrace': ','.join(trace_events or []),
+                    'logdir': run_dir or './',
+                }
+            ),
+            (
+                'tasks',
+                OrderedDict(
+                    (task_name, make_phases(task_name, task))
+                    for task_name, task in sorted(profile.items(), key=itemgetter(0))
+                )
+            )
+
+        ))
+        return cls(conf)
+
+    @classmethod
+    def _process_template(cls,
+        template,
+        duration=None,
+        pload=None,
+        log_dir=None,
+    ):
+        """
+        :meta public:
+
+        Turn a raw string rt-app description into a JSON dict.
+        Also, process some tokens and replace them.
+
+        :param template: The raw string to process
+        :type template: str
+
+        :param duration: The value to replace ``__DURATION__`` with
+        :type duration: int
+
+        :param pload: The value to replace ``__PVALUE__`` with
+        :type pload: int or str
+
+        :param log_dir: The value to replace ``__LOGDIR__`` and ``__WORKDIR__``
+            with.
+        :type log_dir: str
+
+        :returns: a JSON dict
+        """
+
+        replacements = {
+            '__DURATION__': duration,
+            '__PVALUE__': pload,
+            '__LOGDIR__': log_dir,
+            '__WORKDIR__': log_dir,
+        }
+
+        json_str = template
+        for placeholder, value in replacements.items():
+            if placeholder in template and placeholder is None:
+                raise ValueError(f'Missing value for {placeholder} placeholder')
+            else:
+                json_str = json_str.replace(placeholder, json.dumps(value))
+
+        return json.loads(json_str, object_pairs_hook=OrderedDict)
+
+    @classmethod
+    def from_path(cls, path, **kwargs):
+        """
+        Same as :meth:`from_str` but with a file path instead.
+        """
+        with open(path) as f:
+            content = f.read()
+        return cls.from_str(content, **kwargs)
+
+    @classmethod
+    def from_str(cls, str_conf, plat_info, run_dir,
+            max_duration_s=None,
+            calibration=None,
+        ):
+        """
+        Create an rt-app workload using a pure string description
+
+        :param str_conf: The raw string description. This must be a valid json
+          description, with the exception of some tokens (see
+          :meth:`_process_template`) that will be replaced automagically.
+        :type str_conf: str
+
+        :param plat_info: Platform information used to tweak the configuration
+            file according to the target.
+        :type plat_info: lisa.platforms.platinfo.PlatformInfo
+
+        :param run_dir: Directory used by rt-app to produce artifacts
+        :type run_dir: str
+
+        :param max_duration_s: Maximum duration of the workload.
+        :type max_duration_s: int
+
+        :param calibration: The calibration value to be used by rt-app. This can
+          be an integer value or a CPU string (e.g. "CPU0").
+        :type calibration: int or str
+        """
+
+        calibration = cls._process_calibration(plat_info, calibration)
+        conf = cls._process_template(
+            template=str_conf,
+            duration=max_duration_s,
+            pload=calibration,
+            log_dir=run_dir,
+        )
+        return cls(conf)
 
 
 class RTA(Workload):
@@ -59,25 +469,35 @@ class RTA(Workload):
 
     required_tools = Workload.required_tools + ['rt-app']
 
-    sched_policies = ['OTHER', 'FIFO', 'RR', 'DEADLINE']
-
-    ALLOWED_TASK_NAME_REGEX = r'^[a-zA-Z0-9_]+$'
-
     def __init__(self, target, name=None, res_dir=None, json_file=None):
         # Don't add code here, use the early/late init methods instead.
         # This lets us factorize some code for the class methods that serve as
         # alternate constructors.
 
-        self._early_init(target, name, res_dir, json_file)
-        self._late_init()
+        self._early_init(
+            target=target,
+            name=name,
+            res_dir=res_dir,
+            json_file=json_file,
+        )
+        conf = RTAConf.from_path(
+            path=json_file,
+            plat_info=target.plat_info,
+            run_dir=self.run_dir,
+        )
+        self._late_init(conf=conf, write_conf=False)
 
-    def _early_init(self, target, name, res_dir, json_file, log_stats=False, trace_events=None):
+    def _early_init(self, target, name, res_dir, json_file=None, log_stats=False, run_dir=None):
         """
         Initialize everything that is not related to the contents of the json file
         """
-        super().__init__(target, name, res_dir)
+        super().__init__(
+            target=target,
+            name=name,
+            res_dir=res_dir,
+            run_dir=run_dir,
+        )
         self.log_stats = log_stats
-        self.trace_events = trace_events or []
 
         if not json_file:
             json_file = f'{self.name}.json'
@@ -91,27 +511,28 @@ class RTA(Workload):
 
         self.command = f'{quote(rta_cmd)} {quote(self.remote_json)} 2>&1'
 
-    def _late_init(self, calibration=None, tasks_names=None):
+    def _late_init(self, conf, write_conf=True):
         """
         Complete initialization with a ready json file
 
         :parameters: Attributes that have been pre-computed and ended up
           in the json file. Passing them can prevent a needless file read.
         """
-        if calibration or not tasks_names:
-            with open(self.local_json) as fh:
-                desc = json.load(fh)
+        self.tasks = sorted(conf['tasks'].keys())
+        self.conf = conf
+        # Ensure we stay aligned with what folder rt-app will use
+        assert self.run_dir == conf['global']['logdir']
 
-                if calibration is None:
-                    calibration = desc["global"]["calibration"]
-                if not tasks_names:
-                    tasks_names = list(desc["tasks"].keys())
-
-        self.calibration = calibration
-        self.tasks = sorted(tasks_names)
+        # Generate JSON configuration on local file
+        if write_conf:
+            with open(self.local_json, 'w') as f:
+                f.write(conf.json)
 
         # Move configuration file to target
         self.target.push(self.local_json, self.remote_json)
+
+    def __str__(self):
+        return self.conf.json
 
     def run(self, cpus=None, cgroup=None, as_root=False, update_cpu_capacities=None):
         logger = self.get_logger()
@@ -166,237 +587,124 @@ class RTA(Workload):
                 logfile = self.target.path.join(self.run_dir, f'*{task}*.log')
                 self.target.pull(logfile, self.res_dir, globbing=True)
 
-    def _process_calibration(self, calibration):
-        """
-        Select CPU or pload value for task calibration
-        """
-        # This is done at init time rather than at run time, because the
-        # calibration value lives in the file
-        if isinstance(calibration, int):
-            pass
-        elif isinstance(calibration, str):
-            calibration = calibration.upper()
-        elif calibration is None:
-            calib_map = self.target.plat_info['rtapp']['calib']
-            calibration = min(calib_map.values())
-        else:
-            raise ValueError(f'Calibration value "{calibration}" is cannot be handled')
-
-        return calibration
 
     @classmethod
-    def by_profile(cls, target, profile, name=None, res_dir=None, default_policy=None,
-                   max_duration_s=None, calibration=None,
-                   log_stats=False, trace_events=None):
+    def from_profile(cls, target, profile, name=None, res_dir=None, log_stats=False, **kwargs):
         """
         Create an rt-app workload using :class:`RTATask` instances
 
-        :param profile: The workload description in a {task_name : :class:`RTATask`}
-          shape
-        :type profile: dict
+        :param target: Target that the workload will run on.
+        :type target: lisa.target.Target
 
-        :param default_policy: Default scheduler policy. See :attr:`sched_policies`
-        :type default_policy: str
+        :param name: Name of the workload.
+        :type name: str or None
 
-        :param max_duration_s: Maximum duration of the workload. Will be determined
-          by the longest running task if not specified.
-        :type max_duration_s: int
+        :param res_dir: Host folder to store artifacts in.
+        :type res_dir: str or None
 
-        :param calibration: The calibration value to be used by rt-app. This can
-          be an integer value or a CPU string (e.g. "CPU0").
-        :type calibration: int or str
-
-        :param log_stats: Generate a log file with stats for each task
-        :type log_stats: bool
-
-        :param trace_events: A list of trace events to generate.
-            For a full list of trace events which can be generated by rt-app,
-            refer to the tool documentation:
-            https://github.com/scheduler-tools/rt-app/blob/master/doc/tutorial.txt
-            By default, no events are generated.
-        :type trace_events: list(str)
-
-        A simple profile workload would be::
-
-            task = Periodic(duty_cycle_pct=5)
-            rta = RTA.by_profile(target, {"foo" : task})
-            rta.run()
+        :Variable keyword arguments: Forwarded to :meth:`RTAConf.from_profile`
         """
         logger = cls.get_logger()
         self = cls.__new__(cls)
-        self._early_init(target, name, res_dir, None, log_stats=log_stats,
-                        trace_events=trace_events)
-
-        # Sanity check for task names rt-app uses pthread_setname_np(3) which
-        # limits the task name to 16 characters including the terminal '\0' and
-        # the rt-app suffix.
-        max_size = TASK_COMM_MAX_LEN - len('-XX-XXXX')
-        too_long_tids = sorted(
-            tid for tid in profile.keys()
-            if len(tid) > max_size
+        self._early_init(
+            target=target,
+            name=name,
+            res_dir=res_dir,
+            log_stats=log_stats,
         )
-        if too_long_tids:
-            raise ValueError(
-                f'Task names too long, please configure your tasks with names shorter than {max_size} characters: {too_long_tids}')
 
-        invalid_tids = sorted(
-            tid for tid in profile.keys()
-            if not re.match(cls.ALLOWED_TASK_NAME_REGEX, tid)
+        conf = RTAConf.from_profile(
+            profile=profile,
+            plat_info=target.plat_info,
+            log_stats=log_stats,
+            run_dir=self.run_dir,
+            **kwargs,
         )
-        if invalid_tids:
-            raise ValueError(
-                f'Task names not matching "{cls.ALLOWED_TASK_NAME_REGEX}": {invalid_tids}')
 
-        rta_profile = {
-            # Keep a stable order for tasks definition, to get stable IDs
-            # allocated by rt-app
-            'tasks': OrderedDict(),
-            'global': {}
-        }
-
-        calibration = self._process_calibration(calibration)
-
-        global_conf = {
-            'default_policy': 'SCHED_OTHER',
-            'duration': -1 if not max_duration_s else max_duration_s,
-            'calibration': calibration,
-            # TODO: this can only be enabled when rt-app is running as root.
-            # unfortunately, that's currently decided when calling
-            # run(as_root=True), at which point we already generated and pushed
-            # the JSON
-            'lock_pages': False,
-            'log_size': 'file' if log_stats else 'disable',
-            'ftrace': ','.join(self.trace_events),
-        }
-
-        if max_duration_s:
-            logger.warning(f'Limiting workload duration to {max_duration_s} [s]')
-
-        if default_policy:
-            if default_policy in self.sched_policies:
-                global_conf['default_policy'] = f'SCHED_{default_policy}'
-            else:
-                raise ValueError(f'scheduling class {default_policy} not supported')
-
-        logger.info(f"Calibration value: {global_conf['calibration']}")
-        logger.info(f"Default policy: {global_conf['default_policy']}")
-
-        rta_profile['global'] = global_conf
-
-        # Setup tasks parameters
-        for tid, task in sorted(profile.items(), key=itemgetter(0)):
-            task_conf = {}
-
-            if not task.sched_policy:
-                task_conf['policy'] = global_conf['default_policy']
-                sched_descr = 'sched: using default policy'
-            else:
-                task_conf['policy'] = f'SCHED_{task.sched_policy}'
-                if task.priority is not None:
-                    task_conf['prio'] = task.priority
-                sched_descr = f'sched: {task.sched_policy}'
-
-            logger.info('------------------------')
-            logger.info(f'task [{tid}], {sched_descr}')
-
-            task_conf['delay'] = int(task.delay_s * 1e6)
-            logger.info(f' | start delay: {task.delay_s:.6f} [s]')
-
-            task_conf['loop'] = task.loops
-            logger.info(f' | loops count: {task.loops}')
-
-            task_conf['phases'] = OrderedDict()
-            rta_profile['tasks'][tid] = task_conf
-
-            for pid, phase in enumerate(task.phases, start=1):
-                phase_name = f'phase_{pid:0>6}'
-
-                logger.info(f' + {phase_name}')
-                rta_profile['tasks'][tid]['phases'][phase_name] = phase.get_rtapp_repr(tid, plat_info=target.plat_info)
-
-        # Generate JSON configuration on local file
-        with open(self.local_json, 'w') as outfile:
-            json.dump(rta_profile, outfile, indent=4, separators=(',', ': '))
-            outfile.write('\n')
-
-        self._late_init(calibration=calibration,
-                        tasks_names=list(profile.keys()))
+        self._late_init(conf=conf)
         return self
 
+    @deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=from_profile)
     @classmethod
-    def process_template(cls, template, duration=None, pload=None, log_dir=None,
-                         work_dir=None):
-        """
-        Turn a raw string rt-app description into a JSON dict.
-        Also, process some tokens and replace them.
-
-        :param template: The raw string to process
-        :type template: str
-
-        :param duration: The value to replace ``__DURATION__`` with
-        :type duration: int
-
-        :param pload: The value to replace ``__PVALUE__`` with
-        :type pload: int or str
-
-        :param log_dir: The value to replace ``__LOGDIR__`` with
-        :type log_dir: str
-
-        :param work_dir: The value to replace ``__WORKDIR__`` with
-        :type work_dir: str
-
-        :returns: a JSON dict
-        """
-
-        replacements = {
-            '__DURATION__': duration,
-            '__PVALUE__': pload,
-            '__LOGDIR__': log_dir,
-            '__WORKDIR__': work_dir,
-        }
-
-        json_str = template
-        for placeholder, value in replacements.items():
-            if placeholder in template and placeholder is None:
-                raise ValueError(f'Missing value for {placeholder} placeholder')
-            else:
-                json_str = json_str.replace(placeholder, json.dumps(value))
-
-        return json.loads(json_str)
+    def by_profile(cls, *args, **kwargs):
+        return cls.from_profile(*args, **kwargs)
 
     @classmethod
-    def by_str(cls, target, str_conf, name=None, res_dir=None, max_duration_s=None,
-               calibration=None):
+    def from_str(cls, target, str_conf,
+        name=None,
+        res_dir=None,
+        **kwargs,
+    ):
         """
         Create an rt-app workload using a pure string description
 
+        :param target: Target that the workload will run on.
+        :type target: lisa.target.Target
+
         :param str_conf: The raw string description. This must be a valid json
           description, with the exception of some tokens (see
-          :meth:`process_template`) that will be replaced automagically.
+          :meth:`RTAConf.from_str`) that will be replaced automagically.
         :type str_conf: str
 
-        :param max_duration_s: Maximum duration of the workload.
-        :type max_duration_s: int
+        :param name: Name of the workload.
+        :type name: str or None
 
-        :param calibration: The calibration value to be used by rt-app. This can
-          be an integer value or a CPU string (e.g. "CPU0").
-        :type calibration: int or str
+        :param res_dir: Host folder to store artifacts in.
+        :type res_dir: str or None
+
+        :Variable keyword arguments: Forwarded to :meth:`RTAConf.from_profile`
         """
 
         self = cls.__new__(cls)
-        self._early_init(target, name, res_dir, None)
+        self._early_init(
+            target=target,
+            name=name,
+            res_dir=res_dir,
+        )
+        conf = RTAConf.from_str(
+            str_conf=str_conf,
+            plat_info=target.plat_info,
+            run_dir=self.run_dir,
+            **kwargs,
+        )
+        self._late_init(conf=conf)
+        return self
 
-        calibration = self._process_calibration(calibration)
+    @deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=from_str)
+    @classmethod
+    def by_str(cls, *args, **kwargs):
+        return cls.from_profile(*args, **kwargs)
 
-        json_conf = self.process_template(
-            str_conf, max_duration_s, calibration, self.run_dir, self.run_dir)
+    @classmethod
+    def from_conf(cls, target, conf,
+        name=None,
+        res_dir=None,
+    ):
+        """
+        Create an rt-app workload using a :class:`RTAConf`.
 
-        with open(self.local_json, 'w') as fh:
-            json.dump(json_conf, fh)
+        :param target: Target that the workload will run on.
+        :type target: lisa.target.Target
 
-        tasks_names = [tid for tid in json_conf['tasks']]
-        self._late_init(calibration=calibration, tasks_names=tasks_names)
+        :param conf: Configuration object.
+        :type conf: RTAConf
 
+        :param name: Name of the workload.
+        :type name: str or None
+
+        :param res_dir: Host folder to store artifacts in.
+        :type res_dir: str or None
+        """
+        logdir = conf.get('global', {}).get('logdir')
+
+        self = cls.__new__(cls)
+        self._early_init(
+            target=target,
+            name=name,
+            res_dir=res_dir,
+            run_dir=logdir,
+        )
+        self._late_init(conf=conf)
         return self
 
     @classmethod
@@ -416,7 +724,7 @@ class RTA(Workload):
             logger.debug(f'Max RT prio: {max_rtprio}')
 
             priority = max_rtprio + 1 if max_rtprio <= 10 else 10
-            sched_policy = 'FIFO'
+            sched_policy = 'SCHED_FIFO'
         else:
             logger.warning('Will use default scheduler class instead of RT since the target is not rooted')
             priority = None
@@ -427,17 +735,21 @@ class RTA(Workload):
 
             # RT-app will run a calibration for us, so we just need to
             # run a dummy task and read the output
-            calib_task = Periodic(
-                duty_cycle_pct=100,
-                duration_s=0.001,
-                period_ms=1,
-                priority=priority,
-                sched_policy=sched_policy,
+            calib_task = RTAPhase(
+                prop_wload=PeriodicWload(
+                    duty_cycle_pct=100,
+                    duration=0.001,
+                    period=1e-3,
+                ),
+                prop_priority=priority,
+                prop_policy=sched_policy,
             )
-            rta = cls.by_profile(target, name=f"rta_calib_cpu{cpu}",
-                                 profile={'task1': calib_task},
-                                 calibration=f"CPU{cpu}",
-                                 res_dir=res_dir)
+            rta = cls.from_profile(target,
+                name=f"rta_calib_cpu{cpu}",
+                profile={'task1': calib_task},
+                calibration=f"CPU{cpu}",
+                res_dir=res_dir
+            )
 
             with rta, target.freeze_userspace():
                 # Disable CPU capacities update, since that leads to infinite
@@ -691,7 +1003,2633 @@ class RTA(Workload):
         return self.resolve_trace_task_names(trace, self.tasks)
 
 
-class Phase(Loggable):
+class PropertyMeta(abc.ABCMeta):
+    """
+    Metaclass for properties.
+
+    It overrides ``__instancecheck__`` so that instances of
+    :class:`PropertyWrapper` can be recognized as instances of the type they
+    wrap, in order to make them as transparent as possible.
+    """
+    def __instancecheck__(cls, obj):
+        # If we have a PropertyWrapper object, treat it as if it was an
+        # instance of the wrapped object. This is mostly safe since
+        # PropertWrapper implements __getattr__ and allows uniform handling of
+        # ConcretePropertyBase and MetaPropertyBase, even for wrapped values
+
+        # Scary super() call: we want to get the __instancecheck__
+        # implementation of our base class (abc.ABCMeta), but we want to call
+        # it on PropertyWrapper. If we don't do that,
+        # PropertyWrapper.__instancecheck__ is the current function and we have
+        # an infinite recursion.
+        if super(PropertyMeta, cls).__instancecheck__.__func__(PropertyWrapper, obj):
+            # Still do the regular check, so that we can detect instances of
+            # PropertyWrapper
+            is_wrapper_subcls = super().__instancecheck__(obj)
+            obj = obj.__wrapped__
+        else:
+            is_wrapper_subcls = False
+
+        return is_wrapper_subcls or super().__instancecheck__(obj)
+
+
+class PropertyBase(SimpleHash, metaclass=PropertyMeta):
+    """
+    Base class of all properties.
+    """
+
+    KEY = None
+    """
+    Subclasses can override this attribute so that
+    :meth:`PropertyBase.from_key` knows that it can call their
+    :meth:`~PropertyBase._from_key` method for that key.
+
+    .. note:: This class attribute will not be inherited automatically so that
+        each class can be uniquely identified by its key. Subclass that do not
+        override the value explicitly will get ``None``.
+    """
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        dct = cls.__dict__
+
+        # Ensure KEY class attribute is not inherited
+        if 'KEY' not in dct:
+            cls.KEY = None
+
+        try:
+            and_ = dct['__and__']
+        except KeyError:
+            pass
+        else:
+            @functools.wraps(and_)
+            def wrapper(self, other):
+                # If allow the right operand to define the operation if it's a
+                # contaminating one
+                if isinstance(other, ContaminatingProperty):
+                    return other.__rand__(self)
+                else:
+                    return and_(self, other)
+
+            cls.__and__ = wrapper
+
+        return super().__init_subclass__(**kwargs)
+
+
+    @property
+    def key(self):
+        """
+        Key of the instance.
+
+        This property will default to getting the value of the :attr:`KEY`
+        class attribute of the first of its ancestor defining it. This way,
+        :meth:`_from_key` can be shared in a base class between multiple
+        subclasses if needed.
+        """
+        try:
+            return self.__dict__['key']
+        except KeyError:
+            # Look for the KEY in base classes, since it could be managing the
+            # creation of its subclasses in _from_keys(). Therefore, it is
+            # relevant to "pretend" that we have the same key. At the same
+            # time, KEY cannot be inherited in order to have a 1-1 mapping
+            # between keys and classes when looking for the right
+            # implementation of _from_keys().
+            for base in inspect.getmro(self.__class__):
+                try:
+                    key = base.KEY
+                except AttributeError:
+                    continue
+                else:
+                    if key is not None:
+                        return key
+                    else:
+                        continue
+
+            raise AttributeError(f'No "key" attribute on {self.__class__}')
+
+    @key.setter
+    def key(self, val):
+        if val is None:
+            try:
+                del self.__dict__['key']
+            except KeyError:
+                pass
+        else:
+            self.__dict__['key'] = val
+
+    @property
+    @abc.abstractmethod
+    def val(self):
+        """
+        Value "payload" of the property.
+
+        Ideally, it should be a valid value that can be given to
+        :meth:`~PropertyBase.from_key`, but it's not mandatory. For complex
+        properties that are not isomorphic to a Python basic type (int, tuple
+        etc.), ``self`` should be returned.
+        """
+        pass
+
+    @classmethod
+    def _from_key(cls, key, val):
+        """
+        Build an instance out of ``key`` and ``val``.
+        """
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def __and__(self, other):
+        """
+        Combine two instances of the same property together.
+
+        This is used to combine properties at the various levels of the
+        :class:`RTAPhaseTree` tree, on each path from the root to the
+        leaves. It is guaranteed that the instance closer to the root will be
+        ``self`` and the one closer to the leaves will be ``other``.
+
+        If the property is a constraint, a good implementation should combine
+        two instances by applying the strongest constraint. For example, CPU
+        affinity are combined by taking the intersection of allowed CPUs.
+
+        If the property is some sort of "dummy" structure, it can make sense to
+        allow the instance closer to the root of the tree to override the set
+        members in the instance closer to the leaves.
+
+        Otherwise, it's probably best to just bail with :exc:`ValueError` with
+        a message explaining that there is a conflict.
+        """
+        pass
+
+    @classmethod
+    def _check_key(cls, key):
+        """
+        :meta public:
+
+        Check that the ``key`` is allowed for this class.
+        """
+        if cls.KEY is not None and key != cls.KEY:
+            raise ValueError(f'Using wrong key name "{key}" to build {cls.__qualname__}')
+
+    @classmethod
+    def from_key(cls, key, val):
+        """
+        Alternative constructor that is available with the same signature for
+        all properties.
+
+        :param key: Key passed by the user. It will be checked with
+            :meth:`~PropertyBase._check_key` before building an instance.
+        :type key: str
+
+        :param val: Value passed by the user.
+        :type val: object
+        """
+        subcls = cls.find_cls(key)
+        subcls._check_key(key)
+        return subcls._from_key(key, val)
+
+    @classmethod
+    def find_cls(cls, key):
+        """
+        Find which subclass can handle ``key``.
+
+        It is best called on :class:`PropertyBase` in order to allow any
+        property to be built.
+        """
+        subclasses = [
+            subcls
+            for subcls in chain([cls], get_subclasses(cls))
+            if subcls.KEY == key
+        ]
+        if subclasses:
+            assert len(subclasses) == 1
+            return subclasses[0]
+        else:
+            raise ValueError(f'Property "{key}" not handled')
+
+
+    @classmethod
+    def _get_cls_doc(cls):
+        def type_of_param(name, x):
+            doc = inspect.getdoc(x) or ''
+            m = re.search(rf':type {name}:(.*)', doc)
+            if m:
+                return m.group(1).strip()
+            else:
+                return None
+
+        doc = get_short_doc(cls)
+        type_ = ''
+
+        # Read the format accepted by _from_key and use it here
+        from_key_doc = inspect.getdoc(cls._from_key) or ''
+        sig = inspect.signature(cls)
+
+        parsed_type = None
+
+        from_from_key = type_of_param('val', cls._from_key)
+        if from_from_key:
+            parsed_type = from_from_key
+        # Constructor with only one parameter in addition to "self"
+        elif len(sig.parameters) == 1:
+            param, = sig.parameters.values()
+            from__init__ = type_of_param(param.name, cls)
+            if from__init__:
+                parsed_type = from__init__
+
+        if parsed_type:
+            type_ += f'{parsed_type} or '
+
+        type_ += get_cls_name(cls)
+
+        return (doc, type_)
+
+
+class ConcretePropertyBase(PropertyBase):
+    """
+    Base class for concrete properties.
+
+    Concrete properties are properties that will ultimately translated into
+    JSON, as opposed to meta properties that will never make it to the final
+    configuration file.
+    """
+    OPTIMIZE_JSON_KEYS = {}
+    """
+    Configuration driving the JSON optimization, as a ``dict(str, set(str))``.
+
+    This is a dictionary mapping JSON key names to set of "barrier" JSON keys.
+    When successive phases of a given task share the same value for the keys of
+    that dictionary, they will be removed in the later phases since rt-app
+    settings are persistent across phases. When any of the barrier key listed in the
+    set has a change in its value, it will be considered as an optimization
+    barrier and the value will be set again, even if it means repeating the
+    same value as earlier.
+    """
+
+    @abc.abstractmethod
+    def to_json(self, plat_info):
+        """
+        Snippet of JSON content for that property as Python objects.
+
+        :param plat_info: Platform information that can be used to generate the
+            default value .
+        :type plat_info: lisa.platforms.platinfo.PlatformInfo
+        """
+        pass
+
+    @classmethod
+    @abc.abstractmethod
+    def to_default_json(cls, plat_info, properties):
+        """
+        Similar to :meth:`~ConcretePropertyBase.to_json` but returns the
+        default values for the keys set in
+        :meth:`~ConcretePropertyBase.to_json`.
+
+        :param plat_info: Platform information that can be used to generate the
+            default value .
+        :type plat_info: lisa.platforms.platinfo.PlatformInfo
+
+        :param properties: :class:`collections.OrderedDict` of JSON properties for the
+            current phase. This can be used if the default value is context
+            dependent. For example, if two properties depend on each other,
+            they can get the value of the other key from ``properties``. The
+            property might not have been set yet so abscence of the key has to
+            be handled. The calling code will look for a fixpoint for the
+            default properties, so this method will be called iteratively until
+            the result is stable, allowing for arbitrary dependency between
+            keys.
+        :type properties: collections.OrderedDict(str, object)
+        """
+        # Implementation still matters for classmethods, as being an ABC with
+        # unimplemented abstractmethod only prevents instances from being
+        # created. Classmethods can still be called on the class and are
+        # inherited the usual way.
+        return {}
+
+
+class MetaPropertyBase(PropertyBase):
+    """
+    Base class for meta properties.
+
+    Meta properties are properties that will not be translated into JSON, as
+    opposed to concrete properties.
+    """
+    pass
+
+
+class ContaminatingProperty(PropertyBase):
+    """
+    Base class for properties that will "contaminate" other instances when
+    combined with them, even if they are closer to the leaf.
+    """
+    @classmethod
+    @abc.abstractmethod
+    def __rand__(self, other):
+        pass
+
+
+class PropertyWrapper(ContaminatingProperty):
+    """
+    Base class for properties that are merely wrapper around another property
+    instance.
+
+    It is advised that subclasses use name mangling for attributes (name
+    starting with ``__``), so that the wrapper's attribute will not conflict
+    with the attributes of the wrapped property, so that the wrapper is as
+    transparent as possible.
+    """
+    def __init__(self, prop):
+        self.__wrapped__ = prop
+
+    def __eq__(self, other):
+        return self.__wrapped__ == other
+
+    def __hash__(self):
+        return hash(self.__wrapped__)
+
+    def __rand__(self, other):
+        return self.with_wrapped(
+            other & self.__wrapped__
+        )
+
+    def with_wrapped(self, wrapped):
+        """
+        Build a new instance with modified wrapped property.
+        """
+        new = copy.copy(self)
+        new.__wrapped__ = wrapped
+        return new
+
+    @classmethod
+    def from_key(cls, key, val, **kwargs):
+        # Explicit reference to PropertyBase instead of super(), otherwise the
+        # "cls" parameter will be (wrongly in our case) forwarded
+        prop = PropertyBase.from_key(key, val)
+        return cls(prop=prop, **kwargs)
+
+    @property
+    def val(self):
+        # To satisfy the ABC even though __getattr__ would take care of this
+        return self.__wrapped__.val
+
+    def __copy__(self):
+        # Necessary because of __getattr__, otherwise we get some infinite
+        # recursion
+        new = self.__new__(self.__class__)
+        new.__dict__ = self.__dict__.copy()
+        return new
+
+    def __getattr__(self, attr):
+        """
+        Be as transparent as possible, so that this sort of call would work:
+        ``self.__prop.__and__(self)``
+        """
+        return getattr(self.__wrapped__, attr)
+
+
+class PlaceHolderValue:
+    """
+    Placeholder value to be passed to
+    :meth:`RTAPhaseProperties.from_polymorphic` to hijack the usual
+    :meth:`PropertyBase.from_key` path and allow ``PROPERTY_CLS.from_key`` to
+    be called instead.
+
+    :param val: "payload" value.
+    :type val: object
+
+    :Variable keyword arguments: Saved for later consumption.
+    """
+    PROPERTY_CLS = None
+    """
+    Class on which ``from_key`` will be used, rather than looking up the class
+    based on the key name.
+    """
+
+    def __init__(self, val=None, **kwargs):
+        self.val = val
+        self.kwargs = kwargs
+
+
+class OverridenProperty(PropertyWrapper):
+    """
+    Forcefully override the value of another property.
+
+    .. seealso:: :func:`override`
+    """
+    def __init__(self, prop, deep=True):
+        super().__init__(prop)
+        # Use mangled names (starting with "__") to minimize conflicts with the
+        # wrapped prop, so that __getattr__ is as transparent as possible
+        self.__deep = deep
+
+    def __and__(self, other):
+        """
+        We only want to override properties "downards", which means:
+
+            * ``OverridenProperty(root) & leaf = OverridenProperty(root)``
+            * ``root & OverridenProperty(leaf) = OverridenProperty(root & leaf)``
+
+        .. note:: When ``deep=False`` is used, this class does not form a
+            semigroup, i.e. the result will depend on the order of the tree
+            traversal.
+        """
+        prop = self if self.__deep else self.__wrapped__
+        return copy.copy(prop)
+
+
+class _OverridingValue(PlaceHolderValue):
+    """
+    Placeholder value for :class:`OverridenProperty`.
+    """
+    PROPERTY_CLS = OverridenProperty
+
+
+def override(val, **kwargs):
+    """
+    Override a property with the given value, rather than combining it with the
+    property-specific ``&`` implementation::
+
+        phase = phase.with_props(prop_cpus=override({1,2}))
+    """
+    return _OverridingValue(val, **kwargs)
+
+
+class DeletedProperty(ContaminatingProperty):
+    """
+    Forcefully delete the given property, recursively for all subtrees.
+
+    :param key: Key of the property to delete.
+    :type key: str
+
+    .. seealso:: :func:`delete`
+
+    .. note:: The property is not actually deleted but just replaced by an
+        instance of this class, which will have specific handling in relevant
+        parts of the code.
+    """
+    def __init__(self, key):
+        self.key = key
+
+    def __bool__(self):
+        return False
+
+    @property
+    def val(self):
+        return None
+
+    def to_json(self, **kwargs):
+        return {}
+
+    @classmethod
+    def from_key(cls, key, val):
+        return cls(key=key)
+
+    def __and__(self, other):
+        return copy.copy(self)
+
+    def __rand__(self, other):
+        # After a property has been deleted, we can set it again to any value
+        # we want.
+        return copy.copy(other)
+
+
+class _DeletingValue(PlaceHolderValue):
+    """
+    Placeholder value for :class:`DeletedProperty`.
+    """
+    PROPERTY_CLS = DeletedProperty
+
+def delete():
+    """
+    Remove the given property from the phase::
+
+        phase = phase.with_props(prop_cpus=delete())
+    """
+    return _DeletingValue()
+
+
+class SimpleProperty(PropertyBase):
+    """
+    Simple property with dynamic ``key``.
+    """
+    def __init__(self, key, val):
+        self.key = key
+        self.val = val
+
+    def __str__(self):
+        if self.key == self.KEY:
+            key = ''
+        else:
+            key = f'{self.key}='
+
+        return f'{key}{self.val}'
+
+    @property
+    def val(self):
+        return self.__dict__['val']
+
+    @val.setter
+    def val(self, val):
+        self.__dict__['val'] = val
+
+    @classmethod
+    def _from_key(cls, key, val):
+        return cls(key, val)
+
+    def __and__(self, other):
+        if self.val != other.val:
+            raise ValueError(f'Conflicting values for key "{self.key}": "{self.val}" and "{other.val}"')
+        else:
+            return self.__class__(key=self.key, val=self.val)
+
+
+class SimpleConcreteProperty(SimpleProperty, ConcretePropertyBase):
+    """
+    Base class for simple properties that maps to JSON.
+    """
+
+    JSON_KEY = None
+    """
+    Name of the JSON key the property will set.
+
+    .. note:: If it needs to be dynamically chose, see
+        :attr:`~SimpleConcreteProperty.json_key`.
+    """
+
+    DEFAULT_JSON = None
+    """
+    JSON value to use as a default.
+
+    If ``None``, nothing will be output.
+
+    .. note:: If the default value is context-dependent, it should override
+        :meth:`~SimpleConcreteProperty.to_default_json` instead.
+    """
+
+    FILTER_NONE = True
+    """
+    If ``True``, no JSON content will be generated when the property value is
+    ``None``
+    """
+
+    @property
+    def json_key(self):
+        """
+        Name of the JSON key that will be set.
+
+        Defaults to :attr:`JSON_KEY` if it is not ``None``, otherwise ``key``
+        instance attribute will be used.
+        """
+        return self.JSON_KEY or self.key
+
+    def to_json(self, plat_info):
+        val = self.val
+        if val is None and self.FILTER_NONE:
+            return {}
+        else:
+            return {self.json_key: val}
+
+    @classmethod
+    def to_default_json(cls, plat_info, properties):
+        default = cls.DEFAULT_JSON
+        if default is None:
+            return {}
+        else:
+            key = cls.JSON_KEY or cls.KEY
+            return {key: default}
+
+
+class _SemigroupProperty(PropertyBase):
+    """
+    :meta public:
+
+    Base class for properties forming a semigroup with respect to their
+    ``__and__`` method.
+
+    This implies ``__and__`` is associative, i.e. this must hold:
+    ``(a & b) & c == a & (b & c)``
+    """
+    @staticmethod
+    @abc.abstractmethod
+    def _SEMIGROUP_OP(x, y):
+        """
+        Function used to combine two non-None values.
+        """
+        pass
+
+    def __and__(self, other):
+        """
+        Combine values of the properties using
+        :meth:`~_SemigroupProperty._SEMIGROUP_OP`, except when one of the value
+        is ``None``, in which case the other value is used as is and wrapped
+        into an instance using :meth:`~PropertyBase.from_key`.
+        """
+        if (self.val, other.val) == (None, None):
+            val = None
+        elif self.val is None:
+            val = other.val
+        elif other.val is None:
+            val = self.val
+        else:
+            val = self._SEMIGROUP_OP(self.val, other.val)
+
+        return self.__class__.from_key(key=self.key, val=val)
+
+
+class MinProperty(_SemigroupProperty):
+    """
+    Semigroup property with the :func:`min` operation.
+    """
+    _SEMIGROUP_OP = min
+
+
+class MaxProperty(_SemigroupProperty):
+    """
+    Semigroup property with the :func:`max` operation.
+    """
+    _SEMIGROUP_OP = max
+
+
+class AndProperty(_SemigroupProperty):
+    """
+    Semigroup property with the ``&`` operation.
+    """
+    _SEMIGROUP_OP = operator.and_
+
+
+class OrProperty(_SemigroupProperty):
+    """
+    Semigroup property with the ``|`` operation.
+    """
+    _SEMIGROUP_OP = operator.or_
+
+
+class NameProperty(SimpleProperty, MetaPropertyBase):
+    """
+    Name the phase.
+    """
+    KEY = 'name'
+    SEPARATOR = '/'
+
+    def __init__(self, name, _from_merge=False):
+        sep = self.SEPARATOR
+        if not _from_merge and sep in name:
+            raise ValueError(f'"{sep}" not allowed in phase name "{name}"')
+        super().__init__(key=self.KEY, val=name)
+
+    @classmethod
+    def _from_key(cls, key, val):
+        """
+        :param val: Name of the phase
+        :type val: str
+        """
+        return cls(val)
+
+    def __and__(self, other):
+        """
+        Names are combined with ``/`` along the path to each leaf to reflect names
+        of all levels from the root to the leaves.
+        """
+        return self.__class__(
+            f'{self.val}{self.SEPARATOR}{other.val}',
+            _from_merge=True,
+        )
+
+
+class MetaStoreProperty(SimpleProperty, MetaPropertyBase):
+    """
+    Plain key-value storage to be used as the user see fit.
+
+    :param mapping: Dictionary of user-defined keys.
+    :type mapping: dict
+
+    Since this is a meta property, it will not influence the generation of the
+    JSON and can be used to hold any sort of custom metadata needing to be
+    attached to the phases.
+    """
+    KEY = 'meta'
+
+    def __init__(self, mapping):
+        super().__init__(key=self.KEY, val=mapping)
+
+    @classmethod
+    def _from_key(cls, key, val):
+        return cls(val)
+
+    def __and__(self, other):
+        """
+        Combine the key value pairs together. In case of conflict, the value on
+        closer to the root is chosen.
+        """
+        return self.__class__(
+            mapping={
+                **other.val,
+                # Root takes precedence
+                **self.val,
+            },
+        )
+
+
+class PolicyProperty(SimpleConcreteProperty):
+    """
+    Scheduler policy property.
+
+    :param policy: Scheduling policy:
+            * ``SCHED_OTHER`` for CFS task
+            * ``SCHED_FIFO`` for FIFO realtime task
+            * ``SCHED_RR`` for round-robin realtime task
+            * ``SCHED_DEADLINE`` for deadline task
+            * ``SCHED_BATCH`` for batch task
+            * ``SCHED_IDLE`` for idle task
+    :type policy: str
+    """
+    KEY = 'policy'
+    JSON_KEY = KEY
+    DEFAULT_JSON = 'SCHED_OTHER'
+    OPTIMIZE_JSON_KEYS = {
+        JSON_KEY: {},
+    }
+    def __init__(self, policy):
+        if policy is not None:
+            policy = policy.upper()
+            policy = policy if policy.startswith('SCHED_') else f'SCHED_{policy}'
+
+        super().__init__(key=self.KEY, val=policy)
+
+    @classmethod
+    def _from_key(cls, key, val):
+        return cls(val)
+
+class TaskGroupProperty(SimpleConcreteProperty):
+    """
+    Task group property.
+
+    :param path: Path of the taskgroup.
+    :type path: str
+
+    Only supported by rt-app for ``SCHED_OTHER`` and ``SCHED_IDLE`` for now.
+    """
+    KEY = 'taskgroup'
+    JSON_KEY = KEY
+    OPTIMIZE_JSON_KEYS = {
+        JSON_KEY: {'policy'},
+    }
+
+    def __init__(self, path):
+        super().__init__(key=self.KEY, val=path)
+
+    @classmethod
+    def _from_key(cls, key, val):
+        return cls(val)
+
+    @classmethod
+    def to_default_json(cls, plat_info, properties):
+        policy = properties.get('policy')
+        # rt-app only supports taskgroup for some policies
+        if policy in ('SCHED_OTHER', 'SCHED_IDLE'):
+            return {cls.JSON_KEY: '/'}
+        else:
+            return {}
+
+
+class PriorityProperty(SimpleConcreteProperty):
+    """
+    Task scheduler priority property.
+
+    :param priority: Priority of the task.
+    :type priority: int
+    """
+    KEY = 'priority'
+    JSON_KEY = KEY
+    OPTIMIZE_JSON_KEYS = {
+        JSON_KEY: {'policy'},
+    }
+
+    def __init__(self, priority):
+        super().__init__(key=self.KEY, val=priority)
+
+    @classmethod
+    def _from_key(cls, key, val):
+        return cls(val)
+
+    @classmethod
+    def to_default_json(cls, plat_info, properties):
+        """
+        The default value depends on the ``policy`` that is in use.
+        """
+        # The default is context-sensitive
+        defaults = {
+            'SCHED_OTHER': 0,
+            'SCHED_IDLE': 0,
+            'SCHED_RR': 10,
+            'SCHED_FIFO': 10,
+            'SCHED_DEADLINE': 10,
+        }
+        policy = properties.get('policy', 'SCHED_OTHER')
+        val = defaults[policy]
+        return {cls.JSON_KEY: val}
+
+
+class _UsecSimpleConcreteProperty(SimpleConcreteProperty):
+    """
+    :meta public:
+
+    Simple property that converts its value from seconds to microseconds for
+    the JSON file.
+    """
+    def __init__(self, val):
+        super().__init__(key=self.KEY, val=val)
+
+    @classmethod
+    def _from_key(cls, key, val):
+        return cls(val)
+
+    def to_json(self, **kwargs):
+        val = self.val
+        if val is None:
+            return {}
+        else:
+            return {self.json_key: _to_us(self.val)}
+
+
+class DeadlineRuntimeProperty(_UsecSimpleConcreteProperty):
+    """
+    ``SCHED_DEADLINE`` scheduler policy's runtime property.
+
+    :param val: runtime in seconds
+    :type val: int
+    """
+    KEY = 'dl_runtime'
+    JSON_KEY = 'dl-runtime'
+    OPTIMIZE_JSON_KEYS = {
+        JSON_KEY: {'policy'},
+    }
+
+    @classmethod
+    def to_default_json(cls, plat_info, properties):
+        if properties.get('policy') != 'SCHED_DEADLINE':
+            return {}
+        else:
+            return {cls.JSON_KEY: 0}
+
+
+class DeadlinePeriodProperty(_UsecSimpleConcreteProperty):
+    """
+    ``SCHED_DEADLINE`` scheduler policy's period property.
+
+    :param val: period in seconds
+    :type val: int
+    """
+    KEY = 'dl_period'
+    JSON_KEY = 'dl-period'
+    OPTIMIZE_JSON_KEYS = {
+        JSON_KEY: {'policy'}
+    }
+
+    @classmethod
+    def to_default_json(cls, plat_info, properties):
+        if properties.get('policy') != 'SCHED_DEADLINE':
+            return {}
+
+        try:
+            val = properties['dl-runtime']
+        except KeyError:
+            return {}
+        else:
+            return {cls.JSON_KEY: val}
+
+
+class DeadlineDeadlineProperty(_UsecSimpleConcreteProperty):
+    """
+    ``SCHED_DEADLINE`` scheduler policy's deadline property.
+
+    :param val: deadline in seconds
+    :type val: int
+    """
+    KEY = 'dl_deadline'
+    JSON_KEY = 'dl-deadline'
+    OPTIMIZE_JSON_KEYS = {
+        JSON_KEY: {'policy'}
+    }
+
+    @classmethod
+    def to_default_json(cls, plat_info, properties):
+        if properties.get('policy') != 'SCHED_DEADLINE':
+            return {}
+
+        try:
+            val = properties['dl-period']
+        except KeyError:
+            return {}
+        else:
+            return {cls.JSON_KEY: val}
+
+
+class _AndSetConcreteProperty(AndProperty, SimpleConcreteProperty):
+    """
+    :meta public:
+    """
+    def __init__(self, items):
+        if items is None:
+            items = None
+        elif isinstance(items, Iterable):
+            items = set(items)
+        else:
+            items = {items}
+        super().__init__(key=self.KEY, val=items)
+
+    def _check_val(self, val):
+        pass
+
+    def to_json(self, plat_info):
+        val = self.val
+        if val is None:
+            return {}
+        elif not val:
+            raise ValueError(f'Empty {self.key} set')
+        else:
+            self._check_val(val, plat_info)
+            return {self.json_key: sorted(val)}
+
+    @classmethod
+    def _from_key(cls, key, val):
+        return cls(val)
+
+
+class CPUProperty(_AndSetConcreteProperty):
+    """
+    CPU affinity property.
+
+    :param cpus: Set of CPUs the task will be bound to.
+    :type cpus: set(int) or None
+    """
+    KEY = 'cpus'
+    JSON_KEY = KEY
+    # Do not optimize out the cpus settings: unlike every single else setting,
+    # rt-app *will not* leave the cpu affinity alone if the user has not set it
+    # in a given phase. Instead, it's gonna reset it to some default value.
+    OPTIMIZE_JSON_KEYS = {}
+
+    def __init__(self, cpus):
+        super().__init__(items=cpus)
+
+    def _check_val(self, val, plat_info):
+        plat_cpus = set(range(plat_info['cpus-count']))
+        if not (val <= plat_cpus):
+            raise ValueError(f'CPUs {val} outside of allowed range of CPUs {plat_cpus}')
+
+    @classmethod
+    def to_default_json(cls, plat_info, properties):
+        # If no CPU set is given, set the affinity to all CPUs in the system,
+        # i.e. do not set any affinity. This is necessary to decouple the phase
+        # from any CPU set in a previous phase
+
+        # Sorting is important for deduplication of JSON keys
+        cpus = sorted(range(plat_info['cpus-count']))
+        return {cls.JSON_KEY: cpus}
+
+
+class NUMAMembindProperty(_AndSetConcreteProperty):
+    """
+    NUMA node membind property.
+
+    :param nodes: Set of NUMA nodes the task will be bound to.
+    :type nodes: set(int) or None
+    """
+    KEY = 'numa_nodes_membind'
+    JSON_KEY = 'nodes_membind'
+    OPTIMIZE_JSON_KEYS = {
+        JSON_KEY: set(),
+    }
+
+    def __init__(self, nodes):
+        super().__init__(items=nodes)
+
+    def _check_val(self, val, plat_info):
+        plat_nodes = set(range(plat_info['numa-nodes-count']))
+        if not (val <= plat_nodes):
+            raise ValueError(f'NUMA nodes {val} outside of allowed range of NUMA nodes {plat_nodes}')
+
+    @classmethod
+    def to_default_json(cls, plat_info, properties):
+        # Sorting is important for deduplication of JSON keys
+        nodes = sorted(range(plat_info['numa-nodes-count']))
+        return {cls.JSON_KEY: nodes}
+
+
+class MultiProperty(PropertyBase):
+    """
+    Base class for properties setting multiple JSON keys at once.
+    """
+    pass
+
+
+class MultiConcreteProperty(MultiProperty, ConcretePropertyBase):
+    DEFAULT_JSON = None
+
+    @classmethod
+    def to_default_json(cls, plat_info, properties):
+        return cls.DEFAULT_JSON or {}
+
+
+class ComposableMultiConcretePropertyBase(MultiConcreteProperty):
+    """
+    Base class for properties that are a collection of values.
+
+    :Variable keyword arguments: attributes to set on the instance.
+    """
+
+    _ATTRIBUTES = {}
+    """
+    :meta public:
+
+    Dictionary of allowed attributes where each value is in the format
+    ``dict(doc=..., type_=...)``. This extra information is used to patch the
+    docstrings (see :meth:`__init_subclass__`).
+    """
+
+    _ATTRIBUTE_DEFAULT = None
+    """
+    Default value given to attributes that have not been set by the user.
+    """
+
+    def __init__(self, **kwargs):
+        def check(key, val):
+            if key in self._ATTRIBUTES:
+                return val
+            else:
+                raise TypeError(f'Unknown parameter "{key}". Only {sorted(self._ATTRIBUTES)} are allowed')
+
+        attrs = {
+            key: check(key, val)
+            for key, val in kwargs.items()
+        }
+        self._attrs = FrozenDict({
+            **dict.fromkeys(self._ATTRIBUTES, self._ATTRIBUTE_DEFAULT),
+            **attrs
+        })
+
+    def __str__(self):
+        key = itemgetter(0)
+        attrs = ', '.join(
+            f'{k}={v}'
+            # Order the attrs as keys of _ATTRIBUTES, and alphanumeric sort for
+            # the others if there is any.
+            for k, v in order_as(
+                sorted(self._attrs.items(), key=key),
+                self._ATTRIBUTES.keys(),
+                key=key
+            )
+            if v != self._ATTRIBUTE_DEFAULT
+        )
+        return f'{self.__class__.__qualname__}({attrs})'
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        """
+        Update the docstring used as a :meth:`str.format` template with the
+        following keys:
+
+            * ``{params}``: replaced by the Sphinx-friendly list of attributes
+        """
+        docstring = inspect.getdoc(cls)
+        if docstring:
+            cls.__doc__ = docstring.format(
+                params=cls._get_rst_param_doc()
+            )
+
+        super().__init_subclass__(**kwargs)
+
+    @classmethod
+    def _get_rst_param_doc(cls):
+        def make(param, desc):
+            fst = f':param {param}: {desc["doc"]}'
+            snd = f':type {param}: {get_cls_name(desc["type_"])} or None'
+            return f'{fst}\n{snd}'
+
+        return '\n\n'.join(starmap(make, cls._ATTRIBUTES.items()))
+
+    __repr__ = __str__
+
+    def __getattr__(self, attr):
+        # TODO: refer to :attr:`_ATTRIBUTES` once this bug is fixed:
+        # https://github.com/sphinx-doc/sphinx/issues/8922
+        """
+        Lookup the attributes values defined in ``_ATTRIBUTES``.
+        """
+        # Prevent infinite recursion on deepcopy
+        if attr == '_attrs':
+            raise AttributeError()
+
+        try:
+            return self._attrs[attr]
+        except KeyError:
+            raise AttributeError(f'Attribute "{attr}" not available')
+
+    @classmethod
+    def _from_key(cls, key, val):
+        if not isinstance(val, cls):
+            raise TypeError(f'"{cls.KEY}" key needs a value of a subclass of {cls.__qualname__}, not {val.__class__.__qualname__}')
+
+        return val
+
+    @classmethod
+    def from_product(cls, **kwargs):
+        """
+        To be called the same way as the class itself, except that all values
+        are expected to be iterables and the class will be called with all
+        combinations, returning a list of instances.
+        """
+        names, values = zip(*kwargs.items())
+        return [
+            cls(**dict(zip(names, combi)))
+            for combi in product(*values)
+        ]
+
+    @property
+    def val(self):
+        return self
+
+    def __and__(self, other):
+        # Since each subclass describes a totally different kind of workload,
+        # adding them together does not make sense
+        if self.__class__ is other.__class__:
+            return self._and(other)
+        else:
+            raise TypeError(f'Cannot add {self.__class__.__qualname__} instance with {other.__class__.__qualname__}')
+
+    def _and(self, other):
+        """
+        Combine together two instances by taking the non-default values for
+        each attribute, and giving priority to ``self``.
+        """
+        default = self._ATTRIBUTE_DEFAULT
+        def and_(name, x, y):
+            # Give priority to the left operand
+            if x == default:
+                return y
+            else:
+                return x
+
+        kwargs = {
+            attr: and_(attr, val, other._attrs[attr])
+            for attr, val in self._attrs.items()
+        }
+        return self.__class__(**kwargs)
+
+
+class UclampProperty(ComposableMultiConcretePropertyBase):
+    """
+    Set util clamp (uclamp) values.
+
+    {params}
+    """
+    KEY = 'uclamp'
+    DEFAULT_JSON = {
+        # -1 reset the clamp in the kernel
+        'util_min': -1,
+        'util_max': -1,
+    }
+    OPTIMIZE_JSON_KEYS = dict.fromkeys(
+        DEFAULT_JSON.keys(),
+        {'policy', 'priority'}
+    )
+
+    _ATTRIBUTES = {
+        'min_': dict(
+            type_=int,
+            doc='Minimum value that util can take for this task. If ``None``, min clamp is removed.',
+        ),
+        'max_': dict(
+            type_=int,
+            doc='Maximum value that util can take for this task. If ``None``, max clamp is removed.',
+        ),
+    }
+
+    def to_json(self, plat_info):
+        min_ = self.min_
+        max_ = self.max_
+        if (min_, max_) != (None, None) and min_ > max_:
+            raise ValueError(f'{self.__class__.__qualname__}: min={min_} cannot be higher than max={max_}')
+
+        min_ = min_ if min_ is not None else -1
+        max_ = max_ if max_ is not None else -1
+
+        return {
+            'util_min': min_,
+            'util_max': max_,
+        }
+
+    @classmethod
+    def _from_key(cls, key, val):
+        """
+        :param val: Clamp for the utilization.
+        :type val: tuple(int or None, int or None) or UclampProperty
+        """
+        if isinstance(val, cls):
+            return super()._from_key(key, val)
+        else:
+            min_, max_ = val
+            return cls(min_=min_, max_=max_)
+
+    def _and(self, other):
+        """
+        Combine clamps by taking the most constraining solution.
+        """
+        def none_shortcircuit(f, x, y):
+            if (x, y) == (None, None):
+                return None
+            elif x is None:
+                return y
+            elif y is None:
+                return x
+            else:
+                return f(x, y)
+
+        return self.__class__(
+            # Use max() to combine min and min() to combine max, so that we end
+            # up with pick the strongest constraints.
+            min_=none_shortcircuit(max, self.min_, other.min_),
+            max_=none_shortcircuit(min, self.max_, other.max_),
+        )
+
+
+class WloadPropertyBase(ConcretePropertyBase):
+    """
+    Phase workload.
+
+    Workloads are a sequence of rt-app events such as ``run``.
+    """
+    KEY = 'wload'
+    # TODO: remove that depending on outcome of:
+    # https://github.com/scheduler-tools/rt-app/pull/108
+    JSON_KEY = 'events'
+
+    @classmethod
+    def _from_key(cls, key, val):
+        if not isinstance(val, cls):
+            raise TypeError(f'"{cls.KEY}" key needs a value of a subclass of {cls.__qualname__}, not {val.__class__.__qualname__}')
+
+        return val
+
+    @property
+    def val(self):
+        return self
+
+    def __add__(self, other):
+        """
+        Adding two workloads together concatenates them.
+
+        .. note:: Any subclass implementation of ``__add__`` must be
+            associative, i.e. ``a+(b+c) == (a+b)+c``. This property is relied on.
+        """
+        return WloadSequence(wloads=[self, other])
+
+    def __mul__(self, n):
+        """
+        Replicate the given workload ``n`` times.
+        """
+        if n == 1:
+            return copy.copy(self)
+        else:
+            return WloadSequence(wloads=[self] * n)
+
+    @abc.abstractmethod
+    def to_events(self, **kwargs):
+        pass
+
+    def to_json(self, **kwargs):
+        """
+        Deduplicate the event names and turn the whole workload into a loop if
+        possible.
+        """
+        events = list(self.to_events(**kwargs))
+        loop, events = loopify(events)
+
+        # add unique stable suffix to duplicated events, after loopification.
+        # Note: this suffix should be ignored by rt-app, even if it's not
+        # currently explicilty documented as such. rt-app/doc/workgen script
+        # also relies on that.
+        def dedup(state, item):
+            items, seen = state
+
+            key, val = item
+            nr = seen.setdefault(key, -1) + 1
+            seen[key] = nr
+
+            if nr:
+                key = f'{key}-{nr}'
+
+            return (items + [(key, val)], seen)
+
+        if events:
+            events, _ = fold(dedup, events, init=([], {}))
+
+        # Keep "loop" at the beginning for readability
+        json_ = OrderedDict([('loop', loop)])
+        json_.update(events)
+        assert json_['loop'] == loop
+        return json_
+
+    @classmethod
+    def to_default_json(cls, plat_info, properties):
+        return {}
+
+
+class WloadSequence(WloadPropertyBase, SimpleConcreteProperty):
+    """
+    Sequence of workloads, to be executed one after another.
+
+    .. note:: Adding together two :class:`WloadPropertyBase` with ``+``
+        operator will give a :class:`WloadSequence`, so there is usually no
+        need to create one explicitly.
+    """
+    def __init__(self, wloads):
+        self.wloads = list(wloads)
+
+    @property
+    # @memoized
+    def _expanded_wloads(self):
+        # Deep first expansion of the WloadSequence tree followed by combining
+        # the workloads.
+        def topo_sort(wload):
+            if isinstance(wload, WloadSequence):
+                return chain.from_iterable(map(topo_sort, wload.wloads))
+            else:
+                return [wload]
+
+        def add(wloads, wload):
+            if wloads:
+                last = wloads[-1]
+                # This relies on associativity of the __add__ definition for
+                # all workloads, since we work on the topological sort of the
+                # tree, thereby loosing the information on the exact internal
+                # stucture of the "+" expression tree
+                new = last + wload
+                # If the workload has a special __add__, use the result
+                if not isinstance(new, WloadSequence):
+                    wload = new
+                    wloads = wloads[:-1]
+
+            return wloads + [wload]
+
+        return list(functools.reduce(add, topo_sort(self), []))
+
+    def __str__(self):
+        return ' -> '.join(map(str, self._expanded_wloads))
+
+    def __bool__(self):
+        return any(map(bool, self.wloads))
+
+    def to_events(self, **kwargs):
+        return list(chain.from_iterable(
+            wload.to_events(**kwargs)
+            for wload in self._expanded_wloads
+        ))
+
+
+class _SingleWloadBase(WloadPropertyBase):
+    """
+    :meta public:
+
+    Execute a single rt-app event.
+    """
+
+    _ACTION = None
+    """
+    Name of the rt-app JSON event to execute.
+    """
+
+    def __init__(self, action=None):
+        self._action = action or self._ACTION
+
+    def __str__(self):
+        return f'{self._action}({self.json_value})'
+
+    def __and__(self):
+        if self != other:
+            raise ValueError(f'Conflicting properties "{self}" and "{other}')
+        else:
+            return copy.copy(self)
+
+    @property
+    @abc.abstractmethod
+    def json_value(self):
+        """
+        Value to pass to JSON.
+        """
+        pass
+
+    def to_events(self, **kwargs):
+        return [(self._action, self.json_value)]
+
+
+class DurationWload(WloadPropertyBase):
+    """
+    Workload parametrized by a duration.
+    """
+    def __init__(self, duration, **kwargs):
+        self.duration = duration
+        super().__init__(**kwargs)
+
+    @classmethod
+    def from_duration(cls, duration):
+        """
+        Build a workload from the given ``duration`` in seconds.
+        """
+        return cls(duration=duration)
+
+    def __str__(self):
+        return f'{self._action}({self.duration})'
+
+    @property
+    def json_value(self):
+        return _to_us(self.duration)
+
+
+class DurationWload(DurationWload, _SingleWloadBase):
+    """
+    :meta public:
+    """
+
+
+class RunWload(DurationWload):
+    """
+    Workload for the ``run`` event.
+
+    :param duration: Duration of the run in seconds.
+    :type duration: int
+    """
+    _ACTION = 'run'
+
+
+class RunForTimeWload(DurationWload):
+    """
+    Workload for the ``runtime`` event.
+
+    :param duration: Duration of the run in seconds.
+    :type duration: int
+    """
+    _ACTION = 'runtime'
+
+
+class SleepWload(DurationWload):
+    """
+    Workload for the ``sleep`` event.
+
+    :param duration: Duration of the sleep in seconds.
+    :type duration: int
+    """
+    _ACTION = 'sleep'
+
+
+class BarrierWload(_SingleWloadBase):
+    """
+    Workload for the ``barrier`` event.
+
+    :param barrier: Name of the barrier
+    :type barrier: str
+    """
+    _ACTION = 'barrier'
+
+    def __init__(self, barrier, **kwargs):
+        self.barrier = barrier
+        super().__init__(**kwargs)
+
+    @property
+    def json_value(self):
+        return self.barrier
+
+
+class LockWload(_SingleWloadBase):
+    """
+    Workload for the ``lock`` and ``unlock`` event.
+
+    :param lock: Name of the lock
+    :type lock: str
+
+    :param action: One of ``lock`` or ``unlock``.
+    :type action: str
+    """
+    def __init__(self, lock, action='lock', **kwargs):
+        self.lock = lock
+        if action not in ('lock', 'unlock'):
+            raise ValueError(f'Unknown action: {action}')
+        super().__init__(action=action, **kwargs)
+
+    @property
+    def json_value(self):
+        return self.lock
+
+
+class YieldWload(_SingleWloadBase):
+    """
+    Workload for the ``yield`` event.
+    """
+    _ACTION = 'yield'
+
+    @property
+    def json_value(self):
+        return ''
+
+
+class WaitWload(_SingleWloadBase):
+    """
+    Workload for the ``wait``, ``signal`` and ``broad`` events.
+
+    :param lock: Name of the lock
+    :type lock: str
+
+    :param action: One of ``wait``, ``signal`` or ``broad``.
+    :type action: str
+    """
+    def __init__(self, resource, action='wait', **kwargs):
+        self.resource = resource
+        # Action can also be set to "sync" directly by __add__, so it bypasses
+        # the check
+        if action not in ('wait', 'signal', 'broad'):
+            raise ValueError(f'Unknown action: {action}')
+        super().__init__(action=action, **kwargs)
+
+    @property
+    def json_value(self):
+        return self.resource
+
+    def __add__(self, other):
+        """
+        Combine a ``signal`` :class:`WaitWload` with a ``wait``
+        :class:`WaitWload` into a ``sync`` workload.
+        """
+        if (
+            isinstance(other, self.__class__) and
+            self._action == 'signal' and
+            other._action == 'wait' and
+            self.resource == other.resource
+        ):
+            new = copy.copy(self)
+            new._action = 'sync'
+            return new
+        else:
+            return super().__add__(other)
+
+
+class _SizeSingleWload(_SingleWloadBase):
+    """
+    :meta public:
+    """
+    def __init__(self, size, **kwargs):
+        self.size = size
+        super().__init__(**kwargs)
+
+    def __str__(self):
+        return f'{self._action}({self.size})'
+
+    @property
+    def json_value(self):
+        return self.size
+
+
+class MemWload(_SizeSingleWload):
+    """
+    Workload for the ``mem`` event.
+
+    :param size: Size in bytes to be written to the buffer.
+    :type size: int
+    """
+    _ACTION = 'mem'
+
+
+class IOWload(_SizeSingleWload):
+    """
+    Workload for the ``iorun`` event.
+
+    :param size: Size in bytes to be written to the file.
+    :type size: int
+    """
+    _ACTION = 'iorun'
+    # TODO: add an "io_device" global key to optionally change the file to
+    # write to (defaults to /dev/null)
+
+
+class PeriodicWload(WloadPropertyBase, ComposableMultiConcretePropertyBase):
+    """
+    Periodic task workload.
+
+    The task runs to complete a given amount of work, then sleeps until the end
+    of the period.
+    {params}
+    """
+    _ATTRIBUTES = {
+        'duty_cycle_pct': dict(
+            doc="Duty cycle of the task in percents (when executing on the fastest CPU at max frequency). This is effectively equivalent to an amount of work.",
+            type_=float,
+        ),
+        'period': dict(
+            doc="Period of the activation pattern in seconds",
+            type_=float,
+        ),
+        'duration': dict(
+            doc="Duration of the workload in seconds. If ``None``, keep running forever",
+            type_=float,
+        ),
+        'scale_for_cpu': dict(
+            doc='CPU ID used to scale the ``duty_cycle_pct`` value on asymmetric systems. If ``None``, it will be assumed to be the fastest CPU on the system.',
+            type_=int,
+        ),
+        'scale_for_freq': dict(
+            doc='Frequency used to scale ``duty_cycle_pct`` in a similar way to ``scale_for_cpu``. This is only valid in conjunction with ``scale_for_cpu``.',
+            type_=int,
+        ),
+        'run_wload': dict(
+            doc="Workload factory callback used for the running part. It will be called with a single ``duration`` parameter (in seconds) and must return a :class:`WloadPropertyBase`. Note that the passed duration is scaled according to ``scale_for_cpu`` and ``scale_for_freq``",
+            type_=type,
+        ),
+    }
+
+    def unscaled_duty_cycle_pct(self, plat_info):
+        cpu = self.scale_for_cpu
+        freq = self.scale_for_freq
+        dc = self.duty_cycle_pct
+
+        if cpu is None:
+            capa = PELT_SCALE
+        else:
+            capa = plat_info.get_nested_key(['cpu-capacities', 'rtapp'], quiet=True)[cpu]
+
+        if freq is not None:
+            freqs = plat_info.get_key(['freqs'], quiet=True)[cpu]
+            capa *= freq / max(freqs)
+
+        capa /= PELT_SCALE
+        return dc * capa
+
+    def to_events(self, plat_info):
+        duty_cycle_pct = self.duty_cycle_pct
+        duration = self.duration
+        period = self.period
+        scale_cpu = self.scale_for_cpu
+        scale_freq = self.scale_for_freq
+        run_wload = self.run_wload or RunWload.from_duration
+
+        if duty_cycle_pct is None:
+            raise ValueError('duty_cycle_pct cannot be None')
+        if duration is None:
+            raise ValueError('duration cannot be None')
+
+        if scale_cpu is not None:
+            duty_cycle_pct = self.unscaled_duty_cycle_pct(plat_info)
+        elif scale_freq:
+            raise ValueError(f'scale_for_freq is ignored if scale_for_cpu is None')
+
+        if not (0 <= duty_cycle_pct <= 100):
+            raise ValueError(f'duty_cycle_pct={duty_cycle_pct} outside of [0, 100]')
+
+        if period > duration:
+            raise ValueError(f'period={period} cannot be higher than duration={duration}')
+
+        def get_run(duration, run_wload=run_wload):
+            wload = run_wload(duration)
+            return list(wload.to_events(plat_info=plat_info))
+
+        if duty_cycle_pct == 0:
+            events = get_run(duration, SleepWload.from_duration)
+        elif duty_cycle_pct == 100:
+            events = get_run(duration)
+        else:
+            if period is None or period <= 0:
+                raise ValueError(f'Period outside ]0,+inf[ : {period}')
+
+            run = duty_cycle_pct * period / 100
+            # Use math.floor() so we never exceed "duration"
+            loop = math.floor(duration / period)
+
+            run_events = get_run(run)
+            timer_event = (
+                # TODO: investigate if we can be interested in other
+                # timer types
+                'timer',
+                {
+                    # This special reference ensures each thread get their
+                    # own timer
+                    'ref': 'unique',
+                    'period': _to_us(period)
+                },
+            )
+
+            # run events have to come before "timer" as events are processed in
+            # order
+            events = loop * (run_events + [timer_event])
+
+        return events
+
+
+class RTAPhaseProperties(SimpleHash, Mapping):
+    """
+    Hold the properties of an :class:`RTAPhaseBase`.
+
+    :param properties: List of properties.
+    :type properties: list(PropertyBase)
+    """
+    def __init__(self, properties):
+        properties = [
+            (prop.key, prop)
+            for prop in (properties or [])
+        ]
+        self.properties = FrozenDict(_make_dict(properties), deepcopy=False, type_=lambda x: x)
+
+    @classmethod
+    def from_polymorphic(cls, obj):
+        """
+        Alternative constructor with polymorphic input:
+
+            * ``None``: equivalent to an empty list.
+            * :class:`RTAPhaseProperties`: taken as-is.
+            * :class:`~collections.abc.Mapping`: each key/value pair is either:
+
+                * the value is a :class:`PropertyBase`: it's taken as-is
+                * the value is a :class:`PlaceHolderValue`: the property is
+                  created using its ``PROPERTY_CLS.from_key`` method.
+                * otherwise, an instance of the appropriate class is built by
+                  :meth:`PropertyBase.from_key`.
+        """
+        if obj is None:
+            return cls(properties=[])
+        elif isinstance(obj, cls):
+            return obj
+        elif isinstance(obj, Mapping):
+            def from_key(key, val):
+                # Allow Property to be used as values in the dict directly, in
+                # case just one value needs some specific setting and the rest
+                # is using the simple API
+                if isinstance(val, PropertyBase):
+                    return val
+                elif isinstance(val, PlaceHolderValue):
+                    return val.PROPERTY_CLS.from_key(
+                        key=key,
+                        val=val.val,
+                        **val.kwargs
+                    )
+                else:
+                    return PropertyBase.from_key(key, val)
+
+            properties = list(starmap(from_key, obj.items()))
+            return cls(properties)
+        else:
+            raise TypeError(f'Unsupported type: {obj.__class__}')
+
+    def to_json(self, plat_info, **kwargs):
+        """
+        Output a JSON object with the values of all properties, including
+        defaults if a given property is not set.
+        """
+        kwargs['plat_info'] = plat_info
+        properties = _make_dict(chain.from_iterable(
+            prop.to_json(**kwargs).items()
+            for prop in self.properties.values()
+            if isinstance(prop, ConcretePropertyBase)
+        ))
+
+        return OrderedDict(chain(
+            self.get_defaults(plat_info, properties).items(),
+            # Keep ordering of properties as they were output
+            properties.items()
+        ))
+
+    @classmethod
+    def get_defaults(cls, plat_info, properties=None, trim_defaults=True):
+        """
+        Get the default JSON object for the phase with the given user-derived
+        JSON ``properties``.
+
+        :param plat_info: Platform information used to compute some defaults
+            values, such as the default CPU affinity set based on the number of
+            CPUs.
+        :type plat_info: lisa.platforms.platinfo.PlatformInfo
+
+        :param properties: JSON object derived from user-provided properties.
+            It is used to compute some context-sensitive defaults, such as the
+            ``priority`` that depends on the ``policy``.
+        :type properties: dict(str, object)
+
+        :param trim_defaults: If ``True``, default values that are already set
+            in ``properties`` will be omitted.
+        :type trim_defaults: bool
+        """
+        properties = properties or {}
+
+        def get_defaults(defaults):
+            return _make_dict(chain.from_iterable(
+                subcls.to_default_json(
+                    plat_info=plat_info,
+                    properties={
+                        **defaults,
+                        **properties
+                    },
+                ).items()
+                for subcls in get_subclasses(ConcretePropertyBase)
+            ))
+
+        # Compute the defaults until they are stable, to take into account any
+        # dependency between keys
+        defaults = fixedpoint(get_defaults, {}, limit=1000)
+        return OrderedDict(
+            (key, val)
+            # sort the defaults to get stable output.
+            for key, val in sorted(defaults.items())
+            # Remove the keys that are set in properties from the defaults,
+            # otherwise it will mess up the order in the final OrderedDict.
+            # Keys that appear twice would be combined such that the latest
+            # value is inserted at the position of the first key, so the first
+            # key cannot be in "defaults", otherwise the order set in
+            # "properties" will be broken
+            if not (trim_defaults and key in properties)
+        )
+
+    def __and__(self, other):
+        """
+        Combine two instances.
+
+        Properties are merged according to the following rules:
+
+            * Take the value as-is for all the keys that only appear in one of
+              them.
+            * For values set in both properties, combine them with ``&``
+              operator. The value coming from ``self`` will be the left
+              operand.
+        """
+        common = self.properties.keys() & other.properties.keys()
+        merged = [
+            # Order of operand matters, "&" is not expected to be commutative
+            # or associative (for some of the properties). The order is chosen so
+            # that the left operand is closer to the root of the tree.
+            self.properties[key] & other.properties[key]
+            # Preserve the key order that can be important
+            for key in order_as(
+                common,
+                order_as=self.properties.keys(),
+            )
+        ]
+        for properties in (self.properties, other.properties):
+            merged.extend(
+                prop
+                # It is important that order is preserved for the properties
+                # coming from any given mapping, since correctness depends on
+                # it for rt-app events like run and barriers.
+                for key, prop in properties.items()
+                if key not in common
+            )
+
+        return self.__class__(properties=merged)
+
+    @property
+    def existing_properties(self):
+        """
+        Trim the properties to only contain the "public" ones, i.e. the ones
+        that have not been deleted.
+        """
+        return OrderedDict(
+            (key, val)
+            for key, val in self.properties.items()
+            if not isinstance(val, DeletedProperty)
+        )
+
+    def __getitem__(self, key):
+        return self.existing_properties[key].val
+
+    def __iter__(self):
+        return iter(self.existing_properties)
+
+    def __len__(self):
+        return len(self.existing_properties)
+
+    def __bool__(self):
+        # Do not use existing_properties here, since checking for emptiness is
+        # used to know if the properties will have any effect when combined
+        # with another.
+        return bool(self.properties)
+
+    def __str__(self):
+        return str(dict(
+            (k, str(v))
+            for k, v in self.existing_properties.items()
+        ))
+
+
+class _RTAPhaseBase:
+    """
+    :meta public:
+    """
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        """
+        Update the docstring used as a :meth:`str.format` template with the
+        following keys:
+
+            * ``{prop_kwargs}``: replaced by the Sphinx-friendly list of
+              "prop_*" keyword arguments
+        """
+        docstring = inspect.getdoc(cls)
+        if docstring:
+            cls.__doc__ = docstring.format(
+                prop_kwargs=cls._get_rst_prop_kwargs_doc()
+            )
+
+        super().__init_subclass__(**kwargs)
+
+    @classmethod
+    def _get_rst_prop_kwargs_doc(cls):
+        def make(key, cls):
+            param = f'prop_{key}'
+            doc, type_ = cls._get_cls_doc()
+            fst = f':param {param}: {doc}'
+            snd = f':type {param}: {type_}'
+            return f'{fst}\n{snd}'
+
+        properties = {
+            cls.KEY: cls
+            for cls in get_subclasses(PropertyBase)
+            if cls.KEY is not None
+        }
+
+        return '\n\n'.join(starmap(make, sorted(properties.items())))
+
+
+class RTAPhaseBase(_RTAPhaseBase, SimpleHash, Mapping, abc.ABC):
+    """
+    Base class for rt-app phase modelisation.
+
+    :param properties: Properties mapping to set on that phase. See
+        :meth:`RTAPhaseProperties.from_polymorphic` for the accepted formats.
+        Alternatively, keyword arguments ``prop_*`` can be used.
+    :type properties: object
+
+    {prop_kwargs}
+    """
+    def __init__(self, properties=None, **kwargs):
+        properties, other_kwargs = self.split_prop_kwargs(kwargs, properties)
+
+        if other_kwargs:
+            illegal = ', '.join(sorted(other_kwargs.keys()))
+            raise TypeError(f'TypeError: got an unexpected keyword arguments: {illegal}')
+
+        self.properties = RTAPhaseProperties.from_polymorphic(properties)
+
+    def __str__(self):
+        sep = '\n' + ' ' * 4
+        props = sep.join(
+            f'{key}={val}'
+            for key, val in sorted(self.properties.items(), key=itemgetter(0))
+            if key != 'name'
+        )
+        try:
+            name = self['name']
+        except KeyError:
+            name = 'Phase'
+        else:
+            name = f'Phase {name}'
+
+        return f'{name}:{sep}{props}'
+
+    def with_phase_properties(self, properties):
+        """
+        Return a cloned instance with the properties combined with the given
+        ``properties`` using :meth:`RTAPhaseProperties.__and__` (``&``). The
+        ``properties`` parameter is the left operand.
+        """
+        new = copy.copy(self)
+        new.properties = properties & new.properties
+        return new
+
+    def with_properties_map(self, properties, **kwargs):
+        """
+        Same as :meth:`with_phase_properties` but with ``properties`` passed to
+        :meth:`RTAPhaseProperties.from_polymorphic` first.
+        """
+        return self.with_phase_properties(
+            RTAPhaseProperties.from_polymorphic(properties),
+            **kwargs,
+        )
+
+    def with_props(self, **kwargs):
+        """
+        Same as :meth:`with_phase_properties` but using keyword arguments to
+        set each property. The resulting dictionary is passed to
+        :meth:`RTAPhaseProperties.from_polymorphic` first.
+        """
+        return self.with_properties_map(kwargs)
+
+    def with_delete_props(self, properties):
+        """
+        Delete all the given property names, equivalent to
+        `with_props(foo=delete())``
+        """
+        return self.with_properties_map(
+            dict.fromkeys(properties, delete())
+        )
+
+    @abc.abstractmethod
+    def get_rtapp_repr(self, *, task_name, plat_info, force_defaults=False, **kwargs):
+        """
+        rt-app JSON representation of the phase.
+
+        :param task_name: Name of the task this phase will be attached to.
+        :type task_name: str
+
+        :param plat_info: Platform information used to compute default
+            properties and validate them.
+        :type plat_info: lisa.platforms.platinfo.PlatformInfo
+
+        :param force_defaults: If ``True``, a default value will be provided
+            for all properties that are not set. If ``False``, the defaults
+            will not be provided if the user-provided properties don't touch a
+            given JSON key.
+        :type force_defaults: bool
+
+        :Variable keyword arguments: Forwarded to
+            :meth:`RTAPhase.to_json`
+        """
+        pass
+
+    def __add__(self, other):
+        """
+        Compose two phases together by running one after the other.
+
+        Since this operation returns an :class:`RTAPhaseTree`, it is possible
+        to set properties on it that will only apply to its children.
+        """
+        return RTAPhaseTree(children=[self, other])
+
+    def __mul__(self, n):
+        """
+        Multiply the phase by ``n``, in order to repeat it.
+        """
+        if n == 1:
+            return copy.copy(self)
+        else:
+            return RTAPhaseTree(children=[self] * n)
+
+    def __rmul__(self, n):
+        return self.__mul__(n)
+
+    def __getitem__(self, key):
+        """
+        Lookup the value of the given property on that phase.
+        """
+        return self.properties[key]
+
+    def __len__(self):
+        return len(self.properties)
+
+    def __iter__(self):
+        return iter(self.properties)
+
+    @staticmethod
+    def split_prop_kwargs(kwargs, properties=None):
+        """
+        Split the ``kwargs`` into two categories:
+
+            * Arguments with a name starting with ``prop_``. They are then
+              merged with the optional ``properties``.
+            * The others
+
+        Returns a tuple ``(properties, other_kwargs)``.
+        """
+        def dispatch(item):
+            key, val = item
+            if key.startswith('prop_'):
+                return 'properties'
+            else:
+                return 'others'
+
+        kwargs = dict(groupby(kwargs.items(), key=dispatch))
+        kwargs['properties'] = {
+            key[len('prop_'):]: val
+            for key, val in kwargs.get('properties', [])
+        }
+
+        for cat in ('properties', 'others'):
+            kwargs[cat] = dict(kwargs.get(cat, {}))
+
+        properties = _make_dict(chain(
+            (properties or {}).items(),
+            kwargs['properties'].items()
+        ))
+
+        return (properties, kwargs['others'])
+
+
+
+class _RTAPhaseTreeBase(RTAPhaseBase, abc.ABC):
+    """
+    :meta public:
+
+    Base class for phases laid out as a tree.
+    """
+    @abc.abstractmethod
+    def topo_sort(self):
+        """
+        Topological sort of the subtree.
+
+        :rtype: list(RTAPhase)
+
+        The merge of :class`PhaseProperties` object is done from root to leaf
+        (pre-order traversal). This is important for some classes that are not
+        semigroup like :class:`OverridenProperty`.
+        """
+        pass
+
+    @property
+    @abc.abstractmethod
+    def is_empty(self):
+        """
+        ``True`` if the phase has no content and will result in an empty JSON
+        phase(s).
+        """
+        pass
+
+    @property
+    def phases(self):
+        """
+        Topological sort of the phases in the tree, with the properties merged
+        along each path from the root to the leaves.
+        """
+        return self.topo_sort()
+
+    def get_rtapp_repr(self, task_name, plat_info, force_defaults=False, **kwargs):
+        phases = self.phases
+
+        # to_json is expected to apply the defaults itself
+        json_phases = [
+            phase.to_json(
+                plat_info=plat_info,
+                **kwargs
+            )
+            for phase in phases
+        ]
+
+        if not force_defaults:
+            defaults = [
+                (
+                    json_phase,
+                    RTAPhaseProperties.get_defaults(
+                        plat_info=plat_info,
+                        properties=json_phase,
+                        trim_defaults=False,
+                    )
+                )
+                for json_phase in json_phases
+            ]
+
+            # All the keys that have a default value somewhere are potentially
+            # removable
+            removable_keys = set(chain.from_iterable(
+                default.keys()
+                for _, default in defaults
+            ))
+
+            keys_to_remove = set(
+                key
+                for key in removable_keys
+                # Remove the key if it is not present at all or set to its
+                # default value in all phases
+                if all(
+                    (
+                        # If the key is neither in the defaults of that phase
+                        # nor in the phase itself, it won't matter if we
+                        # attempt to remove it or not
+                        (
+                            key not in phase and
+                            key not in phase_defaults
+                        ) or
+                        (
+                            # If the key is in phase and not phase_default or
+                            # the opposite, we treat it as a non-default
+                            # setting.
+                            key in phase and
+                            key in phase_default and
+                            phase[key] == phase_default[key]
+                        )
+                    )
+                    for phase, phase_default in defaults
+                )
+            )
+
+            def remove_keys(dct, keys):
+                return OrderedDict(
+                    (key, val)
+                    for key, val in dct.items()
+                    if key not in keys
+                )
+
+            json_phases = [
+                remove_keys(phase, keys_to_remove)
+                for phase in json_phases
+            ]
+
+        # All the JSON properties that need to be considered to optimize-away
+        # redundant values between phases, except when one of their
+        # optimization barrier key changes.
+        optimize_barriers = list(chain.from_iterable(
+            subcls.OPTIMIZE_JSON_KEYS.items()
+            for subcls in get_subclasses(ConcretePropertyBase)
+        ))
+        optimize_barriers = {
+            key: set(chain.from_iterable(map(itemgetter(1), item)))
+            for key, item in groupby(optimize_barriers, key=itemgetter(0))
+        }
+        to_dedup = optimize_barriers.keys()
+
+        def _dedup(fold_state, properties):
+            state, processed = fold_state
+
+            for key, val in properties.items():
+                barriers = optimize_barriers.get(key, set())
+                # For each key in the currently inspected properties, check if
+                # any other key acting as a barrier for it had a change of
+                # value. If so, we remove the value of the key from the current
+                # state so it will not be optimized out in the inspected
+                # properties, even if it has the same value as the one in the
+                # state.
+                if any(
+                    state.get(barrier) != properties.get(barrier)
+                    for barrier in barriers
+                ):
+                    try:
+                        del state[key]
+                    except KeyError:
+                        pass
+
+            properties = OrderedDict(
+                (key, val)
+                for key, val in properties.items()
+                # Filter out settings that are equal to the current state
+                if not (key in to_dedup and key in state and val == state[key])
+            )
+
+            # Update the state for the next round
+            state = {
+                **state,
+                **properties,
+            }
+            # Build the list of processed properties
+            processed = processed + [properties]
+
+            return (state, processed)
+
+        def dedup(properties_list):
+            properties_list = list(properties_list)
+            if properties_list:
+                _, properties_list = fold(_dedup, properties_list, init=({}, []))
+                return properties_list
+            else:
+                return []
+
+        json_phases = dedup(json_phases)
+
+        _json_phases = json_phases
+        loop, json_phases = loopify(json_phases)
+        # Check loopify gave a prefix of json_phases, since we rely on that
+        # with zip() to associate the phase object
+        assert json_phases == _json_phases[:len(json_phases)]
+
+        return {
+            'loop': loop,
+            'phases': OrderedDict(
+                # Some phases might not have a name. Only phases of accessed
+                # via the "phases" property in a RTAPhaseTree have this
+                # guarantee
+                (phase.get('name', str(i)), json_phase)
+                for i, (phase, json_phase) in enumerate(zip(phases, json_phases))
+            )
+        }
+
+
+class RTAPhase(_RTAPhaseTreeBase):
+    """
+    Leaf in a tree of :class:`RTAPhaseTree`.
+
+    {prop_kwargs}
+    """
+    def to_json(self, **kwargs):
+        """
+        JSON content of the properties of the phase.
+        """
+        properties = self.properties
+
+        # rt-app errors on phases without any events, so provide a dummy one
+        # that will do nothing
+        if not properties.get('wload'):
+            dummy_wload = RunWload(0)
+            # Make sure the dummy wload is the left operand, to override any
+            # DeletedProperty
+            properties = RTAPhaseProperties(
+                [OverridenProperty(dummy_wload)]
+            ) & properties
+
+        return properties.to_json(**kwargs)
+
+    def topo_sort(self):
+        return [self]
+
+    @property
+    def is_empty(self):
+        return not self.properties
+
+
+class RTAPhaseTreeChildren(SimpleHash, Mapping):
+    """
+    Proxy object used by :class:`RTAPhaseTree` to store the children list.
+
+    It provides a mapping interface where children can be looked up by name if
+    they have one.
+
+    :param children: List of the children.
+    :type children: list(RTAPhaseTree)
+    """
+
+    def __init__(self, children):
+        self.children = list(children)
+
+    def __getitem__(self, key):
+        names = [
+            (child.get('name', ''), child)
+            for child in self.children
+        ]
+
+        grouped = dict(groupby(names, key=itemgetter(0)))
+        grouped.pop('', None)
+        children = list(grouped[key])
+
+        if not children:
+            raise KeyError(f'No child named "{key}"')
+        if len(children) > 1:
+            raise ValueError(f'Multiple children have the same name: {key}')
+        else:
+            (_, child), = children
+            return child
+
+    def __len__(self):
+        return len(self.children)
+
+    def __iter__(self):
+        return iter(self.children)
+
+
+class RTAPhaseTree(_RTAPhaseTreeBase):
+    """
+    Tree node in an :class:`_RTAPhaseTreeBase`.
+
+    :param children: List of children phases.
+    :type children: list(_RTAPhaseTreeBase)
+
+    :param properties: Forwarded to base class.
+    :Variable keyword arguments: Forwarded to base class.
+
+    {prop_kwargs}
+
+    The properties set on this node will be combined of the properties of the
+    children in :meth:`topo_sort`.
+    """
+
+    def __init__(self, properties=None, children=None, **kwargs):
+        children = tuple(children or [])
+        self._children = children
+        super().__init__(properties=properties, **kwargs)
+
+    def __str__(self):
+        sep = '\n'
+        try:
+            name = self['name']
+        except KeyError:
+            name = ''
+            idt = ''
+        else:
+            idt = ' ' * 4
+            name = f'Phase {name}:\n'
+
+        sep += idt
+
+        children = ('\n' + sep).join(
+            str(child).replace('\n', sep)
+            for child in self._renamed_children
+        )
+        return f'{name}{idt}{children}'
+
+    @property
+    def is_empty(self):
+        return not self.children
+
+    def _update_children(self, children):
+        return [
+            child.with_phase_properties(self.properties)
+            for child in children
+        ]
+
+    @property
+    @memoized
+    def children(self):
+        """
+        Tree levels are transparent and their children expanded directly in
+        their parent, as long as they have no properties on their own that
+        could change the output of :meth:`topo_sort()`. This allows nested
+        :class:`RTAPhaseTree` to act as if it was just a flat node, which is
+        useful since repeated composition with ``+`` operator will give nested
+        binary trees like that.
+        """
+        def expand(phase):
+            # We can expand the children of the phase into their grandparent if
+            # and only if the phase has no impact on its children (apart from
+            # deleted/overriden properties)
+            if isinstance(phase, self.__class__) and not phase.properties.existing_properties:
+                # Still apply the properties, as there could be some
+                # properties to override or delete
+                return phase._update_children(phase.children)
+            # Hide completely empty children here, so that they don't even
+            # appear in RTAPhaseBase.phases property. This ensures consistency
+            # with the JSON content
+            elif phase.is_empty:
+                return []
+            else:
+                return [phase]
+
+        return RTAPhaseTreeChildren(
+            children=chain.from_iterable(
+                expand(child)
+                for child in self._children
+            )
+        )
+
+    @property
+    @memoized
+    def _renamed_children(self):
+        children = self.children
+
+        one_child = len(children) == 1
+        def update_name(state, child):
+            children, i, names = state
+
+            # Add a default name, to avoid inheriting from the parent the exact
+            # same name
+            try:
+                name = child['name']
+            except KeyError:
+                # If we only have one child, it's safe for it to inherit
+                # from the name of it's parent. This avoids having a
+                # trailing ".../0" in all names, since leaves will be
+                # considered "children of themselves".
+                if one_child:
+                    name = self.get('name')
+                else:
+                    name = str(i)
+                    child = child.with_props(name=name)
+                    i += 1
+
+            if name in names:
+                raise ValueError(f'Two children cannot have the same name "{name}" and share the same parent')
+            names.add(name)
+
+            return (children + [child], i, names)
+
+        if children:
+            children, *_ = fold(update_name, children, init=([], 0, set()))
+
+        return self._update_children(children)
+
+    def topo_sort(self):
+        """
+        Topological sort of the tree, and combine the properties along each
+        path from root to leaves at the same time.
+        """
+        # Update the properties before recursing, so that the order of aggregation is:
+        # (((root) & child) & subchild)
+        # Instead of:
+        # (root & (child & (subchild)))
+
+        # Only assign a number to unnamed phases, so that adding a named phase
+        # to the mix does not change the named of unnamed ones.
+        return list(chain.from_iterable(
+            child.topo_sort()
+            for child in self._renamed_children
+        ))
+
+
+class ParametricPhase(RTAPhaseTree):
+    """
+    Base class for phases with special behavior beyond their properties.
+
+    :param template: Template phase used to create children.
+    :type template: RTAPhaseBase
+
+    :param properties: Properties to set for that phase.
+    :type properties: dict(str, object)
+
+    {prop_kwargs}
+
+    :Variable keyword arguments: Forwarded to :meth:`_make_children`.
+
+    Extra behaviour is enabled by allowing this phase to have multiple children
+    created based on the parameters.
+    """
+
+    DEFAULT_PHASE_CLS = RTAPhase
+    """
+    If no template is passed, an instance of this class will be used as
+    template.
+    """
+
+    def __init__(self, template=None, properties=None, **kwargs):
+        properties, other_kwargs = self.split_prop_kwargs(kwargs, properties)
+
+        template = self.DEFAULT_PHASE_CLS() if template is None else template
+        children = self._make_children(
+            template=template,
+            **other_kwargs
+        )
+        super().__init__(
+            properties=properties,
+            children=children,
+        )
+
+    @classmethod
+    @abc.abstractmethod
+    def _make_children(cls, template, **kwargs):
+        """
+        Create a list of children :class:`RTAPhaseBase` based on the parameters
+        passed from the constructor.
+        """
+        pass
+
+
+class SweepPhase(ParametricPhase):
+    """
+    Parametric phase creating children by setting the property ``key`` to
+    values found in ``values``, in order.
+
+    :param key: Property to set.
+    :type key: str
+
+    :param values: Values to set the property to.
+    :type values: list(object)
+
+    {prop_kwargs}
+    """
+    @classmethod
+    def _make_children(cls, template, *, key, values):
+        return [
+            template.with_properties_map({
+                key: i,
+            })
+            for i in values
+        ]
+
+
+class DutyCycleSweepPhase(SweepPhase):
+    """
+    Sweep on the ``duty_cycle_pct`` parameter of a :class:`PeriodicWload`.
+
+    :param template: Template phase to use.
+    :type template: RTAPhaseBase
+
+    :param period: See :class:`PeriodicWload`
+    :param duration: See :class:`PeriodicWload`
+
+    :param duration_of: If ``"total"``, the ``duration`` will be used as the
+        total duration of the sweep. If ``"step"``, it will be the duration of
+        a single step of the sweep.
+    :type duration_of: str
+
+    {prop_kwargs}
+
+    :Variable keyword arguments: Forwarded to :func:`lisa.utils.value_range` to
+        generate the ``duty_cycle_pct`` values.
+    """
+    @classmethod
+    def _make_children(cls, template, *, period, duration, duration_of=None, **kwargs):
+
+        dc_values = list(value_range(**kwargs, inclusive=True, clip=True))
+
+        duration_of = duration_of or 'total'
+        if duration_of == 'step':
+            phase_duration = duration
+        elif duration_of == 'total':
+            phase_duration = duration / len(dc_values)
+        else:
+            raise ValueError(f'Illegal value "{duration_of}" for "duration_of"')
+
+        values = PeriodicWload.from_product(
+            duty_cycle_pct=dc_values,
+            period=[period],
+            duration=[phase_duration],
+        )
+        return super()._make_children(template, key='wload', values=values)
+
+
+################################################################################
+# Deprecated classes
+################################################################################
+
+
+class Phase(RTAPhase):
     """
     Descriptor for an rt-app load phase
 
@@ -730,110 +3668,111 @@ class Phase(Loggable):
     """
 
     def __init__(self, duration_s, period_ms, duty_cycle_pct, cpus=None, barrier_after=None,
-                 uclamp_min=None, uclamp_max=None, numa_nodes_membind=None):
+                 uclamp_min=None, uclamp_max=None, numa_nodes_membind=None, **kwargs):
         if barrier_after and duty_cycle_pct != 100:
             # This could be implemented but currently don't foresee any use.
             raise ValueError('Barriers only supported when duty_cycle_pct=100')
 
+        # Since Phase used to be the kitchen sink class, it is sometimes used
+        # with parameter values that are in themselves invalid, but sort of ok
+        # if you make assumptions on what is generated exactly.
+        if duty_cycle_pct in (0, 100):
+            # The value won't matter as it will be translated to either a pure
+            # "run" or "sleep" event
+            if period_ms is None:
+                period_ms = duration_s * 1e3
+            # Avoid triggering an exception because of invalid period
+            elif period_ms > duration_s:
+                period_ms = duration_s
+
+        wload = PeriodicWload(
+            duration=duration_s,
+            period=period_ms * 1e-3,
+            duty_cycle_pct=duty_cycle_pct,
+        )
+
+        if barrier_after:
+            wload = wload + BarrierWload(barrier_after)
+
+        super().__init__(
+            prop_uclamp=(uclamp_min, uclamp_max),
+            prop_wload=wload,
+            prop_cpus=cpus,
+            prop_numa_nodes_membind=numa_nodes_membind,
+            **kwargs,
+        )
+
+        self.cpus = cpus
         self.duration_s = duration_s
         self.period_ms = period_ms
         self.duty_cycle_pct = duty_cycle_pct
-        self.cpus = cpus
         self.barrier_after = barrier_after
         self.uclamp_min = uclamp_min
         self.uclamp_max = uclamp_max
         self.numa_nodes_membind = numa_nodes_membind
 
-    def get_rtapp_repr(self, task_name, plat_info):
-        """
-        Get a dictionnary representation of the phase as expected by rt-app
 
-        :param task_name: Name of the phase's task (needed for timers)
-        :type task_name: str
-
-        :param plat_info: Platform info of the target that is going to be used
-            to run the phase.
-        :type plat_info: lisa.platforms.platinfo.PlatformInfo
-
-        :returns: OrderedDict
-        """
-        logger = self.get_logger()
-        phase = OrderedDict()
-        # Convert time parameters to integer [us] units
-        duration = int(self.duration_s * 1e6)
-
-        # A duty-cycle of 0[%] translates to a 'sleep' phase
-        if self.duty_cycle_pct == 0:
-            logger.info(' | sleep {:.6f} [s]'.format(duration / 1e6))
-
-            phase['loop'] = 1
-            phase['sleep'] = duration
-
-        # A duty-cycle of 100[%] translates to a 'run-only' phase
-        elif self.duty_cycle_pct == 100:
-            logger.info(' | batch {:.6f} [s]'.format(duration / 1e6))
-
-            phase['loop'] = 1
-            phase['run'] = duration
-            if self.barrier_after:
-                phase['barrier'] = self.barrier_after
-
-        # A certain number of loops is requires to generate the
-        # proper load
-        else:
-            period = int(self.period_ms * 1e3)
-
-            cloops = -1
-            if duration >= 0:
-                cloops = duration // period
-
-            sleep_time = period * (100 - self.duty_cycle_pct) // 100
-            # rtapp fails to handle floating values correctly
-            # https://github.com/scheduler-tools/rt-app/issues/82
-            running_time = int(period - sleep_time)
-
-            logger.info(' | duration {:.6f} [s] ({} loops)'.format(
-                        duration / 1e6, cloops))
-            logger.info(f' |  period   {int(period):>3} [us], duty_cycle {self.duty_cycle_pct:>3,.2f} %')
-            logger.info(f' |  run_time {int(running_time):>6} [us], sleep_time {int(sleep_time):>6} [us]')
-
-            phase['loop'] = cloops
-            phase['run'] = running_time
-            phase['timer'] = {'ref': task_name, 'period': period}
-
-        # Set the affinity to all CPUs in the system, i.e. do not set any affinity
-        if self.cpus is None:
-            cpus = list(range(plat_info['cpus-count']))
-        else:
-            cpus = self.cpus
-        phase['cpus'] = cpus
-
-        if self.uclamp_min is not None:
-            phase['util_min'] = self.uclamp_min
-            logger.info(f' | util_min {self.uclamp_min:>7}')
-
-        if self.uclamp_max is not None:
-            phase['util_max'] = self.uclamp_max
-            logger.info(f' | util_max {self.uclamp_max:>7}')
-
-        # Allow memory allocation from all NUMA nodes in the system
-        if self.numa_nodes_membind is None:
-            nodes_membind = list(range(plat_info['numa-nodes-count']))
-        else:
-            nodes_membind = self.numa_nodes_membind
-        phase['nodes_membind'] = nodes_membind
-
-        return phase
-
-class RTATask:
+class _RTATask(RTAPhaseTree):
     """
-    Base class for conveniently constructing params to :meth:`RTA.by_profile`
+    :meta public:
+    """
+    def __init__(self, delay_s=0, loops=1, sched_policy=None, priority=None, children=None, **kwargs):
+        if loops < 0:
+            raise ValueError(f'loops={loops} is not supported anymore, only positive values can be used')
+
+        # Add some attributes for the show. They are only there for client code
+        # to inspect, but don't have any actual effect.
+        self._delay_s = delay_s
+        self._loops = loops
+        self._sched_policy = sched_policy
+        self._priority = priority
+
+        children = loops * list(children or [])
+
+        sched_policy = f'SCHED_{sched_policy}' if sched_policy else None
+        if delay_s:
+            delay_phase = RTAPhase(
+                prop_wload=SleepWload(delay_s),
+                prop_name='delay',
+            )
+            children = [delay_phase] + children
+
+        super().__init__(
+            children=children,
+            prop_policy=sched_policy,
+            prop_priority=priority,
+            **kwargs,
+        )
+
+    # Use property() so that the attributes are read-only. This is needed to
+    # catch client code expecting to get a different JSON by mutating the
+    # attributes, which is not the case.
+    @property
+    def delay_s(self):
+        return self._delay_s
+
+    @property
+    def loops(self):
+        return self._loops
+
+    @property
+    def sched_policy(self):
+        return self._sched_policy
+
+    @property
+    def priority(self):
+        return self._priority
+
+
+@deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=RTAPhase)
+class RTATask(_RTATask):
+    """
+    Base class for conveniently constructing params to :meth:`RTA.from_profile`
 
     :param delay_s: the delay in seconds before starting.
     :type delay_s: float
 
-    :param loops: Number of times to repeat the described task (including
-      initial delay). -1 indicates infinite looping
+    :param loops: Number of times to repeat the described task.
     :type loops: int
 
     :param sched_policy: the scheduler policy for this task. Defaults to
@@ -850,42 +3789,55 @@ class RTATask:
     executes the default phases for :class:`Ramp` followed by the default phases for
     :class:`Periodic`.
     """
-
-    def __init__(self, delay_s=0, loops=1, sched_policy=None, priority=None):
-        self.delay_s = delay_s
-        self.loops = loops
-
-        if isinstance(sched_policy, str):
-            sched_policy = sched_policy.upper()
-
-            if sched_policy not in RTA.sched_policies:
-                raise ValueError(f'scheduling class {sched_policy} not supported')
-
-        self.sched_policy = sched_policy
-        self.priority = priority
-        self.phases = []
-
-    def __add__(self, task):
-        # Do not modify the original object which might still be used for other
-        # purposes
-        new = copy.deepcopy(self)
-        # Piggy back on the __iadd__ implementation
-        new += task
-        return new
-
-    def __iadd__(self, task):
-        if task.delay_s:
-            # This won't work, because rt-app's "delay" field is per-task and
-            # not per-phase. We might be able to implement it by adding a
-            # "sleep" event here, but let's not bother unless such a need
-            # arises.
-            raise ValueError("Can't compose rt-app tasks "
-                             "when the second has nonzero 'delay_s'")
-        self.phases.extend(task.phases)
-        return self
+    pass
 
 
-class Ramp(RTATask):
+class _Ramp(_RTATask):
+    """
+    :meta public:
+    """
+    def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
+                 period_ms=100, delay_s=0, loops=1, sched_policy=None,
+                 priority=None, cpus=None, uclamp_min=None, uclamp_max=None,
+                 numa_nodes_membind=None, **kwargs):
+
+        if not (0 <= start_pct <= 100 and 0 <= end_pct <= 100):
+            raise ValueError('start_pct and end_pct must be in [0..100] range')
+
+        children = [
+            Phase(
+                duration_s=time_s,
+                period_ms=0 if load == 0 else period_ms,
+                duty_cycle_pct=load,
+                uclamp_min=uclamp_min,
+                uclamp_max=uclamp_max,
+                numa_nodes_membind=numa_nodes_membind,
+                cpus=cpus,
+            )
+            for load in value_range(
+                start=start_pct,
+                stop=end_pct,
+                step=delta_pct,
+                clip=True,
+                inclusive=True,
+            )
+        ]
+
+        if not children:
+            raise ValueError('No phase created')
+
+        super().__init__(
+            children=children,
+            delay_s=delay_s,
+            loops=loops,
+            sched_policy=sched_policy,
+            priority=priority,
+            **kwargs,
+        )
+
+
+@deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=DutyCycleSweepPhase)
+class Ramp(_Ramp):
     """
     Configure a ramp load.
 
@@ -924,39 +3876,11 @@ class Ramp(RTATask):
       * **uclamp_max**
       * **numa_nodes_membind**
     """
-
-    def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
-                 period_ms=100, delay_s=0, loops=1, sched_policy=None,
-                 priority=None, cpus=None, uclamp_min=None, uclamp_max=None,
-                 numa_nodes_membind=None):
-        super().__init__(delay_s, loops, sched_policy, priority)
-
-        if not (0 <= start_pct <= 100 and 0 <= end_pct <= 100):
-            raise ValueError('start_pct and end_pct must be in [0..100] range')
-
-        # Make sure the delta goes in the right direction
-        sign = +1 if start_pct <= end_pct else -1
-        delta_pct = sign * abs(delta_pct)
-
-        steps = list(value_range(start_pct, end_pct, delta_pct, inclusive=True))
-        # clip the last step
-        steps[-1] = end_pct
-
-        phases = []
-        for load in steps:
-            if load == 0:
-                phase = Phase(time_s, 0, 0, cpus, uclamp_min=uclamp_min,
-                              uclamp_max=uclamp_max, numa_nodes_membind=numa_nodes_membind)
-            else:
-                phase = Phase(time_s, period_ms, load, cpus,
-                              uclamp_min=uclamp_min, uclamp_max=uclamp_max,
-                              numa_nodes_membind=numa_nodes_membind)
-            phases.append(phase)
-
-        self.phases = phases
+    pass
 
 
-class Step(Ramp):
+@deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=DutyCycleSweepPhase)
+class Step(_Ramp):
     """
     Configure a step load.
 
@@ -995,14 +3919,69 @@ class Step(Ramp):
 
     def __init__(self, start_pct=0, end_pct=100, time_s=1, period_ms=100,
                  delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None,
-                 uclamp_min=None, uclamp_max=None, numa_nodes_membind=None):
+                 uclamp_min=None, uclamp_max=None, numa_nodes_membind=None, **kwargs):
         delta_pct = abs(end_pct - start_pct)
-        super().__init__(start_pct, end_pct, delta_pct, time_s,
-                         period_ms, delay_s, loops, sched_policy,
-                         priority, cpus, uclamp_min, uclamp_max, numa_nodes_membind)
+        super().__init__(
+            start_pct=start_pct,
+            end_pct=end_pct,
+            delta_pct=delta_pct,
+            time_s=time_s,
+            period_ms=period_ms,
+            delay_s=delay_s,
+            loops=loops,
+            sched_policy=sched_policy,
+            priority=priority,
+            cpus=cpus,
+            uclamp_min=uclamp_min,
+            uclamp_max=uclamp_max,
+            numa_nodes_membind=numa_nodes_membind,
+            **kwargs,
+        )
 
 
-class Pulse(RTATask):
+class _Pulse(_RTATask):
+    """
+    :meta public:
+    """
+    def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
+                 delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None,
+                 uclamp_min=None, uclamp_max=None, numa_nodes_membind=None, **kwargs):
+
+        if end_pct > start_pct:
+            raise ValueError('end_pct must be lower than start_pct')
+
+        if not (0 <= start_pct <= 100 and 0 <= end_pct <= 100):
+            raise ValueError('end_pct and start_pct must be in [0..100] range')
+
+        loads = [start_pct]
+        if end_pct:
+            loads += [end_pct]
+
+        children = [
+            Phase(
+                duration_s=time_s,
+                period_ms=period_ms,
+                duty_cycle_pct=load,
+                uclamp_min=uclamp_min,
+                uclamp_max=uclamp_max,
+                numa_nodes_membind=numa_nodes_membind,
+                cpus=cpus,
+            )
+            for load in loads
+        ]
+
+        super().__init__(
+            children=children,
+            delay_s=delay_s,
+            loops=loops,
+            sched_policy=sched_policy,
+            priority=priority,
+            **kwargs,
+        )
+
+
+@deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=RTAPhase)
+class Pulse(_Pulse):
     """
     Configure a pulse load.
 
@@ -1044,30 +4023,11 @@ class Pulse(RTATask):
       * **uclamp_max**
       * **numa_nodes_membind**
     """
-
-    def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
-                 delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None,
-                 uclamp_min=None, uclamp_max=None, numa_nodes_membind=None):
-        super().__init__(delay_s, loops, sched_policy, priority)
-
-        if end_pct > start_pct:
-            raise ValueError('end_pct must be lower than start_pct')
-
-        if not (0 <= start_pct <= 100 and 0 <= end_pct <= 100):
-            raise ValueError('end_pct and start_pct must be in [0..100] range')
-
-        loads = [start_pct]
-        if end_pct:
-            loads += [end_pct]
-
-        self.phases = [
-            Phase(time_s, period_ms, load, cpus, uclamp_min=uclamp_min,
-                          uclamp_max=uclamp_max, numa_nodes_membind=numa_nodes_membind)
-            for load in loads
-        ]
+    pass
 
 
-class Periodic(Pulse):
+@deprecate('Replaced by :class:`lisa.wlgen.rta.RTAPhase` along with :class:`lisa.wlgen.rta.PeriodicWload` workload', deprecated_in='2.0', removed_in='2.1', replaced_by=RTAPhase)
+class Periodic(_Pulse):
     """
     Configure a periodic load. This is the simplest type of RTA task.
 
@@ -1102,16 +4062,27 @@ class Periodic(Pulse):
 
     def __init__(self, duty_cycle_pct=50, duration_s=1, period_ms=100,
                  delay_s=0, sched_policy=None, priority=None, cpus=None,
-                 uclamp_min=None, uclamp_max=None, numa_nodes_membind=None):
-        super().__init__(duty_cycle_pct, 0, duration_s,
-                         period_ms, delay_s, 1, sched_policy,
-                         priority, cpus,
-                         uclamp_min=uclamp_min,
-                         uclamp_max=uclamp_max,
-                         numa_nodes_membind=numa_nodes_membind)
+                 uclamp_min=None, uclamp_max=None, numa_nodes_membind=None,
+                 **kwargs):
+        super().__init__(
+            start_pct=duty_cycle_pct,
+            end_pct=0,
+            time_s=duration_s,
+            period_ms=period_ms,
+            delay_s=delay_s,
+            loops=1,
+            sched_policy=sched_policy,
+            priority=priority,
+            cpus=cpus,
+            uclamp_min=uclamp_min,
+            uclamp_max=uclamp_max,
+            numa_nodes_membind=numa_nodes_membind,
+            **kwargs
+        )
 
 
-class RunAndSync(RTATask):
+@deprecate('Replaced by :class:`lisa.wlgen.rta.RTAPhase` along with :class:`lisa.wlgen.rta.RunWload` and :class:`lisa.wlgen.rta.BarrierWload` workloads', deprecated_in='2.0', removed_in='2.1', replaced_by=RTAPhase)
+class RunAndSync(_RTATask):
     """
     Configure a task that runs 100% then waits on a barrier
 
@@ -1139,13 +4110,32 @@ class RunAndSync(RTATask):
       * **numa_nodes_membind**
     """
 
-    def __init__(self, barrier, time_s=1, delay_s=0, loops=1, sched_policy=None,
-                 priority=None, cpus=None, uclamp_min=None, uclamp_max=None, numa_nodes_membind=None):
-        super().__init__(delay_s, loops, sched_policy, priority)
+    def __init__(self, barrier, time_s=1, delay_s=0, loops=1,
+                 sched_policy=None, priority=None, cpus=None, uclamp_min=None,
+                 uclamp_max=None, numa_nodes_membind=None, **kwargs):
 
         # This should translate into a phase containing a 'run' event and a
         # 'barrier' event
-        self.phases = [Phase(time_s, None, 100, cpus, barrier_after=barrier,
-                             uclamp_min=uclamp_min, uclamp_max=uclamp_max, numa_nodes_membind=numa_nodes_membind)]
+        children = [
+            Phase(
+                duration_s=time_s,
+                period_ms=None,
+                duty_cycle_pct=100,
+                cpus=cpus,
+                barrier_after=barrier,
+                uclamp_min=uclamp_min,
+                uclamp_max=uclamp_max,
+                numa_nodes_membind=numa_nodes_membind,
+            )
+        ]
+
+        super().__init__(
+            children=children,
+            delay_s=delay_s,
+            loops=loops,
+            sched_policy=sched_policy,
+            priority=priority,
+            **kwargs,
+        )
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

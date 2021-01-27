@@ -125,7 +125,6 @@ rt-app
 
 .. automodule:: lisa.analysis.rta
    :members:
-   :exclude-members: PerfAnalysis
 
 Idle
 ++++

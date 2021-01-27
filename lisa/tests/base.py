@@ -43,7 +43,7 @@ from lisa.analysis.tasks import TasksAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.trace import requires_events, may_use_events
 from lisa.trace import Trace, TaskID
-from lisa.wlgen.rta import RTA, Periodic
+from lisa.wlgen.rta import RTA, Periodic, PeriodicWload, RTAPhase
 from lisa.target import Target
 
 from lisa.utils import (
@@ -1669,35 +1669,48 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         else:
             debugfs_needs_root = False
 
-
         def add_buffer(task):
             template_phase = task.phases[0]
-            buffer_task = Periodic(
-                # TODO: compute accurately the convergence time of the
-                # signal used for placement by the scheduler
-                duration_s=cls._BUFFER_PHASE_DURATION_S,
+            wload = template_phase['wload']
+
+            # Don't add the buffer phase if it has a nil duration
+            if not cls._BUFFER_PHASE_DURATION_S:
+                return task
+            elif isinstance(wload, PeriodicWload):
+                # Notes:
+                #
                 # Using a small period to allow the util_avg to be very close
                 # to duty_cycle, but that also makes the duty_cycle converge to
                 # a wrong value (rtapp looses fidelity with small periods,
-                # maybe due to tracing overhead)
-                period_ms=template_phase.period_ms,
-                # Mirror the duty cycle of the next phase so that task util
-                # will converge
-                duty_cycle_pct=template_phase.duty_cycle_pct,
-                # Pin to the same CPUs if any, so that we also let the runqueue
-                # signals converge and things like that, if it's going to
-                # matter later.
-                cpus=template_phase.cpus,
-            )
-            # Prepend the buffer task
-            return buffer_task + task
+                # maybe due to tracing overhead). Therefore we just replicate
+                # the period.
+                ref_wload = PeriodicWload(
+                    # TODO: compute accurately the convergence time of the
+                    # signal used for placement by the scheduler
+                    duration=cls._BUFFER_PHASE_DURATION_S,
+                )
 
-        # Don't add the buffer phase if it has a nil duration
-        if cls._BUFFER_PHASE_DURATION_S:
-            profile = {
-                name: add_buffer(task)
-                for name, task in profile.items()
-            }
+                buffer_phase = RTAPhase(
+                    prop_name='buffer',
+                    # Override some parameters with the reference ones
+                    prop_wload=ref_wload & wload,
+                    # Pin to the same CPUs and NUMA nodes if any, so that we
+                    # also let the runqueue signals converge and things like
+                    # that, if it's going to matter later.
+                    prop_cpus=template_phase.get('cpus'),
+                    prop_numa_nodes_membind=template_phase.get('numa_nodes_membind'),
+                )
+
+                # Prepend the buffer task
+                return buffer_phase + task
+            else:
+                return task
+
+
+        profile = {
+            name: add_buffer(task)
+            for name, task in profile.items()
+        }
 
         wload = RTA.by_profile(target, profile, res_dir=res_dir,
                                name=f"rta_{cls.__name__.casefold()}",
