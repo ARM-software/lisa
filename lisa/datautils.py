@@ -1122,13 +1122,23 @@ def series_envelope_mean(series):
     Assuming that the values are ranging inside a tunnel, this will give the
     average center of that tunnel.
     """
-    maxs = series_local_extremum(series, kind='max')
-    mins = series_local_extremum(series, kind='min')
 
-    maxs_mean = series_mean(maxs)
-    mins_mean = series_mean(mins)
+    first_val = series.iat[0]
+    # Remove constant values, otherwise they would be accounted in both max and
+    # min, which can bias the result
+    series = series_deduplicate(series, keep='first', consecutives=True)
 
-    return (maxs_mean - mins_mean) / 2 + mins_mean
+    # If the series was constant, just return that constant
+    if series.empty:
+        return first_val
+    else:
+        maxs = series_local_extremum(series, kind='max')
+        mins = series_local_extremum(series, kind='min')
+
+        maxs_mean = series_mean(maxs)
+        mins_mean = series_mean(mins)
+
+        return (maxs_mean - mins_mean) / 2 + mins_mean
 
 # Keep an alias in place for compatibility
 @deprecate(replaced_by=series_envelope_mean, deprecated_in='2.0', removed_in='2.1')
