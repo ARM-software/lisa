@@ -93,7 +93,7 @@ setup(
         # Pandas >= 1.0.0 has support for new nullable dtypes
         # Pandas 1.2.0 has broken barplots:
         # https://github.com/pandas-dev/pandas/issues/38947
-        "pandas >= 1.0.0,<1.2.0",
+        "pandas >= 1.0.0",
         "numpy",
         "scipy",
         # Earlier versions have broken __slots__ deserialization
