@@ -968,6 +968,32 @@ def deduplicate(seq, keep_last=True, key=lambda x: x):
     return list(reorder(out))
 
 
+def order_as(items, order_as, key=None):
+    """
+    Reorder the iterable of ``items`` to match the sequence in ``order_as``.
+    Items present in ``items`` and not in ``order_as`` will be appended at the
+    end, in appearance order.
+
+    :param key: If provided, will be called on each item of ``items`` before
+        being compared to ``order_as`` to determine the order.
+    :type key: collections.abc.Callable
+    """
+    key_ = key or (lambda x: x)
+    order_as = list(order_as)
+    remainder = len(order_as)
+    def key(x):
+        nonlocal remainder
+
+        x = key_(x)
+        try:
+            return order_as.index(x)
+        except ValueError:
+            remainder += 1
+            return remainder
+
+    return sorted(items, key=key)
+
+
 def fold(f, xs, init=None):
     """
     Fold the given function over ``xs``, with ``init`` initial accumulator
