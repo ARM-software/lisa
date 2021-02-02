@@ -2454,10 +2454,14 @@ class Operator:
         Returns a dictionnary of global variables as seen by the callable.
         """
         globals_ = self.resolved_callable.__globals__ or {}
+        globals_ = globals_.copy()
         # Make sure the class name can be resolved
         if isinstance(self.callable_, UnboundMethod):
-            globals_ = copy.copy(globals_)
             globals_[self.callable_.cls.__name__] = self.callable_.cls
+
+        # Work around this bug:
+        # https://bugs.python.org/issue43102
+        globals_['__builtins__'] = globals_['__builtins__'] or {}
         return globals_
 
     @property
