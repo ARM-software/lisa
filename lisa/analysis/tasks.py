@@ -458,6 +458,10 @@ class TasksAnalysis(TraceAnalysisBase):
             this state)
         """
         tasks_df = list(self._df_tasks_states(tasks=[task]))
+
+        if not tasks_df:
+             raise ValueError(f'Task "{task}" has no associated events among: {self._df_tasks_states.used_events}')
+
         task_id, task_df = tasks_df[0]
         task_df = task_df.drop(columns=["pid", "comm"])
 
@@ -1125,7 +1129,13 @@ class TasksAnalysis(TraceAnalysisBase):
             if pid in hidden_pids:
                 continue
 
-            self.plot_task_activation(TaskID(pid=pid, comm=None), which_cpu=which_cpu, **kwargs)
+            try:
+                self.plot_task_activation(TaskID(pid=pid, comm=None), which_cpu=which_cpu, **kwargs)
+            except ValueError:
+                # The task might not be present in that slice, or might only be
+                # visible through events that are not used for the task state
+                # (such as PELT events).
+                continue
 
     plot_tasks_activation.__annotations__ = plot_task_activation.__annotations__
 
