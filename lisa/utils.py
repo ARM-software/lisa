@@ -189,6 +189,27 @@ def compose(*fs):
     return composed
 
 
+class mappable:
+    """
+    Decorator that allows the decorated function to be mapped on an iterable::
+
+        @mappable
+        def f(x):
+            return x * 2
+
+        f @ [1, 2, 3] == map(f, [1, 2, 3])
+    """
+    def __init__(self, f):
+        self.__wrapped__ = f
+        functools.wraps(f)(self)
+
+    def __call__(self, *args, **kwargs):
+        return self.__wrapped__(*args, **kwargs)
+
+    def __matmul__(self, other):
+        return map(self.__wrapped__, other)
+
+
 def get_subclasses(cls, only_leaves=False, cls_set=None):
     """Get all indirect subclasses of the class."""
     if cls_set is None:
