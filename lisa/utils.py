@@ -127,6 +127,68 @@ class Loggable:
             cls.get_logger().log(level, f'Local variable: {name}: {val}')
 
 
+def curry(f):
+    """
+    Currify the given function such that ``f(x, y) == curry(f)(x)(y)``
+    """
+    nr_param = len(inspect.signature(f).parameters)
+
+    @functools.wraps(f)
+    def wrapper(*args):
+        nr_free = nr_param - len(args)
+        if nr_free:
+            return curry(functools.partial(f, *args))
+        else:
+            return f(*args)
+
+    return wrapper
+
+
+def compose(*fs):
+    """
+    Compose multiple functions such that ``compose(f, g)(x) == g(f(x))``.
+
+    .. note:: This handles well functions with arity higher than 1, as if they
+        were curried. The functions will consume the number of parameters they
+        need out of the parameters passed to the composed function. Innermost
+        functions are served first.
+    """
+    fs = list(fs)
+
+    # Get the number of parameters required at each level
+    nr_f_args = [
+        len(inspect.signature(f).parameters)
+        for f in fs
+    ]
+
+    # If all functions except the first one have arity == 1, use a simpler
+    # composition that should be a bit faster
+    if all(x == 1 for x in nr_f_args[1:]):
+        first, *others = fs
+        def composed(*args):
+            x = first(*args)
+            for other in others:
+                x = other(x)
+            return x
+    # General case: each function will consume the parameters it needs,
+    # starting with the innermost functions
+    else:
+        def composed(*args):
+            x, *args = args
+            for nr_args, f in zip(nr_f_args, fs):
+                # We will pass the output of the previous function
+                nr_args -= 1
+                # Extract the number of arguments we need for that level
+                extracted = args[:nr_args]
+                args = args[nr_args:]
+
+                x = f(x, *extracted)
+
+            return x
+
+    return composed
+
+
 def get_subclasses(cls, only_leaves=False, cls_set=None):
     """Get all indirect subclasses of the class."""
     if cls_set is None:
@@ -170,6 +232,26 @@ def get_cls_name(cls, style=None, fully_qualified=True):
     if style == 'rst':
         name = f':class:`~{name}`'
     return name
+
+
+def get_common_ancestor(classes):
+    """
+    Pick the most derived common ancestor between the classes, assuming single
+    inheritance.
+
+    :param classes: List of classes to look at.
+    :type classes: list(type)
+
+    If multiple inheritance is used, only the first base of each class is
+    considered.
+    """
+    *_, ancestor = get_common_prefix(
+        *map(
+            compose(inspect.getmro, reversed),
+            classes
+        )
+    )
+    return ancestor
 
 
 class HideExekallID:
@@ -926,6 +1008,32 @@ def is_monotonic(iterable, decreasing=False):
                 return False
     except StopIteration:
         return True
+
+
+def get_common_prefix(*iterables):
+    """
+    Return the common prefix of the passed iterables as an iterator.
+    """
+    def all_equal(iterable):
+        try:
+            first, *others = iterable
+        except ValueError:
+            return True
+        else:
+            for other in others:
+                if first != other:
+                    return False
+            return True
+
+    return map(
+        # Pick any item in items since they are all equal
+        operator.itemgetter(0),
+        # Take while all the items are equal
+        itertools.takewhile(
+            all_equal,
+            zip(*iterables)
+        )
+    )
 
 
 def take(n, iterable):
