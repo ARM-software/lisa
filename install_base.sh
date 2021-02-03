@@ -310,9 +310,9 @@ for arg in "$@"; do
         pacman_packages+=(base-devel aarch64-linux-gnu-gcc flex)
 
         # Build dependencies of some assets
-        apt_packages+=(autopoint autoconf libtool bison flex)
+        apt_packages+=(autopoint autoconf libtool bison flex cmake)
         # gettext for autopoint
-        pacman_packages+=(gettext autoconf libtool bison)
+        pacman_packages+=(gettext autoconf libtool bison cmake)
 
         handled=1;
         ;;&
