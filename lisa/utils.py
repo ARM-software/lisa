@@ -846,7 +846,7 @@ class ArtifactPath(str, Loggable, HideExekallID):
         return joined
 
 
-def value_range(start, stop, step=None, inclusive=False):
+def value_range(start, stop, step=None, nr_steps=None, inclusive=False, type_=None):
     """
     Equivalent to builtin :class:`range` function, but works for floats as well.
 
@@ -856,18 +856,33 @@ def value_range(start, stop, step=None, inclusive=False):
     :param stop: Last value to use.
     :type stop: numbers.Number
 
-    :param step: Increment. If ``None``, increment defaults to 1.
+    :param step: Mutually exclusive with ``nr_steps``: increment. If ``None``,
+        increment defaults to 1.
     :type step: numbers.Number
+
+    :param nr_steps: Mutually exclusive with ``step``: number of steps.
+    :type nr_steps: int or None
 
     :param inclusive: If ``True``, the ``stop`` value will be included (unlike
         the builtin :class:`range`)
     :type inclusive: bool
 
+    :param type_: If specified, will be mapped on the resulting values.
+    :type type_: collections.abc.Callable
+
     .. note:: Unlike :class:`range`, it will raise :exc:`ValueError` if
         ``start > stop and step > 0``.
     """
 
-    step = 1 if step is None else step
+    if step is not None and nr_steps is not None:
+        raise ValueError(f'step={step} and nr_steps={nr_steps} cannot both be specified at once')
+
+    if step is not None:
+        pass
+    elif nr_steps is not None:
+        step = abs(stop - start) / nr_steps
+    else:
+        step = 1
 
     if stop < start and step > 0:
         raise ValueError(f"step ({step}) > 0 but stop ({stop}) < start ({start})")
@@ -884,7 +899,8 @@ def value_range(start, stop, step=None, inclusive=False):
     }
     op = ops[start <= stop, inclusive]
     comp = lambda x: op(x, stop)
-    return itertools.takewhile(comp, itertools.count(start, step))
+    mapf = type_ if type_ is not None else lambda x: x
+    return map(mapf, itertools.takewhile(comp, itertools.count(start, step)))
 
 
 def filter_values(iterable, values):
