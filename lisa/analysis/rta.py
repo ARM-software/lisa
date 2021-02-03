@@ -73,8 +73,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         task = self.trace.get_task_id(task)
 
         if task not in self.rtapp_tasks:
-            raise ValueError("Task [{}] is not an rt-app task: {}"
-                             .format(task, self.rtapp_tasks))
+            raise ValueError(f"Task [{task}] is not an rt-app task: {self.rtapp_tasks}")
 
         return df_filter_task_ids(df, [task],
                                   pid_col='__pid', comm_col='__comm')
@@ -485,13 +484,9 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         _, first_phase_start, _ = get_info(df.iloc[0])
 
         if timestamp < first_phase_start:
-            raise KeyError('timestamp={} is before the first phase start: {}'.format(
-                timestamp, first_phase_start,
-            ))
+            raise KeyError(f'timestamp={timestamp} is before the first phase start: {first_phase_start}')
         elif timestamp > last_phase_end:
-            raise KeyError('timestamp={} is after last phase end: {}'.format(
-                timestamp, last_phase_end
-            ))
+            raise KeyError(f'timestamp={timestamp} is after last phase end: {last_phase_end}')
 
         i = df.index.get_loc(timestamp, method='ffill')
         phase_id, phase_start, phase_end = get_info(df.iloc[i])
@@ -612,11 +607,11 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         for phase, start, end, cpus in bands:
             if cpus:
-                cpus = ' (CPUs {})'.format(', '.join(map(str, cpus)))
+                cpus = f" (CPUs {', '.join(map(str, cpus))})"
             else:
                 cpus = ''
 
-            label = 'rt-app phase #{}{}'.format(phase, cpus)
+            label = f'rt-app phase #{phase}{cpus}'
             color = self.get_next_color(axis)
             axis.axvspan(start, end, alpha=0.1, facecolor=color, label=label)
 
@@ -624,7 +619,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         if local_fig:
             task = self.trace.get_task_id(task)
-            axis.set_title("Task {} phases".format(task))
+            axis.set_title(f"Task {task} phases")
 
     @AnalysisHelpers.plot_method()
     @df_rtapp_stats.used_events
@@ -665,7 +660,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         is negative the more the task is late with respect to its deadline.
         """
         task = self.trace.get_task_id(task)
-        axis.set_title('Task {} Performance Index'.format(task))
+        axis.set_title(f'Task {task} Performance Index')
         data = self.df_rtapp_stats(task)[['perf_index', ]]
         data.plot(ax=axis, drawstyle='steps-post')
         axis.set_ylim(0, 2)
@@ -682,8 +677,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         .. seealso:: :meth:`plot_perf` for metrics definition.
         """
         task = self.trace.get_task_id(task)
-        axis.set_title('Task {} (start) Latency and (completion) Slack'
-                       .format(task))
+        axis.set_title(f'Task {task} (start) Latency and (completion) Slack')
         data = self.df_rtapp_stats(task)[['slack', 'wu_lat']]
         data.plot(ax=axis, drawstyle='steps-post')
 
@@ -702,7 +696,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         .. seealso:: :meth:`plot_perf` for the slack definition.
         """
         task = self.trace.get_task_id(task)
-        ylabel = 'slack of "{}"'.format(task)
+        ylabel = f'slack of "{task}"'
         series = self.df_rtapp_stats(task)['slack']
         series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel, figure=axis.get_figure())
         axis.axvline(series.mean(), linestyle='--', linewidth=2, label='mean')
@@ -727,11 +721,10 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         """
         task = self.trace.get_task_id(task)
-        ylabel = 'perf index of "{}"'.format(task)
+        ylabel = f'perf index of "{task}"'
         series = self.df_rtapp_stats(task)['perf_index']
         mean = series.mean()
-        self.get_logger().info('perf index of task "{}": avg={:.2f} std={:.2f}'
-                               .format(task, mean, series.std()))
+        self.get_logger().info(f'perf index of task "{task}": avg={mean:.2f} std={series.std():.2f}')
 
         series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel, figure=axis.get_figure())
         axis.axvline(mean, linestyle='--', linewidth=2, label='mean')
@@ -771,9 +764,7 @@ class PerfAnalysis(AnalysisHelpers):
             raise ValueError('No tasks in the task log mapping')
 
         for task_name, logfile in task_log_map.items():
-            logger.debug('rt-app task [{}] logfile: {}'.format(
-                task_name, logfile
-            ))
+            logger.debug(f'rt-app task [{task_name}] logfile: {logfile}')
 
         self.perf_data = {
             task_name: {
@@ -797,7 +788,7 @@ class PerfAnalysis(AnalysisHelpers):
             regex = cls.RTA_LOG_PATTERN.format(task=r'(.+)-[0-9]+')
             match = re.search(regex, logfile)
             if not match:
-                raise ValueError('The logfile [{}] is not from rt-app'.format(logfile))
+                raise ValueError(f'The logfile [{logfile}] is not from rt-app')
             return match.group(1)
 
         task_log_map = {
@@ -833,9 +824,7 @@ class PerfAnalysis(AnalysisHelpers):
         def find_log_file(task_name, log_dir):
             log_file = os.path.join(log_dir, cls.RTA_LOG_PATTERN.format(task_name))
             if not os.path.isfile(log_file):
-                raise ValueError('No rt-app logfile found for task [{}]'.format(
-                    task_name
-                ))
+                raise ValueError(f'No rt-app logfile found for task [{task_name}]')
             return log_file
 
         task_log_map = {
@@ -900,7 +889,7 @@ class PerfAnalysis(AnalysisHelpers):
             for perf_data in self.perf_data.values()
         }
         if len(dirnames) != 1:
-            raise ValueError('A default folder cannot be inferred from logfiles location unambiguously: {}'.format(dirnames))
+            raise ValueError(f'A default folder cannot be inferred from logfiles location unambiguously: {dirnames}')
 
         default_dir = dirnames.pop()
 
@@ -914,7 +903,7 @@ class PerfAnalysis(AnalysisHelpers):
         """
         Plot the performance Index
         """
-        axis.set_title('Task {} Performance Index'.format(task))
+        axis.set_title(f'Task {task} Performance Index')
         data = self.get_df(task)[['PerfIndex', ]]
         data.plot(ax=axis, drawstyle='steps-post')
         axis.set_ylim(0, 2)
@@ -924,8 +913,7 @@ class PerfAnalysis(AnalysisHelpers):
         """
         Plot the Latency/Slack and Performance data for the specified task.
         """
-        axis.set_title('Task {} (start) Latency and (completion) Slack'
-                .format(task))
+        axis.set_title(f'Task {task} (start) Latency and (completion) Slack')
         data = self.get_df(task)[['Slack', 'WKPLatency']]
         data.plot(ax=axis, drawstyle='steps-post')
 
@@ -942,7 +930,7 @@ class PerfAnalysis(AnalysisHelpers):
 
         .. seealso:: :meth:`plot_perf_index_histogram`
         """
-        ylabel = 'slack of "{}"'.format(task)
+        ylabel = f'slack of "{task}"'
         series = self.get_df(task)['Slack']
         series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel)
         axis.axvline(series.mean(), linestyle='--', linewidth=2, label='mean')
@@ -969,11 +957,10 @@ class PerfAnalysis(AnalysisHelpers):
             perfIndex = \frac{slack}{period - runtime}
 
         """
-        ylabel = 'perf index of {}'.format(task)
+        ylabel = f'perf index of {task}'
         series = self.get_df(task)['PerfIndex']
         mean = series.mean()
-        self.get_logger().info('perf index of task "{}": avg={:.2f} std={:.2f}'.format(
-            task, mean, series.std()))
+        self.get_logger().info(f'perf index of task "{task}": avg={mean:.2f} std={series.std():.2f}')
 
         series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel)
         axis.axvline(mean, linestyle='--', linewidth=2, label='mean')

@@ -14,17 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""Classes for modeling and estimating energy usage of CPU systems"""
 
-from collections import namedtuple, OrderedDict, defaultdict
-from collections.abc import Mapping
+from collections import namedtuple, OrderedDict
 from itertools import product
-import logging
 import operator
-import warnings
 import re
 
-import pandas as pd
-import numpy as np
+import pandas
 
 from devlib.utils.misc import mask_to_list, ranges_to_list
 from devlib.exception import TargetStableError
@@ -33,7 +30,6 @@ from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses
 from lisa.datautils import df_deduplicate
 from lisa.analysis.frequency import FrequencyAnalysis
 
-"""Classes for modeling and estimating energy usage of CPU systems"""
 
 
 def _read_multiple_oneline_files(target, glob_patterns):
@@ -61,7 +57,7 @@ def _read_multiple_oneline_files(target, glob_patterns):
     except TargetStableError:
         return {}
 
-    cmd = '{} | {} xargs cat'.format(find_cmd, target.busybox)
+    cmd = f'{find_cmd} | {target.busybox} xargs cat'
     contents = target.execute(cmd).splitlines()
 
     if len(contents) != len(paths):
@@ -90,9 +86,10 @@ class _CpuTree(Loggable):
 
     Each node contains either a single CPU or a set of child nodes.
 
-    :ivar cpus: CPUs contained in this node. Includes those of child nodes.
-    :ivar cpu: For convenience, this holds the single CPU contained by leaf
-      nodes. ``None`` for non-leaf nodes.
+    :Attributes:
+        * ``cpus``: CPUs contained in this node. Includes those of child nodes.
+        * ``cpu``: For convenience, this holds the single CPU contained by leaf
+          nodes. ``None`` for non-leaf nodes.
     """
 
     def __init__(self, cpu, children):
@@ -110,11 +107,11 @@ class _CpuTree(Loggable):
         else:
             if len(children) == 0:
                 raise ValueError('children cannot be empty')
-            self.cpus = tuple(sorted(set(
+            self.cpus = tuple(sorted({
                 cpu
                 for node in children
                 for cpu in node.cpus
-            )))
+            }))
             self.children = children
             for child in children:
                 child.parent = self
@@ -124,14 +121,12 @@ class _CpuTree(Loggable):
     def __repr__(self):
         name_bit = ''
         if self.name:
-            name_bit = 'name="{}", '.format(self.name)
+            name_bit = f'name="{self.name}", '
 
         if self.children:
-            return '{}({}children={})'.format(
-                self.__class__.__name__, name_bit, self.children)
+            return f'{self.__class__.__name__}({name_bit}children={self.children})'
         else:
-            return '{}({}cpus={})'.format(
-                self.__class__.__name__, name_bit, self.cpus)
+            return f'{self.__class__.__name__}({name_bit}cpus={self.cpus})'
 
     def _iter(self, include_non_leaves):
         for child in self.children:
@@ -191,15 +186,13 @@ class EnergyModelNode(_CpuTree):
             freqs = list(active_states.keys())
             if not is_monotonic(freqs):
                 logger.warning(
-                    'Active states frequencies are expected to be '
-                    'monotonically increasing. Freqs: {}'.format(freqs))
+                    f'Active states frequencies are expected to be monotonically increasing. Freqs: {freqs}')
 
             # Sanity check for active_states's powers
             power_vals = [s.power for s in list(active_states.values())]
             if not is_monotonic(power_vals):
                 logger.warning(
-                    'Active states powers are expected to be '
-                    'monotonically increasing. Values: {}'.format(power_vals))
+                    f'Active states powers are expected to be monotonically increasing. Values: {power_vals}')
 
         if idle_states:
             # This is needed for idle_state_by_idx to work.
@@ -211,8 +204,7 @@ class EnergyModelNode(_CpuTree):
             power_vals = list(idle_states.values())
             if not is_monotonic(power_vals, decreasing=True):
                 logger.warning(
-                    'Idle states powers are expected to be '
-                    'monotonically decreasing. Values: {}'.format(power_vals))
+                    f'Idle states powers are expected to be monotonically decreasing. Values: {power_vals}')
 
         if cpu is not None and not name:
             name = 'cpu' + str(cpu)
@@ -233,7 +225,7 @@ class EnergyModelNode(_CpuTree):
         if self.idle_states and idx < len(self.idle_states):
             return list(self.idle_states.keys())[idx]
 
-        raise KeyError('No idle state with index {}'.format(idx))
+        raise KeyError(f'No idle state with index {idx}')
 
 
 class EnergyModelRoot(EnergyModelNode):
@@ -275,8 +267,9 @@ class PowerDomain(_CpuTree):
     :param children: Non-empty list of child :class:`PowerDomain` objects
     :type children:  list(PowerDomain)
 
-    :ivar cpus: CPUs contained in this node. Includes those of child nodes.
-    :type cpus: tuple(int)
+    :Attributes:
+        * ``cpus`` (`tuple(int)`): CPUs contained in this node. Includes
+          those of child nodes.
     """
 
     def __init__(self, idle_states, cpu=None, children=None):
@@ -311,12 +304,12 @@ class EnergyModel(Serializable, Loggable):
       frequencies must be equal (probably because they share a clock). The
       frequency domains must be a partition of the CPUs.
 
-    :ivar cpu_nodes: List of leaf (CPU) :class:`EnergyModelNode`
-    :ivar cpus: List of logical CPU numbers in the system
-    :ivar capacity_scale: The relative computational capacity of the most
-        powerful CPU at its highest available frequency. Utilisation is in the
-        interval ``[0, capacity_scale]``.
-
+    :Attributes:
+        * ``cpu_nodes``: List of leaf (CPU) :class`:`EnergyModelNode`
+        * ``cpus``: List of logical CPU numbers in the system
+        * ``capacity_scale``: The relative computational capacity of the most
+          powerful CPU at its highest available frequency. Utilisation is in
+          the interval ``[0, capacity_scale]``.
 
     :param root_node: Root of :class:`EnergyModelNode` tree
     :param root_power_domain: Root of :class:`PowerDomain` tree
@@ -356,22 +349,19 @@ class EnergyModel(Serializable, Loggable):
     """
 
     def __init__(self, root_node, root_power_domain, freq_domains):
-        logger = self.get_logger()
         self.cpus = root_node.cpus
         if self.cpus != tuple(range(len(self.cpus))):
-            raise ValueError('CPU IDs [{}] are sparse'.format(self.cpus))
+            raise ValueError(f'CPU IDs [{self.cpus}] are sparse')
 
         domains_as_set = [set(dom) for dom in freq_domains]
 
         # Check that freq_domains is a partition of the CPUs
         fd_intersection = set.intersection(*domains_as_set)
         if len(domains_as_set) > 1 and fd_intersection:
-            raise ValueError('CPUs {} exist in multiple freq domains'.format(
-                fd_intersection))
+            raise ValueError(f'CPUs {fd_intersection} exist in multiple freq domains')
         fd_difference = set(self.cpus) - set.union(*domains_as_set)
         if fd_difference:
-            raise ValueError('CPUs {} not in any frequency domain'.format(
-                fd_difference))
+            raise ValueError(f'CPUs {fd_difference} not in any frequency domain')
         self.freq_domains = freq_domains
 
         # Check that nodes with energy data are all within a frequency domain
@@ -384,9 +374,7 @@ class EnergyModel(Serializable, Loggable):
                 cpu_freq_doms.append(cpu_freq_dom)
             if not all(d == cpu_freq_doms[0] for d in cpu_freq_doms[1:]):
                 raise ValueError(
-                    'Node {} (CPUs {}) '
-                    'has energy data and overlaps freq domains'.format(
-                        node.name, node.cpus))
+                    f'Node {node.name} (CPUs {node.cpus}) has energy data and overlaps freq domains')
 
         def sorted_leaves(root):
             # Get a list of the leaf (cpu) nodes of a _CpuTree in order of the
@@ -599,7 +587,6 @@ class EnergyModel(Serializable, Loggable):
 
         If combine=False, return idle and active power as separate components.
         """
-        power = 0
         ret = {}
 
         assert all(0.0 <= a <= 1.0 for a in cpu_active_time)
@@ -675,8 +662,7 @@ class EnergyModel(Serializable, Loggable):
         """
         if len(cpu_utils) != len(self.cpus):
             raise ValueError(
-                'cpu_utils length ({}) must equal CPU count ({})'.format(
-                    len(cpu_utils), len(self.cpus)))
+                f'cpu_utils length ({len(cpu_utils)}) must equal CPU count ({len(self.cpus)})')
 
         if freqs is None:
             freqs = self.guess_freqs(cpu_utils)
@@ -734,17 +720,15 @@ class EnergyModel(Serializable, Loggable):
 
         logger = self.get_logger()
         logger.debug(
-            'Searching {} configurations for optimal task placement...'.format(
-            num_candidates
-        ))
+            f'Searching {num_candidates} configurations for optimal task placement...')
 
         candidates = {}
         excluded = []
         for cpus in product(self.cpus, repeat=len(tasks)):
-            placement = {task: cpu for task, cpu in zip(tasks, cpus)}
+            placement = dict(zip(tasks, cpus))
 
-            util = [0 for _ in self.cpus]
-            for task, cpu in list(placement.items()):
+            util = [0] * len(self.cpus)
+            for task, cpu in placement.items():
                 util[cpu] += capacities[task]
             util = tuple(util)
 
@@ -765,8 +749,7 @@ class EnergyModel(Serializable, Loggable):
         if not candidates:
             # The system can't provide full throughput to this workload.
             raise EnergyModelCapacityError(
-                "Can't handle workload: total capacity = {}".format(
-                    sum(capacities.values())))
+                f"Can't handle workload: total capacity = {sum(capacities.values())}")
 
         # Whittle down to those that give the lowest energy estimate
         min_power = min(p for p in iter(candidates.values()))
@@ -819,7 +802,7 @@ class EnergyModel(Serializable, Loggable):
         logger = cls.get_logger('from_target')
 
         subcls = cls._find_subcls(target)
-        logger.info('Attempting to load EM using {}'.format(subcls.__name__))
+        logger.info(f'Attempting to load EM using {subcls.__name__}')
         em = subcls.from_target(target)
 
         cpu_missing_idle_states = sorted(
@@ -828,9 +811,7 @@ class EnergyModel(Serializable, Loggable):
             if not node.idle_states
         )
         if cpu_missing_idle_states:
-            logger.warning('CPUs missing idle states in cpuidle framework: {}'.format(
-                cpu_missing_idle_states,
-            ))
+            logger.warning(f'CPUs missing idle states in cpuidle framework: {cpu_missing_idle_states}')
 
         return em
 
@@ -882,10 +863,10 @@ class EnergyModel(Serializable, Loggable):
                   the returned DataFrame to get a Series that shows overall
                   estimated power usage over time.
         """
-        idle = trace.analysis.idle.df_cpu_idle().pivot(columns='cpu')['state']
+        idle = trace.analysis.idle.df_cpus_idle().pivot(columns='cpu')['state']
         freqs = trace.analysis.frequency.df_cpus_frequency().pivot(columns='cpu')['frequency']
 
-        inputs = pd.concat([idle, freqs], axis=1, keys=['idle', 'freq']).ffill()
+        inputs = pandas.concat([idle, freqs], axis=1, keys=['idle', 'freq']).ffill()
 
         # Drop stuff at the beginning where we don't have the inputs
         # (e.g. where we have had our first cpu_idle event but no cpu_frequency)
@@ -933,7 +914,7 @@ class EnergyModel(Serializable, Loggable):
 
             nrg = {'-'.join(str(c) for c in k): v for k, v in iter(nrg.items())}
 
-            ret = pd.Series(nrg)
+            ret = pandas.Series(nrg)
             memo_cache[memo_key] = ret
             return ret
 
@@ -1077,7 +1058,7 @@ class LinuxEnergyModel(EnergyModel):
 
         debugfs_em = target.read_tree_values(directory, depth=3, tar=True)
         if not debugfs_em:
-            raise TargetStableError('Energy Model not exposed at {} in debugfs.'.format(directory))
+            raise TargetStableError(f'Energy Model not exposed at {directory} in debugfs.')
 
         pd_attr = {
             pd: parse_pd_attr(pd_em)
@@ -1199,7 +1180,7 @@ class LegacyEnergyModel(EnergyModel):
             try:
                 return sge_file_values[path]
             except KeyError as e:
-                raise TargetStableError('No such file: {}'.format(e))
+                raise TargetStableError(f'No such file: {e}') from e
 
         def read_active_states(cpu, domain_level):
             cap_states_path = sge_path(cpu, domain_level, 0, 'cap_states')
@@ -1218,8 +1199,7 @@ class LegacyEnergyModel(EnergyModel):
             nr_states = int(nr_cap_states_strs[0])
             em_member_count = int(nr_values / nr_states)
             if em_member_count not in (2, 3):
-                raise ValueError('Unsupported cap_states format '
-                                  'cpu={} domain_level={} path={}'.format(cpu, domain_level, cap_states_path))
+                raise ValueError(f'Unsupported cap_states format cpu={cpu} domain_level={domain_level} path={cap_states_path}')
 
             # Here we split the incoming cap_states_strs list into em_member_count lists, so that
             # we can use the first one (representing capacity) and the last one (representing power)
@@ -1286,15 +1266,13 @@ class LegacyEnergyModel(EnergyModel):
                     if siblings != (cpu,):
                         # SMT systems aren't supported
                         raise ValueError(
-                            'CPU{} thread_siblings is {}. Expected: {}'.format(
-                                cpu, siblings, [cpu]
-                            )
+                            f'CPU{cpu} thread_siblings is {siblings}. Expected: {[cpu]}'
                         )
                 elif level != 'core':
                     # The only other levels we should expect to find are 'book' and
                     # 'shelf', which are not used by architectures we support.
                     raise ValueError(
-                        'Unrecognised topology level "{}"'.format(level))
+                        f'Unrecognised topology level "{level}"')
                 else:
                     ret.add(siblings)
 

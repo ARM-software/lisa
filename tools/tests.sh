@@ -17,8 +17,7 @@
 # limitations under the License.
 #
 
-# Script run by Travis. It is mostly a workaround for Travis inability to
-# correctly handle environment variable set in sourced scripts.
+# Script run by github CI, VM setup check etc.
 
 commit_whitelist='496b859d1a64e5195500aa52040abafb241657ab'
 illegal_location="external/"

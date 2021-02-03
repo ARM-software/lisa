@@ -15,16 +15,14 @@
 # limitations under the License.
 #
 
-import argparse
 import math
-import re
 import itertools
 from collections import OrderedDict, namedtuple
 
+import scipy.stats
+
 from lisa.utils import groupby, memoized
 from lisa.tests.base import Result, ResultBundleBase
-
-import scipy.stats
 
 ResultCount = namedtuple('ResultCount', ('passed', 'failed'))
 
@@ -92,6 +90,9 @@ class RegressionResult:
                     return not bool(x)
                 elif res is Result.PASSED:
                     return bool(x)
+                else:
+                    raise ValueError(f'Unhandled Result: {res}')
+
 
         def count(seq, res):
             return sum(
@@ -173,7 +174,7 @@ class RegressionResult:
         hypothesis.
         """
         # Apply the Fisher exact test to all tests failures.
-        odds_ratio, p_val = scipy.stats.fisher_exact(
+        _, p_val = scipy.stats.fisher_exact(
             [
                 # Ignore errors and skipped tests
                 [self.old_count.failed, self.old_count.passed],
@@ -197,7 +198,6 @@ class RegressionResult:
         """
 
         # We want to be able to detect at least this amount of change
-        failure_delta_pc = self.failure_delta_pc
         failure_rate_old, failure_rate_new = (x / 100 for x in self.failure_pc)
 
         # If the failure rate is exactly the same, there is nothing to fix and
@@ -221,7 +221,7 @@ class RegressionResult:
                 [self.new_count.failed, self.new_count.passed],
             ]
 
-            odds_ratio, p_val = scipy.stats.fisher_exact(
+            _, p_val = scipy.stats.fisher_exact(
                 contingency_table,
                 # Use two-sided alternative, since that is what will be used to
                 # check the actual data
@@ -233,8 +233,10 @@ class RegressionResult:
             if p_val <= self.alpha:
                 return n
 
+        raise RuntimeError('unreachable')
 
-def compute_regressions(old_list, new_list, remove_tags=[], **kwargs):
+
+def compute_regressions(old_list, new_list, remove_tags=None, **kwargs):
     """
     Compute a list of :class:`RegressionResult` out of two lists of
     :class:`exekall.engine.FrozenExprVal`.
@@ -253,11 +255,12 @@ def compute_regressions(old_list, new_list, remove_tags=[], **kwargs):
     :param remove_tags: remove the given list of tags from the IDs before
         computing the regression. That allows computing regressions with a
         different "board" tag for example.
-    :type remove_tags: list(str)
+    :type remove_tags: list(str) or None
 
     :Variable keyword arguments: Forwarded to
         :meth:`RegressionResult.from_result_list`.
     """
+    remove_tags = remove_tags or []
 
     def dedup_list(froz_val_list, excluded_froz_val_list):
         excluded_uuids = {

@@ -15,10 +15,8 @@
 # limitations under the License.
 #
 
-import os
 import os.path
 from math import isnan
-import abc
 
 import pandas as pd
 
@@ -98,7 +96,7 @@ class EASBehaviour(RTATestBundle):
         for domain in target.cpufreq.iter_domains():
             if "schedutil" not in target.cpufreq.list_governors(domain[0]):
                 raise CannotCreateError(
-                    "Can't set schedutil governor for domain {}".format(domain))
+                    f"Can't set schedutil governor for domain {domain}")
 
         if 'nrg-model' not in target.plat_info:
             raise CannotCreateError("Energy model not available")
@@ -241,7 +239,7 @@ class EASBehaviour(RTATestBundle):
             tdf = util_df[cpu]
 
             ax[cpu].set_ylim((0, 1024))
-            tdf.plot(ax=ax[cpu], drawstyle='steps-post', title="CPU{}".format(cpu), color='red')
+            tdf.plot(ax=ax[cpu], drawstyle='steps-post', title=f"CPU{cpu}", color='red')
             ax[cpu].set_ylabel('Utilization')
 
             # Grey-out areas where utilization == 0
@@ -383,8 +381,7 @@ class EASBehaviour(RTATestBundle):
         exp_energy = series_integrate(exp_power.sum(axis=1), method='rect')
         est_energy = series_integrate(est_power.sum(axis=1), method='rect')
 
-        msg = 'Estimated {} bogo-Joules to run workload, expected {}'.format(
-            est_energy, exp_energy)
+        msg = f'Estimated {est_energy} bogo-Joules to run workload, expected {exp_energy}'
         threshold = exp_energy * (1 + (energy_est_threshold_pct / 100))
 
         passed = est_energy < threshold
@@ -424,7 +421,7 @@ class EASBehaviour(RTATestBundle):
 
         for task, bad_activations_pct in bad_activations.items():
             res.add_metric(
-                "{} delayed activations".format(task),
+                f"{task} delayed activations",
                 bad_activations_pct, '%'
             )
         return res
@@ -484,7 +481,7 @@ class ThreeSmallTasks(EASBehaviour):
 
         rtapp_profile = {}
         for i in range(3):
-            rtapp_profile["{}_{}".format(cls.task_prefix, i)] = Periodic(
+            rtapp_profile[f"{cls.task_prefix}_{i}"] = Periodic(
                 duty_cycle_pct=duty,
                 duration_s=1,
                 period_ms=cls.TASK_PERIOD_MS
@@ -506,7 +503,7 @@ class TwoBigTasks(EASBehaviour):
 
         rtapp_profile = {}
         for i in range(2):
-            rtapp_profile["{}_{}".format(cls.task_prefix, i)] = Periodic(
+            rtapp_profile[f"{cls.task_prefix}_{i}"] = Periodic(
                 duty_cycle_pct=duty,
                 duration_s=1,
                 period_ms=cls.TASK_PERIOD_MS
@@ -531,14 +528,14 @@ class TwoBigThreeSmall(EASBehaviour):
         rtapp_profile = {}
 
         for i in range(3):
-            rtapp_profile["{}_{}".format(cls.small_prefix, i)] = Periodic(
+            rtapp_profile[f"{cls.small_prefix}_{i}"] = Periodic(
                 duty_cycle_pct=small_duty,
                 duration_s=1,
                 period_ms=cls.TASK_PERIOD_MS
             )
 
         for i in range(2):
-            rtapp_profile["{}_{}".format(cls.big_prefix, i)] = Periodic(
+            rtapp_profile[f"{cls.big_prefix}_{i}"] = Periodic(
                 duty_cycle_pct=big_duty,
                 duration_s=1,
                 period_ms=cls.TASK_PERIOD_MS
@@ -571,7 +568,7 @@ class EnergyModelWakeMigration(EASBehaviour):
 
         bigs = plat_info["capacity-classes"][-1]
         for i in range(len(bigs)):
-            rtapp_profile["{}_{}".format(cls.task_prefix, i)] = Step(
+            rtapp_profile[f"{cls.task_prefix}_{i}"] = Step(
                 start_pct=start_pct,
                 end_pct=end_pct,
                 time_s=2,

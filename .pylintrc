@@ -42,7 +42,7 @@ suggestion-mode=yes
 
 # Allow loading of arbitrary C extensions. Extensions are imported into the
 # active Python interpreter and may run arbitrary code.
-unsafe-load-any-extension=no
+unsafe-load-any-extension=yes
 
 
 [MESSAGES CONTROL]
@@ -141,14 +141,50 @@ disable=print-statement,
         comprehension-escape,
 
         # Disabled for LISA
+        fixme,
         missing-docstring,
         invalid-name,
         logging-format-interpolation,
-        line-too-long,
+        logging-fstring-interpolation,
         unnecessary-pass,
+        # This is unfortunately necessary to avoid issues with "used_events"
+        # attribute. Otherwise, we would need a custom pylint plugin for LISA
+        no-member,
         no-else-return,
+        no-else-raise,
+        no-else-continue,
+        too-few-public-methods,
+        too-many-public-methods,
         too-many-ancestors,
+        too-many-instance-attributes,
+        too-many-arguments,
+        too-many-locals,
+        too-many-lines,
+        too-many-branches,
+        too-many-statements,
+        line-too-long,
         no-method-argument,
+        # Some modules define a set of classes made to work closely together
+        # using private APIs
+        protected-access,
+        # Prevents some perfectly valid code on the ground that it *might* be
+        # overused (like 90% of the language)
+        # https://github.com/PyCQA/pylint/issues/431
+        arguments-differ,
+        # This is upset when using ~ on pandas object
+        invalid-unary-operand-type,
+        # duh !
+        bad-mcs-classmethod-argument,
+        # Prevent "inline" docstring in constructors used by Sphinx
+        pointless-string-statement,
+        # Prevents iterating over dict.keys(), which increases obviousness and
+        # can catch errors with ducktyping
+        consider-iterating-dictionary,
+        superfluous-parens,
+
+        # TODO: re-enable this one in a while (as of January 2021), since there
+        # are a bunch of PR in flight fixing issues on this linter
+        signature-differs,
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option

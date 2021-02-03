@@ -33,6 +33,7 @@ cd "$LISA_HOME" || (echo "LISA_HOME ($LISA_HOME) does not exists" && exit 1)
 
 # Must be kept in sync with shell/lisa_shell
 ANDROID_HOME="$LISA_HOME/tools/android-sdk-linux/"
+ANDROID_SDK_ROOT="$ANDROID_HOME"
 mkdir -p "$ANDROID_HOME"
 
 # No need for the whole SDK for this one
@@ -57,7 +58,8 @@ install_android_sdk_manager() {
     echo "Installing Android SDK manager ..."
 
     # URL taken from "Command line tools only": https://developer.android.com/studio
-    local url="https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip"
+    # Used to be: https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip
+    local url="https://dl.google.com/android/repository/commandlinetools-linux-6858069_latest.zip"
     local archive="$ANDROID_HOME/android-sdk-manager.zip"
     rm "$archive" &>/dev/null
 
@@ -66,28 +68,38 @@ install_android_sdk_manager() {
     echo "Extracting $archive ..." &&
     unzip -q -o "$archive" -d "$ANDROID_HOME"
 
-    call_android_sdk sdkmanager --list
+    yes | (call_android_sdkmanager --licenses || true)
+    call_android_sdkmanager --list
 }
 
-ANDROID_SDK_JAVA_VERSION=8
+ANDROID_SDK_JAVA_VERSION=11
+# Android SDK is picky on Java version, so we need to set JAVA_HOME manually.
+# In most distributions, Java is installed under /usr/lib/jvm so use that.
+# according to the distribution
+_JAVA_BIN=$(find /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*/bin/java" -not -path '*/jre/bin/*' -print -quit)
+_JAVA_HOME=$(dirname "$_JAVA_BIN")/../
 call_android_sdk() {
-    local tool="$ANDROID_HOME/tools/bin/$1"
+    # Used to be:
+    # local tool="$ANDROID_HOME/tools/bin/$1"
+    local tool="$ANDROID_HOME/cmdline-tools/bin/$1"
     shift
+    echo "Using JAVA_HOME=$_JAVA_HOME for Android SDK" >&2
+    # Use grep to remove the progress bar, as there is no CLI option for the SDK
+    # manager to do that
+    JAVA_HOME=$_JAVA_HOME "$tool" "$@" | grep -v '\[='
+}
 
-    # Android SDK is picky on Java version, so we need to set JAVA_HOME manually.
-    # In most distributions, Java is installed under /usr/lib/jvm so use that.
-    # according to the distribution
-    local java_bin=$(find /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*java" -print -quit)
-    local JAVA_HOME=$(dirname "$java_bin")/../
-
-    JAVA_HOME=$JAVA_HOME "$tool" "$@"
+call_android_sdkmanager() {
+    call_android_sdk sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "$@"
 }
 
 # Needs install_android_sdk_manager first
 install_android_tools() {
-    yes | call_android_sdk sdkmanager "build-tools;29.0.1"
-    # We could use install_android_platform_tools here if the SDK starts being annoying
-    yes | call_android_sdk sdkmanager "platform-tools"
+    # We could use install_android_platform_tools here for platform-tools if the
+    # SDK starts being annoying
+    # Note: recent sdkmanager seem to be installing "platform-tools" by default,
+    # so it's not necessary anymore to specify it on the command line
+    yes | call_android_sdkmanager --verbose --channel=0 --install "build-tools;30.0.3"
 }
 
 # Install nodejs from snap packages instead of the main package manager

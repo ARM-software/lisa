@@ -148,7 +148,7 @@ class UtilConvergence(UtilTrackingBase):
         ax = self.trace.analysis.rta.plot_phases(task, axis=ax)
         for start in failures:
             ax.axvline(start, alpha=0.5, color='r')
-        filepath = os.path.join(self.res_dir, 'util_est_{}.png'.format(test))
+        filepath = os.path.join(self.res_dir, f'util_est_{test}.png')
         self.trace.analysis.rta.save_plot(ax.figure, filepath=filepath)
 
     @requires_events('sched_util_est_se')
@@ -209,9 +209,9 @@ class UtilConvergence(UtilTrackingBase):
 
             def make_issue(msg):
                 return msg.format(
-                    util='util={}'.format(mean_util),
-                    enq='enqueued={}'.format(mean_enqueued),
-                    ewma='ewma={}'.format(mean_ewma),
+                    util=f'util={mean_util}',
+                    enq=f'enqueued={mean_enqueued}',
+                    ewma=f'ewma={mean_ewma}',
                 )
 
             issue = None
@@ -321,9 +321,9 @@ class UtilConvergence(UtilTrackingBase):
             ewma = row['ewma']
             def make_issue(msg):
                 return msg.format(
-                    util='util={}'.format(util),
-                    enq='enqueued={}'.format(enq),
-                    ewma='ewma={}'.format(ewma),
+                    util=f'util={util}',
+                    enq=f'enqueued={enq}',
+                    ewma=f'ewma={ewma}',
                 )
 
             issue = None

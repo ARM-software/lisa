@@ -22,6 +22,7 @@ import math
 import itertools
 import warnings
 import contextlib
+import uuid
 from operator import attrgetter
 
 import numpy as np
@@ -66,8 +67,8 @@ class DataAccessor:
     def __getattr__(self, attr):
         try:
             f = self.FUNCTIONS[attr]
-        except KeyError:
-            raise AttributeError('Unknown method name: {}'.format(attr))
+        except KeyError as e:
+            raise AttributeError(f'Unknown method name: {attr}') from e
 
         meth = f.__get__(self.data, self.__class__)
         return meth
@@ -310,7 +311,7 @@ def df_squash(df, start, end, column='delta'):
     middle_df = df[start:end]
 
     # Tweak the closest previous event to include it in the slice
-    if not prev_df.empty and not (start in middle_df.index):
+    if not prev_df.empty and start not in middle_df.index:
         res_df = res_df.append(prev_df.tail(1))
         res_df.index = [start]
         e1 = end
@@ -385,6 +386,7 @@ def df_merge(df_list, drop_columns=None, drop_inplace=False, filter_columns=None
     :type filter_columns: dict(str, object)
     """
 
+    df_list = list(df_list)
     drop_columns = drop_columns if drop_columns else []
 
     if filter_columns:
@@ -410,10 +412,110 @@ def df_merge(df_list, drop_columns=None, drop_inplace=False, filter_columns=None
             for df in df_list
         ]
 
-    def merge(df1, df2):
-        return pd.merge(df1, df2, left_index=True, right_index=True, how='outer')
+    if any(
+        not (df1.columns & df2.columns).empty
+        for (df1, df2)  in itertools.combinations(df_list, 2)
+    ):
+        df = pd.concat(df_list)
+        df.sort_index(inplace=True)
+        return df
+    else:
+        df1, *other_dfs = df_list
+        return df1.join(other_dfs, how='outer')
 
-    return functools.reduce(merge, df_list)
+
+@DataFrameAccessor.register_accessor
+def df_delta(pre_df, post_df, group_on=None):
+    """
+    pre_df and post_df containing paired/consecutive events indexed by time,
+    df_delta() merges the two dataframes and adds a ``delta`` column
+    containing the time spent between the two events.
+    A typical usecase would be adding pre/post events at the entry/exit of a
+    function.
+
+    Rows from ``pre_df`` and ``post_df`` are grouped by the ``group_on``
+    columns.
+    E.g.: ``['pid', 'comm']`` to group by task.
+    Except columns listed in ``group_on``, ``pre_df`` and ``post_df`` must
+    have columns with different names.
+
+    Events that cannot be paired are ignored.
+
+    :param pre_df: Dataframe containing the events that start a record.
+    :type pre_df: pandas.DataFrame
+
+    :param post_df: Dataframe containing the events that end a record.
+    :type post_df: pandas.DataFrame
+
+    :param group_on: Columns used to group ``pre_df`` and ``post_df``.
+        E.g.: This would be ``['pid', 'comm']`` to group by task.
+    :type group_on: list(str)
+
+    :returns: a :class:`pandas.DataFrame` indexed by the ``pre_df`` dataframe
+        with:
+
+        * All the columns from the ``pre_df`` dataframe.
+        * All the columns from the ``post_df`` dataframe.
+        * A ``delta`` column (duration between the emission of a 'pre' event
+            and its consecutive 'post' event).
+    """
+    pre_df = pre_df.copy(deep=False)
+    post_df = post_df.copy(deep=False)
+
+    # Tag the rows to remember from which df they are coming from.
+    pre_df["is_pre"] = True
+    post_df["is_pre"] = False
+
+    # Merge on columns common to the two dfs to avoid overlapping of names.
+    on_col = sorted(pre_df.columns & post_df.columns)
+
+    # Merging on nullable types converts columns to object.
+    # Merging on non-nullable types converts integer/boolean to float.
+    # Thus, let the on_col non-nullable and converts the others to nullable.
+    pre_df_cols = sorted(set(pre_df) - set(on_col))
+    post_df_cols = sorted(set(post_df) - set(on_col))
+    pre_df[pre_df_cols] = df_convert_to_nullable(pre_df[pre_df_cols])
+    post_df[post_df_cols] = df_convert_to_nullable(post_df[post_df_cols])
+
+    # Merge. Don't allow column renaming.
+    df = pd.merge(pre_df, post_df, left_index=True, right_index=True, on=on_col,
+                  how='outer', suffixes=(False, False))
+
+    # Save and replace the index name by a tmp name to avoid a clash
+    # with column names.
+    index_name = df.index.name
+    index_tmp_name = uuid.uuid4().hex
+    df.index.name = index_tmp_name
+    df.reset_index(inplace=True)
+
+    # In each group, search for a faulty sequence (where pre/post events are
+    # not interleaving, e.g. pre1->pre2->post1->post2).
+    if group_on:
+        grouped = df.groupby(group_on, observed=True, sort=False)
+    else:
+        grouped = df
+    if grouped['is_pre'].transform(lambda x: x == x.shift()).any():
+        raise ValueError('Unexpected sequence of pre and post event (more than one "pre" or "post" in a row)')
+
+    # Create the 'delta' column and add the columns from post_df
+    # in the rows coming from pre_df.
+    new_columns = dict(
+        delta=grouped[index_tmp_name].transform(lambda time: time.diff().shift(-1)),
+    )
+    new_columns.update({col: grouped[col].shift(-1) for col in post_df_cols})
+    df = df.assign(**new_columns)
+
+    df.set_index(index_tmp_name, inplace=True)
+    df.index.name = index_name
+
+    # Only keep the rows from the pre_df, they have all the necessary info.
+    df = df.loc[df["is_pre"]]
+    # Drop the rows from pre_df with not matching row from post_df.
+    df.dropna(inplace=True)
+
+    df.drop(columns=["is_pre"], inplace=True)
+
+    return df
 
 
 def _resolve_x(y, x):
@@ -448,7 +550,7 @@ def series_derivate(y, x=None, order=1):
     """
     x = _resolve_x(y, x)
 
-    for i in range(order):
+    for _ in range(order):
         y = y.diff() / x.diff()
 
     return y
@@ -542,7 +644,7 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
     elif sign is None:
         pass
     else:
-        raise ValueError('Unsupported "sign": {}'.format(sign))
+        raise ValueError(f'Unsupported "sign": {sign}')
 
     if method == "rect":
         dx = x.diff()
@@ -565,7 +667,7 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
         return scipy.integrate.simps(y, x)
 
     else:
-        raise ValueError('Unsupported integration method: {}'.format(method))
+        raise ValueError(f'Unsupported integration method: {method}')
 
 
 @SeriesAccessor.register_accessor
@@ -671,7 +773,7 @@ def _data_window(data, window, method, clip_window):
         window = (start, end)
 
     if window[0] > window[1]:
-        raise KeyError('The window starts after its end: {}'.format(window))
+        raise KeyError(f'The window starts after its end: {window}')
 
     if method == 'inclusive':
         method = ('ffill', 'bfill')
@@ -694,7 +796,7 @@ def _data_window(data, window, method, clip_window):
         method = ('bfill', 'bfill')
 
     else:
-        raise ValueError('Slicing method not supported: {}'.format(method))
+        raise ValueError(f'Slicing method not supported: {method}')
 
     window = [
         _get_loc(index, x, method=method) if x is not None else None
@@ -906,7 +1008,8 @@ def series_align_signal(ref, to_align, max_shift=None):
     # Resample so that we operate on a fixed sampled rate signal, which is
     # necessary in order to be able to do a meaningful interpretation of
     # correlation argmax
-    def get_period(series): return pd.Series(series.index).diff().min()
+    def get_period(series):
+        return pd.Series(series.index).diff().min()
     period = min(get_period(ref), get_period(to_align))
     num = math.ceil((end - start) / period)
     new_index = pd.Float64Index(np.linspace(start, end, num))
@@ -975,15 +1078,17 @@ def df_filter_task_ids(df, task_ids, pid_col='pid', comm_col='comm', invert=Fals
 
         return pid & comm
 
-    tasks_filters = map(make_filter, task_ids)
+    tasks_filters = list(map(make_filter, task_ids))
+    if tasks_filters:
+        # Combine all the task filters with OR
+        tasks_filter = functools.reduce(operator.or_, tasks_filters)
 
-    # Combine all the task filters with OR
-    tasks_filter = functools.reduce(operator.or_, tasks_filters, False)
+        if invert:
+            tasks_filter = ~tasks_filter
 
-    if invert:
-        tasks_filter = ~tasks_filter
-
-    return df[tasks_filter]
+        return df[tasks_filter]
+    else:
+        return df if invert else df.iloc[0:0]
 
 
 @SeriesAccessor.register_accessor
@@ -1002,7 +1107,7 @@ def series_local_extremum(series, kind):
     elif kind == 'max':
         comparator = np.greater_equal
     else:
-        raise ValueError('Unsupported kind: {}'.format(kind))
+        raise ValueError(f'Unsupported kind: {kind}')
 
     ilocs = scipy.signal.argrelextrema(series.to_numpy(), comparator=comparator)
     return series.iloc[ilocs]
@@ -1017,13 +1122,23 @@ def series_envelope_mean(series):
     Assuming that the values are ranging inside a tunnel, this will give the
     average center of that tunnel.
     """
-    maxs = series_local_extremum(series, kind='max')
-    mins = series_local_extremum(series, kind='min')
 
-    maxs_mean = series_mean(maxs)
-    mins_mean = series_mean(mins)
+    first_val = series.iat[0]
+    # Remove constant values, otherwise they would be accounted in both max and
+    # min, which can bias the result
+    series = series_deduplicate(series, keep='first', consecutives=True)
 
-    return (maxs_mean - mins_mean) / 2 + mins_mean
+    # If the series was constant, just return that constant
+    if series.empty:
+        return first_val
+    else:
+        maxs = series_local_extremum(series, kind='max')
+        mins = series_local_extremum(series, kind='min')
+
+        maxs_mean = series_mean(maxs)
+        mins_mean = series_mean(mins)
+
+        return (maxs_mean - mins_mean) / 2 + mins_mean
 
 # Keep an alias in place for compatibility
 @deprecate(replaced_by=series_envelope_mean, deprecated_in='2.0', removed_in='2.1')
@@ -1063,6 +1178,7 @@ def series_rolling_apply(series, func, window, window_float_index=True, center=F
     # Wrap the func to turn the index into nanosecond Float64Index
     if window_float_index:
         def func(s, func=func):
+            # pylint: disable=function-redefined
             s.index = s.index.astype('int64') * 1e-9
             return func(s)
 
@@ -1071,7 +1187,7 @@ def series_rolling_apply(series, func, window, window_float_index=True, center=F
     series = pd.Series(series.array, index=index)
 
     window_ns = int(window * 1e9)
-    rolling_window = '{}ns'.format(window_ns)
+    rolling_window = f'{window_ns}ns'
     values = series.rolling(rolling_window).apply(func, raw=False).values
 
     if center:
@@ -1090,7 +1206,7 @@ def _data_find_unique_bool_vector(data, cols, all_col, keep):
     elif keep is None:
         shift = 1
     else:
-        raise ValueError('Unknown keep value: {}'.format(keep))
+        raise ValueError(f'Unknown keep value: {keep}')
 
     dedup_data = data[cols] if cols else data
     # Unique values will be True, duplicate False
@@ -1204,9 +1320,6 @@ def df_update_duplicates(df, col=None, func=None, inplace=False):
         # Keep the first, so we update the second duplicates
         locs = series.duplicated(keep='first')
         return locs, series.loc[locs]
-
-    def copy(series):
-        return series.copy() if inplace else series
 
     use_index = col is None
     # Indices already gets copied with to_series()
@@ -1364,7 +1477,7 @@ def df_add_delta(df, col='delta', src_col=None, window=None, inplace=False):
 
     # When use_refit_index=True, the last delta will already be sensible
     if not use_refit_index and window:
-        start, end = window
+        _, end = window
         if end is not None:
             new_end = end - src.iloc[-1]
             new_end = new_end if new_end > 0 else 0
@@ -1394,7 +1507,15 @@ def df_combine(series_list, func, fill_value=None):
     return _data_combine(series_list, func, fill_value)
 
 
-def series_dereference(series, sources, inplace=False):
+def _data_combine(datas, func, fill_value=None):
+    state = datas[0]
+    for data in datas[1:]:
+        state = state.combine(data, func=func, fill_value=fill_value)
+
+    return state
+
+
+def series_dereference(series, sources, inplace=False, method='ffill'):
     """
     Replace each value in ``series`` by the value at the corresponding index by
     the source indicated by ``series``'s value.
@@ -1413,11 +1534,15 @@ def series_dereference(series, sources, inplace=False):
 
     :param inplace: If ``True``, modify the series inplace.
     :type inplace: bool
+
+    :param method: ``sources`` is reindexed so that it shares the same index
+        as ``series``. ``method`` is forwarded to :meth:`pandas.Series.reindex`.
+    :type method: str
     """
     def reindex(values):
         # Skip the reindex if they are in the same dataframe
         if values.index is not series.index:
-            values = values.reindex(series.index, method='ffill')
+            values = values.reindex(series.index, method=method)
         return values
 
     if isinstance(sources, pd.DataFrame):
@@ -1439,7 +1564,7 @@ def series_dereference(series, sources, inplace=False):
     return series
 
 
-def df_dereference(df, col, pointer_col=None, sources=None, inplace=False):
+def df_dereference(df, col, pointer_col=None, sources=None, inplace=False, **kwargs):
     """
     Similar to :func:`series_dereference`.
 
@@ -1472,92 +1597,13 @@ def df_dereference(df, col, pointer_col=None, sources=None, inplace=False):
 
     :param inplace: If ``True``, the dataframe is modified inplace.
     :type inplace: bool
+
+    :Variable keyword arguments: Forwarded to :func:`series_dereference`.
     """
     pointer_col = pointer_col or col
     sources = df if sources is None else sources
     df = df if inplace else df.copy(deep=False)
-    df[col] = series_dereference(df[pointer_col], sources, inplace=inplace)
-    return df
-
-
-def _data_combine(datas, func, fill_value=None):
-    state = datas[0]
-    for data in datas[1:]:
-        state = state.combine(data, func=func, fill_value=fill_value)
-
-    return state
-
-
-def series_dereference(series, value_df, method='ffill'):
-    """
-    Use a :class:`pandas.Series` values as pointers into a
-    :class:`pandas.DataFrame`, where there must be a column for each potential
-    value of the :class`pandas.Series`.
-
-    :param series: Series containing values used as pointers into ``value_df``
-        columns. If the column does not exist, ``pandas.NA`` will be used
-        instead.
-    :type series: pandas.Series
-
-    :param value_df: DataFrame of values, with one column per possible value of
-        ``series``. It is reindexed to match the index of ``series``.
-    :type value_df: pandas.DataFrame
-
-    :param method: ``value_df`` is reindexed so that it shares the same index
-        as ``series``. ``method`` is forwarded to :meth:`pandas.Series.reindex`.
-    :type method: str
-    """
-
-    value_df = value_df.reindex(series.index, method=method)
-    # Reset the index since iat[] is much faster on a RangeIndex (O(1) lookup
-    # rather than a binary search on other index types
-    orig_index = series.index
-    df = series.reset_index(drop=True).to_frame('ptr')
-    value_df = value_df.reset_index(drop=True)
-
-    def deref(x):
-        ptr = x['ptr']
-        try:
-            values = value_df[ptr]
-        except KeyError:
-            return pd.NA
-        else:
-            i = x.name
-            return values.iat[i]
-
-    df['deref'] = df.apply(deref, axis=1)
-    series = df['deref']
-    series.index = orig_index
-    return series
-
-
-def df_dereference(df, ptr_col, value_df, dst_col=None, inplace=False, **kwargs):
-    """
-    Same as :func:`series_dereference` but acting on a
-    :class:`pandas.DataFrame`'s column.
-
-    :param df: DataFrame to act on.
-    :type param_df: pandas.DataFrame
-
-    :param ptr_col: Pointer column with values that will be looked up as
-        columns in ``value_df``.
-    :type ptr_col: str
-
-    :param dst_col: Column with the result of the operation. If ``None``,
-        ``ptr_col`` will be used.
-    :type dst_col: str or None
-
-    :param value_df: DataFrame with one column per possible value found in
-        ``df[ptr_col]``.
-    :type value_df: pandas.DataFrame
-
-    :Variable keyword arguments: Forwarded to :func:`series_dereference`.
-    """
-    series = df[ptr_col]
-    dst_col = dst_col if dst_col is not None else ptr_col
-
-    df = df if inplace else df.copy(deep=False)
-    df[dst_col] = series_dereference(series, value_df, **kwargs)
+    df[col] = series_dereference(df[pointer_col], sources, inplace=inplace, **kwargs)
     return df
 
 
@@ -1631,13 +1677,8 @@ class SignalDesc:
                 ]
 
 
-# Before pandas <= 1.0.0 (Python <= 3.5):
-# * 'string' dtype does not exist
-# * nullable integer dtypes are not serializable before
-_PANDAS_HIGHER_THAN_1_1_0 = tuple(map(int, pd.__version__.split('.'))) >= (1, 0, 0)
-
 @SeriesAccessor.register_accessor
-def series_convert(series, dtype):
+def series_convert(series, dtype, nullable=None):
     """
     Convert a :class:`pandas.Series` with a best effort strategy.
 
@@ -1667,9 +1708,35 @@ def series_convert(series, dtype):
             negative values, as there is no way to reliably distinguish between
             conversion failures reasons.
     :type dtype: str or collections.abc.Callable
+
+    :param nullable: If:
+
+        - ``True``, use the nullable dtype equivalent of the requested dtype.
+        - ``None``, use the equivalent nullable dtype if there is any missing
+            data, otherwise a non-nullable dtype will be used for lower
+            memory consumption.
+    :type nullable: bool or None
     """
 
-    if series.dtype.name == dtype:
+    nullable_dtypes = {
+        'int':    'Int64',
+        'int8':   'Int8',
+        'int16':  'Int16',
+        'int32':  'Int32',
+        'int64':  'Int64',
+
+        'uint':   'UInt64',
+        'uint8':  'UInt8',
+        'uint16': 'UInt16',
+        'uint32': 'UInt32',
+        'uint64': 'UInt64',
+
+        'bool':   'boolean',
+    }
+
+    if series.dtype.name == dtype and   \
+            not (nullable and dtype in nullable_dtypes):
+        # If there is a conversion to a nullable dtype, don't skip.
         return series
 
     def to_object(x):
@@ -1680,7 +1747,8 @@ def series_convert(series, dtype):
         return x
 
     astype = lambda dtype: lambda x: x.astype(dtype, copy=False)
-    make_convert = lambda dtype: lambda x: series_convert(x, dtype)
+    make_convert = lambda dtype: lambda x: series_convert(x, dtype,
+                                                            nullable=nullable)
     basic = astype(dtype)
 
     class Tree(list):
@@ -1733,7 +1801,7 @@ def series_convert(series, dtype):
         def convert(x):
             try:
                 return dtype(x)
-            except Exception:
+            except Exception: # pylint: disable=broad-except
                 # Make sure None will be propagated as None.
                 # note: We use an exception handler rather than checking first
                 # in order to speed up the expected path where the conversion
@@ -1756,42 +1824,32 @@ def series_convert(series, dtype):
     # Then try with a nullable type.
     # Floats are already nullable so we don't need to do anything
     elif is_bool or is_int:
-        nullable_dtypes = {
-            'int':    'Int64',
-            'int8':   'Int8',
-            'int16':  'Int16',
-            'int32':  'Int32',
-            'int64':  'Int64',
-
-            'uint':   'UInt64',
-            'uint8':  'UInt8',
-            'uint16': 'UInt16',
-            'uint32': 'UInt32',
-            'uint64': 'UInt64',
-
-            'bool':   'boolean',
-        }
 
         # Bare nullable dtype
-        if _PANDAS_HIGHER_THAN_1_1_0:
-            # Already nullable
-            if dtype[0].isupper():
-                nullable = dtype
-            else:
-                nullable = nullable_dtypes[dtype]
-            to_nullable = astype(nullable)
-        else:
-            # Make it fail so we don't end up with issues with missing parquet
-            # support for nullable types down the line
-            def to_nullable(series):
-                raise ValueError('pandas version too old for nullable types')
-            basic = astype(lower_dtype)
 
-        # Strategy assuming it's already a numeric type
-        from_numeric = Alternative(
-            basic,
-            to_nullable
-        )
+        # Already nullable
+        if dtype[0].isupper():
+            nullable_type = dtype
+        else:
+            nullable_type = nullable_dtypes[dtype]
+        to_nullable = astype(nullable_type)
+
+        if nullable:
+            # Only allow nullable dtype conversion.
+            from_numeric = Alternative(
+                to_nullable
+            )
+        elif nullable is None:
+            # (nullable == None): default behaviour, try both.
+            from_numeric = Alternative(
+                basic,
+                to_nullable
+            )
+        else:
+            # Do not convert to nullable dtype unless the user specified one.
+            from_numeric = Alternative(
+                basic
+            )
 
         if is_int:
             parse = Alternative(
@@ -1911,6 +1969,23 @@ def series_convert(series, dtype):
         pipelines.append(basic)
 
     return pipelines(series)
+
+
+@DataFrameAccessor.register_accessor
+def df_convert_to_nullable(df):
+    """
+    Convert the columns of the dataframe to their equivalent nullable dtype,
+    when possible.
+
+    :param df: The dataframe to convert.
+    :type df: pandas.DataFrame
+
+    :returns: The dataframe with converted columns.
+    """
+    def _series_convert(column):
+        return series_convert(column, str(column.dtype), nullable=True)
+
+    return df.apply(_series_convert, raw=False)
 
 
 # Defined outside SignalDesc as it references SignalDesc itself

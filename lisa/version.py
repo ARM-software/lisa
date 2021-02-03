@@ -32,11 +32,12 @@ def parse_version(version):
 __version__ = format_version(version_tuple)
 
 def _compute_version_token():
-    plain_version_token = 'v{}'.format(format_version(version_tuple))
+    plain_version_token = f'v{format_version(version_tuple)}'
 
     # When in devmode, use the commit SHA1 and the SHA1 of the patch of
     # uncommitted changes
     if int(os.getenv('LISA_DEVMODE', '0')):
+        # pylint: disable=import-outside-toplevel
         import lisa
         repo = list(lisa.__path__)[0]
 
@@ -50,11 +51,11 @@ def _compute_version_token():
         # Dirty tree
         if patch:
             patch_sha1 = hashlib.sha1(patch.encode()).hexdigest()
-            patch_sha1 = '-dirty-{}'.format(patch_sha1)
+            patch_sha1 = f'-dirty-{patch_sha1}'
         else:
             patch_sha1 = ''
 
-        return 'git-{}{}'.format(sha1, patch_sha1)
+        return f'git-{sha1}{patch_sha1}'
     else:
         return plain_version_token
 

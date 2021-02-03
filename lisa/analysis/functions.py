@@ -18,9 +18,11 @@
 """ Functions Analysis Module """
 import json
 import os
+from operator import itemgetter
 
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
+import numpy as np
 
 from lisa.analysis.base import TraceAnalysisBase, AnalysisHelpers
 from lisa.trace import requires_events, requires_one_event_of
@@ -108,9 +110,9 @@ class FunctionsAnalysis(TraceAnalysisBase):
     def _df_with_ksym(self, event, *args, **kwargs):
         df = self.trace.df_event(event)
         try:
-            return self.df_resolve_ksym(df, event, *args, **kwargs)
+            return self.df_resolve_ksym(df, *args, **kwargs)
         except ConfigKeyError:
-            self.get_logger().warning('Missing symbol addresses, function names will not be resolved: {}'.format(e))
+            self.get_logger().warning(f'Missing symbol addresses, function names will not be resolved: {e}')
             return df
 
     @requires_one_event_of('funcgraph_entry', 'funcgraph_exit')
@@ -128,8 +130,8 @@ class FunctionsAnalysis(TraceAnalysisBase):
             * ``exit`` (``funcgraph_exit`` event)
         :type event: str
         """
-        event = 'funcgraph_{}'.format(event)
-        return self._df_with_ksym(event, 'func', 'func_name', exact=True)
+        event = f'funcgraph_{event}'
+        return self._df_with_ksym(event, 'func', 'func_name', exact=False)
 
 
 class JSONStatsFunctionsAnalysis(AnalysisHelpers):
@@ -147,7 +149,7 @@ class JSONStatsFunctionsAnalysis(AnalysisHelpers):
         self.stats_path = stats_path
 
         # Opening functions profiling JSON data file
-        with open(self.stats_path, 'r') as f:
+        with open(self.stats_path) as f:
             stats = json.load(f)
 
         # Build DataFrame of function stats
@@ -208,9 +210,7 @@ class JSONStatsFunctionsAnalysis(AnalysisHelpers):
         # Check that all the required metrics are acutally availabe
         available_metrics = df.columns.tolist()
         if not set(metrics).issubset(set(available_metrics)):
-            msg = 'Metrics {} not supported, available metrics are {}'\
-                .format(set(metrics) - set(available_metrics),
-                        available_metrics)
+            msg = f'Metrics {(set(metrics) - set(available_metrics))} not supported, available metrics are {available_metrics}'
             raise ValueError(msg)
 
         for metric in metrics:

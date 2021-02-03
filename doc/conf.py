@@ -53,50 +53,6 @@ for name, obj in vars(unittest).items():
     except Exception:
         pass
 
-# This is a hack to prevent :ivar: docs from attempting to create a reference
-# https://github.com/sphinx-doc/sphinx/issues/2549
-# Credit goes to https://stackoverflow.com/a/41184353/5096023
-
-
-def patched_make_field(self, types, domain, items, env=None):
-    # type: (List, unicode, Tuple) -> nodes.field
-    def handle_item(fieldarg, content):
-        par = nodes.paragraph()
-        par += addnodes.literal_strong('', fieldarg)  # Patch: this line added
-        # par.extend(self.make_xrefs(self.rolename, domain, fieldarg,
-        #                           addnodes.literal_strong))
-        if fieldarg in types:
-            par += nodes.Text(' (')
-            # NOTE: using .pop() here to prevent a single type node to be
-            # inserted twice into the doctree, which leads to
-            # inconsistencies later when references are resolved
-            fieldtype = types.pop(fieldarg)
-            if len(fieldtype) == 1 and isinstance(fieldtype[0], nodes.Text):
-                typename = ''.join(n.astext() for n in fieldtype)
-                par.extend(self.make_xrefs(self.typerolename, domain, typename,
-                                           addnodes.literal_emphasis))
-            else:
-                par += fieldtype
-            par += nodes.Text(')')
-        par += nodes.Text(' -- ')
-        par += content
-        return par
-
-    fieldname = nodes.field_name('', self.label)
-    if len(items) == 1 and self.can_collapse:
-        fieldarg, content = items[0]
-        bodynode = handle_item(fieldarg, content)
-    else:
-        bodynode = self.list_type()
-        for fieldarg, content in items:
-            bodynode += nodes.list_item('', handle_item(fieldarg, content))
-    fieldbody = nodes.field_body('', bodynode)
-    return nodes.field('', fieldname, fieldbody)
-
-
-TypedField.make_field = patched_make_field
-
-
 RTD = (os.getenv('READTHEDOCS') == 'True')
 
 # For ReadTheDocs only: source init_env and get all env var defined by it.
@@ -176,7 +132,7 @@ try:
         ['git', 'describe', '--tags', '--match=v??.??'])
     version = re.match(r'v([0-9][0-9]\.[0-9][0-9]).*', git_description).group(1)
 except Exception as e:
-    logging.info("Couldn't set project version from git: {}".format(e))
+    logging.info(f"Couldn't set project version from git: {e}")
     version = lisa.__version__
 
 version = str(version)
@@ -409,7 +365,7 @@ autodoc_inherit_docstrings = True
 
 
 def nitpick_ignore_module(module):
-    mod_prefix = ('{}.'.format(module.__name__))
+    mod_prefix = (f'{module.__name__}.')
 
     class ContinueException(Exception):
         pass
@@ -445,7 +401,7 @@ def nitpick_ignore_module(module):
             except AttributeError:
                 pass
 
-            name = '{}.{}'.format(mod, name)
+            name = f'{mod}.{name}'
             return (reftype, name)
 
     modules = [module] + import_all_submodules(module, best_effort=True)
@@ -501,7 +457,7 @@ nitpick_ignore.extend([
 ])
 
 nitpick_ignore.extend(
-    (get_xref_type(x), '{}.{}'.format(x.__module__, x.__qualname__))
+    (get_xref_type(x), f'{x.__module__}.{x.__qualname__}')
     for x in sphinx_nitpick_ignore()
 )
 

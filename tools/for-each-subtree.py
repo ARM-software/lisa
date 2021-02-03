@@ -14,7 +14,7 @@ def call_subprocess(cmd):
     try:
         subprocess.check_call(cmd)
     except subprocess.CalledProcessError as e:
-        print('Failed with exit code {}'.format(e.returncode))
+        print(f'Failed with exit code {e.returncode}')
 
 def main():
     parser = argparse.ArgumentParser(description="""
@@ -56,11 +56,7 @@ def main():
             git_args = [git_cmd] + extra_args +['-P', path, url, git_ref]
 
         if git_cmd == 'pull':
-            git_args += ['-m', '{path}: update to latest {ref}\n\nremote: {url}'.format(
-                path=path,
-                url=url,
-                ref=git_ref
-            )]
+            git_args += ['-m', f'{path}: update to latest {git_ref}\n\nremote: {url}']
 
         cmd = ['git', 'subtree'] + git_args
         call_subprocess(cmd)

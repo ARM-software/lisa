@@ -17,7 +17,6 @@
 
 """ Frequency Analysis Module """
 
-import os
 import itertools
 
 import matplotlib.gridspec as gridspec
@@ -170,7 +169,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 # If the trace started in the middle of a group of transitions,
                 # ignore that transition by shifting and re-test
                 if not (ref.equals(col) or ref[:-1].equals(col.shift()[1:])):
-                    raise ValueError('Frequencies of CPUs in the freq domain {} are not coherent'.format(cpus))
+                    raise ValueError(f'Frequencies of CPUs in the freq domain {cpus} are not coherent')
 
     @TraceAnalysisBase.cache
     @df_cpus_frequency.used_events
@@ -212,18 +211,18 @@ class FrequencyAnalysis(TraceAnalysisBase):
         # - freq_active, square wave of the form:
         #     freq_active[t] == 1 if at time t the frequency is f
         #     freq_active[t] == 0 otherwise
-        available_freqs = sorted(cluster_freqs.frequency.unique())
         cluster_freqs = cluster_freqs.join(
             cluster_active.to_frame(name='active'), how='outer')
         cluster_freqs.fillna(method='ffill', inplace=True)
-        nonidle_time = []
-        for freq in available_freqs:
-            freq_active = cluster_freqs.frequency.apply(lambda x: 1 if x == freq else 0)
-            active_t = cluster_freqs.active * freq_active
-            # Compute total time by integrating the square wave
-            nonidle_time.append(series_integrate(active_t))
 
-        time_df["active_time"] = pd.DataFrame(index=available_freqs, data=nonidle_time)
+        # Compute total time by integrating the square wave
+        time_df['active_time'] = pd.Series({
+            freq: series_integrate(
+                cluster_freqs['active'] * (cluster_freqs['frequency'] == freq)
+            )
+            for freq in cluster_freqs['frequency'].unique()
+        })
+
         return time_df
 
 
@@ -260,10 +259,17 @@ class FrequencyAnalysis(TraceAnalysisBase):
           * A ``total_time`` column (the total time spent at a frequency)
           * A ``active_time`` column (the non-idle time spent at a frequency)
         """
-        domains = self.trace.plat_info['freq-domains']
-        for domain in domains:
-            if cpu in domain:
-                return self._get_frequency_residency(tuple(domain))
+        domains = [
+            domain
+            for domain in self.trace.plat_info['freq-domains']
+            if cpu in domain
+        ]
+
+        if not domains:
+            raise ValueError(f'The given CPU "{cpu}" does not belong to any domain')
+        else:
+            domain, = domains
+            return self._get_frequency_residency(tuple(domain))
 
     @TraceAnalysisBase.cache
     @df_cpu_frequency.used_events
@@ -455,9 +461,9 @@ class FrequencyAnalysis(TraceAnalysisBase):
         if "freqs" in self.trace.plat_info:
             frequencies = self.trace.plat_info['freqs'][cpu]
         else:
-            logger.info("Estimating CPU{} frequencies from trace".format(cpu))
+            logger.info(f"Estimating CPU{cpu} frequencies from trace")
             frequencies = sorted(list(df.frequency.unique()))
-            logger.debug("Estimated frequencies: {}".format(frequencies))
+            logger.debug(f"Estimated frequencies: {frequencies}")
 
         avg = self.get_average_cpu_frequency(cpu)
         logger.info(
@@ -479,7 +485,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         axis.legend()
         if local_fig:
             axis.set_xlabel('Time')
-            axis.set_title('Frequency of CPU{}'.format(cpu))
+            axis.set_title(f'Frequency of CPU{cpu}')
             axis.grid(True)
 
     @TraceAnalysisBase.plot_method(return_axis=True)
@@ -499,7 +505,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
                 self.plot_cpu_frequencies(domain[0], axis=axis)
 
-                axis.set_title('Frequencies of CPUS {}'.format(domain))
+                axis.set_title(f'Frequencies of CPUS {domain}')
 
         return self.do_plot(plotter, nrows=len(domains), sharex=True, axis=axis, **kwargs)
 
@@ -527,10 +533,10 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         def plotter(axes, local_fig):
             total_df.plot.barh(ax=axes[0])
-            axes[0].set_title("CPU{} total frequency residency".format(cpu))
+            axes[0].set_title(f"CPU{cpu} total frequency residency")
 
             active_df.plot.barh(ax=axes[1])
-            axes[1].set_title("CPU{} active frequency residency".format(cpu))
+            axes[1].set_title(f"CPU{cpu} active frequency residency")
 
             for axis in axes:
                 if pct:
@@ -564,8 +570,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 )
                 for axis in local_axes:
                     title = axis.get_title()
-                    axis.set_title(title.replace(
-                        "CPU{}".format(domain[0]), "CPUs {}".format(domain)))
+                    axis.set_title(title.replace(f'CPU{domain[0]}', f"CPUs {domain}"))
 
         return self.do_plot(plotter, nrows=2 * len(domains), sharex=True, axis=axis, **kwargs)
 
@@ -590,7 +595,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         if not df.empty:
             df["transitions"].plot.barh(ax=axis)
 
-        axis.set_title('Frequency transitions of CPU{}'.format(cpu))
+        axis.set_title(f'Frequency transitions of CPU{cpu}')
 
         if pct:
             axis.set_xlabel("Transitions share (%)")
@@ -620,8 +625,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
                 )
 
                 title = axis.get_title()
-                axis.set_title(title.replace("CPU{}".format(domain[0]),
-                                             "CPUs {}".format(domain)))
+                axis.set_title(title.replace(f'CPU{domain[0]}', f"CPUs {domain}"))
 
         return self.do_plot(plotter, nrows=len(domains), axis=axis, **kwargs)
 

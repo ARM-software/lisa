@@ -287,7 +287,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         analysis = self.name
         filepath = os.path.join(
             default_dir,
-            "{}.{}.{}".format(analysis, plot_name, img_format))
+            f"{analysis}.{plot_name}.{img_format}")
 
         return filepath
 
@@ -405,10 +405,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         def decorator(f):
             @update_wrapper_doc(
                 f,
-                added_by=':meth:`{}.{}.plot_method`'.format(
-                    AnalysisHelpers.__module__,
-                    AnalysisHelpers.__qualname__,
-                ),
+                added_by=f':meth:`{AnalysisHelpers.__module__}.{AnalysisHelpers.__qualname__}.plot_method`',
                 description=textwrap.dedent("""
                 :returns: An :class:`matplotlib.axes.Axes` containing the plot,
                     or rich formats depending on ``output`` value.
@@ -541,7 +538,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
                     f_kwargs.update(
                         axis=axis,
-                        local_fig=local_fig,
+                        local_fig=f_kwargs.get('local_fig', local_fig),
                     )
                     with set_cycler(axis), set_rc_params(axis):
                         f(**f_kwargs)
@@ -559,7 +556,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     try:
                         return format_map[fmt]
                     except KeyError:
-                        raise ValueError('Unsupported format: {}'.format(fmt))
+                        raise ValueError(f'Unsupported format: {fmt}')
 
                 if output is None:
                     out = axis
@@ -601,20 +598,16 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
         try:
             url = get_doc_url(f)
-            doc_link = '`[doc] <{url}>`_'.format(url=url)
+            doc_link = f'`[doc] <{url}>`_'
         except Exception:
             doc_link = ''
 
-        return textwrap.dedent("""
+        return textwrap.dedent(f"""
                 {name}
-                {name_underline}
+                {'=' * len(name)}
 
-                {docstring} {link}
-            """).format(
-            name=name,
-            link=doc_link,
-            name_underline='=' * len(name),
-            docstring=get_short_doc(f),
+                {get_short_doc(f)} {doc_link}
+            """
         )
 
     @classmethod
@@ -642,24 +635,19 @@ class AnalysisHelpers(Loggable, abc.ABC):
             'rc_params',
         }
         args_list = ', '.join(
-            '{}={}'.format(k, v)
+            f'{k}={v}'
             for k, v in sorted(kwargs.items(), key=itemgetter(0))
             if v is not None and k not in hidden_params
         )
 
-        return textwrap.dedent("""
-            .. figure:: data:image/{fmt};base64,{data}
-                :alt: {name}
+        return textwrap.dedent(f"""
+            .. figure:: data:image/{fmt};base64,{b64_image}
+                :alt: {f.__qualname__}
                 :align: center
                 :width: 100%
 
-                {arguments}
-        """).format(
-            fmt=fmt,
-            data=b64_image,
-            arguments=args_list,
-            name=f.__qualname__,
-        )
+                {args_list}
+        """)
 
     @classmethod
     def _get_rst(cls, f, args, kwargs, axis):
@@ -821,10 +809,7 @@ class TraceAnalysisBase(AnalysisHelpers):
                 continue
             break
         else:
-            raise ValueError('{} is not a method of any subclasses of {}'.format(
-                meth.__qualname__,
-                cls.__qualname__,
-            ))
+            raise ValueError(f'{meth.__qualname__} is not a method of any subclasses of {cls.__qualname__}')
 
         # Create an analysis instance and bind the method to it
         analysis = subcls(trace=trace)

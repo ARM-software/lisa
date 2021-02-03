@@ -1001,7 +1001,7 @@ def render_graphviz(expr):
         except FileNotFoundError:
             pass
         except subprocess.CalledProcessError as e:
-            debug('dot failed to execute: {}'.format(e))
+            debug(f'dot failed to execute: {e}')
         else:
             return (True, svg)
 
@@ -1023,7 +1023,7 @@ def add_argument(parser, *args, help, **kwargs):
 
 
 def create_adaptor_parser_group(parser, adaptor_cls):
-    description = '{} custom options.\nCan only be specified *after* positional parameters.'.format(adaptor_cls.name)
+    description = f'{adaptor_cls.name} custom options.\nCan only be specified *after* positional parameters.'
     return parser.add_argument_group(adaptor_cls.name, description)
 
 

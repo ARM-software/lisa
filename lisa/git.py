@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-import logging
 import os
 import subprocess
 
@@ -42,7 +41,7 @@ def find_shortest_symref(repo_path, sha1):
     repo_path = os.path.expanduser(repo_path)
     branches = subprocess.check_output([
         'git', 'for-each-ref',
-        '--points-at={}'.format(sha1),
+        f'--points-at={sha1}',
         '--format=%(refname:short)',
     ],
         universal_newlines=True,
@@ -51,7 +50,7 @@ def find_shortest_symref(repo_path, sha1):
     possibles = branches.splitlines()
 
     if not possibles:
-        raise ValueError('No symbolic reference found for SHA1 {} in {}'.format(sha1, repo_path))
+        raise ValueError(f'No symbolic reference found for SHA1 {sha1} in {repo_path}')
 
     return min(possibles, key=len)
 
@@ -76,6 +75,8 @@ def get_commit_message(repo, ref='HEAD', format='%s'):
     :param format: Format string passed to ``git show --format``. Default to subject.
     :type format: str
     """
+    # pylint: disable=redefined-builtin
+
     return git(repo, 'show', '--format=' + format, '-s', ref)
 
 def find_commits(repo, ref='HEAD', grep=None):
@@ -107,12 +108,14 @@ def log(repo, ref='HEAD', format=None, commits_nr=1):
     :param commits_nr: Number of commits to display. ``None`` means no limit.
     :type commits_nr: int or None
     """
+    # pylint: disable=redefined-builtin
+
     opts = []
     if format:
-        opts += ['--format={}'.format(format)]
+        opts += [f'--format={format}']
 
     if commits_nr is not None:
-        opts += ['-n{}'.format(commits_nr)]
+        opts += [f'-n{commits_nr}']
 
     return git(repo, 'log', *opts, ref, '--')
 

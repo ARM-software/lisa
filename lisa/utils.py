@@ -31,7 +31,7 @@ import re
 import abc
 import copy
 import collections
-from collections.abc import Mapping, MutableMapping, Sequence
+from collections.abc import Mapping
 from collections import OrderedDict
 import contextlib
 import inspect
@@ -45,8 +45,6 @@ import os
 import importlib
 import pkgutil
 import operator
-import numbers
-import difflib
 import threading
 import itertools
 import weakref
@@ -70,8 +68,7 @@ except ImportError:
 
 import lisa
 import lisa.assets
-from lisa.version import version_tuple, parse_version, format_version
-from lisa.assets import ASSETS_PATH
+from lisa.version import parse_version, format_version
 
 
 # Do not infer the value using __file__, since it will break later on when
@@ -127,7 +124,69 @@ class Loggable:
         for name, val in call_frame.f_locals.items():
             if var_names and name not in var_names:
                 continue
-            cls.get_logger().log(level, 'Local variable: {}: {}'.format(name, val))
+            cls.get_logger().log(level, f'Local variable: {name}: {val}')
+
+
+def curry(f):
+    """
+    Currify the given function such that ``f(x, y) == curry(f)(x)(y)``
+    """
+    nr_param = len(inspect.signature(f).parameters)
+
+    @functools.wraps(f)
+    def wrapper(*args):
+        nr_free = nr_param - len(args)
+        if nr_free:
+            return curry(functools.partial(f, *args))
+        else:
+            return f(*args)
+
+    return wrapper
+
+
+def compose(*fs):
+    """
+    Compose multiple functions such that ``compose(f, g)(x) == g(f(x))``.
+
+    .. note:: This handles well functions with arity higher than 1, as if they
+        were curried. The functions will consume the number of parameters they
+        need out of the parameters passed to the composed function. Innermost
+        functions are served first.
+    """
+    fs = list(fs)
+
+    # Get the number of parameters required at each level
+    nr_f_args = [
+        len(inspect.signature(f).parameters)
+        for f in fs
+    ]
+
+    # If all functions except the first one have arity == 1, use a simpler
+    # composition that should be a bit faster
+    if all(x == 1 for x in nr_f_args[1:]):
+        first, *others = fs
+        def composed(*args):
+            x = first(*args)
+            for other in others:
+                x = other(x)
+            return x
+    # General case: each function will consume the parameters it needs,
+    # starting with the innermost functions
+    else:
+        def composed(*args):
+            x, *args = args
+            for nr_args, f in zip(nr_f_args, fs):
+                # We will pass the output of the previous function
+                nr_args -= 1
+                # Extract the number of arguments we need for that level
+                extracted = args[:nr_args]
+                args = args[nr_args:]
+
+                x = f(x, *extracted)
+
+            return x
+
+    return composed
 
 
 def get_subclasses(cls, only_leaves=False, cls_set=None):
@@ -171,8 +230,28 @@ def get_cls_name(cls, style=None, fully_qualified=True):
 
     name = mod_name + cls.__qualname__
     if style == 'rst':
-        name = ':class:`~{}`'.format(name)
+        name = f':class:`~{name}`'
     return name
+
+
+def get_common_ancestor(classes):
+    """
+    Pick the most derived common ancestor between the classes, assuming single
+    inheritance.
+
+    :param classes: List of classes to look at.
+    :type classes: list(type)
+
+    If multiple inheritance is used, only the first base of each class is
+    considered.
+    """
+    *_, ancestor = get_common_prefix(
+        *map(
+            compose(inspect.getmro, reversed),
+            classes
+        )
+    )
+    return ancestor
 
 
 class HideExekallID:
@@ -296,7 +375,7 @@ def import_all_submodules(pkg, best_effort=False):
 
 def _import_all_submodules(pkg_name, pkg_path, best_effort=False):
     modules = []
-    for finder, module_name, is_pkg in (
+    for _, module_name, _ in (
         pkgutil.walk_packages(pkg_path, prefix=pkg_name + '.')
     ):
         try:
@@ -319,7 +398,7 @@ class UnknownTagPlaceholder:
         self.location = location
 
     def __str__(self):
-        return '<UnknownTagPlaceholder of {}>'.format(self.tag)
+        return f'<UnknownTagPlaceholder of {self.tag}>'
 
 
 class Serializable(Loggable):
@@ -424,10 +503,7 @@ class Serializable(Loggable):
                 break
 
         tag = node.tag
-        cls.get_logger().debug('Could not find constructor for YAML tag "{tag}" ({mark}), using a placeholder'.format(
-            tag=tag,
-            mark=str(node.start_mark).strip()
-        ))
+        cls.get_logger().debug(f'Could not find constructor for YAML tag "{tag}" ({str(node.start_mark).strip()}), using a placeholder')
 
         return UnknownTagPlaceholder(tag, data, location=node.start_mark)
 
@@ -466,7 +542,7 @@ class Serializable(Loggable):
         yaml = cls._get_yaml(typ)
 
         with cls._set_relative_include_root(path):
-            with open(path, 'r', encoding=cls.YAML_ENCODING) as f:
+            with open(path, encoding=cls.YAML_ENCODING) as f:
                 return yaml.load(f)
 
     @classmethod
@@ -494,7 +570,7 @@ class Serializable(Loggable):
     # memoize to avoid displaying the same message twice
     @memoized
     def _warn_missing_env(cls, varname):
-        cls.get_logger().warning('Environment variable "{}" not defined, using None value'.format(varname))
+        cls.get_logger().warning(f'Environment variable "{varname}" not defined, using None value')
 
     @classmethod
     def _yaml_var_constructor(cls, loader, node):
@@ -533,7 +609,7 @@ class Serializable(Loggable):
             kwargs = dict(mode='wb')
             dumper = pickle.dump
         else:
-            raise ValueError('Unknown format "{}"'.format(fmt))
+            raise ValueError(f'Unknown format "{fmt}"')
 
         if isinstance(filepath, io.IOBase):
             cm = nullcontext(filepath)
@@ -591,7 +667,7 @@ class Serializable(Loggable):
             kwargs = dict(mode='rb')
             loader = pickle.load
         else:
-            raise ValueError('Unknown format "{}"'.format(fmt))
+            raise ValueError(f'Unknown format "{fmt}"')
 
         with cls._set_relative_include_root(os.path.dirname(filepath)):
             with open(filepath, **kwargs) as fh:
@@ -629,7 +705,7 @@ class Serializable(Loggable):
             for attr in self.serialized_blacklist:
                 dct.pop(attr, None)
 
-        for attr, placeholder in self.serialized_placeholders.items():
+        for attr, _ in self.serialized_placeholders.items():
             dct.pop(attr, None)
 
         return dct
@@ -684,9 +760,9 @@ def setup_logging(filepath='logging.conf', level=None):
 
         if os.path.exists(filepath):
             logging.config.fileConfig(filepath)
-            logging.info('Using LISA logging configuration: {}'.format(filepath))
+            logging.info(f'Using LISA logging configuration: {filepath}')
         else:
-            raise FileNotFoundError('Logging configuration file not found: {}'.format(filepath))
+            raise FileNotFoundError(f'Logging configuration file not found: {filepath}')
 
 
 class ArtifactPath(str, Loggable, HideExekallID):
@@ -773,10 +849,10 @@ def value_range(start, stop, step=None, inclusive=False):
     step = 1 if step is None else step
 
     if stop < start and step > 0:
-        raise ValueError("step ({}) > 0 but stop ({}) < start ({})".format(step, stop, start))
+        raise ValueError(f"step ({step}) > 0 but stop ({stop}) < start ({start})")
 
     if not step:
-        raise ValueError("Step cannot be 0: {}".format(step))
+        raise ValueError(f"Step cannot be 0: {step}")
 
     ops = {
         (True, True): operator.le,
@@ -813,7 +889,12 @@ def groupby(iterable, key=None, reverse=False):
     # We need to sort before feeding to groupby, or it will fail to establish
     # the groups as expected.
     iterable = sorted(iterable, key=key, reverse=reverse)
-    return itertools.groupby(iterable, key=key)
+    return (
+        # It is necessary to turn the group into a list *before* iterating on
+        # the groupby object, otherwise we end up with an empty list
+        (key, list(group))
+        for key, group in itertools.groupby(iterable, key=key)
+    )
 
 
 def grouper(iterable, n, fillvalue=None):
@@ -851,7 +932,8 @@ def group_by_value(mapping, key_sort=lambda x: x):
     """
     if not key_sort:
         # Just conserve the order
-        def key_sort(x): return 0
+        def key_sort(_):
+            return 0
 
     return OrderedDict(
         (val, sorted((k for k, v in key_group), key=key_sort))
@@ -904,6 +986,56 @@ def fold(f, xs, init=None):
         f(init, first),
     )
 
+def is_monotonic(iterable, decreasing=False):
+    """
+    Return ``True`` if the given sequence is monotonic, ``False`` otherwise.
+
+    :param decreasing: If ``True``, check that the sequence is decreasing
+        rather than increasing.
+    :type decreasing: bool
+    """
+
+    op = operator.ge if decreasing else operator.le
+    iterator = iter(iterable)
+
+    try:
+        x = next(iterator)
+        while True:
+            y = next(iterator)
+            if op(x, y):
+                x = next(iterator)
+            else:
+                return False
+    except StopIteration:
+        return True
+
+
+def get_common_prefix(*iterables):
+    """
+    Return the common prefix of the passed iterables as an iterator.
+    """
+    def all_equal(iterable):
+        try:
+            first, *others = iterable
+        except ValueError:
+            return True
+        else:
+            for other in others:
+                if first != other:
+                    return False
+            return True
+
+    return map(
+        # Pick any item in items since they are all equal
+        operator.itemgetter(0),
+        # Take while all the items are equal
+        itertools.takewhile(
+            all_equal,
+            zip(*iterables)
+        )
+    )
+
+
 def take(n, iterable):
     """
     Yield the first ``n`` items of an iterator, if ``n`` positive, or last
@@ -937,6 +1069,29 @@ def consume(n, iterator):
     else:
         # advance to the empty slice starting at position n
         next(itertools.islice(iterator, n, n), None)
+
+
+def unzip_into(n, iterator):
+    """
+    Unzip a given ``iterator`` into ``n`` variables.
+
+    **Example**::
+
+        orig_a = [1, 3]
+        orig_b = [2, 4]
+        a, b = unzip(zip(orig_a, orig_b))
+        assert a == orig_a
+        assert b == orig_b
+
+
+    .. note:: ``n`` is needed in order to handle properly the case where an
+        empty iterator is passed.
+    """
+    xs = list(iterator)
+    if xs:
+        return zip(*xs)
+    else:
+        return [tuple()] * n
 
 
 def get_nested_key(mapping, key_path, getitem=operator.getitem):
@@ -1089,9 +1244,7 @@ def non_recursive_property(f):
     @functools.wraps(f)
     def wrapper(self, *args, **kwargs):
         if _get(self):
-            raise AttributeError('Recursive access to property "{}.{}" while computing its value'.format(
-                self.__class__.__qualname__, f.__name__,
-            ))
+            raise AttributeError(f'Recursive access to property "{self.__class__.__qualname__}.{f.__name__}" while computing its value')
 
         try:
             _set(self, True)
@@ -1145,9 +1298,7 @@ def optional_kwargs(func):
             return func(args[0])
         else:
             if args:
-                raise TypeError('Positional parameters are not allowed when applying {} decorator, please use keyword arguments'.format(
-                    func.__qualname__
-                ))
+                raise TypeError(f'Positional parameters are not allowed when applying {func.__qualname__} decorator, please use keyword arguments')
             return functools.partial(func, **kwargs)
 
     return wrapper
@@ -1191,7 +1342,7 @@ def update_wrapper_doc(func, added_by=None, sig_from=None, description=None, rem
     """
 
     if description:
-        description = '\n{}\n'.format(description)
+        description = f'\n{description}\n'
 
     remove_params = remove_params if remove_params else set()
 
@@ -1247,15 +1398,12 @@ def update_wrapper_doc(func, added_by=None, sig_from=None, description=None, rem
             else:
                 added_by_ = added_by
 
-            added_by_ = '**Added by** {}:\n'.format(added_by_)
+            added_by_ = f'**Added by** {added_by_}:\n'
         else:
             added_by_ = ''
 
         # Replace the one-liner f description
-        extra_doc = "\n\n{added_by}{description}".format(
-            added_by=added_by_,
-            description=description if description else '',
-        )
+        extra_doc = f"\n\n{added_by_}{(description if description else '')}"
 
         f_doc = inspect.getdoc(f) or ''
         f.__doc__ = f_doc + extra_doc
@@ -1324,26 +1472,22 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
             doc_url = ''
             if show_doc_url:
                 with contextlib.suppress(Exception):
-                    doc_url = ' (see: {})'.format(get_doc_url(replaced_by))
+                    doc_url = f' (see: {get_doc_url(replaced_by)})'
 
-            replacement_msg = ', use {} instead{}'.format(
-                get_sphinx_name(replaced_by, style=style), doc_url,
-            )
+            replacement_msg = f', use {get_sphinx_name(replaced_by, style=style)} instead{doc_url}'
         else:
             replacement_msg = ''
 
         if removed_in:
-            removal_msg = ' and will be removed in version {}'.format(
-                format_version(removed_in)
-            )
+            removal_msg = f' and will be removed in version {format_version(removed_in)}'
         else:
             removal_msg = ''
 
         name = get_sphinx_name(deprecated_obj, style=style, abbrev=True)
         if parameter:
             if style == 'rst':
-                parameter = '``{}``'.format(parameter)
-            name = '{} parameter of {}'.format(parameter, name)
+                parameter = f'``{parameter}``'
+            name = f'{parameter} parameter of {name}'
 
         if msg is None:
             _msg = ''
@@ -1363,11 +1507,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
         obj_name = get_sphinx_name(obj)
 
         if removed_in and current_version >= removed_in:
-            raise DeprecationWarning('{name} was marked as being removed in version {removed_in} but is still present in current version {version}'.format(
-                name=obj_name,
-                removed_in=format_version(removed_in),
-                version=format_version(current_version),
-            ))
+            raise DeprecationWarning(f'{obj_name} was marked as being removed in version {format_version(removed_in)} but is still present in current version {format_version(current_version)}')
 
         # stacklevel != 1 breaks the filtering for warnings emitted by APIs
         # called from external modules, like __init_subclass__ that is called
@@ -1467,7 +1607,7 @@ def deprecate(msg=None, replaced_by=None, deprecated_in=None, removed_in=None, p
 
             # Add the extra bits in the right block and join lines of the block
             def update_block(block):
-                if re.match(r':param\s+{}'.format(re.escape(parameter)), block[0]):
+                if re.match(rf':param\s+{re.escape(parameter)}', block[0]):
                     if len(block) > 1:
                         indentation = re.match(r'^(\s*)', block[-1]).group(0)
                     else:
@@ -1512,10 +1652,7 @@ def get_doc_url(obj):
     if not hasattr(obj, '__qualname__'):
         obj = obj.__class__
 
-    obj_name = '{}.{}'.format(
-        inspect.getmodule(obj).__name__,
-        obj.__qualname__
-    )
+    obj_name = f'{inspect.getmodule(obj).__name__}.{obj.__qualname__}'
 
     return _get_doc_url(obj_name)
 
@@ -1536,7 +1673,7 @@ def _get_doc_url(obj_name):
             doc_url = urllib.parse.urljoin(doc_base_url, doc_page)
             return doc_url
 
-    raise ValueError('Could not find the doc of: {}'.format(obj_name))
+    raise ValueError(f'Could not find the doc of: {obj_name}')
 
 
 def show_doc(obj, iframe=False):
@@ -1557,6 +1694,7 @@ def show_doc(obj, iframe=False):
         return IFrame(src=doc_url, width="100%", height="600em")
     else:
         webbrowser.open(doc_url)
+        return None
 
 
 def split_paragraphs(string):
@@ -1702,7 +1840,7 @@ def namedtuple(*args, module, **kwargs):
 
     # Fixup the inner namedtuple, so it can be pickled
     Augmented._type.__name__ = '_type'
-    Augmented._type.__qualname__ = '{}.{}'.format(Augmented.__qualname__, Augmented._type.__name__)
+    Augmented._type.__qualname__ = f'{Augmented.__qualname__}.{Augmented._type.__name__}'
     return Augmented
 
 class _TimeMeasure:
@@ -1779,8 +1917,8 @@ def checksum(file_, method):
     """
     if method in ('md5', 'sha256'):
         h = getattr(hashlib, method)()
-        update = lambda data: h.update(data)
-        result = lambda: h.hexdigest()
+        update = h.update
+        result = h.hexdigest
         chunk_size = h.block_size
     elif method == 'crc32':
         crc32_state = 0
@@ -1790,7 +1928,7 @@ def checksum(file_, method):
         result = lambda: hex(crc32_state)
         chunk_size = 1 * 1024 * 1024
     else:
-        raise ValueError('Unsupported method: {}'.format(method))
+        raise ValueError(f'Unsupported method: {method}')
 
     while True:
         chunk = file_.read(chunk_size)
@@ -1884,7 +2022,7 @@ def newtype(cls, name, doc=None, module=None):
         def __instancecheck__(self, x):
             return isinstance(x, cls)
 
-    class New(cls, metaclass=Meta):
+    class New(cls, metaclass=Meta): # pylint: disable=invalid-metaclass
         pass
 
     New.__name__ = name.split('.')[-1]
@@ -1893,7 +2031,7 @@ def newtype(cls, name, doc=None, module=None):
     if module is None:
         try:
             module = sys._getframe(1).f_globals.get('__name__', '__main__')
-        except Exception:
+        except Exception: # pylint: disable=broad-except
             module = cls.__module__
     New.__module__ = module
     New.__doc__ = doc

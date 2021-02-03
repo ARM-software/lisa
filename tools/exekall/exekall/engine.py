@@ -33,6 +33,7 @@ import importlib
 import sys
 import io
 import datetime
+import io
 from operator import attrgetter
 
 import exekall._utils as utils
@@ -64,6 +65,37 @@ class IndentationManager:
 
     def __str__(self):
         return str(self.style) * self.level
+
+
+class _ExceptionPickler(pickle.Pickler):
+    """
+    Fix pickling of exceptions so they can be reloaded without troubles, even
+    when called with keyword arguments:
+
+    https://bugs.python.org/issue40917
+    """
+
+    def reducer_override(self, obj):
+        if isinstance(obj, Exception):
+            # Will call obj.__new__(obj.__class__) to create an "empty"
+            # instance and then set the __dict__. It is not clear why
+            # Exception.__reduce__ fiddles with arguments passed to __init__,
+            # but since it is broken anyway, give this a go
+            return (obj.__new__, (obj.__class__, ), obj.__dict__)
+        else:
+            # Fallback to default behaviour
+            return NotImplemented
+
+    @classmethod
+    def dump_bytestring(cls, obj, **kwargs):
+        f = io.BytesIO()
+        cls.dump_file(f, obj, **kwargs)
+        return f.getvalue()
+
+    @classmethod
+    def dump_file(cls, f, obj, **kwargs):
+        pickler = cls(f, **kwargs)
+        return pickler.dump(obj)
 
 
 class ValueDB:
@@ -183,7 +215,7 @@ class ValueDB:
             for db in db_list
         }
         if len(adaptor_cls_set - {None}) != 1:
-            raise ValueError('Cannot merge ValueDB with different adaptor classes: {}'.format(adaptor_cls_set))
+            raise ValueError(f'Cannot merge ValueDB with different adaptor classes: {adaptor_cls_set}')
         # If None was used, assume it is compatible with anything
         adaptor_cls_set.discard(None)
         adaptor_cls = utils.take_first(adaptor_cls_set)
@@ -287,12 +319,16 @@ class ValueDB:
             loading/file size.
         :type optimize: bool
         """
+        protocol = self.PICKLE_PROTOCOL
+
         if optimize:
-            bytes_ = pickle.dumps(self, protocol=self.PICKLE_PROTOCOL)
-            bytes_ = pickletools.optimize(bytes_)
-            def dumper(f): return f.write(bytes_)
+            def dumper(f):
+                bytes_ = _ExceptionPickler.dump_bytestring(self, protocol=protocol)
+                bytes_ = pickletools.optimize(bytes_)
+                return f.write(bytes_)
         else:
-            def dumper(f): return pickle.dump(self, f, protocol=self.PICKLE_PROTOCOL)
+            def dumper(f):
+                return _ExceptionPickler.dump_file(f, self, protocol=protocol)
 
         with lzma.open(str(path), 'wb') as f:
             dumper(f)
@@ -822,7 +858,7 @@ class ExpressionBase(ExprHelpers):
 
         src_file, src_line = self.op.src_loc
         if src_file and src_line:
-            src_loc = '({}:{})'.format(src_file, src_line)
+            src_loc = f'({src_file}:{src_line})'
         else:
             src_loc = ''
 
@@ -1145,7 +1181,7 @@ class ExpressionBase(ExprHelpers):
         header = (
             '#! /usr/bin/env python3\n\n' +
             '\n'.join(
-                'import {name}'.format(name=name)
+                f'import {name}'
                 for name in sorted(module_name_set)
                 if name != '__main__'
             ) +
@@ -1373,7 +1409,7 @@ class ExpressionBase(ExprHelpers):
 
         if param_var_map:
             param_spec = ', '.join(
-                '{param}={value}'.format(param=param, value=varname)
+                f'{param}={varname}'
                 for param, varname in param_var_map.items()
             )
         else:
@@ -2418,10 +2454,14 @@ class Operator:
         Returns a dictionnary of global variables as seen by the callable.
         """
         globals_ = self.resolved_callable.__globals__ or {}
+        globals_ = globals_.copy()
         # Make sure the class name can be resolved
         if isinstance(self.callable_, UnboundMethod):
-            globals_ = copy.copy(globals_)
             globals_[self.callable_.cls.__name__] = self.callable_.cls
+
+        # Work around this bug:
+        # https://bugs.python.org/issue43102
+        globals_['__builtins__'] = globals_['__builtins__'] or {}
         return globals_
 
     @property
@@ -2555,7 +2595,7 @@ class Operator:
             else:
                 role = 'func'
 
-            return ':{role}:`{name}<{qualname}>`'.format(role=role, name=name, qualname=qualname)
+            return f':{role}:`{name}<{qualname}>`'
 
         else:
             # Factory classmethods are replaced by the class name when not
@@ -3384,7 +3424,7 @@ class ExprValBase(ExprHelpers):
 
         return '{id} ({type}) UUID={uuid}{value}{joiner}{params}'.format(
             id=self.get_id(full_qual=full_qual),
-            value=' ({})'.format(value_str) if value_str else '',
+            value=f' ({value_str})' if value_str else '',
             params=params,
             joiner=':' + joiner if params else '',
             uuid=self.uuid,
@@ -3516,7 +3556,7 @@ class FrozenExprVal(ExprValBase):
             break
         # No "break" statement was executed
         else:
-            return AttributeError('Producer of {} not found'.format(self))
+            return AttributeError(f'Producer of {self} not found')
 
         qualname = self.callable_qualname[len(mod_name):].lstrip('.')
         attr = mod
@@ -3650,7 +3690,7 @@ class FrozenExprVal(ExprValBase):
         id_ = self.recorded_id_map[key]
 
         for tag in remove_tags:
-            id_ = re.sub(r'\[{}=.*?\]'.format(tag), '', id_)
+            id_ = re.sub(fr'\[{tag}=.*?\]', '', id_)
 
         return id_
 
@@ -3813,7 +3853,7 @@ class ExprVal(ExprValBase):
         tag_map = self.get_tags()
         if tag_map:
             return ''.join(
-                '[{}={}]'.format(k, v) if k else '[{}]'.format(v)
+                f'[{k}={v}]' if k else f'[{v}]'
                 for k, v in sorted(tag_map.items())
                 if k not in remove_tags
             )

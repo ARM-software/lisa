@@ -17,26 +17,20 @@
 #
 
 import sys
+import itertools
 from setuptools import setup, find_namespace_packages
 
 
-with open('README.rst', 'r') as fh:
-    long_description = fh.read()
+with open('README.rst', 'r') as f:
+    long_description = f.read()
+
+with open('LICENSE.txt', 'r') as f:
+    license_txt = f.read()
 
 with open("lisa/version.py") as f:
     version_globals = dict()
     exec(f.read(), version_globals)
     lisa_version = version_globals['__version__']
-
-if sys.version_info < (3, 6):
-    print(
-        'Python 3.6 will soon be required to run LISA, please upgrade from {} to any version higher than 3.6'.format(
-            '.'.join(
-                map(str, tuple(sys.version_info)[:3])
-            ),
-        ),
-        file=sys.stderr,
-    )
 
 packages = find_namespace_packages(where='lisa', include=['lisa*'])
 package_data = {
@@ -46,8 +40,36 @@ package_data = {
 }
 package_data['lisa.assets'] = ['*']
 
+extras_require={
+    "notebook": [
+        "jupyterlab",
+        "ipympl", # For %matplotlib widget under jupyter lab
+        "sphobjinv", # To open intersphinx inventories
+    ],
+
+    "test": [
+        "pytest",
+    ],
+
+    "wa": [
+        "wlauto",
+    ],
+}
+
+extras_require["doc"] = [
+    "sphinx >= 1.8",
+    "sphinx_rtd_theme",
+    "sphinxcontrib-plantuml",
+    "nbsphinx",
+
+    # Add all the other optional dependencies to ensure all modules from lisa
+    # can safely be imported
+    *itertools.chain.from_iterable(extras_require.values())
+]
+
 setup(
     name='LISA',
+    license=license_txt,
     version=lisa_version,
     author='Arm Ltd',
     # TODO: figure out which email to put here
@@ -59,26 +81,27 @@ setup(
         "Documentation": "https://lisa-linux-integrated-system-analysis.readthedocs.io/",
         "Source Code": "https://github.com/ARM-software/lisa",
     },
-    license='LICENSE.txt',
     description='A stick to probe the kernel with',
     long_description=long_description,
     python_requires='>= 3.6',
     install_requires=[
         "psutil >= 4.4.2",
-        # Figure.savefig() (without pyplot) does not work in
-        # matplotlib < 3.1.0, and that is used for non-interactive plots when
-        # building the doc. Unfortunately, extra_requires does not allow
-        # overriding that, and recent versions don't support Python 3.5
-        # anymore. Since don't want to drop support for Python 3.5 for now, so
-        # we mandate a lower version that what is actually required.
-        "matplotlib >= 1.4.2",
-        "pandas >= 0.23.0",
+        # Figure.savefig() (without pyplot) does not work in matplotlib <
+        # 3.1.0, and that is used for non-interactive plots when building the
+        # doc.
+        "matplotlib >= 3.1.0",
+        # Pandas >= 1.0.0 has support for new nullable dtypes
+        # Pandas 1.2.0 has broken barplots:
+        # https://github.com/pandas-dev/pandas/issues/38947
+        "pandas >= 1.0.0",
         "numpy",
         "scipy",
         # Earlier versions have broken __slots__ deserialization
         "ruamel.yaml >= 0.16.6",
-        "docutils", # For the HTML output of analysis plots
-        "pyarrow", # For pandas.to_parquet() dataframe storage
+        # For the HTML output of analysis plots
+        "docutils",
+        # For pandas.to_parquet() dataframe storage
+        "pyarrow",
 
         "ipython",
         "ipywidgets",
@@ -89,32 +112,14 @@ setup(
         "devlib",
     ],
 
-    extras_require={
-        "notebook": [
-            "jupyterlab",
-            "ipympl", # For %matplotlib widget under jupyter lab
-            "sphobjinv", # To open intersphinx inventories
-        ],
-
-        "doc": [
-            "sphinx >= 1.8",
-            "sphinx_rtd_theme",
-            "sphinxcontrib-plantuml",
-            "nbsphinx",
-        ],
-
-        "test": [
-            "pytest",
-        ],
-    },
-
+    extras_require=extras_require,
     package_data=package_data,
     classifiers=[
         "Programming Language :: Python :: 3 :: Only",
         # This is not a standard classifier, as there is nothing defined for
         # Apache 2.0 yet:
         # https://pypi.org/classifiers/
-        "License :: OSI Approved :: Apache 2.0",
+        "License :: OSI Approved :: Apache Software License 2.0 (Apache-2.0)",
         # It has not been tested under any other OS
         "Operating System :: POSIX :: Linux",
 

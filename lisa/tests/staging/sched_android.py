@@ -19,9 +19,9 @@ import os
 import os.path
 import abc
 
-from lisa.wlgen.rta import RTA, Periodic
-from lisa.tests.base import TestBundle, Result, ResultBundle, RTATestBundle, AggregatedResultBundle
-from lisa.trace import Trace, FtraceCollector, FtraceConf, requires_events
+from lisa.wlgen.rta import Periodic
+from lisa.tests.base import TestBundle, ResultBundle, RTATestBundle, AggregatedResultBundle
+from lisa.trace import FtraceCollector, requires_events
 from lisa.target import Target
 from lisa.utils import ArtifactPath
 from lisa.analysis.frequency import FrequencyAnalysis
@@ -110,13 +110,11 @@ class SchedTuneBase(TestBundle):
         Creates and returns a TestBundle for a given item class, and a given
         schedtune configuration
         """
-        item_dir = ArtifactPath.join(res_dir, 'boost_{}_prefer_idle_{}'.format(
-                                     boost, int(prefer_idle)))
+        item_dir = ArtifactPath.join(res_dir, f'boost_{boost}_prefer_idle_{int(prefer_idle)}')
         os.makedirs(item_dir)
 
         logger = cls.get_logger()
-        logger.info('Running {} with boost={}, prefer_idle={}'.format(
-                    item_cls.__name__, boost, prefer_idle))
+        logger.info(f'Running {item_cls.__name__} with boost={boost}, prefer_idle={prefer_idle}')
         return item_cls.from_target(target,
             boost=boost,
             prefer_idle=prefer_idle,
@@ -180,7 +178,7 @@ class SchedTuneFreqItem(SchedTuneItemBase):
         """
         kernel_version = self.plat_info['kernel']['version']
         if kernel_version.parts[:2] < (4, 14):
-            self.get_logger().warning('This test requires the RT boost hold, but it may be disabled in {}'.format(kernel_version))
+            self.get_logger().warning(f'This test requires the RT boost hold, but it may be disabled in {kernel_version}')
 
         cpu = self.plat_info['capacity-classes'][-1][0]
         freqs = self.plat_info['freqs'][cpu]

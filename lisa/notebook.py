@@ -20,8 +20,7 @@ Various utilities for interactive notebooks.
 
 import functools
 import collections
-from collections.abc import Iterable
-from enum import Enum
+import warnings
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -32,7 +31,7 @@ from cycler import cycler as make_cycler
 
 import mplcursors
 
-from ipywidgets import widgets, Output, HBox, Layout, interact
+from ipywidgets import widgets, Layout, interact
 from IPython.display import display
 
 from lisa.utils import is_running_ipython
@@ -79,7 +78,7 @@ def _(artist, event):
 
 def _make_vline(axis, *args, **kwargs):
     vline = axis.axvline(*args, **kwargs)
-    assert type(vline) is mpl.lines.Line2D
+    assert type(vline) is mpl.lines.Line2D # pylint: disable=unidiomatic-typecheck
     vline.__class__ = _DataframeLinkMarker
     vline.set_visible(False)
     return vline
@@ -149,7 +148,7 @@ def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', f
             sliced_df = df.iloc[begin:end]
 
             def highlight_row(row):
-                if row.name == index_loc:
+                if row.name == index_loc: # pylint: disable=cell-var-from-loop
                     return ['background: lightblue'] * len(row)
                 else:
                     return [''] * len(row)
@@ -182,7 +181,7 @@ def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', f
     display(hbox)
 
 
-def axis_cursor_delta(axis, colors=['blue', 'green'], buttons=[MouseButton.LEFT, MouseButton.RIGHT]):
+def axis_cursor_delta(axis, colors=('blue', 'green'), buttons=(MouseButton.LEFT, MouseButton.RIGHT)):
     """
     Display the time delta between two vertical lines drawn on clicks.
 
@@ -276,7 +275,7 @@ def interact_tasks(trace, tasks=None, kind=None):
         elif kind == 'rtapp':
             tasks = trace.analysis.rta.rtapp_tasks
         else:
-            raise ValueError('Unknown task kind: {}'.format(kind))
+            raise ValueError(f'Unknown task kind: {kind}')
 
     # Map of friendly names to actual objects
     task_map = {

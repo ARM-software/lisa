@@ -22,10 +22,10 @@ import itertools
 import pandas as pd
 
 from lisa.wlgen.rta import Ramp
-from lisa.tests.base import TestBundle, ResultBundle, Result, RTATestBundle
+from lisa.tests.base import ResultBundle, Result, RTATestBundle
 from lisa.target import Target
-from lisa.trace import requires_events, FtraceCollector, FtraceConf
-from lisa.datautils import df_merge, series_mean, df_filter_task_ids
+from lisa.trace import requires_events, FtraceCollector
+from lisa.datautils import df_merge, series_mean
 from lisa.utils import ArtifactPath
 
 from lisa.notebook import COLOR_CYCLE
@@ -134,7 +134,7 @@ class RampBoostTestBase(RTATestBundle):
         # Reconstitute how schedutil sees signals by subsampling the
         # "master" dataframe, so we can look at signals coming from other
         # dataframes
-        df = df[df['from_schedutil'] == True]
+        df = df[df['from_schedutil'] == True] # pylint: disable=singleton-comparison
         df.drop(columns=['from_schedutil'], inplace=True)
 
         # If there are some NaN at the beginning, just drop some data rather

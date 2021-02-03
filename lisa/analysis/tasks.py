@@ -16,9 +16,7 @@
 #
 
 from enum import Enum
-from collections import defaultdict
 import itertools
-import functools
 
 import numpy as np
 import pandas as pd
@@ -100,10 +98,11 @@ class TaskState(StateInt, Enum):
 
         See include/linux/sched.h:TASK_REPORT
         """
-        return [state for state in list(cls) if state <= cls.TASK_DEAD]
+        return [state for state in cls if 0 <= state <= cls.TASK_DEAD]
 
     # Could use IntFlag instead once we move to Python 3.6
     @classmethod
+    @memoized
     def sched_switch_str(cls, value):
         """
         Get the task state string that would be used in a ``sched_switch`` event
@@ -113,16 +112,24 @@ class TaskState(StateInt, Enum):
 
         Tries to emulate what is done in include/trace/events:TRACE_EVENT(sched_switch)
         """
-        if any([value & state.value for state in cls.list_reported_states()]):
-            res = "|".join([state.char for state in cls.list_reported_states()
-                            if state.value & value])
-        else:
-            res = cls.TASK_RUNNING.char
+        def find_states(value, states):
+            return [
+                state.char
+                for state in states
+                if value & state.value
+            ]
+
+        reported_states = cls.list_reported_states()
+        res = '|'.join(find_states(value, reported_states))
+        res = res if res else cls.TASK_RUNNING.char
 
         # Flag the presence of unreportable states with a "+"
-        if any([value & state.value for state in list(cls)
-                if state not in cls.list_reported_states()]):
-            res += "+"
+        unreportable_states = [
+            state for state in cls
+            if state.value >= 0 and state not in reported_states
+        ]
+        if find_states(value, unreportable_states):
+            res += '+'
 
         return res
 
@@ -496,7 +503,7 @@ class TasksAnalysis(TraceAnalysisBase):
         df = df if inplace else df.copy()
 
         for col in columns:
-            df["{}_str".format(col)] = cls.stringify_task_state_series(df[col])
+            df[f"{col}_str"] = cls.stringify_task_state_series(df[col])
 
         return df
 
@@ -731,7 +738,7 @@ class TasksAnalysis(TraceAnalysisBase):
                 else:
                     series = series_refit_index(series, window=self.trace.window)
                     series.plot(ax=axis, style='+',
-                            label="Task running in domain {}".format(domain))
+                            label=f"Task running in domain {domain}")
         else:
             series = series_refit_index(sw_df['__cpu'], window=self.trace.window)
             series.plot(ax=axis, style='+')
@@ -743,7 +750,7 @@ class TasksAnalysis(TraceAnalysisBase):
         # Add an extra CPU lane to make room for the legend
         axis.set_ylim(-0.95, self.trace.cpus_count - 0.05)
 
-        axis.set_title("CPU residency of task \"{}\"".format(task))
+        axis.set_title(f"CPU residency of task \"{task}\"")
         axis.set_ylabel('CPUs')
         axis.grid(True)
         axis.legend()
@@ -761,7 +768,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         def plotter(axis, local_fig):
             df["runtime"].plot.bar(ax=axis)
-            axis.set_title("CPU residency of task \"{}\"".format(task))
+            axis.set_title(f"CPU residency of task \"{task}\"")
             axis.set_xlabel("CPU")
             axis.set_ylabel("Runtime (s)")
             axis.grid(True)
@@ -787,8 +794,7 @@ class TasksAnalysis(TraceAnalysisBase):
         """
         df = self.df_tasks_total_residency(tasks, ascending, count)
         df.T.plot.barh(ax=axis, stacked=True)
-        axis.set_title("Stacked CPU residency of [{}] selected tasks"
-                       .format(len(df.index)))
+        axis.set_title(f"Stacked CPU residency of [{len(df.index)}] selected tasks")
         axis.set_ylabel("CPU")
         axis.set_xlabel("Runtime (s)")
         axis.grid(True)
@@ -846,9 +852,9 @@ class TasksAnalysis(TraceAnalysisBase):
         series.plot(ax=axis, legend=False)
 
         if per_sec:
-            axis.set_title("Number of task wakeups per second ({}s windows)".format(window))
+            axis.set_title(f"Number of task wakeups per second ({window}s windows)")
         else:
-            axis.set_title("Number of task wakeups within {}s windows".format(window))
+            axis.set_title(f"Number of task wakeups within {window}s windows")
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup")
@@ -908,9 +914,9 @@ class TasksAnalysis(TraceAnalysisBase):
         series.plot(ax=axis, legend=False)
 
         if per_sec:
-            axis.set_title("Number of task forks per second ({}s windows)".format(window))
+            axis.set_title(f"Number of task forks per second ({window}s windows)")
         else:
-            axis.set_title("Number of task forks within {}s windows".format(window))
+            axis.set_title(f"Number of task forks within {window}s windows")
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @requires_events("sched_wakeup_new")
@@ -997,6 +1003,16 @@ class TasksAnalysis(TraceAnalysisBase):
         sleep_value = sleep_value if sleep_value is not None else 0
         preempted_value = sleep_value
 
+        def ensure_last_rectangle(df):
+            # Make sure we will draw the last rectangle, which could be
+            # critical for tasks that are never sleeping
+            if df.empty:
+                return df
+            else:
+                return df_refit_index(df, window=(None, df.index[-1]+df['duration'].iat[-1]))
+
+        label = ' '.join(map(str, self.trace.get_task_ids(task)))
+
         if not df.empty:
             color = self.get_next_color(axis)
 
@@ -1010,7 +1026,7 @@ class TasksAnalysis(TraceAnalysisBase):
                     # Reversed limits so 0 is at the top, kernelshark-style
                     axis.set_ylim((cpus_count, 0))
 
-                for cpu in range(cpus_count):
+                for cpu, _label in zip(range(cpus_count), itertools.chain([label], itertools.repeat(None))):
                     # The y tick is not reversed, so we need to change the
                     # level manually to match kernelshark behavior
                     if overlay:
@@ -1019,24 +1035,28 @@ class TasksAnalysis(TraceAnalysisBase):
                         y_level = level_height * cpu
 
                     cpu_df = df[df['cpu'] == cpu]
-                    active = cpu_df['active'].fillna(preempted_value)
-                    if height_duty_cycle:
-                        active *= cpu_df['duty_cycle']
+                    if not cpu_df.empty:
+                        cpu_df = ensure_last_rectangle(cpu_df)
+                        active = cpu_df['active'].fillna(preempted_value)
+                        if height_duty_cycle:
+                            active *= cpu_df['duty_cycle']
 
-                    axis.fill_between(
-                        x=cpu_df.index,
-                        y1=y_level,
-                        y2=y_level + active * level_height,
-                        step='post',
-                        alpha=_alpha,
-                        color=color,
-                        # Avoid ugly lines striking through sleep times
-                        linewidth=0,
-                    )
+                        axis.fill_between(
+                            x=cpu_df.index,
+                            y1=y_level,
+                            y2=y_level + active * level_height,
+                            step='post',
+                            alpha=_alpha,
+                            color=color,
+                            # Avoid ugly lines striking through sleep times
+                            linewidth=0,
+                            label=_label,
+                        )
 
                 if not overlay:
                     axis.set_ylabel('CPU')
             else:
+                df = ensure_last_rectangle(df)
                 axis.fill_between(
                     x=df.index,
                     y1=sleep_value,
@@ -1045,6 +1065,7 @@ class TasksAnalysis(TraceAnalysisBase):
                     alpha=_alpha,
                     color=color,
                     linewidth=0,
+                    label=label,
                 )
 
             if duty_cycle or duration:
@@ -1057,7 +1078,7 @@ class TasksAnalysis(TraceAnalysisBase):
                 self.cycle_colors(duration_axis)
 
                 if duty_cycle:
-                    df['duty_cycle'].plot(ax=duration_axis, drawstyle='steps-post', label='Duty cycle of {}'.format(task))
+                    df['duty_cycle'].plot(ax=duration_axis, drawstyle='steps-post', label=f'Duty cycle of {task}')
                     duration_axis.set_ylabel('Duty cycle')
 
                 if duration:
@@ -1069,13 +1090,14 @@ class TasksAnalysis(TraceAnalysisBase):
                         duration_series = df[df['active'] == active]['duration']
                         # Add blanks in the plot when the state is not the one we care about
                         duration_series = duration_series.reindex_like(df)
-                        duration_series.plot(ax=duration_axis, drawstyle='steps-post', label='{} duration of {}'.format(label, task))
+                        duration_series.plot(ax=duration_axis, drawstyle='steps-post', label=f'{label} duration of {task}')
 
                 duration_axis.legend()
 
         if local_fig:
-            axis.set_title('Activations of {}'.format(task))
+            axis.set_title(f'Activations of {task}')
             axis.grid(True)
+            axis.legend()
 
     @TraceAnalysisBase.plot_method()
     @plot_task_activation.used_events

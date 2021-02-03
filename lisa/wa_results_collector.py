@@ -17,15 +17,12 @@
 #
 
 from collections import namedtuple, defaultdict
-import csv
 import json
 import numpy as np
 import re
 import os
 import pandas as pd
 import subprocess
-import logging
-import warnings
 import sqlite3
 
 from scipy.stats import ttest_ind
@@ -137,8 +134,7 @@ class WaResultsCollector(Loggable):
             regex = wa_dirs
             wa_dirs = self._list_wa_dirs(base_dir, regex)
             if not wa_dirs:
-                raise ValueError("Couldn't find any WA results matching '{}' in {}"
-                                 .format(regex, base_dir))
+                raise ValueError(f"Couldn't find any WA results matching '{regex}' in {base_dir}")
         else:
             if not hasattr(wa_dirs, '__iter__'):
                 raise ValueError(
@@ -322,21 +318,19 @@ class WaResultsCollector(Loggable):
                 # different workload parameters will be amalgamated.
                 test = workload
 
-            rich_tag = ';'.join('{}={}'.format(k, v) for k, v in iter(classifiers.items()))
+            rich_tag = ';'.join(f'{k}={v}' for k, v in iter(classifiers.items()))
             tag = classifiers.get('tag', rich_tag)
 
             if job_id in tag_map:
                 # Double check I didn't do a stupid
                 if tag_map[job_id] != tag:
-                    raise RuntimeError('Multiple tags ({}, {}) found for job ID {}'
-                                       .format(tag, tag_map[job_id], job_id))
+                    raise RuntimeError(f'Multiple tags ({tag}, {tag_map[job_id]}) found for job ID {job_id}')
             tag_map[job_id] = tag
 
             if job_id in test_map:
                 # Double check I didn't do a stupid
                 if test_map[job_id] != test:
-                    raise RuntimeError('Multiple tests ({}, {}) found for job ID {}'
-                                       .format(test, test_map[job_id], job_id))
+                    raise RuntimeError(f'Multiple tests ({test}, {test_map[job_id]}) found for job ID {job_id}')
             test_map[job_id] = test
 
             iteration = next_iteration[job_id]
@@ -437,17 +431,17 @@ class WaResultsCollector(Loggable):
             else:
                 df = df.reset_index()
                 avg_freq = (df.frequency * df.time).sum() / df.time.sum()
-                metric = 'avg_freq_cluster_{}'.format(name)
+                metric = f'avg_freq_cluster_{name}'
                 metrics.append((metric, avg_freq, 'MHz'))
 
             df = trace.analysis.frequency.df_cpu_frequency(domain[0])
-            metrics.append(('freq_transition_count_{}'.format(name), len(df), None))
+            metrics.append((f'freq_transition_count_{name}', len(df), None))
 
             active_time = series_integrate(trace.analysis.idle.signal_cluster_active(domain))
-            metrics.append(('active_time_cluster_{}'.format(name),
+            metrics.append((f'active_time_cluster_{name}',
                             active_time, 'seconds'))
 
-            metrics.append(('cpu_time_cluster_{}'.format(name),
+            metrics.append((f'cpu_time_cluster_{name}',
                             get_cpu_time(trace, domain), 'cpu-seconds'))
 
         metrics.append(('cpu_time_total',
@@ -473,7 +467,7 @@ class WaResultsCollector(Loggable):
         if trace.has_events('thermal_temperature'):
             df = trace.df_event('thermal_temperature')
             for zone, zone_df in df.groupby('thermal_zone'):
-                metrics.append(('tz_{}_start_temp'.format(zone),
+                metrics.append((f'tz_{zone}_start_temp',
                                 zone_df.iloc[0]['temp_prev'],
                                 'milliCelcius'))
 
@@ -482,7 +476,7 @@ class WaResultsCollector(Loggable):
                 else:
                     avg_tmp = series_mean(zone_df['temp'])
 
-                metrics.append(('tz_{}_avg_temp'.format(zone),
+                metrics.append((f'tz_{zone}_avg_temp',
                                 avg_tmp,
                                 'milliCelcius'))
 
@@ -519,7 +513,7 @@ class WaResultsCollector(Loggable):
             # 'device_power_sample'.
             device_name = artifact_name[len('energy_instrument_output') + 1:]
             name_extra = device_name or 'device'
-            df['metric'] = '{}_power_sample'.format(name_extra)
+            df['metric'] = f'{name_extra}_power_sample'
             df['units'] = 'watts'
 
         elif 'output_power' in df.columns and 'USB_power' in df.columns:
@@ -685,8 +679,7 @@ class WaResultsCollector(Loggable):
 
         units = df['units'].unique()
         if len(units) > 1:
-            raise RuntimeError('Found different units for workload "{}" metric "{}": {}'
-                              .format(workload, metric, units))
+            raise RuntimeError(f'Found different units for workload "{workload}" metric "{metric}": {units}')
 
         return df
 
@@ -712,8 +705,7 @@ class WaResultsCollector(Loggable):
             return self.SortBy(sort_on, {}, sort_on)
 
         raise ValueError(
-            "sort_on={} not supported, allowed values are percentile or {}"
-            .format(sort_on, valid_sort))
+            f"sort_on={sort_on} not supported, allowed values are percentile or {valid_sort}")
 
     def boxplot(self, workload, metric,
                 tag='.*', kernel='.*', test='.*',
@@ -788,8 +780,8 @@ class WaResultsCollector(Loggable):
         if xlim:
             axes.set_xlim(xlim)
         [units] = df['units'].unique()
-        axes.set_xlabel('{} [{}]'.format(metric, units))
-        axes.set_title('{}:{}'.format(workload, metric))
+        axes.set_xlabel(f'{metric} [{units}]')
+        axes.set_title(f'{workload}:{metric}')
         plt.show()
 
         return axes
@@ -1001,8 +993,7 @@ class WaResultsCollector(Loggable):
             logger.debug("%-32s: %-32s: %.1f", keys[2], keys[1], 100. * cdf.below)
 
         [units] = df['units'].unique()
-        axes.set_title('Total duration CDFs (% within {} [{}] threshold)'
-                     .format(threshold, units))
+        axes.set_title(f'Total duration CDFs (% within {threshold} [{units}] threshold)')
         axes.grid(True)
         if ncol < 2:
             axes.legend(lines, labels, loc='best')
@@ -1044,9 +1035,7 @@ class WaResultsCollector(Loggable):
         if base_id is None:
             base_id = available_baselines[0]
         if base_id not in available_baselines:
-            raise ValueError('base_id "{}" not a valid "{}" (available: {}). '
-                            'Did you mean to set by="{}"?'.format(
-                                base_id, by, available_baselines, invariant))
+            raise ValueError(f'base_id "{base_id}" not a valid "{by}" (available: {available_baselines}). Did you mean to set by="{invariant}"?')
 
         for metric, metric_results in self.results_df.groupby('metric'):
             # inv_id will either be the id of the kernel or of the tag,
@@ -1176,8 +1165,7 @@ class WaResultsCollector(Loggable):
                 gdf = gdf.set_index('metric')
                 for missing_metric in missing_metrics:
                     logger.warning(
-                        "Data missing, can't compare metric [{}] for {} [{}]"
-                        .format(missing_metric, by, group))
+                        f"Data missing, can't compare metric [{missing_metric}] for {by} [{group}]")
                     gdf = gdf.append(get_dummy_row(missing_metric))
 
                 # Ensure the comparisons are in the same order for each group
@@ -1200,8 +1188,7 @@ class WaResultsCollector(Loggable):
             # Add some text for labels, title and axes ticks
             ax.set_xlabel('Percent difference')
             [baseline] = test_comparisons['base_id'].unique()
-            ax.set_title('{} ({}): Percent difference compared to {} \nopacity depicts p-value'
-                         .format(test, inv_id, baseline))
+            ax.set_title(f'{test} ({inv_id}): Percent difference compared to {baseline} \nopacity depicts p-value')
             ax.set_yticklabels(gdf.index.tolist())
             ax.set_yticks(pos + thickness / 2)
             # ax.set_xlim((-50, 50))
@@ -1231,9 +1218,7 @@ class WaResultsCollector(Loggable):
                     workload, tag, kernel, test, iteration, '\n'.join(job_dirs)))
         if not job_dirs:
             raise ValueError(
-                "No job found for "
-                "workload='{}' tag='{}' kernel='{}' test='{}' iteration={}"
-                .format(workload, tag, kernel, test, iteration))
+                f"No job found for workload='{workload}' tag='{tag}' kernel='{kernel}' test='{test}' iteration={iteration}")
 
         [job_dir] = job_dirs
         return job_dir
@@ -1264,8 +1249,7 @@ class WaResultsCollector(Loggable):
         artifacts = self._read_artifacts(job_dir)
 
         if not artifact_name in artifacts:
-            raise ValueError("No '{}' artifact found in {} (have {})".format(
-                artifact_name, job_dir, list(artifacts.keys())))
+            raise ValueError(f"No '{artifact_name}' artifact found in {job_dir} (have {list(artifacts.keys())})")
 
         return artifacts[artifact_name]
 

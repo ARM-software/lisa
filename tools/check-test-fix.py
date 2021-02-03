@@ -55,8 +55,8 @@ def cleanup(path):
 def download_artifacts(bisector_report, log_folder, exekall_db, extra_opts):
     subprocess.call([
         'bisector', 'report', bisector_report,
-        '-oexport-logs={}'.format(log_folder),
-        '-oexport-db={}'.format(exekall_db),
+        f'-oexport-logs={log_folder}',
+        f'-oexport-db={exekall_db}',
         '-odownload',
         *stringify(extra_opts),
     ])
@@ -91,7 +91,7 @@ def exekall_run(artifact_dir, db_path, test_patterns, test_src_list, log_level, 
     else:
         cmd.extend([
             '--load-type', load_type,
-    	    *('--select={}'.format(x) for x in test_patterns)
+            *(f'--select={x}' for x in test_patterns)
             ])
 
     if log_level:
@@ -201,7 +201,7 @@ EXAMPLE:
     bisector_extra_opts = args.bisector_options
     result_uuid = args.replay
     if result_uuid:
-        bisector_extra_opts.append('-oresult-uuid={}'.format(result_uuid))
+        bisector_extra_opts.append(f'-oresult-uuid={result_uuid}')
     bisector_report = args.bisector_report
     exekall_test_patterns = args.select
     if exekall_test_patterns:
@@ -214,7 +214,7 @@ EXAMPLE:
     exekall_load_type = args.load_type
     exekall_replay_uuid = result_uuid
 
-    work_area = args.work_area or Path('{}.check-test-fix'.format(Path(bisector_report).name))
+    work_area = args.work_area or Path(f'{Path(bisector_report).name}.check-test-fix')
     work_area.mkdir(exist_ok=True)
 
     # Read-back the options used the previous time. If they are the same,
@@ -262,7 +262,7 @@ EXAMPLE:
 
             # Show the log of the run in one go, to avoid interleaved output
             print('#'*80)
-            print('New results for {}'.format(artifact_dir))
+            print(f'New results for {artifact_dir}')
             print('\n\n')
             print(out)
 

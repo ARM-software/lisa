@@ -141,7 +141,7 @@ def raise_sig_exception(sig, frame):
             # are executing.
             raise KeyboardInterrupt()
         else:
-            error('Unknown signal {sig}'.format(sig=sig))
+            error(f'Unknown signal {sig}')
     else:
         return
 
@@ -601,7 +601,7 @@ class ChoiceOrBoolParam(Param):
     def type_desc(self):
         return '{choices} or bool'.format(
             choices=','.join(
-                '"{choice}"'.format(choice=choice)
+                f'"{choice}"'
                 for choice in self.choices
             )
         )
@@ -763,7 +763,7 @@ class Serializable(metaclass=SerializableMeta):
             try:
                 val = cls.attr_init[attr]
             except KeyError as e:
-                raise AttributeError('Cannot find attribute "{attr}"'.format(attr=attr)) from e
+                raise AttributeError(f'Cannot find attribute "{attr}"') from e
 
         super().__setattr__(attr, val)
 
@@ -976,7 +976,7 @@ def git_cleanup(repo='./'):
         call_process(['git', '-C', repo, 'reset', '--hard'])
         call_process(['git', '-C', repo, 'clean', '-fdx'])
     except subprocess.CalledProcessError as e:
-        warn('Failed to clean git worktree: {e}'.format(e=e))
+        warn(f'Failed to clean git worktree: {e}')
 
 
 @contextlib.contextmanager
@@ -1003,7 +1003,7 @@ def get_git_sha1(repo='./', ref='HEAD', abbrev=12):
         ).strip()[:abbrev]
     except subprocess.CalledProcessError as e:
         err = e.stdout.replace('\n', '. ')
-        debug('{repo} is not a Git repository: {err}'.format(repo=repo, err=err))
+        debug(f'{repo} is not a Git repository: {err}')
         return '<commit sha1 not available>'
 
 
@@ -1285,7 +1285,7 @@ class StepBase(StepABC):
             parser_map = get_steps_kwarg_parsers(cls, method_name)
             if not parser_map:
                 continue
-            out(indent + '{}:'.format(pretty))
+            out(indent + f'{pretty}:')
             for name, param in sorted(parser_map.items(), key=lambda k_v: k_v[0]):
                 name = name.replace('_', '-')
                 opt_header = indent + '  -o {name}= ({type_desc}) '.format(
@@ -1310,7 +1310,7 @@ class StepBase(StepABC):
 
         if env:
             info('Setting environment variables {}'.format(', '.join(
-                '{}={}'.format(k, v) for k, v in env.items()
+                f'{k}={v}' for k, v in env.items()
             )))
         else:
             env = dict()
@@ -1338,7 +1338,7 @@ class StepBase(StepABC):
                 # Ideally, we would pass -G but it is not supported before
                 # systemd 236 so we call reset-failed manually at the end
                 cmd = ['systemd-run', '--user', '-q', '--scope',
-                    '-p', 'TimeoutStopSec={self.kill_timeout}'.format(self=self),
+                    '-p', f'TimeoutStopSec={self.kill_timeout}',
                     '--unit', scope_name, '--'
                 ]
                 cmd.extend(subcmd)
@@ -1424,7 +1424,7 @@ class StepBase(StepABC):
                     timeout=datetime.timedelta(seconds=self.timeout),
                 ))
                 if self.trials - j >= 1:
-                    info('retrying (#{j}) ...'.format(j=j))
+                    info(f'retrying (#{j}) ...')
                 continue
 
             # It exectuded in time
@@ -1433,13 +1433,13 @@ class StepBase(StepABC):
                 if returncode != 0:
                     info('{self.cat} step ({self.name}) failed with exit status {returncode}.'.format(**locals()))
                     if self.trials - j >= 1:
-                        info('retrying (#{j}) ...'.format(j=j))
+                        info(f'retrying (#{j}) ...')
                     continue
                 # Zero return code, we can proceed
                 else:
                     break
 
-        trial_status = ', tried {j} times'.format(j=j) if j > 1 else ''
+        trial_status = f', tried {j} times' if j > 1 else ''
 
         last_ret = res_list[-1][0]
         if last_ret is None:
@@ -1491,7 +1491,7 @@ class StepBase(StepABC):
         out_list = list()
         # Not showing basic info means not showing anything.
         out = MLString(empty=not show_basic)
-        out('command: {cmd}'.format(cmd=self.cmd))
+        out(f'command: {self.cmd}')
 
         for i_stack, res in step_res_seq:
             # Ignore the iterations we are not interested in
@@ -1527,7 +1527,7 @@ class StepBase(StepABC):
                  or res.bisect_ret == BisectRet.NA)
                     ):
                 if not ignore_non_issue:
-                    out('#{i_stack: <2}: OK'.format(i_stack=i_stack))
+                    out(f'#{i_stack: <2}: OK')
             else:
                 out('#{i_stack: <2}: returned {ret}, bisect {res.bisect_ret.lower_name}'.format(
                     ret=res.ret if res.ret is not None else '<timeout>',
@@ -1861,7 +1861,7 @@ class LISATestStep(ShellStep):
 
         # Create a unique artifact dir
         date = datetime.datetime.now().strftime('%Y%m%d_%H:%M:%S')
-        name = '{}_{}'.format(date, uuid.uuid4().hex)
+        name = f'{date}_{uuid.uuid4().hex}'
         artifact_path = os.path.join(artifact_path, name)
 
         # This also strips the trailing /, which is needed later on when
@@ -1886,7 +1886,7 @@ class LISATestStep(ShellStep):
         try:
             db = ValueDB.from_path(db_path)
         except Exception as e:
-            warn('Could not read DB at {}: {}'.format(db_path, e))
+            warn(f'Could not read DB at {db_path}: {e}')
             db = None
         else:
             if self.prune_db:
@@ -1926,7 +1926,7 @@ class LISATestStep(ShellStep):
             try:
                 orig_artifact_path = artifact_path
                 # Create a compressed tar archive
-                info('Compressing exekall artifact directory {} ...'.format(artifact_path))
+                info(f'Compressing exekall artifact directory {artifact_path} ...')
                 archive_name = shutil.make_archive(
                     base_name=artifact_path,
                     format='gztar',
@@ -1943,12 +1943,12 @@ class LISATestStep(ShellStep):
 
                 # Delete the original artifact directory since we archived it
                 # successfully.
-                info('Deleting exekall artifact root directory {} ...'.format(orig_artifact_path))
+                info(f'Deleting exekall artifact root directory {orig_artifact_path} ...')
                 shutil.rmtree(str(orig_artifact_path))
-                info('exekall artifact directory {} deleted.'.format(orig_artifact_path))
+                info(f'exekall artifact directory {orig_artifact_path} deleted.')
 
             except Exception as e:
-                warn('Failed to compress exekall artifact: {e}'.format(e=e))
+                warn(f'Failed to compress exekall artifact: {e}')
 
         artifact_local_path = artifact_path
         delete_artifact = self.delete_artifact
@@ -1970,7 +1970,7 @@ class LISATestStep(ShellStep):
                 delete_artifact = False
 
         if delete_artifact:
-            info('Deleting exekall artifact: {}'.format(artifact_local_path))
+            info(f'Deleting exekall artifact: {artifact_local_path}')
             try:
                 os.remove(artifact_local_path)
             except Exception as e:
@@ -2124,7 +2124,7 @@ class LISATestStep(ShellStep):
                         try:
                             result = val.result
                             msg = '\n'.join(
-                                '{}: {}'.format(metric, value)
+                                f'{metric}: {value}'
                                 for metric, value in val.metrics.items()
                             )
                         except AttributeError:
@@ -2518,10 +2518,10 @@ class ArtifactorialService(UploadService):
 
         dest = url
         if not os.path.exists(path):
-            info('Cannot upload {path} as it does not exists.'.format(path=path))
+            info(f'Cannot upload {path} as it does not exists.')
             return path
 
-        info('Uploading {path} to {dest} ...'.format(path=path, dest=dest))
+        info(f'Uploading {path} to {dest} ...')
 
         data = dict(token=token)
         with open(path, 'rb') as f:
@@ -2564,7 +2564,7 @@ def update_json(path, mapping):
     # choice if we want to accumulate all results in the same file (as opposed
     # to one file per step).
     try:
-        with open(path, 'r') as f:
+        with open(path) as f:
             data = json.load(f)
     except BaseException:
         data = dict()
@@ -2580,7 +2580,7 @@ def load_steps_list(yaml_path):
 def load_yaml(yaml_path):
     """Load the sequence of steps from a YAML file."""
     try:
-        with open(yaml_path, 'r', encoding='utf-8') as f:
+        with open(yaml_path, encoding='utf-8') as f:
             mapping = Report._get_yaml().load(f)
     except (ruamel.yaml.parser.ParserError, ruamel.yaml.scanner.ScannerError) as e:
         raise ValueError('Could not parse YAML file {yaml_path}: {e}'.format(**locals())) from e
@@ -2683,7 +2683,7 @@ def get_step_by_name(name):
     for cls in get_subclasses(StepBase):
         if cls.name == name:
             return cls
-    raise ValueError('Could not find a class matching "{name}".'.format(name=name))
+    raise ValueError(f'Could not find a class matching "{name}".')
 
 
 def instantiate_step(spec, step_options):
@@ -3036,7 +3036,7 @@ class MacroStep(StepBase):
 
             # Report the elapsed time
             elapsed = datetime.timedelta(seconds=elapsed_ts)
-            info('Elapsed time: {elapsed}'.format(elapsed=elapsed))
+            info(f'Elapsed time: {elapsed}')
 
             if self.timeout and elapsed_ts > self.timeout:
                 info('{self.cat} step ({self.name}) timing out after {timeout}, stopping ...'.format(
@@ -3207,7 +3207,7 @@ class MacroStep(StepBase):
                     eta = datetime.timedelta(
                         seconds=res.run_time * (self.iterations + 1 - i)
                     )
-                    info('ETA: {eta}'.format(eta=eta))
+                    info(f'ETA: {eta}')
 
             # If the loop naturally terminates (i.e. not with break)
             else:
@@ -3313,7 +3313,7 @@ class MacroStep(StepBase):
             if run_time_list:
                 avg_run_time = statistics.mean(run_time_list)
                 avg_run_time = datetime.timedelta(seconds=int(avg_run_time))
-                avg_run_time = ' in {}'.format(avg_run_time)
+                avg_run_time = f' in {avg_run_time}'
             else:
                 avg_run_time = ''
 
@@ -3529,7 +3529,7 @@ def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
 
     # Restore the MacroStep from a report. This allows resuming from the report.
     if resume_path:
-        info('Resuming execution from {report_path} ...'.format(report_path=resume_path))
+        info(f'Resuming execution from {resume_path} ...')
         report = Report.load(resume_path, steps_path, use_cache=False)
 
         # If there no steps path, we need to carry over the src files list so
@@ -3567,7 +3567,7 @@ def do_run(slave_manager, iteration_n, stat_test, steps_filter=None,
     macro_step.steps_list = macro_step.filter_steps(steps_filter)
 
     step_list_str = ', '.join(
-        '{cat}/{name}'.format(cat=step.cat, name=step.name)
+        f'{step.cat}/{step.name}'
         for step in macro_step.steps_list
     )
     if overall_timeout:
@@ -3658,7 +3658,7 @@ def check_report_path(path, probe_file):
     path = pathlib.Path(path)
     compo = path.name.split('.')
     # By default, assume YAML unless pickle is explicitly present
-    is_yaml = 'pickle' not in path.name.split('.')
+    is_yaml = '.pickle' not in path.name
     return (open_f, is_yaml)
 
 
@@ -4003,8 +4003,8 @@ class Report(Serializable):
         service_hub = ServiceHub() if service_hub is None else service_hub
 
         out = MLString()
-        out('Description: {self.description}'.format(self=self))
-        out('Creation time: {self.creation_time}\n'.format(self=self))
+        out(f'Description: {self.description}')
+        out(f'Creation time: {self.creation_time}\n')
         out(self.result.step.report(
             [(IterationCounterStack(), self.result)],
             service_hub=service_hub,
@@ -4431,7 +4431,7 @@ def parse_slave_props(slave_props):
 
 
 def send_cmd(slave_id, slave_manager, cmd):
-    info('Sending {cmd} to slave {id} ...'.format(cmd=cmd, id=slave_id))
+    info(f'Sending {cmd} to slave {slave_id} ...')
     try:
         slave_manager.Control(cmd)
     except GLib.GError:
@@ -4460,7 +4460,7 @@ def do_monitor(slave_id, args):
             slave_bus_name = admin.GetNameOwner(slave_bus_name)
             slave_manager = bus.get(slave_bus_name, DBUS_SLAVE_MANAGER_PATH)
         except GLib.GError:
-            error("No DBus bus name {}".format(slave_bus_name))
+            error(f"No DBus bus name {slave_bus_name}")
             return GENERIC_ERROR_CODE
         slave_manager_list = [slave_manager]
     else:
@@ -4566,7 +4566,7 @@ def do_monitor_server(default_notif):
     loop = GLib.MainLoop()
 
     def handle_name_lost(name):
-        info('Lost ownership of DBus name "{}", exiting ...'.format(name))
+        info(f'Lost ownership of DBus name "{name}", exiting ...')
         loop.quit()
 
     slave_book = DBusSlaveBook(bus, handle_name_lost, default_notif=default_notif)
@@ -4651,11 +4651,11 @@ class DBusSlaveBook:
             else:
                 self.unregister_slave(location)
 
-            raise KeyError('Slave {} is unresponsive.'.format(location))
+            raise KeyError(f'Slave {location} is unresponsive.')
         return slave_manager
 
     def unregister_slave(self, location):
-        info('Unregistering slave {}'.format(location))
+        info(f'Unregistering slave {location}')
         del self.slaves_map[location]
 
     def prune_slaves(self):
@@ -4717,12 +4717,12 @@ class DBusSlaveBook:
                         new_state=new_state,
                     )
                 elif prop == 'Iteration':
-                    msg = 'Started iteration #{i}'.format(i=val)
+                    msg = f'Started iteration #{val}'
                 elif prop == 'StepNotif':
                     msg = '{name}: {msg}'.format(name=val[0], msg=val[1])
                     display_time = val[2]
                 else:
-                    debug('Unhandled property change {prop}'.format(prop=prop))
+                    debug(f'Unhandled property change {prop}')
 
                 body = '{props[Description]}\nElapsed time: {props[RunTime]}\n\n{msg}'.format(
                     props=props,
@@ -4753,7 +4753,7 @@ class DBusSlaveBook:
             return self.consume_slave_prop(location, slave_manager, changed, invalidated)
         slave_manager.PropertiesChanged.connect(prop_handler)
 
-        info('Registered slave {location}'.format(location=location))
+        info(f'Registered slave {location}')
 
     @staticmethod
     def get_slaves_manager(bus, slave_book):
@@ -4774,7 +4774,7 @@ class YAMLCLIOptionsAction(argparse.Action):
 
     def __call__(self, parser, args, value, option_string):
         config_path = value
-        info('Loading configuration from {path} ...'.format(path=config_path))
+        info(f'Loading configuration from {config_path} ...')
 
         yaml_map = load_yaml(config_path)
         config_option_list = shlex.split(yaml_map.get('cmd-line', ''))
@@ -5238,17 +5238,17 @@ command line""")
         file_handler.setFormatter(BISECTOR_FORMATTER)
         BISECTOR_LOGGER.addHandler(file_handler)
 
-        info('Description: {desc}'.format(desc=desc))
+        info(f'Description: {desc}')
 
         pid = os.getpid()
-        info('PID: {pid}'.format(pid=pid))
+        info(f'PID: {pid}')
 
         info('Steps definition: {steps}'.format(
             steps=os.path.abspath(steps_path) if steps_path else '<command line>',
         ))
 
-        info('Report: {report_path}'.format(report_path=report_path))
-        info('Log: {log_path}'.format(log_path=log_path))
+        info(f'Report: {report_path}')
+        info(f'Log: {log_path}')
 
         if enable_dbus:
             debug('Enabling DBus interface ...')

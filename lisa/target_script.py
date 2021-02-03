@@ -16,9 +16,6 @@
 #
 
 import os.path
-import contextlib
-
-from time import sleep
 
 from lisa.utils import deprecate
 from lisa.target import Target
@@ -107,7 +104,7 @@ class TargetScript:
         to the target.
         """
         actions = ['set -e'] + self.commands + ['set +e']
-        actions = ['#!{} sh'.format(self.target.busybox)] + actions
+        actions = [f'#!{self.target.busybox} sh'] + actions
         actions = str.join('\n', actions)
 
         # Create script locally

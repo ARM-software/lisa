@@ -97,6 +97,8 @@ Test commands
 * ``exekall``               - See :ref:`exekall main documentation<exekall-doc>`
 * ``bisector``              - See :ref:`bisector main documentation<bisector-doc>`
 
+.. _buildroot-commands:
+
 Buildroot commands
 ------------------
 
@@ -125,8 +127,11 @@ The following environment variables are available:
 .. run-command::
 
   # Strip-out version-specific info, so we have a more stable output
-  export LISA_VENV_PATH=".lisa-venv-<python version>"
-  env-list.py --rst --filter-home
+  printf "%s\n" \
+      "source $LISA_HOME/init_env >/dev/null 2>&1" \
+      'export LISA_VENV_PATH=".lisa-venv-<python version>"' \
+      "$LISA_PYTHON $LISA_HOME/tools/env-list.py --rst --filter-home" \
+      | env -i bash
 
 If an environment variable is defined prior to sourcing ``init_env``, it will
 keep its value.

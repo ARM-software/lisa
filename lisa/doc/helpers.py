@@ -20,7 +20,6 @@ import contextlib
 import subprocess
 import inspect
 import itertools
-import logging
 import functools
 import re
 import types
@@ -216,7 +215,7 @@ def autodoc_process_analysis_events(app, what, name, obj, options, lines):
         if not isinstance(used_events, TraceEventCheckerBase):
             return
 
-        events_doc = "\n:Required trace events:\n\n{}\n\n".format(used_events.doc_str())
+        events_doc = f"\n:Required trace events:\n\n{used_events.doc_str()}\n\n"
         lines.extend(events_doc.splitlines())
 
 
@@ -257,14 +256,14 @@ def autodoc_process_analysis_plots(app, what, name, obj, options, lines, plot_co
     if spec.get('hide'):
         return
 
-    print('Generating plot for {}'.format(obj.__qualname__))
+    print(f'Generating plot for {obj.__qualname__}')
     rst_figure = TraceAnalysisBase.call_on_trace(obj, trace, {
         'output': 'rst',
         # avoid memory leaks
         'interactive': False,
         **kwargs
     })
-    rst_figure = '\n:Example plot:\n\n{}'.format(rst_figure)
+    rst_figure = f'\n:Example plot:\n\n{rst_figure}'
     lines.extend(rst_figure.splitlines())
 
 
@@ -283,11 +282,8 @@ def autodoc_process_analysis_methods(app, what, name, obj, options, lines):
     except (KeyError, TypeError):
         return
     else:
-        on_trace_name = 'trace.analysis.{}.{}'.format(
-            cls.name,
-            obj.__name__
-        )
-        extra_doc = "\n*Called on* :class:`~lisa.trace.Trace` *instances as* ``{}()``\n\n".format(on_trace_name)
+        on_trace_name = f'trace.analysis.{cls.name}.{obj.__name__}'
+        extra_doc = f"\n*Called on* :class:`~lisa.trace.Trace` *instances as* ``{on_trace_name}()``\n\n"
         # prepend
         lines[:0] = extra_doc.splitlines()
 
@@ -301,7 +297,7 @@ def get_analysis_list(meth_type):
     }
 
     for subclass in get_subclasses(AnalysisHelpers):
-        class_path = "{}.{}".format(subclass.__module__, subclass.__qualname__)
+        class_path = f"{subclass.__module__}.{subclass.__qualname__}"
         if meth_type == 'plot':
             meth_list = subclass.get_plot_methods()
         elif meth_type == 'df':
@@ -320,11 +316,7 @@ def get_analysis_list(meth_type):
         ]
 
         rst_list += [
-            ":class:`{analysis_name}<{cls}>`::meth:`~{cls}.{meth}`".format(
-                analysis_name=subclass.name,
-                cls=class_path,
-                meth=meth,
-            )
+            f":class:`{subclass.name}<{class_path}>`::meth:`~{class_path}.{meth}`"
             for meth in meth_list
         ]
 
@@ -374,7 +366,7 @@ def check_dead_links(filename):
         raise RuntimeError('Found dead links in {}:\n  {}'.format(
             filename,
             '\n  '.join(
-                '{}: {}'.format(url, error)
+                f'{url}: {error}'
                 for url, error in dead_links.items()
             )))
 
@@ -404,14 +396,14 @@ def get_deprecated_table():
         if removed_in is None:
             removed_in = ''
         else:
-            removed_in = '*Removed in: {}*\n\n'.format(format_version(removed_in))
+            removed_in = f'*Removed in: {format_version(removed_in)}*\n\n'
 
         name = get_sphinx_name(entry['obj'], style='rst')
         replaced_by = entry.get('replaced_by')
         if replaced_by is None:
             replaced_by = ''
         else:
-            replaced_by = '*Replaced by:* {}\n\n'.format(get_sphinx_name(replaced_by, style='rst'))
+            replaced_by = f"*Replaced by:* {get_sphinx_name(replaced_by, style='rst')}\n\n"
 
         return "* - {name}{msg}{replaced_by}{removed_in}".format(
             name=indent(name + '\n\n'),
@@ -430,7 +422,7 @@ def get_deprecated_table():
                 remove = 'to be removed'
             else:
                 remove = 'removed'
-            removed_in = ' {} in {}'.format(remove, format_version(removed_in))
+            removed_in = f' {remove} in {format_version(removed_in)}'
         else:
             removed_in = ''
 
@@ -438,7 +430,7 @@ def get_deprecated_table():
             entries=indent('\n\n' + entries),
             removed_in=removed_in,
         )
-        header = 'Deprecated names{}'.format(removed_in)
+        header = f'Deprecated names{removed_in}'
         header += '\n' + '+' * len(header)
 
         return header + '\n\n' + table
@@ -494,8 +486,8 @@ def get_xref_type(obj):
             else:
                 t = 'func'
     else:
-        raise ValueError('Cannot infer the xref type of {}'.format(obj))
+        raise ValueError(f'Cannot infer the xref type of {obj}')
 
-    return 'py:{}'.format(t)
+    return f'py:{t}'
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

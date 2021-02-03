@@ -157,7 +157,7 @@ class TestCaseABC(abc.ABC):
 
         for expr in self.expr_list:
             id_ = expr.get_id(qual=False)
-            with open(str(folder / '{}.dot'.format(id_)), 'w') as f:
+            with open(str(folder / f'{id_}.dot'), 'w') as f:
                 f.write(expr.format_structure(graphviz=True))
 
     def get_computable_expr_list(self):

@@ -17,10 +17,8 @@
 
 """ Notebook Analysis Module """
 
-import sys
 import pandas as pd
 import functools
-import operator
 
 import __main__ as main
 
@@ -47,7 +45,7 @@ class NotebookAnalysis(TraceAnalysisBase):
 
         # Define a plot method in any cell
         def plot_foo(trace, y, axis):
-            print('Plotting horizontal line at level: {}'.format(y))
+            print(f'Plotting horizontal line at level: {y}')
             axis.axhline(y=y)
 
         # Just lookup the plot function

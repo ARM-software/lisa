@@ -17,6 +17,7 @@
 
 from functools import reduce
 import operator
+import warnings
 
 import pandas as pd
 import numpy as np
@@ -43,7 +44,7 @@ class IdleAnalysis(TraceAnalysisBase):
 ###############################################################################
     @TraceAnalysisBase.cache
     @requires_events('cpu_idle')
-    def df_cpu_idle(self, cpu=None):
+    def df_cpus_idle(self, cpus=None):
         """
         Dataframe of the ``cpu_idle`` event, with the following columns:
 
@@ -51,13 +52,13 @@ class IdleAnalysis(TraceAnalysisBase):
             * ``state``: Instead of 4294967295, the -1 type independent value
               is used.
 
-        :param cpu: Optionally, filter on that CPU
-        :type cpu: str or None
+        :param cpus: Optionally, filter on that list of CPUs
+        :type cpus: list(int) or None
         """
         df = self.trace.df_event('cpu_idle')
         # Filter before rename to avoid copying data we will ignore
-        if cpu is not None:
-            df = df[df['cpu_id'] == cpu]
+        if cpus is not None:
+            df = df[df['cpu_id'].isin(cpus)]
 
         df = df.rename({'cpu_id': 'cpu'}, axis=1)
         # The event uses an unsigned int even though the kernel uses -1, so use
@@ -65,6 +66,20 @@ class IdleAnalysis(TraceAnalysisBase):
         non_idle = (2 ** 32) -1
         df['state'].replace(non_idle, -1, inplace=True)
         return df
+
+    @TraceAnalysisBase.cache
+    @df_cpus_idle.used_events
+    def df_cpu_idle(self, cpu=None):
+        """
+        Same as :meth:`df_cpus_idle` but for one CPU.
+        """
+        if cpu is None:
+            warnings.warn('cpu=None is deprecated, use df_cpus_idle() to get a dataframe for all CPUs', DeprecationWarning)
+            cpus = None
+        else:
+            cpus = [cpu]
+
+        return self.df_cpus_idle(cpus=cpus)
 
     @df_cpu_idle.used_events
     def signal_cpu_active(self, cpu):
@@ -186,7 +201,7 @@ class IdleAnalysis(TraceAnalysisBase):
           * Idle states as index
           * A ``time`` column (The time spent in the idle state)
         """
-        idle_df = self.df_cpu_idle()
+        idle_df = self.df_cpus_idle()
 
         # Create a dataframe with a column per CPU
         cols = {
@@ -242,7 +257,7 @@ class IdleAnalysis(TraceAnalysisBase):
         """
         df = self.df_cpu_idle_state_residency(cpu)
         self._plot_idle_state_residency(df, axis, pct)
-        axis.set_title("CPU{} idle state residency".format(cpu))
+        axis.set_title(f"CPU{cpu} idle state residency")
 
     @TraceAnalysisBase.plot_method()
     @df_cluster_idle_state_residency.used_events
@@ -260,7 +275,7 @@ class IdleAnalysis(TraceAnalysisBase):
         df = self.df_cluster_idle_state_residency(cluster)
 
         self._plot_idle_state_residency(df, axis, pct)
-        axis.set_title("CPUs {} idle state residency".format(cluster))
+        axis.set_title(f"CPUs {cluster} idle state residency")
 
     @TraceAnalysisBase.plot_method(return_axis=True)
     @plot_cluster_idle_state_residency.used_events

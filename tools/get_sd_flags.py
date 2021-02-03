@@ -22,8 +22,8 @@ target = Target.from_cli()
 sd_info = target.sched.get_sd_info()
 
 for cpuid, cpu in sd_info.cpus.items():
-    print("== CPU{} ==".format(cpuid))
+    print(f"== CPU{cpuid} ==")
     for domain in cpu.domains.values():
-        print("\t{} level".format(domain.name))
+        print(f"\t{domain.name} level")
         for flag in domain.flags:
-            print("\t\t{} - {}".format(flag.name, flag.__doc__))
+            print(f"\t\t{flag.name} - {flag.__doc__}")

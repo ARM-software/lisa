@@ -16,9 +16,6 @@
 #
 from collections.abc import Mapping
 from collections import defaultdict
-from operator import attrgetter
-import functools
-import subprocess
 import inspect
 import os
 import abc
@@ -27,7 +24,7 @@ import sqlite3
 
 import pandas as pd
 
-from wa import RunOutput, discover_wa_outputs, Status, HostError
+from wa import discover_wa_outputs, Status
 
 from lisa.version import VERSION_TOKEN
 from lisa.stats import Stats
@@ -41,6 +38,7 @@ def _df_concat(dfs):
 
 class WAOutputNotFoundError(Exception):
     def __init__(self, collectors):
+        # pylint: disable=super-init-not-called
         self.collectors = collectors
 
     def __str__(self):
@@ -48,7 +46,7 @@ class WAOutputNotFoundError(Exception):
         return 'Could not find output for collectors{}{}'.format(
             ':' + sep if len(self.collectors) > 1 else ' ',
             sep.join(
-                '{} ({}): {}'.format(collector.NAME, excep.__class__.__qualname__, excep)
+                f'{collector.NAME} ({excep.__class__.__qualname__}): {excep}'
                 for collector, excep in self.collectors.items()
             )
         )
@@ -168,9 +166,7 @@ class WAOutput(StatsProp, Mapping, Loggable):
     def __getitem__(self, key):
         cls = self._available_collectors[key]
         if key not in self._auto_collectors:
-            raise KeyError("Collector {name} needs mandatory parameter, use get_collector('{name}', ...) instead".format(
-                name=key
-            ))
+            raise KeyError(f"Collector {key} needs mandatory parameter, use get_collector('{key}', ...) instead")
         else:
             return cls(self)
 
@@ -195,11 +191,9 @@ class WAOutput(StatsProp, Mapping, Loggable):
         for name, collector in self.items():
             try:
                 df = collector.df
-            except Exception as e:
+            except Exception as e: # pylint: disable=broad-except
                 exceps[collector] = e
-                self.get_logger().debug('Could not get dataframe of collector {}: {}'.format(
-                    name, e,
-                ))
+                self.get_logger().debug(f'Could not get dataframe of collector {name}: {e}')
             else:
                 dfs.append(df)
 
@@ -305,7 +299,7 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
         return self._get_df()
 
     def _get_df(self):
-        self.logger.debug("Collecting dataframe for {}".format(self.NAME))
+        self.logger.debug(f"Collecting dataframe for {self.NAME}")
 
         wa_outputs = list(discover_wa_outputs(self.wa_output.path))
 
@@ -313,7 +307,7 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
             def loader(job):
                 cache_path = os.path.join(
                     job.basepath,
-                    '.{}-cache.{}.parquet'.format(self.NAME, VERSION_TOKEN)
+                    f'.{self.NAME}-cache.{VERSION_TOKEN}.parquet'
                 )
 
                 # _get_job_df usually returns fairly large dataframes, so cache
@@ -327,12 +321,12 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
 
             try:
                 df = loader(job)
-            except Exception as e:
+            except Exception as e: # pylint: disable=broad-except
                 # Swallow the error if that job was not from the expected
                 # workload
                 expected_name = self._EXPECTED_WORKLOAD_NAME
                 if expected_name is None or job.spec.workload_name == expected_name:
-                    self.logger.error('Could not load {} dataframe for job {}: {}'.format(self.NAME, job, e))
+                    self.logger.error(f'Could not load {self.NAME} dataframe for job {job}: {e}')
                 else:
                     return None
             else:

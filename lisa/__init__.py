@@ -2,7 +2,6 @@
 
 import warnings
 import os
-import sys
 
 
 from lisa.version import __version__
@@ -13,7 +12,7 @@ from lisa.version import __version__
 warnings.filterwarnings(
     action='error',
     category=DeprecationWarning,
-    module=r'{}\..*'.format(__name__),
+    module=fr'{__name__}\..*',
 )
 
 # When the deprecated APIs are used from __main__ (script or notebook), always
@@ -33,15 +32,5 @@ except ImportError:
 else:
     if not os.getenv('DISPLAY'):
         matplotlib.use('Agg')
-
-if sys.version_info < (3, 6):
-    warnings.warn(
-        'Python 3.6 will soon be required to run LISA, please upgrade from {} to any version higher than 3.6'.format(
-            '.'.join(
-                map(str, tuple(sys.version_info)[:3])
-            ),
-        ),
-        DeprecationWarning,
-    )
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

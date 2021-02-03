@@ -17,26 +17,22 @@
 #
 
 import argparse
-import copy
 import contextlib
 import itertools
 import re
 import os.path
 from pathlib import Path
-from collections import OrderedDict, namedtuple
-
-from lisa.target import Target, TargetConf
-from lisa.trace import FtraceCollector, FtraceConf
-from lisa.platforms.platinfo import PlatformInfo
-from lisa.utils import HideExekallID, Loggable, ArtifactPath, get_subclasses, groupby, Serializable, get_nested_key, ExekallTaggable
-from lisa.conf import MultiSrcConf
-from lisa.tests.base import TestBundle, ResultBundleBase, Result, RTATestBundle
-from lisa.tests.scheduler.load_tracking import InvarianceItem
-from lisa.regression import compute_regressions
 
 from exekall.utils import get_name, get_method_class, add_argument, NoValue, flatten_seq
 from exekall.engine import ExprData, Consumer, PrebuiltOperator
 from exekall.customization import AdaptorBase
+
+from lisa.target import Target, TargetConf
+from lisa.trace import FtraceCollector, FtraceConf
+from lisa.utils import HideExekallID, ArtifactPath, Serializable, get_nested_key, ExekallTaggable
+from lisa.conf import MultiSrcConf
+from lisa.tests.base import TestBundle, ResultBundleBase, Result
+from lisa.regression import compute_regressions
 
 
 class NonReusable:
@@ -59,10 +55,7 @@ class ExekallArtifactPath(ArtifactPath, NonReusable):
                 artifact_dir = artifact_dir_
                 break
 
-        cls.get_logger().info('Creating {consumer} artifact storage: {path}'.format(
-            consumer=consumer_name,
-            path=artifact_dir
-        ))
+        cls.get_logger().info(f'Creating {consumer_name} artifact storage: {artifact_dir}')
         artifact_dir.mkdir(parents=True)
         # Get canonical absolute paths
         artifact_dir = artifact_dir.resolve()
@@ -81,16 +74,14 @@ class ExekallFtraceCollector(FtraceCollector, HideExekallID):
         # there is no legitimate use case where it could happen, and it is very
         # likely that it comes from a design issue in the class
         if not conf['events'] and issubclass(consumer_cls, TestBundle):
-            raise ValueError("Empty events list in {}.{}".format(
-                consumer_cls.__qualname__, attr,
-            ))
+            raise ValueError(f"Empty events list in {consumer_cls.__qualname__}.{attr}")
         return conf
 
     @classmethod
     def from_user_conf(cls, target: Target, consumer: Consumer, user_conf: FtraceConf = None) -> 'ExekallFtraceCollector':
         base_conf = cls._get_consumer_conf(consumer)
         consumer_cls = get_method_class(consumer)
-        merged_src = 'user+{}'.format(consumer_cls.__qualname__)
+        merged_src = f'user+{consumer_cls.__qualname__}'
 
         return super().from_user_conf(
             target,
@@ -101,6 +92,9 @@ class ExekallFtraceCollector(FtraceCollector, HideExekallID):
 
 class LISAAdaptor(AdaptorBase):
     name = 'LISA'
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.hidden_op_set = None
 
     def get_non_reusable_type_set(self):
         return {NonReusable}
@@ -175,7 +169,7 @@ class LISAAdaptor(AdaptorBase):
             events_str = joiner + joiner.join(sorted(events))
         else:
             events_str = ' <no events>'
-        return 'Used trace events:{}'.format(events_str)
+        return f'Used trace events:{events_str}'
 
     @staticmethod
     def register_run_param(parser):
@@ -237,12 +231,12 @@ comparison. Can be repeated.""")
             print('No matching test IDs have been found, use "--remove-tag board" to match across "board" tags')
             return
 
-        print('testcase failure rate changes with alpha={}\n'.format(alpha))
+        print(f'testcase failure rate changes with alpha={alpha}\n')
 
         id_len = max(len(regr.testcase_id) for regr in regr_list)
 
         header = '{id:<{id_len}}   old%   new%  delta%       pvalue fix_iter# {regr_column}'.format(
-            id='testcase'.format(alpha),
+            id='testcase',
             id_len=id_len,
             regr_column=' significant' if show_non_significant else ''
         )
@@ -307,8 +301,8 @@ comparison. Can be repeated.""")
         def get_uuid(uuid):
             try:
                 froz_val = db.get_by_uuid(uuid)
-            except KeyError:
-                raise KeyError('UUID={} not found in the database'.format(uuid))
+            except KeyError as e:
+                raise KeyError(f'UUID={uuid} not found in the database') from e
             else:
                 return froz_val
 
@@ -380,7 +374,8 @@ comparison. Can be repeated.""")
 
         if len(yaml_show_spec_list) == 1:
             yaml_show_format = '{yaml}'
-            def yaml_indent(x): return x
+            def yaml_indent(x):
+                return x
         else:
             yaml_show_format = 'UUID={uuid} {type}:\n\n{yaml}'
             yaml_indent = indent
@@ -496,7 +491,7 @@ comparison. Can be repeated.""")
 
                 symlink.symlink_to(target, target_is_directory=True)
 
-        for param, param_expr_val in expr_val.param_map.items():
+        for param_expr_val in expr_val.param_map.values():
             self._finalize_expr_val(param_expr_val, artifact_dir, expr_artifact_dir)
 
     @classmethod

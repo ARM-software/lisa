@@ -88,7 +88,7 @@ def _nested_formatter(multiline):
             elif isinstance(data, Mapping):
                 data = sort_mapping(data)
                 body = '\n'.join(
-                    '{}: {}'.format(key, format_data(data, level + 1))
+                    f'{key}: {format_data(data, level + 1)}'
                     for key, data in data.items()
                 )
                 out = indent(body)
@@ -103,7 +103,7 @@ def _nested_formatter(multiline):
             if isinstance(data, Mapping):
                 data = sort_mapping(data)
                 return '{' + ', '.join(
-                    '{}={}'.format(key, format_data(data))
+                    f'{key}={format_data(data)}'
                     for key, data in data.items()
                 ) + '}'
 
@@ -146,8 +146,7 @@ class TestMetric:
         return result
 
     def __repr__(self):
-        return '{cls}({self.data}, {self.units})'.format(
-            cls=type(self).__name__, self=self)
+        return f'{type(self).__name__}({self.data}, {self.units})'
 
 
 @enum.unique
@@ -214,7 +213,7 @@ class ResultBundleBase:
         self.metrics[name] = TestMetric(data, units)
 
     def display_and_exit(self) -> type(None):
-        print("Test result: {}".format(self))
+        print(f"Test result: {self}")
         if self:
             sys.exit(0)
         else:
@@ -538,11 +537,7 @@ class TestBundleMeta(abc.ABCMeta):
 
             overlap = keywords_test & keywords_filter
             if any(overlap):
-                raise TypeError('Overlapping argument between {} and {}: {}'.format(
-                    get_sphinx_name(wrapped_test, style=None),
-                    get_sphinx_name(func, style=None),
-                    overlap
-                ))
+                raise TypeError(f'Overlapping argument between {get_sphinx_name(wrapped_test, style=None)} and {get_sphinx_name(func, style=None)}: {overlap}')
 
             def dispatch_kwargs(kwargs):
                 filter_kwargs = filter_keys(kwargs, keywords_filter)
@@ -633,8 +628,7 @@ class TestBundleMeta(abc.ABCMeta):
             # Sanity check on _from_target signature
             for name, param in signature(_from_target).parameters.items():
                 if name != 'target' and param.kind is not inspect.Parameter.KEYWORD_ONLY:
-                    raise TypeError('Non keyword parameters "{}" are not allowed in {} signature'.format(
-                        _from_target.__qualname__, name))
+                    raise TypeError(f'Non keyword parameters "{_from_target.__qualname__}" are not allowed in {name} signature')
 
             def get_keyword_only_names(f):
                 return {
@@ -715,11 +709,7 @@ class TestBundleMeta(abc.ABCMeta):
             from_target_doc = inspect.cleandoc(func.__doc__ or '')
             _from_target_doc = inspect.cleandoc(_from_target.__doc__ or '')
             if _from_target_doc:
-                doc = '{}\n\n(**above inherited from** :meth:`{}.{}`)\n\n{}\n'.format(
-                    from_target_doc,
-                    func.__module__, func.__qualname__,
-                    _from_target_doc,
-                )
+                doc = f'{from_target_doc}\n\n(**above inherited from** :meth:`{func.__module__}.{func.__qualname__}`)\n\n{_from_target_doc}\n'
             else:
                 doc = from_target_doc
 
@@ -951,7 +941,7 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         Returns the path of the file containing the serialized object in
         ``res_dir`` folder.
         """
-        return ArtifactPath.join(res_dir, "{}.yaml".format(cls.__qualname__))
+        return ArtifactPath.join(res_dir, f"{cls.__qualname__}.yaml")
 
     @classmethod
     def _get_referred_objs(cls, obj, predicate=lambda x: True):
@@ -1034,11 +1024,16 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         super().to_path(self._get_filepath(res_dir))
 
 
-class FtraceTestBundleMeta(TestBundleMeta):
+class FtraceTestBundle(TestBundle):
     """
-    Metaclass of :class:`FtraceTestBundle`.
+    Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
 
-    This metaclass ensures that each class will get its own copy of
+    Optionally, an ``ftrace_conf`` class attribute can be defined to hold
+    additional FTrace configuration used to record a trace while the synthetic
+    workload is being run. By default, the required events are extracted from
+    decorated test methods.
+
+    This base class ensures that each subclass will get its own copy of
     ``ftrace_conf`` attribute, and that the events specified in that
     configuration are a superset of what is needed by methods using the family
     of decorators :func:`lisa.trace.requires_events`. This makes sure that the
@@ -1058,13 +1053,19 @@ class FtraceTestBundleMeta(TestBundleMeta):
           :meth:`lisa.trace.FtraceCollector.from_user_conf`
     """
 
-    def __new__(metacls, name, bases, dct, **kwargs):
-        new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
+    TRACE_PATH = 'trace.dat'
+    """
+    Path to the ``trace-cmd`` trace.dat file in the result directory.
+    """
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
 
         # Collect all the events that can be used by all methods available on
         # that class.
         ftrace_events = set()
-        for name, obj in inspect.getmembers(new_cls, callable):
+        for name, obj in inspect.getmembers(cls, callable):
             try:
                 used_events = obj.used_events
             except AttributeError:
@@ -1076,47 +1077,26 @@ class FtraceTestBundleMeta(TestBundleMeta):
         # unique to that class (i.e. not shared with any other parent or
         # sibling classes)
         try:
-            ftrace_conf = new_cls.ftrace_conf
+            ftrace_conf = cls.ftrace_conf
         except AttributeError:
-            ftrace_conf = FtraceConf(src=new_cls.__qualname__)
+            ftrace_conf = FtraceConf(src=cls.__qualname__)
         else:
             # If the ftrace_conf attribute has been defined in a base class,
             # make sure that class gets its own copy since we are going to
             # modify it
-            if 'ftrace_conf' not in dct:
+            if 'ftrace_conf' not in cls.__dict__:
                 ftrace_conf = copy.copy(ftrace_conf)
 
-        new_cls.ftrace_conf = ftrace_conf
+        cls.ftrace_conf = ftrace_conf
 
         # Merge-in a new source to FtraceConf that contains the events we
         # collected
         ftrace_conf.add_merged_src(
-            src='{}(required)'.format(new_cls.__qualname__),
+            src=f'{cls.__qualname__}(required)',
             conf={
                 'events': sorted(ftrace_events),
             },
         )
-
-        return new_cls
-
-
-class FtraceTestBundle(TestBundle, metaclass=FtraceTestBundleMeta):
-    """
-    Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
-
-    Optionally, an ``ftrace_conf`` class attribute can be defined to hold
-    additional FTrace configuration used to record a trace while the synthetic
-    workload is being run. By default, the required events are extracted from
-    decorated test methods.
-
-    .. seealso: :class:`lisa.tests.base.FtraceTestBundleMeta` for default
-        ``ftrace_conf`` content.
-    """
-
-    TRACE_PATH = 'trace.dat'
-    """
-    Path to the ``trace-cmd`` trace.dat file in the result directory.
-    """
 
     @property
     def trace_path(self):
@@ -1242,7 +1222,7 @@ class DmesgTestBundle(TestBundle):
         logger = self.get_logger()
 
         if ignored_patterns:
-            logger.info('Will ignore patterns in dmesg output: {}'.format(ignored_patterns))
+            logger.info(f'Will ignore patterns in dmesg output: {ignored_patterns}')
             ignored_regex = [
                 re.compile(pattern)
                 for pattern in ignored_patterns
@@ -1271,7 +1251,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     """
     Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
 
-    .. seealso: :class:`lisa.tests.base.FtraceTestBundleMeta` for default
+    .. seealso: :class:`lisa.tests.base.FtraceTestBundle` for default
         ``ftrace_conf`` content.
     """
 
@@ -1287,9 +1267,9 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         TaskID(pid=0, comm=None): 100,
         # Feeble boards like Juno/TC2 spend a while in sugov
         r"^sugov:\d+$": 5,
-        # The mailbox controller (MHU), now threaded, creates work that sometimes
-        # exceeds the 1% threshold.
-        r"^irq/\d+-mhu_link$": 1.5
+        # Some boards like Hikey960 have noisy threaded IRQs (thermal sensor
+        # mailbox ...)
+        r"^irq/\d+-.*$": 1.5,
     }
     """
     PID/comm specific tuning for :meth:`test_noisy_tasks`
@@ -1462,6 +1442,50 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         )
         return trace.get_view(self.trace_window(trace), clear_base_cache=True)
 
+    def df_noisy_tasks(self, with_threshold_exclusion=True):
+        """
+        :returns: a DataFrame containing all tasks that participate to the test
+          noise. i.e. all non rt-app tasks.
+
+        :param with_threshold_exclusion: When set to True, known noisy services
+          will be ignored.
+        """
+        df = self.trace.analysis.tasks.df_tasks_runtime()
+        df = df.copy(deep=False)
+
+        # We don't want to account the test tasks
+        ignored_ids = copy.copy(self.rtapp_task_ids)
+
+        df['runtime_pct'] = df['runtime'] * (100 / self.trace.time_range)
+        df['pid'] = df.index
+
+        threshold_exclusion = self.NOISE_ACCOUNTING_THRESHOLDS if with_threshold_exclusion else {}
+
+        # Figure out which PIDs to exclude from the thresholds
+        for key, threshold in threshold_exclusion.items():
+            # Find out which task(s) this threshold is about
+            if isinstance(key, str):
+                comms = df.loc[df['comm'].str.match(key), 'comm']
+                task_ids = comms.apply(self.trace.get_task_id)
+            else:
+                # Use update=False to let None fields propagate, as they are
+                # used to indicate a "dont care" value
+                task_ids = [self.trace.get_task_id(key, update=False)]
+
+            # For those tasks, check the cumulative threshold
+            runtime_pct_sum = df_filter_task_ids(df,
+                task_ids)['runtime_pct'].sum()
+            if runtime_pct_sum <= threshold:
+                 ignored_ids.extend(task_ids)
+
+
+        self.get_logger().info(f"Ignored PIDs for noise contribution: {', '.join(map(str, ignored_ids))}")
+
+        # Filter out unwanted tasks (rt-app tasks + thresholds)
+        df = df_filter_task_ids(df, ignored_ids, invert=True)
+
+        return df.loc[df['runtime'] > 0]
+
     @TestBundle.add_undecided_filter
     @TasksAnalysis.df_tasks_runtime.used_events
     def test_noisy_tasks(self, *, noise_threshold_pct=None, noise_threshold_ms=None):
@@ -1478,8 +1502,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         If both are specified, the smallest threshold (in seconds) will be used.
         """
         if noise_threshold_pct is None and noise_threshold_ms is None:
-            raise ValueError('Both "{}" and "{}" cannot be None'.format(
-                "noise_threshold_pct", "noise_threshold_ms"))
+            raise ValueError('Both "noise_threshold_pct" and "noise_threshold_ms" cannot be None')
 
         # No task can run longer than the recorded duration
         threshold_s = self.trace.time_range
@@ -1490,38 +1513,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         if noise_threshold_ms is not None:
             threshold_s = min(threshold_s, noise_threshold_ms * 1e3)
 
-        df = self.trace.analysis.tasks.df_tasks_runtime()
-
-        # We don't want to account the test tasks
-        ignored_ids = self.rtapp_task_ids
-
-        df['runtime_pct'] = df['runtime'] * (100 / self.trace.time_range)
-        df['pid'] = df.index
-
-        # Figure out which PIDs to exclude from the thresholds
-        for key, threshold in self.NOISE_ACCOUNTING_THRESHOLDS.items():
-            # Find out which task(s) this threshold is about
-            if isinstance(key, str):
-                comms = df.loc[df['comm'].str.match(key), 'comm']
-                task_ids = comms.apply(self.trace.get_task_id)
-            else:
-                # Use update=False to let None fields propagate, as they are
-                # used to indicate a "dont care" value
-                task_ids = [self.trace.get_task_id(key, update=False)]
-
-            # For those tasks, check the threshold
-            ignored_ids.extend(
-                task_id
-                for task_id in task_ids
-                if df_filter_task_ids(df, [task_id]).iloc[0].runtime_pct <= threshold
-            )
-
-        self.get_logger().info("Ignored PIDs for noise contribution: {}".format(
-            ", ".join(map(str, ignored_ids))
-        ))
-
-        # Filter out unwanted tasks (rt-app tasks + thresholds)
-        df_noise = df_filter_task_ids(df, ignored_ids, invert=True)
+        df_noise = self.df_noisy_tasks()
 
         if df_noise.empty:
             return ResultBundle.from_bool(True)
@@ -1607,7 +1599,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         try:
             ctrl = cgroups.controllers[kind]
         except KeyError:
-            raise CannotCreateError('"{}" cgroup controller unavailable'.format(kind))
+            raise CannotCreateError(f'"{kind}" cgroup controller unavailable')
 
         cg = ctrl.cgroup(cfg['name'])
         cg.set(**cfg['attributes'])
@@ -1693,7 +1685,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             }
 
         wload = RTA.by_profile(target, profile, res_dir=res_dir,
-                               name="rta_{}".format(cls.__name__.casefold()),
+                               name=f"rta_{cls.__name__.casefold()}",
                                trace_events=trace_events)
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
         as_root = cgroup is not None

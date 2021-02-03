@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-from lisa.utils import ArtifactPath, show_doc
+from lisa.utils import ArtifactPath
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, requires_events
 from lisa.wlgen.rta import Periodic
@@ -158,7 +158,7 @@ class ExampleTestBundle(RTATestBundle):
             # A Periodic task has a period, and a duty_cycle (which really is a
             # target utilization). LISA will run rt-app calibration if needed
             # (it can be provided by the user in the platform information)
-            profile["{}_{}".format(cls.task_prefix, cpu)] = Periodic(
+            profile[f"{cls.task_prefix}_{cpu}"] = Periodic(
                 duty_cycle_pct=util,
                 duration_s=1,
                 period_ms=cls.TASK_PERIOD_MS,
@@ -246,6 +246,6 @@ class ExampleTestBundle(RTATestBundle):
         # on a test failure, so it's better to be more verbose than not.
         res_bundle.add_metric('expected util', 512)
         for task, util_mean in util_means.items():
-            res_bundle.add_metric('{} util'.format(task), util_mean)
+            res_bundle.add_metric(f'{task} util', util_mean)
 
         return res_bundle

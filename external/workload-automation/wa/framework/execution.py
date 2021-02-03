@@ -537,6 +537,9 @@ class Runner(object):
             self.pm.process_run_output(self.context)
             self.pm.export_run_output(self.context)
         self.pm.finalize(self.context)
+        if self.context.reboot_policy.reboot_on_run_completion:
+            self.logger.info('Rebooting target on run completion.')
+            self.context.tm.reboot(self.context)
         signal.disconnect(self._error_signalled_callback, signal.ERROR_LOGGED)
         signal.disconnect(self._warning_signalled_callback, signal.WARNING_LOGGED)
 

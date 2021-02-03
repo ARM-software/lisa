@@ -29,14 +29,13 @@ import io
 import os
 import os.path
 import json
-import warnings
 import inspect
 import shlex
 import contextlib
 import tempfile
-from functools import lru_cache, reduce, wraps
-from collections.abc import Iterable, Set, Mapping, Sequence
-from collections import namedtuple, OrderedDict
+from functools import lru_cache, wraps
+from collections.abc import Set, Mapping, Sequence
+from collections import namedtuple
 from operator import itemgetter
 from numbers import Number, Integral, Real
 import multiprocessing
@@ -44,20 +43,17 @@ import textwrap
 import subprocess
 import itertools
 
-import pandas as pd
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 import pyarrow.lib
 
 import devlib
-from devlib.target import KernelVersion
 
-import lisa.utils
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, take
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.generic import TypedList
-from lisa.datautils import df_split_signals, df_window, df_window_signals, SignalDesc, df_add_delta, df_combine_duplicates, series_convert, df_deduplicate, df_update_duplicates
+from lisa.datautils import df_window, df_window_signals, SignalDesc, df_add_delta, series_convert, df_deduplicate, df_update_duplicates
 from lisa.version import VERSION_TOKEN
 from lisa.typeclass import FromString, IntListFromStringInstance
 
@@ -79,6 +75,8 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
     __slots__ = []
 
     def __init__(self, *args, **kwargs):
+        # pylint: disable=unused-argument
+        super().__init__()
         # This happens when the number of saved PID/comms entries in the trace
         # is too low
         if self.comm == '<...>':
@@ -86,11 +84,11 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
 
     def __str__(self):
         if self.pid is not None and self.comm is not None:
-            out = '{}:{}'.format(self.pid, self.comm)
+            out = f'{self.pid}:{self.comm}'
         else:
             out = str(self.comm if self.comm is not None else self.pid)
 
-        return '[{}]'.format(out)
+        return f'[{out}]'
 
     _STR_PARSE_REGEX = re.compile(r'\[?([0-9]+):([a-zA-Z0-9_-]+)\]?')
 
@@ -101,6 +99,7 @@ class TaskIDFromStringInstance(FromString, types=TaskID):
     """
     @classmethod
     def from_str(cls, string):
+        # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
         try:
             pid = int(string)
             comm = None
@@ -165,10 +164,11 @@ class MissingMetadataError(KeyError):
     Raised when a given metadata is not available.
     """
     def __init__(self, metadata):
+        # pylint: disable=super-init-not-called
         self.metadata = metadata
 
     def __str__(self):
-        return 'Missing metadata: {}'.format(self.metadata)
+        return f'Missing metadata: {self.metadata}'
 
 
 class TraceParserBase(abc.ABC, Loggable):
@@ -184,6 +184,7 @@ class TraceParserBase(abc.ABC, Loggable):
     """
 
     def __init__(self, events, needed_metadata):
+        # pylint: disable=unused-argument
         self._needed_metadata = set(needed_metadata or [])
 
     def get_metadata(self, key):
@@ -224,6 +225,7 @@ class TraceParserBase(abc.ABC, Loggable):
             Metadata may still be made available if not asked for, but only if
             it's a very cheap byproduct of parsing that incurs no extra cost.
         """
+        # pylint: disable=no-self-use
         raise MissingMetadataError(key)
 
     @abc.abstractmethod
@@ -265,12 +267,12 @@ class TraceParserBase(abc.ABC, Loggable):
             Must default to ``False``.
         :type best_effort: bool
 
-        :param kwargs: See :meth:`parse_event`
+        :Variable keyword arguments: Forwarded to :meth:`parse_event`
         """
 
         def parse(event):
             try:
-                return self.parse_event(event)
+                return self.parse_event(event, **kwargs)
             except MissingTraceEventError:
                 if best_effort:
                     return None
@@ -392,6 +394,7 @@ class TxtEventParser(EventParserBase):
             an event
         :type greedy_field: str or None
         """
+        # pylint: disable=unused-argument
         fields = fields.keys() - {positional_field}
 
         if fields:
@@ -433,7 +436,7 @@ class TxtEventParser(EventParserBase):
             # If there are more fields to match, use the first ":" or spaces as
             # separator, otherwise just consume everything
             if fields:
-                fields =  r' *:? *{fields}'.format(fields=fields)
+                fields =  fr' *:? *{fields}'
 
             fields = r'(?P<{pos}>.*?){fields}$'.format(pos=positional_field, fields=fields, **cls.PARSER_REGEX_TERMINALS)
 
@@ -457,7 +460,7 @@ class TxtEventParser(EventParserBase):
         )
 
         compos = {
-            field: r'(?P<{field}>{regex})'.format(field=field, regex=regex)
+            field: fr'(?P<{field}>{regex})'
             for field, regex in regex_map.items()
         }
 
@@ -509,10 +512,7 @@ class PrintTxtEventParser(TxtEventParser):
         super().__init__(event=event, fields=fields, raw=False)
 
     def _get_fields_regex(self, event, fields, positional_field, greedy_field):
-        return r'(?P<{func}>.*?): *(?P<{content}>.*)'.format(
-            func=self._func_field,
-            content=self._content_field,
-        )
+        return fr'(?P<{self._func_field}>.*?): *(?P<{self._content_field}>.*)'
 
 
 class CustomFieldsTxtEventParser(TxtEventParser):
@@ -592,6 +592,7 @@ class TxtTraceParserBase(TraceParserBase):
 
     _KERNEL_DTYPE = {
         'timestamp': 'uint64',
+        'pointer': 'uint64',
         'cpu': 'uint16',
         'pid': 'uint32',
         'comm': 'string',
@@ -615,7 +616,7 @@ class TxtTraceParserBase(TraceParserBase):
     Pandas dtype of the header fields.
     """
 
-    DTYPE_INFERENCE_ORDER = ['int64', 'uint64', 'float64', 'string']
+    DTYPE_INFERENCE_ORDER = ['int64', 'uint64', 'float64']
     """
     When the dtype of a field is not provided by a user-defined parser, these
     dtypes will be tried in order to convert the column from string to
@@ -770,7 +771,8 @@ class TxtTraceParserBase(TraceParserBase):
         """
 
     @staticmethod
-    def _make_df_from_data(regex, data, extra_cols=[]):
+    def _make_df_from_data(regex, data, extra_cols=None):
+        extra_cols = extra_cols or []
         columns = sorted(
             regex.groupindex.keys(),
             # Order columns so that we can directly append the
@@ -780,7 +782,7 @@ class TxtTraceParserBase(TraceParserBase):
         # Rename regex columns to avoid clashes that were explicitly added as
         # extra
         columns = [
-            '__parsed_{}'.format(col) if col in extra_cols else col
+            f'__parsed_{col}' if col in extra_cols else col
             for col in columns
         ]
         columns += extra_cols
@@ -881,7 +883,7 @@ class TxtTraceParserBase(TraceParserBase):
                 else:
                     # Otherwise, make sure "event" is defined so that we only
                     # go a match failure on "time"
-                    event
+                    event # pylint: disable=pointless-statement
             # The line did not match the skeleton regex, so skip it
             except TypeError:
                 continue
@@ -1060,8 +1062,8 @@ class TxtTraceParserBase(TraceParserBase):
     def parse_event(self, event):
         try:
             parser = self._event_parsers[event]
-        except KeyError:
-            raise MissingTraceEventError([event])
+        except KeyError as e:
+            raise MissingTraceEventError([event]) from e
 
         # Maybe it was eagerly parsed
         try:
@@ -1082,6 +1084,8 @@ class TxtTraceParserBase(TraceParserBase):
         """
         ALL THE PROCESSING MUST HAPPEN INPLACE on the dataframe
         """
+        # pylint: disable=unused-argument
+
         # Convert fields from extracted strings to appropriate dtype
         all_fields = {
             **parser.fields,
@@ -1089,13 +1093,30 @@ class TxtTraceParserBase(TraceParserBase):
         }
 
         def default_converter(x):
+            first_success = None
+
             for dtype in cls.DTYPE_INFERENCE_ORDER:
                 convert = make_converter(dtype)
                 with contextlib.suppress(ValueError, TypeError):
-                    return convert(x)
+                    converted = convert(x)
+                    # If we got the dtype we wanted, use it immediately.
+                    # Otherwise, record the first conversion (i.e. the most
+                    # specific) that did no completely fail so we can reuse it
+                    # instead of "string"
+                    if converted.dtype == dtype:
+                        return converted
+                    elif first_success is None:
+                        first_success = converted
 
-            # If all conversions failed, just return the initial series
-            return x
+            # If we got no perfect conversion, return the most specific one
+            # that gave a result, otherwise bailout to just strings
+            if first_success is None:
+                try:
+                    return make_converter('string')(x)
+                except (ValueError, TypeError):
+                    return x
+            else:
+                return first_success
 
         def make_converter(dtype):
             # If the dtype is already known, just use that
@@ -1173,7 +1194,21 @@ class TxtTraceParser(TxtTraceParserBase):
             func_field='ip',
             content_field='str',
         ),
-
+        'funcgraph_entry': dict(
+            fields={
+                'func': _KERNEL_DTYPE['pointer'],
+                'depth': 'uint16',
+            },
+        ),
+        'funcgraph_exit': dict(
+            fields={
+                'func': _KERNEL_DTYPE['pointer'],
+                'depth': 'uint16',
+                'overrun': 'bool',
+                'calltime': 'uint64',
+                'rettime': 'uint64',
+            },
+        ),
         'ipi_entry': dict(
             fields={
                 'reason': 'string',
@@ -1391,21 +1426,36 @@ class TxtTraceParser(TxtTraceParserBase):
         needed_metadata = set(needed_metadata or [])
         events = set(events)
         default_event_parser_cls, event_parsers = cls._resolve_event_parsers(event_parsers, default_event_parser_cls)
-        event_parsers = event_parsers.values()
 
-        all_raw_events = {
-            parser.event
-            for parser in event_parsers
-            if parser.raw
-        }
+        def use_raw(event):
+            try:
+                parser = event_parsers[event]
+            except KeyError:
+                # If we don't have a known parser, use the raw output by
+                # default, since it will be either the same as human readable,
+                # or unparseable without a dedicated parser.
+                return True
+            else:
+                return parser.raw
 
         raw_events = list(itertools.chain.from_iterable(
-            ('-r', event) if event in all_raw_events else []
+            ('-r', event) if use_raw(event) else []
             for event in events
         ))
 
-        pre_filled_metadata = {}
+        # Make sure we only ask to trace-cmd events that can exist, otherwise
+        # it might bail out and give nothing at all, especially with -F
+        kernel_events = {
+            event.split(':', 1)[1]
+            for event in subprocess.check_output(
+                ['trace-cmd', 'report', '-N', '-E', '--', path],
+                stderr=subprocess.DEVNULL,
+                universal_newlines=True,
+            ).splitlines()
+        }
+        events = [event for event in events if event in kernel_events]
 
+        pre_filled_metadata = {}
 
         if 'symbols-address' in needed_metadata:
             # Get the symbol addresses in that trace
@@ -1446,7 +1496,7 @@ class TxtTraceParser(TxtTraceParserBase):
         kwargs.update(
             events=events,
             needed_metadata=needed_metadata,
-            event_parsers=event_parsers,
+            event_parsers=event_parsers.values(),
             default_event_parser_cls=default_event_parser_cls,
             pre_filled_metadata=pre_filled_metadata,
         )
@@ -1549,7 +1599,7 @@ class SimpleTxtTraceParser(TxtTraceParserBase):
         # parsed in the skeleton dataframe
         regex = header_regex
         for field in ('__timestamp', '__event'):
-            regex = regex.replace(r'(?P<{}>'.format(field), r'(?:')
+            regex = regex.replace(fr'(?P<{field}>', r'(?:')
         event_parser_header_regex = regex
 
         class SimpleTxtEventParser(TxtEventParser):
@@ -1738,7 +1788,7 @@ class TrappyTraceParser(TraceParserBase):
         super().__init__(events, needed_metadata=needed_metadata)
 
         # Lazy import so that it's not a required dependency
-        import trappy
+        import trappy # pylint: disable=import-outside-toplevel,import-error
 
         events = set(events)
         # Make sure we won't attempt parsing 'print' events, so that this
@@ -1753,13 +1803,13 @@ class TrappyTraceParser(TraceParserBase):
             else:
                 trace_format = 'FTrace'
 
-        self.get_logger().debug('Parsing {} events from {}: {}'.format(trace_format, path, sorted(events)))
+        self.get_logger().debug(f'Parsing {trace_format} events from {path}: {sorted(events)}')
         if trace_format == 'SysTrace':
             trace_class = trappy.SysTrace
         elif trace_format == 'FTrace':
             trace_class = trappy.FTrace
         else:
-            raise ValueError('Unknown trace format: {}'.format(trace_format))
+            raise ValueError(f'Unknown trace format: {trace_format}')
 
         # Since we handle the cache in lisa.trace.Trace, we do not need to duplicate it
         trace_class.disable_cache = True
@@ -1803,6 +1853,8 @@ class TraceBase(abc.ABC):
     def __init__(self):
         # Import here to avoid a circular dependency issue at import time
         # with lisa.analysis.base
+
+        # pylint: disable=import-outside-toplevel
         from lisa.analysis.proxy import AnalysisProxy
         self.analysis = AnalysisProxy(self)
 
@@ -1886,8 +1938,7 @@ class TraceBase(abc.ABC):
         """
 
         if col_name in df.columns:
-            raise RuntimeError("Column {} is already present in the dataframe".
-                               format(col_name))
+            raise RuntimeError(f"Column {col_name} is already present in the dataframe")
 
         return df_add_delta(df, col=col_name, inplace=inplace, window=self.window)
 
@@ -1918,11 +1969,10 @@ class TraceBase(abc.ABC):
 
         def make_info_row(row, event):
             fields = ' '.join(
-                '{}={}'.format(key, value)
+                f'{key}={value}'
                 for key, value in row.iteritems()
             )
-
-            return '{:<{event_name_len}}: {}'.format(event, fields, event_name_len=max_event_name_len)
+            return f'{event:<{max_event_name_len}}: {fields}'
 
         def make_info_series(event):
             df = self.df_event(event)
@@ -1957,11 +2007,13 @@ class TraceView(Loggable, TraceBase):
     :param window: The time window to base this view on
     :type window: tuple(float, float)
 
-    :ivar base_trace: The original :class:`Trace` this view is based on.
-    :ivar analysis: The analysis proxy on the trimmed down :class:`Trace`.
-
-    :ivar start: The timestamp of the first trace event in the view (>= ``window[0]``)
-    :ivar end: The timestamp of the last trace event in the view (<= ``window[1]``)
+    :Attributes:
+        * ``base_trace``: The original :class`:`Trace` this view is based on.
+        * ``analysis``: The analysis proxy on the trimmed down :class`:`Trace`.
+        * ``start``: The timestamp of the first trace event in the view (>=
+          ``window[0]``)
+        * ``end``: The timestamp of the last trace event in the view (<=
+          ``window[1]``)
 
     You can substitute an instance of :class:`Trace` with an instance of
     :class:`TraceView`. This means you can create a view of a trimmed down trace
@@ -2100,9 +2152,9 @@ class PandasDataDesc(Mapping):
     .. note:: Once introduced in a container, instances must not be modified,
         directly or indirectly.
 
-    :ivar normal_form: Normal form of the descriptor. Equality is implemented
-        by comparing this attribute.
-    :vartype normal_form: PandasDataDescNF
+    :Attributes:
+        * ``normal_form``: Normal form of the descriptor. Equality is
+          implemented by comparing this attribute.
     """
 
     def __init__(self, spec):
@@ -2130,7 +2182,7 @@ class PandasDataDesc(Mapping):
         return '{}({})'.format(
             self.__class__.__name__,
             ', '.join(
-                '{}={!r}'.format(key, val)
+                f'{key}={val!r}'
                 for key, val in self.__dict__.items()
             )
         )
@@ -2195,10 +2247,7 @@ class PandasDataDescNF:
         # In other cases save the name of the type along the value to make
         # sure we are not going to compare apple and oranges in the future
         else:
-            type_name = '{}.{}'.format(
-                val.__class__.__module__,
-                val.__class__.__qualname__
-            )
+            type_name = f'{val.__class__.__module__}.{val.__class__.__qualname__}'
             val = (type_name, val)
 
         return val
@@ -2272,14 +2321,14 @@ class PandasDataSwapEntry:
         """
         Filename of the metadata file in the swap.
         """
-        return '{}{}'.format(self.name, self.META_EXTENSION)
+        return f'{self.name}{self.META_EXTENSION}'
 
     @property
     def data_filename(self):
         """
         Filename of the pandas data file in the swap.
         """
-        return '{}{}'.format(self.name, TraceCache.DATAFRAME_SWAP_EXTENSION)
+        return f'{self.name}{TraceCache.DATAFRAME_SWAP_EXTENSION}'
 
     def to_json_map(self):
         """
@@ -2385,7 +2434,7 @@ class TraceCache(Loggable):
     Data storage format used to swap.
     """
 
-    DATAFRAME_SWAP_EXTENSION = '.{}'.format(DATAFRAME_SWAP_FORMAT)
+    DATAFRAME_SWAP_EXTENSION = f'.{DATAFRAME_SWAP_FORMAT}'
     """
     File extension of the data swap format.
     """
@@ -2476,8 +2525,8 @@ class TraceCache(Loggable):
         """
         try:
             return self._metadata[key]
-        except KeyError:
-            raise MissingMetadataError(key)
+        except KeyError as e:
+            raise MissingMetadataError(key) from e
 
     def to_json_map(self):
         """
@@ -2553,6 +2602,7 @@ class TraceCache(Loggable):
                     try:
                         swap_entry = PandasDataSwapEntry.from_path(path)
                     # If there is any issue with that entry, just ignore it
+                    # pylint: disable=broad-except
                     except Exception:
                         continue
                     else:
@@ -2612,7 +2662,8 @@ class TraceCache(Loggable):
             if mem_usage:
                 self._update_ewma('_data_mem_swap_ratio', size / mem_usage)
 
-    def _data_mem_usage(self, data):
+    @staticmethod
+    def _data_mem_usage(data):
         mem = data.memory_usage()
         try:
             return mem.sum()
@@ -2656,7 +2707,7 @@ class TraceCache(Loggable):
             # Snappy compression seems very fast
             data.to_parquet(path, compression='snappy', index=True)
         else:
-            raise ValueError('Dataframe swap format "{}" not handled'.format(cls.DATAFRAME_SWAP_FORMAT))
+            raise ValueError(f'Dataframe swap format "{cls.DATAFRAME_SWAP_FORMAT}" not handled')
 
     def _write_swap(self, pd_desc, data):
         if not self.swap_dir:
@@ -2675,7 +2726,7 @@ class TraceCache(Loggable):
                 self.scrub_swap()
 
             def log_error(e):
-                self.get_logger().error('Could not write {} to swap: {}'.format(pd_desc, e))
+                self.get_logger().error(f'Could not write {pd_desc} to swap: {e}')
 
             # Write the Parquet file and update the write speed
             try:
@@ -2743,7 +2794,7 @@ class TraceCache(Loggable):
                 os.unlink(path)
 
             def by_mtime(path_stat):
-                path, stat = path_stat
+                _, stat = path_stat
                 return stat.st_mtime
 
             # Sort by modification time, so we discard the oldest caches
@@ -2788,6 +2839,7 @@ class TraceCache(Loggable):
         try:
             return self._cache[pd_desc]
         except KeyError as e:
+            # pylint: disable=raise-missing-from
             try:
                 path = self._swap_path_of(pd_desc)
             # If there is no swap, bail out
@@ -2799,7 +2851,7 @@ class TraceCache(Loggable):
                     if self.DATAFRAME_SWAP_FORMAT == 'parquet':
                         data = pd.read_parquet(path)
                     else:
-                        raise ValueError('Dataframe swap format "{}" not handled'.format(self.DATAFRAME_SWAP_FORMAT))
+                        raise ValueError(f'Dataframe swap format "{self.DATAFRAME_SWAP_FORMAT}" not handled')
                 except (OSError, pyarrow.lib.ArrowIOError):
                     raise e
                 else:
@@ -3058,13 +3110,14 @@ class Trace(Loggable, TraceBase):
         parameter.
     :type write_swap: bool
 
-    :ivar start: The timestamp of the first trace event in the trace
-    :ivar end: The timestamp of the last trace event in the trace
-    :ivar time_range: Maximum timespan for all collected events
-    :ivar window: Conveniency tuple of ``(start, end)``.
-    :ivar available_events: Events available in the parsed trace, exposed as
-        some kind of set-ish smart container. Querying for event might trigger
-        the parsing of it.
+    :Attributes:
+        * ``start``: The timestamp of the first trace event in the trace
+        * ``end``: The timestamp of the last trace event in the trace
+        * ``time_range``: Maximum timespan for all collected events
+        * ``window``: Conveniency tuple of ``(start, end)``.
+        * ``available_events``: Events available in the parsed trace, exposed
+          as some kind of set-ish smart container. Querying for event might
+          trigger the parsing of it.
 
     :Supporting more events:
         Subclasses of :class:`TraceParserBase` can usually auto-detect the
@@ -3115,6 +3168,8 @@ class Trace(Loggable, TraceBase):
     """
 
     def _select_userspace(self, source_event, meta_event, df):
+        # pylint: disable=unused-argument,no-self-use
+
         # tracing_mark_write is the name of the kernel function invoked when
         # writing to: /sys/kernel/debug/tracing/trace_marker
         # That said, it's not the end of the world if we don't filter on that
@@ -3191,8 +3246,7 @@ class Trace(Loggable, TraceBase):
         # Bail-out straightaway if the specified trace file does not exist
         # There is not much point in continuing here if that is the case
         if not os.path.exists(trace_path):
-            raise FileNotFoundError("Unable to locate specified trace file: {}"
-                                    .format(trace_path))
+            raise FileNotFoundError(f"Unable to locate specified trace file: {trace_path}")
 
         super().__init__()
 
@@ -3207,7 +3261,7 @@ class Trace(Loggable, TraceBase):
                 basename = os.path.basename(trace_path)
                 swap_dir = os.path.join(
                     os.path.dirname(trace_path),
-                    '.{}.lisa-swap'.format(basename)
+                    f'.{basename}.lisa-swap'
                 )
                 try:
                     os.makedirs(swap_dir, exist_ok=True)
@@ -3249,6 +3303,7 @@ class Trace(Loggable, TraceBase):
         # The platform information used to run the experiments
         if plat_info is None:
             # Delay import to avoid circular dependency
+            # pylint: disable=import-outside-toplevel
             from lisa.platforms.platinfo import PlatformInfo
             plat_info = PlatformInfo()
         else:
@@ -3355,20 +3410,14 @@ class Trace(Loggable, TraceBase):
         # The parser type will potentially change the exact content in raw
         # dataframes
         def get_name(parser):
-            return '{}.{}'.format(
-                parser.__module__,
-                parser.__qualname__
-            )
+            return f'{parser.__module__}.{parser.__qualname__}'
 
         try:
             parser_name = get_name(parser)
         # If the parser is an instance of something, we cannot safely track its
         # state so just make a unique name for it
         except AttributeError:
-            parser_name = '{}-instance:{}'.format(
-                get_name(parser.__class__),
-                uuid.uuid4().hex
-            )
+            parser_name = f'{get_name(parser.__class__)}-instance:{uuid.uuid4().hex}'
 
         return (self.normalize_time, parser_name)
 
@@ -3396,7 +3445,7 @@ class Trace(Loggable, TraceBase):
                     for e in checked_events
                 )
                 count = max_cpu + 1
-                self.get_logger().debug("Estimated CPU count from trace: {}".format(count))
+                self.get_logger().debug(f"Estimated CPU count from trace: {count}")
 
             return count
 
@@ -3449,6 +3498,7 @@ class Trace(Loggable, TraceBase):
                 try:
                     base_trace = self.__dict__['base_trace']
                 except KeyError:
+                    # pylint: disable=raise-missing-from
                     raise RuntimeError('The trace instance can only be used outside its "with" statement.')
                 else:
                     return getattr(base_trace, attr)
@@ -3476,14 +3526,14 @@ class Trace(Loggable, TraceBase):
                 strict_events=True,
                 plat_info=plat_info,
                 # Disable swap if the folder is going to disappear
-                enable_swap=True if filepath else False,
+                enable_swap=bool(filepath),
                 **kwargs
             )
 
+        # pylint: disable=attribute-defined-outside-init
         proxy.base_trace = trace
 
     def _get_parser(self, events=tuple(), needed_metadata=None, update_metadata=True):
-        logger = self.get_logger()
         path = self.trace_path
         events = set(events)
         needed_metadata = set(needed_metadata or [])
@@ -3631,10 +3681,11 @@ class Trace(Loggable, TraceBase):
             else:
                 raw = True
 
+
         if raw:
             sanitization_f = None
-        elif orig_raw == False and not sanitization_f:
-            raise ValueError('Sanitized dataframe for {} does not exist, please pass raw=True or raw=None'.format(event))
+        elif not orig_raw and orig_raw is not None and not sanitization_f:
+            raise ValueError(f'Sanitized dataframe for {event} does not exist, please pass raw=True or raw=None')
 
         if raw:
             # Make sure all raw descriptors are made the same way, to avoid
@@ -3696,7 +3747,6 @@ class Trace(Loggable, TraceBase):
         )
 
     def _load_df(self, pd_desc, sanitization_f=None, write_swap=None):
-        raw = pd_desc['raw']
         event = pd_desc['event']
 
         # Do not even bother loading the event if we know it cannot be
@@ -3901,8 +3951,8 @@ class Trace(Loggable, TraceBase):
                 extra_fields = [x for x in df.columns if x.startswith('__')]
                 merged_df = df[extra_fields]
 
-                for (meta_event, event, source_event, source_getter) in specs:
-                    source_df, line_field = source_getter(self, source_event, event, df)
+                for (meta_event, event, _source_event, source_getter) in specs:  # pylint: disable=unused-variable
+                    source_df, line_field = source_getter(self, _source_event, event, df)
                     try:
                         parser = MetaTxtTraceParser(
                             lines=source_df[line_field],
@@ -4041,6 +4091,7 @@ class Trace(Loggable, TraceBase):
             _load(event, *args, **kwargs)
 
         # Import here to avoid circular dependency
+        # pylint: disable=import-outside-toplevel
         from lisa.analysis.load_tracking import LoadTrackingAnalysis
         # All events with a "comm" and "pid" column
         events = {
@@ -4214,9 +4265,7 @@ class Trace(Loggable, TraceBase):
         name_list = self.get_task_pid_names(pid)
 
         if len(name_list) > 2:
-            raise RuntimeError('The PID {} had more than two names in its life: {}'.format(
-                pid, name_list,
-            ))
+            raise RuntimeError(f'The PID {pid} had more than two names in its life: {name_list}')
 
         return name_list[-1]
 
@@ -4238,7 +4287,8 @@ class Trace(Loggable, TraceBase):
             try:
                 pid_list = self._task_name_map[comm]
             except IndexError:
-                raise ValueError('trace does not have any task named "{}"'.format(comm))
+                # pylint: disable=raise-missing-from
+                raise ValueError(f'trace does not have any task named "{comm}"')
 
             return pid_list
 
@@ -4246,7 +4296,8 @@ class Trace(Loggable, TraceBase):
             try:
                 comm_list = self._task_pid_map[pid]
             except IndexError:
-                raise ValueError('trace does not have any task PID {}'.format(pid))
+                # pylint: disable=raise-missing-from
+                raise ValueError(f'trace does not have any task PID {pid}')
 
             return comm_list
 
@@ -4291,7 +4342,7 @@ class Trace(Loggable, TraceBase):
         """
         task_ids = self.get_task_ids(task, update=update)
         if len(task_ids) > 1:
-            raise ValueError('More than one TaskID matching: {}'.format(task_ids))
+            raise ValueError(f'More than one TaskID matching: {task_ids}')
 
         return task_ids[0]
 
@@ -4343,10 +4394,7 @@ class Trace(Loggable, TraceBase):
         else:
             cmd = 'xdg-open'
 
-        return os.popen("{} {}".format(
-            cmd,
-            shlex.quote(path)
-        ))
+        return os.popen(f"{cmd} {shlex.quote(path)}")
 
 ###############################################################################
 # Trace Events Sanitize Methods
@@ -4357,6 +4405,8 @@ class Trace(Loggable, TraceBase):
         """
         Sanitization functions must not modify their input.
         """
+        # pylint: disable=dangerous-default-value,no-self-argument
+
         def decorator(f):
             mapping[event] = f
             return f
@@ -4368,6 +4418,7 @@ class Trace(Loggable, TraceBase):
         If ``prev_state`` is a string, turn it back into an integer state by
         parsing it.
         """
+        # pylint: disable=unused-argument,no-self-use
         copied = False
         def copy_once(x):
             nonlocal copied
@@ -4379,6 +4430,7 @@ class Trace(Loggable, TraceBase):
 
         if df['prev_state'].dtype.name == 'string':
             # Avoid circular dependency issue by importing at the last moment
+            # pylint: disable=import-outside-toplevel
             from lisa.analysis.tasks import TaskState
             df = copy_once(df)
             df['prev_state'] = df['prev_state'].apply(TaskState.from_sched_switch_str).astype('uint16', copy=False)
@@ -4392,6 +4444,7 @@ class Trace(Loggable, TraceBase):
 
     @_sanitize_event('sched_overutilized')
     def _sanitize_sched_overutilized(self, event, df, aspects):
+        # pylint: disable=unused-argument,no-self-use
         copied = False
         def copy_once(x):
             nonlocal copied
@@ -4414,6 +4467,7 @@ class Trace(Loggable, TraceBase):
     @_sanitize_event('thermal_power_cpu_limit')
     @_sanitize_event('thermal_power_cpu_get_power')
     def _sanitize_thermal_power_cpu(self, event, df, aspects):
+        # pylint: disable=unused-argument,no-self-use
 
         def f(mask):
             # Replace '00000000,0000000f' format in more usable int
@@ -4427,6 +4481,8 @@ class Trace(Loggable, TraceBase):
     @_sanitize_event('bprint')
     @_sanitize_event('bputs')
     def _sanitize_print(self, event, df, aspects):
+        # pylint: disable=unused-argument,no-self-use
+
         df = df.copy(deep=False)
 
         # Only process string "ip" (function name), not if it is a numeric
@@ -4494,6 +4550,8 @@ class Trace(Loggable, TraceBase):
 
     @_sanitize_event('ipi_raise')
     def _sanitize_ipi_raise(self, event, df, aspects):
+        # pylint: disable=unused-argument,no-self-use
+
         df = df.copy(deep=False)
         df['target_cpus'] = df['target_cpus'].apply(self._expand_bitmask_field)
         df['reason'] = df['reason'].str.strip('()')
@@ -4502,6 +4560,8 @@ class Trace(Loggable, TraceBase):
     @_sanitize_event('ipi_entry')
     @_sanitize_event('ipi_exit')
     def _sanitize_ipi_enty_exit(self, event, df, aspects):
+        # pylint: disable=unused-argument,no-self-use
+
         df = df.copy(deep=False)
         df['reason'] = df['reason'].str.strip('()')
         return df
@@ -4647,7 +4707,7 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         Top-level function called by Sphinx's autodoc extension to augment
         docstrings of the functions.
         """
-        return '\n    * {}'.format(self._str_internal(style='rst', wrapped=False))
+        return f"\n    * {self._str_internal(style='rst', wrapped=False)}"
 
     def __str__(self):
         return self._str_internal()
@@ -4691,7 +4751,6 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
     def __init__(self, op_str, event_checkers, check=True, prefix_str=''):
         super().__init__(check=check)
         checker_list = []
-        optional_checker_list = []
         event_checkers = event_checkers or []
         for checker in event_checkers:
             # "unwrap" checkers of the same type, to avoid useless levels of
@@ -4700,11 +4759,22 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
             # that may have different semantics.
             if type(checker) is type(self):
                 checker_list.extend(checker.checkers)
-            # Aggregate them separately to avoid having multiple of them
-            elif isinstance(checker, OptionalTraceEventChecker):
-                optional_checker_list.append(checker)
             else:
                 checker_list.append(checker)
+
+        # Aggregate them separately to avoid having multiple of them, since
+        # they can appear anywhere in the expression tree with the exact same
+        # overall effect
+        optional_checker_list = [
+            checker
+            for checker in checker_list
+            if isinstance(checker, OptionalTraceEventChecker)
+        ]
+        checker_list = [
+            checker
+            for checker in checker_list
+            if checker not in optional_checker_list
+        ]
 
         if optional_checker_list:
             checker_list.append(OptionalTraceEventChecker(optional_checker_list))
@@ -4748,7 +4818,7 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
         }, **kwargs)
 
     def _str_internal(self, style=None, wrapped=True):
-        op_str = ' {} '.format(self.op_str)
+        op_str = f' {self.op_str} '
         unwrapped_str = self.prefix_str + op_str.join(
             c._str_internal(style=style, wrapped=True)
             # Sort for stable output
@@ -4838,7 +4908,7 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
     def doc_str(self):
         joiner = '\n' + '    '
         rst = joiner + joiner.join(
-            '* {}'.format(c._str_internal(style='rst', wrapped=False))
+            f"* {c._str_internal(style='rst', wrapped=False)}"
             # Sort for stable output
             for c in sorted(self.checkers, key=str)
         )
@@ -4883,6 +4953,8 @@ class MissingTraceEventError(RuntimeError, ValueError):
     """
 
     def __init__(self, missing_events, available_events=None):
+        # pylint: disable=super-init-not-called
+
         self.missing_events = missing_events
         # Forcibly turn into a list, to avoid carrying around an
         # _AvailableTraceEventsSet with its Trace instance
@@ -4895,11 +4967,7 @@ class MissingTraceEventError(RuntimeError, ValueError):
         else:
             available = ''
 
-        return "Trace is missing the following required events: {}{}".format(
-            self.missing_events,
-            available,
-        )
-        return msg
+        return f"Trace is missing the following required events: {self.missing_events}{available}"
 
 
 class FtraceConf(SimpleMultiSrcConf, HideExekallID):
@@ -4935,9 +5003,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
                 if self.get(key, val) == val:
                     return val
                 else:
-                    raise KeyError('Cannot merge key "{}": incompatible values specified: {} != {}'.format(
-                        key, self[key], val,
-                    ))
+                    raise KeyError(f'Cannot merge key "{key}": incompatible values specified: {self[key]} != {val}')
 
             if key in ('events', 'functions'):
                 return sorted(set(val) | set(self.get(key, [])))
@@ -4950,7 +5016,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
             elif key == 'tracer':
                 return non_mergeable(key)
             else:
-                raise KeyError('Cannot merge key "{}"'.format(key))
+                raise KeyError(f'Cannot merge key "{key}"')
 
         merged = {
             key: merge_conf(key, val)
@@ -5095,7 +5161,7 @@ class FtraceCollector(CollectorBase, Configurable):
         :param conf: Configuration object
         :type conf: FtraceConf
         """
-        cls.get_logger().info('Ftrace configuration:\n{}'.format(conf))
+        cls.get_logger().info(f'Ftrace configuration:\n{conf}')
         kwargs = cls.conf_to_init_kwargs(conf)
         kwargs['target'] = target
         cls.check_init_param(**kwargs)

@@ -27,19 +27,19 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-   first_separator
+   ==== Getting started ==== <self>
 
    overview
    setup
-   lisa_shell/man/man
-
-   guides_separator
-
-   transition_guide
-   contributors_guide
    workflows/index
 
-   api_separator
+   ==== Tools documentation ==== <self>
+
+   lisa_shell/man/man
+   bisector/index
+   exekall/index
+
+   ==== API documentation ==== <self>
 
    target
    workloads
@@ -49,10 +49,11 @@ Contents:
    misc_utilities
    stat_comparison
 
-   tools_separator
+   ==== Guides ==== <self>
 
-   bisector/index
-   exekall/index
+   transition_guide
+   contributors_guide
+
 
 Indices and tables
 ==================
@@ -67,8 +68,11 @@ Building this documentation
 
 - Install ``doc`` optional dependencies of ``lisa`` package (``lisa-install``
   does that by default)
-- Run::
+- Run:
 
-  $ source init_env
-  $ lisa-doc-build
+  .. code:: shell
+
+    source init_env
+    lisa-doc-build
+
 - Find the HTML in ``doc/_build/html``

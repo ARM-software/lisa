@@ -240,7 +240,7 @@ class PerfInstrument(Instrument):
             readCSV = csv.reader(csv_file, delimiter=',')
             line_num = 0
             for row in readCSV:
-                if line_num > 0 and 'Total test time' not in row:
+                if 'Performance counter statistics' not in row and 'Total test time' not in row:
                     classifiers = {'scaled from(%)': row[len(row) - 2].replace('(', '').replace(')', '').replace('%', '')}
                     context.add_metric('{}_{}'.format(label, row[1]), row[0], 'count', classifiers=classifiers)
                 line_num += 1

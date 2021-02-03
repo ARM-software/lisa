@@ -63,7 +63,7 @@ def main():
     ]
 
     doc_map = {
-        var: os.getenv("_DOC_{}".format(var))
+        var: os.getenv(f"_DOC_{var}")
         for var in env_list
     }
 
@@ -86,11 +86,7 @@ def main():
             )
             entry = textwrap.indent(entry, ' ' * 2)
         else:
-            entry = "{doc}{var}={val}\n".format(
-                var=var,
-                doc=doc,
-                val=val,
-            )
+            entry = f"{doc}{var}={val}\n"
 
         print(entry)
 

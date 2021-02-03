@@ -14,15 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from collections.abc import Mapping, Iterable
-import copy
 import functools
-import itertools
 from operator import itemgetter
 import contextlib
 from math import nan
+from itertools import combinations
 
-import scipy.stats as stats
+import scipy.stats
 import pandas as pd
 import numpy as np
 
@@ -63,14 +61,14 @@ def series_mean_stats(series, kind, confidence_level=0.95):
         pre = lambda x: x
         post = pre
     else:
-        raise ValueErrorr('Unrecognized kind of mean: {}'.format(kind))
+        raise ValueError(f'Unrecognized kind of mean: {kind}')
 
     series = pre(series)
 
     mean = series.mean()
-    sem = stats.sem(series)
+    sem = scipy.stats.sem(series)
     std = series.std()
-    interval = stats.t.interval(
+    interval = scipy.stats.t.interval(
         confidence_level,
         len(series) - 1,
         loc=mean,
@@ -144,6 +142,9 @@ class Stats(Loggable):
 
     :param df: Dataframe in database format, i.e. meaningless index, and values
         in a given column with the other columns used as tags.
+
+        .. note:: Redundant tag columns (aka that are equal) will be removed
+            from the dataframe.
     :type df: pandas.DataFrame
 
     :param value_col: Name of the column containing the values.
@@ -163,6 +164,9 @@ class Stats(Loggable):
             * Most statistics will be normalized against the reference group as
               a difference percentage, except for a few non-normalizable
               values.
+
+        .. note:: The group referenced must exist, otherwise unexpected
+            behaviours might occur.
 
     :type ref_group: dict(str, object)
 
@@ -331,6 +335,34 @@ class Stats(Loggable):
             (set(df.columns) - {value_col, *ci_cols} - tweak_cols) | {unit_col}
         )
 
+        # TODO: see if the grouping machinery can be changed to accomodate redundant tags
+        # Having duplicate tags will break various grouping mechanisms, so we
+        # need to get rid of them
+        for col1, col2 in combinations(tag_cols.copy(), 2):
+            try:
+                if (df[col1] == df[col2]).all():
+                    if col1 not in ref_group:
+                        to_remove = col1
+                    elif col2 not in ref_group:
+                        to_remove = col2
+                    elif ref_group[col1] == ref_group[col2]:
+                        to_remove = col2
+                        ref_group.pop(to_remove)
+                    else:
+                        raise ValueError(f'ref_group has different values for "{col1}" and "{col2}" but the columns are equal')
+
+                    df = df.drop(columns=[to_remove])
+                else:
+                    to_remove = None
+            except KeyError:
+                pass
+            else:
+                if to_remove is not None:
+                    try:
+                        tag_cols.remove(to_remove)
+                    except ValueError:
+                        pass
+
         if agg_cols:
             pass
         # Default to "iteration" if there was no ref group nor columns to
@@ -358,8 +390,8 @@ class Stats(Loggable):
 
         # Sub groups that allows treating tag columns that are not part of
         # the group not as an aggregation column
-        sub_group_cols = set(stat_tag_cols) - ref_group.keys()
-        plot_group_cols = set(stat_tag_cols) - set(group_cols) - {unit_col}
+        sub_group_cols = set(stat_tag_cols) - set(group_cols)
+        plot_group_cols = sub_group_cols - {unit_col}
 
         self._orig_df = df
         self._stats = stats or {
@@ -371,7 +403,7 @@ class Stats(Loggable):
         }
         self._ref_group = ref_group
         self._group_cols = group_cols
-        self._compare = compare
+        self._compare = compare and bool(ref_group)
         self._val_col = value_col
         self._tag_cols = tag_cols
         self._stat_tag_cols = stat_tag_cols
@@ -422,10 +454,11 @@ class Stats(Loggable):
         Decorator to bypass a function if no reference group was provided by
         the user
         """
+        # pylint: disable=no-self-argument
         @functools.wraps(f)
         def wrapper(self, df, *args, **kwargs):
             if self._ref_group:
-                return f(self, df, *args, **kwargs)
+                return f(self, df, *args, **kwargs) # pylint: disable=not-callable
             else:
                 return df
 
@@ -593,10 +626,10 @@ class Stats(Loggable):
         def get_const_col(group, df, col):
             vals = df[col].unique()
             if len(vals) > 1:
-                raise ValueError('Column "{}" has more than one value ({}) for the group: {}'.format(col, ', '.join(vals), group))
+                raise ValueError(f"Column \"{col}\" has more than one value ({', '.join(vals)}) for the group: {group}")
             return vals[0]
 
-        def mean_func(ref, df, group):
+        def mean_func(ref, df, group): # pylint: disable=unused-argument
             try:
                 mean_kind = get_const_col(group, df, self._mean_kind_col)
             except KeyError:
@@ -620,17 +653,15 @@ class Stats(Loggable):
                     'geometric': ('gmean', 'gse', 'gsd'),
                 }[mean_kind]
             except KeyError:
-                raise ValueError('Unrecognized mean kind: {}'.format(mean_kind))
+                # pylint: disable=raise-missing-from
+                raise ValueError(f'Unrecognized mean kind: {mean_kind}')
 
             series = df[self._val_col]
             min_sample_size = 30
             series_len = len(series)
             if series_len < min_sample_size:
-                self.get_logger().warning('Sample size smaller than {} is being used, the mean confidence interval will only be accurate if the data is normally distributed: {} samples for group {}'.format(
-                    min_sample_size,
-                    series_len,
-                    ', '.join(sorted('{}={}'.format(k, v) for k, v in group.items())),
-                ))
+                group_str = ', '.join(sorted(f'{k}={v}' for k, v in group.items()))
+                self.get_logger().warning(f'Sample size smaller than {min_sample_size} is being used, the mean confidence interval will only be accurate if the data is normally distributed: {series_len} samples for group {group_str}')
 
             def fixup_nan(x):
                 return 0 if pd.isna(x) else x
@@ -714,15 +745,14 @@ class Stats(Loggable):
         """
         Compare the groups with a stat test
         """
-        ref_group = self._ref_group
         value_col = self._val_col
         stat_name = 'ks2samp_test'
 
         def get_pval(ref, df):
-            stat, p_value = stats.ks_2samp(ref[value_col], df[value_col])
+            _, p_value = scipy.stats.ks_2samp(ref[value_col], df[value_col])
             return p_value
 
-        def func(ref, df, group):
+        def func(ref, df, group): # pylint: disable=unused-argument
             return pd.DataFrame({stat_name: [get_pval(ref, df)]})
 
         # Summarize each group by the p-value of the test against the reference group
@@ -774,9 +804,7 @@ class Stats(Loggable):
         return df
 
     def _plot(self, df, title, plot_func, facet_rows, facet_cols, collapse_cols, filename=None, interactive=None):
-        val_col = self._val_col
         unit_col = self._unit_col
-        plot_group_cols = self._plot_group_cols
 
         group_on = list(facet_rows) + list(facet_cols)
         facet_rows_len = len(facet_rows)
@@ -899,11 +927,11 @@ class Stats(Loggable):
         df.loc[df[self._stat_col] == 'mean', self._stat_col] += mean_suffix
 
         pretty_ref_group = ' and '.join(
-            '{}={}'.format(k, v)
+            f'{k}={v}'
             for k, v in self._ref_group.items()
         )
         title = 'Statistics{}'.format(
-            ' compared against: {}'.format(pretty_ref_group) if self._compare else ''
+            f' compared against: {pretty_ref_group}' if self._compare else ''
         )
 
         def plot(df, ax, collapsed_col, group):
@@ -914,6 +942,14 @@ class Stats(Loggable):
                 ]
             except KeyError:
                 error = None
+            else:
+                # Avoid warning from numpy inside matplotlib when there is no
+                # confidence interval value at all
+                if all(
+                    series.isna().all()
+                    for series in error
+                ):
+                    error = None
 
             if kind == 'horizontal_bar':
                 error_bar = dict(xerr=error)
@@ -927,7 +963,7 @@ class Stats(Loggable):
             elif kind == 'vertical_bar':
                 plot = df.plot.bar
             else:
-                raise ValueError('Unsupported plot kind: {}'.format(kind))
+                raise ValueError(f'Unsupported plot kind: {kind}')
 
             plot(
                 ax=ax,
@@ -939,10 +975,13 @@ class Stats(Loggable):
                 capsize=2,
             )
             title = ' '.join(
-                '{}={}'.format(k, v)
+                f'{k}={v}'
                 for k, v in group.items()
             )
             ax.set_title(title)
+
+            def format_val(val):
+                return f'{val:.2f}' if val > 1e-2 else f'{val:.2e}'
 
             # Display the value on the bar
             for row, patch in zip(df.itertuples(), ax.patches):
@@ -955,7 +994,7 @@ class Stats(Loggable):
 
                 # 3 chars allow things like 'f/s' or 'ms'
                 if len(unit) > 3:
-                    unit = '\n{}'.format(unit)
+                    unit = f'\n{unit}'
 
                 try:
                     ci = [
@@ -967,15 +1006,13 @@ class Stats(Loggable):
                 else:
                     if not any(map(pd.isna, ci)):
                         if ci[0] == ci[1]:
-                            ci = '\n(+/-{:.2f})'.format(ci[0])
+                            ci = '\n(+/-{})'.format(format_val(ci[0]))
                         else:
-                            ci = '\n(+{:.2f}/-{:.2f})'.format(*ci)
+                            ci = '\n(+{}/-{})'.format(*(map(format_val, ci)))
                     else:
                         ci = ''
 
-                text = '{:.2f} {}{}'.format(val, unit, ci)
-                line_height = 0.005
-                nr_lines = len(text.split('\n'))
+                text = f'{format_val(val)} {unit}{ci}'
 
                 if kind == 'horizontal_bar':
                     coord = (
@@ -1031,9 +1068,10 @@ class Stats(Loggable):
             interactive=interactive,
         )
 
-    def _collapse_cols(self, df, groups, hide_constant=True):
-        groups = {
-            leader: [
+    @staticmethod
+    def _collapse_cols(df, groups, hide_constant=True):
+        def trim_group(group):
+            trimmed = [
                 col
                 for col in group
                 # If the column to collapse has a constant value, there is
@@ -1041,6 +1079,12 @@ class Stats(Loggable):
                 # just noise
                 if (not hide_constant) or df[col].nunique() > 1
             ]
+            # If we got rid of all columns, keep them all. Otherwise we will
+            # end up with nothing to display which is problematic
+            return trimmed if trimmed else group
+
+        groups = {
+            leader: trim_group(group)
             for leader, group in groups.items()
             if group
         }
@@ -1059,7 +1103,7 @@ class Stats(Loggable):
                     if val == '':
                         return ''
                     else:
-                        return '{}={}{}'.format(col, val, sep)
+                        return f'{col}={val}{sep}'
 
                 return df[col].apply(make_str) + acc
 
@@ -1075,8 +1119,11 @@ class Stats(Loggable):
                 # extra noise
                 if len(group) == 1:
                     df[leader] = df[group[0]]
-                else:
+                elif group:
                     df[leader] = combine(leader, fold(collapse_group, group))
+                # If len(group) == 0, there is nothing to be done
+                else:
+                    df[leader] = ''
 
                 df.drop(columns=group, inplace=True)
 
@@ -1096,7 +1143,7 @@ class Stats(Loggable):
         :param filename: Path to the image file to write to.
         :type filename: str or None
         """
-        def plot_func(df, group, ax, x_col, y_col):
+        def plot_func(df, group, ax, x_col, y_col): # pylint: disable=unused-argument
             df.plot.hist(
                 ax=ax,
                 x=x_col,
@@ -1139,15 +1186,12 @@ class Stats(Loggable):
                     ax.set_ylabel(unit)
 
         return self._plot_values(
-            title='Values over {}'.format(
-                ', '.join(self._agg_cols)
-            ),
+            title=f"Values over {', '.join(self._agg_cols)}",
             plot_func=plot_func,
             **kwargs,
         )
 
     def _plot_values(self, title, plot_func, **kwargs):
-        val_col = self._val_col
         agg_cols = self._agg_cols
 
         df = self._orig_df
@@ -1163,9 +1207,9 @@ class Stats(Loggable):
             )
         ]
 
-        def plot(df, ax, collapsed_col, group):
+        def plot(df, ax, collapsed_col, group): # pylint: disable=unused-argument
             title = ' '.join(
-                '{}={}'.format(k, v)
+                f'{k}={v}'
                 for k, v in group.items()
                 if v != ''
             )

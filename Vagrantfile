@@ -3,7 +3,7 @@
 
 
 Vagrant.configure(2) do |config|
-  config.vm.box = "ubuntu/bionic64"
+  config.vm.box = "ubuntu/focal64"
 
   # Allow using tools like kernelshark
   config.ssh.forward_x11 = true
@@ -43,7 +43,7 @@ Vagrant.configure(2) do |config|
     echo 'source init_env' >> /home/vagrant/.bashrc
 
     # Trigger the creation of a venv and check that everything works well
-    if ! su vagrant bash -c 'tools/travis_tests.sh'; then
+    if ! su vagrant bash -c 'tools/tests.sh'; then
       echo "Self tests FAILED !"
     else
       echo "Virtual Machine Installation completed successfully!                "

@@ -18,9 +18,6 @@
 """ Helper module for registering Analysis classes methods """
 
 import contextlib
-import os
-import sys
-import logging
 import inspect
 import itertools
 
@@ -79,17 +76,13 @@ class AnalysisProxy(Loggable):
                 try:
                     analysis_cls = super().__getattribute__(attr)
                 except Exception:
-                    logger.debug('{} not found. Registered analysis:'.format(attr))
+                    logger.debug(f'{attr} not found. Registered analysis:')
                     for name, cls in list(self._class_map.items()):
                         src_file = '<unknown source>'
                         with contextlib.suppress(TypeError):
                             src_file = inspect.getsourcefile(cls) or src_file
 
-                        logger.debug('{name} ({cls}) defined in {src}'.format(
-                            name=name,
-                            cls=cls,
-                            src=src_file
-                        ))
+                        logger.debug(f'{name} ({cls}) defined in {src_file}')
 
                     raise
             else:

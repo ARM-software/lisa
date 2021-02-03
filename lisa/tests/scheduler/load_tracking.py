@@ -18,7 +18,6 @@
 import abc
 import os
 import itertools
-import collections
 from statistics import mean
 
 import pandas as pd
@@ -212,7 +211,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         return tasks[0]
 
     def get_tags(self):
-        return {'cpu': '{}@{}'.format(self.cpu, self.freq)}
+        return {'cpu': f'{self.cpu}@{self.freq}'}
 
     @classmethod
     def get_rtapp_profile(cls, plat_info, cpu, freq):
@@ -227,7 +226,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         duty_cycle_pct //= 2
 
         rtapp_profile = {}
-        rtapp_profile["{}{}".format(cls.task_prefix, cpu)] = Periodic(
+        rtapp_profile[f"{cls.task_prefix}{cpu}"] = Periodic(
             duty_cycle_pct=duty_cycle_pct,
             duration_s=2,
             period_ms=cls.TASK_PERIOD_MS,
@@ -253,7 +252,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
 
         with target.cpufreq.use_governor(**cls.cpufreq_conf):
             target.cpufreq.set_frequency(cpu, freq)
-            logger.debug('CPU{} frequency: {}'.format(cpu, target.cpufreq.get_frequency(cpu)))
+            logger.debug(f'CPU{cpu} frequency: {target.cpufreq.get_frequency(cpu)}')
             cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
 
         freq_list = freq_list or [freq]
@@ -335,9 +334,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
             signal_name == 'load'
             and kernel_version.parts[:2] < (5, 1)
         ):
-            logger().warning('Load signal is assumed to be CPU invariant, which is true for recent mainline kernels, but may be wrong for {}'.format(
-                kernel_version,
-            ))
+            logger().warning(f'Load signal is assumed to be CPU invariant, which is true for recent mainline kernels, but may be wrong for {kernel_version}')
 
         df['error'] = df[signal_name] - df['simulated']
         df = df.dropna()
@@ -347,19 +344,19 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         trace = self.trace
 
         axis = trace.analysis.load_tracking.plot_task_signals(task, signals=[signal_name])
-        simulated.plot(ax=axis, drawstyle='steps-post', label='simulated {}'.format(signal_name))
+        simulated.plot(ax=axis, drawstyle='steps-post', label=f'simulated {signal_name}')
 
         activation_axis = axis.twinx()
         trace.analysis.tasks.plot_task_activation(task, alpha=0.2, axis=activation_axis, duration=True)
 
         axis.legend()
 
-        path = ArtifactPath.join(self.res_dir, '{}_{}.png'.format(test_name, signal_name))
+        path = ArtifactPath.join(self.res_dir, f'{test_name}_{signal_name}.png')
         trace.analysis.load_tracking.save_plot(axis.get_figure(), filepath=path)
 
     def _add_cpu_metric(self, res_bundle):
-        freq_str = '@{}'.format(self.freq) if self.freq is not None else ''
-        res_bundle.add_metric("cpu", '{}{}'.format(self.cpu, freq_str))
+        freq_str = f'@{self.freq}' if self.freq is not None else ''
+        res_bundle.add_metric("cpu", f'{self.cpu}{freq_str}')
         return res_bundle
 
     @get_simulated_pelt.used_events
@@ -533,7 +530,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             try:
                 return filtered_class[0]
             except IndexError:
-                raise RuntimeError('All CPUs of one capacity class have been blacklisted: {}'.format(cpu_class))
+                raise RuntimeError(f'All CPUs of one capacity class have been blacklisted: {cpu_class}')
 
         # pick one CPU per class of capacity
         cpus = [
@@ -577,7 +574,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
         logger = cls.get_logger()
         logger.info('Will run on: {}'.format(
             ', '.join(
-                'CPU{}@{}'.format(cpu, freq)
+                f'CPU{cpu}@{freq}'
                 for cpu, (all_freqs, freq_list) in sorted(cpu_freqs.items())
                 for freq in freq_list
             )
@@ -585,14 +582,10 @@ class Invariance(TestBundle, LoadTrackingHelpers):
 
         for cpu, (all_freqs, freq_list) in sorted(cpu_freqs.items()):
             for freq in freq_list:
-                item_dir = ArtifactPath.join(res_dir, "{prefix}_{cpu}@{freq}".format(
-                    prefix=InvarianceItem.task_prefix,
-                    cpu=cpu,
-                    freq=freq,
-                ))
+                item_dir = ArtifactPath.join(res_dir, f"{InvarianceItem.task_prefix}_{cpu}@{freq}")
                 os.makedirs(item_dir)
 
-                logger.info('Running experiment for CPU {}@{}'.format(cpu, freq))
+                logger.info(f'Running experiment for CPU {cpu}@{freq}')
                 yield InvarianceItem.from_target(
                     target, cpu=cpu, freq=freq, freq_list=all_freqs, res_dir=item_dir,
                     ftrace_coll=ftrace_coll,
@@ -733,10 +726,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             # different frequencies
             bundle.add_metric('cpu', cpu)
 
-            logger.info('Util avg invariance {res} for CPU {cpu}'.format(
-                res=bundle.result.lower_name,
-                cpu=cpu,
-            ))
+            logger.info(f'Util avg invariance {bundle.result.lower_name} for CPU {cpu}')
             return bundle
 
         group_result_bundles = [
@@ -803,8 +793,7 @@ class CPUMigrationBase(LoadTrackingBase):
         for name, task in profile.items():
             for phase in task.phases:
                 if len(phase.cpus) != 1:
-                    raise RuntimeError("Each phase must be tied to a single CPU. "
-                                       "Task \"{}\" violates this".format(name))
+                    raise RuntimeError(f"Each phase must be tied to a single CPU. Task \"{name}\" violates this")
 
         super().run_rtapp(target, res_dir, profile, ftrace_coll, cgroup)
 
@@ -852,8 +841,7 @@ class CPUMigrationBase(LoadTrackingBase):
                 return cpus[:nr_required_cpu]
 
         raise CannotCreateError(
-            "This workload requires {} CPUs of identical capacity".format(
-                nr_required_cpu))
+            f"This workload requires {nr_required_cpu} CPUs of identical capacity")
 
     # Don't strictly check for cpu_frequency, since there might be no occurence
     # of the event.
@@ -1046,7 +1034,7 @@ class CPUMigrationBase(LoadTrackingBase):
             expected_cpu_util = expected_util[cpu]
             trace_cpu_util = trace_util[cpu]
 
-            cpu_str = "cpu{}".format(cpu)
+            cpu_str = f"cpu{cpu}"
             expected_metrics[cpu_str] = TestMetric({})
             trace_metrics[cpu_str] = TestMetric({})
             deltas[cpu_str] = TestMetric({})
@@ -1067,7 +1055,7 @@ class CPUMigrationBase(LoadTrackingBase):
                     passed = False
 
                 # Just some verbose metric collection...
-                phase_str = "phase{}".format(phase)
+                phase_str = f"phase{phase}"
                 expected_metrics[cpu_str].data[phase_str] = TestMetric(expected_phase_util)
                 trace_metrics[cpu_str].data[phase_str] = TestMetric(trace_phase_util)
                 deltas[cpu_str].data[phase_str] = TestMetric(delta, "%")
@@ -1131,7 +1119,7 @@ class NTasksCPUMigrationBase(CPUMigrationBase):
     @classmethod
     def get_rtapp_profile(cls, plat_info):
         cpus = cls.get_migration_cpus(plat_info)
-        def make_name(i): return 'migr{}'.format(i)
+        def make_name(i): return f'migr{i}'
 
         nr_tasks = len(cpus)
         profile = {

@@ -573,9 +573,29 @@ public class BaseUiAutomation {
         }
     }
 
+
+    // If an an app is not designed for running on the latest version of android
+    // (currently Q) an additional screen can popup asking to confirm permissions.
+    public void dismissAndroidPermissionPopup() throws Exception {
+        UiObject permissionAccess =
+            mDevice.findObject(new UiSelector().textMatches(
+                ".*Choose what to allow .* to access"));
+        UiObject continueButton =
+                mDevice.findObject(new UiSelector().resourceId("com.android.permissioncontroller:id/continue_button")
+                                                   .textContains("Continue"));
+        if (permissionAccess.exists() && continueButton.exists()) {
+            continueButton.click();
+        }
+    }
+
+
     // If an an app is not designed for running on the latest version of android
     // (currently Q) dissmiss the warning popup if present.
     public void dismissAndroidVersionPopup() throws Exception {
+
+        // Ensure we have dissmied any permission screens before looking for the version popup
+        dismissAndroidPermissionPopup();
+
         UiObject warningText =
             mDevice.findObject(new UiSelector().textContains(
                 "This app was built for an older version of Android"));
@@ -586,7 +606,8 @@ public class BaseUiAutomation {
             acceptButton.click();
         }
     }
-   
+
+
     // If Chrome is a fresh install then these popups may be presented
     // dismiss them if visible.
     public void dismissChromePopup() throws Exception {
@@ -600,7 +621,7 @@ public class BaseUiAutomation {
                     .className("android.widget.Button"));
             if (negative.waitForExists(10000)) {
                 negative.click();
-            }      
+            }
         }
         UiObject lite =
             mDevice.findObject(new UiSelector().resourceId("com.android.chrome:id/button_secondary")

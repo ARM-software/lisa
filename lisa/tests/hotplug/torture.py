@@ -22,15 +22,15 @@ import os.path
 import collections
 import time
 from time import sleep
-from subprocess import DEVNULL
 from threading import Thread
 from operator import itemgetter
 
 from devlib.module.hotplug import HotplugModule
 from devlib.exception import TargetNotRespondingError
 
-from lisa.tests.base import TestMetric, ResultBundle, TestBundle
+from lisa.tests.base import TestMetric, ResultBundle, DmesgTestBundle
 from lisa.target import Target
+from lisa.trace import DmesgCollector
 from lisa.utils import ArtifactPath
 
 
@@ -38,9 +38,8 @@ class CPUHPSequenceError(Exception):
     pass
 
 
-class HotplugBase(TestBundle):
-    def __init__(self, plat_info, target_alive, hotpluggable_cpus, live_cpus):
-        res_dir = None
+class HotplugBase(DmesgTestBundle):
+    def __init__(self, res_dir, plat_info, target_alive, hotpluggable_cpus, live_cpus):
         super().__init__(res_dir, plat_info)
         self.target_alive = target_alive
         self.hotpluggable_cpus = hotpluggable_cpus
@@ -60,9 +59,7 @@ class HotplugBase(TestBundle):
 
         """
         if len(sequence) != nr_operations:
-            raise CPUHPSequenceError('{} operations requested, but got {}'.format(
-                nr_operations, len(sequence)
-            ))
+            raise CPUHPSequenceError(f'{nr_operations} operations requested, but got {len(sequence)}')
 
         # Assume als CPUs are plugged in at the beginning
         state = collections.defaultdict(lambda: 1)
@@ -84,15 +81,11 @@ class HotplugBase(TestBundle):
             state[cpu] = plug_way
             cpus_off = [cpu for cpu, state in state.items() if state == 0]
             if len(cpus_off) > max_cpus_off:
-                raise CPUHPSequenceError('A maximum of {} CPUs is allowed to be plugged out, but {} CPUs were plugged out at step {}'.format(
-                    max_cpus_off, len(cpus_off), step,
-                ))
+                raise CPUHPSequenceError(f'A maximum of {max_cpus_off} CPUs is allowed to be plugged out, but {len(cpus_off)} CPUs were plugged out at step {step}')
 
         for cpu, state in state.items():
             if state != 1:
-                raise CPUHPSequenceError('CPU {} is plugged out but not plugged in at the end of the sequence'.format(
-                    cpu
-                ))
+                raise CPUHPSequenceError(f'CPU {cpu} is plugged out but not plugged in at the end of the sequence')
 
     @classmethod
     @abc.abstractmethod
@@ -200,22 +193,28 @@ class HotplugBase(TestBundle):
         # stops responding. So handle the hotplug remote func in a separate
         # thread and keep polling the target
         thread = Thread(target=do_hotplug, daemon=True)
-        try:
-            thread.start()
-            while thread.is_alive():
-                # We might have a thread hanging off in that case, but there is
-                # not much we can do since the remote func cannot really be
-                # canceled. Since it was spawned with a timeout, it will
-                # eventually die.
-                if not target.check_responsive():
-                    break
-                sleep(0.1)
-        finally:
-            target_alive = bool(target.check_responsive())
-            target.hotplug.online_all()
+
+        dmesg_path = ArtifactPath.join(res_dir, cls.DMESG_PATH)
+        dmesg_coll = DmesgCollector(target)
+        with dmesg_coll:
+            try:
+                thread.start()
+                while thread.is_alive():
+                    # We might have a thread hanging off in that case, but there is
+                    # not much we can do since the remote func cannot really be
+                    # canceled. Since it was spawned with a timeout, it will
+                    # eventually die.
+                    if not target.check_responsive():
+                        break
+                    sleep(0.1)
+            finally:
+                target_alive = bool(target.check_responsive())
+                target.hotplug.online_all()
+
+        dmesg_coll.get_data(dmesg_path)
 
         live_cpus = target.list_online_cpus() if target_alive else []
-        return cls(target.plat_info, target_alive, hotpluggable_cpus, live_cpus)
+        return cls(res_dir, target.plat_info, target_alive, hotpluggable_cpus, live_cpus)
 
     def test_target_alive(self) -> ResultBundle:
         """

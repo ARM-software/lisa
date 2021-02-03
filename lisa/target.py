@@ -16,11 +16,9 @@
 #
 
 from datetime import datetime
-import json
 import os
 import os.path
 import contextlib
-import logging
 import shlex
 from collections.abc import Mapping
 import copy
@@ -29,7 +27,6 @@ import argparse
 import textwrap
 import functools
 import inspect
-import abc
 import pickle
 import tempfile
 from types import ModuleType, FunctionType
@@ -38,12 +35,10 @@ from operator import itemgetter
 import devlib
 from devlib.exception import TargetStableError
 from devlib.utils.misc import which
-from devlib import Platform
 from devlib.platform.gem5 import Gem5SimulationPlatform
 
-import lisa.assets
-from lisa.wlgen.rta import RTA
-from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, ASSETS_PATH, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized
+from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized
+from lisa.assets import ASSETS_PATH
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc,Configurable
 from lisa.generic import TypedList
 
@@ -246,7 +241,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         devlib_platform=None, devlib_excluded_modules=[],
         wait_boot=True, wait_boot_timeout=10,
     ):
-
+        # pylint: disable=dangerous-default-value
         super().__init__()
         logger = self.get_logger()
 
@@ -255,7 +250,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         res_dir = res_dir if res_dir else self._get_res_dir(
             root=os.path.join(LISA_HOME, RESULT_DIR),
             relative='',
-            name='{}-{}'.format(self.__class__.__qualname__, self.name),
+            name=f'{self.__class__.__qualname__}-{self.name}',
             append_time=True,
             symlink=True
         )
@@ -263,7 +258,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         self._res_dir = res_dir
         os.makedirs(self._res_dir, exist_ok=True)
         if os.listdir(self._res_dir):
-            raise ValueError('res_dir must be empty: {}'.format(self._res_dir))
+            raise ValueError(f'res_dir must be empty: {self._res_dir}')
 
         if plat_info is None:
             plat_info = PlatformInfo()
@@ -271,7 +266,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             # Make a copy of the PlatformInfo so we don't modify the original
             # one we were passed when adding the target source to it
             plat_info = copy.copy(plat_info)
-            logger.info('User-defined platform information:\n{}'.format(plat_info))
+            logger.info(f'User-defined platform information:\n{plat_info}')
 
         self.plat_info = plat_info
 
@@ -310,7 +305,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         # Initialize binary tools to deploy
         if tools:
-            logger.info('Tools to install: {}'.format(tools))
+            logger.info(f'Tools to install: {tools}')
             self.install_tools(tools)
 
         # Autodetect information from the target, after the Target is
@@ -321,7 +316,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         os.makedirs(rta_calib_res_dir)
         self.plat_info.add_target_src(self, rta_calib_res_dir, deferred=lazy_platinfo, fallback=True)
 
-        logger.info('Effective platform information:\n{}'.format(self.plat_info))
+        logger.info(f'Effective platform information:\n{self.plat_info}')
 
     @property
     @memoized
@@ -348,11 +343,11 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             already, and bail out if it fails to load.
         """
         if module not in _DEVLIB_AVAILABLE_MODULES:
-            raise ValueError('"{}" is not a devlib module'.format(module))
+            raise ValueError(f'"{module}" is not a devlib module')
 
         try:
             getattr(self, module)
-        except Exception:
+        except Exception: # pylint: disable=broad-except
             return False
         else:
             return True
@@ -368,20 +363,22 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         .. note:: Devlib modules are loaded on demand when accessed.
         """
 
-        def get(): return getattr(self.target, attr)
+        def get():
+            return getattr(self.target, attr)
 
         try:
             return get()
         except AttributeError:
             # Load the module on demand
             if attr in self._devlib_loadable_modules:
-                self.get_logger().info('Loading target devlib module {}'.format(attr))
+                self.get_logger().info(f'Loading target devlib module {attr}')
                 self.target.install_module(attr)
                 return get()
             # If it was not in the loadable list, it
             # has been excluded explicitly
             elif attr in _DEVLIB_AVAILABLE_MODULES:
-                raise AttributeError('Devlib target module {} was explicitly excluded, not loading it'.format(attr))
+                # pylint: disable=raise-missing-from
+                raise AttributeError(f'Devlib target module {attr} was explicitly excluded, not loading it')
             # Something else that does not exist ...
             else:
                 raise
@@ -396,7 +393,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
     @classmethod
     def from_conf(cls, conf: TargetConf, res_dir: ArtifactPath = None, plat_info: PlatformInfo = None) -> 'Target':
-        cls.get_logger().info('Target configuration:\n{}'.format(conf))
+        cls.get_logger().info(f'Target configuration:\n{conf}')
         kwargs = cls.conf_to_init_kwargs(conf)
         kwargs['res_dir'] = res_dir
         kwargs['plat_info'] = plat_info
@@ -447,8 +444,8 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         conf = TargetConf.from_yaml_map(path)
         try:
             plat_info = PlatformInfo.from_yaml_map(path)
-        except Exception as e:
-            cls.get_logger().warning('No platform information could be found: {}'.format(e))
+        except Exception as e: # pylint: disable=broad-except
+            cls.get_logger().warning(f'No platform information could be found: {e}')
             plat_info = None
         return cls.from_conf(conf=conf, plat_info=plat_info)
 
@@ -461,7 +458,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         :return: A connected :class:`Target`
         """
-        args, target = cls.from_custom_cli(argv=argv, params=params)
+        _, target = cls.from_custom_cli(argv=argv, params=params)
         return target
 
     @classmethod
@@ -536,7 +533,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         params = params or {}
         for param, settings in params.items():
-            parser.add_argument('--{}'.format(param), **settings)
+            parser.add_argument(f'--{param}', **settings)
         custom_params = {k.replace('-', '_') for k in params.keys()}
 
         # Options that are not a key in TargetConf must be listed here
@@ -581,7 +578,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         if args.kind == 'linux':
             for required in ['host', 'username', 'password']:
                 if required not in target_conf:
-                    parser.error('--{} must be specified'.format(required))
+                    parser.error(f'--{required} must be specified')
 
         custom_args = {
             param: value
@@ -604,7 +601,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         conn_settings = {}
         resolved_username = username or 'root'
 
-        logger.debug('Setting up {} target...'.format(kind))
+        logger.debug(f'Setting up {kind} target...')
 
         # If the target is Android, we need just (eventually) the device
         if kind == 'android':
@@ -617,7 +614,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 pass
             elif host:
                 port = port or self.ADB_PORT_DEFAULT
-                device = '{}:{}'.format(host, port)
+                device = f'{host}:{port}'
             else:
                 device = 'DEFAULT'
 
@@ -649,14 +646,14 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 password=password,
             )
         else:
-            raise ValueError('Unsupported platform type {}'.format(kind))
+            raise ValueError(f'Unsupported platform type {kind}')
 
         settings = '\n    '.join(
-            '    {}: {}'.format(key, val)
+            f'    {key}: {val}'
             for key, val in conn_settings.items()
             if key != 'password'
         )
-        logger.debug('{} {} target connection settings:\n    {}'.format(kind, name, settings))
+        logger.debug(f'{kind} {name} target connection settings:\n    {settings}')
 
         ########################################################################
         # Devlib Platform configuration
@@ -685,18 +682,14 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         if kind == 'android' and username is None:
             try:
                 target.adb_root(enable=True)
-            except Exception as e:
-                logger.warning('"adb root" failed: {}'.format(e))
+            except Exception as e: # pylint: disable=broad-except
+                logger.warning(f'"adb root" failed: {e}')
 
-        logger.debug('Target info: {}'.format(dict(
-            abi=target.abi,
-            cpuinfo=target.cpuinfo,
-            workdir=target.working_directory,
-        )))
+        logger.debug(f'Target info: {dict(abi=target.abi, cpuinfo=target.cpuinfo, workdir=target.working_directory)}')
 
         target.setup()
 
-        logger.info('Connected to target {}'.format(name or ''))
+        logger.info(f"Connected to target {(name or '')}")
         return target
 
     def get_res_dir(self, name=None, append_time=True, symlink=True):
@@ -743,14 +736,14 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             if not name:
                 name = time_str
             elif append_time:
-                name = "{}-{}".format(name, time_str)
+                name = f"{name}-{time_str}"
 
             # If we were given an ArtifactPath with an existing root, we
             # preserve that root so it can be relocated as the caller wants it
             res_dir = ArtifactPath(root, os.path.join(relative, name))
 
             # Compute base installation path
-            logger.info('Creating result directory: {}'.format(res_dir))
+            logger.info(f'Creating result directory: {res_dir}')
 
             # It will fail if the folder already exists. In that case,
             # append_time should be used to ensure we get a unique name.
@@ -836,7 +829,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
                 @contextlib.contextmanager
                 def cm():
-                    logger.info('Freezing all tasks except: {}'.format(','.join(exclude)))
+                    logger.info(f"Freezing all tasks except: {','.join(exclude)}")
                     try:
                         yield self.cgroups.freeze(exclude)
                     finally:
@@ -879,20 +872,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
     @classmethod
     def _make_remote_snippet(cls, name, code_str, module, kwargs, global_vars, out_tempfiles):
-        def init_vars(variables, in_dict=None):
-            if in_dict:
-                dict_entry = lambda name: '{}[{}]'.format(in_dict, repr(name))
-                dict_def = '{} = {{}}\n'.format(in_dict)
-            else:
-                dict_entry = lambda name: name
-                dict_def = ''
-
-
-            return dict_def + '\n'.join(
-                '{} = pickle.loads({})'.format(dict_entry(name), repr(pickle.dumps(val)))
-                for name, val in variables.items()
-            )
-
         # Inject the parameters inside the wrapper's globals so that it can
         # access them. It's harmless as they would shadow any global name
         # anyway, and it's restricted to the wrapper using eval()
@@ -960,7 +939,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         }
 
         if modules:
-            modules = 'import {}'.format(', '.join(sorted(modules)))
+            modules = f"import {', '.join(sorted(modules))}"
         else:
             modules = ''
 
@@ -994,7 +973,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             out_tempfiles=repr(out_tempfiles),
             globals=repr(pickle.dumps(global_vars)),
             kwargs=', '.join(
-                '{}={}'.format(name, name)
+                f'{name}={name}'
                 for name in kwargs.keys()
             )
         )
@@ -1044,9 +1023,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         def mktemp():
             return self.execute(
-                'mktemp -p {}'.format(
-                    shlex.quote(self.working_directory),
-                )
+                f'mktemp -p {shlex.quote(self.working_directory)}'
             ).strip()
 
         def read_output(path):
@@ -1062,6 +1039,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 return read_output(val)
             # If the file is empty, we probably got an exception
             except EOFError:
+                # pylint: disable=raise-missing-from
                 try:
                     excep = read_output(excep)
                 # If we can't even read the exception, raise the initial one
@@ -1090,7 +1068,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             cmd = ' '.join(map(shlex.quote, cmd))
             try:
                 self.execute(cmd, **execute_kwargs)
-            except Exception as e:
+            except Exception as e: # pylint: disable=broad-except
                 err = e
             else:
                 err = None
@@ -1136,12 +1114,11 @@ class Gem5SimulationPlatformWrapper(Gem5SimulationPlatform):
         simulator_args.append(system_platform['description'])
         simulator_args.extend(system_platform.get('args', []))
 
-        simulator_args += ['--kernel {}'.format(system['kernel']),
-                 '--dtb {}'.format(system['dtb']),
-                 '--disk-image {}'.format(system['disk'])]
-
-        # Quote/escape arguments and build the command line
-        gem5_args = ' '.join(shlex.quote(a) for a in simulator_args)
+        simulator_args.extend((
+            f"--kernel {system['kernel']}",
+            f"--dtb {system['dtb']}",
+            f"--disk-image {system['disk']}"
+        ))
 
         diod_path = which('diod')
         if diod_path is None:
@@ -1149,12 +1126,18 @@ class Gem5SimulationPlatformWrapper(Gem5SimulationPlatform):
 
         # Setup virtio
         # Brackets are there to let the output dir be created automatically
-        virtio_args = '--which-diod={} --workload-automation-vio={{}}'.format(diod_path)
+        virtio_args = [
+            f'--which-diod={diod_path}',
+            '--workload-automation-vio={}',
+        ]
+        simulator_args.extend(virtio_args)
+
+        # Quote/escape arguments and build the command line
+        gem5_args = ' '.join(shlex.quote(a) for a in simulator_args)
 
         super().__init__(
             gem5_args=gem5_args,
             gem5_bin=simulator['bin'],
-            virtio_args=virtio_args,
             **kwargs
         )
 

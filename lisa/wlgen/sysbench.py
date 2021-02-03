@@ -50,8 +50,9 @@ class Sysbench(Workload):
     """
     A sysbench workload
 
-    :ivar output: The saved output of the last :meth:`run()` invocation.
-      Of type :class:`SysbenchOutput` for ease of use.
+    :Attributes:
+        * ``output`` (:class:`SysbenchOutput`): The saved output of the last
+          :meth:`run()` invocation.
     """
 
     required_tools = Workload.required_tools + ['sysbench']
@@ -103,7 +104,7 @@ class Sysbench(Workload):
             kwargs['max-requests'] = max_requests
 
         arg_list = [self.sysbench_bin] + [
-            quote('--{}={}'.format(arg.replace("_", "-"), value))
+            quote(f"--{arg.replace('_', '-')}={value}")
             for arg, value in kwargs.items()
         ] + ['run']
 

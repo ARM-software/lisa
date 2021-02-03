@@ -1,0 +1,92 @@
+name: WA Test Suite
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+    types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    - cron: 0 2 * * *
+  # Allows runing this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  Run-Linters-and-Tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.5
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.5
+    - name: git-bash
+      uses: pkg-src/github-action-git-bash@v1.1
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        cd /tmp && git clone https://github.com/ARM-software/devlib.git && cd devlib && pip install .
+        cd $GITHUB_WORKSPACE && pip install .[test]
+        pip install pylint pep8 flake8 mock nose
+    - name: Run pylint
+      run: |
+        cd $GITHUB_WORKSPACE && ./dev_scripts/pylint wa/
+    - name: Run PEP8
+      run: |
+        cd $GITHUB_WORKSPACE && ./dev_scripts/pep8 wa
+    - name: Run nose tests
+      run: |
+        nosetests
+
+  Execute-Test-Workload-and-Process:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.5, 3.6, 3.7, 3.8]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: git-bash
+      uses: pkg-src/github-action-git-bash@v1.1
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        cd /tmp && git clone https://github.com/ARM-software/devlib.git && cd devlib && pip install .
+        cd $GITHUB_WORKSPACE && pip install .
+    - name: Run test workload
+      run: |
+        cd /tmp && wa run $GITHUB_WORKSPACE/tests/ci/idle_agenda.yaml -v -d idle_workload
+    - name: Test Process Command
+      run: |
+        cd /tmp && wa process -f -p csv idle_workload
+
+  Test-WA-Commands:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.5, 3.6, 3.7, 3.8]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: git-bash
+      uses: pkg-src/github-action-git-bash@v1.1
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        cd /tmp && git clone https://github.com/ARM-software/devlib.git && cd devlib && pip install .
+        cd $GITHUB_WORKSPACE && pip install .
+    - name: Test Show Command
+      run: |
+        wa show dhrystone && wa show generic_android && wa show trace-cmd && wa show csv
+    - name: Test List Command
+      run: |
+        wa list all
+    - name: Test Create Command
+      run: |
+        wa create agenda dhrystone generic_android csv trace_cmd && wa create package test && wa create workload test

@@ -18,7 +18,6 @@
 import math
 
 import pandas as pd
-import numpy as np
 
 from lisa.datautils import series_envelope_mean
 
@@ -199,8 +198,8 @@ def pelt_swing(period, duty_cycle, window=PELT_WINDOW, half_life=PELT_HALF_LIFE,
     swing = scale * (1 - math.exp(-runtime / tau))
     return swing
 
-
 def pelt_settling_time(margin=1, init=0, final=PELT_SCALE, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
+# pylint: disable=unused-argument
     """
     Compute an approximation of the PELT settling time.
 
@@ -251,6 +250,7 @@ def pelt_settling_time(margin=1, init=0, final=PELT_SCALE, window=PELT_WINDOW, h
 
 
 def kernel_util_mean(util, plat_info):
+# pylint: disable=unused-argument
     """
     Compute the mean of a utilization signal as output by the kernel.
 

@@ -33,14 +33,14 @@ import functools
 import threading
 import weakref
 
-import lisa
+from ruamel.yaml.comments import CommentedMap
 
+import lisa
 from lisa.utils import (
     Serializable, Loggable, get_nested_key, set_nested_key, get_call_site,
     is_running_sphinx, get_cls_name, HideExekallID, get_subclasses, groupby,
     import_all_submodules,
 )
-from ruamel.yaml.comments import CommentedMap
 
 
 class DeferredValue:
@@ -67,7 +67,7 @@ class DeferredValue:
         # Make sure we don't reenter the callback, to avoid infinite loops.
         if self._is_computing:
             key = key_desc.qualname if key_desc else '<unknown>'
-            raise KeyComputationRecursionError('Recursion error while computing deferred value for key: {}'.format(key), key)
+            raise KeyComputationRecursionError(f'Recursion error while computing deferred value for key: {key}', key)
 
         self._is_computing = True
         try:
@@ -76,7 +76,7 @@ class DeferredValue:
             self._is_computing = False
 
     def __str__(self):
-        return '<lazy value of {}>'.format(self.callback.__qualname__)
+        return f'<lazy value of {self.callback.__qualname__}>'
 
 
 class DeferredExcep(DeferredValue):
@@ -95,7 +95,7 @@ class DeferredExcep(DeferredValue):
         super().__init__(callback=callback)
 
     def __str__(self):
-        return '<lazy {} exception>'.format(self.excep.__class__.__qualname__)
+        return f'<lazy {self.excep.__class__.__qualname__} exception>'
 
 
 class KeyDescBase(abc.ABC):
@@ -109,10 +109,10 @@ class KeyDescBase(abc.ABC):
     _VALID_NAME_PATTERN = r'^[a-zA-Z0-9-]+$'
 
     def __init__(self, name, help):
+        # pylint: disable=redefined-builtin
+
         if not re.match(self._VALID_NAME_PATTERN, name):
-            raise ValueError('Invalid key name "{}". Key names must match: {}'.format(
-                name, self._VALID_NAME_PATTERN,
-            ))
+            raise ValueError(f'Invalid key name "{name}". Key names must match: {self._VALID_NAME_PATTERN}')
 
         self.name = name
         self.help = help
@@ -196,6 +196,8 @@ class KeyDesc(KeyDescBase):
     """
 
     def __init__(self, name, help, classinfo, newtype=None, deepcopy_val=True):
+        # pylint: disable=redefined-builtin
+
         super().__init__(name=name, help=help)
         # isinstance's style classinfo
         self.classinfo = tuple(classinfo)
@@ -227,15 +229,10 @@ class KeyDesc(KeyDescBase):
         key = self.qualname
 
         def get_excep(key, val, classinfo, cls, msg):
+            # pylint: disable=unused-argument
             classinfo = ' or '.join(get_cls_name(cls) for cls in classinfo)
             msg = ': ' + msg if msg else ''
-            return TypeError('Key "{key}" is an instance of {actual_cls}, but should be instance of {classinfo}{msg}. Help: {help}'.format(
-                key=key,
-                actual_cls=get_cls_name(type(val)),
-                classinfo=classinfo,
-                msg=msg,
-                help=self.help,
-            ), key)
+            return TypeError(f'Key "{key}" is an instance of {get_cls_name(type(val))}, but should be instance of {classinfo}{msg}. Help: {self.help}', key)
 
         def checkinstance(key, val, classinfo):
             excep_list = []
@@ -287,7 +284,7 @@ class KeyDesc(KeyDescBase):
             fmt = base_fmt
 
         if self.help:
-            joiner = '\n{}'.format(' ' * len(prefix))
+            joiner = f"\n{(' ' * len(prefix))}"
             wrapped_lines = textwrap.wrap(self.help, width=60)
             # If more than one line, output a paragraph on its own starting on
             # a new line
@@ -315,7 +312,8 @@ class KeyDesc(KeyDescBase):
             prefixed_help=prefixed_help,
         )
 
-    def pretty_format(self, v):
+    @staticmethod
+    def pretty_format(v):
         """
         Format the value for pretty printing.
 
@@ -332,6 +330,7 @@ class ConfigKeyError(KeyError):
     Exception raised when a key is not found in the config instance.
     """
     def __init__(self, msg, key=None, src=None):
+        # pylint: disable=super-init-not-called
         self.msg = msg
         self.key = key
         self.src = src
@@ -388,6 +387,7 @@ class DerivedKeyDesc(KeyDesc):
     """
 
     def __init__(self, name, help, classinfo, base_key_paths, compute, newtype=None):
+        # pylint: disable=redefined-builtin
         super().__init__(name=name, help=help, classinfo=classinfo, newtype=newtype)
         self._base_key_paths = base_key_paths
         self._compute = compute
@@ -476,11 +476,7 @@ class DerivedKeyDesc(KeyDesc):
         except ConfigKeyError as e:
             key = self.qualname
             raise MissingBaseKeyError(
-                'Missing value for base key "{base_key}" in order to compute derived key "{derived_key}": {msg}'.format(
-                    derived_key=key,
-                    base_key=e.key,
-                    msg=e.msg,
-                ),
+                f'Missing value for base key "{e.key}" in order to compute derived key "{key}": {e.msg}',
                 key=key,
             ) from e
 
@@ -517,7 +513,7 @@ class DerivedKeyDesc(KeyDesc):
 
         if stack:
             key = self.qualname
-            raise KeyComputationRecursionError('Recursion error while computing derived key: {}'.format(key), key)
+            raise KeyComputationRecursionError(f'Recursion error while computing derived key: {key}', key)
         else:
             stack.append(self)
 
@@ -563,6 +559,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
     """
 
     def __init__(self, name, help, children):
+        # pylint: disable=redefined-builtin
         super().__init__(name=name, help=help)
         self.children = children
 
@@ -592,8 +589,9 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         Checks that a given key is allowed under that levels
         """
         try:
-            key_desc = self._key_map[key]
+            self._key_map[key]
         except KeyError:
+            # pylint: disable=raise-missing-from
             try:
                 closest_match = difflib.get_close_matches(
                     word=str(key),
@@ -603,15 +601,11 @@ class LevelKeyDesc(KeyDescBase, Mapping):
             except IndexError:
                 closest_match = ''
             else:
-                closest_match = ', maybe you meant "{}" ?'.format(closest_match)
+                closest_match = f', maybe you meant "{closest_match}" ?'
 
             parent = self.qualname
             raise ConfigKeyError(
-                'Key "{key}" is not allowed in {parent}{maybe}'.format(
-                    key=key,
-                    parent=parent,
-                    maybe=closest_match,
-                ),
+                f'Key "{key}" is not allowed in {parent}{closest_match}',
                 key=key,
             )
 
@@ -619,9 +613,7 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         """Validate a mapping to be used as a configuration source"""
         if not isinstance(conf, Mapping):
             key = self.qualname
-            raise TypeError('Configuration of {key} must be a Mapping'.format(
-                key=key,
-            ), key)
+            raise TypeError(f'Configuration of {key} must be a Mapping', key)
         for key, val in conf.items():
             self[key].validate_val(val)
 
@@ -639,7 +631,6 @@ class LevelKeyDesc(KeyDescBase, Mapping):
             suffix=suffix,
             key=self.name,
             help=' ' + self.help if self.help else '',
-            idt=idt,
         )
         nl = '\n' + idt
         help_ += nl.join(
@@ -660,126 +651,15 @@ class TopLevelKeyDesc(LevelKeyDesc):
     This top-level key is omitted in all interfaces except for the
     configuration file, since it only reflects the configuration class
     """
-    def get_help(self, style):
+    def get_help(self, style=None):
         if style == 'yaml':
             return self.help
         else:
             return super().get_help(style=style)
 
 
-class MultiSrcConfMeta(abc.ABCMeta):
-    """
-    Metaclass of :class:`MultiSrcConf`.
-
-    It will use the docstring of the class, using it as a ``str.format``
-    template with the following placeholders:
-
-        * ``{generated_help}``: snippet of ResStructuredText containing the
-          list of allowed keys.
-
-        * ``{yaml_example}``: example snippet of YAML
-
-    It will also create the types specified using ``newtype`` in the
-    :class:`KeyDesc`, along with a getter to expose it to ``exekall``.
-
-    .. note:: Since the dosctring is interpreted as a template, "{" and "}"
-        characters must be doubled to appear in the final output.
-    """
-    def __new__(metacls, name, bases, dct, **kwargs):
-        new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
-        if not inspect.isabstract(new_cls):
-            if new_cls.__doc__:
-                doc = inspect.getdoc(new_cls)
-                # Create a ResStructuredText preformatted block when rendering
-                # with Sphinx
-                style = 'rst' if is_running_sphinx() else None
-                generated_help = '\n' + new_cls.get_help(style=style)
-                indent = '\n    '
-                try:
-                    # Not all classes support these parameters
-                    yaml_example = new_cls().to_yaml_map_str(
-                        add_placeholder=True,
-                        placeholder='_'
-                    )
-                except TypeError:
-                    yaml_example = new_cls().to_yaml_map_str()
-
-                if yaml_example:
-                    yaml_example = ':Example YAML:\n\n.. code-block:: YAML\n' + indent + yaml_example.replace('\n', indent)
-                new_cls.__doc__ = doc.format(
-                    generated_help=generated_help,
-                    yaml_example=yaml_example
-                )
-
-        # Create the types for the keys that specify it, along with the getters
-        # to expose the values to exekall
-        if hasattr(new_cls, 'STRUCTURE') and isinstance(new_cls.STRUCTURE, TopLevelKeyDesc):
-
-            def flatten(structure):
-                for key_desc in structure.values():
-                    if isinstance(key_desc, LevelKeyDesc):
-                        yield from flatten(key_desc)
-                    else:
-                        yield key_desc
-
-            for key_desc in flatten(new_cls.STRUCTURE):
-                newtype_name = key_desc.newtype
-                if isinstance(key_desc, KeyDesc):
-
-                    # We need a helper to make sure "key_desc" is bound to the
-                    # right object, otherwise it will be referred by name only
-                    # and will always have the value during the last iteration
-                    # of the loop
-                    def make_metacls(key_desc):
-                        # Implement __instancecheck__ on the metaclass allows
-                        # isinstance(x, Newtype) to be true for any instance of any
-                        # type given in KeyDesc.__init__(classinfo=...)
-                        class NewtypeMeta(type):
-                            def __instancecheck__(cls, x):
-                                classinfo = tuple(
-                                    c if c is not None else type(None)
-                                    for c in key_desc.classinfo
-                                )
-                                return isinstance(x, classinfo)
-
-                        return NewtypeMeta
-
-                    # Inherit from HideExekallID, since we don't want it to be
-                    # shown in the exekall IDs.
-                    class Newtype(HideExekallID, metaclass=make_metacls(key_desc)):
-                        pass
-
-                    Newtype.__name__ = newtype_name
-                    Newtype.__qualname__ = '{}.{}'.format(new_cls.__qualname__, newtype_name)
-                    Newtype.__module__ = new_cls.__module__
-                    Newtype.__doc__ = key_desc.help
-                    setattr(new_cls, newtype_name, Newtype)
-
-                    def make_getter(cls, type_, key_desc):
-                        def getter(self: cls) -> type_:
-                            try:
-                                return self.get_nested_key(key_desc.path[1:])
-                            # We cannot afford to raise here, as the
-                            # configuration instance might not hold a value for
-                            # that key, but we still need to pass something to
-                            # the user function.
-                            except KeyError:
-                                return None
-
-                        getter_name = '_get_typed_key_{}'.format(type_.__name__)
-                        getter.__name__ = getter_name
-                        getter.__qualname__ = '{}.{}'.format(cls.__qualname__, getter_name)
-                        getter.__module__ = cls.__module__
-                        return getter
-
-                    newtype_getter = make_getter(new_cls, Newtype, key_desc)
-                    setattr(new_cls, newtype_getter.__name__, newtype_getter)
-
-        return new_cls
-
-
-class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
-    _registered_toplevel_keys = {}
+class MultiSrcConfABC(Serializable, abc.ABC):
+    _REGISTERED_TOPLEVEL_KEYS = {}
 
     @abc.abstractmethod
     def to_map(self):
@@ -815,7 +695,8 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
         try:
             data = mapping[toplevel_key] or {}
         except KeyError:
-            raise ValueError('Key "{}" needs to appear at the top level'.format(toplevel_key))
+            # pylint: disable=raise-missing-from
+            raise ValueError(f'Key "{toplevel_key}" needs to appear at the top level')
         # "unwrap" an extra layer of toplevel key, to play well with !include
         if len(data) == 1 and toplevel_key in data.keys():
             data = data[toplevel_key]
@@ -912,24 +793,108 @@ class MultiSrcConfABC(Serializable, abc.ABC, metaclass=MultiSrcConfMeta):
         self.to_yaml_map(content, **kwargs)
         return content.getvalue()
 
-    # Only used with Python >= 3.6, but since that is just a sanity check it
-    # should be okay
     @classmethod
     def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
         # Ignore abstract classes, since there can be no instance of them
         if not inspect.isabstract(cls):
+            if cls.__doc__:
+                doc = inspect.getdoc(cls)
+                # Create a ResStructuredText preformatted block when rendering
+                # with Sphinx
+                style = 'rst' if is_running_sphinx() else None
+                generated_help = '\n' + cls.get_help(style=style)
+                indent = '\n    '
+                try:
+                    # Not all classes support these parameters
+                    yaml_example = cls().to_yaml_map_str(
+                        add_placeholder=True,
+                        placeholder='_'
+                    )
+                except TypeError:
+                    yaml_example = cls().to_yaml_map_str()
+
+                if yaml_example:
+                    yaml_example = ':Example YAML:\n\n.. code-block:: YAML\n' + indent + yaml_example.replace('\n', indent)
+                cls.__doc__ = doc.format(
+                    generated_help=generated_help,
+                    yaml_example=yaml_example
+                )
+
+        # Create the types for the keys that specify it, along with the getters
+        # to expose the values to exekall
+        if hasattr(cls, 'STRUCTURE') and isinstance(cls.STRUCTURE, TopLevelKeyDesc):
             # Ensure uniqueness of toplevel key
             toplevel_key = cls.STRUCTURE.name
-            if toplevel_key in cls._registered_toplevel_keys:
-                raise RuntimeError('Class {name} cannot reuse top level key "{key}" as it is already used by {user}'.format(
-                    name=cls.__qualname__,
-                    key=toplevel_key,
-                    user=cls._registered_toplevel_keys[toplevel_key]
-                ))
+            if toplevel_key in cls._REGISTERED_TOPLEVEL_KEYS:
+                raise RuntimeError(f'Class {cls.__qualname__} cannot reuse top level key "{toplevel_key}" as it is already used by {cls._REGISTERED_TOPLEVEL_KEYS[toplevel_key]}')
             else:
-                cls._registered_toplevel_keys[toplevel_key] = cls
+                cls._REGISTERED_TOPLEVEL_KEYS[toplevel_key] = cls
 
-        super().__init_subclass__(**kwargs)
+            def flatten(structure):
+                for key_desc in structure.values():
+                    if isinstance(key_desc, LevelKeyDesc):
+                        yield from flatten(key_desc)
+                    else:
+                        yield key_desc
+
+            for key_desc in flatten(cls.STRUCTURE):
+                newtype_name = key_desc.newtype
+                if isinstance(key_desc, KeyDesc):
+
+                    # We need a helper to make sure "key_desc" is bound to the
+                    # right object, otherwise it will be referred by name only
+                    # and will always have the value during the last iteration
+                    # of the loop
+                    # FIXME: pylint complains about make_metacls being unused,
+                    # which is a bug:
+                    # https://github.com/PyCQA/pylint/issues/4020
+                    def make_metacls(key_desc): # pylint: disable=unused-variable
+                        # Implement __instancecheck__ on the metaclass allows
+                        # isinstance(x, Newtype) to be true for any instance of any
+                        # type given in KeyDesc.__init__(classinfo=...)
+                        class NewtypeMeta(type):
+                            def __instancecheck__(cls, x):
+                                classinfo = tuple(
+                                    c if c is not None else type(None)
+                                    for c in key_desc.classinfo
+                                )
+                                return isinstance(x, classinfo)
+
+                        return NewtypeMeta
+
+                    # Inherit from HideExekallID, since we don't want it to be
+                    # shown in the exekall IDs.
+                    class Newtype(HideExekallID, metaclass=make_metacls(key_desc)):
+                        pass
+
+                    Newtype.__name__ = newtype_name
+                    Newtype.__qualname__ = f'{cls.__qualname__}.{newtype_name}'
+                    Newtype.__module__ = cls.__module__
+                    Newtype.__doc__ = key_desc.help
+                    setattr(cls, newtype_name, Newtype)
+
+                    def make_getter(cls, type_, key_desc):
+                        def getter(self: cls) -> type_:
+                            try:
+                                return self.get_nested_key(key_desc.path[1:])
+                            # We cannot afford to raise here, as the
+                            # configuration instance might not hold a value for
+                            # that key, but we still need to pass something to
+                            # the user function.
+                            except KeyError:
+                                return None
+
+                        getter_name = f'_get_typed_key_{type_.__name__}'
+                        getter.__name__ = getter_name
+                        getter.__qualname__ = f'{cls.__qualname__}.{getter_name}'
+                        getter.__module__ = cls.__module__
+                        return getter
+
+                    newtype_getter = make_getter(cls, Newtype, key_desc)
+                    setattr(cls, newtype_getter.__name__, newtype_getter)
+
 
 class _HashableMultiSrcConf:
     """
@@ -954,6 +919,7 @@ class _HashableMultiSrcConf:
             return self.conf is other.conf
         else:
             return False
+
 
 class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     """
@@ -981,6 +947,20 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     be defined for a specific key if needed.
 
     .. seealso:: :class:`KeyDescBase`
+
+    This base class will modify the docstring of subclasses, using it as an
+    ``str.format`` template with the following placeholders:
+
+        * ``{generated_help}``: snippet of ResStructuredText containing the
+          list of allowed keys.
+
+        * ``{yaml_example}``: example snippet of YAML
+
+    It will also create the types specified using ``newtype`` in the
+    :class:`KeyDesc`, along with a getter to expose it to ``exekall``.
+
+    .. note:: Since the dosctring is interpreted as a template, "{" and "}"
+        characters must be doubled to appear in the final output.
     """
 
     @abc.abstractmethod
@@ -1171,6 +1151,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 return super().__new__(cls, value)
 
             def __repr__(self):
+                # pylint: disable=invalid-repr-returned
                 return self
 
         def format_conf(conf):
@@ -1238,9 +1219,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             # Derived keys cannot be set, since they are purely derived from
             # other keys
             elif isinstance(key_desc, DerivedKeyDesc):
-                raise ValueError('Cannot set a value for a derived key "{key}"'.format(
-                    key=key_desc.qualname,
-                ), key_desc.qualname)
+                raise ValueError(f'Cannot set a value for a derived key "{key_desc.qualname}"', key_desc.qualname)
             # Otherwise that is a leaf value that we store at that level
             else:
                 self._key_map.setdefault(key, {})[src] = val
@@ -1261,6 +1240,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         Adding sources using :meth:`add_src` in the right order is preferable,
         but the default priority order can be specified using that method.
         """
+        # pylint: disable=attribute-defined-outside-init
 
         # Make a copy of the list to make sure it is not modified behind our back
         self._src_prio = list(src_prio)
@@ -1301,13 +1281,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         key_desc = self._structure[key]
         qual_key = key_desc.qualname
         if isinstance(key_desc, LevelKeyDesc):
-            raise ValueError('Cannot force source of the sub-level "{key}"'.format(
-                key=qual_key,
-            ), qual_key)
+            raise ValueError(f'Cannot force source of the sub-level "{qual_key}"', qual_key)
         elif isinstance(key_desc, DerivedKeyDesc):
-            raise ValueError('Cannot force source of a derived key "{key}"'.format(
-                key=qual_key,
-            ), qual_key)
+            raise ValueError(f'Cannot force source of a derived key "{qual_key}"', qual_key)
         else:
             # None means removing the src override for that key
             if src_prio is None:
@@ -1374,9 +1350,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
         if isinstance(key_desc, LevelKeyDesc):
             key = key_desc.qualname
-            raise ValueError('Key "{key}" is a nested configuration level, it does not have a source on its own.'.format(
-                key=key,
-            ), key)
+            raise ValueError(f'Key "{key}" is a nested configuration level, it does not have a source on its own.', key)
 
         # Get the priority list from the prio override list, or just the
         # default prio list
@@ -1386,9 +1360,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         else:
             key = key_desc.qualname
             raise ConfigKeyError(
-                'Could not find any source for key "{key}"'.format(
-                    key=key,
-                ),
+                f'Could not find any source for key "{key}"',
                 key=key,
             )
 
@@ -1403,13 +1375,9 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             # Wrap into a ConfigKeyError so that the user code can easily
             # handle missing keys, and the original exception is still
             # available as excep.__cause__ since it was chained with "from"
-            except Exception as e:
+            except Exception as e: # pylint: disable=broad-except
                 key_qualname = key_desc.qualname
-                msg = 'Could not compute "{key}" from source "{src}": {excep}'.format(
-                    key=key_qualname,
-                    src=src,
-                    excep=e,
-                )
+                msg = f'Could not compute "{key_qualname}" from source "{src}": {e}'
 
                 # Propagate ConfigKeyError as-is
                 if isinstance(e, ConfigKeyError):
@@ -1537,10 +1505,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             # Specifying a source is an error for a derived key
             if src is not None:
                 key = key_desc.qualname
-                raise ValueError('Cannot specify the source when getting "{key}" since it is a derived key'.format(
-                    key=key,
-                    src=src,
-                ), key)
+                raise ValueError(f'Cannot specify the source when getting "{key}" since it is a derived key', key)
 
             val = key_desc.compute_val(self, eval_deferred=eval_deferred)
             src = self.resolve_src(key)
@@ -1552,12 +1517,10 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             try:
                 val = self._key_map[key][src]
             except KeyError:
+                # pylint: disable=raise-missing-from
                 key = key_desc.qualname
                 raise ConfigKeyError(
-                    'Key "{key}" is not available from source "{src}"'.format(
-                        key=key,
-                        src=src,
-                    ),
+                    f'Key "{key}" is not available from source "{src}"',
                     key=key,
                     src=src,
                 )
@@ -1605,9 +1568,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         key_desc = self._structure[key]
         if isinstance(key_desc, LevelKeyDesc):
             key = key_desc.qualname
-            raise ValueError('Key "{key}" is a nested configuration level, it does not have a source on its own.'.format(
-                key=key,
-            ), key)
+            raise ValueError(f'Key "{key}" is a nested configuration level, it does not have a source on its own.', key)
 
         return OrderedDict(
             (src, self._eval_deferred_val(src, key, error='raise'))
@@ -1726,6 +1687,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
     def _repr_pretty_(self, p, cycle):
         "Pretty print instances in Jupyter notebooks"
+        # pylint: disable=unused-argument
         p.text(self.pretty_format())
 
 class SimpleMultiSrcConf(MultiSrcConf):
@@ -1807,103 +1769,7 @@ class SimpleMultiSrcConf(MultiSrcConf):
             return None
 
 
-class ConfigurableMeta(abc.ABCMeta):
-    def __new__(metacls, name, bases, dct, **kwargs):
-        new_cls = super().__new__(metacls, name, bases, dct, **kwargs)
-        try:
-            # inherited CONF_CLASS will not be taken into account if we look at
-            # the dictionary directly
-            conf_cls = dct['CONF_CLASS']
-        except KeyError:
-            return new_cls
-
-        # Link the configuration to the signature of __init__
-        sig = inspect.signature(new_cls.__init__)
-        init_kwargs_key_map = new_cls._get_kwargs_key_map(sig, conf_cls)
-        # What was already there has priority over auto-detected bindings
-        init_kwargs_key_map.update(dct.get('INIT_KWARGS_KEY_MAP', {}))
-        new_cls.INIT_KWARGS_KEY_MAP = init_kwargs_key_map
-
-        # Create an instance with default configuration, to merge it with
-        # defaults taken from __init__
-        default_conf = conf_cls()
-        default_conf.add_src(
-            src='__init__-default',
-            conf=metacls._get_default_conf(sig, init_kwargs_key_map),
-            # Default configuration set in the conf class still has priority
-            fallback=True,
-            # When an __init__ parameter has a None default value, we don't
-            # add any default value. That avoids failing the type check for
-            # keys that really need to be of a certain type when specified.
-            filter_none=True,
-        )
-        # Convert to a dict so that the Sphinx documentation is able to show
-        # the content of the source
-        conf_cls.DEFAULT_SRC = dict(default_conf._get_effective_map())
-
-        # Update the docstring by using the configuration help
-        docstring = inspect.getdoc(new_cls)
-        if docstring:
-            new_cls.__doc__ = docstring.format(
-                configurable_params=new_cls._get_rst_param_doc()
-            )
-
-        return new_cls
-
-    def _get_kwargs_key_map(cls, sig, conf_cls):
-        """
-        Map implicitely keys in the conf class that matches param names.
-        """
-        def iter_param_key(sig):
-            return (
-                (param, param.replace('_', '-'))
-                for param in sig.parameters.keys()
-            )
-
-        return {
-            param: [key]
-            for param, key in iter_param_key(sig)
-            if key in conf_cls.STRUCTURE
-        }
-
-    @staticmethod
-    def _get_default_conf(sig, kwargs_key_map):
-        """
-        Get a default configuration source based on the the default parameter
-        values.
-        """
-        default_conf = {}
-        for param, param_desc in sig.parameters.items():
-            try:
-                conf_path = kwargs_key_map[param]
-            except KeyError:
-                continue
-            else:
-                default = param_desc.default
-                if default is not param_desc.empty:
-                    set_nested_key(default_conf, conf_path, default)
-
-        return default_conf
-
-    def _get_param_key_desc_map(cls):
-        return {
-            param: get_nested_key(cls.CONF_CLASS.STRUCTURE, conf_path)
-            for param, conf_path in cls.INIT_KWARGS_KEY_MAP.items()
-        }
-
-    def _get_rst_param_doc(cls):
-        return '\n'.join(
-            ':param {param}: {help}\n:type {param}: {type}\n'.format(
-                param=param,
-                help=key_desc.help,
-                type=' or '.join(get_cls_name(t) for t in key_desc.classinfo),
-            )
-            for param, key_desc
-            in cls._get_param_key_desc_map().items()
-        )
-
-
-class Configurable(abc.ABC, metaclass=ConfigurableMeta):
+class Configurable(abc.ABC):
     """
     Pair a regular class with a configuration class.
 
@@ -1942,6 +1808,105 @@ class Configurable(abc.ABC, metaclass=ConfigurableMeta):
 
     """
     INIT_KWARGS_KEY_MAP = {}
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        dct = cls.__dict__
+
+        try:
+            # inherited CONF_CLASS will not be taken into account if we look at
+            # the dictionary directly
+            conf_cls = dct['CONF_CLASS']
+        except KeyError:
+            return
+
+        # Link the configuration to the signature of __init__
+        sig = inspect.signature(cls.__init__)
+        init_kwargs_key_map = cls._get_kwargs_key_map(sig, conf_cls)
+        # What was already there has priority over auto-detected bindings
+        init_kwargs_key_map.update(dct.get('INIT_KWARGS_KEY_MAP', {}))
+        cls.INIT_KWARGS_KEY_MAP = init_kwargs_key_map
+
+        # Create an instance with default configuration, to merge it with
+        # defaults taken from __init__
+        default_conf = conf_cls()
+        default_conf.add_src(
+            src='__init__-default',
+            conf=cls._get_default_conf(sig, init_kwargs_key_map),
+            # Default configuration set in the conf class still has priority
+            fallback=True,
+            # When an __init__ parameter has a None default value, we don't
+            # add any default value. That avoids failing the type check for
+            # keys that really need to be of a certain type when specified.
+            filter_none=True,
+        )
+        # Convert to a dict so that the Sphinx documentation is able to show
+        # the content of the source
+        conf_cls.DEFAULT_SRC = dict(default_conf._get_effective_map())
+
+        # Update the docstring by using the configuration help
+        docstring = inspect.getdoc(cls)
+        if docstring:
+            cls.__doc__ = docstring.format(
+                configurable_params=cls._get_rst_param_doc()
+            )
+
+    @staticmethod
+    def _get_kwargs_key_map(sig, conf_cls):
+        """
+        Map implicitely keys in the conf class that matches param names.
+        """
+        def iter_param_key(sig):
+            return (
+                (param, param.replace('_', '-'))
+                for param in sig.parameters.keys()
+            )
+
+        return {
+            param: [key]
+            for param, key in iter_param_key(sig)
+            if key in conf_cls.STRUCTURE
+        }
+
+    @staticmethod
+    def _get_default_conf(sig, kwargs_key_map):
+        """
+        Get a default configuration source based on the the default parameter
+        values.
+        """
+        default_conf = {}
+        for param, param_desc in sig.parameters.items():
+            try:
+                conf_path = kwargs_key_map[param]
+            except KeyError:
+                continue
+            else:
+                default = param_desc.default
+                if default is not param_desc.empty:
+                    set_nested_key(default_conf, conf_path, default)
+
+        return default_conf
+
+    @classmethod
+    def _get_param_key_desc_map(cls):
+        return {
+            param: get_nested_key(cls.CONF_CLASS.STRUCTURE, conf_path)
+            for param, conf_path in cls.INIT_KWARGS_KEY_MAP.items()
+        }
+
+    @classmethod
+    def _get_rst_param_doc(cls):
+        # pylint: disable=no-value-for-parameter
+        return '\n'.join(
+            ':param {param}: {help}\n:type {param}: {type}\n'.format(
+                param=param,
+                help=key_desc.help,
+                type=' or '.join(get_cls_name(t) for t in key_desc.classinfo),
+            )
+            for param, key_desc
+            in cls._get_param_key_desc_map().items()
+        )
 
     @classmethod
     def conf_to_init_kwargs(cls, conf):
@@ -1992,9 +1957,7 @@ class Configurable(abc.ABC, metaclass=ConfigurableMeta):
                 for param, key_desc in param_key_desc_map.items()
                 if param in missing_param
             )
-            raise ConfigKeyError("Missing mandatory keys: {}".format(
-                ', '.join(missing_key_paths)
-            ))
+            raise ConfigKeyError(f"Missing mandatory keys: {', '.join(missing_key_paths)}")
 
         for param, key_desc in param_key_desc_map.items():
             if param in kwargs:

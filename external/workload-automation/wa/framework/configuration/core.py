@@ -58,10 +58,11 @@ class RebootPolicy(object):
               executing the first workload spec.
     :each_spec: The device will be rebooted before running a new workload spec.
     :each_iteration: The device will be rebooted before each new iteration.
+    :run_completion: The device will be rebooted after the run has been completed.
 
     """
 
-    valid_policies = ['never', 'as_needed', 'initial', 'each_spec', 'each_job']
+    valid_policies = ['never', 'as_needed', 'initial', 'each_spec', 'each_job', 'run_completion']
 
     @staticmethod
     def from_pod(pod):
@@ -91,6 +92,10 @@ class RebootPolicy(object):
     @property
     def reboot_on_each_spec(self):
         return self.policy == 'each_spec'
+
+    @property
+    def reboot_on_run_completion(self):
+        return self.policy == 'run_completion'
 
     def __str__(self):
         return self.policy
@@ -664,6 +669,9 @@ class RunConfiguration(Configuration):
 
                 .. note:: this acts the same as each_job when execution order
                           is set to by_iteration
+
+            ''"run_completion"''
+                 The device will be reboot after the run has been completed.
             '''),
         ConfigurationPoint(
             'device',
