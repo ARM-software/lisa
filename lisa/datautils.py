@@ -1689,7 +1689,7 @@ def series_convert(series, dtype, nullable=None):
         allowed.
     :type series: pandas.Series
 
-    :param dtype: dtype to convert to. If it is a string ``uint8``, the
+    :param dtype: dtype to convert to. If it is a string (like ``"uint8"``), the
         following strategy will be used:
 
             1. Convert to the given dtype
