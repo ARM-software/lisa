@@ -2461,7 +2461,11 @@ class Operator:
 
         # Work around this bug:
         # https://bugs.python.org/issue43102
-        globals_['__builtins__'] = globals_['__builtins__'] or {}
+        try:
+            globals_['__builtins__'] = globals_['__builtins__'] or {}
+        except KeyError:
+            pass
+
         return globals_
 
     @property
