@@ -192,11 +192,31 @@ def pelt_swing(period, duty_cycle, window=PELT_WINDOW, half_life=PELT_HALF_LIFE,
         does not take into account the averaging inside a window, but the
         window is small enough in practice for that effect to be negligible.
     """
-    tau = _pelt_tau(half_life, window)
     runtime = duty_cycle * period
-    # Compute the step response of a first order after time t=runtime
-    swing = scale * (1 - math.exp(-runtime / tau))
-    return swing
+    return pelt_step_response(t=runtime, window=window, half_life=half_life, scale=scale)
+
+
+def pelt_step_response(t, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
+    """
+    Compute an approximation of the PELT value at time ``t`` when subject to a
+    step input (i.e running tasks, PELT starting at 0).
+
+    :param t: Evaluate PELT signal at time = ``t``.
+    :type t: float
+
+    :param window: PELT window in seconds.
+    :type window: float
+
+    :param half_life: PELT half life, in number of windows.
+    :type half_life: int
+
+    :param scale: PELT scale.
+    :type scale: float
+
+    """
+    tau = _pelt_tau(half_life, window)
+    return scale * (1 - math.exp(-t / tau))
+
 
 def pelt_settling_time(margin=1, init=0, final=PELT_SCALE, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
 # pylint: disable=unused-argument
