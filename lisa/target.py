@@ -158,6 +158,8 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
                 KeyDesc('args', 'Keyword arguments to build the Platform object', [Mapping]),
             )),
             KeyDesc('excluded-modules', 'List of devlib modules to *not* load', [TypedList[str]]),
+            KeyDesc('file-xfer', 'File transfer method. Can be "sftp" (default) or "scp". (Only valid for linux targets)', [TypedList[str]]),
+
         ))
     ))
 
@@ -231,6 +233,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     CONF_CLASS = TargetConf
     INIT_KWARGS_KEY_MAP = {
         'devlib_excluded_modules': ['devlib', 'excluded-modules'],
+        'devlib_file_xfer': ['devlib', 'file-xfer'],
         'wait_boot': ['wait-boot', 'enable'],
         'wait_boot_timeout': ['wait-boot', 'timeout'],
     }
@@ -238,7 +241,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     def __init__(self, kind, name='<noname>', tools=[], res_dir=None,
         plat_info=None, lazy_platinfo=False, workdir=None, device=None, host=None, port=None,
         username=None, password=None, keyfile=None, strict_host_check=None,
-        devlib_platform=None, devlib_excluded_modules=[],
+        devlib_platform=None, devlib_excluded_modules=[], devlib_file_xfer=None,
         wait_boot=True, wait_boot_timeout=10,
     ):
         # pylint: disable=dangerous-default-value
@@ -277,6 +280,12 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         if name:
             self.plat_info.add_src('target-conf', dict(name=name))
 
+        # Determine file transfer method. Currently avaliable options
+        # are 'sftp' and 'scp', defaults to sftp.
+        if devlib_file_xfer and devlib_file_xfer not in ('scp', 'sftp'):
+            raise ValueError(f'Invalid file transfer method: {devlib_file_xfer}')
+        use_scp = devlib_file_xfer == 'scp'
+
         self._installed_tools = set()
         self.target = self._init_target(
             kind=kind,
@@ -289,6 +298,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             password=password,
             keyfile=keyfile,
             strict_host_check=strict_host_check,
+            use_scp=use_scp,
             devlib_platform=devlib_platform,
             wait_boot=wait_boot,
             wait_boot_timeout=wait_boot_timeout,
@@ -590,7 +600,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         return custom_args, cls.from_conf(conf=target_conf, plat_info=platform_info, res_dir=args.res_dir)
 
     def _init_target(self, kind, name, workdir, device, host,
-            port, username, password, keyfile, strict_host_check,
+            port, username, password, keyfile, strict_host_check, use_scp,
             devlib_platform,
             wait_boot, wait_boot_timeout,
     ):
@@ -630,6 +640,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 port=port or self.SSH_PORT_DEFAULT,
                 host=host,
                 strict_host_check=True if strict_host_check is None else strict_host_check,
+                use_scp=False if use_scp is None else use_scp,
             )
 
             # Configure password or SSH keyfile
