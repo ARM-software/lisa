@@ -134,12 +134,12 @@ def curry(f):
     nr_param = len(inspect.signature(f).parameters)
 
     @functools.wraps(f)
-    def wrapper(*args):
-        nr_free = nr_param - len(args)
-        if nr_free:
-            return curry(functools.partial(f, *args))
+    def wrapper(*args, **kwargs):
+        nr_free = nr_param - len(args) - len(kwargs)
+        if nr_free > 0:
+            return curry(functools.partial(f, *args, **kwargs))
         else:
-            return f(*args)
+            return f(*args, **kwargs)
 
     return wrapper
 
