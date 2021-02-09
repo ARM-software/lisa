@@ -846,7 +846,7 @@ class ArtifactPath(str, Loggable, HideExekallID):
         return joined
 
 
-def value_range(start, stop, step=None, nr_steps=None, inclusive=False, type_=None):
+def value_range(start, stop, step=None, nr_steps=None, inclusive=False, type_=None, clip=False):
     """
     Equivalent to builtin :class:`range` function, but works for floats as well.
 
@@ -870,10 +870,13 @@ def value_range(start, stop, step=None, nr_steps=None, inclusive=False, type_=No
     :param type_: If specified, will be mapped on the resulting values.
     :type type_: collections.abc.Callable
 
+    :param clip: If ``True``, the last value is set to ``stop``, rather than
+        potentially be different if ``inclusive=True``.
+    :type clip: bool
+
     .. note:: Unlike :class:`range`, it will raise :exc:`ValueError` if
         ``start > stop and step > 0``.
     """
-
     if step is not None and nr_steps is not None:
         raise ValueError(f'step={step} and nr_steps={nr_steps} cannot both be specified at once')
 
@@ -900,7 +903,24 @@ def value_range(start, stop, step=None, nr_steps=None, inclusive=False, type_=No
     op = ops[start <= stop, inclusive]
     comp = lambda x: op(x, stop)
     mapf = type_ if type_ is not None else lambda x: x
-    return map(mapf, itertools.takewhile(comp, itertools.count(start, step)))
+
+    if clip:
+        def clipf(iterator):
+            prev = next(iterator)
+            while True:
+                try:
+                    x = next(iterator)
+                except StopIteration:
+                    yield stop
+                    return
+                else:
+                    yield prev
+                    prev = x
+
+    else:
+        clipf = lambda x: x
+
+    return clipf(map(mapf, itertools.takewhile(comp, itertools.count(start, step))))
 
 
 def filter_values(iterable, values):
