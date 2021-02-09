@@ -1004,8 +1004,9 @@ def fold(f, xs, init=None):
 
     This means that this function enforces non-empty input.
     """
+    xs = iter(xs)
+    first = next(xs)
 
-    first, *xs = xs
     return functools.reduce(
         f,
         xs,
