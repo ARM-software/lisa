@@ -1112,6 +1112,8 @@ def consume(n, iterator):
     # Inspired from:
     # https://docs.python.org/3/library/itertools.html#itertools-recipes
 
+    iterator = iter(iterator)
+
     # Use functions that consume iterators at C speed.
     if n is None:
         # feed the entire iterator into a zero-length deque
@@ -1119,6 +1121,8 @@ def consume(n, iterator):
     else:
         # advance to the empty slice starting at position n
         next(itertools.islice(iterator, n, n), None)
+
+    return iterator
 
 
 def unzip_into(n, iterator):
