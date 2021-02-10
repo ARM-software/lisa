@@ -2116,13 +2116,25 @@ class FrozenDict(Mapping):
     """
     Read-only mapping that is therefore hashable.
 
+    :param deepcopy: If ``True``, a deepcopy of the input will be done after
+        applying ``type_``.
+    :type deepcopy: bool
+
+    :param type_: Called on the input to provide a suitable mapping, so that
+        the input can be any iterable.
+    :type type_: collections.abc.Callable
+
     .. note:: The content of the iterable passed to the constructor is
         deepcopied to ensure non-mutability.
 
     .. note:: Hashability allows to use it as a key in other mappings.
     """
-    def __init__(self, x):
-        self._dct = copy.deepcopy(dict(x))
+    def __init__(self, x, deepcopy=True, type_=dict):
+        dct = type_(x)
+        if deepcopy:
+            dct = copy.deepcopy(x)
+
+        self._dct = dct
         # We cannot use memoized() since it would create an infinite loop
         self._hash = hash(tuple(sorted(self._dct.items())))
 
