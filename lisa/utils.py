@@ -31,7 +31,7 @@ import re
 import abc
 import copy
 import collections
-from collections.abc import Mapping
+from collections.abc import Mapping, Iterable, Hashable
 from collections import OrderedDict
 import contextlib
 import inspect
@@ -2162,5 +2162,46 @@ class FrozenDict(Mapping):
     def __repr__(self):
         return repr(self._dct)
 
+
+class SimpleHash:
+    """
+    Base class providing a basic implementation of ``__eq__`` and ``__hash__``:
+    two instances are equal if their ``__dict__`` and ``__class__`` attributes
+    are equal.
+    """
+
+    def HASH_COERCE(self, x):
+        """
+        Used to coerce the values of ``self.__dict__`` to hashable values.
+        """
+        coerce = self.HASH_COERCE
+
+        if isinstance(x, Mapping):
+            return tuple(
+                (coerce(k), coerce(v))
+                for k, v in x.items()
+            )
+        # str and bytes are particular: iterating over them will yield
+        # themselves, which will create an infinite loop
+        elif isinstance(x, (str, bytes)):
+            return x
+        elif isinstance(x, Iterable):
+            return tuple(map(coerce, x))
+        # Check at the end, so that we recurse in common structures
+        if isinstance(x, Hashable):
+            return x
+        else:
+            raise TypeError(f'Cannot hash value "{x}" of type {x.__class__.__qualname__}')
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        elif self.__class__ is other.__class__:
+            return self.__dict__ == other.__dict__
+        else:
+            return False
+
+    def __hash__(self):
+        return hash(tuple(sorted(map(self.HASH_COERCE, self.__dict__.items()))))
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
