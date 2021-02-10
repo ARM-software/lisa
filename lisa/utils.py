@@ -1170,6 +1170,38 @@ def set_nested_key(mapping, key_path, val, level=None):
     mapping[key_path[-1]] = val
 
 
+def loopify(items):
+    """
+    Try to factor an iterable into a prefix that is repeated a number of times.
+
+    Returns a tuple ``(N, prefix)`` with ``N`` such that
+    ``N * prefix == list(items)``.
+    """
+    xs = list(items)
+    tot_len = len(xs)
+    # Iterate in order to find the smallest possible loop. This ensures
+    # that if there is a loop to be found that have no duplicated
+    # events, it will be found.
+    for i in range(tot_len):
+        # If the length is dividable by i
+        if i and tot_len % i == 0:
+            loop = int(tot_len // i)
+            # Equivalent to xs[:i] but avoids copying the list. Since
+            # itertools.cycle() only consumes its input once, it's ok to use an
+            # iterator
+            slice_ = itertools.islice(xs, 0, i)
+            # Check if the list is equal to the slice repeated "i"
+            # times.
+            # Equivalent to checking "loop * slice_ == xs" without building an
+            # intermediate list
+            xs_ = take(tot_len, itertools.cycle(slice_))
+            if all(map(operator.eq, xs_, xs)):
+                # Do not use slice_ here since it was consumed earlier
+                return (loop, xs[:i])
+
+    return (1, xs)
+
+
 def get_call_site(levels=0, exclude_caller_module=False):
     """
     Get the location of the source that called that function.
