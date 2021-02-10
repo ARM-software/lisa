@@ -29,6 +29,7 @@ import copy
 import contextlib
 import itertools
 import types
+import textwrap
 
 from datetime import datetime
 from collections import OrderedDict, ChainMap
@@ -1646,6 +1647,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             reproduction of duty cycles.
         :type update_cpu_capacities: bool
         """
+        logger = cls.get_logger()
 
         trace_path = ArtifactPath.join(res_dir, cls.TRACE_PATH)
         dmesg_path = ArtifactPath.join(res_dir, cls.DMESG_PATH)
@@ -1700,6 +1702,17 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         wload = RTA.by_profile(target, profile, res_dir=res_dir,
                                name=f"rta_{cls.__name__.casefold()}",
                                trace_events=trace_events)
+
+        profile_str = '\n'.join(
+            'Task {}:\n{}'.format(
+                task,
+                textwrap.indent(str(phase), ' ' * 4)
+            )
+            for task, phase in profile.items()
+        )
+
+        logger.info(f'rt-app workload:\n{profile_str}')
+        logger.debug(f'rt-app JSON:\n{wload.conf.json}')
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
         as_root = cgroup is not None or (trace_events and debugfs_needs_root)
         wload_cm = wload if wipe_run_dir else nullcontext(wload)
