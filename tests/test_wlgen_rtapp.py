@@ -23,7 +23,7 @@ import copy
 
 import pytest
 
-from lisa.wlgen.rta import RTA, Periodic, Ramp, Step, RunAndSync
+from lisa.wlgen.rta import RTA, RTAPhase, PeriodicWload, DutyCycleSweepPhase, RunWload, SleepWload, BarrierWload
 
 from .utils import StorageTestCase, create_local_target, ASSET_DIR
 
@@ -70,23 +70,17 @@ class TestRTAProfile(RTABase):
     __test__ = True
 
     def _do_test(self, profile, exp_phases):
-        rtapp = RTA.by_profile(
+        rtapp = RTA.from_profile(
             self.target, name='test', profile=profile, res_dir=self.res_dir,
             calibration=None, log_stats=True)
 
         with open(rtapp.local_json) as f:
-            conf = json.load(f, object_pairs_hook=OrderedDict)
+            conf = json.load(f)
 
         # Check that the configuration looks like we expect it to
         phases = list(conf['tasks']['test']['phases'].values())
         assert len(phases) == len(exp_phases), 'Wrong number of phases'
         for phase, exp_phase in zip(phases, exp_phases):
-            if 'cpus' not in exp_phase:
-                exp_phase = copy.copy(exp_phase)
-                exp_phase.update(
-                    cpus=sorted(range(self.target.plat_info['cpus-count'])),
-                    nodes_membind=sorted(range(self.target.plat_info['numa-nodes-count'])),
-                )
             assert phase == exp_phase
 
         # Try running the workload and check that it produces the expected log
@@ -110,7 +104,13 @@ class TestRTAProfile(RTABase):
         """
 
         profile = {
-            "test": Periodic(period_ms=100, duty_cycle_pct=20, duration_s=1)
+            "test": RTAPhase(
+                prop_wload=PeriodicWload(
+                    period=100e-3,
+                    duty_cycle_pct=20,
+                    duration=1
+                )
+            )
         }
 
         exp_phases = [
@@ -119,38 +119,22 @@ class TestRTAProfile(RTABase):
                 'run': 20000,
                 'timer': {
                     'period': 100000,
-                    'ref': 'test'
+                    'ref': 'unique'
                 }
             }
         ]
 
         self._do_test(profile, exp_phases)
 
-    def test_profile_step_smoke(self):
-        """
-        Smoketest Step rt-app workload
-
-        Creates a workload using Step, tests that the JSON has the expected
-        content, then tests that it can be run.
-        """
-
-        profile = {"test": Step(start_pct=100, end_pct=0, time_s=1)}
-
-        exp_phases = [
-            {
-                'run': 1000000,
-                'loop': 1
-            },
-            {
-                'sleep': 1000000,
-                'loop': 1
-            },
-        ]
-
-        self._do_test(profile, exp_phases)
-
     def test_profile_run_and_sync_smoke(self):
-        profile = {"test": RunAndSync('my_barrier', time_s=1)}
+        profile = {
+            "test": RTAPhase(
+                prop_wload=(
+                    RunWload(1) +
+                    BarrierWload('my_barrier')
+                )
+            )
+        }
         exp_phases = [
             OrderedDict([
                 ('loop', 1),
@@ -168,15 +152,30 @@ class TestRTAProfile(RTABase):
         Creates a composed workload by +-ing RTATask objects, tests that the
         JSON has the expected content, then tests running the workload
         """
-        light = Periodic(duty_cycle_pct=10, duration_s=1.0, period_ms=10)
+        light = RTAPhase(
+            prop_wload=PeriodicWload(
+                duty_cycle_pct=10,
+                duration=1.0,
+                period=10e-3,
+            )
+        )
 
-        start_pct = 10
-        end_pct = 90
-        delta_pct = 20
-        ramp = Ramp(start_pct=start_pct, end_pct=end_pct, delta_pct=delta_pct,
-                    time_s=1, period_ms=50)
+        ramp = DutyCycleSweepPhase(
+            start=10,
+            stop=90,
+            step=20,
+            period=50e-3,
+            duration=1,
+            duration_of='step',
+        )
 
-        heavy = Periodic(duty_cycle_pct=90, duration_s=0.1, period_ms=100)
+        heavy = RTAPhase(
+            prop_wload=PeriodicWload(
+                duty_cycle_pct=90,
+                duration=0.1,
+                period=100e-3,
+            )
+        )
 
         profile = {"test": light + ramp + heavy}
 
@@ -187,7 +186,7 @@ class TestRTAProfile(RTABase):
                 "run": 1000,
                 "timer": {
                     "period": 10000,
-                    "ref": "test"
+                    "ref": "unique"
                 }
             },
             # Ramp phases:
@@ -196,7 +195,7 @@ class TestRTAProfile(RTABase):
                 "run": 5000,
                 "timer": {
                     "period": 50000,
-                    "ref": "test"
+                    "ref": "unique"
                 }
             },
             {
@@ -204,7 +203,7 @@ class TestRTAProfile(RTABase):
                 "run": 15000,
                 "timer": {
                     "period": 50000,
-                    "ref": "test"
+                    "ref": "unique"
                 }
             },
             {
@@ -212,7 +211,7 @@ class TestRTAProfile(RTABase):
                 "run": 25000,
                 "timer": {
                     "period": 50000,
-                    "ref": "test"
+                    "ref": "unique"
                 }
             },
             {
@@ -220,7 +219,7 @@ class TestRTAProfile(RTABase):
                 "run": 35000,
                 "timer": {
                     "period": 50000,
-                    "ref": "test"
+                    "ref": "unique"
                 }
             },
             {
@@ -228,7 +227,7 @@ class TestRTAProfile(RTABase):
                 "run": 45000,
                 "timer": {
                     "period": 50000,
-                    "ref": "test"
+                    "ref": "unique"
                 }
             },
             # Heavy phase:
@@ -237,26 +236,11 @@ class TestRTAProfile(RTABase):
                 "run": 90000,
                 "timer": {
                     "period": 100000,
-                    "ref": "test"
+                    "ref": "unique"
                 }
             }]
 
         self._do_test(profile, exp_phases)
-
-    def test_invalid_composition(self):
-        """Test that you can't compose tasks with a delay in the second task"""
-        t1 = Periodic()
-        t2 = Periodic(delay_s=1)
-
-        # Should work fine if delayed task is the first one
-        try:
-            t3 = t2 + t1
-        except Exception as e:
-            raise AssertionError("Couldn't compose tasks: {}".format(e))
-
-        # But not the other way around
-        with pytest.raises(ValueError):
-            t3 = t1 + t2
 
 
 class TestRTACustom(RTABase):
@@ -276,7 +260,7 @@ class TestRTACustom(RTABase):
         with open(json_path, 'r') as fh:
             str_conf = fh.read()
 
-        rtapp = RTA.by_str(
+        rtapp = RTA.from_str(
             self.target, name='test', str_conf=str_conf, res_dir=self.res_dir,
             max_duration_s=5, calibration=calibration)
 
@@ -320,8 +304,16 @@ class TestRTACalibrationConf(RTABase):
     __test__ = True
 
     def _get_calib_conf(self, calibration):
-        profile = {"test": Periodic()}
-        rtapp = RTA.by_profile(
+        profile = {
+            "test": RTAPhase(
+                prop_wload=PeriodicWload(
+                    duty_cycle_pct=50,
+                    period=100e-3,
+                    duration=1,
+                )
+            )
+        }
+        rtapp = RTA.from_profile(
             self.target, name='test', res_dir=self.res_dir, profile=profile,
             calibration=calibration)
 
