@@ -1010,6 +1010,29 @@ def is_monotonic(iterable, decreasing=False):
         return True
 
 
+def fixedpoint(f, init, limit=None):
+    """
+    Find the fixed point of a function ``f`` with the initial parameter ``init``.
+
+    :param limit: If provided, set a limit on the number of iterations.
+    :type limit: int or None
+    """
+    if limit is None:
+        iterable = itertools.count()
+    else:
+        iterable = range(limit)
+
+    prev = init
+    for _ in iterable:
+        new = f(prev)
+        if new == prev:
+            return new
+        else:
+            prev = new
+
+    raise ValueError('Could not find a fixed point')
+
+
 def get_common_prefix(*iterables):
     """
     Return the common prefix of the passed iterables as an iterator.
