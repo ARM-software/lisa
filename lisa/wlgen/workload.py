@@ -34,8 +34,11 @@ class Workload(Loggable):
     :param name: Name of the workload. Useful for naming related artefacts.
     :type name: str
 
-    :param res_dir: Directory into which artefacts will be stored
-    :type res_dir: str
+    :param res_dir: Host directory into which artifacts will be stored
+    :type res_dir: str or None
+
+    :param run_dir: Target directory into which artifacts will be created.
+    :type run_dir: str or None
 
     :Attributes:
         * ``command``: The command this workload will execute when invoking
@@ -85,7 +88,7 @@ class Workload(Loggable):
     :meth:`lisa.target.Target.install_tools`.
     """
 
-    def __init__(self, target, name=None, res_dir=None):
+    def __init__(self, target, name=None, res_dir=None, run_dir=None):
         self.target = target
         self.name = name or self.__class__.__qualname__
         self.command = None
@@ -95,9 +98,16 @@ class Workload(Loggable):
                                           "lisa", "wlgen")
         target.execute(f'mkdir -p {quote(wlgen_dir)}')
 
-        temp_fmt = f"{self.name.replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_XXXXXX"
-        cmd = f"mktemp -d -p {quote(wlgen_dir)} {quote(temp_fmt)}"
-        self.run_dir = target.execute(cmd).strip()
+        if run_dir:
+            # Ensure the folder is created
+            cmd = f'mkdir -p {quote(run_dir)}'
+            target.execute(cmd)
+        else:
+            temp_fmt = f"{self.name.replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_XXXXXX"
+            cmd = f"mktemp -d -p {quote(wlgen_dir)} {quote(temp_fmt)}"
+            run_dir = target.execute(cmd).strip()
+
+        self.run_dir = run_dir
 
         self.get_logger().info(f"Created workload's run target directory: {self.run_dir}")
 
