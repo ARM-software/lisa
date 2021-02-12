@@ -1655,6 +1655,15 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                         for event in ftrace_coll.events
                         if event.startswith('userspace@rtapp_')]
 
+        # Coarse-grained detection, but that should be enough for our use
+        try:
+            target.execute('ls /sys/kernel/debug/tracing/')
+        except TargetStableError:
+            debugfs_needs_root = True
+        else:
+            debugfs_needs_root = False
+
+
         def add_buffer(task):
             template_phase = task.phases[0]
             buffer_task = Periodic(
@@ -1688,7 +1697,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                                name=f"rta_{cls.__name__.casefold()}",
                                trace_events=trace_events)
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
-        as_root = cgroup is not None
+        as_root = cgroup is not None or (trace_events and debugfs_needs_root)
         wload_cm = wload if wipe_run_dir else nullcontext(wload)
 
         # Pre-hit the calibration information, in case this is a lazy value.
