@@ -412,10 +412,10 @@ class RTA(Workload):
 
         # Create calibration task
         if target.is_rooted:
-            max_rtprio = int(target.execute('ulimit -Hr').split('\r')[0])
+            max_rtprio = int(target.execute('ulimit -Hr').splitlines()[0])
             logger.debug(f'Max RT prio: {max_rtprio}')
 
-            priority = max_rtprio if max_rtprio <= 10 else 10
+            priority = max_rtprio + 1 if max_rtprio <= 10 else 10
             sched_policy = 'FIFO'
         else:
             logger.warning('Will use default scheduler class instead of RT since the target is not rooted')
