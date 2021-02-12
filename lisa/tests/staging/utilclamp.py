@@ -246,10 +246,12 @@ class UtilClamp(RTATestBundle):
         def parse_phase(df, phase):
             uclamp_val = phase['uclamp_val']
             num_activations = df['active'][df['active'] == 1].count()
-            cpus = set(df.cpu.dropna().unique())
-            fitting_cpus = {cpu for cpu, cap in cpu_max_capacities.items()
-                                if (cap == PELT_SCALE) or
-                                (cap * capacity_margin) > uclamp_val}
+            cpus = set(map(int, df.cpu.dropna().unique()))
+            fitting_cpus = {
+                cpu
+                for cpu, cap in cpu_max_capacities.items()
+                if (cap == PELT_SCALE) or (cap * capacity_margin) > uclamp_val
+            }
 
             failures = df[(
                 df['active'] == 1) & (df['cpu'].isin(cpus - fitting_cpus))
@@ -257,7 +259,7 @@ class UtilClamp(RTATestBundle):
             num_failures = len(failures)
             test_failures.extend(failures)
 
-            phase_str = f"Phase-{phase['phase']}"
+            phase_str = f"Phase-{int(phase['phase'])}"
             metrics[phase_str] = {
                 'uclamp-min': TestMetric(uclamp_val),
                 'cpu-placements': TestMetric(cpus),
