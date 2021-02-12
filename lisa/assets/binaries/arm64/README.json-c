@@ -6,23 +6,23 @@ Git repository: https://github.com/json-c/json-c
 Build host info:
 
 NAME="Ubuntu"
-VERSION="18.04.5 LTS (Bionic Beaver)"
+VERSION="20.04.2 LTS (Focal Fossa)"
 ID=ubuntu
 ID_LIKE=debian
-PRETTY_NAME="Ubuntu 18.04.5 LTS"
-VERSION_ID="18.04"
+PRETTY_NAME="Ubuntu 20.04.2 LTS"
+VERSION_ID="20.04"
 HOME_URL="https://www.ubuntu.com/"
 SUPPORT_URL="https://help.ubuntu.com/"
 BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
 PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
-VERSION_CODENAME=bionic
-UBUNTU_CODENAME=bionic
+VERSION_CODENAME=focal
+UBUNTU_CODENAME=focal
 
 
 Build recipe:
 
 export ARCH=arm64
-export BUILD_DIR=/tmp/tmpuimyu0_r/arm64
+export BUILD_DIR=/tmp/tmpeajcu1c0/arm64
 export CONFIGURE_HOST=aarch64-linux-gnu
 export CROSS_COMPILE=aarch64-linux-gnu-
 export LISA_ARCH_ASSETS=/lisa/assets/binaries/arm64
@@ -63,8 +63,8 @@ download() {
     git clone https://github.com/numactl/numactl.git
     git -C numactl checkout 26fba7199c365b55e72e054bb2adba097ce04924
 
-    git clone https://github.com/scheduler-tools/rt-app.git
-    git -C rt-app checkout eadb1f641202982bb06751d089dd9d4929f3d349
+    git clone https://github.com/douglas-raillard-arm/rt-app.git
+    git -C rt-app checkout uclamp-reset
 }
 
 build() {
