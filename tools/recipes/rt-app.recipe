@@ -34,8 +34,8 @@ download() {
     git clone https://github.com/numactl/numactl.git
     git -C numactl checkout 26fba7199c365b55e72e054bb2adba097ce04924
 
-    git clone https://github.com/scheduler-tools/rt-app.git
-    git -C rt-app checkout eadb1f641202982bb06751d089dd9d4929f3d349
+    git clone https://github.com/douglas-raillard-arm/rt-app.git
+    git -C rt-app checkout uclamp-reset
 }
 
 build() {
