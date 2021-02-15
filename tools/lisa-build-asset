@@ -58,13 +58,13 @@ def list_assets(recipe_dir):
     )
 
 def get_asset_recipe(asset, recipe_dir):
-    return os.path.join(recipe_dir, '{}.recipe'.format(asset))
+    return os.path.join(recipe_dir, f'{asset}.recipe')
 
 def make(asset, actions, arch, toolchain, recipe_dir, build_dir):
     recipe = get_asset_recipe(asset, recipe_dir)
     env = get_env(asset, arch, toolchain, recipe, build_dir)
     for action in actions:
-        print('\nMaking {} {} {} in: {}\n'.format(arch, asset, action, build_dir))
+        print(f'\nMaking {arch} {asset} {action} in: {build_dir}\n')
 
         script = 'source {recipe} && {action}'.format(
             recipe=recipe,
@@ -108,12 +108,7 @@ def make_asset(asset, arch_list, build_dir, recipe_dir, toolchains):
             make(asset, actions, arch, toolchain, recipe_dir, build_dir)
 
 def error_missing_toolchains(parser, missing):
-    parser.error('Missing toolchains, please specify: {}'.format(
-        ', '.join(
-            '--{}-toolchain'.format(arch)
-            for arch in missing
-        )
-    ))
+    parser.error(f'Missing toolchains, please specify: {", ".join(f"--{arch}-toolchain" for arch in missing)}')
 
 def main():
     recipe_dir = os.path.join(LISA_HOME, 'tools', 'recipes')
@@ -156,16 +151,16 @@ def main():
     )
 
     for arch in ARCHITECTURES:
-        parser.add_argument('--{}-toolchain'.format(arch),
+        parser.add_argument(f'--{arch}-toolchain',
             default=default_toolchains.get(arch),
-            help='Name of the toolchain for {} (CROSS_COMPILE without trailing dash)'.format(arch),
+            help=f'Name of the toolchain for {arch} (CROSS_COMPILE without trailing dash)',
         )
 
     parser.add_argument('--build-dir', help='Build director. Defaults to temp folder')
     args = parser.parse_args()
 
     toolchains = {
-        arch: vars(args).get('{}_toolchain'.format(arch))
+        arch: vars(args).get(f'{arch}_toolchain')
         for arch in ARCHITECTURES
     }
 
@@ -193,17 +188,14 @@ def main():
     else:
         archs_to_make = [args.arch]
 
-    print('Will make {} for {}'.format(
-        ', '.join(assets_to_make),
-        ', '.join(archs_to_make),
-    ))
+    print(f'Will make {", ".join(assets_to_make)} for {", ".join(archs_to_make)}')
 
     ret = 0
     for asset in assets_to_make:
         try:
             make_asset(asset, archs_to_make, args.build_dir, recipe_dir, toolchains)
         except Exception as e:
-            print('\nError while making {}: {}\n'.format(asset, e))
+            print(f'\nError while making {asset}: {e}\n')
             ret = 1
 
     return ret
