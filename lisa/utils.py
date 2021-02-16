@@ -944,6 +944,10 @@ def value_range(start, stop, step=None, nr_steps=None, inclusive=False, type_=No
     else:
         step = 1
 
+    # Make sure the step goes in the right direction
+    sign = +1 if start <= stop else -1
+    step = sign * abs(step)
+
     if stop < start and step > 0:
         raise ValueError(f"step ({step}) > 0 but stop ({stop}) < start ({start})")
 
