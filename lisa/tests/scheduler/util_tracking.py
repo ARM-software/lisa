@@ -105,7 +105,7 @@ class UtilConvergence(UtilTrackingBase):
     """
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         big_cpu = plat_info["capacity-classes"][-1][0]
 
         task = (

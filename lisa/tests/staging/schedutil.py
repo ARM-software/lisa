@@ -278,7 +278,7 @@ class LargeStepUp(RampBoostTestBase):
 
     @property
     def rtapp_profile(self):
-        return self.get_rtapp_profile(self.plat_info, self.cpu, self.nr_steps)
+        return self.get_rtapp_profile(self.plat_info, cpu=self.cpu, nr_steps=self.nr_steps)
 
     @classmethod
     def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None, cpu=None, nr_steps=1) -> 'LargeStepUp':
@@ -287,7 +287,7 @@ class LargeStepUp(RampBoostTestBase):
         # Use a big CPU by default to allow maximum range of utilization
         cpu = cpu if cpu is not None else plat_info["capacity-classes"][-1][0]
 
-        rtapp_profile = cls.get_rtapp_profile(plat_info, cpu, nr_steps)
+        rtapp_profile = cls.get_rtapp_profile(plat_info, cpu=cpu, nr_steps=nr_steps)
 
         # Ensure accurate duty cycle and idle state misprediction on some
         # boards. This helps having predictable execution.
@@ -298,7 +298,7 @@ class LargeStepUp(RampBoostTestBase):
         return cls(res_dir, plat_info, cpu, nr_steps)
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info, cpu, nr_steps, min_util=5, max_util=75):
+    def _get_rtapp_profile(cls, plat_info, cpu, nr_steps, min_util=5, max_util=75):
         start_pct = cls.unscaled_utilization(plat_info, cpu, min_util)
         end_pct = cls.unscaled_utilization(plat_info, cpu, max_util)
 

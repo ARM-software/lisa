@@ -214,7 +214,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         return {'cpu': f'{self.cpu}@{self.freq}'}
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info, cpu, freq):
+    def _get_rtapp_profile(cls, plat_info, cpu, freq):
         """
         Get a specification for a rt-app workload with the specificied duty
         cycle, pinned to the given CPU.
@@ -247,7 +247,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         :type freq: int or None
         """
         plat_info = target.plat_info
-        rtapp_profile = cls.get_rtapp_profile(plat_info, cpu, freq)
+        rtapp_profile = cls.get_rtapp_profile(plat_info, cpu=cpu, freq=freq)
         logger = cls.get_logger()
 
         with target.cpufreq.use_governor(**cls.cpufreq_conf):
@@ -1080,7 +1080,7 @@ class OneTaskCPUMigration(CPUMigrationBase):
         return 2
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         profile = {}
         cpus = cls.get_migration_cpus(plat_info)
 
@@ -1117,7 +1117,7 @@ class NTasksCPUMigrationBase(CPUMigrationBase):
     """
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         cpus = cls.get_migration_cpus(plat_info)
         def make_name(i): return f'migr{i}'
 

@@ -76,7 +76,7 @@ class NUMASmallTaskPlacement(NUMABehaviour):
     task_prefix = "tsk"
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         rtapp_profile = {}
         rtapp_profile[cls.task_prefix] = Periodic(
             duty_cycle_pct=50,
@@ -93,7 +93,7 @@ class NUMAMultipleTasksPlacement(NUMABehaviour):
     task_prefix = "tsk"
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         # Four CPU's is enough to demonstrate task migration problem
         cpu_count = min(4, plat_info["cpus-count"])
 

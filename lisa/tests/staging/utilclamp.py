@@ -133,7 +133,7 @@ class UtilClamp(RTATestBundle):
         ]
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         periods = [
             Periodic(
                 duty_cycle_pct=(util / PELT_SCALE) * 100,  # util to pct

@@ -130,7 +130,7 @@ class SchedTuneFreqItem(SchedTuneItemBase):
     """
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         cpu = plat_info['capacity-classes'][-1][0]
         rtapp_profile = {}
         rtapp_profile['stune'] = Periodic(
@@ -235,7 +235,7 @@ class SchedTunePlacementItem(SchedTuneItemBase):
     """
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         rtapp_profile = {}
         rtapp_profile['stune'] = Periodic(
             duty_cycle_pct=1,
