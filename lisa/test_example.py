@@ -131,7 +131,7 @@ class ExampleTestBundle(RTATestBundle):
         return cls(res_dir, plat_info, output)
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         """
         This class method is in charge of generating an rt-app profile, to
         configure the workload that will be run using

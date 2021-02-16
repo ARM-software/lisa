@@ -435,7 +435,7 @@ class OneSmallTask(EASBehaviour):
     task_name = "small"
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         duty = cls.get_little_duty_cycle(plat_info, 50)
 
         rtapp_profile = {}
@@ -476,7 +476,7 @@ class ThreeSmallTasks(EASBehaviour):
             capacity_margin_pct=capacity_margin_pct)
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         duty = cls.get_little_duty_cycle(plat_info, 50)
 
         rtapp_profile = {}
@@ -498,7 +498,7 @@ class TwoBigTasks(EASBehaviour):
     task_prefix = "big"
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         duty = cls.get_big_duty_cycle(plat_info)
 
         rtapp_profile = {}
@@ -521,7 +521,7 @@ class TwoBigThreeSmall(EASBehaviour):
     big_prefix = "big"
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         small_duty = cls.get_little_duty_cycle(plat_info, 50)
         big_duty = cls.get_big_duty_cycle(plat_info)
 
@@ -560,7 +560,7 @@ class EnergyModelWakeMigration(EASBehaviour):
            'Cannot test migration on single capacity group')
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         start_pct = cls.get_little_duty_cycle(plat_info, 20)
         end_pct = cls.get_big_duty_cycle(plat_info)
 
@@ -606,7 +606,7 @@ class RampUp(EASBehaviour):
             capacity_margin_pct=capacity_margin_pct)
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         start_pct = cls.get_little_duty_cycle(plat_info, 10)
         end_pct = cls.get_big_duty_cycle(plat_info, 70)
 
@@ -658,7 +658,7 @@ class RampDown(EASBehaviour):
             capacity_margin_pct=capacity_margin_pct)
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         start_pct = cls.get_big_duty_cycle(plat_info, 70)
         end_pct = cls.get_little_duty_cycle(plat_info, 10)
 

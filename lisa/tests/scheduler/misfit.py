@@ -160,7 +160,7 @@ class StaggeredFinishes(MisfitMigrationBase):
                 "Target doesn't have asymmetric CPU capacities")
 
     @classmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         cpus = list(range(plat_info['cpus-count']))
 
         # We're pinning stuff in the first phase, so give it ample time to

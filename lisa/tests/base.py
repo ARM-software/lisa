@@ -1556,8 +1556,64 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         return (capa * utilization_pct) / PELT_SCALE
 
     @classmethod
+    def get_rtapp_profile(cls, plat_info, **kwargs):
+        """
+        Returns a :class:`dict` with task names as keys and
+        :class:`lisa.wlgen.rta.RTATask` as values.
+
+        A buffer phase may be inserted at the beginning of each task in order
+        to stabilize some kernel signals.
+
+        .. note:: If you want to override the method in a subclass, override
+            :meth:`_get_rtapp_profile` instead.
+        """
+
+        def add_buffer(task):
+            template_phase = task.phases[0]
+            wload = template_phase['wload']
+
+            # Don't add the buffer phase if it has a nil duration
+            if not cls._BUFFER_PHASE_DURATION_S:
+                return task
+            elif isinstance(wload, PeriodicWload):
+                # Notes:
+                #
+                # Using a small period to allow the util_avg to be very close
+                # to duty_cycle, but that also makes the duty_cycle converge to
+                # a wrong value (rtapp looses fidelity with small periods,
+                # maybe due to tracing overhead). Therefore we just replicate
+                # the period.
+                ref_wload = PeriodicWload(
+                    # TODO: compute accurately the convergence time of the
+                    # signal used for placement by the scheduler
+                    duration=cls._BUFFER_PHASE_DURATION_S,
+                )
+
+                buffer_phase = RTAPhase(
+                    prop_name='buffer',
+                    # Override some parameters with the reference ones
+                    prop_wload=ref_wload & wload,
+                    # Pin to the same CPUs and NUMA nodes if any, so that we
+                    # also let the runqueue signals converge and things like
+                    # that, if it's going to matter later.
+                    prop_cpus=template_phase.get('cpus'),
+                    prop_numa_nodes_membind=template_phase.get('numa_nodes_membind'),
+                )
+
+                # Prepend the buffer task
+                return buffer_phase + task
+            else:
+                return task
+
+        profile = cls._get_rtapp_profile(plat_info, **kwargs)
+        return {
+            name: add_buffer(task)
+            for name, task in profile.items()
+        }
+
+    @classmethod
     @abc.abstractmethod
-    def get_rtapp_profile(cls, plat_info):
+    def _get_rtapp_profile(cls, plat_info):
         """
         :returns: a :class:`dict` with task names as keys and
           :class:`lisa.wlgen.rta.RTATask` as values
@@ -1668,49 +1724,6 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             debugfs_needs_root = True
         else:
             debugfs_needs_root = False
-
-        def add_buffer(task):
-            template_phase = task.phases[0]
-            wload = template_phase['wload']
-
-            # Don't add the buffer phase if it has a nil duration
-            if not cls._BUFFER_PHASE_DURATION_S:
-                return task
-            elif isinstance(wload, PeriodicWload):
-                # Notes:
-                #
-                # Using a small period to allow the util_avg to be very close
-                # to duty_cycle, but that also makes the duty_cycle converge to
-                # a wrong value (rtapp looses fidelity with small periods,
-                # maybe due to tracing overhead). Therefore we just replicate
-                # the period.
-                ref_wload = PeriodicWload(
-                    # TODO: compute accurately the convergence time of the
-                    # signal used for placement by the scheduler
-                    duration=cls._BUFFER_PHASE_DURATION_S,
-                )
-
-                buffer_phase = RTAPhase(
-                    prop_name='buffer',
-                    # Override some parameters with the reference ones
-                    prop_wload=ref_wload & wload,
-                    # Pin to the same CPUs and NUMA nodes if any, so that we
-                    # also let the runqueue signals converge and things like
-                    # that, if it's going to matter later.
-                    prop_cpus=template_phase.get('cpus'),
-                    prop_numa_nodes_membind=template_phase.get('numa_nodes_membind'),
-                )
-
-                # Prepend the buffer task
-                return buffer_phase + task
-            else:
-                return task
-
-
-        profile = {
-            name: add_buffer(task)
-            for name, task in profile.items()
-        }
 
         wload = RTA.by_profile(target, profile, res_dir=res_dir,
                                name=f"rta_{cls.__name__.casefold()}",
