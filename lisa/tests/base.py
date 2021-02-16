@@ -1172,7 +1172,7 @@ class DmesgTestBundle(TestBundle):
     ]
     """
     List of patterns to ignore in addition to the ones passed to
-    :meth:`test_dmesg`.
+    :meth:`~lisa.tests.base.DmesgTestBundle.test_dmesg`.
     """
 
     @property
