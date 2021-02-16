@@ -973,7 +973,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
 
     DEFAULT_SRC = {}
     """
-    Source added automatically using :meth:`add_src` under the name 'default'
+    Source added automatically using :meth:`~lisa.conf.MultiSrcConf.add_src` under the name 'default'
     when instances are built.
     """
 
