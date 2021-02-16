@@ -126,6 +126,14 @@ install_nodejs_snap() {
     fi
 }
 
+# Clone alpine-chroot-install repo
+clone_alpine_chroot_install() {
+    if [ ! -d ${LISA_HOME}/tools/alpine-chroot-install ]
+    then
+        git -C ${LISA_HOME}/tools clone https://github.com/alpinelinux/alpine-chroot-install.git --depth=1
+    fi
+}
+
 install_apt() {
     echo "Installing apt packages ..."
     sudo apt-get update &&
@@ -162,6 +170,7 @@ apt_packages=(
     sshpass
     wget
     unzip
+    qemu-user-static
     kernelshark
     python3
     python3-dev
@@ -182,6 +191,7 @@ pacman_packages=(
     base-devel
     wget
     unzip
+    qemu-user-static
     python
     python-pip
     python-setuptools
@@ -322,6 +332,8 @@ for arg in "$@"; do
         # gettext for autopoint
         pacman_packages+=(gettext autoconf libtool bison cmake)
 
+        install_functions+=(clone_alpine_chroot_install)
+
         handled=1;
         ;;&
 
@@ -379,6 +391,7 @@ ordered_functions=(
     install_android_platform_tools
 
     register_pip_extra_requirements
+    clone_alpine_chroot_install
 )
 
 # Remove duplicates in the list

@@ -1,20 +1,33 @@
 #! /bin/bash
 
+ALPINE_BUILD_DEPENDENCIES=(autoconf automake bash bison file flex gcc git libtool linux-headers make musl-dev pkgconfig)
+
 download() {
-    git clone https://github.com/akopytov/sysbench.git
-    git -C sysbench checkout master
+    git clone https://github.com/akopytov/sysbench.git --depth=1
 }
 
 build() {
     cd sysbench
 
+    # This recipe doesn't work because sysbench relies on third party
+    # repositories (LUA-Jit and conkurrency-kit). The build system does't
+    # allow static build. The '--disable-shared' flag is a lure
+    # (cf third_party/concurrency_kit/ck/configure#L288).
+    # To get a statically built sysbench binary:
+    #  1- Run the script (should run properly).
+    #  2- Go to the src folder and run `make LDFLAGS="-static"`. This should
+    #     fail at link time.
+    #  3- Copy the link command that failed and remove the dynamic libraries
+    #     that are referenced (-ldl and -lm). (They are inherited flags from
+    #     the third party projects.)
+    #  4. Run that command and get your sysbench binary.
     ./autogen.sh
     ./configure --host=$CONFIGURE_HOST \
                 --without-mysql \
                 --without-pgsql \
                 --disable-shared
 
-    make LDFLAGS="-static"
+    make
     ${CROSS_COMPILE}strip sysbench
 }
 

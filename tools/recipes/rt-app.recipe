@@ -1,5 +1,7 @@
 #! /bin/bash
 
+ALPINE_BUILD_DEPENDENCIES=(autoconf automake bash cmake gcc git make libtool linux-headers musl-dev)
+
 build_jsonc() {
     # As recommended in the README, build in a separate tree
     mkdir json-c-build
@@ -49,5 +51,8 @@ install() {
     cp -v rt-app/src/rt-app "$LISA_ARCH_ASSETS/rt-app"
 
     install_readme rt-app rt-app COPYING.in
+    # According to the readme, libnumactl is under the
+    # GNU Lesser General Public License, v2.1.
+    install_readme libnumactl numactl LICENSE.LGPL2.1
     install_readme json-c json-c COPYING
 }

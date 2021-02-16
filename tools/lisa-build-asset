@@ -8,10 +8,34 @@ import shutil
 import sys
 
 from lisa.utils import nullcontext
+from contextlib import contextmanager
+from shlex import quote
 
 LISA_HOME = os.environ['LISA_HOME']
+ARCHITECTURES = ['arm64', 'armeabi', 'x86_64']
 
-def get_env(asset, arch, toolchain, recipe, build_dir):
+# Arch names usued by qemu.
+QEMU_ARCH_NAMES = {
+    'arm64': 'aarch64',
+    'armeabi': 'armv7'
+}
+
+def get_alpine_dir():
+    # Locate where 'alpine-chroot-install' was installed.
+    return os.path.join(os.environ['LISA_HOME'], 'tools', 'alpine-chroot-install')
+
+def get_used_env_var(recipe, env):
+    # Parse the recipe, searching for env variables actually used.
+    with open(recipe) as f:
+        recipe_content = f.read()
+
+    return {
+        var
+        for var in env.keys()
+        if var in recipe_content
+    }
+
+def get_env(asset=None, arch=None, build_dir=None, toolchain=None, recipe=None):
     # Set of env var "leaking" into the build environment. Controlling this set
     # ensures reproducible builds that do not depend on user setup.
     leaked = {'PATH'}
@@ -37,15 +61,7 @@ def get_env(asset, arch, toolchain, recipe, build_dir):
         if val is not None
     }
 
-    with open(recipe) as f:
-        recipe_content = f.read()
-
-    used_env_var = {
-        var
-        for var in env.keys()
-        if var in recipe_content
-    }
-    env['LISA_ASSET_RECIPE_USED_ENV'] = ' '.join(sorted(used_env_var))
+    env['LISA_ASSET_RECIPE_USED_ENV'] = ' '.join(sorted(get_used_env_var(recipe, env)))
 
     return env
 
@@ -57,25 +73,145 @@ def list_assets(recipe_dir):
         if script.endswith('.recipe')
     )
 
-def get_asset_recipe(asset, recipe_dir):
-    return os.path.join(recipe_dir, f'{asset}.recipe')
+def get_recipe_name(asset):
+    return f'{asset}.recipe'
 
-def make(asset, actions, arch, toolchain, recipe_dir, build_dir):
+def get_asset_recipe(asset, recipe_dir):
+    return os.path.join(recipe_dir, get_recipe_name(asset))
+
+def get_asset_property(asset, arch, property, **kwargs):
+    # Read asset's recipe to get a property value.
+    # Raise a ValueError if property is not set.
+    action = f"if [ -z ${{{property}+x}} ]; then exit 1; else printf '%s\\n' ${{{property}[@]}}; fi"
+    try:
+        val = make(asset, arch, [action], **kwargs, get_output=True)
+    except subprocess.CalledProcessError:
+        raise ValueError(f'The property "{property}" is not set.')
+    return val[action].splitlines()
+
+def is_property_set(asset, arch, property, **kwargs):
+    try:
+        get_asset_property(asset, arch, property, **kwargs)
+    except ValueError:
+        return False
+    else:
+        return True
+
+def is_alpine_build(asset, arch, native_build, **kwargs):
+    has_native_build = is_property_set(asset, arch, "ALPINE_BUILD_DEPENDENCIES", **kwargs)
+    has_broken_cross_build = is_property_set(asset, arch, "BROKEN_CROSS_COMPILATION", **kwargs)
+
+    if not has_native_build and has_broken_cross_build:
+        raise ValueError(f'\n Asset {asset} cannot be built on Alpine Linux or cross compiled')
+
+    if native_build:
+        if has_native_build:
+            return True
+        print(f'\n Asset {asset} cannot be built on Alpine Linux, falling back to cross compilation')
+        return False
+    else:
+        if has_broken_cross_build:
+            print(f'\n Asset {asset} cannot be cross-compiled, falling back to Alpine Linux')
+            return True
+        return False
+
+@contextmanager
+def make_chroot(asset, arch, build_dir, recipe_dir, arch_chroot_dir):
+    # Create a chroot at arch_chroot_dir as a contextmanager.
     recipe = get_asset_recipe(asset, recipe_dir)
-    env = get_env(asset, arch, toolchain, recipe, build_dir)
+    env = get_env(
+        asset=asset,
+        arch=arch,
+        recipe=recipe,
+        build_dir=build_dir
+    )
+
+    # List the required Alpine packages.
+    try:
+        alpine_dependencies = get_asset_property(
+            asset, arch, "ALPINE_BUILD_DEPENDENCIES",
+            build_dir=build_dir,
+            recipe_dir=recipe_dir,
+            arch_chroot_dir=arch_chroot_dir
+        )
+    except ValueError:
+        alpine_dependencies = []
+    else:
+        alpine_dependencies = ('-p', ' '.join(map(quote, alpine_dependencies)))
+
+    # List the required env variables.
+    env_args = ('-k', ' '.join(env.keys())) if env else []
+
+    # Install the chroot.
+    subprocess.check_call(
+        [
+            'sudo', os.path.join(get_alpine_dir(), 'alpine-chroot-install'),
+            '-d', arch_chroot_dir,
+            '-i', LISA_HOME,
+            '-a', QEMU_ARCH_NAMES.get(arch, arch),
+            *alpine_dependencies,
+            *env_args,
+        ],
+        cwd=build_dir,
+    )
+
+    def bind_mount(path):
+        # join() will ignore everything before an absolute path so make it
+        # relative first
+        rel = os.path.relpath(path, start='/')
+        path_ = os.path.join(arch_chroot_dir, rel)
+        subprocess.check_call(['sudo', 'mkdir', '-p', path_])
+        subprocess.check_call(['sudo', 'mount', '--bind', path, path_])
+
+    bind_mount(build_dir)
+
+    try:
+        yield arch_chroot_dir
+    finally:
+        # Clean-up the chroot
+        subprocess.check_call([os.path.join(arch_chroot_dir, 'destroy'), '--remove'])
+
+def make(asset, arch, actions, build_dir, recipe_dir, toolchain=None, arch_chroot_dir=None, get_output=False):
+    if arch_chroot_dir:
+        # Since the build is native, no need for a toolchain.
+        toolchain = None
+
+    if get_output:
+        # make() is sometimes expected to return the output of the 'actions'.
+        # If so, use check_output() to exectute the 'actions'.
+        output = dict()
+        def run_cmd(action, *args, **kwargs):
+            output[action] = subprocess.check_output(*args, **kwargs).decode('utf-8')
+    else:
+        output = None
+        def run_cmd(action, *args, **kwargs):
+            subprocess.check_call(*args, **kwargs)
+
+    recipe = get_asset_recipe(asset, recipe_dir)
+    env = get_env(
+        asset=asset,
+        arch=arch,
+        build_dir=build_dir,
+        recipe=recipe,
+        toolchain=toolchain
+    )
+
     for action in actions:
         print(f'\nMaking {arch} {asset} {action} in: {build_dir}\n')
 
-        script = 'source {recipe} && {action}'.format(
-            recipe=recipe,
-            action=action,
-        )
-        cmd = ['bash', '-c', script]
-        subprocess.check_call(cmd, env=env, cwd=build_dir)
+        cmd = ['bash', '-c', f'source {recipe} && {action}']
 
-ARCHITECTURES = ['arm64', 'armeabi', 'x86_64']
+        if arch_chroot_dir and action in ('build', 'install'):
+            # Notify the recipe the build is on alpine.
+            env["USE_MUSL_LIB"] = '1'
+            cmd = ' '.join(map(quote, cmd))
+            cmd = [os.path.join(arch_chroot_dir, 'enter-chroot'), '-u', os.environ['USER'], 'eval', cmd]
 
-def make_asset(asset, arch_list, build_dir, recipe_dir, toolchains):
+        run_cmd(action, cmd, env=env, cwd=build_dir)
+
+    return output
+
+def make_asset(asset, arch_list, build_dir, recipe_dir, toolchains=None, native_build=False):
     if build_dir:
         shutil.rmtree(build_dir, ignore_errors=True)
         os.makedirs(build_dir, exist_ok=True)
@@ -84,28 +220,48 @@ def make_asset(asset, arch_list, build_dir, recipe_dir, toolchains):
         cm = tempfile.TemporaryDirectory()
 
     with cm as build_dir:
-        # All architectures need to be built
-        if len(arch_list) > 1:
-            # Download sources once for all architectures
-            download_dir = os.path.join(build_dir, 'download')
-            os.makedirs(download_dir)
-            make(asset, ['download'], arch='any', toolchain=None, recipe_dir=recipe_dir, build_dir=download_dir)
+        # Download sources once for all architectures
+        download_dir = os.path.join(build_dir, 'download')
+        os.makedirs(download_dir)
+        make(
+            asset, 'any', ['download'],
+            build_dir=download_dir,
+            recipe_dir=recipe_dir,
+            toolchain=None
+        )
 
-            # Build and install for each
-            actions = ['build', 'install']
-            for arch in arch_list:
-                arch_build_dir = os.path.join(build_dir, arch)
-                shutil.copytree(download_dir, arch_build_dir)
+        # Build and install for each
+        for arch in arch_list:
+            arch_build_dir = os.path.join(build_dir, arch)
+            arch_source_dir = os.path.join(arch_build_dir, 'source')
+            shutil.copytree(download_dir, arch_source_dir)
 
+            builds_on_alpine = is_alpine_build(
+                asset, arch, native_build,
+                build_dir=build_dir,
+                recipe_dir=recipe_dir
+            )
+
+            if builds_on_alpine:
+                arch_chroot_dir = os.path.join(arch_build_dir, 'chroot')
+                chroot_cm = make_chroot(
+                    asset, arch,
+                    build_dir=build_dir,
+                    recipe_dir=recipe_dir,
+                    arch_chroot_dir=arch_chroot_dir
+                )
+            else:
+                 chroot_cm = nullcontext()
+
+            with chroot_cm as arch_chroot_dir:
                 toolchain = toolchains[arch]
-                make(asset, actions, arch, toolchain, recipe_dir, arch_build_dir)
-
-        # Only one architecture was requested
-        else:
-            arch = arch_list[0]
-            actions = ['download', 'build', 'install']
-            toolchain = toolchains[arch]
-            make(asset, actions, arch, toolchain, recipe_dir, build_dir)
+                make(
+                    asset, arch, ['build', 'install'],
+                    build_dir=arch_source_dir,
+                    recipe_dir=recipe_dir,
+                    toolchain=toolchain,
+                    arch_chroot_dir=arch_chroot_dir
+                )
 
 def error_missing_toolchains(parser, missing):
     parser.error(f'Missing toolchains, please specify: {", ".join(f"--{arch}-toolchain" for arch in missing)}')
@@ -149,6 +305,11 @@ def main():
         default='all',
         choices=ARCHITECTURES + ['all'],
     )
+    # Only available for a few assets
+    parser.add_argument('--native-build',
+        help=f'Setup a native environment to build instead of cross-compiling. Must be run as root.',
+        action='store_true'
+    )
 
     for arch in ARCHITECTURES:
         parser.add_argument(f'--{arch}-toolchain',
@@ -158,6 +319,8 @@ def main():
 
     parser.add_argument('--build-dir', help='Build director. Defaults to temp folder')
     args = parser.parse_args()
+
+    build_dir = os.path.abspath(args.build_dir) if args.build_dir else None
 
     toolchains = {
         arch: vars(args).get(f'{arch}_toolchain')
@@ -177,7 +340,6 @@ def main():
     elif toolchains[args.arch] is None:
         error_missing_toolchains(parser, [args.arch])
 
-
     if args.asset == 'all':
         assets_to_make = asset_list
     else:
@@ -193,7 +355,13 @@ def main():
     ret = 0
     for asset in assets_to_make:
         try:
-            make_asset(asset, archs_to_make, args.build_dir, recipe_dir, toolchains)
+            make_asset(
+                asset, archs_to_make,
+                build_dir=build_dir,
+                recipe_dir=recipe_dir,
+                toolchains=toolchains,
+                native_build=args.native_build
+            )
         except Exception as e:
             print(f'\nError while making {asset}: {e}\n')
             ret = 1
