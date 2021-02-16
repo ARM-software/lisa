@@ -112,6 +112,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         df = pd.concat([first_df, df])
         df.sort_index(inplace=True)
+        df.index.name = 'Time'
         return check_empty(df, None)
 
     @df_cpus_frequency.used_events
