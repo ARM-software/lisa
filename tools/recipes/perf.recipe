@@ -1,8 +1,9 @@
 #! /bin/bash
 
+ALPINE_BUILD_DEPENDENCIES=(bash bison diffutils findutils flex gcc git linux-headers make musl-dev)
 
 download() {
-    git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git --branch v5.3 --depth=1
+    git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git --branch v5.11 --depth=1
 }
 
 build() {
@@ -14,14 +15,14 @@ build() {
         x86_64) arch=x86_64;;
     esac
 
-    make -f Makefile ARCH=$arch CROSS_COMPILE=$CROSS_COMPILE NO_SDT=1 LDFLAGS="-static"
+    make -f Makefile ARCH=$arch CROSS_COMPILE=$CROSS_COMPILE NO_SDT=1 LDFLAGS="-static" EXTRA_CFLAGS="-Wno-format-truncation" NO_LIBELF=1
     "$CROSS_COMPILE"strip perf
 }
 
 install() {
     cp -v linux/tools/perf/perf "$LISA_ARCH_ASSETS/perf"
     source "$LISA_HOME/tools/recipes/utils.sh"
-    install_readme perf linux/tools/perf COPYING
+    install_readme perf linux/ COPYING
 }
 
 

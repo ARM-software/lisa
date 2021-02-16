@@ -1,8 +1,9 @@
 #! /bin/bash
 
+ALPINE_BUILD_DEPENDENCIES=(autoconf automake bash bison gcc gettext-dev gettext-static git libtool linux-headers make musl-dev pkgconf)
+
 download() {
-    git clone git://git.kernel.org/pub/scm/utils/util-linux/util-linux.git
-    git -C util-linux checkout 448e6c3567988492d8724f26950ff167ab58d22a
+    git clone git://git.kernel.org/pub/scm/utils/util-linux/util-linux.git --branch v2.36.2 --depth=1
 }
 
 build() {

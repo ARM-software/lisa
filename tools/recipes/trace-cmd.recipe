@@ -1,50 +1,71 @@
 #! /bin/bash
 
+ALPINE_BUILD_DEPENDENCIES=(bash gcc git make linux-headers musl-dev pkgconfig)
+BROKEN_CROSS_COMPILATION=1
+
 download() {
     # Official repo lacks some old version tags
     # git clone git://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git
     # So we use the personal one from Steven Rostedt
     git clone git://git.kernel.org/pub/scm/linux/kernel/git/rostedt/trace-cmd.git
 
-    # 2.9.1 + the following fixes:
-    # trace-cmd: Fix "trace-cmd extract" temp files path
-    # trace-cmd libtraceevent: Fix build warning on 32-bit arches
-    git -C trace-cmd checkout 5dd424eaaf4cb411c2f66cfba91958871dc12db6
+    # Latest available commit after 2.9.1.
+    # 2.9.1 itself require some fixes.
+    git -C trace-cmd checkout 2191498dc35d629003591f727b604120fabbe02d
+
+    git clone https://git.kernel.org/pub/scm/libs/libtrace/libtraceevent.git
+    git -C libtraceevent checkout libtraceevent-1.1.2
+
+    git clone https://git.kernel.org/pub/scm/libs/libtrace/libtracefs.git
+    git -C libtracefs checkout libtracefs-1.0.2
+}
+
+build_libtraceevent() {
+    cd libtraceevent
+    make install
+}
+
+build_libtracefs() {
+    cd libtracefs
+    make install
+}
+
+build_tracecmd() {
+    # Disable libaudit, to limit the amount of dependencies
+    cd trace-cmd
+    make LDFLAGS="-static" NO_AUDIT=yes
 }
 
 # For trace-cmd v2.8.3
 TRACE_CMD_BIN=tracecmd/trace-cmd
 
-# For older versions of trace-cmd
-# TRACE_CMD_BIN=trace-cmd
-
 build() {
-    cd trace-cmd
-
     export PYTHON_VERS=python3
-    # trace-cmd needs explicit CC and AR from the environment to successfully
-    # cross-compile a static build
-    export CC="$CROSS_COMPILE"gcc
-    export AR="$CROSS_COMPILE"ar
-    export LD="$CROSS_COMPILE"ld
 
-    # Disable libaudit, to limit the amount of dependencies
-    make LDFLAGS="-static" trace-cmd NO_AUDIT=yes
-    "$CROSS_COMPILE"strip "$TRACE_CMD_BIN"
+    # Do this while waiting to have the build system working.
+    # https://bugzilla.kernel.org/show_bug.cgi?id=212149
+    # When fixed, replace this by what is adviced in trace-cmd/PACKAGING
+    export prefix="/usr"
+    export INSTALL_PATH="$(pwd)/installed_lib_dir"
+    INCLUDE_PKG_PATH="$(cut -d':' -f1 <<<$(pkg-config --variable pc_path pkg-config))"
+    export PKG_CONFIG="pkg-config --with-path $INSTALL_PATH/$INCLUDE_PKG_PATH --define-variable=prefix=$INSTALL_PATH/$prefix"
+    export CFLAGS="-g -Wall -I$INSTALL_PATH/$prefix/include"
+    export DESTDIR=$INSTALL_PATH
+
+    (build_libtraceevent) && (build_libtracefs) && (build_tracecmd)
 }
 
 install() {
-    cd trace-cmd
-    cp -v "$TRACE_CMD_BIN" "$LISA_ARCH_ASSETS/trace-cmd"
+    cp -v trace-cmd/"$TRACE_CMD_BIN" "$LISA_ARCH_ASSETS/trace-cmd"
 
     source "$LISA_HOME/tools/recipes/utils.sh"
     # According to COPYING, the tools are distributed under GPL-2.0 whereas the
-    # libraries are under LGLP-2.1:
-    #
-    # There are two main licenses that the tools in this directory are covered
-    # under. For the applications themselves, they are covered under GPL-2.0 (see
-    # under LPGL-2.1 (see LICENSES/LGPL-2.1).
-    install_readme trace-cmd . LICENSES/GPL-2.0
+    # libraries are under LGLP-2.1.
+    # Thus, use GPL-2.0 for trace-cmd and LGLP-2.1 for libtraceevent and
+    # libtracefs.
+    install_readme trace-cmd trace-cmd LICENSES/GPL-2.0
+    install_readme libtraceevent libtraceevent LICENSES/LGPL-2.1
+    install_readme libtracefs libtracefs LICENSES/LGPL-2.1
 }
 
 
