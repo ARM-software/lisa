@@ -43,7 +43,7 @@ from lisa.analysis.tasks import TasksAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.trace import requires_events, may_use_events
 from lisa.trace import Trace, TaskID
-from lisa.wlgen.rta import RTA, Periodic, PeriodicWload, RTAPhase
+from lisa.wlgen.rta import RTA, PeriodicWload, RTAPhase
 from lisa.target import Target
 
 from lisa.utils import (
@@ -1292,6 +1292,13 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     all task in the profile get a buffer phase.
     """
 
+    _BUFFER_PHASE_PROPERTIES = {
+        'name': 'buffer',
+    }
+    """
+    Properties of the buffer phase, see :attr:`_BUFFER_PHASE_DURATION_S`
+    """
+
     @RTAEventsAnalysis.df_rtapp_phases_start.used_events
     @RTAEventsAnalysis.df_rtapp_phases_end.used_events
     @requires_events('sched_switch')
@@ -1329,13 +1336,18 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             else:
                 return pre_phase_swdf.index[-1]
 
+        profile = self.rtapp_profile
+
         # Find when the first rtapp phase starts, and take the associated
         # sched_switch that is immediately preceding
-        phase_start_df = trace.analysis.rta.df_rtapp_phases_start()
+        phase_start_df = trace.analysis.rta.df_rtapp_phases_start(
+            wlgen_profile=profile,
+        )
 
-        # The first phase is the buffer phase we don't care about
-        if self._BUFFER_PHASE_DURATION_S:
-            phase_start_df = phase_start_df[phase_start_df.index.get_level_values('phase') > 0]
+        # Get rid of the buffer phase we don't care about
+        phase_start_df = phase_start_df[
+            phase_start_df['properties'].transform(lambda props: props['meta']['from_test'])
+        ]
 
         rta_start = phase_start_df.apply(get_first_switch, axis=1).min()
 
@@ -1571,6 +1583,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         def add_buffer(task):
             template_phase = task.phases[0]
             wload = template_phase['wload']
+            if 'name' not in task:
+                task = task.with_props(name='test')
 
             # Don't add the buffer phase if it has a nil duration
             if not cls._BUFFER_PHASE_DURATION_S:
@@ -1590,7 +1604,6 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                 )
 
                 buffer_phase = RTAPhase(
-                    prop_name='buffer',
                     # Override some parameters with the reference ones
                     prop_wload=ref_wload & wload,
                     # Pin to the same CPUs and NUMA nodes if any, so that we
@@ -1598,6 +1611,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                     # that, if it's going to matter later.
                     prop_cpus=template_phase.get('cpus'),
                     prop_numa_nodes_membind=template_phase.get('numa_nodes_membind'),
+                    properties=cls._BUFFER_PHASE_PROPERTIES,
                 )
 
                 # Prepend the buffer task
