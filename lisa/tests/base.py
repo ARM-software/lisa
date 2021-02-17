@@ -1560,12 +1560,15 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
 
         :param utilization_pct: The scaled utilization in %
         :type utilization_pct: int
+
+        .. seealso: In most cases,
+            `PeriodicWload(scale_for_cpu=..., scale_for_freq=...)` is easier to
+            use and leads to clearer code.
         """
-        # Use a quiet access to avoid filling up the debug log with
-        # unscaled_utilization output, as it's one of the major source of
-        # access (multiple megabytes)
-        capa = plat_info.get_nested_key(['cpu-capacities', 'rtapp'], quiet=True)[cpu]
-        return (capa * utilization_pct) / PELT_SCALE
+        return PeriodicWload(
+            duty_cycle_pct=utilization_pct,
+            scale_for_cpu=cpu,
+        ).unscaled_duty_cycle_pct(plat_info)
 
     @classmethod
     def get_rtapp_profile(cls, plat_info, **kwargs):
