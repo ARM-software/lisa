@@ -150,7 +150,11 @@ class UtilClamp(RTATestBundle):
     def _get_trace_df(self):
         task = self.rtapp_task_ids_map['task'][0]
 
-        df = self.trace.analysis.tasks.df_task_activation(task)
+        # There is no CPU selection when we're going back from preemption.
+        # Setting preempted_value=1 ensures that it won't count as a new
+        # activation.
+        df = self.trace.analysis.tasks.df_task_activation(task,
+                                                          preempted_value=1)
         df = df[['active', 'cpu']]
 
         df_freq = self.trace.analysis.frequency.df_cpus_frequency()
