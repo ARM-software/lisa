@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-from lisa.wlgen.rta import Periodic
+from lisa.wlgen.rta import RTAPhase, PeriodicWload
 from lisa.tests.base import ResultBundle, RTATestBundle, TestMetric, CannotCreateError
 from lisa.datautils import df_deduplicate
 from lisa.analysis.tasks import TasksAnalysis
@@ -60,7 +60,7 @@ class NUMABehaviour(RTATestBundle):
 
             # Ideally, task with 50% utilization
             # should stay on the same core
-            if  core_migrations > 1:
+            if core_migrations > 1:
                 test_passed = False
 
         res = ResultBundle.from_bool(test_passed)
@@ -77,14 +77,15 @@ class NUMASmallTaskPlacement(NUMABehaviour):
 
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
-        rtapp_profile = {}
-        rtapp_profile[cls.task_prefix] = Periodic(
-            duty_cycle_pct=50,
-            duration_s=30,
-            period_ms=cls.TASK_PERIOD_MS
-        )
-
-        return rtapp_profile
+        return {
+            cls.task_prefix: RTAPhase(
+                prop_wload=PeriodicWload(
+                    duty_cycle_pct=50,
+                    duration=30,
+                    period=cls.TASK_PERIOD
+                )
+            )
+        }
 
 class NUMAMultipleTasksPlacement(NUMABehaviour):
     """
@@ -97,13 +98,14 @@ class NUMAMultipleTasksPlacement(NUMABehaviour):
         # Four CPU's is enough to demonstrate task migration problem
         cpu_count = min(4, plat_info["cpus-count"])
 
-        rtapp_profile = {}
-        for cpu in range(cpu_count):
-            rtapp_profile[f"{cls.task_prefix}{cpu}"] = Periodic(
-                duty_cycle_pct=50,
-                duration_s=30,
-                period_ms=cls.TASK_PERIOD_MS
+        return {
+            f"{cls.task_prefix}{cpu}": RTAPhase(
+                prop_wload=PeriodicWload(
+                    duty_cycle_pct=50,
+                    duration=30,
+                    period=cls.TASK_PERIOD
+                )
             )
-
-        return rtapp_profile
+            for cpu in range(cpu_count)
+        }
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

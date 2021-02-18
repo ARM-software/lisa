@@ -27,7 +27,7 @@ from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.datautils import df_add_delta, series_mean, df_window
 from lisa.pelt import PELT_SCALE
 from lisa.tests.base import ResultBundle, RTATestBundle, TestMetric
-from lisa.wlgen.rta import Periodic
+from lisa.wlgen.rta import RTAPhase, PeriodicWload
 
 
 class UtilClamp(RTATestBundle):
@@ -124,25 +124,28 @@ class UtilClamp(RTATestBundle):
         def band_mid(band):
             return int((band[1] + band[0]) / 2)
 
-        return [
-            (
-                band_mid(band),
-                band_mid(band) / 2
-            )
-            for band in bands
-        ]
+        def make_phase(band):
+            uclamp = band_mid(band)
+            util = uclamp / 2
+            name = f'uclamp-{uclamp}'
+            return (name, (uclamp, util))
+
+        return dict(map(make_phase, bands))
 
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
         periods = [
-            Periodic(
-                duty_cycle_pct=(util / PELT_SCALE) * 100,  # util to pct
-                duration_s=5,
-                period_ms=cls.TASK_PERIOD_MS,
-                uclamp_min=uclamp_val,
-                uclamp_max=uclamp_val
+            RTAPhase(
+                prop_name=name,
+                prop_wload=PeriodicWload(
+                    duty_cycle_pct=(util / PELT_SCALE) * 100,  # util to pct
+                    duration=5,
+                    period=cls.TASK_PERIOD,
+                ),
+                prop_uclamp=(uclamp_val, uclamp_val),
+                prop_meta={'uclamp_val': uclamp_val},
             )
-            for uclamp_val, util in cls._get_phases(plat_info)
+            for name, (uclamp_val, util) in cls._get_phases(plat_info).items()
         ]
 
         return {'task': functools.reduce(lambda a, b: a + b, periods)}
@@ -176,19 +179,13 @@ class UtilClamp(RTATestBundle):
     def _get_phases_df(self):
         task = self.rtapp_task_ids_map['task'][0]
 
-        df = self.trace.analysis.rta.df_phases(task).copy()
+        df = self.trace.analysis.rta.df_phases(task, wlgen_profile=self.rtapp_profile)
+        df = df.copy()
+        df = df[df['properties'].apply(lambda props: props['meta']['from_test'])]
         df.reset_index(inplace=True)
         df.rename(columns={'index': 'start'}, inplace=True)
         df['end'] = df['start'].shift(-1)
-
-        phases = [(0, 0, 0)] + self._get_phases(self.plat_info)
-        df['uclamp_val'] = df.apply(
-                lambda x: phases[int(x.phase)][0],
-                axis=1)
-
-        # TODO: To remove once we have named phases.
-        df = df[df.phase > 0]
-
+        df['uclamp_val'] = df['properties'].apply(lambda row: row['meta']['uclamp_val'])
         return df
 
     def _for_each_phase(self, callback):
@@ -222,7 +219,7 @@ class UtilClamp(RTATestBundle):
         task = self.rtapp_task_ids_map['task'][0]
         ax = self.trace.analysis.tasks.plot_task_activation(task,
                                                             which_cpu=True)
-        ax = self.trace.analysis.rta.plot_phases(task, axis=ax)
+        ax = self.trace.analysis.rta.plot_phases(task, wlgen_profile=self.rtapp_profile, axis=ax)
         for failure in failures:
             ax.axvline(failure, alpha=0.5, color='r')
         if signal is not None:
@@ -263,8 +260,7 @@ class UtilClamp(RTATestBundle):
             num_failures = len(failures)
             test_failures.extend(failures)
 
-            phase_str = f"Phase-{int(phase['phase'])}"
-            metrics[phase_str] = {
+            metrics[phase['phase']] = {
                 'uclamp-min': TestMetric(uclamp_val),
                 'cpu-placements': TestMetric(cpus),
                 'expected-cpus': TestMetric(fitting_cpus),
@@ -360,8 +356,7 @@ class UtilClamp(RTATestBundle):
             test_failures.extend(failures.index.tolist())
             capacity_dfs.append(df[['capacity']])
 
-            phase_str = f"Phase-{phase['phase']}"
-            metrics[phase_str] = {
+            metrics[phase['phase']] = {
                 'uclamp-min': TestMetric(uclamp_val),
                 'expected-capacity': TestMetric(expected),
                 'bad-activations': TestMetric(

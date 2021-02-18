@@ -1260,10 +1260,10 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         ``ftrace_conf`` content.
     """
 
-    TASK_PERIOD_MS = 16
+    TASK_PERIOD = 16e-3
     """
-    A task period you can re-use for your :class:`lisa.wlgen.rta.RTATask`
-    definitions.
+    A task period in seconds you can re-use for your
+    :class:`lisa.wlgen.rta.RTATask` definitions.
     """
 
     NOISE_ACCOUNTING_THRESHOLDS = {
@@ -1576,8 +1576,17 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         Returns a :class:`dict` with task names as keys and
         :class:`lisa.wlgen.rta.RTATask` as values.
 
-        A buffer phase may be inserted at the beginning of each task in order
-        to stabilize some kernel signals.
+        The following modifications are done on the profile returned by
+        :meth:`_get_rtapp_profile`:
+
+            * A buffer phase may be inserted at the beginning of each task in order
+              to stabilize some kernel signals.
+            * A ``from_test`` meta key is added to each
+              :class:`lisa.wlgen.rta.RTAPhase` with a boolean value that is
+              ``True`` if the phase comes from the test itself and ``False`` if
+              it was added here (e.g. the buffer phase). This allows
+              future-proof filtering of phases in the test code when inspecting
+              the profile by looking at ``phase['meta']['from_test']``.
 
         .. note:: If you want to override the method in a subclass, override
             :meth:`_get_rtapp_profile` instead.
@@ -1586,6 +1595,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         def add_buffer(task):
             template_phase = task.phases[0]
             wload = template_phase['wload']
+            task = task.with_props(meta={'from_test': True})
             if 'name' not in task:
                 task = task.with_props(name='test')
 
@@ -1614,6 +1624,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                     # that, if it's going to matter later.
                     prop_cpus=template_phase.get('cpus'),
                     prop_numa_nodes_membind=template_phase.get('numa_nodes_membind'),
+                    prop_meta={'from_test': False},
                     properties=cls._BUFFER_PHASE_PROPERTIES,
                 )
 

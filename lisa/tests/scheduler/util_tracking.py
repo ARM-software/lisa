@@ -23,7 +23,7 @@ from devlib.target import KernelVersion
 from lisa.tests.base import ResultBundle, RTATestBundle
 from lisa.target import Target
 from lisa.utils import ArtifactPath, memoized, namedtuple
-from lisa.wlgen.rta import Periodic, Ramp
+from lisa.wlgen.rta import RTAPhase, PeriodicWload, DutyCycleSweepPhase
 from lisa.trace import FtraceCollector, requires_events
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.tasks import TaskState, TasksAnalysis
@@ -108,31 +108,42 @@ class UtilConvergence(UtilTrackingBase):
     def _get_rtapp_profile(cls, plat_info):
         big_cpu = plat_info["capacity-classes"][-1][0]
 
-        task = (
-            # Big task
-            Periodic(
-                duty_cycle_pct=75,
-                duration_s=5,
-                period_ms=200,
-                cpus=[big_cpu]) +
-            # Ramp Down
-            Ramp(
-                start_pct=50,
-                end_pct=5,
-                delta_pct=20,
-                time_s=1,
-                period_ms=200,
-                cpus=[big_cpu]) +
-            # Ramp Up
-            Ramp(
-                start_pct=10,
-                end_pct=60,
-                delta_pct=20,
-                time_s=1,
-                period_ms=200,
-                cpus=[big_cpu])
-        )
-        return {'test': task}
+        return {
+            'test': (
+                # Big task
+                RTAPhase(
+                    prop_name='stable',
+                    prop_wload=PeriodicWload(
+                        duty_cycle_pct=75,
+                        duration=5,
+                        period=200e-3,
+                    ),
+                    prop_cpus=[big_cpu],
+                ) +
+                # Ramp Down
+                DutyCycleSweepPhase(
+                    prop_name='ramp_down',
+                    start=50,
+                    stop=5,
+                    step=20,
+                    duration=1,
+                    duration_of='step',
+                    period=200e-3,
+                    prop_cpus=[big_cpu],
+                ) +
+                # Ramp Up
+                DutyCycleSweepPhase(
+                    prop_name='ramp_up',
+                    start=10,
+                    stop=60,
+                    step=20,
+                    duration=1,
+                    duration_of='step',
+                    period=200e-3,
+                    prop_cpus=[big_cpu]
+                )
+            )
+        }
 
     @property
     def fast_ramp(self):
@@ -193,9 +204,8 @@ class UtilConvergence(UtilTrackingBase):
         ua_df = self.trace.analysis.load_tracking.df_task_signal(task, 'util')
 
         failures = []
-        for phase in self.trace.analysis.rta.task_phase_windows(task):
-            # TODO: remove that once we have named phases to skip the buffer phase
-            if phase.id == 0:
+        for phase in self.trace.analysis.rta.task_phase_windows(task, wlgen_profile=self.rtapp_profile):
+            if not phase.properties['meta']['from_test']:
                 continue
 
             apply_phase_window = functools.partial(df_refit_index, window=(phase.start, phase.end))
@@ -229,17 +239,17 @@ class UtilConvergence(UtilTrackingBase):
             else:
 
                 # STABLE: ewma ramping up
-                if phase.id == 1:
+                if phase.id.startswith('test/stable'):
                     if mean_ewma > mean_enqueued:
                         issue = make_issue('fast ramp, stable: {ewma} bigger than {enq}')
 
                 # DOWN: ewma ramping down
-                elif phase.id <= 4:
+                elif phase.id.startswith('test/ramp_down'):
                     if mean_ewma < mean_enqueued:
                         issue = make_issue('fast ramp, down: {ewma} smaller than {enq}')
 
                 # UP: ewma ramping up
-                elif phase.id >= 5:
+                elif phase.id.startswith('test/ramp_up'):
                     if mean_ewma > mean_enqueued:
                         issue = make_issue('fast ramp, up: {ewma} bigger than {enq}')
 
@@ -286,7 +296,6 @@ class UtilConvergence(UtilTrackingBase):
 
         """
         metrics = {}
-
         task = self.rtapp_task_ids_map['test'][0]
 
         # Get list of task's activations
@@ -312,7 +321,7 @@ class UtilConvergence(UtilTrackingBase):
 
             # If we are outside a phase, ignore the activation
             try:
-                phase = self.trace.analysis.rta.task_phase_at(task, activation)
+                phase = self.trace.analysis.rta.task_phase_at(task, activation, wlgen_profile=self.rtapp_profile)
             except KeyError:
                 continue
 
@@ -341,22 +350,21 @@ class UtilConvergence(UtilTrackingBase):
 
             # Running on (legacy) non FastRamp kernels:
             else:
-                # TODO: remove that once we have named phases to skip the buffer phase
-                if phase.id == 0:
+                if not phase.properties['meta']['from_test']:
                     continue
 
                 # ewma stable
-                if phase.id == 1:
+                if phase.id.startswith('test/stable'):
                     if enq < ewma:
                         issue = make_issue('stable: {enq} smaller than {ewma}')
 
                 # ewma ramping down
-                elif phase.id <= 4:
+                elif phase.id.startswith('test/ramp_down'):
                     if enq > ewma:
                         issue = make_issue('ramp down: {enq} bigger than {ewma}')
 
                 # ewma ramping up
-                elif phase.id >= 5:
+                elif phase.id.startswith('test/ramp_up'):
                     if enq < ewma:
                         issue = make_issue('ramp up: {enq} smaller than {ewma}')
 

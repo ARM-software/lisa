@@ -27,9 +27,9 @@ from lisa.tests.base import (
     RTATestBundle, CannotCreateError
 )
 from lisa.target import Target
-from lisa.utils import ArtifactPath, groupby, ExekallTaggable
+from lisa.utils import ArtifactPath, groupby, ExekallTaggable, add
 from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_refit_index, df_split_signals, df_refit_index
-from lisa.wlgen.rta import RTA, Periodic, RTATask
+from lisa.wlgen.rta import RTA, RTAPhase, PeriodicWload
 from lisa.trace import FtraceCollector, requires_events, may_use_events, MissingTraceEventError
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.analysis.tasks import TasksAnalysis
@@ -225,15 +225,16 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         # task will fit even at the lowest OPP
         duty_cycle_pct //= 2
 
-        rtapp_profile = {}
-        rtapp_profile[f"{cls.task_prefix}{cpu}"] = Periodic(
-            duty_cycle_pct=duty_cycle_pct,
-            duration_s=2,
-            period_ms=cls.TASK_PERIOD_MS,
-            cpus=[cpu],
-        )
-
-        return rtapp_profile
+        return {
+            f"{cls.task_prefix}{cpu}": RTAPhase(
+                prop_wload=PeriodicWload(
+                    duty_cycle_pct=duty_cycle_pct,
+                    duration=2,
+                    period=cls.TASK_PERIOD,
+                ),
+                prop_cpus=[cpu],
+            )
+        }
 
     @classmethod
     def _from_target(cls, target: Target, *, cpu: int, freq: int, freq_list=None, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None) -> 'InvarianceItem':
@@ -316,7 +317,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
             if any(
                 self.plat_info['cpu-capacities']['rtapp'][cpu] != UTIL_SCALE
                 for phase in self.wlgen_task.phases
-                for cpu in phase.cpus
+                for cpu in phase['cpus']
             ):
                 raise CannotCreateError('PELT time scaling can only be simulated when the PELT clock is available from the trace')
 
@@ -366,11 +367,11 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         phase = self.wlgen_task.phases[0]
         df = self.get_simulated_pelt(task, signal_name)
 
-        cpus = phase.cpus
+        cpus = sorted(phase['cpus'])
         assert len(cpus) == 1
         cpu = cpus[0]
 
-        expected_duty_cycle_pct = phase.duty_cycle_pct
+        expected_duty_cycle_pct = phase['wload'].unscaled_duty_cycle_pct(self.plat_info)
         expected_final_util = expected_duty_cycle_pct / 100 * UTIL_SCALE
         settling_time = pelt_settling_time(10, init=0, final=expected_final_util)
         settling_time += df.index[0]
@@ -769,15 +770,16 @@ class CPUMigrationBase(LoadTrackingBase):
     phases are all aligned.
     """
 
-    PHASE_DURATION_S = 3 * UTIL_CONVERGENCE_TIME_S
+    PHASE_DURATION = 3 * UTIL_CONVERGENCE_TIME_S
     """
     The duration of a single phase
     """
 
-    TASK_PERIOD_MS = 16
+    TASK_PERIOD = 16e-3
     """
-    The average value of the runqueue PELT signals is very dependent on the task
-    period, so it's important to set it to a known validate value in that class.
+    The average value of the runqueue PELT signals is very dependent on the
+    task period, so it's important to set it to a known validated value in that
+    class.
     """
 
     @abc.abstractmethod
@@ -792,7 +794,7 @@ class CPUMigrationBase(LoadTrackingBase):
         # Just do some validation on the profile
         for name, task in profile.items():
             for phase in task.phases:
-                if len(phase.cpus) != 1:
+                if len(phase['cpus']) != 1:
                     raise RuntimeError(f"Each phase must be tied to a single CPU. Task \"{name}\" violates this")
 
         super().run_rtapp(target, res_dir, profile, ftrace_coll, cgroup)
@@ -803,7 +805,7 @@ class CPUMigrationBase(LoadTrackingBase):
         All CPUs used by RTapp workload.
         """
         return set(itertools.chain.from_iterable(
-            phase.cpus
+            phase['cpus']
             for task in self.rtapp_profile.values()
             for phase in task.phases
         ))
@@ -874,11 +876,13 @@ class CPUMigrationBase(LoadTrackingBase):
                 for cols, df in df_split_signals(freq_df, ['cpu'])
             }
 
-
         for task in self.rtapp_task_ids:
             df = self.trace.analysis.tasks.df_task_activation(task)
 
-            for row in self.trace.analysis.rta.df_phases(task).itertuples():
+            for row in self.trace.analysis.rta.df_phases(task, wlgen_profile=self.rtapp_profile).itertuples():
+                if not row.properties['meta']['from_test']:
+                    continue
+
                 phase = row.phase
                 duration = row.duration
                 start = row.Index
@@ -949,7 +953,10 @@ class CPUMigrationBase(LoadTrackingBase):
         task = self.rtapp_task_ids_map[task][0]
 
         cpu_util = {}
-        for row in self.trace.analysis.rta.df_phases(task).itertuples():
+        for row in self.trace.analysis.rta.df_phases(task, wlgen_profile=self.rtapp_profile).itertuples():
+            if not row.properties['meta']['from_test']:
+                continue
+
             phase = row.phase
             duration = row.duration
             start = row.Index
@@ -973,7 +980,7 @@ class CPUMigrationBase(LoadTrackingBase):
         fig, axes = analysis.setup_plot(nrows=len(self.rtapp_tasks))
         for task, axis in zip(self.rtapp_tasks, axes):
             analysis.plot_task_signals(task, signals=['util'], axis=axis)
-            trace.analysis.rta.plot_phases(task, axis=axis)
+            trace.analysis.rta.plot_phases(task, axis=axis, wlgen_profile=self.rtapp_profile)
 
             activation_axis = axis.twinx()
             trace.analysis.tasks.plot_task_activation(task, duty_cycle=True, overlay=True, alpha=0.2, axis=activation_axis)
@@ -1040,10 +1047,6 @@ class CPUMigrationBase(LoadTrackingBase):
             deltas[cpu_str] = TestMetric({})
 
             for phase in sorted(trace_cpu_util.keys() & expected_cpu_util.keys()):
-                # TODO: remove that once we have named phases to skip the buffer phase
-                if phase == 0:
-                    continue
-
                 expected_phase_util = expected_cpu_util[phase]
                 trace_phase_util = trace_cpu_util[phase]
                 is_equal, delta = self.is_almost_equal(
@@ -1056,9 +1059,9 @@ class CPUMigrationBase(LoadTrackingBase):
 
                 # Just some verbose metric collection...
                 phase_str = f"phase{phase}"
-                expected_metrics[cpu_str].data[phase_str] = TestMetric(expected_phase_util)
-                trace_metrics[cpu_str].data[phase_str] = TestMetric(trace_phase_util)
-                deltas[cpu_str].data[phase_str] = TestMetric(delta, "%")
+                expected_metrics[cpu_str].data[phase] = TestMetric(expected_phase_util)
+                trace_metrics[cpu_str].data[phase] = TestMetric(trace_phase_util)
+                deltas[cpu_str].data[phase] = TestMetric(delta, "%")
 
         res = ResultBundle.from_bool(passed)
         res.add_metric("Expected utilization", expected_metrics)
@@ -1081,34 +1084,40 @@ class OneTaskCPUMigration(CPUMigrationBase):
 
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
-        profile = {}
         cpus = cls.get_migration_cpus(plat_info)
+        nr_cpus = len(cpus)
 
-        for task in ["migr", "static0", "static1"]:
-            # An empty RTATask just to sum phases up
-            profile[task] = RTATask()
-
-        common_phase_settings = dict(
-            duration_s=cls.PHASE_DURATION_S,
-            period_ms=cls.TASK_PERIOD_MS,
+        periodic_settings = dict(
+            duration=cls.PHASE_DURATION,
+            period=cls.TASK_PERIOD,
         )
 
-        for cpu in cpus:
+        return {
             # A task that will migrate to another CPU
-            profile["migr"] += Periodic(
-                duty_cycle_pct=cls.unscaled_utilization(plat_info, cpu, 20),
-                cpus=[cpu], **common_phase_settings)
-
-            # Just some tasks that won't move to get some background utilization
-            profile["static0"] += Periodic(
-                duty_cycle_pct=cls.unscaled_utilization(plat_info, cpus[0], 30),
-                cpus=[cpus[0]], **common_phase_settings)
-
-            profile["static1"] += Periodic(
-                duty_cycle_pct=cls.unscaled_utilization(plat_info, cpus[1], 20),
-                cpus=[cpus[1]], **common_phase_settings)
-
-        return profile
+            'migr': add(
+                RTAPhase(
+                    prop_wload=PeriodicWload(
+                        duty_cycle_pct=20,
+                        scale_for_cpu=cpu,
+                        **periodic_settings,
+                    ),
+                    prop_cpus=[cpu],
+                )
+                for cpu in cpus
+            ),
+            **{
+                # Just some tasks that won't move to get some background utilization
+                f"static{i}": nr_cpus * RTAPhase(
+                    prop_wload=PeriodicWload(
+                        duty_cycle_pct=30,
+                        scale_for_cpu=cpus[i],
+                        **periodic_settings,
+                    ),
+                    prop_cpus=[cpus[i]]
+                )
+                for i in range(min(2, nr_cpus))
+            }
+        }
 
 
 class NTasksCPUMigrationBase(CPUMigrationBase):
@@ -1119,23 +1128,24 @@ class NTasksCPUMigrationBase(CPUMigrationBase):
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
         cpus = cls.get_migration_cpus(plat_info)
-        def make_name(i): return f'migr{i}'
-
+        def make_name(i):
+            return f'migr{i}'
         nr_tasks = len(cpus)
-        profile = {
-            make_name(i): RTATask()
-            for i in range(nr_tasks)
-        }
-
         # Define one task per CPU, and create all the possible migrations by
         # shuffling around these tasks
+        profile = {}
         for cpus_combi in itertools.permutations(cpus, r=nr_tasks):
             for i, cpu in enumerate(cpus_combi):
-                profile[make_name(i)] += Periodic(
-                    duty_cycle_pct=cls.unscaled_utilization(plat_info, cpu, 50),
-                    duration_s=cls.PHASE_DURATION_S,
-                    period_ms=cls.TASK_PERIOD_MS,
-                    cpus=[cpu],
+                task_name = make_name(i)
+                task = profile.setdefault(task_name, RTAPhase())
+                profile[task_name] = task + RTAPhase(
+                    prop_wload=PeriodicWload(
+                        duty_cycle_pct=50,
+                        scale_for_cpu=cpu,
+                        duration=cls.PHASE_DURATION,
+                        period=cls.TASK_PERIOD,
+                    ),
+                    prop_cpus=[cpu],
                 )
 
         return profile
