@@ -1739,9 +1739,16 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         else:
             debugfs_needs_root = False
 
-        wload = RTA.by_profile(target, profile, res_dir=res_dir,
-                               name=f"rta_{cls.__name__.casefold()}",
-                               trace_events=trace_events)
+        wload = RTA.by_profile(
+            target=target,
+            profile=profile,
+            res_dir=res_dir,
+            name=f"rta_{cls.__name__.casefold()}",
+            trace_events=trace_events,
+            # Force the default value for all settings so that the test does
+            # not depend on the environment setup.
+            force_defaults=True,
+        )
 
         profile_str = '\n'.join(
             'Task {}:\n{}'.format(
