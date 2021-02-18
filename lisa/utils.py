@@ -1127,6 +1127,17 @@ def fold(f, xs, init=None):
         f(init, first),
     )
 
+
+def add(iterable):
+    """
+    Same as :func:`sum` but works on any object that defines ``__add__``
+    """
+    return functools.reduce(
+        operator.add,
+        iterable,
+    )
+
+
 def is_monotonic(iterable, decreasing=False):
     """
     Return ``True`` if the given sequence is monotonic, ``False`` otherwise.
