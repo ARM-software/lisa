@@ -460,7 +460,7 @@ class RTA(Workload):
 
     .. warning::
       The class constructor only deals with pre-constructed json files.
-      For creating rt-app workloads through other means, see :meth:`by_profile`
+      For creating rt-app workloads through other means, see :meth:`from_profile`
       and :meth:`by_str`.
 
     For more information about rt-app itself, see
