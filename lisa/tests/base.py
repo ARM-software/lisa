@@ -1739,7 +1739,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         else:
             debugfs_needs_root = False
 
-        wload = RTA.by_profile(
+        wload = RTA.from_profile(
             target=target,
             profile=profile,
             res_dir=res_dir,
