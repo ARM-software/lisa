@@ -18,7 +18,7 @@
 from lisa.utils import ArtifactPath
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, requires_events
-from lisa.wlgen.rta import Periodic
+from lisa.wlgen.rta import RTAPhase, PeriodicWload
 from lisa.tests.base import RTATestBundle, ResultBundle
 from lisa.target import Target
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
@@ -147,22 +147,30 @@ class ExampleTestBundle(RTATestBundle):
         cpus = list(range(plat_info['cpus-count']))
 
         # The profile is a dictionary of task names (keys) to
-        # lisa.wlgen.RTATask instances
+        # lisa.wlgen.rta.RTATask instances
         # https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/workloads.html
         profile = {}
 
         for cpu in cpus:
-            # Compute a utilization needed to fill 50% of ``cpu`` capacity.
             util = cls.unscaled_utilization(plat_info, cpu, 50)
 
-            # A Periodic task has a period, and a duty_cycle (which really is a
-            # target utilization). LISA will run rt-app calibration if needed
-            # (it can be provided by the user in the platform information)
-            profile[f"{cls.task_prefix}_{cpu}"] = Periodic(
-                duty_cycle_pct=util,
-                duration_s=1,
-                period_ms=cls.TASK_PERIOD_MS,
-                cpus=[cpu]
+            # A PeriodicWload workload has a period, and a duty_cycle (which
+            # relates directly to task utilisation signal).
+            #
+            # LISA will run rt-app calibration if needed in order to know what
+            # actual quantity of work each CPU can do. It can be provided by
+            # the user in the platform information.
+            profile[f"{cls.task_prefix}_{cpu}"] = RTAPhase(
+                prop_wload=PeriodicWload(
+                    # Fill 50% of ``cpu`` capacity.
+                    duty_cycle_pct=50,
+                    # If omitted, the biggest CPU in the system will be assumed
+                    # and the amount of work will be scaled accordingly
+                    scale_for_cpu=cpu,
+                    duration=1,
+                    period=cls.TASK_PERIOD,
+                ),
+                prop_cpus=[cpu],
             )
 
         return profile

@@ -19,7 +19,7 @@ import os
 import os.path
 import abc
 
-from lisa.wlgen.rta import Periodic
+from lisa.wlgen.rta import RTAPhase, PeriodicWload
 from lisa.tests.base import TestBundle, ResultBundle, RTATestBundle, AggregatedResultBundle
 from lisa.trace import FtraceCollector, requires_events
 from lisa.target import Target
@@ -132,17 +132,22 @@ class SchedTuneFreqItem(SchedTuneItemBase):
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
         cpu = plat_info['capacity-classes'][-1][0]
-        rtapp_profile = {}
-        rtapp_profile['stune'] = Periodic(
-            duty_cycle_pct=1,  # very small task, no impact on freq w/o boost
-            duration_s=10,
-            period_ms=16,
-            cpus=[cpu],  # pin to big CPU, to focus on frequency selection
-            sched_policy='FIFO'  # RT tasks have the boost holding feature so
-            # the frequency should be more stable, and we
-            # shouldn't go to max freq in Android
-        )
-        return rtapp_profile
+        return {
+            'stune': RTAPhase(
+                prop_wload=PeriodicWload(
+                    # very small task, no impact on freq w/o boost
+                    duty_cycle_pct=1,
+                    duration=10,
+                    period=cls.TASK_PERIOD,
+                ),
+                # pin to big CPU, to focus on frequency selection
+                prop_cpus=[cpu],
+                # RT tasks have the boost holding feature so the frequency
+                # should be more stable, and we shouldn't go to max freq in
+                # Android
+                prop_policy='SCHED_FIFO'
+            )
+        }
 
     @FrequencyAnalysis.df_cpu_frequency.used_events
     @requires_events(SchedTuneItemBase.trace_window.used_events, "cpu_frequency")
@@ -236,14 +241,15 @@ class SchedTunePlacementItem(SchedTuneItemBase):
 
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
-        rtapp_profile = {}
-        rtapp_profile['stune'] = Periodic(
-            duty_cycle_pct=1,
-            duration_s=3,
-            period_ms=16,
-        )
-
-        return rtapp_profile
+        return {
+            'stune': RTAPhase(
+                prop_wload=PeriodicWload(
+                    duty_cycle_pct=1,
+                    duration=3,
+                    period=cls.TASK_PERIOD,
+                )
+            )
+        }
 
     @TasksAnalysis.df_task_total_residency.used_events
     def test_stune_task_placement(self, bad_cpu_margin_pct=10) -> ResultBundle:

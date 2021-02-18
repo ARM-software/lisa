@@ -24,7 +24,7 @@ from devlib.module.sched import SchedDomain, SchedDomainFlag
 from lisa.utils import memoized, ArtifactPath
 from lisa.datautils import df_squash, df_add_delta
 from lisa.trace import Trace, FtraceConf, FtraceCollector, requires_events
-from lisa.wlgen.rta import Periodic
+from lisa.wlgen.rta import RTAPhase, RunWload, SleepWload
 from lisa.tests.base import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
 from lisa.target import Target
 from lisa.analysis.tasks import TasksAnalysis, TaskState
@@ -98,7 +98,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
     task_prefix = "msft"
 
-    PIN_DELAY_S = 0.001
+    PIN_DELAY = 0.001
     """
     How long the tasks will be pinned to their "starting" CPU. Doesn't have
     to be long (we just have to ensure they spawn there), so arbitrary value
@@ -107,7 +107,7 @@ class StaggeredFinishes(MisfitMigrationBase):
     # Let us handle things ourselves
     _BUFFER_PHASE_DURATION_S=0
 
-    IDLING_DELAY_S = 1
+    IDLING_DELAY = 1
     """
     A somewhat arbitray delay - long enough to ensure
     rq->avg_idle > sysctl_sched_migration_cost
@@ -142,16 +142,16 @@ class StaggeredFinishes(MisfitMigrationBase):
     def start_time(self):
         """
         The tasks don't wake up at the same exact time, find the task that is
-        the last to wake up. We don't want to redefine trace_window() here
-        because we still need the first wakeups to be visible.
-        """
-        # First phase is idling time, ignore it
-        phase_df = self.trace.analysis.rta.df_rtapp_phases_start()
-        phase_df = phase_df.reset_index()
-        phase_df.set_index("Time", inplace=True)
-        phase_df.sort_index(inplace=True)
+        the last to wake up (after the idling phase).
 
-        return phase_df[phase_df.phase == 1].index[-1]
+        .. note:: We don't want to redefine
+            :meth:`~lisa.tests.base.RTATestBundle.trace_window` here because we
+            still need the first wakeups to be visible.
+        """
+        phase_df = self.trace.analysis.rta.df_rtapp_phases_start(wlgen_profile=self.rtapp_profile)
+        return phase_df[
+            phase_df.index.get_level_values('phase') == 'test/pinned'
+        ]['Time'].max()
 
     @classmethod
     def check_from_target(cls, target):
@@ -173,30 +173,29 @@ class StaggeredFinishes(MisfitMigrationBase):
         # best we can do is wing it.
         stagger_s = cls._get_lb_interval(plat_info) * 1.5
 
-        profile = {}
-
-        for cpu in cpus:
-            profile[f"{cls.task_prefix}{cpu}"] = (
-                Periodic(
-                    duty_cycle_pct=0,
-                    duration_s=cls.IDLING_DELAY_S,
-                    period_ms=cls.TASK_PERIOD_MS,
-                    cpus=[cpu]
-                ) + Periodic(
-                    duty_cycle_pct=100,
-                    duration_s=cls.PIN_DELAY_S,
-                    period_ms=cls.TASK_PERIOD_MS,
-                    cpus=[cpu]
-                ) + Periodic(
-                    duty_cycle_pct=100,
-                    # Introduce staggered task completions
-                    duration_s=free_time_s + cpu * stagger_s,
-                    period_ms=cls.TASK_PERIOD_MS,
-                    cpus=cpus
+        return {
+            f"{cls.task_prefix}{cpu}": (
+                RTAPhase(
+                    prop_name='idling',
+                    prop_wload=SleepWload(cls.IDLING_DELAY),
+                    prop_cpus=[cpu],
+                ) +
+                RTAPhase(
+                    prop_name='pinned',
+                    prop_wload=RunWload(cls.PIN_DELAY),
+                    prop_cpus=[cpu],
+                ) +
+                RTAPhase(
+                    prop_name='staggered',
+                    prop_wload=RunWload(
+                        # Introduce staggered task completions
+                        free_time_s + cpu * stagger_s
+                    ),
+                    prop_cpus=cpus,
                 )
             )
-
-        return profile
+            for cpu in cpus
+        }
 
     def _trim_state_df(self, state_df):
         if state_df.empty:

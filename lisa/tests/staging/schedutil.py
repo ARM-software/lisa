@@ -21,7 +21,7 @@ import itertools
 
 import pandas as pd
 
-from lisa.wlgen.rta import Ramp
+from lisa.wlgen.rta import DutyCycleSweepPhase
 from lisa.tests.base import ResultBundle, Result, RTATestBundle
 from lisa.target import Target
 from lisa.trace import requires_events, FtraceCollector
@@ -304,18 +304,16 @@ class LargeStepUp(RampBoostTestBase):
 
         delta_pct = ceil((end_pct - start_pct) / nr_steps)
 
-        rtapp_profile = {
-            cls.task_name: Ramp(
-                start_pct=start_pct,
-                end_pct=end_pct,
-                delta_pct=delta_pct,
-                time_s=0.3,
-                loops=20,
-                period_ms=cls.TASK_PERIOD_MS,
+        return {
+            cls.task_name: 20 * DutyCycleSweepPhase(
+                start=start_pct,
+                stop=end_pct,
+                step=delta_pct,
+                duration=0.3,
+                duration_of='step',
+                period=cls.TASK_PERIOD,
                 # Make sure we run on one CPU only, so that we only stress
                 # frequency scaling and not placement.
-                cpus=[cpu],
+                prop_cpus=[cpu],
             )
         }
-
-        return rtapp_profile

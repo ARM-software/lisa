@@ -23,7 +23,7 @@ import pandas as pd
 from itertools import chain
 from devlib.target import KernelVersion
 
-from lisa.wlgen.rta import Periodic, Ramp, Step
+from lisa.wlgen.rta import RTAPhase, PeriodicWload, DutyCycleSweepPhase
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.tests.base import ResultBundle, CannotCreateError, RTATestBundle
@@ -59,8 +59,8 @@ class EASBehaviour(RTATestBundle):
     @classmethod
     def get_big_duty_cycle(cls, plat_info, utilization_pct=None):
         """
-        Returns a duty cycle for :class:`lisa.wlgen.rta.Periodic` that will
-        guarantee placement on a big CPU.
+        Returns a duty cycle for :class:`lisa.wlgen.rta.PeriodicWload` that
+        will guarantee placement on a big CPU.
 
         :param utilization_pct: If ``None``, the duty cycle will be chosen so
             that the task will not fit on the second to biggest CPUs in the
@@ -82,14 +82,12 @@ class EASBehaviour(RTATestBundle):
         return cls.unscaled_utilization(plat_info, cpus[0], utilization_pct)
 
     @classmethod
-    def get_little_duty_cycle(cls, plat_info, utilization_pct):
+    def get_little_cpu(cls, plat_info):
         """
-        Returns the duty-cycle percentage equivalent to ``utilization_pct`` on
-        little CPUs.
+        Return a little CPU ID.
         """
         littles = plat_info["capacity-classes"][0]
-
-        return cls.unscaled_utilization(plat_info, littles[0], utilization_pct)
+        return littles[0]
 
     @classmethod
     def check_from_target(cls, target):
@@ -135,36 +133,30 @@ class EASBehaviour(RTATestBundle):
             phase are taken from the trace.
         """
         tasks_map = self.rtapp_tasks_map
+        rtapp_profile = self.rtapp_profile
 
         def task_util(task, wlgen_task):
             task_list = tasks_map[task]
             assert len(task_list) == 1
             task = task_list[0]
 
-            df = self.trace.analysis.rta.df_phases(task)
-            phases = wlgen_task.phases
+            df = self.trace.analysis.rta.df_phases(task, wlgen_profile=rtapp_profile)
+            df = df[df['properties'].transform(lambda phase: phase['meta']['from_test'])]
 
-            duty_cycles = {
-                i: phase.duty_cycle_pct
-                for i, phase in enumerate(phases)
+            phases_util = {
+                phase.get('name'): phase['wload'].unscaled_duty_cycle_pct(
+                    plat_info=self.plat_info,
+                ) * PELT_SCALE / 100
+                for phase in wlgen_task.phases
+                if phase['meta']['from_test']
             }
 
-            # TODO: remove that once we have named phases to skip the buffer phase
-            # Shift by one to take into account the buffer phase
-            duty_cycles = {
-                i+1: duty_cycle
-                for i, duty_cycle in duty_cycles.items()
-            }
-            # The buffer phase inherits its duty cycle from the next phase
-            duty_cycles[0] = duty_cycles[1]
-
-            expected_util = df['phase'].map(duty_cycles)
-            expected_util *= PELT_SCALE / 100
+            expected_util = df['phase'].map(phases_util)
             return task, expected_util
 
         cols = dict(
             task_util(task, wlgen_task)
-            for task, wlgen_task in self.rtapp_profile.items()
+            for task, wlgen_task in rtapp_profile.items()
         )
         df = pd.DataFrame(cols)
         df.fillna(method='ffill', inplace=True)
@@ -436,16 +428,16 @@ class OneSmallTask(EASBehaviour):
 
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
-        duty = cls.get_little_duty_cycle(plat_info, 50)
-
-        rtapp_profile = {}
-        rtapp_profile[cls.task_name] = Periodic(
-            duty_cycle_pct=duty,
-            duration_s=1,
-            period_ms=cls.TASK_PERIOD_MS
-        )
-
-        return rtapp_profile
+        return {
+            cls.task_name: RTAPhase(
+                prop_wload=PeriodicWload(
+                    duty_cycle_pct=50,
+                    scale_for_cpu=cls.get_little_cpu(plat_info),
+                    duration=1,
+                    period=cls.TASK_PERIOD,
+                )
+            )
+        }
 
 
 class ThreeSmallTasks(EASBehaviour):
@@ -477,17 +469,17 @@ class ThreeSmallTasks(EASBehaviour):
 
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
-        duty = cls.get_little_duty_cycle(plat_info, 50)
-
-        rtapp_profile = {}
-        for i in range(3):
-            rtapp_profile[f"{cls.task_prefix}_{i}"] = Periodic(
-                duty_cycle_pct=duty,
-                duration_s=1,
-                period_ms=cls.TASK_PERIOD_MS
+        return {
+            f"{cls.task_prefix}_{i}": RTAPhase(
+                prop_wload=PeriodicWload(
+                    duty_cycle_pct=50,
+                    scale_for_cpu=cls.get_little_cpu(plat_info),
+                    duration=1,
+                    period=cls.TASK_PERIOD,
+                )
             )
-
-        return rtapp_profile
+            for i in range(3)
+        }
 
 
 class TwoBigTasks(EASBehaviour):
@@ -500,16 +492,16 @@ class TwoBigTasks(EASBehaviour):
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
         duty = cls.get_big_duty_cycle(plat_info)
-
-        rtapp_profile = {}
-        for i in range(2):
-            rtapp_profile[f"{cls.task_prefix}_{i}"] = Periodic(
-                duty_cycle_pct=duty,
-                duration_s=1,
-                period_ms=cls.TASK_PERIOD_MS
+        return {
+            f"{cls.task_prefix}_{i}": RTAPhase(
+                prop_wload=PeriodicWload(
+                    duty_cycle_pct=duty,
+                    duration=1,
+                    period=cls.TASK_PERIOD,
+                )
             )
-
-        return rtapp_profile
+            for i in range(2)
+        }
 
 
 class TwoBigThreeSmall(EASBehaviour):
@@ -522,26 +514,32 @@ class TwoBigThreeSmall(EASBehaviour):
 
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
-        small_duty = cls.get_little_duty_cycle(plat_info, 50)
+        little = cls.get_little_cpu(plat_info)
         big_duty = cls.get_big_duty_cycle(plat_info)
 
-        rtapp_profile = {}
-
-        for i in range(3):
-            rtapp_profile[f"{cls.small_prefix}_{i}"] = Periodic(
-                duty_cycle_pct=small_duty,
-                duration_s=1,
-                period_ms=cls.TASK_PERIOD_MS
-            )
-
-        for i in range(2):
-            rtapp_profile[f"{cls.big_prefix}_{i}"] = Periodic(
-                duty_cycle_pct=big_duty,
-                duration_s=1,
-                period_ms=cls.TASK_PERIOD_MS
-            )
-
-        return rtapp_profile
+        return {
+            **{
+                f"{cls.small_prefix}_{i}": RTAPhase(
+                    prop_wload=PeriodicWload(
+                        duty_cycle_pct=50,
+                        scale_for_cpu=little,
+                        duration=1,
+                        period=cls.TASK_PERIOD
+                    )
+                )
+                for i in range(3)
+            },
+            **{
+                f"{cls.big_prefix}_{i}": RTAPhase(
+                    prop_wload=PeriodicWload(
+                        duty_cycle_pct=big_duty,
+                        duration=1,
+                        period=cls.TASK_PERIOD
+                    )
+                )
+                for i in range(2)
+            }
+        }
 
 
 class EnergyModelWakeMigration(EASBehaviour):
@@ -561,22 +559,30 @@ class EnergyModelWakeMigration(EASBehaviour):
 
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
-        start_pct = cls.get_little_duty_cycle(plat_info, 20)
+        little = cls.get_little_cpu(plat_info)
         end_pct = cls.get_big_duty_cycle(plat_info)
-
-        rtapp_profile = {}
-
         bigs = plat_info["capacity-classes"][-1]
-        for i in range(len(bigs)):
-            rtapp_profile[f"{cls.task_prefix}_{i}"] = Step(
-                start_pct=start_pct,
-                end_pct=end_pct,
-                time_s=2,
-                loops=2,
-                period_ms=cls.TASK_PERIOD_MS
-            )
 
-        return rtapp_profile
+        return {
+            f"{cls.task_prefix}_{i}": 2 * (
+                RTAPhase(
+                    prop_wload=PeriodicWload(
+                        duty_cycle_pct=20,
+                        scale_for_cpu=little,
+                        duration=2,
+                        period=cls.TASK_PERIOD,
+                    )
+                ) +
+                RTAPhase(
+                    prop_wload=PeriodicWload(
+                        duty_cycle_pct=end_pct,
+                        duration=2,
+                        period=cls.TASK_PERIOD,
+                    )
+                )
+            )
+            for i in range(len(bigs))
+        }
 
 
 class RampUp(EASBehaviour):
@@ -607,20 +613,20 @@ class RampUp(EASBehaviour):
 
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
-        start_pct = cls.get_little_duty_cycle(plat_info, 10)
+        little = cls.get_little_cpu(plat_info)
+        start_pct = cls.unscaled_utilization(plat_info, little, 10)
         end_pct = cls.get_big_duty_cycle(plat_info, 70)
 
-        rtapp_profile = {
-            cls.task_name: Ramp(
-                start_pct=start_pct,
-                end_pct=end_pct,
-                delta_pct=5,
-                time_s=.5,
-                period_ms=cls.TASK_PERIOD_MS
+        return {
+            cls.task_name: DutyCycleSweepPhase(
+                start=start_pct,
+                stop=end_pct,
+                step=5,
+                duration=0.5,
+                duration_of='step',
+                period=cls.TASK_PERIOD,
             )
         }
-
-        return rtapp_profile
 
 
 class RampDown(EASBehaviour):
@@ -659,19 +665,19 @@ class RampDown(EASBehaviour):
 
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
+        little = cls.get_little_cpu(plat_info)
         start_pct = cls.get_big_duty_cycle(plat_info, 70)
-        end_pct = cls.get_little_duty_cycle(plat_info, 10)
+        end_pct = cls.unscaled_utilization(plat_info, little, 10)
 
-        rtapp_profile = {
-            cls.task_name: Ramp(
-                start_pct=start_pct,
-                end_pct=end_pct,
-                delta_pct=5,
-                time_s=.5,
-                period_ms=cls.TASK_PERIOD_MS
+        return {
+            cls.task_name: DutyCycleSweepPhase(
+                start=start_pct,
+                stop=end_pct,
+                step=5,
+                duration=0.5,
+                duration_of='step',
+                period=cls.TASK_PERIOD,
             )
         }
-
-        return rtapp_profile
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
