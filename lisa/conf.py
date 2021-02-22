@@ -98,6 +98,18 @@ class DeferredExcep(DeferredValue):
         return f'<lazy {self.excep.__class__.__qualname__} exception>'
 
 
+class TopLevelKeyError(ValueError):
+    """
+    Exception raised when no top-level key matches the expected one in the
+    given configuration file.
+    """
+    def __init__(self, key):
+        self.key = key
+
+    def __str__(self):
+        return f'Key "{self.key}" needs to appear at the top level'
+
+
 class KeyDescBase(abc.ABC):
     """
     Base class for configuration files key descriptor.
@@ -696,7 +708,7 @@ class MultiSrcConfABC(Serializable, abc.ABC):
             data = mapping[toplevel_key] or {}
         except KeyError:
             # pylint: disable=raise-missing-from
-            raise ValueError(f'Key "{toplevel_key}" needs to appear at the top level')
+            raise TopLevelKeyError(toplevel_key)
         # "unwrap" an extra layer of toplevel key, to play well with !include
         if len(data) == 1 and toplevel_key in data.keys():
             data = data[toplevel_key]
@@ -735,7 +747,7 @@ class MultiSrcConfABC(Serializable, abc.ABC):
                     # Do not add the default source, to avoid overriding user
                     # configuration with the default one.
                     conf = conf_cls.from_yaml_map(conf_path, add_default_src=False)
-                except ValueError:
+                except TopLevelKeyError:
                     continue
                 else:
                     conf_list.append((conf, conf_path))
