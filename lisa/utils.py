@@ -131,15 +131,52 @@ def curry(f):
     """
     Currify the given function such that ``f(x, y) == curry(f)(x)(y)``
     """
-    nr_param = len(inspect.signature(f).parameters)
+    return _curry(f)
+
+def _curry(f, bound_kwargs=None):
+    bound_kwargs = bound_kwargs or {}
+
+    def make_partial(f, kwargs):
+        @functools.wraps(f)
+        def wrapper(**_kwargs):
+            return f(**kwargs, **_kwargs)
+        return wrapper
+
+    def check(param):
+        if param.kind in (
+            param.VAR_POSITIONAL,
+            param.VAR_KEYWORD,
+            param.POSITIONAL_ONLY,
+        ):
+            raise ValueError(f'Parameter "{param}" kind is not handled: {param.kind}')
+
+    if bound_kwargs:
+        sig = inspect.signature(inspect.unwrap(f))
+        sig = sig.replace(
+            parameters=[
+                param
+                for param in sig.parameters.values()
+                if param.name not in bound_kwargs
+            ]
+        )
+    else:
+        sig = inspect.signature(f)
+        for param in sig.parameters.values():
+            check(param)
+
+    nr_params = len(sig.parameters)
 
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
-        nr_free = nr_param - len(args) - len(kwargs)
+        kwargs = sig.bind_partial(*args, **kwargs).arguments
+        nr_free = nr_params - len(kwargs)
         if nr_free > 0:
-            return curry(functools.partial(f, *args, **kwargs))
+            return _curry(
+                make_partial(f, kwargs),
+                bound_kwargs={**bound_kwargs, **kwargs},
+            )
         else:
-            return f(*args, **kwargs)
+            return f(**kwargs)
 
     return wrapper
 
