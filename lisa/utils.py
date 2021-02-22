@@ -192,11 +192,14 @@ def compose(*fs):
     """
     fs = list(fs)
 
+    def get_nr_args(f):
+        if isinstance(f, _Composed):
+            return f.nr_args
+        else:
+            return len(inspect.signature(f).parameters)
+
     # Get the number of parameters required at each level
-    nr_f_args = [
-        len(inspect.signature(f).parameters)
-        for f in fs
-    ]
+    nr_f_args = list(map(get_nr_args, fs))
 
     # If all functions except the first one have arity == 1, use a simpler
     # composition that should be a bit faster
@@ -223,7 +226,24 @@ def compose(*fs):
 
             return x
 
-    return composed
+    first_nr_args, *others_nr_args = nr_f_args
+    # The first function will gets its arguments straight away, the other
+    # functions will be fed the return of the previous level so we discount
+    # one argument.
+    nr_args = first_nr_args + sum(x - 1 for x in others_nr_args)
+
+    return _Composed(composed, nr_args)
+
+
+class _Composed:
+    def __init__(self, f, nr_args):
+        self.f = f
+        self.nr_args = nr_args
+
+    def __call__(self, *args):
+        return self.f(*args)
+
+    __or__ = compose
 
 
 class mappable:
