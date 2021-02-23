@@ -184,6 +184,10 @@ class ResultBundleBase:
     """
 
     def __bool__(self):
+        """
+        ``True`` if the ``result`` is :attr:`Result.PASSED`, ``False``
+        otherwise.
+        """
         return self.result is Result.PASSED
 
     def __str__(self):
