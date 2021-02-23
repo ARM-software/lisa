@@ -40,6 +40,7 @@ from lisa.utils import LISA_HOME, import_all_submodules, sphinx_nitpick_ignore
 from lisa.doc.helpers import (
     autodoc_process_test_method, autodoc_process_analysis_events,
     autodoc_process_analysis_plots, autodoc_process_analysis_methods,
+    autodoc_skip_member_handler,
     DocPlotConf, get_xref_type,
 )
 
@@ -358,8 +359,32 @@ autoclass_content = 'both'
 autodoc_member_order = 'bysource'
 
 autodoc_default_options = {
-    'show-inheritance': '',  # Show parent class
-    'undoc-members': '',    # Show members even if they don't have docstrings
+    # Show parent class
+    'show-inheritance': None,
+    # Show members even if they don't have docstrings
+    'undoc-members': None,
+    # Show special methods such as __and__
+    'special-members': None,
+    # Note: we make use of it in our custom autodoc-skip-member hook to ensure
+    # it is always honored, even when some members are explicitly excluded.
+    # On top of that, some functions are always excluded (see the hook
+    # implementation for the details).
+    'exclude-members': ','.join([
+        # All the classes in lisa have their __init__ signature documented in
+        # the class docstring
+        '__init__',
+
+        # Uninteresting
+        '__weakref__',
+        '__module__',
+        '__abstractmethods__',
+        '__eq__',
+        '__str__',
+        '__repr__',
+        '__iter__',
+        '__len__',
+        '__dict__',
+    ])
 }
 autodoc_inherit_docstrings = True
 
@@ -475,5 +500,6 @@ def setup(app):
     app.connect('autodoc-process-docstring', autodoc_process_analysis_events)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_methods)
     app.connect('autodoc-process-docstring', autodoc_process_analysis_plots_handler)
+    app.connect('autodoc-skip-member',       autodoc_skip_member_handler)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab:

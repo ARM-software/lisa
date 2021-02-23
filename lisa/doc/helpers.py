@@ -23,6 +23,7 @@ import itertools
 import functools
 import re
 import types
+import abc
 from collections.abc import Mapping
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
@@ -34,6 +35,7 @@ from docutils import nodes
 from docutils.statemachine import ViewList
 
 from sphinx.util.nodes import nested_parse_with_titles
+from sphinx.ext.autodoc import exclude_members_option
 
 import lisa
 import lisa.analysis
@@ -217,6 +219,78 @@ def autodoc_process_analysis_events(app, what, name, obj, options, lines):
 
         events_doc = f"\n:Required trace events:\n\n{used_events.doc_str()}\n\n"
         lines.extend(events_doc.splitlines())
+
+
+def autodoc_skip_member_handler(app, what, name, obj, skip, options):
+    """
+    Enforce the "exclude-members" option, even in cases where it seems to be
+    ignored by Sphinx.
+    """
+    excluded = options.get('exclude-members', set())
+    if excluded:
+        # Either it's a one-item set with the string passed in conf.py
+        try:
+            excluded, = excluded
+        # Or it's an already-processed set
+        except ValueError:
+            pass
+        else:
+            excluded = exclude_members_option(excluded)
+
+    # Import conf.py Sphinx configuration, since the "excluded-members" option
+    # can be overriden by the user in ReST directives.
+    import conf
+    default_excluded = exclude_members_option(
+        conf.autodoc_default_options.get('exclude-members', '')
+    )
+    excluded = excluded | default_excluded
+
+    name = name.split('.')[-1]
+
+    unwrapped = inspect.unwrap(obj)
+    # Get rid of the default implementation of dunder names, since it adds no
+    # value in the documentation
+    if any(
+        hasattr(cls, name) and getattr(cls, name) in (obj, unwrapped)
+        # providers of "uninteresting" methods that are useless in our
+        # documentation
+        for cls in (
+            object,
+            type,
+            abc.ABC,
+            abc.ABCMeta,
+        )
+    ):
+        return True
+    # Some classes like ABCMeta are more sneaky so also ban things that are
+    # just builtin functions
+    elif any(
+        type_ in map(type, (obj, unwrapped))
+        for type_ in (
+            # Work with multiple Python versions
+            getattr(types, type_name)
+            for type_name in (
+                'BuiltinFunctionType',
+                'BuiltinMethodType',
+                'WrapperDescriptorType',
+                'MethodWrapperType',
+                'MethodDescriptorType',
+                'ClassMethodDescriptorType',
+                'GetSetDescriptorType',
+                'MemberDescriptorType',
+            )
+            if hasattr(types, type_name)
+        )
+    ):
+        return True
+    # Dunder names without any doc are of no interest, they are probably just
+    # implementation details
+    elif name.startswith('__') and name.endswith('__') and not inspect.getdoc(obj):
+        return True
+    elif name in excluded:
+        return True
+    else:
+        return skip
 
 
 class DocPlotConf(SimpleMultiSrcConf):
