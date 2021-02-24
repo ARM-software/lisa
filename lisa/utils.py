@@ -759,6 +759,7 @@ class Serializable(Loggable):
 
         The following class attributes can be used to customize the serialized
         content:
+
             * :attr:`serialized_whitelist`: list of attribute names to
               serialize. All other attributes will be ignored and will not be
               saved/restored.
@@ -766,13 +767,12 @@ class Serializable(Loggable):
             * :attr:`serialized_blacklist`: list of attribute names to not
               serialize.  All other attributes will be saved/restored.
 
-            * serialized_placeholders: Map of attribute names to placeholder
-              values. These attributes will not be serialized, and the
-              placeholder value will be used upon restoration.
+            * :attr:`serialized_placeholders`: Map of attribute names to
+              placeholder values. These attributes will not be serialized, and
+              the placeholder value will be used upon restoration.
 
-            If both :attr:`serialized_whitelist` and
-            :attr:`serialized_blacklist` are specified,
-            :attr:`serialized_blacklist` is ignored.
+        If both :attr:`serialized_whitelist` and :attr:`serialized_blacklist`
+        are specified, :attr:`serialized_blacklist` is ignored.
         """
 
         dct = copy.copy(self.__dict__)
