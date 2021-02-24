@@ -38,7 +38,7 @@ from sphinx.util.nodes import nested_parse_with_titles
 import lisa
 import lisa.analysis
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
-from lisa.utils import get_subclasses, import_all_submodules, DEPRECATED_MAP, get_sphinx_name, groupby
+from lisa.utils import get_subclasses, import_all_submodules, DEPRECATED_MAP, get_sphinx_name, groupby, get_short_doc
 from lisa.trace import MissingTraceEventError, TraceEventCheckerBase
 from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, KeyDesc, LevelKeyDesc
 from lisa.version import format_version
@@ -489,5 +489,22 @@ def get_xref_type(obj):
         raise ValueError(f'Cannot infer the xref type of {obj}')
 
     return f'py:{t}'
+
+
+def get_subclasses_bullets(cls, abbrev=True, style=None, only_leaves=False):
+    """
+    Return a formatted bullet list of the subclasses of the given class,
+    including a short description for each.
+    """
+    return '\n'.join(
+        f'* {subcls}: {doc}'
+        for subcls, doc in sorted(
+            (
+                get_sphinx_name(subcls, style=style, abbrev=abbrev),
+                get_short_doc(subcls)
+            )
+            for subcls in get_subclasses(cls, only_leaves=only_leaves)
+        )
+    )
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
