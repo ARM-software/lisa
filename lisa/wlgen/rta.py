@@ -1134,6 +1134,8 @@ class PropertyBase(SimpleHash, metaclass=PropertyMeta):
     @classmethod
     def _from_key(cls, key, val):
         """
+        :meta public:
+
         Build an instance out of ``key`` and ``val``.
         """
         raise NotImplementedError()
@@ -1613,6 +1615,8 @@ class _SemigroupProperty(PropertyBase):
     @abc.abstractmethod
     def _SEMIGROUP_OP(x, y):
         """
+        :meta public:
+
         Function used to combine two non-None values.
         """
         pass
@@ -2160,6 +2164,8 @@ class ComposableMultiConcretePropertyBase(MultiConcreteProperty):
 
     def _and(self, other):
         """
+        :meta public:
+
         Combine together two instances by taking the non-default values for
         each attribute, and giving priority to ``self``.
         """
@@ -2234,6 +2240,8 @@ class UclampProperty(ComposableMultiConcretePropertyBase):
 
     def _and(self, other):
         """
+        :meta public:
+
         Combine clamps by taking the most constraining solution.
         """
         def none_shortcircuit(f, x, y):
@@ -3554,6 +3562,8 @@ class ParametricPhase(RTAPhaseTree):
     @abc.abstractmethod
     def _make_children(cls, template, **kwargs):
         """
+        :meta public:
+
         Create a list of children :class:`RTAPhaseBase` based on the parameters
         passed from the constructor.
         """

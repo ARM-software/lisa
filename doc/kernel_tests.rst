@@ -194,7 +194,6 @@ Base classes
 
 .. automodule:: lisa.tests.base
    :members:
-   :private-members: _from_target
 
 .. TODO:: Make those imports more generic
 
@@ -224,7 +223,6 @@ Load tracking tests
 
 .. automodule:: lisa.tests.scheduler.load_tracking
    :members:
-   :private-members: _from_target
 
 |
 

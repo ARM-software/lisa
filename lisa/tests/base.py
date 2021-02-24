@@ -860,6 +860,8 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
     @abc.abstractmethod
     def _from_target(cls, target, *, res_dir):
         """
+        :meta public:
+
         Internals of the target factory method.
 
         .. note:: This must be a classmethod, and all parameters except
@@ -943,6 +945,8 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
     @classmethod
     def _get_filepath(cls, res_dir):
         """
+        :meta public:
+
         Returns the path of the file containing the serialized object in
         ``res_dir`` folder.
         """
@@ -977,6 +981,8 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
     @property
     def _children_test_bundles(self):
         """
+        :meta public:
+
         List of references to :class:`TestBundle` instances ``self`` relies on
         (directly *and* indirectly).
 
@@ -1009,9 +1015,6 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
 
         It uses :meth:`_get_filepath` to get the name of the serialized file to
         reload.
-
-
-         .. automethod:: _get_filepath
         """
         res_dir = ArtifactPath(root=res_dir, relative='')
 
@@ -1643,6 +1646,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     @abc.abstractmethod
     def _get_rtapp_profile(cls, plat_info):
         """
+        :meta public:
+
         :returns: a :class:`dict` with task names as keys and
           :class:`lisa.wlgen.rta.RTATask` as values
 
@@ -1795,6 +1800,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     @classmethod
     def _run_rtapp(cls, *args, **kwargs):
         """
+        :meta public:
+
         Has been renamed to :meth:`~lisa.tests.base.RTATestBundle.run_rtapp`, as it really is part of the public API.
         """
         return cls.run_rtapp(*args, **kwargs)
@@ -1802,6 +1809,8 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
     @classmethod
     def _from_target(cls, target: Target, *, res_dir: ArtifactPath, ftrace_coll: FtraceCollector = None) -> 'RTATestBundle':
         """
+        :meta public:
+
         Factory method to create a bundle using a live target
 
         This will execute the rt-app workload described in

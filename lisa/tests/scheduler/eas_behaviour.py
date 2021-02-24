@@ -102,6 +102,8 @@ class EASBehaviour(RTATestBundle):
     @classmethod
     def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None) -> 'EASBehaviour':
         """
+        :meta public:
+
         Factory method to create a bundle using a live target
 
         This will execute the rt-app workload described in
