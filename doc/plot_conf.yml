@@ -12,90 +12,99 @@
 #   hide [optional]: Do not produce an example plot, in case no trace with
 #   necessary events is available for example.
 
-
 doc-plot-conf:
     plots:
         # Default values for the other entries
         default:
+            plat_info: &plat_info0 !call:lisa.platforms.platinfo.PlatformInfo.from_yaml_map
+                path: !env:interpolate $LISA_HOME/doc/traces/plat_info.yml
+
             trace: &trace0 !call:lisa.trace.Trace
                 trace_path: !env:interpolate $LISA_HOME/doc/traces/trace.dat
                 normalize_time: true
-                plat_info: !call:lisa.platforms.platinfo.PlatformInfo.from_yaml_map
-                    path: !env:interpolate $LISA_HOME/doc/traces/plat_info.yml
+                plat_info: *plat_info0
+
+            wlgen_profile: &wlgen_profile0 !call:lisa.tests.scheduler.eas_behaviour.TwoBigThreeSmall.get_rtapp_profile
+                plat_info: *plat_info0
+
+            task: &task0 big_0-3
+            cpu: &cpu0 0
+            cluster: &cluster0 [0, 3, 4, 5]
+
 
         TasksAnalysis.plot_task_residency:
             kwargs:
-                task: &task big_0-3
+                task: *task0
 
         TasksAnalysis.plot_task_total_residency:
             kwargs:
-                task: *task
+                task: *task0
 
         TasksAnalysis.plot_task_activation:
             kwargs:
-                task: *task
+                task: *task0
                 duration: True
                 which_cpu: True
 
         LoadTrackingAnalysis.plot_task_signals:
             kwargs:
-                task: *task
+                task: *task0
 
         LoadTrackingAnalysis.plot_task_required_capacity:
             kwargs:
-                task: *task
+                task: *task0
 
         LoadTrackingAnalysis.plot_task_placement:
             kwargs:
-                task: *task
+                task: *task0
 
         LatencyAnalysis.plot_latencies:
             kwargs:
-                task: *task
+                task: *task0
 
         LatencyAnalysis.plot_latencies_cdf:
             kwargs:
-                task: *task
+                task: *task0
 
         LatencyAnalysis.plot_latencies_histogram:
             kwargs:
-                task: *task
+                task: *task0
 
         LatencyAnalysis.plot_latency_bands:
             kwargs:
-                task: *task
+                task: *task0
 
         LatencyAnalysis.plot_activations:
             kwargs:
-                task: *task
+                task: *task0
 
         LatencyAnalysis.plot_runtimes:
             kwargs:
-                task: *task
+                task: *task0
 
         IdleAnalysis.plot_cpu_idle_state_residency:
             kwargs:
-                cpu: &cpu 0
+                cpu: *cpu0
 
         IdleAnalysis.plot_cluster_idle_state_residency:
             kwargs:
-                cluster: &cluster [0, 3, 4, 5]
+                cluster: *cluster0
 
         FrequencyAnalysis.plot_cpu_frequencies:
             kwargs:
-                cpu: *cpu
+                cpu: *cpu0
 
         FrequencyAnalysis.plot_cpu_frequency_transitions:
             kwargs:
-                cpu: *cpu
+                cpu: *cpu0
 
         FrequencyAnalysis.plot_cpu_frequency_residency:
             kwargs:
-                cpu: *cpu
+                cpu: *cpu0
 
         CpusAnalysis.plot_orig_capacity:
             kwargs:
-                cpu: *cpu
+                cpu: *cpu0
 
 
         NotebookAnalysis.plot_event_field:
@@ -103,27 +112,28 @@ doc-plot-conf:
                 event: cpu_frequency
                 field: state
                 filter_columns:
-                    cpu_id: *cpu
+                    cpu_id: *cpu0
 
         RTAEventsAnalysis.plot_phases:
             kwargs:
-                task: *task
+                task: *task0
+                wlgen_profile: *wlgen_profile0
 
         RTAEventsAnalysis.plot_perf:
             kwargs:
-                task: *task
+                task: *task0
 
         RTAEventsAnalysis.plot_latency:
             kwargs:
-                task: *task
+                task: *task0
 
         RTAEventsAnalysis.plot_slack_histogram:
             kwargs:
-                task: *task
+                task: *task0
 
         RTAEventsAnalysis.plot_perf_index_histogram:
             kwargs:
-                task: *task
+                task: *task0
 
         ##########################
         # HIDDEN PLOTS
