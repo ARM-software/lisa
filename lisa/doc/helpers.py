@@ -96,7 +96,7 @@ class ExecDirective(RecursiveDirective):
         stdout = io.StringIO()
         code = '\n'.join(self.content)
         with contextlib.redirect_stdout(stdout):
-            exec(code)
+            exec(code, {})
         out = stdout.getvalue()
         return self.parse_nested(out)
 
