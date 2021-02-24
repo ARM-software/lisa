@@ -246,7 +246,11 @@ class HWMon(EnergyMeter):
 
 
 class _DevlibContinuousEnergyMeter(EnergyMeter):
-    """Common functionality for devlib Instruments in CONTINUOUS mode"""
+    """
+    :meta public:
+
+    Common functionality for devlib Instruments in CONTINUOUS mode
+    """
 
     def reset(self):
         self._instrument.start()

@@ -59,6 +59,8 @@ class LoadTrackingHelpers:
     @classmethod
     def _get_blacklisted_cpus(cls, plat_info):
         """
+        :meta public:
+
         Consider some CPUs as blacklisted when the load would not be
         proportionnal to utilization on them.
 
@@ -86,8 +88,6 @@ class LoadTrackingHelpers:
         """
         Filter out capacity-classes key of ``plat_info`` to remove blacklisted
         CPUs provided by:
-
-        .. automethod:: _get_blacklisted_cpus
         """
         blacklisted_cpus = set(cls._get_blacklisted_cpus(plat_info))
         return [
@@ -216,6 +216,8 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
     @classmethod
     def _get_rtapp_profile(cls, plat_info, cpu, freq):
         """
+        :meta public:
+
         Get a specification for a rt-app workload with the specificied duty
         cycle, pinned to the given CPU.
         """
@@ -239,6 +241,8 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
     @classmethod
     def _from_target(cls, target: Target, *, cpu: int, freq: int, freq_list=None, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None) -> 'InvarianceItem':
         """
+        :meta public:
+
         :param cpu: CPU to use, or ``None`` to automatically choose an
             appropriate set of CPUs.
         :type cpu: int or None

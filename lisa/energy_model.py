@@ -82,7 +82,10 @@ class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):
 
 
 class _CpuTree(Loggable):
-    """Internal class. Abstract representation of a CPU topology.
+    """
+    :meta public:
+
+    Internal class. Abstract representation of a CPU topology.
 
     Each node contains either a single CPU or a set of child nodes.
 

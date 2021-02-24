@@ -61,6 +61,8 @@ class ExampleTestBundle(RTATestBundle):
     @classmethod
     def _from_target(cls, target: Target, *, res_dir: ArtifactPath, ftrace_coll: FtraceCollector = None) -> 'ExampleTestBundle':
         """
+        :meta public:
+
         This class method is the main way of creating a :class:`ExampleTestBundle`.
 
         It takes a first (positional) ``target`` parameter, which is a live
@@ -133,6 +135,8 @@ class ExampleTestBundle(RTATestBundle):
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
         """
+        :meta public:
+
         This class method is in charge of generating an rt-app profile, to
         configure the workload that will be run using
         :meth:`lisa.tests.base.RTATestBundle.run_rtapp`.

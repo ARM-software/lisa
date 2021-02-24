@@ -635,7 +635,7 @@ class TxtTraceParserBase(TraceParserBase):
     Mapping of event names to parser description as a dict.
 
     Each event description can include the constructor parameters of the class
-    used as :data:`DEFAULT_EVENT_PARSER_CLS`, which will be used to build event
+    used as :attr:`DEFAULT_EVENT_PARSER_CLS`, which will be used to build event
     parsers from the descriptions.
 
     If an instance of :class:`EventParserBase` is passed instead of a dict, it

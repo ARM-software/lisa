@@ -40,6 +40,8 @@ class CapacitySanity(TestBundle):
     @classmethod
     def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None) -> 'CapacitySanity':
         """
+        :meta public:
+
         Factory method to create a bundle using a live target
         """
         with target.cpufreq.use_governor("performance"):

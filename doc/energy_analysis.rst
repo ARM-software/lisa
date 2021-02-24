@@ -208,11 +208,9 @@ Energy model
 
 .. automodule:: lisa.energy_model
    :members:
-   :private-members: _CpuTree
 
 Energy meters
 +++++++++++++
 
 .. automodule:: lisa.energy_meter
    :members:
-   :private-members: _DevlibContinuousEnergyMeter
