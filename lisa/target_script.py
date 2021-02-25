@@ -33,8 +33,11 @@ from lisa.target import Target
 )
 class TargetScript:
     """
-    This class provides utility to create and run a script
-    directly on a devlib target.
+    This class lets you define a shell script to be later executed on a
+    :class:`~lisa.target.Target`.
+
+    It is useful when you want generate some activity on the target without the
+    overhead of an ssh/adb connection.
 
     :param target: Reference :class:`devlib.target.Target` instance. Will be
       used for some commands that must really be executed instead of accumulated.
