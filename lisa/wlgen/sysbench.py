@@ -14,6 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+Sysbench is a useful workload to get some performance numbers, e.g. to assert
+that higher frequencies lead to more work done (as done in
+:class:`~lisa.tests.cpufreq.sanity.UserspaceSanity`).
+"""
 
 import re
 from shlex import quote
