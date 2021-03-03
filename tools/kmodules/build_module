@@ -1,28 +1,39 @@
-#!/bin/bash
+#! /bin/bash
 set -eu
 
-KERNEL_SRC=`realpath "$1"`
-MODULE_SRC=`realpath "$2"`
-INSTALL_MOD_PATH=${3:-`dirname "$0"`}
+export KERNEL_SRC=$(readlink -fe "$1")
+export MODULE_SRC=$(readlink -fe "$2")
+INSTALL_MOD_PATH=${3:-$(dirname "${BASH_SOURCE[0]}")}
 
-export INSTALL_MOD_PATH=`realpath "$INSTALL_MOD_PATH"`
-export ARCH=${ARCH:-arm64}
+export INSTALL_MOD_PATH=$(readlink -fe "$INSTALL_MOD_PATH")
+export ARCH=${ARCH:-$LISA_HOST_ABI}
 
-case "$ARCH" in
+convert_arch() {
+    case $1 in
+        x86_64) echo x86;;
+        aarch64) echo arm64;;
+        *) echo "$1";;
+    esac
+}
 
+export ARCH=$(convert_arch "$ARCH")
+LISA_HOST_ABI=$(convert_arch "$LISA_HOST_ABI")
+
+echo "Building module for ARCH=$ARCH"
+
+case $ARCH in
+	$LISA_HOST_ABI)
+		;;
 	arm64)
 		export CROSS_COMPILE=${CROSS_COMPILE:-aarch64-linux-gnu-}
 		;;
 	arm)
 		export CROSS_COMPILE=${CROSS_COMPILE:-arm-linux-gnueabi-}
 		;;
-	x86|x86_64)
-		;;
 	*)
-		echo "ERROR: Unknown ARCH=$ARCH"
+		echo "ERROR: Unknown ARCH=$ARCH" >&2
 		exit 1
 		;;
 esac
 
-make -C "$KERNEL_SRC" M="$MODULE_SRC" modules
-make -C "$KERNEL_SRC" M="$MODULE_SRC" modules_install
+make -C "$MODULE_SRC"
