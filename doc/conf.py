@@ -378,6 +378,7 @@ autodoc_default_options = {
         '__weakref__',
         '__module__',
         '__abstractmethods__',
+        '__slotnames__',
         '__eq__',
         '__str__',
         '__repr__',
