@@ -61,7 +61,7 @@ if RTD:
     # RTD makes a shallow clone by default, so make sure to have the whole
     # history to be able to generate breaking change list and any other
     # git-based documentation
-    subprocess.check_call(['git', 'fetch', '--unshallow'])
+    subprocess.run(['git', 'fetch', '--unshallow'], check=False)
 
     source_env = {
         **os.environ,
