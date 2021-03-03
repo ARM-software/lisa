@@ -22,4 +22,4 @@ case "$ARCH" in
 		;;
 esac
 
-make -C "$KERNEL_SRC" M="$MODULE_SRC" clean
+KERNEL_SRC="$KERNEL_SRC" make -C "$MODULE_SRC" clean

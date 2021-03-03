@@ -7,7 +7,7 @@ INSTALL_MOD_PATH=${3:-`dirname "$0"`}
 
 export INSTALL_MOD_PATH=`realpath "$INSTALL_MOD_PATH"`
 export ARCH=${ARCH:-arm64}
-
+#$(info $ARCH)
 case "$ARCH" in
 
 	arm64)
@@ -24,5 +24,5 @@ case "$ARCH" in
 		;;
 esac
 
-make -C "$KERNEL_SRC" M="$MODULE_SRC" modules
-make -C "$KERNEL_SRC" M="$MODULE_SRC" modules_install
+KERNEL_SRC="$KERNEL_SRC" make -C "$MODULE_SRC"
+KERNEL_SRC="$KERNEL_SRC" make -C "$MODULE_SRC" install
