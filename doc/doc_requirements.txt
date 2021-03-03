@@ -1,3 +1,6 @@
+
+sphinx==3.5.1
+
 # A streamlined version of devmode_requirements.txt for doc building
 -e ./tools/exekall
 
