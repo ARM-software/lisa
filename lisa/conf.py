@@ -123,12 +123,15 @@ class KeyDescBase(abc.ABC):
     def __init__(self, name, help):
         # pylint: disable=redefined-builtin
 
-        if not re.match(self._VALID_NAME_PATTERN, name):
-            raise ValueError(f'Invalid key name "{name}". Key names must match: {self._VALID_NAME_PATTERN}')
-
+        self._check_name(name)
         self.name = name
         self.help = help
         self.parent = None
+
+    @classmethod
+    def _check_name(cls, name):
+        if not re.match(cls._VALID_NAME_PATTERN, name):
+            raise ValueError(f'Invalid key name "{name}". Key names must match: {self._VALID_NAME_PATTERN}')
 
     @property
     def qualname(self):
@@ -655,20 +658,56 @@ class LevelKeyDesc(KeyDescBase, Mapping):
         return help_
 
 
-class TopLevelKeyDesc(LevelKeyDesc):
+class TopLevelKeyDescBase(LevelKeyDesc):
     """
     Top-level key descriptor, which defines the top-level key to use in the
     configuration files.
 
+    :param levels: Levels of the top-level key, as a list of strings. Each item
+        specifies a level in a mapping, so that multiple classes can share the same
+        actual top-level without specific cooperation.
+    :type levels: list(str)
+
     This top-level key is omitted in all interfaces except for the
     configuration file, since it only reflects the configuration class
     """
+
+    def __init__(self, levels, *args, **kwargs):
+        levels = tuple(levels)
+        for level in levels:
+            super()._check_name(level)
+
+        self.levels = levels
+        name = '/'.join(levels)
+        super().__init__(name, *args, **kwargs)
+
+    @classmethod
+    def _check_name(cls, name):
+        pass
+
     def get_help(self, style=None):
         if style == 'yaml':
             return self.help
         else:
             return super().get_help(style=style)
 
+
+class TopLevelKeyDesc(TopLevelKeyDescBase):
+    """
+    Regular top-level key descriptor, with only one level.
+
+    :param name: Name of the top-level key, as a string.
+    :type name: str
+    """
+    def __init__(self, name, *args, **kwargs):
+        super().__init__([name], *args, **kwargs)
+
+
+class NestedTopLevelKeyDesc(TopLevelKeyDescBase):
+    """
+    Top-level key descriptor, with an arbitrary amount of levels.
+    """
+    pass
 
 class MultiSrcConfABC(Serializable, abc.ABC):
     _REGISTERED_TOPLEVEL_KEYS = {}
@@ -700,18 +739,30 @@ class MultiSrcConfABC(Serializable, abc.ABC):
             arbitrary code execution.
         """
 
-        toplevel_key = cls.STRUCTURE.name
+        toplevel_keys = cls.STRUCTURE.levels
+        get_content = lambda x: get_nested_key(x, toplevel_keys) or {}
+        def has_keys(keys, mapping):
+            if keys:
+                key, *keys = keys
+                try:
+                    return has_keys(keys, mapping[key])
+                except KeyError:
+                    return False
+            else:
+                return True
 
         mapping = cls._from_path(path, fmt='yaml')
-        assert isinstance(mapping, Mapping)
+        if not isinstance(mapping, Mapping):
+            raise ValueError(f'Top-level object is expected to be a mapping but got: {mapping.__class__.__qualname__}')
+
         try:
-            data = mapping[toplevel_key] or {}
+            data  = get_content(mapping)
         except KeyError:
             # pylint: disable=raise-missing-from
-            raise TopLevelKeyError(toplevel_key)
+            raise TopLevelKeyError(toplevel_keys)
         # "unwrap" an extra layer of toplevel key, to play well with !include
-        if len(data) == 1 and toplevel_key in data.keys():
-            data = data[toplevel_key]
+        if len(data) == 1 and has_keys(toplevel_keys, data):
+            data = get_content(data)
         return cls.from_map(data, add_default_src=add_default_src)
 
     @classmethod
@@ -781,8 +832,15 @@ class MultiSrcConfABC(Serializable, abc.ABC):
 
         .. seealso:: :meth:`to_yaml_map` and :meth:`from_yaml_map`
         """
+        def make_map(keys, data):
+            if keys:
+                key, *keys = keys
+                return {key: make_map(keys, data)}
+            else:
+                return data
+
         data = self.to_map()
-        mapping = {self.STRUCTURE.name: data}
+        mapping = make_map(self.STRUCTURE.levels, data)
         return mapping
 
     def to_yaml_map(self, path):
@@ -836,13 +894,27 @@ class MultiSrcConfABC(Serializable, abc.ABC):
 
         # Create the types for the keys that specify it, along with the getters
         # to expose the values to exekall
-        if hasattr(cls, 'STRUCTURE') and isinstance(cls.STRUCTURE, TopLevelKeyDesc):
+        if hasattr(cls, 'STRUCTURE') and isinstance(cls.STRUCTURE, TopLevelKeyDescBase):
             # Ensure uniqueness of toplevel key
-            toplevel_key = cls.STRUCTURE.name
-            if toplevel_key in cls._REGISTERED_TOPLEVEL_KEYS:
-                raise RuntimeError(f'Class {cls.__qualname__} cannot reuse top level key "{toplevel_key}" as it is already used by {cls._REGISTERED_TOPLEVEL_KEYS[toplevel_key]}')
+            toplevel_keys = tuple(cls.STRUCTURE.levels)
+
+            def format_keys(keys):
+                return '/'.join(keys)
+
+            def eq_prefix_keys(key1, key2):
+                len_ = min(len(key1), len(key2))
+                return tuple(key1[:len_]) == tuple(key2[:len_])
+
+            offending = [
+                cls_.__qualname__
+                for keys, cls_ in cls._REGISTERED_TOPLEVEL_KEYS.items()
+                if eq_prefix_keys(toplevel_keys, keys)
+            ]
+
+            if offending:
+                raise RuntimeError(f'Class {cls.__qualname__} cannot reuse top level key "{format_keys(toplevel_keys)}" as it is already used by {", ".join(offending)}')
             else:
-                cls._REGISTERED_TOPLEVEL_KEYS[toplevel_key] = cls
+                cls._REGISTERED_TOPLEVEL_KEYS[toplevel_keys] = cls
 
             def flatten(structure):
                 for key_desc in structure.values():
@@ -979,7 +1051,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
     def STRUCTURE():
         """
         Class attribute defining the structure of the configuration file, as a
-        instance of :class:`TopLevelKeyDesc`
+        instance of :class:`TopLevelKeyDescBase`
         """
         pass
 
@@ -1737,15 +1809,25 @@ class SimpleMultiSrcConf(MultiSrcConf):
         def format_comment(key_desc):
             comment = key_desc.get_help(style='yaml')
 
-            if not comment:
-                return comment
+            if comment:
+                return (comment[0].upper() + comment[1:]).strip()
             else:
-                return comment[0].upper() + comment[1:]
+                return comment
 
-        def add_help(key_desc, data):
+        def add_help(key_desc, data, indent=0):
             name = key_desc.name
             if isinstance(key_desc, LevelKeyDesc):
-                level_data = CommentedMap(data.get(name, {}))
+                if isinstance(key_desc, TopLevelKeyDesc):
+                    levels = key_desc.levels
+                else:
+                    levels = [key_desc.name]
+
+                try:
+                    level_data = get_nested_key(data, levels)
+                except KeyError:
+                    level_data = {}
+
+                level_data = CommentedMap(level_data)
 
                 for subkey_desc in key_desc.children:
                     if subkey_desc.name not in level_data:
@@ -1758,18 +1840,19 @@ class SimpleMultiSrcConf(MultiSrcConf):
                         else:
                             continue
 
-                    indent = 4 * (len(subkey_desc.path) - 1)
-                    level_data.yaml_set_comment_before_after_key(subkey_desc.name,
-                        indent=indent,
+                    idt = indent + len(levels)
+                    level_data.yaml_set_comment_before_after_key(
+                        subkey_desc.name,
+                        indent=idt * 4,
                         before='\n' + format_comment(subkey_desc),
                     )
-                    add_help(subkey_desc, level_data)
+                    add_help(subkey_desc, level_data, indent=idt)
 
                 if level_data:
-                    data[name] = level_data
+                    set_nested_key(data, levels, level_data)
                 else:
                     with contextlib.suppress(KeyError):
-                        del data[name]
+                        del data[levels[0]]
 
         data = CommentedMap(self.as_yaml_map)
         data.yaml_set_start_comment(format_comment(self.STRUCTURE))
