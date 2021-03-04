@@ -1141,14 +1141,29 @@ class FtraceTestBundle(TestBundle):
         return Trace(self.trace_path, self.plat_info, **kwargs)
 
 
-class DmesgTestConf(SimpleMultiSrcConf):
+class TestConfBase(SimpleMultiSrcConf):
+    """
+    Base class for test configurations.
+
+    This class will add a ``test-conf`` top-level key above the level specified
+    by the class, so that if the class specifies a ``TopLevelKeyDesc('foo')``,
+    the actual top-level key will be ``test-conf/foo``.
+    """
+    def __init_subclass__(cls, **kwargs):
+        structure = copy.copy(cls.STRUCTURE)
+        structure.levels = ['test-conf', *structure.levels]
+        cls.STRUCTURE = structure
+        super().__init_subclass__(**kwargs)
+
+
+class DmesgTestConf(TestConfBase):
     """
     Configuration class for :meth:`lisa.tests.base.DmesgTestBundle.test_dmesg`.
 
     {generated_help}
     {yaml_example}
     """
-    STRUCTURE = TopLevelKeyDesc('dmesg-test-conf', 'Dmesg test configuration', (
+    STRUCTURE = TopLevelKeyDesc('dmesg', 'Dmesg test configuration', (
         KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries *content* to be whitelisted (see :class:`devlib.collector.dmesg.KernelLogEntry` for how the message is split)', [TypedList[str]]),
     ))
 
