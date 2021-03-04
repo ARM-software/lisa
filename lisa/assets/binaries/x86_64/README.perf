@@ -1,0 +1,106 @@
+Sources of perf available at:
+Git commit: f40ddce88593482919761f74910f42f4b84c004b
+Git repository: git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+
+
+Build host info:
+
+NAME="Alpine Linux"
+ID=alpine
+VERSION_ID=3.13.2
+PRETTY_NAME="Alpine Linux v3.13"
+HOME_URL="https://alpinelinux.org/"
+BUG_REPORT_URL="https://bugs.alpinelinux.org/"
+
+
+Build recipe:
+
+export ARCH=x86_64
+export BUILD_DIR=/tmp/tmpzcvy8anr/x86_64/source
+export LISA_ARCH_ASSETS=/lisa/assets/binaries/x86_64
+export LISA_HOME=''
+#! /bin/bash
+
+ALPINE_BUILD_DEPENDENCIES=(bash bison diffutils findutils flex gcc git linux-headers make musl-dev)
+
+download() {
+    git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git --branch v5.11 --depth=1
+}
+
+build() {
+    cd linux/tools/perf
+
+    case $ARCH in
+        armeabi) arch=arm;;
+        arm64) arch=arm64;;
+        x86_64) arch=x86_64;;
+    esac
+
+    make -f Makefile ARCH=$arch CROSS_COMPILE=$CROSS_COMPILE NO_SDT=1 LDFLAGS="-static" EXTRA_CFLAGS="-Wno-format-truncation" NO_LIBELF=1
+    "$CROSS_COMPILE"strip perf
+}
+
+install() {
+    cp -v linux/tools/perf/perf "$LISA_ARCH_ASSETS/perf"
+    source "$LISA_HOME/tools/recipes/utils.sh"
+    install_readme perf linux/ COPYING
+}
+
+
+# zlib is easy to cross compile but convincing perf to detect the library seems
+# not that straightforward, parking it until somebody really needs it ...
+
+download_zlib() {
+    git clone https://github.com/madler/zlib.git
+    git -C zlib checkout 2fa463bacfff79181df1a5270fb67cc679a53e71
+}
+
+build_zlib() {
+    cd zlib
+
+    export CC="$CROSS_COMPILE"gcc
+    export LD="$CROSS_COMPILE"ld
+    export AR="$CROSS_COMPILE"ar
+    ./configure
+    make
+}
+
+# It seems to be impossible to cross compile libelf, so park it for now. If
+# someone really wants it, here is the beginning of the path of pain ...
+
+download_elfutils() {
+    git clone git://sourceware.org/git/elfutils.git
+    git -C elfutils checkout 5643e037cb7a38ed5d52f50421be706ea8014e3d
+}
+
+build_libelf() {
+    cd elfutils
+
+    autoreconf -i -f
+    ./configure --enable-maintainer-mode --host=$CONFIGURE_HOST CFLAGS="-I$BUILD_DIR/zlib" LDFLAGS="-L$BUILD_DIR/zlib"
+    make
+}
+
+
+The sources were distributed under the following licence (content of linux//COPYING):
+
+The Linux Kernel is provided under:
+
+	SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+
+Being under the terms of the GNU General Public License version 2 only,
+according with:
+
+	LICENSES/preferred/GPL-2.0
+
+With an explicit syscall exception, as stated at:
+
+	LICENSES/exceptions/Linux-syscall-note
+
+In addition, other licenses may also apply. Please see:
+
+	Documentation/process/license-rules.rst
+
+for more details.
+
+All contributions to the Linux Kernel are subject to this COPYING file.
