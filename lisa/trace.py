@@ -452,7 +452,7 @@ class TxtEventParser(EventParserBase):
         """
         blank = cls.PARSER_REGEX_TERMINALS['blank']
         regex_map = dict(
-            __comm=r'\S+',
+            __comm=r'.+',
             __pid=cls.PARSER_REGEX_TERMINALS['integer'],
             __cpu=cls.PARSER_REGEX_TERMINALS['integer'],
             __timestamp=cls.PARSER_REGEX_TERMINALS['floating'],
@@ -1765,7 +1765,7 @@ class HRTxtTraceParser(SimpleTxtTraceParser):
         ),
     }
 
-    HEADER_REGEX = r'(?P<__comm>\S+)-(?P<__pid>\d+)\s*\[(?P<__cpu>\d*)\].*(?P<__timestamp>\d+\.\d+): +(?P<__event>\w+):'
+    HEADER_REGEX = r'(?P<__comm>.+)-(?P<__pid>\d+)\s*\[(?P<__cpu>\d*)\].*(?P<__timestamp>\d+\.\d+): +(?P<__event>\w+):'
 
 
 class SysTraceParser(HRTxtTraceParser):
