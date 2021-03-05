@@ -2191,13 +2191,8 @@ class UclampProperty(ComposableMultiConcretePropertyBase):
     {params}
     """
     KEY = 'uclamp'
-    DEFAULT_JSON = {
-        # -1 reset the clamp in the kernel
-        'util_min': -1,
-        'util_max': -1,
-    }
     OPTIMIZE_JSON_KEYS = dict.fromkeys(
-        DEFAULT_JSON.keys(),
+        ('util_min', 'util_max'),
         {'policy', 'priority'}
     )
 
@@ -2212,14 +2207,36 @@ class UclampProperty(ComposableMultiConcretePropertyBase):
         ),
     }
 
+    @classmethod
+    def _get_default(cls, plat_info):
+        # Old kernels don't support removing the clamp, so we have to fall back
+        # on setting a "real" clamp. This can result in different behaviors
+        # when mixed with cgroups but it's the best we can do on such systems.
+        ref_version = (5, 11)
+        version = plat_info['kernel']['version'].parts[:len(ref_version)]
+        if None not in version and version < ref_version:
+            return (0, 1024)
+        else:
+            return (-1, -1)
+
+    @classmethod
+    def to_default_json(cls, plat_info, properties):
+        min_, max_ = cls._get_default(plat_info)
+        return {
+            'util_min': min_,
+            'util_max': max_,
+        }
+
     def to_json(self, plat_info):
         min_ = self.min_
         max_ = self.max_
         if (min_, max_) != (None, None) and min_ > max_:
             raise ValueError(f'{self.__class__.__qualname__}: min={min_} cannot be higher than max={max_}')
 
-        min_ = min_ if min_ is not None else -1
-        max_ = max_ if max_ is not None else -1
+        def_min, def_max = self._get_default(plat_info)
+
+        min_ = min_ if min_ is not None else def_min
+        max_ = max_ if max_ is not None else def_max
 
         return {
             'util_min': min_,
