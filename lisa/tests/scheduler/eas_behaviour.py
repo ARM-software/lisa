@@ -29,7 +29,7 @@ from lisa.analysis.tasks import TasksAnalysis
 from lisa.tests.base import ResultBundle, CannotCreateError, RTATestBundle
 from lisa.utils import ArtifactPath, memoized
 from lisa.datautils import series_integrate, df_deduplicate
-from lisa.energy_model import EnergyModel
+from lisa.energy_model import EnergyModel, EnergyModelCapacityError
 from lisa.trace import requires_events
 from lisa.target import Target
 from lisa.trace import FtraceCollector
@@ -281,7 +281,12 @@ class EASBehaviour(RTATestBundle):
 
         def exp_power(row):
             task_utils = row.to_dict()
-            expected_utils = nrg_model.get_optimal_placements(task_utils, capacity_margin_pct)[0]
+            try:
+                expected_utils = nrg_model.get_optimal_placements(task_utils, capacity_margin_pct)[0]
+            except EnergyModelCapacityError:
+                raise CannotCreateError(
+                    'The workload will result in overutilized status for all possible task placement, making it unsuitable to test EAS on this platform'
+                )
             power = nrg_model.estimate_from_cpu_util(expected_utils)
             columns = list(power.keys())
 
