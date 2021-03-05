@@ -33,7 +33,7 @@ from lisa.energy_model import EnergyModel, EnergyModelCapacityError
 from lisa.trace import requires_events
 from lisa.target import Target
 from lisa.trace import FtraceCollector
-from lisa.pelt import PELT_SCALE
+from lisa.pelt import PELT_SCALE, pelt_swing
 from lisa.datautils import df_refit_index
 
 
@@ -70,16 +70,49 @@ class EASBehaviour(RTATestBundle):
             duty cycle.
         :type utilization_pct: int or None
         """
+        capa_classes = plat_info['capacity-classes']
+        max_class = len(capa_classes) - 1
+
+        def get_class_util(class_, pct):
+            cpus = capa_classes[class_]
+            return cls.unscaled_utilization(plat_info, cpus[0], pct)
+
+        def get_pelt_swing(pct):
+            return pelt_swing(
+                period=cls.TASK_PERIOD,
+                duty_cycle=util / 100,
+                kind='above',
+            ) / PELT_SCALE * 100
+
         if utilization_pct is None:
-            try:
-                cpus = plat_info["capacity-classes"][-2]
-            except IndexError:
-                cpus = plat_info["capacity-classes"][0]
+            class_ = -2
             utilization_pct = 100
         else:
-            cpus = plat_info["capacity-classes"][-1]
+            class_ = -1
 
-        return cls.unscaled_utilization(plat_info, cpus[0], utilization_pct)
+        # Resolve to an positive index
+        class_ %= (max_class + 1)
+
+        capacity_margin_pct = 20
+        util = get_class_util(class_, utilization_pct)
+
+        if class_ < max_class:
+            higher_class_capa = get_class_util(class_ + 1, (100 - capacity_margin_pct))
+            # If the CPU class and util we picked is too close to the capacity
+            # of the next bigger CPU, we need to take a smaller util
+            if (util + get_pelt_swing(util)) >= higher_class_capa:
+                # Take a 5% margin for rounding errors
+                util = 0.95 * higher_class_capa
+                return (
+                    util -
+                    # And take extra margin to take into account the swing of
+                    # the PELT value around the average
+                    get_pelt_swing(util)
+                )
+            else:
+                return util
+        else:
+            return util
 
     @classmethod
     def get_little_cpu(cls, plat_info):
