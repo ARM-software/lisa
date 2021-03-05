@@ -6277,7 +6277,7 @@ platform-info:
                     CONFIG_ZYNQMP_PM_DOMAINS=y
                     CONFIG_ZYNQMP_POWER=y
             version: !call:devlib.target.KernelVersion
-                version_string: 'Linux 5.3.0-rc1-00050-g02b329bf560e #20 SMP PREEMPT Mon Aug 19 14:25:43 BST 2019'
+                version_string: '5.3.0-rc1-00050-g02b329bf560e #20 SMP PREEMPT Mon Aug 19 14:25:43 BST 2019'
 
         name: juno-r0
         os: linux
