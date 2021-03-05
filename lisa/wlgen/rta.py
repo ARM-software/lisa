@@ -2230,7 +2230,7 @@ class UclampProperty(ComposableMultiConcretePropertyBase):
     def to_json(self, plat_info):
         min_ = self.min_
         max_ = self.max_
-        if (min_, max_) != (None, None) and min_ > max_:
+        if None not in (min_, max_) and min_ > max_:
             raise ValueError(f'{self.__class__.__qualname__}: min={min_} cannot be higher than max={max_}')
 
         def_min, def_max = self._get_default(plat_info)
