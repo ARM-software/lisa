@@ -19,6 +19,25 @@ Vagrant.configure(2) do |config|
   config.vm.provision "shell", inline: <<-SHELL
     set -e
 
+    # Workaround the Virtualbox issue with synced folder file renaming and
+    # deletion
+    # https://github.com/hashicorp/vagrant/issues/12057
+    # and https://www.virtualbox.org/ticket/8761
+    #
+    # Note: changes in the lowerdir by the host may result in unexpected
+    # behaviors in the guest, but it should not crash or corrupt data.
+    lowerdir='/vagrant/external/'
+    upperdir='/home/vagrant/lisa-external-upper'
+    workdir='/home/vagrant/lisa-external-work'
+
+    mkdir -p "$upperdir"
+    mkdir -p "$workdir"
+    echo "overlay $lowerdir overlay lowerdir=$lowerdir,upperdir=$upperdir,workdir=$workdir" >> /etc/fstab
+
+    # Apply the changes to fstab
+    sudo systemctl daemon-reload
+    sudo systemctl restart local-fs.target
+
     if [ ! -e /home/vagrant/lisa ]; then
        ln -s /vagrant /home/vagrant/lisa
     fi
