@@ -292,7 +292,9 @@ for arg in "$@"; do
                     # On Ubuntu Bionic 18.04 LTS the nodejs package is broken,
                     # so use the one from snap instead:
                     # https://bugs.launchpad.net/ubuntu/+source/nodejs/+bug/1794589
-                   test_os_release VERSION_ID 18.04
+                   test_os_release VERSION_ID 18.04 ||
+                   # On Ubuntu Focal 20.04 LTS, nodejs version is too old (10.19)
+                   test_os_release VERSION_ID 20.04
                 )
         ); then
             apt_packages+=(snapd)
