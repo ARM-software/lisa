@@ -3435,7 +3435,7 @@ class Trace(Loggable, TraceBase):
             return self.plat_info['cpus-count']
         except KeyError:
             try:
-                self.get_metadata('cpus-count')
+                count = self.get_metadata('cpus-count')
             # If we don't know the number of CPUs, check the trace for the
             # highest-numbered CPU that traced an event.
             except MissingMetadataError:
