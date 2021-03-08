@@ -288,6 +288,95 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
         }
 
 
+class MockTraceParser(TraceParserBase):
+    """
+    Mock parser that just returns the dataframes it was given.
+
+    :param dfs: Dictionary of :class:`pandas.DataFrame` for each event that the
+        parser can handle.
+    :type dfs: dict(str, pandas.DataFrame)
+
+    :param path: Useless for now, but it's part of the Trace API, and it will
+        be used for the dataframe cache as well.
+    :type path: str or None
+
+    :param events: Unused.
+    :param events: collections.abc.Iterable(str)
+
+    :param time_range: Time range of the trace in seconds. If not specified,
+        the min and max timestamp of all ``dfs`` will be extracted, but it can
+        lead to wrong analysis results (especially for signals that are not
+        updated very often).
+    :type time_range: tuple(float, float)
+
+    :Variable keyword arguments: Forwarded to :class:`TraceParserBase`
+
+
+    As a subclass of :class:`lisa.utils.PartialInit`, its constructor supports
+    being applied to a partial set of parameters, leaving the rest to the
+    internals of :class:`lisa.trace.Trace`::
+
+        dfs = {
+            'sched_wakeup': pd.DataFrame.from_records(
+                [
+                    (0, 1, 1, 'task1', 'task1', 1, 1, 1),
+                    (1, 2, 1, 'task1', 'task1', 1, 1, 2),
+                    (2, 4, 2, 'task2', 'task2', 2, 1, 4),
+                ],
+                columns=('Time', '__cpu', '__pid', '__comm', 'comm', 'pid', 'prio', 'target_cpu'),
+                index='Time',
+            ),
+        }
+        trace = Trace(parser=MockTraceParser(dfs))
+        print(trace.df_event('sched_wakeup'))
+    """
+    @kwargs_forwarded_to(TraceParserBase.__init__)
+    def __init__(self, dfs, time_range=None, events=None, path=None, **kwargs):
+        self.dfs = dfs
+        # "path" is useless for now, but it's part of the Trace API, and it will
+        # be used for the dataframe cache as well.
+        #
+        # "events" is
+        super().__init__(events=events, **kwargs)
+        self._time_range = time_range
+
+    @property
+    def _available_events(self):
+        return set(self.dfs.keys())
+
+    def parse_event(self, event):
+        try:
+            return self.dfs[event].copy(deep=True)
+        except KeyError as e:
+            raise MissingTraceEventError(
+                [event],
+                available_events=self._available_events
+            ) from e
+
+    def get_metadata(self, key):
+        if key == 'time-range':
+            if self._time_range:
+                return self._time_range
+            elif self.dfs:
+                indices = [
+                    df.index
+                    for df in self.dfs.values()
+                    if not df.empty
+                ]
+
+                return (
+                    int(min(map(itemgetter(0), indices))),
+                    int(max(map(itemgetter(-1), indices))),
+                )
+            else:
+                return (0, 0)
+
+        elif key == 'available-events':
+            return sorted(self._available_events)
+        else:
+            super().get_metadata(key=key)
+
+
 class EventParserBase:
     """
     Base class for trace event parser.
