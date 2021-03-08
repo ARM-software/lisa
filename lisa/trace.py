@@ -1430,6 +1430,9 @@ class TxtTraceParser(TxtTraceParserBase):
             be reused in another context (cached on disk), and the set of
             events in a :class:`Trace` object can be expanded dynamically.
         """
+        if not os.path.exists(path):
+            raise FileNotFoundError(f'Unable to locate specified trace file: {path}')
+
         needed_metadata = set(needed_metadata or [])
         events = set(events)
         default_event_parser_cls, event_parsers = cls._resolve_event_parsers(event_parsers, default_event_parser_cls)
@@ -1725,6 +1728,7 @@ class MetaTxtTraceParser(SimpleTxtTraceParser):
         if merged_df is not None:
             df = df.merge(merged_df, left_index=True, right_index=True, copy=False)
         return df
+
 
 class HRTxtTraceParser(SimpleTxtTraceParser):
     """
@@ -2460,7 +2464,7 @@ class TraceCache(Loggable):
         self._data_mem_swap_ratio = 7
         self._metadata = metadata or {}
 
-        self.trace_path = os.path.abspath(trace_path)
+        self.trace_path = os.path.abspath(trace_path) if trace_path else trace_path
         self._trace_md5 = trace_md5
 
     @property
@@ -2511,8 +2515,9 @@ class TraceCache(Loggable):
     @property
     def trace_md5(self):
         md5 = self._trace_md5
-        if md5 is None:
-            with open(self.trace_path, 'rb') as f:
+        trace_path = self.trace_path
+        if md5 is None and trace_path:
+            with open(trace_path, 'rb') as f:
                 md5 = checksum(f, 'md5')
             self._trace_md5 = md5
 
@@ -2539,11 +2544,13 @@ class TraceCache(Loggable):
         """
         Returns a dictionary suitable for JSON serialization.
         """
+        trace_path = self.trace_path
 
-        if self.swap_dir:
-            trace_path = os.path.relpath(self.trace_path, self.swap_dir)
-        else:
-            trace_path = os.path.abspath(self.trace_path)
+        if trace_path:
+            if self.swap_dir:
+                trace_path = os.path.relpath(trace_path, self.swap_dir)
+            else:
+                trace_path = os.path.abspath(trace_path)
 
         return {
             'version-token': VERSION_TOKEN,
@@ -2572,14 +2579,17 @@ class TraceCache(Loggable):
             raise TraceCacheSwapVersionError('Version token differ')
 
         swap_trace_path = mapping['trace-path']
-        swap_trace_path = os.path.join(swap_dir, swap_trace_path)
+        swap_trace_path = os.path.join(swap_dir, swap_trace_path) if swap_trace_path else None
 
         metadata = metadata or {}
 
-        try:
-            with open(swap_trace_path, 'rb') as f:
-                new_md5 = checksum(f, 'md5')
-        except FileNotFoundError:
+        if swap_trace_path:
+            try:
+                with open(swap_trace_path, 'rb') as f:
+                    new_md5 = checksum(f, 'md5')
+            except FileNotFoundError:
+                new_md5 = None
+        else:
             new_md5 = None
 
         if trace_path and not os.path.samefile(swap_trace_path, trace_path):
@@ -3047,7 +3057,7 @@ class Trace(Loggable, TraceBase):
     The Trace object is the LISA trace events parser.
 
     :param trace_path: File containing the trace
-    :type trace_path: str
+    :type trace_path: str or None
 
     :param events: events to be parsed. Since events can be loaded on-demand,
         that is optional but still recommended to improve trace parsing speed.
@@ -3235,7 +3245,7 @@ class Trace(Loggable, TraceBase):
     """
 
     def __init__(self,
-        trace_path,
+        trace_path=None,
         plat_info=None,
         events=None,
         strict_events=False,
@@ -3250,11 +3260,6 @@ class Trace(Loggable, TraceBase):
         max_swap_size=None,
         write_swap=True,
     ):
-        # Bail-out straightaway if the specified trace file does not exist
-        # There is not much point in continuing here if that is the case
-        if not os.path.exists(trace_path):
-            raise FileNotFoundError(f"Unable to locate specified trace file: {trace_path}")
-
         super().__init__()
 
         sanitization_functions = sanitization_functions or {}
@@ -3264,20 +3269,21 @@ class Trace(Loggable, TraceBase):
         }
 
         if enable_swap:
-            if swap_dir is None:
-                basename = os.path.basename(trace_path)
-                swap_dir = os.path.join(
-                    os.path.dirname(trace_path),
-                    f'.{basename}.lisa-swap'
-                )
-                try:
-                    os.makedirs(swap_dir, exist_ok=True)
-                except OSError:
-                    swap_dir = None
+            if trace_path:
+                if swap_dir is None:
+                    basename = os.path.basename(trace_path)
+                    swap_dir = os.path.join(
+                        os.path.dirname(trace_path),
+                        f'.{basename}.lisa-swap'
+                    )
+                    try:
+                        os.makedirs(swap_dir, exist_ok=True)
+                    except OSError:
+                        swap_dir = None
 
-            if max_swap_size is None:
-                trace_size = os.stat(trace_path).st_size
-                max_swap_size = trace_size
+                if max_swap_size is None:
+                    trace_size = os.stat(trace_path).st_size
+                    max_swap_size = trace_size
         else:
             swap_dir = None
             max_swap_size = None
@@ -3298,6 +3304,9 @@ class Trace(Loggable, TraceBase):
         self.trace_path = trace_path
 
         if parser is None:
+            if not trace_path:
+                raise ValueError('A trace path must be provided')
+
             _, extension = os.path.splitext(trace_path)
             if extension == '.html':
                 parser = SysTraceParser.from_txt_file
@@ -3319,7 +3328,9 @@ class Trace(Loggable, TraceBase):
 
         self._strict_events = strict_events
         self.available_events = _AvailableTraceEventsSet(self)
-        self.plots_dir = plots_dir if plots_dir else os.path.dirname(trace_path)
+        if not plots_dir and trace_path:
+            plots_dir = os.path.dirname(trace_path)
+        self.plots_dir = plots_dir
 
         try:
             self._parseable_events = self._cache.get_metadata('parseable-events')
@@ -4396,6 +4407,9 @@ class Trace(Loggable, TraceBase):
         machine.
         """
         path = self.trace_path
+        if not path:
+            raise ValueError('No trace file is backing this Trace instance')
+
         if path.endswith('.dat'):
             cmd = 'kernelshark'
         else:
