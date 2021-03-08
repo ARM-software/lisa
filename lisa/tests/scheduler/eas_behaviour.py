@@ -57,18 +57,14 @@ class EASBehaviour(RTATestBundle):
         return self.plat_info['nrg-model']
 
     @classmethod
-    def get_big_duty_cycle(cls, plat_info, utilization_pct=None):
+    def get_big_duty_cycle(cls, plat_info):
         """
         Returns a duty cycle for :class:`lisa.wlgen.rta.PeriodicWload` that
         will guarantee placement on a big CPU.
 
-        :param utilization_pct: If ``None``, the duty cycle will be chosen so
-            that the task will not fit on the second to biggest CPUs in the
-            system, thereby forcing up-migration while minimizing the thermal
-            impact. If a number is passed, the value will be used as a
-            percentage of utilization of a big CPU, and will be converted to a
-            duty cycle.
-        :type utilization_pct: int or None
+        The duty cycle will be chosen so that the task will not fit on the
+        second to biggest CPUs in the system, thereby forcing up-migration
+        while minimizing the thermal impact.
         """
         capa_classes = plat_info['capacity-classes']
         max_class = len(capa_classes) - 1
@@ -84,17 +80,13 @@ class EASBehaviour(RTATestBundle):
                 kind='above',
             ) / PELT_SCALE * 100
 
-        if utilization_pct is None:
-            class_ = -2
-            utilization_pct = 100
-        else:
-            class_ = -1
+        class_ = -2
 
         # Resolve to an positive index
         class_ %= (max_class + 1)
 
         capacity_margin_pct = 20
-        util = get_class_util(class_, utilization_pct)
+        util = get_class_util(class_, 100)
 
         if class_ < max_class:
             higher_class_capa = get_class_util(class_ + 1, (100 - capacity_margin_pct))
@@ -668,7 +660,7 @@ class RampUp(EASBehaviour):
     def _get_rtapp_profile(cls, plat_info):
         little = cls.get_little_cpu(plat_info)
         start_pct = cls.unscaled_utilization(plat_info, little, 10)
-        end_pct = cls.get_big_duty_cycle(plat_info, 70)
+        end_pct = cls.get_big_duty_cycle(plat_info)
 
         return {
             cls.task_name: DutyCycleSweepPhase(
@@ -719,7 +711,7 @@ class RampDown(EASBehaviour):
     @classmethod
     def _get_rtapp_profile(cls, plat_info):
         little = cls.get_little_cpu(plat_info)
-        start_pct = cls.get_big_duty_cycle(plat_info, 70)
+        start_pct = cls.get_big_duty_cycle(plat_info)
         end_pct = cls.unscaled_utilization(plat_info, little, 10)
 
         return {
