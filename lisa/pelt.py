@@ -72,11 +72,49 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
         of computing the signal. This means that the simulation cannot
         perfectly match the kernel's signal.
     """
-    if index is not None:
+    if index is None:
+        index = activations.index
+    else:
+        index = index.union(activations.index)
         activations = activations.reindex(index, method='ffill')
 
     df = pd.DataFrame({'activations': activations})
     df['clock'] = clock if clock is not None else df.index
+
+    # Fix the PELT clock at enqueue and dequeue points, since these indices are
+    # typically coming from sched_switch or sched_wakeup, and therefore do not
+    # log the PELT clock
+
+    # PELT time scaling over the past 2 samples at all points
+    index_diff = df.index.to_series().diff()
+    time_scale = df['clock'].diff() / index_diff
+    fix_clock_at = df['clock'].isna()
+
+    dequeue = (df['activations'] == 0) & (df['activations'].shift() == 1)
+    enqueue = (df['activations'] == 1) & (df['activations'].shift() == 0)
+
+    # Fix dequeue:
+    # Previous clock value plus the elapsed ftrace time, rescaled using the
+    # previous scale
+    df.loc[(fix_clock_at & dequeue), 'clock'] = df['clock'].shift() + index_diff * time_scale.shift()
+    # Fix enqueue:
+    # Next clock value, minus the ftrace time from now to the next clock value,
+    # rescaled using the scale of the next PELT event
+    df.loc[(fix_clock_at & enqueue), 'clock'] = df['clock'].shift(-1) - index_diff.shift(-1) * time_scale.shift(-2)
+
+    # Ensure the clock is monotonic.
+    # The enqueue/dequeue fixup might sometimes generate inconsistent values.
+    prev_clock = df['clock'].shift()
+    df['clock'] = df['clock'].where(
+        cond=(df['clock'] >= prev_clock.fillna(df['clock'])),
+        other=prev_clock,
+    )
+
+    # If there are still some missing clock values, it means that some
+    # activations were too short to have 2 PELT samples, which is required to
+    # estimate the time scaling, so we cannot do anything for them
+    df.dropna(subset=['clock'], inplace=True)
+
     df['delta'] = df['clock'].diff()
 
     # Compute the number of crossed PELT windows between each sample Since PELT
@@ -152,7 +190,10 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
         scale=scale,
     )
     df['pelt'] = df.apply(sim, axis=1)
-    return df['pelt']
+    pelt = df['pelt']
+    if pelt.index is not index:
+        pelt = pelt.reindex(index, method='ffill')
+    return pelt
 
 
 def _pelt_tau(half_life, window):
