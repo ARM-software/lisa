@@ -356,6 +356,7 @@ def memoized(f):
     """
     return lru_memoized()(f)
 
+
 def lru_memoized(first_param_maxsize=None, other_params_maxsize=1024):
     """
     Decorator to memoize the result of a callable, based on
@@ -374,6 +375,35 @@ def lru_memoized(first_param_maxsize=None, other_params_maxsize=1024):
         memoization of methods to prevent garbage collection of the instances
         they are bound to.
     """
+    def decorator(f):
+        @_lru_memoized(
+            first_param_maxsize=first_param_maxsize,
+            other_params_maxsize=other_params_maxsize,
+            sig_f=f,
+        )
+        def catch(*args, **kwargs):
+            try:
+                x = f(*args, **kwargs)
+            except Exception as e_:
+                x = None
+                e = e_
+            else:
+                e = None
+            return (x, e)
+
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            x, e = catch(*args, **kwargs)
+            if e is None:
+                return x
+            else:
+                raise e
+
+        return wrapper
+    return decorator
+
+def _lru_memoized(first_param_maxsize, other_params_maxsize, sig_f):
+    sig = inspect.signature(sig_f)
 
     def decorator(f):
         def apply_lru(f):
@@ -382,7 +412,7 @@ def lru_memoized(first_param_maxsize=None, other_params_maxsize=1024):
             return functools.lru_cache(maxsize=other_params_maxsize, typed=True)(f)
 
         # We need at least one positional parameter for the WeakKeyDictionary
-        if inspect.signature(f).parameters:
+        if sig.parameters:
             cache_map = WeakKeyDictionary()
             insertion_counter = 0
             insertion_order = WeakKeyDictionary()
