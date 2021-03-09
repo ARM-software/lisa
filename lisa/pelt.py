@@ -16,6 +16,7 @@
 #
 
 import math
+import functools
 
 import pandas as pd
 
@@ -291,7 +292,9 @@ def _pelt_tau(half_life, window):
     return tau
 
 
-def pelt_swing(period, duty_cycle, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
+# Use LRU cache as computing the swing is quite costly
+@functools.lru_cache(maxsize=256, typed=True)
+def pelt_swing(period, duty_cycle, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE, kind='peak2peak'):
     """
     Compute an approximation of the PELT signal swing for a given periodic task.
 
@@ -310,12 +313,63 @@ def pelt_swing(period, duty_cycle, window=PELT_WINDOW, half_life=PELT_HALF_LIFE,
     :param scale: PELT scale.
     :type scale: float
 
+    :param kind: One of:
+
+        * ``peak2peak``: the peak-to-peak swing of PELT.
+        * ``above``: the amplitude of the swing above the average value.
+        * ``below``: the amplitude of the swing below the average value.
+
+    :type kind: str
+
     .. note:: The PELT signal is approximated as a first order filter. This
         does not take into account the averaging inside a window, but the
         window is small enough in practice for that effect to be negligible.
     """
-    runtime = duty_cycle * period
-    return pelt_step_response(t=runtime, window=window, half_life=half_life, scale=scale)
+    final = duty_cycle * scale
+    stable_t = pelt_settling_time(
+        margin=1,
+        init=0,
+        final=final,
+        window=window,
+        half_life=half_life,
+        scale=scale
+    )
+    # Align to have an integral number of periods
+    stable_t += stable_t % period
+    end = stable_t + period
+    nr_period = int(end / period)
+
+    run = duty_cycle * period
+    sleep =  period - run
+
+    # We only compute one sample per period, so it's as efficient as it can get
+    activations = pd.Series([1, 0] * nr_period)
+    activations.index = pd.Series([run, sleep] * nr_period).cumsum()
+
+    simulated = simulate_pelt(
+        activations,
+        # Setting the initial value close to the average of the signal improves
+        # convergence time a great deal
+        init=duty_cycle * scale,
+        window=window,
+        half_life=half_life,
+        scale=scale,
+        # We don't want windowing artifacts to pollute the result.
+        windowless=True,
+    )
+    min_ = simulated.iloc[-1]
+    max_ = simulated.iloc[-2]
+
+    assert min_ <= duty_cycle * scale <= max_
+
+    if kind == 'peak2peak':
+        return abs(max_ - min_)
+    elif kind == 'above':
+        return abs(max_ / scale - duty_cycle) * scale
+    elif kind == 'below':
+        return abs(min_ / scale - duty_cycle) * scale
+    else:
+        raise ValueError(f'Unknown kind "{kind}"')
 
 
 def pelt_step_response(t, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
