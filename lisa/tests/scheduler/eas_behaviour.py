@@ -27,7 +27,7 @@ from lisa.wlgen.rta import RTAPhase, PeriodicWload, DutyCycleSweepPhase
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.tests.base import ResultBundle, CannotCreateError, RTATestBundle
-from lisa.utils import ArtifactPath
+from lisa.utils import ArtifactPath, memoized
 from lisa.datautils import series_integrate, df_deduplicate
 from lisa.energy_model import EnergyModel
 from lisa.trace import requires_events
@@ -349,6 +349,8 @@ class EASBehaviour(RTATestBundle):
     @_get_expected_power_df.used_events
     @_get_estimated_power_df.used_events
     @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
+    # Memoize so that the result is shared with _check_valid_placement()
+    @memoized
     def test_task_placement(self, energy_est_threshold_pct=5,
             nrg_model: EnergyModel = None, capacity_margin_pct=20) -> ResultBundle:
         """
@@ -385,6 +387,15 @@ class EASBehaviour(RTATestBundle):
 
         return res
 
+    def _check_valid_placement(self):
+        """
+        Check that a valid placement can be found for the tasks.
+
+        If no placement can be found, :meth:`test_task_placement` will raise
+        an :exc:`CannotCreateError`.
+        """
+        self.test_task_placement()
+
     @RTAEventsAnalysis.df_rtapp_stats.used_events
     def test_slack(self, negative_slack_allowed_pct=15) -> ResultBundle:
         """
@@ -399,6 +410,8 @@ class EASBehaviour(RTATestBundle):
         its reported "slack" was negative). Assert that this happened less than
         ``negative_slack_allowed_pct`` percent of the time.
         """
+        self._check_valid_placement()
+
         passed = True
         bad_activations = {}
         test_tasks = list(chain.from_iterable(self.rtapp_tasks_map.values()))
