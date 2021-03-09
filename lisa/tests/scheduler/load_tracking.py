@@ -28,7 +28,7 @@ from lisa.tests.base import (
 )
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby, ExekallTaggable, add
-from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_refit_index, df_split_signals, df_refit_index
+from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_refit_index, df_split_signals, df_refit_index, series_dereference
 from lisa.wlgen.rta import RTA, RTAPhase, PeriodicWload
 from lisa.trace import FtraceCollector, requires_events, may_use_events, MissingTraceEventError
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
@@ -272,7 +272,8 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
 
         return capacity
 
-    @LoadTrackingAnalysis.df_tasks_signal.used_events
+    @LoadTrackingAnalysis.df_task_signal.used_events
+    @LoadTrackingAnalysis.df_cpus_signal.used_events
     @TasksAnalysis.df_task_activation.used_events
     def get_simulated_pelt(self, task, signal_name):
         """
@@ -299,8 +300,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
             # executing
             preempted_value=0,
         )
-        df = trace.analysis.load_tracking.df_tasks_signal(signal_name)
-        df = df_filter_task_ids(df, [task])
+        df = trace.analysis.load_tracking.df_task_signal(task, signal_name)
         df = df.copy(deep=False)
 
         # Ignore the first activation, as its signals are incorrect
@@ -328,7 +328,28 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
             logger.warning('PELT clock is not available, ftrace timestamp will be used at the expense of accuracy')
             clock = None
 
-        df['simulated'] = simulate_pelt(df_activation['active'], index=df.index, init=init, clock=clock)
+        try:
+            capacity = trace.analysis.load_tracking.df_cpus_signal('capacity', cpus)
+        except MissingTraceEventError:
+            capacity = None
+        else:
+            # Reshape the capacity dataframe so that we get one column per CPU
+            capacity = capacity.pivot(columns=['cpu'])
+            capacity.columns = capacity.columns.droplevel(0)
+            capacity.ffill(inplace=True)
+            # Make sure we end up with the timestamp at which the capacity
+            # changes, rather than the timestamps at which the task is enqueued
+            # or dequeued.
+            activation_cpu = df_activation['cpu'].reindex(capacity.index, method='ffill')
+            capacity = series_dereference(activation_cpu, capacity)
+
+        df['simulated'] = simulate_pelt(
+            df_activation['active'],
+            index=df.index,
+            init=init,
+            clock=clock,
+            capacity=capacity,
+        )
 
         # Since load is now CPU invariant in recent kernel versions, we don't
         # rescale it back. To match the old behavior, that line is
