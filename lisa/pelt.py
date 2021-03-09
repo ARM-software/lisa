@@ -34,7 +34,7 @@ PELT half-life in number of windows.
 PELT_SCALE = 1024
 
 
-def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
+def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
     """
     Simulate a PELT signal out of a series of activations.
 
@@ -53,6 +53,13 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
 
     :param clock: Series of clock values to be used instead of the timestamp index.
     :type clock: pandas.Series
+
+    :param capacity: Capacity of the CPU at all points. This is used to fixup
+        the clock on enqueue and dequeue, since the clock is typically provided
+        by a PELT event and not the enqueue or dequeue events. If no clock at
+        all is passed, the CPU capacity will be used to create one from scratch
+        based on the ``activations`` index values.
+    :type capacity: pandas.Series or None
 
     :param window: PELT window in seconds.
     :type window: float
@@ -79,7 +86,37 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
         activations = activations.reindex(index, method='ffill')
 
     df = pd.DataFrame({'activations': activations})
-    df['clock'] = clock if clock is not None else df.index
+    if capacity is not None:
+        df['rel_capacity'] = capacity.reindex(df.index, method='ffill') / scale
+        df['rel_capacity'].bfill(inplace=True)
+
+    if clock is None:
+        # If we have the CPU capacity at hand, we can make a fake PELT clock
+        # based on it by just scaling the time deltas
+        if capacity is not None:
+            delta_ = df.index.to_series().diff().shift(-1)
+            # Scale each delta with the relative capacity of the CPU
+            clock = (delta_ * df['rel_capacity']).cumsum()
+
+            # On enqueue, reset the PELT clock to the ftrace clock to catch up
+            # the "lost idle time"
+            clock_offset = df.index - clock
+            # Select the points at which the task is enqueued
+            clock_offset = clock_offset.where(
+                cond=((df['activations'] == 0) & (df['activations'].shift(-1) == 1)),
+            )
+            # Find the clock offset for each enqueue, by removing the offset of
+            # any previous enqueue
+            clock_offset = clock_offset.dropna().diff()
+            #TODO: understand why we have to inflate the offset by this factor
+            clock_offset *= 1 + df['rel_capacity']
+            # Reindex the offset on the clock and accumulate the offset
+            clock_offset = clock_offset.reindex(clock.index, fill_value=0).cumsum()
+            clock = clock + clock_offset
+        else:
+            clock = df.index
+
+    df['clock'] = clock
 
     # Fix the PELT clock at enqueue and dequeue points, since these indices are
     # typically coming from sched_switch or sched_wakeup, and therefore do not
@@ -87,8 +124,19 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
 
     # PELT time scaling over the past 2 samples at all points
     index_diff = df.index.to_series().diff()
-    time_scale = df['clock'].diff() / index_diff
     fix_clock_at = df['clock'].isna()
+
+    # If we have access to CPU capacity directly, no need to extrapolate the
+    # scale by looking at previous/next pairs of PELT events, we can get it
+    # directly
+    if capacity is not None:
+        time_scale = df['rel_capacity']
+        dequeue_timescale = time_scale
+        enqueue_timescale = time_scale
+    else:
+        time_scale = df['clock'].diff() / index_diff
+        dequeue_timescale = time_scale.shift()
+        enqueue_timescale = time_scale.shift(-2)
 
     dequeue = (df['activations'] == 0) & (df['activations'].shift() == 1)
     enqueue = (df['activations'] == 1) & (df['activations'].shift() == 0)
@@ -96,11 +144,11 @@ def simulate_pelt(activations, init=0, index=None, clock=None, window=PELT_WINDO
     # Fix dequeue:
     # Previous clock value plus the elapsed ftrace time, rescaled using the
     # previous scale
-    df.loc[(fix_clock_at & dequeue), 'clock'] = df['clock'].shift() + index_diff * time_scale.shift()
+    df.loc[(fix_clock_at & dequeue), 'clock'] = df['clock'].shift() + index_diff * dequeue_timescale
     # Fix enqueue:
     # Next clock value, minus the ftrace time from now to the next clock value,
     # rescaled using the scale of the next PELT event
-    df.loc[(fix_clock_at & enqueue), 'clock'] = df['clock'].shift(-1) - index_diff.shift(-1) * time_scale.shift(-2)
+    df.loc[(fix_clock_at & enqueue), 'clock'] = df['clock'].shift(-1) - index_diff.shift(-1) * enqueue_timescale
 
     # Ensure the clock is monotonic.
     # The enqueue/dequeue fixup might sometimes generate inconsistent values.
