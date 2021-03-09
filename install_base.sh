@@ -72,12 +72,17 @@ install_android_sdk_manager() {
     call_android_sdkmanager --list
 }
 
-ANDROID_SDK_JAVA_VERSION=11
 # Android SDK is picky on Java version, so we need to set JAVA_HOME manually.
 # In most distributions, Java is installed under /usr/lib/jvm so use that.
 # according to the distribution
-_JAVA_BIN=$(find /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*/bin/java" -not -path '*/jre/bin/*' -print -quit)
-_JAVA_HOME=$(dirname "$_JAVA_BIN")/../
+ANDROID_SDK_JAVA_VERSION=11
+find_java_home() {
+    _JAVA_BIN=$(find /usr/lib/jvm -path "*$ANDROID_SDK_JAVA_VERSION*/bin/java" -not -path '*/jre/bin/*' -print -quit)
+    _JAVA_HOME=$(dirname "$_JAVA_BIN")/../
+
+    echo "Found JAVA_HOME=$_JAVA_HOME"
+}
+
 call_android_sdk() {
     # Used to be:
     # local tool="$ANDROID_HOME/tools/bin/$1"
@@ -259,6 +264,7 @@ for arg in "$@"; do
     # give some time to migrate CI scripts
     "--install-android-sdk" | "--install-android-tools" | "--install-all")
         install_functions+=(
+            find_java_home
             install_android_sdk_manager # Needed by install_android_build_tools
             install_android_tools
         )
@@ -365,6 +371,7 @@ ordered_functions=(
     install_nodejs_snap
     install_pacman
 
+    find_java_home
     # cleanup must be done BEFORE installing
     cleanup_android_home
     install_android_sdk_manager # Needed by install_android_build_tools
