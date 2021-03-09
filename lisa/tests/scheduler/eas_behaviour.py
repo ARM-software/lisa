@@ -170,10 +170,23 @@ class EASBehaviour(RTATestBundle):
             df = self.trace.analysis.rta.df_phases(task, wlgen_profile=rtapp_profile)
             df = df[df['properties'].transform(lambda phase: phase['meta']['from_test'])]
 
-            phases_util = {
-                phase.get('name'): phase['wload'].unscaled_duty_cycle_pct(
+            def get_phase_max_util(phase):
+                wload = phase['wload']
+                # Take into account the duty cycle of the phase
+                avg = wload.unscaled_duty_cycle_pct(
                     plat_info=self.plat_info,
                 ) * PELT_SCALE / 100
+                # Also take into account the period and the swing of PELT
+                # around its "average"
+                swing = pelt_swing(
+                    period=wload.period,
+                    duty_cycle=wload.duty_cycle_pct / 100,
+                    kind='above',
+                )
+                return avg + swing
+
+            phases_util = {
+                phase.get('name'): get_phase_max_util(phase)
                 for phase in wlgen_task.phases
                 if phase['meta']['from_test']
             }
