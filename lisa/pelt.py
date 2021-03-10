@@ -34,7 +34,7 @@ PELT half-life in number of windows.
 PELT_SCALE = 1024
 
 
-def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
+def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, windowless=False, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
     """
     Simulate a PELT signal out of a series of activations.
 
@@ -63,6 +63,10 @@ def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, wi
 
     :param window: PELT window in seconds.
     :type window: float
+
+    :param windowless: If ``True``, a windowless simulator is used. This avoids
+        the artifacts of the windowing in PELT.
+    :type windowless: bool
 
     :param half_life: PELT half-life in number of windows.
     :type half_life: int
@@ -175,7 +179,7 @@ def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, wi
     # some NaN at the beginning of the dataframe as well
     df.dropna(inplace=True)
 
-    def make_pelt_sim(init, scale, window, half_life):
+    def make_windowed_pelt_sim(init, scale, window, half_life):
         decay = (1 / 2)**(1 / half_life)
         # Alpha as defined in https://en.wikipedia.org/wiki/Moving_average
         alpha = 1 - decay
@@ -231,7 +235,36 @@ def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, wi
 
         return pelt
 
-    sim = make_pelt_sim(
+    def make_windowless_pelt_sim(init, scale, window, half_life):
+        tau = _pelt_tau(half_life, window)
+        signal = init
+
+        def pelt_after(init, t, running):
+            # Compute the the response of the 1st order filter at time "t",
+            # with the given initial condition
+            # http://fourier.eng.hmc.edu/e59/lectures/e59/node33.html
+            exp_ = math.exp(-t / tau)
+            non_zero = running * scale * (1 - exp_)
+            zero = init * exp_
+            return non_zero + zero
+
+        def pelt(row):
+            nonlocal signal
+            # 1=running 0=sleeping
+            running = row['activations']
+            delta = row['delta']
+
+            signal = pelt_after(signal, delta, running)
+            return signal
+
+        return pelt
+
+    if windowless:
+        make_sim = make_windowless_pelt_sim
+    else:
+        make_sim = make_windowed_pelt_sim
+
+    sim = make_sim(
         init=init,
         window=window,
         half_life=half_life,
