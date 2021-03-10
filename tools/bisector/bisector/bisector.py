@@ -3794,7 +3794,18 @@ class Report(Serializable):
                 report=self
             )
             with open_f(temp_path, 'wb') as f:
-                pickle.dump(pickle_data, f, protocol=4)
+                # Temporary workaround this bug:
+                # https://bugs.python.org/issue43460
+                #
+                # Note: this will make deserialization dependent on
+                # availibility of the "exekall" package, but this avoids
+                # copy-pasting a whole class so it should be ok.
+                try:
+                    from exekall.engine import _ExceptionPickler
+                except ImportError:
+                    pickle.dump(pickle_data, f, protocol=4)
+                else:
+                    _ExceptionPickler.dump_file(f, pickle_data, protocol=4)
 
         # Rename the file once we know for sure that writing to the temporary
         # report completed with success
