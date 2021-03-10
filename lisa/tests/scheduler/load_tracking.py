@@ -27,7 +27,7 @@ from lisa.tests.base import (
     RTATestBundle, CannotCreateError
 )
 from lisa.target import Target
-from lisa.utils import ArtifactPath, groupby, ExekallTaggable, add
+from lisa.utils import ArtifactPath, groupby, ExekallTaggable, add, memoized
 from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_refit_index, df_split_signals, df_refit_index, series_dereference
 from lisa.wlgen.rta import RTA, RTAPhase, PeriodicWload
 from lisa.trace import FtraceCollector, requires_events, may_use_events, MissingTraceEventError
@@ -422,6 +422,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         return res
 
     @get_simulated_pelt.used_events
+    @memoized
     def _test_correctness(self, signal_name, mean_error_margin_pct, max_error_margin_pct):
 
         task = self.task_name
