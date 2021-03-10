@@ -75,13 +75,36 @@ class _ExceptionPickler(pickle.Pickler):
     https://bugs.python.org/issue40917
     """
 
+    @staticmethod
+    def _make_excep(excep_cls, dct):
+        new = excep_cls.__new__(excep_cls)
+
+        # "args" is a bit magical: it's not stored in __dict__, and any "arg"
+        # key __dict__ will basically be ignored, so it needs to be restored
+        # manually.
+        dct = copy.copy(dct)
+        try:
+            args = dct.pop('args')
+        except KeyError:
+            pass
+        else:
+            new.args = args
+
+        new.__dict__ = dct
+        return new
+
     def reducer_override(self, obj):
+        # Workaround this bug:
+        # https://bugs.python.org/issue43460
         if isinstance(obj, Exception):
-            # Will call obj.__new__(obj.__class__) to create an "empty"
-            # instance and then set the __dict__. It is not clear why
-            # Exception.__reduce__ fiddles with arguments passed to __init__,
-            # but since it is broken anyway, give this a go
-            return (obj.__new__, (obj.__class__, ), obj.__dict__)
+            # The __dict__ of exceptions does not contain "args", so shoe-horn
+            # it in there so it's passed as a regular attribute.
+            dct = obj.__dict__.copy()
+            try:
+                dct['args'] = obj.args
+            except AttributeError:
+                pass
+            return (self._make_excep, (obj.__class__, dct))
         else:
             # Fallback to default behaviour
             return NotImplemented
