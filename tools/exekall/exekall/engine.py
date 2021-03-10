@@ -501,7 +501,7 @@ class ValueDB:
 
         def make_froz_val_seq(froz_val_seq):
             froz_val_list = [
-                prune(froz_val, do_prune=False)
+                prune(copy_graph(froz_val), do_prune=False)
                 for froz_val in froz_val_seq
                 # Just remove the root PrunedFrozVal, since they are useless at
                 # this level (i.e. nothing depends on them)
@@ -519,12 +519,21 @@ class ValueDB:
                 param_map=param_map,
             )
 
+        # Memoize the function so that all references to the same froz_val are
+        # replaced by the exact same instance
+        @functools.lru_cache(maxsize=None, typed=True)
+        def copy_graph(froz_val):
+            froz_val = copy.copy(froz_val)
+            froz_val.param_map = OrderedDict(
+                (param, copy_graph(param_froz_val))
+                for param, param_froz_val in froz_val.param_map.items()
+            )
+            return froz_val
+
         return self.__class__(
             froz_val_seq_list=[
                 make_froz_val_seq(froz_val_seq)
-                # That will keep proper inter-object references as in the
-                # original graph of objects
-                for froz_val_seq in copy.deepcopy(self.froz_val_seq_list)
+                for froz_val_seq in self.froz_val_seq_list
             ],
             adaptor_cls=self.adaptor_cls,
         )
