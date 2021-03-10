@@ -649,7 +649,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
                 mean_error_margin_pct=mean_error_margin_pct,
                 max_error_margin_pct=max_error_margin_pct,
             )
-        return self._test_all_freq(item_test)
+        return self._test_all_items(item_test)
 
     @InvarianceItem.test_load_correctness.used_events
     def test_load_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=5) -> AggregatedResultBundle:
@@ -661,7 +661,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
                 mean_error_margin_pct=mean_error_margin_pct,
                 max_error_margin_pct=max_error_margin_pct,
             )
-        return self._test_all_freq(item_test)
+        return self._test_all_items(item_test)
 
     @InvarianceItem.test_util_behaviour.used_events
     def test_util_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
@@ -672,7 +672,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             return test_item.test_util_behaviour(
                 error_margin_pct=error_margin_pct,
             )
-        return self._test_all_freq(item_test)
+        return self._test_all_items(item_test)
 
     @InvarianceItem.test_load_behaviour.used_events
     def test_load_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
@@ -683,9 +683,9 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             return test_item.test_load_behaviour(
                 error_margin_pct=error_margin_pct,
             )
-        return self._test_all_freq(item_test)
+        return self._test_all_items(item_test)
 
-    def _test_all_freq(self, item_test):
+    def _test_all_items(self, item_test):
         """
         Apply the `item_test` function on all instances of
         :class:`InvarianceItem` and aggregate the returned
