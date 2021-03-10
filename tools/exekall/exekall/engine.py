@@ -96,7 +96,7 @@ class _ExceptionPickler(pickle.Pickler):
     def reducer_override(self, obj):
         # Workaround this bug:
         # https://bugs.python.org/issue43460
-        if isinstance(obj, Exception):
+        if isinstance(obj, BaseException):
             # The __dict__ of exceptions does not contain "args", so shoe-horn
             # it in there so it's passed as a regular attribute.
             dct = obj.__dict__.copy()
