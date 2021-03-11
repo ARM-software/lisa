@@ -754,9 +754,9 @@ class RTA(Workload):
             with rta, target.freeze_userspace():
                 # Disable CPU capacities update, since that leads to infinite
                 # recursion
-                rta.run(as_root=target.is_rooted, update_cpu_capacities=False)
+                output = rta.run(as_root=target.is_rooted, update_cpu_capacities=False)
 
-            for line in rta.output.split('\n'):
+            for line in output.split('\n'):
                 pload_match = re.search(pload_regexp, line)
                 if pload_match is None:
                     continue

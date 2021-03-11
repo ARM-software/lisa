@@ -21,7 +21,7 @@ from shlex import quote
 from datetime import datetime
 from devlib.utils.misc import list_to_mask
 
-from lisa.utils import Loggable, ArtifactPath
+from lisa.utils import Loggable, ArtifactPath, deprecate
 
 
 class Workload(Loggable):
@@ -75,10 +75,10 @@ class Workload(Loggable):
     **Usage example**::
 
         >>> printer = Printer(target, "test")
-        >>> printer.run()
+        >>> output = printer.run()
         INFO    : Printer      : Execution start: echo 42
         INFO    : Printer      : Execution complete
-        >>> print printer.output
+        >>> print(output)
         42\r\n
     """
 
@@ -92,7 +92,7 @@ class Workload(Loggable):
         self.target = target
         self.name = name or self.__class__.__qualname__
         self.command = None
-        self.output = ""
+        self._output = ""
 
         wlgen_dir = self.target.path.join(target.working_directory,
                                           "lisa", "wlgen")
@@ -183,13 +183,21 @@ class Workload(Loggable):
 
         logger.info(f"Execution start: {_command}")
 
-        self.output = target.execute(_command, as_root=as_root, timeout=timeout)
+        output = target.execute(_command, as_root=as_root, timeout=timeout)
         logger.info("Execution complete")
 
         logfile = ArtifactPath.join(self.res_dir, 'output.log')
         logger.debug(f'Saving stdout to {logfile}...')
 
         with open(logfile, 'w') as ofile:
-            ofile.write(self.output)
+            ofile.write(output)
+
+        self._output = output
+        return output
+
+    @property
+    @deprecate('Use the return value of run() method instead', deprecated_in='2.0', removed_in='2.1', replaced_by=run)
+    def output(self):
+        return self._output
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
