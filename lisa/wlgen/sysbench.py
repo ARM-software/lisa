@@ -64,6 +64,7 @@ class Sysbench(Workload):
 
     def __init__(self, target, **kwargs):
         super().__init__(target, **kwargs)
+        self._output = SysbenchOutput()
 
         sysbench_bin = self.target.which('sysbench')
         if not sysbench_bin:
@@ -114,8 +115,10 @@ class Sysbench(Workload):
         ] + ['run']
 
         self.command = ' '.join(arg_list)
-        super().run(cpus, cgroup, as_root)
+        output = super().run(cpus, cgroup, as_root)
 
-        self.output = SysbenchOutput(self.output)
+        output = SysbenchOutput(output)
+        self._output = output
+        return output
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
