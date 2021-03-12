@@ -89,7 +89,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
     # we need.
     STRUCTURE = TopLevelKeyDesc('platform-info', 'Platform-specific information', (
         LevelKeyDesc('rtapp', 'RTapp configuration', (
-            KeyDesc('calib', 'RTapp calibration dictionary', [TypedDict[int,int]]),
+            KeyDesc('calib', 'RTapp calibration dictionary', [TypedDict[int, int], TypedDict[int, float]]),
         )),
 
         LevelKeyDesc('kernel', 'Kernel-related information', (
