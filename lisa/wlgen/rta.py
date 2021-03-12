@@ -122,6 +122,7 @@ from operator import attrgetter, itemgetter
 from shlex import quote
 from statistics import mean
 from textwrap import dedent
+from numbers import Number
 
 from devlib import TargetStableError
 
@@ -240,13 +241,14 @@ class RTAConf(Loggable, Mapping):
         """
         # This is done at init time rather than at run time, because the
         # calibration value lives in the file
-        if isinstance(calibration, int):
-            pass
+        if isinstance(calibration, Number):
+            # Make sure floats are turned into int for the JSON
+            calibration = int(calibration)
         elif isinstance(calibration, str):
             calibration = calibration.upper()
         elif calibration is None:
             calib_map = plat_info['rtapp']['calib']
-            calibration = min(calib_map.values())
+            calibration = int(min(calib_map.values()))
         else:
             raise ValueError(f'Calibration value "{calibration}" is cannot be handled')
 
@@ -730,6 +732,8 @@ class RTA(Workload):
             priority = None
             sched_policy = None
 
+        freqs = target.plat_info.get('freqs', {})
+
         for cpu in target.list_online_cpus():
             logger.info(f'CPU{cpu} calibration...')
 
@@ -751,17 +755,35 @@ class RTA(Workload):
                 res_dir=res_dir
             )
 
-            with rta, target.freeze_userspace():
+            # Run the calibration at the lowest freq possible to avoid thermal
+            # capping
+            try:
+                cpu_freqs = freqs[cpu]
+            except KeyError:
+                rel_freq = 1
+                governor_cm = nullcontext()
+                set_freq = lambda: None
+            else:
+                freq = min(cpu_freqs)
+                max_freq = max(cpu_freqs)
+                rel_freq = freq / max_freq
+                governor_cm = target.cpufreq.use_governor('userspace')
+                set_freq = lambda: target.cpufreq.set_frequency(cpu, freq)
+                logger.info(f'Will calibrate on CPU{cpu} at {freq}kHz (max freq={max_freq}kHz)')
+
+            with rta, target.freeze_userspace(), governor_cm:
+                set_freq()
                 # Disable CPU capacities update, since that leads to infinite
                 # recursion
                 rta.run(as_root=target.is_rooted, update_cpu_capacities=False)
+
 
             for line in rta.output.split('\n'):
                 pload_match = re.search(pload_regexp, line)
                 if pload_match is None:
                     continue
-                pload[cpu] = int(pload_match.group(1))
-                logger.debug(f'>>> CPU{cpu}: {pload[cpu]}')
+                pload[cpu] = int(pload_match.group(1)) * rel_freq
+                logger.debug(f'rt-app CPU{cpu} pLoad={pload[cpu]}')
 
         # Avoid circular import issue
         from lisa.platforms.platinfo import PlatformInfo
