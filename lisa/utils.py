@@ -2560,4 +2560,195 @@ class SimpleHash:
     def __hash__(self):
         return hash(tuple(sorted(map(self.HASH_COERCE, self.__dict__.items()))))
 
+
+# Inherit from ABCMeta to avoid the most common metaclass conflict
+class _PartialInitMeta(abc.ABCMeta):
+    def __call__(cls, *args, **kwargs):
+        """
+        Delegate instance creation to a classmethod.
+        """
+        return cls._make_instance(*args, **kwargs)
+
+
+class PartialInit(metaclass=_PartialInitMeta):
+    """
+    Allow partial initialization of instances with curry-like behaviour for the
+    constructor.
+
+    Subclasses will be able to be used in this way::
+
+        class Sub(PartialInit):
+            def __init__(self, x, y):
+                self.x = x
+                self.y = y
+
+            # This decorator allows the classmethod to be partially applied as
+            # well.
+            #
+            # Note: since PartialInit relies on accurate signatures, **kwargs
+            # cannot be used, unless the signature is patched-up with something
+            # like lisa.utils.kwargs_forwarded_to()
+            @PartialInit.factory
+            def factory(cls, x, y):
+                return cls(x=x, y=y)
+
+
+        # Bind x=1
+        # Sub.__init__ not yet called
+        obj = Sub(1)
+
+        # Provide a value for "y", which will trigger a call to the
+        # user-provided __init__
+        obj = obj(y=2)
+
+        # Make a new instance with value of x=42, and all the other parameters
+        # being the same as what was provided to build "obj"
+        obj2 = obj(x=42)
+
+
+    .. note:: any attribute access on a partially initialized instance will
+        result in a :exc:`TypeError` exception.
+    """
+
+    class _PartialFactory:
+        """
+        Dummy wrapper type to flag methods that are expected to be factory
+        supporting partial initialization.
+        """
+        def __init__(self, f):
+            self.f = f
+
+    @classmethod
+    def factory(cls, f):
+        """
+        Decorator to use on alternative constructors, i.e. classmethods that
+        return instances of the class.
+
+        Once decorated, the classmethod can be partially applied just like the
+        class itself.
+
+        .. note:: ``@classmethod`` is applied automatically if not already done
+            by the user.
+        """
+        return cls._PartialFactory(f)
+
+    def __getattribute__(self, attr):
+        get = super().__getattribute__
+        dct = get('__dict__')
+        # If the attribute does not exists, it means we "manually" created an
+        # empty instance, e.g. using cls.__new__(cls), in which case we want to
+        # allow calling methods on it to initialize it
+        initialized, missing_kwargs = dct.get('_initialized', (True, set()))
+        if initialized:
+            return get(attr)
+        else:
+            params = ', '.join(
+                f'"{param}"'
+                for param in sorted(missing_kwargs)
+            )
+            raise TypeError(f'Instance not fully initialized: missing constructor parameters {params}')
+
+    def __call__(self, **kwargs):
+        get = super().__getattribute__
+        _kwargs = get('_kwargs')
+        kwargs = {
+            **_kwargs,
+            **kwargs,
+        }
+        if kwargs == _kwargs:
+            return self
+        else:
+            ctor = get('_ctor')
+            return ctor(**kwargs)
+
+    @staticmethod
+    def _bind_args(f, args, kwargs):
+        sig = inspect.signature(f)
+        kwargs, missing = sig_bind(sig, args, kwargs, partial=True)
+        return (
+            (
+                # Whether the object is ready to be initialized
+                not bool(missing),
+                # Missing arguments to complete a full initialization
+                missing,
+            ),
+            # Actual bound kwargs ready to be used
+            kwargs
+        )
+
+    def __init_subclass__(cls, *args, **kwargs):
+        def make_partial(f):
+            # All the factories are expected to be classmethod
+            assert isinstance(f, classmethod)
+
+            @classmethod
+            # This needs to be done *after* classmethod() and on __func__,
+            # otherwise the signature is wrong for some reason
+            @functools.wraps(f.__func__)
+            def wrapper(cls, *args, **kwargs):
+                self = cls.__new__(cls)
+                meth = f.__get__(self)
+
+                try:
+                    self._initialized = (True, set())
+                    initialized, kwargs = self._bind_args(meth, args, kwargs)
+                except BaseException:
+                    self._initialized = (False, set())
+                    raise
+                else:
+                    if initialized[0]:
+                        self = meth(**kwargs)
+
+                    self._initialized = initialized
+                    self._kwargs = kwargs
+                    self._ctor = wrapper.__get__(self)
+                    return self
+
+            return wrapper
+
+        # This factory is called by the metaclass's __call__ implementation,
+        # and just returns the parent's __call__ implementation. This way, the
+        # main instance construction path is also handled like any other
+        # factory classmethod
+        @cls._PartialFactory
+        @functools.wraps(cls.__init__)
+        def _make_instance(cls, *args, **kwargs):
+            # Equivalent to this, without assuming "type" is the superclass of
+            # our metaclass:
+            # type.__call__(cls, *args, **kwargs)
+            return super(cls.__class__, cls.__class__).__call__(cls, *args, **kwargs)
+
+        cls._make_instance = _make_instance
+
+        # Wrap all the factories so they can be partially applied.
+        for attr, x in cls.__dict__.items():
+            if isinstance(x, cls._PartialFactory):
+                f = x.f
+                # Automatically wrap with @classmethod, so we are sure of what
+                # we get
+                f = f if isinstance(f, classmethod) else classmethod(f)
+                setattr(cls, attr, make_partial(f))
+
+        # Wrap the __del__ implementation so that it only executes if the
+        # object was fully initialized
+        try:
+            del_ = cls.__del__
+        except AttributeError:
+            pass
+        else:
+            @functools.wraps(del_)
+            def __del__(self):
+                get = super().__getattribute__
+                try:
+                    initialized = get('_initialized')
+                except AttributeError:
+                    pass
+                else:
+                    if initialized[0]:
+                        del_()
+
+            cls.__del__ = del_
+
+        super().__init_subclass__(*args, **kwargs)
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
