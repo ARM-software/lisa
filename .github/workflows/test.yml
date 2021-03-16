@@ -24,10 +24,17 @@ jobs:
     name: test
     # Set the type of machine to run on
     # https://github.com/actions/virtual-environments
-    runs-on: ubuntu-18.04
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: ['3.6', '3.7', '3.8', '3.9']
+        os:
+          - ubuntu-18.04
+          - ubuntu-20.04
+        python-version:
+          - '3.6'
+          - '3.7'
+          - '3.8'
+          - '3.9'
 
     # env:
     #   DEFAULT_BRANCH: master
