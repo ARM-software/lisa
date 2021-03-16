@@ -1666,6 +1666,94 @@ def update_wrapper_doc(func, added_by=None, sig_from=None, description=None, rem
     return decorator
 
 
+def sig_bind(sig, args, kwargs, partial=True, include_defaults=True):
+    """
+    Similar to :meth:`inspect.Signature.bind` but expands variable keyword
+    arguments so that the resulting dictionary can be used directly in a
+    function call.
+
+    The function returns a ``(kwargs, missing)`` with:
+        * ``missing`` a set of the missing mandatory parameters.
+        * ``kwargs`` a dictionary of parameter names to values, ready to be
+          used to call a function.
+
+    :param sig: Signature to extract parameters from.
+    :type sig: inspect.Signature
+
+    :param args: Tuple of positional arguments.
+    :type args: tuple(object)
+
+    :param kwargs: Mapping of keyword arguments.
+    :type kwargs: dict(str, object)
+
+    :param partial: If ``True``, behave like
+        :meth:`inspect.Signature.bind_partial`. Otherwise, behave like
+        :meth:`inspect.Signature.bind`.
+    :type partial: bool
+
+    :param include_defaults: If ``True``, the returned ``kwargs`` will include
+        the default values.
+    :type include_defaults: bool
+    """
+    bind = sig.bind_partial if partial else sig.bind
+    bound = bind(*args, **kwargs)
+    if include_defaults:
+        bound.apply_defaults()
+    kwargs = bound.arguments
+
+    # We unfortunately cannot cope with var positional parameters, since there
+    # is nothing to bind them to so they have to be removed
+    def check_var_pos(name, val):
+        is_var_pos = sig.parameters[name].kind == inspect.Parameter.VAR_POSITIONAL
+        if is_var_pos and val:
+            raise ValueError(f'Cannot handle variable positional arguments')
+        return not is_var_pos
+
+    kwargs = {
+        name: val
+        for name, val in kwargs.items()
+        if check_var_pos(name, val)
+    }
+
+    # Variable keyword parameter has been filled with sig.bind_partial,
+    # resulting in a a dict that cannot be used to call the function.
+    # Before calling it, we therefore need to "unpack" the dict of that var
+    # keyword argument into the main dict.
+    var_keyword_args = {
+        name: kwargs.get(name, {})
+        for name, param in sig.parameters.items()
+        if param.kind == param.VAR_KEYWORD
+    }
+    orig_kwargs = kwargs.copy()
+    for _kwargs_name, _kwargs in var_keyword_args.items():
+        redefined = set(kwargs.keys() & _kwargs.keys())
+        if redefined:
+            raise TypeError(f'Redifining {redefined} parameters in variable keyword arguments of {sig}')
+        else:
+            kwargs.update(_kwargs)
+
+            # Check that we are not accidentally removing the result of
+            # **kwargs expansion
+            try:
+                remove = orig_kwargs[_kwargs_name] is _kwargs
+            except KeyError:
+                continue
+            else:
+                if remove:
+                    del kwargs[_kwargs_name]
+
+    bindable_parameters = {
+        name
+        for name, param in sig.parameters.items()
+        if param.kind not in (
+            param.VAR_POSITIONAL,
+            param.VAR_KEYWORD,
+        )
+    }
+    missing = bindable_parameters - set(orig_kwargs)
+    return (kwargs, missing)
+
+
 DEPRECATED_MAP = {}
 """
 Global dictionary of deprecated classes, functions and so on.
