@@ -2751,4 +2751,48 @@ class PartialInit(metaclass=_PartialInitMeta):
 
         super().__init_subclass__(*args, **kwargs)
 
+
+class _UnboundMethodTypeMeta(type):
+    def __instancecheck__(cls, obj):
+        try:
+            qualname = obj.__qualname__
+        except AttributeError:
+            return False
+        else:
+            # Get the rightmost group, in case the callable has been defined in
+            # a function
+            qualname = qualname.rsplit('<locals>.', 1)[-1]
+
+            # Dots in the qualified name means this function has been defined
+            # in a class. This could also happen for closures, and they would
+            # get "<locals>." somewhere in their name, but we handled that
+            # already.
+            return '.' in qualname
+
+class UnboundMethodType(metaclass=_UnboundMethodTypeMeta):
+    """
+    Dummy class to be used to check if a function is a method defined in a
+    class or not::
+
+        class C:
+            def f(self):
+                ...
+            @classmethod
+            def f_class(cls):
+                ...
+
+            @staticmethod
+            def f_static():
+                ...
+
+        def g():
+            ...
+
+        assert     isinstance(C.f,        UnboundMethodType)
+        assert     isinstance(C.f_class,  UnboundMethodType)
+        assert     isinstance(C.f_static, UnboundMethodType)
+        assert not isinstance(g,          UnboundMethodType)
+    """
+    pass
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
