@@ -1823,6 +1823,84 @@ def sig_bind(sig, args, kwargs, partial=True, include_defaults=True):
     return (kwargs, missing)
 
 
+def dispatch_kwargs(funcs, kwargs, call=True, allow_overlap=False):
+    """
+    Dispatch the provided ``kwargs`` mapping to the ``funcs`` functions, based
+    on their signature.
+
+    :param funcs: List of functions to dispatch to.
+    :type funcs: list(collections.abc.Callable)
+
+    :param kwargs: Dictionary of arguments to pass to the functions.
+    :type kwargs: dict(str, object)
+
+    :param call: If ``True``, the functions are called and the return value is
+        a ``{f: result}`` with ``f`` functions of ``funcs``. If ``False``, the
+        ``result`` is just a mapping of arguments ready to be used to call the
+        given function.
+    :type call: bool
+
+    :param allow_overlap: If ``False``, the provided functions are not allowed
+        to have overlapping parameters. If they do, a :exc:`TypeError` is raised.
+    :type allow_overlap: bool
+    """
+    funcs = list(funcs)
+
+    params = {
+        func: {
+            param.name
+            for param in inspect.signature(func).parameters.values()
+            if param.kind not in (
+                param.VAR_POSITIONAL,
+                param.VAR_KEYWORD,
+            )
+        }
+        for func in funcs
+    }
+
+    if not allow_overlap and funcs:
+        def check(state, item):
+            f, params = item
+            overlapping, seen = state
+
+            overlapping.update({
+                param: overlapping.get(param, [seen[param]]) + [f]
+                for param in params & seen.keys()
+            })
+            seen.update(
+                (param, f)
+                for param in params
+            )
+
+            return (overlapping, seen)
+
+        overlapping, _ = fold(check, params.items(), init=({}, {}))
+        if overlapping:
+            overlapping = ', '.join(
+                f'{param} (from {f.__qualname__})'
+                for param, fs in sorted(overlapping.items())
+                for f in fs
+            )
+            raise TypeError(f'Overlapping parameters: {overlapping}')
+
+    dispatched = {
+        f: {
+            name: val
+            for name, val in kwargs.items()
+            if name in _params
+        }
+        for f, _params in params.items()
+    }
+
+    if call:
+        return {
+            f: f(**_kwargs)
+            for f, _kwargs in dispatched.items()
+        }
+    else:
+        return dispatched
+
+
 DEPRECATED_MAP = {}
 """
 Global dictionary of deprecated classes, functions and so on.
