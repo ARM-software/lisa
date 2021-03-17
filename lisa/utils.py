@@ -45,6 +45,7 @@ import os
 import importlib
 import pkgutil
 import operator
+from operator import attrgetter
 import threading
 import itertools
 import weakref
@@ -1899,6 +1900,211 @@ def dispatch_kwargs(funcs, kwargs, call=True, allow_overlap=False):
         }
     else:
         return dispatched
+
+
+def kwargs_dispatcher(f_map, ignore=None, allow_overlap=True):
+    """
+    Decorate a function so that it acts as an argument dispatcher between
+    multiple other functions.
+
+    :param f_map: Mapping of functions to name of the parameter that will
+        receive the collected parameters. ``None`` values will be replaced with
+        ``f'{f.__name__}_kwargs'`` for convenience. If passed an non-mapping
+        iterable, it will be transformed into ``{f: None, f2: None, ...}``.
+    :type f_map: dict(collections.abc.Callable, str) or list(collections.abc.Callable)
+
+    :param ignore: Set of parameters to ignore in the ``f_map`` functions. They
+        will not be added to the signature and not be collected.
+    :type ignore: list(str) or None
+
+    :param allow_overlap: If ``True``, the functions in ``f_map`` are allowed
+        to have overlapping parameters. If ``False``, an :exc:`TypeError` will
+        be raised if there is any overlap.
+    :type allow_overlap: bool
+
+    **Example**::
+
+        def f(x, y):
+            print('f', x, y)
+
+        def g(y, z):
+            print('g', y, z)
+
+        # f_kwargs will receive a dict of parameters to pass to "f", same for
+        # g_kwargs.
+        # The values will also be passed to the function directly in x, y and z
+        # parameters.
+        @kwargs_dispatcher({f: "f_kwargs", g: "g_kwargs"})
+        def h(x, y, f_kwargs, g_kwargs, z):
+            print('f', f_kwargs)
+            print('g', g_kwargs)
+            print(x, y, z)
+
+        h(y=2, x=1, z=3)
+        h(1,2,3)
+        h(1,y=2,z=3)
+    """
+    ignore = set(ignore) if ignore else set()
+    if not isinstance(f_map, Mapping):
+        f_map = dict.fromkeys(f_map)
+
+    f_map = {
+        f: name if name is not None else f'{f.__name__}_kwargs'
+        for f, name in f_map.items()
+    }
+
+    if len(set(f_map.values())) != len(f_map):
+        raise ValueError('Duplicate f_map values are not allowed')
+
+    if not allow_overlap:
+        params = {
+            f'{f.__qualname__}({param}=...)': param
+            for f in f_map.keys()
+            for param in inspect.signature(f).parameters.keys()
+        }
+        for param, _funcs in group_by_value(params).items():
+            if len(_funcs) > 1:
+                _funcs = ', '.join(_funcs)
+                raise TypeError(f'Overlapping parameters: {_funcs}')
+
+    def remove_dispatch_args(sig):
+        return sig.replace(
+            parameters=[
+                param
+                for param in sig.parameters.values()
+                if param.name not in f_map.values()
+            ]
+        )
+
+    def decorator(f):
+        orig_sig = inspect.signature(f)
+
+        def fixup_param(name, params):
+            params = [
+                param.replace(
+                    kind=inspect.Parameter.KEYWORD_ONLY,
+                )
+                for param in params
+            ]
+
+            # If they all share the same default (could be "param.empty"), use
+            # it, otherwise use None
+            first, *others = list(map(attrgetter('default'), params))
+            if all(x == first for x in others):
+                default = first
+            else:
+                default = None
+
+            param = params[0].replace(
+                default=default,
+                annotation=inspect.Parameter.empty,
+            )
+            return param
+
+        def get_sig(f):
+            # If this is a method, we need to bind it to something to get rid
+            # of the "self" parameter.
+            if isinstance(f, UnboundMethodType):
+                f = f.__get__(0)
+            return inspect.signature(f)
+
+        extra_params = [
+            param
+            for f in f_map.keys()
+            for param in get_sig(f).parameters.values()
+            if (
+                param.kind not in (
+                    param.VAR_POSITIONAL,
+                    param.VAR_KEYWORD,
+                ) and
+                param.name not in ignore
+            )
+        ]
+        extra_params = group_by_value(
+            {
+                param: param.name
+                for param in extra_params
+            },
+            key_sort=attrgetter('name')
+        )
+        extra_params = [
+            fixup_param(name, params)
+            for name, params in extra_params.items()
+            if name not in orig_sig.parameters.keys()
+        ]
+
+        var_keyword = [
+            param
+            for param in orig_sig.parameters.values()
+            if param.kind == param.VAR_KEYWORD
+        ]
+
+        # Fixup the signature so that it expands the keyword arguments into the
+        # actual arguments of the functions we will dispatch to
+        fixed_up_sig = orig_sig.replace(
+            parameters=(
+                [
+                    param
+                    for param in orig_sig.parameters.values()
+                    if param not in var_keyword
+                ] +
+                sorted(extra_params, key=attrgetter('name')) +
+                var_keyword
+            )
+        )
+        fixed_up_sig = remove_dispatch_args(fixed_up_sig)
+
+        # Signature used to bind the positional parameters. We must ignore the
+        # parameters that are going to host the dispatched kwargs
+        pos_sig = remove_dispatch_args(orig_sig)
+
+        orig_has_var_keyword = bool(var_keyword)
+
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            pos_kwargs, _ = sig_bind(
+                pos_sig,
+                args=args,
+                kwargs={},
+                partial=True,
+                include_defaults=False
+            )
+            overlap = kwargs.keys() & pos_kwargs.keys()
+            if overlap:
+                overlap = ', '.join(
+                    f'"{param}"'
+                    for param in sorted(overlap)
+                )
+                raise TypeError(f'Multiple values for parameters {overlap}')
+            else:
+                kwargs.update(pos_kwargs)
+
+            dispatched = dispatch_kwargs(
+                f_map.keys(),
+                kwargs=kwargs,
+                # We checked it ahead of time
+                allow_overlap=True,
+                call=False,
+            )
+
+            dispatched = {
+                f_map[f]: _kwargs
+                for f, _kwargs in dispatched.items()
+            }
+
+            if not orig_has_var_keyword:
+                kwargs = {
+                    key: val
+                    for key, val in kwargs.items()
+                    if key in orig_sig.parameters
+                }
+
+            return f(**kwargs, **dispatched)
+
+        wrapper.__signature__ = fixed_up_sig
+
+        return wrapper
+    return decorator
 
 
 DEPRECATED_MAP = {}
