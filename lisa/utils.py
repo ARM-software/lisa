@@ -1558,6 +1558,75 @@ def optional_kwargs(func):
     return wrapper
 
 
+def kwargs_forwarded_to(f, ignore=None):
+    """
+    Similar to :func:`functools.wraps`, except that it will only fixup the
+    signature.
+
+    :param ignore: List of parameter to not include in the signature.
+    :type ignore: list(str) or None
+
+    The signature is modified in the following way:
+
+        * Variable keyword parameters are removed
+        * All the parameters that ``f`` take are added as keyword-only in the
+          decorated function's signature, under the assumption that
+          ``**kwargs`` in the decorated function is used to relay the
+          parameters to ``f``.
+
+    **Example**::
+
+        def f(x, y, z):
+            pass
+
+        @kwargs_forwarded_to(f)
+        def g(z, **kwargs):
+            f(**kwargs)
+            return z
+
+        # The signature of g() is now "(z, *, x, y)", i.e. x and y are
+        # keyword-only.
+
+    """
+    def decorator(wrapped):
+        @functools.wraps(wrapped)
+        def wrapper(*args, **kwargs):
+            return wrapped(*args, **kwargs)
+
+        sig = inspect.signature(wrapped)
+        _ignore = set(ignore or [])
+
+        # Strip VAR_KEYWORD on the assumption it's used to convey the
+        # parameters to "f"
+        params = [
+            param
+            for param in sig.parameters.values()
+            if param.kind != param.VAR_KEYWORD
+        ]
+
+        # Expand all of f's parameters as keyword-only parameters, since the
+        # function expects them to be fed through **kwargs
+        extra_params = [
+            param.replace(kind=inspect.Parameter.KEYWORD_ONLY)
+            for param in inspect.signature(f).parameters.values()
+            if (
+                param.kind not in (
+                    param.VAR_POSITIONAL,
+                    param.VAR_KEYWORD,
+                ) and
+                # If the parameter already existed, we don't want to mess with it
+                param.name not in sig.parameters.keys() and
+                param.name not in _ignore
+            )
+        ]
+
+        wrapper.__signature__ = sig.replace(
+            parameters=params + extra_params,
+        )
+        return wrapper
+    return decorator
+
+
 def update_wrapper_doc(func, added_by=None, sig_from=None, description=None, remove_params=None, include_kwargs=False):
     """
     Equivalent to :func:`functools.wraps` that updates the signature by taking
