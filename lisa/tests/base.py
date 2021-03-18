@@ -1796,16 +1796,16 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         logger.debug(f'rt-app JSON:\n{wload.conf.json}')
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
         as_root = cgroup is not None or (trace_events and debugfs_needs_root)
-        wload_cm = wload if wipe_run_dir else nullcontext(wload)
 
-        # Pre-hit the calibration information, in case this is a lazy value.
-        # This avoids polluting the trace and the dmesg output with the
-        # calibration tasks. Since we know that rt-app will always need it for
-        # anything useful, it's reasonable to do it here.
-        target.plat_info['rtapp']['calib']
+        wload = wload(
+            wipe_run_dir=wipe_run_dir,
+            cgroup=cgroup,
+            as_root=as_root,
+            update_cpu_capacities=update_cpu_capacities,
+        )
 
-        with target.freeze_userspace(), wload_cm, dmesg_coll, ftrace_coll:
-            wload.run(cgroup=cgroup, as_root=as_root, update_cpu_capacities=update_cpu_capacities)
+        with target.freeze_userspace(), wload, dmesg_coll, ftrace_coll:
+            wload.run()
 
         ftrace_coll.get_data(trace_path)
         dmesg_coll.get_data(dmesg_path)
