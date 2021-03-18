@@ -75,7 +75,7 @@ class Job(object):
 
     def load(self, target, loader=pluginloader):
         self.logger.info('Loading job {}'.format(self))
-        if self.iteration == 1:
+        if self.id not in self._workload_cache:
             self.workload = loader.get_workload(self.spec.workload_name,
                                                 target,
                                                 **self.spec.workload_parameters)

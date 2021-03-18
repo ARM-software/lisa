@@ -141,7 +141,7 @@ class PerfCollector(CollectorBase):
 
     def start(self):
         for command in self.commands:
-            self.target.kick_off(command)
+            self.target.kick_off(command, as_root=self.target.is_rooted)
 
     def stop(self):
         self.target.killall(self.perf_type, signal='SIGINT',

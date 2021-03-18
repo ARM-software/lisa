@@ -15,7 +15,6 @@
 
 import logging
 import re
-from enum import Enum
 
 from past.builtins import basestring
 
@@ -147,43 +146,44 @@ class SchedProcFSNode(object):
             self._dyn_attrs[key] = self._build_node(key, nodes[key])
 
 
-class DocInt(int):
-
-    # See https://stackoverflow.com/a/50473952/5096023
-    def __new__(cls, value, doc):
-        new = super(DocInt, cls).__new__(cls, value)
-        new.__doc__ = doc
-        return new
-
-
-class SchedDomainFlag(DocInt, Enum):
+class _SchedDomainFlag:
     """
-    Represents a sched domain flag
+    Backward-compatible emulation of the former :class:`enum.Enum` that will
+    work on recent kernels with dynamic sched domain flags name and no value
+    exposed.
     """
-    # pylint: disable=bad-whitespace
-    # Domain flags obtained from include/linux/sched/topology.h on v4.17
-    # https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/v4.17/include/linux/sched/topology.h#20
-    SD_LOAD_BALANCE =        0x0001, "Do load balancing on this domain"
-    SD_BALANCE_NEWIDLE =     0x0002, "Balance when about to become idle"
-    SD_BALANCE_EXEC =        0x0004, "Balance on exec"
-    SD_BALANCE_FORK =        0x0008, "Balance on fork, clone"
-    SD_BALANCE_WAKE =        0x0010, "Balance on wakeup"
-    SD_WAKE_AFFINE =         0x0020, "Wake task to waking CPU"
-    SD_ASYM_CPUCAPACITY =    0x0040, "Groups have different max cpu capacities"
-    SD_SHARE_CPUCAPACITY =   0x0080, "Domain members share cpu capacity"
-    SD_SHARE_POWERDOMAIN =   0x0100, "Domain members share power domain"
-    SD_SHARE_PKG_RESOURCES = 0x0200, "Domain members share cpu pkg resources"
-    SD_SERIALIZE =           0x0400, "Only a single load balancing instance"
-    SD_ASYM_PACKING =        0x0800, "Place busy groups earlier in the domain"
-    SD_PREFER_SIBLING =      0x1000, "Prefer to place tasks in a sibling domain"
-    SD_OVERLAP =             0x2000, "Sched_domains of this level overlap"
-    SD_NUMA =                0x4000, "Cross-node balancing"
-    # Only defined in Android
-    # https://android.googlesource.com/kernel/common/+/android-4.14/include/linux/sched/topology.h#29
-    SD_SHARE_CAP_STATES =    0x8000, "(Android only) Domain members share capacity state"
 
-    @classmethod
-    def check_version(cls, target, logger):
+    _INSTANCES = {}
+    """
+    Dictionary storing the instances so that they can be compared with ``is``
+    operator.
+    """
+
+    def __new__(cls, name, value, doc=None):
+        self = super().__new__(cls)
+        self.name = name
+        self._value = value
+        self.__doc__ = doc
+        return cls._INSTANCES.setdefault(self, self)
+
+    def __eq__(self, other):
+        # We *have to* check for "value" as well, otherwise it will be
+        # impossible to keep in the same set 2 instances with differing values.
+        return self.name == other.name and self._value == other._value
+
+    def __hash__(self):
+        return hash((self.name, self._value))
+
+    @property
+    def value(self):
+        value = self._value
+        if value is None:
+            raise AttributeError('The kernel does not expose the sched domain flag values')
+        else:
+            return value
+
+    @staticmethod
+    def check_version(target, logger):
         """
         Check the target and see if its kernel version matches our view of the world
         """
@@ -197,9 +197,83 @@ class SchedDomainFlag(DocInt, Enum):
                 "but target is running v{}".format(ref_parts, parts)
             )
 
-
     def __str__(self):
         return self.name
+
+    def __repr__(self):
+        return '<SchedDomainFlag: {}>'.format(self.name)
+
+
+class _SchedDomainFlagMeta(type):
+    """
+    Metaclass of :class:`SchedDomainFlag`.
+
+    Provides some level of emulation of :class:`enum.Enum` behavior for
+    backward compatibility.
+    """
+    @property
+    def _flags(self):
+        return [
+            attr
+            for name, attr in self.__dict__.items()
+            if name.startswith('SD_')
+        ]
+
+    def __getitem__(self, i):
+        return self._flags[i]
+
+    def __len__(self):
+        return len(self._flags)
+
+    # These would be provided by collections.abc.Sequence, but using it on a
+    # metaclass seems to have issues around __init_subclass__
+    def __iter__(self):
+        return iter(self._flags)
+
+    def __reversed__(self):
+        return reversed(self._flags)
+
+    def __contains__(self, x):
+        return x in self._flags
+
+    @property
+    def __members__(self):
+        return {flag.name: flag for flag in self._flags}
+
+
+class SchedDomainFlag(_SchedDomainFlag, metaclass=_SchedDomainFlagMeta):
+    """
+    Represents a sched domain flag.
+
+    .. note:: ``SD_*`` class attributes are deprecated, new code should never
+        test a given flag against one of these attributes with ``is`` (.e.g ``x
+        is SchedDomainFlag.SD_LOAD_BALANCE``. This is because the
+        ``SD_LOAD_BALANCE`` flag exists in two flavors that are not equal: one
+        with a value (the class attribute) and one without (dynamically created
+        when parsing flags for new kernels). Old code ran on old kernels should
+        work fine though.
+    """
+    # pylint: disable=bad-whitespace
+    # Domain flags obtained from include/linux/sched/topology.h on v4.17
+    # https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/v4.17/include/linux/sched/topology.h#20
+    SD_LOAD_BALANCE =        _SchedDomainFlag("SD_LOAD_BALANCE", 0x0001, "Do load balancing on this domain")
+    SD_BALANCE_NEWIDLE =     _SchedDomainFlag("SD_BALANCE_NEWIDLE", 0x0002, "Balance when about to become idle")
+    SD_BALANCE_EXEC =        _SchedDomainFlag("SD_BALANCE_EXEC", 0x0004, "Balance on exec")
+    SD_BALANCE_FORK =        _SchedDomainFlag("SD_BALANCE_FORK", 0x0008, "Balance on fork, clone")
+    SD_BALANCE_WAKE =        _SchedDomainFlag("SD_BALANCE_WAKE", 0x0010, "Balance on wakeup")
+    SD_WAKE_AFFINE =         _SchedDomainFlag("SD_WAKE_AFFINE", 0x0020, "Wake task to waking CPU")
+    SD_ASYM_CPUCAPACITY =    _SchedDomainFlag("SD_ASYM_CPUCAPACITY", 0x0040, "Groups have different max cpu capacities")
+    SD_SHARE_CPUCAPACITY =   _SchedDomainFlag("SD_SHARE_CPUCAPACITY", 0x0080, "Domain members share cpu capacity")
+    SD_SHARE_POWERDOMAIN =   _SchedDomainFlag("SD_SHARE_POWERDOMAIN", 0x0100, "Domain members share power domain")
+    SD_SHARE_PKG_RESOURCES = _SchedDomainFlag("SD_SHARE_PKG_RESOURCES", 0x0200, "Domain members share cpu pkg resources")
+    SD_SERIALIZE =           _SchedDomainFlag("SD_SERIALIZE", 0x0400, "Only a single load balancing instance")
+    SD_ASYM_PACKING =        _SchedDomainFlag("SD_ASYM_PACKING", 0x0800, "Place busy groups earlier in the domain")
+    SD_PREFER_SIBLING =      _SchedDomainFlag("SD_PREFER_SIBLING", 0x1000, "Prefer to place tasks in a sibling domain")
+    SD_OVERLAP =             _SchedDomainFlag("SD_OVERLAP", 0x2000, "Sched_domains of this level overlap")
+    SD_NUMA =                _SchedDomainFlag("SD_NUMA", 0x4000, "Cross-node balancing")
+    # Only defined in Android
+    # https://android.googlesource.com/kernel/common/+/android-4.14/include/linux/sched/topology.h#29
+    SD_SHARE_CAP_STATES =    _SchedDomainFlag("SD_SHARE_CAP_STATES", 0x8000, "(Android only) Domain members share capacity state")
 
 
 class SchedDomain(SchedProcFSNode):
@@ -207,14 +281,27 @@ class SchedDomain(SchedProcFSNode):
     Represents a sched domain as seen through procfs
     """
     def __init__(self, nodes):
-        super(SchedDomain, self).__init__(nodes)
+        super().__init__(nodes)
 
-        obj_flags = set()
-        for flag in list(SchedDomainFlag):
-            if self.flags & flag.value == flag.value:
-                obj_flags.add(flag)
+        flags = self.flags
+        # Recent kernels now have a space-separated list of flags instead of a
+        # packed bitfield
+        if isinstance(flags, str):
+            flags = {
+                _SchedDomainFlag(name=name, value=None)
+                for name in flags.split()
+            }
+        else:
+            def has_flag(flags, flag):
+                return flags & flag.value == flag.value
 
-        self.flags = obj_flags
+            flags = {
+                flag
+                for flag in SchedDomainFlag
+                if has_flag(flags, flag)
+            }
+
+        self.flags = flags
 
 
 class SchedProcFSData(SchedProcFSNode):
