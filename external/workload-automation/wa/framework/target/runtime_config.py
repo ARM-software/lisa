@@ -178,7 +178,7 @@ class HotplugRuntimeConfig(RuntimeConfig):
             raise TargetError('Target does not appear to support hotplug')
 
     def validate_parameters(self):
-        if len(self.num_cores) == self.target.number_of_cpus:
+        if self.num_cores and len(self.num_cores) == self.target.number_of_cpus:
             if all(v is False for v in list(self.num_cores.values())):
                 raise ValueError('Cannot set number of all cores to 0')
 
