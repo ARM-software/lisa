@@ -74,23 +74,25 @@ class TestRTAProfile(RTABase):
             self.target, name='test', profile=profile, res_dir=self.res_dir,
             calibration=None, log_stats=True)
 
-        with open(rtapp.local_json) as f:
-            conf = json.load(f)
+        with rtapp:
+            with open(rtapp.local_json) as f:
+                conf = json.load(f)
 
-        # Check that the configuration looks like we expect it to
-        phases = list(conf['tasks']['test']['phases'].values())
-        assert len(phases) == len(exp_phases), 'Wrong number of phases'
-        for phase, exp_phase in zip(phases, exp_phases):
-            assert phase == exp_phase
+            # Check that the configuration looks like we expect it to
+            phases = list(conf['tasks']['test']['phases'].values())
+            assert len(phases) == len(exp_phases), 'Wrong number of phases'
+            for phase, exp_phase in zip(phases, exp_phases):
+                assert phase == exp_phase
 
-        # Try running the workload and check that it produces the expected log
-        # files
-        rtapp.run()
+            # Try running the workload and check that it produces the expected log
+            # files
+            rtapp.run()
 
         # rtapp_cmds = [c for c in self.target.executed_commands if 'rt-app' in c]
         # assert rtapp_cmds == [self.get_expected_command(rtapp)]
 
-        self.assert_output_file_exists('output.log')
+        self.assert_output_file_exists('stdout.log')
+        self.assert_output_file_exists('stderr.log')
         self.assert_output_file_exists('test.json')
         self.assert_output_file_exists('rt-app-test-0.log')
         self.assert_can_read_logfile(exp_tasks=['test-0'])
@@ -261,33 +263,41 @@ class TestRTACustom(RTABase):
             str_conf = fh.read()
 
         rtapp = RTA.from_str(
-            self.target, name='test', str_conf=str_conf, res_dir=self.res_dir,
-            max_duration_s=5, calibration=calibration)
+            self.target,
+            name='test',
+            str_conf=str_conf,
+            res_dir=self.res_dir,
+            max_duration_s=5,
+            calibration=calibration,
+            as_root=True,
+        )
 
-        with open(rtapp.local_json, 'r') as fh:
-            conf = json.load(fh)
+        with rtapp:
+            with open(rtapp.local_json, 'r') as fh:
+                conf = json.load(fh)
 
-        tasks = {
-            'AudioTick',
-            'AudioOut',
-            'AudioTrack',
-            'mp3.decoder',
-            'OMXCall'
-        }
-        assert conf['tasks'].keys() == tasks
+            tasks = {
+                'AudioTick',
+                'AudioOut',
+                'AudioTrack',
+                'mp3.decoder',
+                'OMXCall'
+            }
+            assert conf['tasks'].keys() == tasks
 
-        # Would like to try running the workload but mp3-short.json has nonzero
-        # 'priority' fields, and we probably don't have permission for that
-        # unless we're root.
-        if self.target.is_rooted:
-            rtapp.run(as_root=True)
+            # Would like to try running the workload but mp3-short.json has nonzero
+            # 'priority' fields, and we probably don't have permission for that
+            # unless we're root.
+            if self.target.is_rooted:
+                rtapp.run()
 
-            # rtapp_cmds = [c for c in self.target.executed_commands
-            #               if 'rt-app' in c]
-            # assert rtapp_cmds == [self.get_expected_command(rtapp)]
+                # rtapp_cmds = [c for c in self.target.executed_commands
+                #               if 'rt-app' in c]
+                # assert rtapp_cmds == [self.get_expected_command(rtapp)]
 
-            self.assert_output_file_exists('output.log')
-            self.assert_output_file_exists('test.json')
+                self.assert_output_file_exists('stdout.log')
+                self.assert_output_file_exists('stderr.log')
+                self.assert_output_file_exists('test.json')
 
     def test_custom_smoke_calib(self):
         """Test RTA custom workload (providing calibration)"""
@@ -316,6 +326,8 @@ class TestRTACalibrationConf(RTABase):
         rtapp = RTA.from_profile(
             self.target, name='test', res_dir=self.res_dir, profile=profile,
             calibration=calibration)
+
+        rtapp.deploy()
 
         with open(rtapp.local_json) as fh:
             return json.load(fh)['global']['calibration']
