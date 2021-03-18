@@ -20,6 +20,7 @@ from datetime import timedelta
 
 from devlib.collector import (CollectorBase, CollectorOutput,
                               CollectorOutputEntry)
+from devlib.target import KernelConfigTristate
 
 
 class KernelLogEntry(object):
@@ -167,6 +168,8 @@ class DmesgCollector(CollectorBase):
         self.basic_dmesg = '--force-prefix' not in \
                 self.target.execute('dmesg -h', check_exit_code=False)
         self.facility = facility
+        self.needs_root = bool(target.config.typed_config.get(
+            'CONFIG_SECURITY_DMESG_RESTRICT', KernelConfigTristate.NO))
         self.reset()
 
     @property
@@ -178,7 +181,7 @@ class DmesgCollector(CollectorBase):
 
     def start(self):
         self.reset()
-        # Empty the dmesg ring buffer
+        # Empty the dmesg ring buffer. This requires root in all cases
         self.target.execute('dmesg -c', as_root=True)
 
     def stop(self):
@@ -195,7 +198,7 @@ class DmesgCollector(CollectorBase):
                 facility=self.facility,
             )
 
-        self.dmesg_out = self.target.execute(cmd)
+        self.dmesg_out = self.target.execute(cmd, as_root=self.needs_root)
 
     def set_output(self, output_path):
         self.output_path = output_path
