@@ -1,20 +1,21 @@
 #! /bin/bash
 
 download() {
-    git clone -b 'v1.20' --single-branch --depth 1 git://git.kernel.org/pub/scm/devel/pahole/pahole.git pahole_src
-    echo "Pahole download completed"
+	git clone -b 'master' --single-branch --depth 1 git://git.kernel.org/pub/scm/devel/pahole/pahole.git pahole_src
+	cd pahole_src
+	git checkout d124926baf2366a2ef9db8ac796874cae2b63831
 }
 
 build() {
     cd pahole_src
     mkdir build
     cd build
-    cmake -D__LIB=lib ..
+    cmake -D__LIB=lib -DBUILD_SHARED_LIBS=OFF ..
     make
-    echo "Pahole build completed"
 }
 
 install() {
     cp -v pahole_src/build/pahole "$LISA_ARCH_ASSETS/pahole"
-    echo "Pahole install completed"
+    source "$LISA_HOME/tools/recipes/utils.sh"
+    install_readme pahole pahole_src COPYING
 }
