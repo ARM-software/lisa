@@ -334,6 +334,9 @@ def pelt_swing(period, duty_cycle, window=PELT_WINDOW, half_life=PELT_HALF_LIFE,
         half_life=half_life,
         scale=scale
     )
+    # Ensure we have at least a full period
+    stable_t = max(stable_t, period)
+
     # Align to have an integral number of periods
     stable_t += stable_t % period
     end = stable_t + period
