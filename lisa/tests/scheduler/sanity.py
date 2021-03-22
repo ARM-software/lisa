@@ -50,7 +50,7 @@ class CapacitySanity(TestBundle):
             cpu_capacities = target.sched.get_capacities()
             capa_work = {capa: sys.maxsize for capa in list(cpu_capacities.values())}
             for cpu in list(cpu_capacities.keys()):
-                output = sysbench.run(cpus=[cpu], max_duration_s=1)
+                output = sysbench(cpus=[cpu], max_duration_s=1).run()
                 # We could save the work done on each CPU, but we can make
                 # things simpler and just store the smallest amount of work done
                 # per capacity value.
