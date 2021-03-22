@@ -67,7 +67,7 @@ class Sysbench(Workload):
     :type cli_options: dict(str, object)
     """
 
-    REQUIRED_TOOLS = Workload.REQUIRED_TOOLS + ['sysbench']
+    REQUIRED_TOOLS = ['sysbench']
 
     @kwargs_forwarded_to(
         Workload.__init__,
