@@ -23,7 +23,7 @@ that higher frequencies lead to more work done (as done in
 import re
 from shlex import quote
 
-from lisa.utils import memoized
+from lisa.utils import memoized, kwargs_forwarded_to
 from lisa.wlgen.workload import Workload
 
 
@@ -55,70 +55,54 @@ class Sysbench(Workload):
     """
     A sysbench workload
 
-    :Attributes:
-        * ``output`` (:class:`SysbenchOutput`): The saved output of the last
-          :meth:`run()` invocation.
+    :param max_duration_s: Maximum duration in seconds
+    :type max_duration_s: int
+
+    :param: max_requests: Maximum number of event requests
+    :type max_requests: int
+
+    :param cli_options: Dictionary of cli_options passed to sysbench command line. Run
+        ``sysbench --test=<test> help`` for available parameters. Character
+        ``_`` in option names is replaced by ``-``.
+    :type cli_options: dict(str, object)
     """
 
     required_tools = Workload.required_tools + ['sysbench']
 
-    def __init__(self, target, **kwargs):
-        super().__init__(target, **kwargs)
-        self._output = SysbenchOutput()
-
-        sysbench_bin = self.target.which('sysbench')
-        if not sysbench_bin:
-            raise RuntimeError("No sysbench executable found on the target")
-
-        self.sysbench_bin = sysbench_bin
-
-    def run(self, cpus=None, cgroup=None, as_root=False,
-            test="cpu", max_duration_s=None, max_requests=None, **kwargs):
-        """
-        Execute the workload on the configured target.
-
-        :param cpus: CPUs on which to restrict the workload execution (taskset)
-        :type cpus: list(int)
-
-        :param cgroup: cgroup in which to run the workload
-        :type cgroup: str
-
-        :param as_root: Whether to run the workload as root or not
-        :type as_root: bool
-
-        :param test: The sysbench test to run (run ``sysbench --help``)
-        :type test: str
-
-        :param max_duration_s: Maximum duration in seconds
-        :type max_duration_s: int
-
-        :param: max_requests: Maximum number of event requests
-        :type max_requests: int
-
-        :Variable keyword arguments: Forwarded on sysbench command line. Run
-            ``sysbench --test=<test> help`` for available parameters. Character
-            ``_`` in parameter names is replaced by ``-``.
-
-        The standard output will be saved into a file in ``self.res_dir``
-        """
-        kwargs['test'] = test
+    @kwargs_forwarded_to(
+        Workload.__init__,
+        ignore=['command'],
+    )
+    def __init__(self, target, *,
+        test='cpu',
+        max_duration_s=None,
+        max_requests=None,
+        cli_options=None,
+        **kwargs
+    ):
+        cli_options = cli_options.copy() if cli_options else {}
+        cli_options['test'] = test
 
         if max_duration_s is not None:
-            kwargs['max-time'] = max_duration_s
+            cli_options['max-time'] = max_duration_s
 
         if max_requests is not None:
-            kwargs['max-requests'] = max_requests
+            cli_options['max-requests'] = max_requests
 
-        arg_list = [self.sysbench_bin] + [
+        arg_list = ['sysbench'] + [
             quote(f"--{arg.replace('_', '-')}={value}")
-            for arg, value in kwargs.items()
+            for arg, value in cli_options.items()
         ] + ['run']
 
-        self.command = ' '.join(arg_list)
-        output = super().run(cpus, cgroup, as_root)
+        command = ' '.join(arg_list)
 
-        output = SysbenchOutput(output)
-        self._output = output
-        return output
+        # deprecated, only for backward compat
+        self._output = SysbenchOutput()
+
+        super().__init__(target=target, command=command, **kwargs)
+
+    def _run(self):
+        out = yield self._basic_run()
+        return SysbenchOutput(out['stdout'])
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
