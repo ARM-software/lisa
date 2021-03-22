@@ -26,6 +26,7 @@ import uuid
 import warnings
 import contextlib
 import shutil
+import inspect
 
 from devlib.utils.misc import list_to_mask
 
@@ -231,6 +232,14 @@ class _WorkloadBase:
             pass
         else:
             cls._run = _WorkloadRunCMDecorator(_run)
+
+        tools = {
+            tool
+            for cls in inspect.getmro(cls)
+            for tool in getattr(cls, 'REQUIRED_TOOLS', [])
+        }
+        cls.REQUIRED_TOOLS = sorted(tools)
+
         super().__init_subclass__(*args, **kwargs)
 
 
