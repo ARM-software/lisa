@@ -471,7 +471,7 @@ class RTA(Workload):
     https://github.com/scheduler-tools/rt-app
     """
 
-    required_tools = Workload.required_tools + ['rt-app']
+    REQUIRED_TOOLS = Workload.REQUIRED_TOOLS + ['rt-app']
 
     @kwargs_forwarded_to(Workload.__init__, ignore=['command'])
     def _early_init(self, *, log_stats=False, update_cpu_capacities=None, **kwargs):
