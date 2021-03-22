@@ -59,7 +59,7 @@ class UserspaceSanityItem(TestBundle):
         cm = target.cpufreq.use_governor('userspace') if switch_governor else nullcontext()
         with cm:
             target.cpufreq.set_frequency(cpu, freq)
-            output = sysbench.run(cpus=[cpu], max_duration_s=1)
+            output = sysbench(cpus=[cpu], max_duration_s=1).run()
 
         work = output.nr_events
         return cls(res_dir, target.plat_info, cpu, freq, work)
