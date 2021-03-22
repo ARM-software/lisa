@@ -276,7 +276,7 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
         42\r\n
     """
 
-    required_tools = []
+    REQUIRED_TOOLS = []
     """
     The tools required to execute the workload. See
     :meth:`lisa.target.Target.install_tools`.
@@ -357,7 +357,7 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
         os.makedirs(self.res_dir, exist_ok=True)
         self.target.execute(f'mkdir -p {quote(self.run_dir)}')
         self.get_logger().info(f"Created workload's run target directory: {self.run_dir}")
-        self.target.install_tools(self.required_tools)
+        self.target.install_tools(self.REQUIRED_TOOLS)
         try:
             yield
         finally:
