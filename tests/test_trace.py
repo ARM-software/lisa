@@ -26,7 +26,7 @@ import pytest
 
 from devlib.target import KernelVersion
 
-from lisa.trace import Trace, TxtTraceParser, TaskID
+from lisa.trace import Trace, TxtTraceParser, TaskID, MockTraceParser
 from lisa.datautils import df_squash
 from lisa.platforms.platinfo import PlatformInfo
 from .utils import StorageTestCase, ASSET_DIR
@@ -468,5 +468,30 @@ class TestTraceNoPlatform(TestTrace):
 
     def _get_plat_info(self, trace_name=None):
         return None
+
+class TestMockTraceParser(TestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        dfs = {
+            'sched_wakeup': pd.DataFrame.from_records(
+                [
+                    (0, 1, 1, 'task1', 'task1', 1, 1, 1),
+                    (1, 2, 1, 'task1', 'task1', 1, 1, 2),
+                    (2, 4, 2, 'task2', 'task2', 2, 1, 4),
+                ],
+                columns=('Time', '__cpu', '__pid', '__comm', 'comm', 'pid', 'prio', 'target_cpu'),
+                index='Time',
+            ),
+        }
+        self.trace = Trace(parser=MockTraceParser(dfs, time_range=(0, 42)))
+
+    def test_df_event(self):
+        df = self.trace.df_event('sched_wakeup')
+        assert not df.empty
+        assert 'target_cpu' in df.columns
+
+    def test_time_range(self):
+        assert self.trace.start == 0
+        assert self.trace.end == 42
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
