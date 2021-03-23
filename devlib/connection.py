@@ -105,12 +105,20 @@ class BackgroundCommand(ABC):
         """
         self.send_signal(signal.SIGKILL)
 
-    @abstractmethod
     def cancel(self, kill_timeout=_KILL_TIMEOUT):
         """
         Try to gracefully terminate the process by sending ``SIGTERM``, then
         waiting for ``kill_timeout`` to send ``SIGKILL``.
         """
+        if self.poll() is None:
+            self._cancel(kill_timeout=kill_timeout)
+
+    @abstractmethod
+    def _cancel(self, kill_timeout):
+        """
+        Method to override in subclasses to implement :meth:`cancel`.
+        """
+        pass
 
     @abstractmethod
     def wait(self):
@@ -209,11 +217,11 @@ class PopenBackgroundCommand(BackgroundCommand):
     def poll(self):
         return self.popen.poll()
 
-    def cancel(self, kill_timeout=_KILL_TIMEOUT):
+    def _cancel(self, kill_timeout):
         popen = self.popen
         os.killpg(os.getpgid(popen.pid), signal.SIGTERM)
         try:
-            popen.wait(timeout=_KILL_TIMEOUT)
+            popen.wait(timeout=kill_timeout)
         except subprocess.TimeoutExpired:
             os.killpg(os.getpgid(popen.pid), signal.SIGKILL)
 
@@ -266,7 +274,7 @@ class ParamikoBackgroundCommand(BackgroundCommand):
         else:
             return None
 
-    def cancel(self, kill_timeout=_KILL_TIMEOUT):
+    def _cancel(self, kill_timeout):
         self.send_signal(signal.SIGTERM)
         # Check if the command terminated quickly
         time.sleep(10e-3)
@@ -340,10 +348,10 @@ class AdbBackgroundCommand(BackgroundCommand):
     def poll(self):
         return self.adb_popen.poll()
 
-    def cancel(self, kill_timeout=_KILL_TIMEOUT):
+    def _cancel(self, kill_timeout):
         self.send_signal(signal.SIGTERM)
         try:
-            self.adb_popen.wait(timeout=_KILL_TIMEOUT)
+            self.adb_popen.wait(timeout=kill_timeout)
         except subprocess.TimeoutExpired:
             self.send_signal(signal.SIGKILL)
             self.adb_popen.kill()
@@ -436,7 +444,7 @@ class TransferManagerBase(ABC):
             self.transfer_started.clear()
             self.transfer_completed.clear()
             self.transfer_aborted.clear()
-    
+
     def _monitor(self):
         start_t = monotonic()
         self.transfer_completed.wait(self.start_transfer_poll_delay)
@@ -470,7 +478,7 @@ class PopenTransferManager(TransferManagerBase):
     def set_transfer_and_wait(self, popen_bg_cmd):
         self.transfer = popen_bg_cmd
         ret = self.transfer.wait()
-      
+
         if ret and not self.transfer_aborted.is_set():
             raise subprocess.CalledProcessError(ret, self.transfer.popen.args)
         elif self.transfer_aborted.is_set():
