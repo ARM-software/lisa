@@ -50,7 +50,7 @@ import pyarrow.lib
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.generic import TypedList
 from lisa.datautils import df_window, df_window_signals, SignalDesc, df_add_delta, series_convert, df_deduplicate, df_update_duplicates
@@ -171,7 +171,7 @@ class MissingMetadataError(KeyError):
         return f'Missing metadata: {self.metadata}'
 
 
-class TraceParserBase(abc.ABC, Loggable):
+class TraceParserBase(abc.ABC, Loggable, PartialInit):
     """
     Abstract Base Class for trace parsers.
 
@@ -183,7 +183,7 @@ class TraceParserBase(abc.ABC, Loggable):
     :type needed_metadata: collections.abc.Iterable(str)
     """
 
-    def __init__(self, events, needed_metadata):
+    def __init__(self, events, needed_metadata=None):
         # pylint: disable=unused-argument
         self._needed_metadata = set(needed_metadata or [])
 
@@ -728,7 +728,8 @@ class TxtTraceParserBase(TraceParserBase):
         return (default_event_parser_cls, event_parsers)
 
 
-    @classmethod
+    @PartialInit.factory
+    @kwargs_forwarded_to(__init__, ignore=['lines'])
     def from_string(cls, txt, **kwargs):
         """
         Build an instance from a single multiline string.
@@ -746,7 +747,8 @@ class TxtTraceParserBase(TraceParserBase):
 
         return cls(lines=txt.splitlines(), **kwargs)
 
-    @classmethod
+    @PartialInit.factory
+    @kwargs_forwarded_to(__init__, ignore=['lines'])
     def from_txt_file(cls, path, **kwargs):
         """
         Build an instance from a path to a text file.
@@ -1416,7 +1418,8 @@ class TxtTraceParser(TxtTraceParserBase):
         ),
     }
 
-    @classmethod
+    @PartialInit.factory
+    @kwargs_forwarded_to(TxtTraceParserBase.__init__, ignore=['lines'])
     def from_dat(cls, path, events, needed_metadata=None, event_parsers=None, default_event_parser_cls=None, **kwargs):
         """
         Build an instance from a path to a trace.dat file created with
@@ -1600,8 +1603,8 @@ class SimpleTxtTraceParser(TxtTraceParserBase):
     .. note:: It must *not* capture the event fields, as it will be
         concatenated with the field regex of each event to parse full lines.
     """
-
-    def __init__(self, lines, events=None, event_parsers=None, header_regex=None, **kwargs):
+    @kwargs_forwarded_to(TxtTraceParserBase.__init__, ignore=['default_event_parser_cls'])
+    def __init__(self, header_regex=None, **kwargs):
         header_regex = header_regex or self.HEADER_REGEX
         self.header_regex = header_regex
 
@@ -1628,9 +1631,6 @@ class SimpleTxtTraceParser(TxtTraceParserBase):
                     return super()._get_fields_regex(*args, **kwargs)
 
         super().__init__(
-            lines=lines,
-            events=events,
-            event_parsers=event_parsers,
             default_event_parser_cls=SimpleTxtEventParser,
             **kwargs,
         )
@@ -1711,6 +1711,7 @@ class MetaTxtTraceParser(SimpleTxtTraceParser):
         ),
     }
 
+    @kwargs_forwarded_to(SimpleTxtTraceParser.__init__)
     def __init__(self, *args, time, merged_df=None, **kwargs):
         self._time = time
         self._merged_df = merged_df
@@ -1781,7 +1782,8 @@ class SysTraceParser(HRTxtTraceParser):
         field regex.
     """
 
-    @classmethod
+    @PartialInit.factory
+    @wraps(HRTxtTraceParser.from_txt_file)
     def from_html(cls, *args, **kwargs):
         return super().from_txt_file(*args, **kwargs)
 
@@ -1795,8 +1797,9 @@ class TrappyTraceParser(TraceParserBase):
         compatibility with :mod:`trappy` is needed for one reason or another.
     """
 
-    def __init__(self, path, events, needed_metadata=None, trace_format=None):
-        super().__init__(events, needed_metadata=needed_metadata)
+    @kwargs_forwarded_to(TraceParserBase.__init__)
+    def __init__(self, path, events, trace_format=None, **kwargs):
+        super().__init__(events=events, **kwargs)
 
         # Lazy import so that it's not a required dependency
         import trappy # pylint: disable=import-outside-toplevel,import-error
@@ -3082,13 +3085,14 @@ class Trace(Loggable, TraceBase):
     :param parser: Optional trace parser to use as a backend. It must
         implement the API defined by :class:`TraceParserBase`, and will be
         called as ``parser(path=trace_path, events=events,
-        needed_metadata={'time-range', ...})`` with the events that should be parsed.
-        Other parameters must either have default values, or be pre-assigned
-        using :func:`functools.partial`.
-        By default, ``.txt`` files will be assumed to be in human-readable
-        format output directly by the kernel (or ``trace-cmd report`` without
-        ``-R``). Support for this format is limited and some events might not
-        be parsed correctly (or at least without custom event parsers).
+        needed_metadata={'time-range', ...})`` with the events that should be
+        parsed. Other parameters must either have default values, or be
+        pre-assigned using partially-applied constructor (for subclasses of
+        :class:`lisa.utils.PartialInit`) or :func:`functools.partial`. By
+        default, ``.txt`` files will be assumed to be in human-readable format
+        output directly by the kernel (or ``trace-cmd report`` without ``-R``).
+        Support for this format is limited and some events might not be parsed
+        correctly (or at least without custom event parsers).
     :type parser: object or None
 
     :param plots_dir: directory where to save plots
@@ -3159,8 +3163,6 @@ class Trace(Loggable, TraceBase):
         Custom event parsers can be passed as extra parameters to the parser,
         which can be set manually::
 
-            from functools import partial
-
             # Event parsers provided by TxtTraceParser can also be overridden
             # with user-provided ones in case they fail to parse what a given
             # kernel produced
@@ -3174,12 +3176,12 @@ class Trace(Loggable, TraceBase):
             # Note: you need to choose the parser appropriately for the
             # format of the trace, since the automatic filetype detection is
             # bypassed.
-            parser = partial(TxtTraceParser.from_dat, event_parsers=event_parsers)
+            parser = TxtTraceParser.from_dat(event_parsers=event_parsers)
             trace = Trace('foobar.dat', parser=parser)
 
-        .. warning:: Custom event parsers that are not types (such as
-            :func:`functools.partial` values) will tie the on-disc swap entries
-            to the parser :class:`Trace` instance, incurring higher
+        .. warning:: Custom event parsers that are not types or functions (such
+            as partially-applied values) will tie the on-disc swap entries to
+            the parser :class:`Trace` instance, incurring higher
             :class:`pandas.DataFrame` load time when a new :class:`Trace`
             object is created.
     """
