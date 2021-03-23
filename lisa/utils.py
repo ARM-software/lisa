@@ -1605,11 +1605,18 @@ def kwargs_forwarded_to(f, ignore=None):
             if param.kind != param.VAR_KEYWORD
         ]
 
+        def get_sig(f):
+            # If this is a method, we need to bind it to something to get rid
+            # of the "self" parameter.
+            if isinstance(f, UnboundMethodType):
+                f = f.__get__(0)
+            return inspect.signature(f)
+
         # Expand all of f's parameters as keyword-only parameters, since the
         # function expects them to be fed through **kwargs
         extra_params = [
             param.replace(kind=inspect.Parameter.KEYWORD_ONLY)
-            for param in inspect.signature(f).parameters.values()
+            for param in get_sig(f).parameters.values()
             if (
                 param.kind not in (
                     param.VAR_POSITIONAL,
