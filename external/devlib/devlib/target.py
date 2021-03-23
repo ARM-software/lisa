@@ -536,10 +536,7 @@ class Target(object):
 
     # execution
 
-    def execute(self, command, timeout=None, check_exit_code=True,
-                as_root=False, strip_colors=True, will_succeed=False,
-                force_locale='C'):
-
+    def _prepare_cmd(self, command, force_locale):
         # Force the locale if necessary for more predictable output
         if force_locale:
             # Use an explicit export so that the command is allowed to be any
@@ -550,11 +547,20 @@ class Target(object):
         if self.executables_directory:
             command = "export PATH={}:$PATH && {}".format(quote(self.executables_directory), command)
 
+        return command
+
+    def execute(self, command, timeout=None, check_exit_code=True,
+                as_root=False, strip_colors=True, will_succeed=False,
+                force_locale='C'):
+
+        command = self._prepare_cmd(command, force_locale)
         return self.conn.execute(command, timeout=timeout,
                 check_exit_code=check_exit_code, as_root=as_root,
                 strip_colors=strip_colors, will_succeed=will_succeed)
 
-    def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
+    def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False,
+                   force_locale='C'):
+        command = self._prepare_cmd(command, force_locale)
         return self.conn.background(command, stdout, stderr, as_root)
 
     def invoke(self, binary, args=None, in_directory=None, on_cpus=None,
