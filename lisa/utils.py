@@ -90,6 +90,51 @@ terminator.
 """
 
 
+class _UnboundMethodTypeMeta(type):
+    def __instancecheck__(cls, obj):
+        try:
+            qualname = obj.__qualname__
+        except AttributeError:
+            return False
+        else:
+            # Get the rightmost group, in case the callable has been defined in
+            # a function
+            qualname = qualname.rsplit('<locals>.', 1)[-1]
+
+            # Dots in the qualified name means this function has been defined
+            # in a class. This could also happen for closures, and they would
+            # get "<locals>." somewhere in their name, but we handled that
+            # already.
+            return '.' in qualname
+
+
+class UnboundMethodType(metaclass=_UnboundMethodTypeMeta):
+    """
+    Dummy class to be used to check if a function is a method defined in a
+    class or not::
+
+        class C:
+            def f(self):
+                ...
+            @classmethod
+            def f_class(cls):
+                ...
+
+            @staticmethod
+            def f_static():
+                ...
+
+        def g():
+            ...
+
+        assert     isinstance(C.f,        UnboundMethodType)
+        assert     isinstance(C.f_class,  UnboundMethodType)
+        assert     isinstance(C.f_static, UnboundMethodType)
+        assert not isinstance(g,          UnboundMethodType)
+    """
+    pass
+
+
 class Loggable:
     """
     A simple class for uniformly named loggers
@@ -364,7 +409,7 @@ def lru_memoized(first_param_maxsize=None, other_params_maxsize=1024):
     :func:`functools.lru_cache`
 
     :param first_param_maxsize: Maximum number of cached values for the first
-        parameter.
+        parameter, if the decorated function is a method.
     :type first_param_maxsize: int or None
 
     :param other_params_maxsize: Maximum number of cached combinations of all
@@ -372,9 +417,9 @@ def lru_memoized(first_param_maxsize=None, other_params_maxsize=1024):
     :type other_params_maxsize: int or None
 
     .. note:: The first parameter of the callable is cached with a weak
-        reference. This suits well the method use-case, since we don't want the
-        memoization of methods to prevent garbage collection of the instances
-        they are bound to.
+        reference when the function is a method. This suits well the method
+        use-case, since we don't want the memoization of methods to prevent
+        garbage collection of the instances they are bound to.
     """
     def decorator(f):
         @_lru_memoized(
@@ -413,7 +458,7 @@ def _lru_memoized(first_param_maxsize, other_params_maxsize, sig_f):
             return functools.lru_cache(maxsize=other_params_maxsize, typed=True)(f)
 
         # We need at least one positional parameter for the WeakKeyDictionary
-        if sig.parameters:
+        if sig.parameters and isinstance(sig_f, UnboundMethodType):
             cache_map = WeakKeyDictionary()
             insertion_counter = 0
             insertion_order = WeakKeyDictionary()
@@ -3042,48 +3087,5 @@ class PartialInit(metaclass=_PartialInitMeta):
 
         super().__init_subclass__(*args, **kwargs)
 
-
-class _UnboundMethodTypeMeta(type):
-    def __instancecheck__(cls, obj):
-        try:
-            qualname = obj.__qualname__
-        except AttributeError:
-            return False
-        else:
-            # Get the rightmost group, in case the callable has been defined in
-            # a function
-            qualname = qualname.rsplit('<locals>.', 1)[-1]
-
-            # Dots in the qualified name means this function has been defined
-            # in a class. This could also happen for closures, and they would
-            # get "<locals>." somewhere in their name, but we handled that
-            # already.
-            return '.' in qualname
-
-class UnboundMethodType(metaclass=_UnboundMethodTypeMeta):
-    """
-    Dummy class to be used to check if a function is a method defined in a
-    class or not::
-
-        class C:
-            def f(self):
-                ...
-            @classmethod
-            def f_class(cls):
-                ...
-
-            @staticmethod
-            def f_static():
-                ...
-
-        def g():
-            ...
-
-        assert     isinstance(C.f,        UnboundMethodType)
-        assert     isinstance(C.f_class,  UnboundMethodType)
-        assert     isinstance(C.f_static, UnboundMethodType)
-        assert not isinstance(g,          UnboundMethodType)
-    """
-    pass
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
