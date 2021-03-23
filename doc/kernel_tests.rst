@@ -264,13 +264,13 @@ Sanity tests
 Hotplug tests
 +++++++++++++
 
-.. inheritance-diagram:: lisa.tests.hotplug.torture
+.. inheritance-diagram:: lisa.tests.hotplug
    :top-classes: lisa.tests.base.TestBundleBase
    :parts: 1
 
 |
 
-.. automodule:: lisa.tests.hotplug.torture
+.. automodule:: lisa.tests.hotplug
    :members:
 
 Cpufreq tests
