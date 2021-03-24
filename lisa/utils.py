@@ -2039,17 +2039,18 @@ def kwargs_dispatcher(f_map, ignore=None, allow_overlap=True):
                 for param in params
             ]
 
+            def unify(params, attr):
+                first, *others = list(map(attrgetter(attr), params))
+                if all(x == first for x in others):
+                    return first
+                else:
+                    return None
+
             # If they all share the same default (could be "param.empty"), use
             # it, otherwise use None
-            first, *others = list(map(attrgetter('default'), params))
-            if all(x == first for x in others):
-                default = first
-            else:
-                default = None
-
             param = params[0].replace(
-                default=default,
-                annotation=inspect.Parameter.empty,
+                default=unify(params, 'default'),
+                annotation=unify(params, 'annotation'),
             )
             return param
 
