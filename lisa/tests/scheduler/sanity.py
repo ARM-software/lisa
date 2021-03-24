@@ -38,7 +38,7 @@ class CapacitySanity(TestBundle):
         self.capacity_work = capacity_work
 
     @classmethod
-    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None) -> 'CapacitySanity':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, collector=None) -> 'CapacitySanity':
         """
         :meta public:
 
@@ -50,7 +50,8 @@ class CapacitySanity(TestBundle):
             cpu_capacities = target.sched.get_capacities()
             capa_work = {capa: sys.maxsize for capa in list(cpu_capacities.values())}
             for cpu in list(cpu_capacities.keys()):
-                output = sysbench(cpus=[cpu], max_duration_s=1).run()
+                with collector:
+                    output = sysbench(cpus=[cpu], max_duration_s=1).run()
                 # We could save the work done on each CPU, but we can make
                 # things simpler and just store the smallest amount of work done
                 # per capacity value.

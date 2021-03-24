@@ -23,12 +23,11 @@ import re
 import os.path
 from pathlib import Path
 
-from exekall.utils import get_name, get_method_class, add_argument, NoValue, flatten_seq
+from exekall.utils import get_name, add_argument, NoValue, flatten_seq
 from exekall.engine import ExprData, Consumer, PrebuiltOperator
 from exekall.customization import AdaptorBase
 
 from lisa.target import Target, TargetConf
-from lisa.trace import FtraceCollector, FtraceConf
 from lisa.utils import HideExekallID, ArtifactPath, Serializable, get_nested_key, ExekallTaggable
 from lisa.conf import MultiSrcConf
 from lisa.tests.base import TestBundle, ResultBundleBase, Result
@@ -62,32 +61,6 @@ class ExekallArtifactPath(ArtifactPath, NonReusable):
         root = data['artifact_dir']
         relative = artifact_dir.relative_to(root)
         return cls(root, relative)
-
-
-class ExekallFtraceCollector(FtraceCollector, HideExekallID):
-    @staticmethod
-    def _get_consumer_conf(consumer):
-        attr = 'ftrace_conf'
-        consumer_cls = get_method_class(consumer)
-        conf = getattr(consumer_cls, attr, FtraceConf())
-        # This is not strictly speaking forbidden but in the current situation,
-        # there is no legitimate use case where it could happen, and it is very
-        # likely that it comes from a design issue in the class
-        if not conf['events'] and issubclass(consumer_cls, TestBundle):
-            raise ValueError(f"Empty events list in {consumer_cls.__qualname__}.{attr}")
-        return conf
-
-    @classmethod
-    def from_user_conf(cls, target: Target, consumer: Consumer, user_conf: FtraceConf = None) -> 'ExekallFtraceCollector':
-        base_conf = cls._get_consumer_conf(consumer)
-        consumer_cls = get_method_class(consumer)
-        merged_src = f'user+{consumer_cls.__qualname__}'
-
-        return super().from_user_conf(
-            target,
-            base_conf, user_conf,
-            merged_src=merged_src
-        )
 
 
 class LISAAdaptor(AdaptorBase):

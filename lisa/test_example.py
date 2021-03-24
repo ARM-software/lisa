@@ -59,7 +59,7 @@ class ExampleTestBundle(RTATestBundle):
         self.shell_output = shell_output
 
     @classmethod
-    def _from_target(cls, target: Target, *, res_dir: ArtifactPath, ftrace_coll: FtraceCollector = None) -> 'ExampleTestBundle':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath, collector=None) -> 'ExampleTestBundle':
         """
         :meta public:
 
@@ -69,6 +69,15 @@ class ExampleTestBundle(RTATestBundle):
         :class:`lisa.target.Target` object. It can be used to manipulate a
         remote device such as a development board, to run workloads on it,
         manipulate sysfs entries and so on.
+
+        The ``collector`` parameter is a context manager to be used once around
+        while running the workload. It is created "magically": it's filled
+        automatically by the :class:`lisa.tests.base.TestBundleMeta` machinery,
+        based on the mixin base classes. For example, inheriting from
+        :class:`lisa.tests.base.DmesgTestBundle` and
+        :class:`lisa.tests.base.FtraceTestBundle` will lead to getting a
+        :class:`lisa.trace.ComposedCollector` that saves both an ftrace trace
+        and dmesg log.
 
         **All other parameters are keyword-only**
         This means they must appear after the lone ``*`` in the parameter list.
@@ -112,7 +121,7 @@ class ExampleTestBundle(RTATestBundle):
             # RTATestBundle.run_rtapp()
             # https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/kernel_tests.html#lisa.tests.base.RTATestBundle.run_rtapp
             #
-            # It allows running the rt-app profile on the target. ftrace_coll
+            # It allows running the rt-app profile on the target. "collector"
             # is the object used to control the recording of the trace, and is
             # setup by the test runner. This allows the final user to extend
             # the list of ftrace events collected. If no collector is provided,
@@ -121,7 +130,7 @@ class ExampleTestBundle(RTATestBundle):
             # ExampleTestBundle. Note that it will also freeze all the tasks on
             # the target device, so that the scheduler signals are not
             # disturbed. Some critical tasks are not frozen though.
-            cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
+            cls.run_rtapp(target, res_dir, rtapp_profile, collector=collector)
 
         # Execute a silly shell command on the target device as well
         output = target.execute('echo $((21+21))').split()
@@ -181,7 +190,7 @@ class ExampleTestBundle(RTATestBundle):
 
     # ftrace events necessary for that test method to run must be specified here.
     # This information will be used in a number of places:
-    # * To build the ExampleTestBundle.ftrace_conf attribute, which is then used by RTATestBundle.run_rtapp()
+    # * To build the ExampleTestBundle.FTRACE_CONF attribute, which is then used by RTATestBundle.run_rtapp()
     # * To parse the ftrace trace
     # * In the Sphinx documentation.
     # * To check that the events are available in the trace. A clear exception

@@ -24,7 +24,7 @@ import pandas as pd
 from lisa.wlgen.rta import DutyCycleSweepPhase
 from lisa.tests.base import ResultBundle, Result, RTATestBundle
 from lisa.target import Target
-from lisa.trace import requires_events, FtraceCollector
+from lisa.trace import requires_events
 from lisa.datautils import df_merge, series_mean
 from lisa.utils import ArtifactPath
 
@@ -281,7 +281,7 @@ class LargeStepUp(RampBoostTestBase):
         return self.get_rtapp_profile(self.plat_info, cpu=self.cpu, nr_steps=self.nr_steps)
 
     @classmethod
-    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None, cpu=None, nr_steps=1) -> 'LargeStepUp':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, collector=None, cpu=None, nr_steps=1) -> 'LargeStepUp':
         plat_info = target.plat_info
 
         # Use a big CPU by default to allow maximum range of utilization
@@ -293,7 +293,7 @@ class LargeStepUp(RampBoostTestBase):
         # boards. This helps having predictable execution.
         with target.disable_idle_states():
             with target.cpufreq.use_governor("schedutil"):
-                cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
+                cls.run_rtapp(target, res_dir, rtapp_profile, collector=collector)
 
         return cls(res_dir, plat_info, cpu, nr_steps)
 

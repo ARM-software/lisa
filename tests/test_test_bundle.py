@@ -39,8 +39,9 @@ class DummyTestBundle(TestBundle):
         self.shell_output = shell_output
 
     @classmethod
-    def _from_target(cls, target, *, res_dir) -> 'DummyTestBundle':
-        output = target.execute('echo $((21+21))').split()
+    def _from_target(cls, target, *, res_dir, collector=None) -> 'DummyTestBundle':
+        with collector:
+            output = target.execute('echo $((21+21))').split()
         return cls(res_dir, output)
 
     def test_output(self):
