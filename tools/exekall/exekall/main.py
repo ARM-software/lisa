@@ -654,6 +654,13 @@ def do_run(args, parser, run_parser, argv):
 
     import_error_code = 1
 
+    saved_exceps = []
+    def save_excep(mod, e):
+        # Things that don't end in .py are unlikely to be expected to contain
+        # Python code
+        if mod.endswith('.py'):
+            saved_exceps.append((mod, e))
+
     module_set = set()
     for path in args.python_files:
         try:
@@ -663,7 +670,24 @@ def do_run(args, parser, run_parser, argv):
         except Exception:
             pass
         else:
-            module_set.update(imported)
+            if imported:
+                module_set.update(imported)
+            else:
+                utils.import_modules([path], excep_handler=save_excep)
+
+    # If we could not import anything, something likely went wrong and
+    # displaying exceptions could be valuable
+    if not module_set and saved_exceps:
+        error(
+            'Could not import any module:\n{}'.format(
+                '\n'.join(
+                    f'{mod}:\n{utils.format_exception(e)}'
+                    for mod, e in saved_exceps
+                )
+            )
+        )
+        return import_error_code
+
 
     # Look for a customization submodule in one of the parent packages of the
     # modules we specified on the command line.
@@ -682,6 +706,7 @@ def do_run(args, parser, run_parser, argv):
             raise RuntimeError(f'Adaptor "{adaptor_name}" cannot be found')
         else:
             raise RuntimeError('No adaptor was found')
+
     # Add all the CLI arguments of the adaptor before reparsing the
     # command line.
     # adaptor_group = utils.create_adaptor_parser_group(run_parser, adaptor_cls)
