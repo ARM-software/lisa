@@ -3091,4 +3091,51 @@ class PartialInit(metaclass=_PartialInitMeta):
         super().__init_subclass__(*args, **kwargs)
 
 
+class ComposedContextManager:
+    """
+    Compose context managers together.
+
+    :param cms: Context manager factories to compose.
+        Each item can either be a context manager already, or a function that
+        will be called to produce one.
+    :type cms: list(contextlib.AbstractContextManager or collections.abc.Callable)
+
+    **Example**::
+
+        with ComposedContextManager([cm1, cm2]):
+            ...
+
+        # Equivalent to
+        with cm1() as _cm1:
+            with cm2() as _cm2:
+                ...
+    """
+    def __init__(self, cms):
+        # Make sure to use a wrapper here so that "cm" is bound to a fixed
+        # value in the lambda
+        def get_cm(cm):
+            if isinstance(cm, contextlib.AbstractContextManager):
+                return lambda: cm
+            else:
+                return cm
+        self._cms = list(map(get_cm, cms))
+        self._stack = None
+
+    def __enter__(self):
+        stack = contextlib.ExitStack()
+        stack.__enter__()
+        try:
+            for cm in self._cms:
+                stack.enter_context(cm())
+        except BaseException:
+            if not stack.__exit__(*sys.exc_info()):
+                raise
+        else:
+            self._stack = stack
+            return self
+
+    def __exit__(self, *args, **kwargs):
+        return self._stack.__exit__(*args, **kwargs)
+
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
