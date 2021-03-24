@@ -50,7 +50,7 @@ import pyarrow.lib
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.generic import TypedList
 from lisa.datautils import df_window, df_window_signals, SignalDesc, df_add_delta, series_convert, df_deduplicate, df_update_duplicates
@@ -5167,8 +5167,9 @@ class CollectorBase(Loggable):
     Sequence of tools to install on the target when using the collector.
     """
 
-    def __init__(self, collector):
+    def __init__(self, collector, output_path=None):
         self._collector = collector
+        self._output_path = output_path
         self._install_tools(collector.target)
 
     # Run once for each instance
@@ -5180,10 +5181,18 @@ class CollectorBase(Loggable):
         return getattr(self._collector, attr)
 
     def __enter__(self):
-        return self._collector.__enter__()
+        self._collector.__enter__()
+        return self
 
     def __exit__(self, *args, **kwargs):
-        return self._collector.__exit__(*args, **kwargs)
+        # How did we get some coconuts ?
+        swallow = self._collector.__exit__(*args, **kwargs)
+
+        path = self._output_path
+        if path is not None:
+            self.get_data(path)
+
+        return swallow
 
     def get_data(self, path):
         """
@@ -5213,7 +5222,7 @@ class FtraceCollector(CollectorBase, Configurable):
     CONF_CLASS = FtraceConf
     TOOLS = ['trace-cmd']
 
-    def __init__(self, target, events=None, functions=None, buffer_size=10240, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, **kwargs):
+    def __init__(self, target, *, events=None, functions=None, buffer_size=10240, output_path=None, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, **kwargs):
         events = events or []
         functions = functions or []
         trace_clock = trace_clock or 'global'
@@ -5260,10 +5269,11 @@ class FtraceCollector(CollectorBase, Configurable):
             no_install=True,
             **kwargs
         )
-        super().__init__(collector)
+        super().__init__(collector, output_path=output_path)
 
     @classmethod
-    def from_conf(cls, target, conf):
+    @kwargs_forwarded_to(__init__)
+    def from_conf(cls, target, conf, **kwargs):
         """
         Build an :class:`FtraceCollector` from a :class:`FtraceConf`
 
@@ -5272,15 +5282,22 @@ class FtraceCollector(CollectorBase, Configurable):
 
         :param conf: Configuration object
         :type conf: FtraceConf
+
+        :Variable keyword arguments: Forwarded to ``__init__``.
         """
         cls.get_logger().info(f'Ftrace configuration:\n{conf}')
-        kwargs = cls.conf_to_init_kwargs(conf)
-        kwargs['target'] = target
-        cls.check_init_param(**kwargs)
-        return cls(**kwargs)
+        _kwargs = cls.conf_to_init_kwargs(conf)
+        _kwargs['target'] = target
+        _kwargs.update(kwargs)
+        cls.check_init_param(**_kwargs)
+        return cls(**_kwargs)
 
     @classmethod
-    def from_user_conf(cls, target, base_conf=None, user_conf=None, merged_src='merged'):
+    @kwargs_forwarded_to(
+        from_conf,
+        ignore=['conf']
+    )
+    def from_user_conf(cls, target, base_conf=None, user_conf=None, merged_src='merged', **kwargs):
         """
         Build an :class:`FtraceCollector` from two :class:`FtraceConf`.
 
@@ -5300,6 +5317,8 @@ class FtraceCollector(CollectorBase, Configurable):
         :param merged_src: Name of the configuration source created by merging
             ``base_conf`` and ``user_conf``
         :type merged_src: str
+
+        :Other keyword arguments: Forwarded to :meth:`from_conf`.
         """
         user_conf = user_conf or FtraceConf()
         base_conf = base_conf or FtraceConf()
@@ -5312,7 +5331,7 @@ class FtraceCollector(CollectorBase, Configurable):
             src=merged_src,
             conf=user_conf,
         )
-        return cls.from_conf(target, conf)
+        return cls.from_conf(target, conf, **kwargs)
 
 
 class DmesgCollector(CollectorBase):
@@ -5326,8 +5345,16 @@ class DmesgCollector(CollectorBase):
     TOOLS = ['dmesg']
     LOG_LEVELS = devlib.DmesgCollector.LOG_LEVELS
 
-    def __init__(self, target, **kwargs):
-        collector = devlib.DmesgCollector(target, **kwargs)
-        super().__init__(collector)
+    @kwargs_dispatcher(
+        {
+            CollectorBase: 'init_kwargs',
+            devlib.DmesgCollector: 'devlib_kwargs',
+        },
+        ignore=['collector'],
+    )
+    def __init__(self, target, init_kwargs, devlib_kwargs):
+        collector = devlib.DmesgCollector(**devlib_kwargs)
+        super().__init__(collector=collector, **init_kwargs)
+
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
