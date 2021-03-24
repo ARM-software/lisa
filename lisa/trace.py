@@ -36,7 +36,7 @@ import tempfile
 from functools import lru_cache, wraps
 from collections.abc import Set, Mapping, Sequence
 from collections import namedtuple
-from operator import itemgetter
+from operator import itemgetter, attrgetter
 from numbers import Number, Integral, Real
 import multiprocessing
 import textwrap
@@ -50,7 +50,7 @@ import pyarrow.lib
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa.generic import TypedList
 from lisa.datautils import df_window, df_window_signals, SignalDesc, df_add_delta, series_convert, df_deduplicate, df_update_duplicates
@@ -5167,6 +5167,17 @@ class CollectorBase(Loggable):
     Sequence of tools to install on the target when using the collector.
     """
 
+    NAME = None
+    """
+    Name of the collector class.
+    """
+
+    _COMPOSITION_ORDER = 0
+    """
+    Order in which context managers are composed. ``0`` will be used as the
+    innermost context manager.
+    """
+
     def __init__(self, collector, output_path=None):
         self._collector = collector
         self._output_path = output_path
@@ -5210,6 +5221,52 @@ class CollectorBase(Loggable):
         return self.get_data(path)
 
 
+class ComposedCollector(Mapping):
+    """
+    Compose multiple :class:`lisa.trace.CollectorBase` together.
+
+    When used as a context manager, collectors will be nested. Individual
+    collectors can be retrieved by using the instance as a mapping, using the
+    collectors' ``NAME`` attribute as key.
+
+    .. note:: Only one collector of each type is allowed. This allows:
+
+        * Getting back the collector instance using a fixed name.
+        * Some collectors like :class:`lisa.trace.DmesgCollector` are not
+          re-entrant
+    """
+
+    _COMPOSITION_ORDER = 100
+
+    def __init__(self, collectors):
+        collectors = list(collectors)
+        if len(set(map(attrgetter('NAME'), collectors))) != len(collectors):
+            raise ValueError('Collectors of the same type cannot be composed together')
+
+        collectors = {
+            c.NAME: c
+            for c in collectors
+        }
+        self._collectors = collectors
+        self._cm = ComposedContextManager(collectors.values())
+
+    def __enter__(self):
+        self._cm.__enter__()
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        return self._cm.__exit__(*args, **kwargs)
+
+    def __getitem__(self, key):
+        return self._collectors[key]
+
+    def __iter__(self):
+        return iter(self._collectors)
+
+    def __len__(self):
+        return len(self._collectors)
+
+
 class FtraceCollector(CollectorBase, Configurable):
     """
     Thin wrapper around :class:`devlib.collector.ftrace.FtraceCollector`.
@@ -5217,8 +5274,10 @@ class FtraceCollector(CollectorBase, Configurable):
     {configurable_params}
     """
 
+    NAME = 'ftrace'
     CONF_CLASS = FtraceConf
     TOOLS = ['trace-cmd']
+    _COMPOSITION_ORDER = 0
 
     def __init__(self, target, *, events=None, functions=None, buffer_size=10240, output_path=None, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, **kwargs):
         events = events or []
@@ -5340,8 +5399,11 @@ class DmesgCollector(CollectorBase):
     so we know what version is being is used.
     """
 
+    NAME = 'dmesg'
     TOOLS = ['dmesg']
     LOG_LEVELS = devlib.DmesgCollector.LOG_LEVELS
+
+    _COMPOSITION_ORDER = 10
 
     @kwargs_dispatcher(
         {
