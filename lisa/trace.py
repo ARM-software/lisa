@@ -5172,8 +5172,6 @@ class CollectorBase(Loggable):
         self._output_path = output_path
         self._install_tools(collector.target)
 
-    # Run once for each instance
-    @lru_cache(maxsize=None)
     def _install_tools(self, target):
         target.install_tools(self.TOOLS)
 
