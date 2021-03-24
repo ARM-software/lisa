@@ -1655,6 +1655,8 @@ def kwargs_forwarded_to(f, ignore=None):
             # of the "self" parameter.
             if isinstance(f, UnboundMethodType):
                 f = f.__get__(0)
+            elif isinstance(f, (classmethod, staticmethod)):
+                f = f.__func__
             return inspect.signature(f)
 
         # Expand all of f's parameters as keyword-only parameters, since the
