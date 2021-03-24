@@ -30,7 +30,6 @@ from devlib.exception import TargetNotRespondingError
 
 from lisa.tests.base import TestMetric, ResultBundle, DmesgTestBundle
 from lisa.target import Target
-from lisa.trace import DmesgCollector
 from lisa.utils import ArtifactPath
 
 
@@ -152,7 +151,7 @@ class HotplugBase(DmesgTestBundle):
     @classmethod
     def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, seed=None,
                      nr_operations=100, sleep_min_ms=10, sleep_max_ms=100,
-                     max_cpus_off=sys.maxsize) -> 'HotplugBase':
+                     max_cpus_off=sys.maxsize, collector=None) -> 'HotplugBase':
         """
         :param seed: Seed of the RNG used to create the hotplug sequences
         :type seed: int
@@ -194,9 +193,7 @@ class HotplugBase(DmesgTestBundle):
         # thread and keep polling the target
         thread = Thread(target=do_hotplug, daemon=True)
 
-        dmesg_path = ArtifactPath.join(res_dir, cls.DMESG_PATH)
-        dmesg_coll = DmesgCollector(target)
-        with dmesg_coll:
+        with collector:
             try:
                 thread.start()
                 while thread.is_alive():
@@ -210,8 +207,6 @@ class HotplugBase(DmesgTestBundle):
             finally:
                 target_alive = bool(target.check_responsive())
                 target.hotplug.online_all()
-
-        dmesg_coll.get_data(dmesg_path)
 
         live_cpus = target.list_online_cpus() if target_alive else []
         return cls(res_dir, target.plat_info, target_alive, hotpluggable_cpus, live_cpus)

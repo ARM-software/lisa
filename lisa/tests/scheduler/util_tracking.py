@@ -24,7 +24,7 @@ from lisa.tests.base import ResultBundle, RTATestBundle
 from lisa.target import Target
 from lisa.utils import ArtifactPath, memoized, namedtuple
 from lisa.wlgen.rta import RTAPhase, PeriodicWload, DutyCycleSweepPhase
-from lisa.trace import FtraceCollector, requires_events
+from lisa.trace import requires_events
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
@@ -39,9 +39,11 @@ class UtilTrackingBase(RTATestBundle, LoadTrackingHelpers):
     """
 
     @classmethod
-    def _from_target(cls, target: Target, *,
-                     res_dir: ArtifactPath = None,
-                     ftrace_coll: FtraceCollector = None) -> 'UtilTrackingBase':
+    def _from_target(cls,
+        target: Target, *,
+        res_dir: ArtifactPath = None,
+        collector=None,
+    ) -> 'UtilTrackingBase':
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
 
@@ -55,7 +57,7 @@ class UtilTrackingBase(RTATestBundle, LoadTrackingHelpers):
         # behaviour of the signal on running/not-running tasks.
         with target.disable_idle_states():
             with target.cpufreq.use_governor('performance'):
-                cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
+                cls.run_rtapp(target, res_dir, rtapp_profile, collector=collector)
 
         return cls(res_dir, plat_info)
 

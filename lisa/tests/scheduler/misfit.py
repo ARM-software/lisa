@@ -23,7 +23,7 @@ from devlib.module.sched import SchedDomain, SchedDomainFlag
 
 from lisa.utils import memoized, ArtifactPath
 from lisa.datautils import df_squash, df_add_delta
-from lisa.trace import Trace, FtraceConf, FtraceCollector, requires_events
+from lisa.trace import Trace, FtraceConf, requires_events
 from lisa.wlgen.rta import RTAPhase, RunWload, SleepWload
 from lisa.tests.base import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
 from lisa.target import Target

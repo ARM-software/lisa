@@ -21,7 +21,7 @@ import abc
 
 from lisa.wlgen.rta import RTAPhase, PeriodicWload
 from lisa.tests.base import TestBundle, ResultBundle, RTATestBundle, AggregatedResultBundle
-from lisa.trace import FtraceCollector, requires_events
+from lisa.trace import requires_events
 from lisa.target import Target
 from lisa.utils import ArtifactPath
 from lisa.analysis.frequency import FrequencyAnalysis
@@ -61,11 +61,11 @@ class SchedTuneItemBase(RTATestBundle):
     @classmethod
     # Not annotated, to prevent exekall from picking it up. See
     # SchedTuneBase.from_target
-    def _from_target(cls, target, *, res_dir, boost, prefer_idle, ftrace_coll=None):
+    def _from_target(cls, target, *, res_dir, boost, prefer_idle, collector=None):
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
         cgroup_config = cls.get_cgroup_configuration(plat_info, boost, prefer_idle)
-        cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll, cgroup_config)
+        cls.run_rtapp(target, res_dir, rtapp_profile, collector=collector, cg_cfg=cgroup_config)
 
         return cls(res_dir, plat_info, boost, prefer_idle)
 
@@ -86,17 +86,17 @@ class SchedTuneBase(TestBundle):
 
     @classmethod
     def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None,
-            ftrace_coll: FtraceCollector = None) -> 'SchedTuneBase':
+            collector=None) -> 'SchedTuneBase':
         """
         Creates a SchedTuneBase bundle from the target.
         """
         return cls(res_dir, target.plat_info,
-            list(cls._create_test_bundles(target, res_dir, ftrace_coll))
+            list(cls._create_test_bundles(target, res_dir, collector))
         )
 
     @classmethod
     @abc.abstractmethod
-    def _create_test_bundles(cls, target, res_dir, ftrace_coll):
+    def _create_test_bundles(cls, target, res_dir, collector):
         """
         Collects and yields a :class:`lisa.tests.base.ResultBundle` per test
         item.
@@ -104,7 +104,7 @@ class SchedTuneBase(TestBundle):
         pass
 
     @classmethod
-    def _create_test_bundle_item(cls, target, res_dir, ftrace_coll, item_cls,
+    def _create_test_bundle_item(cls, target, res_dir, collector, item_cls,
                                  boost, prefer_idle):
         """
         Creates and returns a TestBundle for a given item class, and a given
@@ -119,7 +119,7 @@ class SchedTuneBase(TestBundle):
             boost=boost,
             prefer_idle=prefer_idle,
             res_dir=item_dir,
-            ftrace_coll=ftrace_coll
+            collector=collector,
         )
 
 
@@ -214,12 +214,12 @@ class SchedTuneFrequencyTest(SchedTuneBase):
     """
 
     # Make sure exekall will always collect all events required by items
-    ftrace_conf = SchedTuneFreqItem.ftrace_conf
+    ftrace_conf = SchedTuneFreqItem.FTRACE_CONF
 
     @classmethod
-    def _create_test_bundles(cls, target, res_dir, ftrace_coll):
+    def _create_test_bundles(cls, target, res_dir, collector):
         for boost in range(20, 101, 20):
-            yield cls._create_test_bundle_item(target, res_dir, ftrace_coll,
+            yield cls._create_test_bundle_item(target, res_dir, collector,
                     SchedTuneFreqItem, boost, False)
 
     def test_stune_frequency(self, freq_margin_pct=10) -> AggregatedResultBundle:
@@ -293,13 +293,13 @@ class SchedTunePlacementTest(SchedTuneBase):
     """
 
     # Make sure exekall will always collect all events required by items
-    ftrace_conf = SchedTunePlacementItem.ftrace_conf
+    ftrace_conf = SchedTunePlacementItem.FTRACE_CONF
 
     @classmethod
-    def _create_test_bundles(cls, target, res_dir, ftrace_coll):
+    def _create_test_bundles(cls, target, res_dir, collector):
         # Typically top-app tasks are boosted by 10%, or 50% during touchboost
         for boost in [10, 50]:
-            yield cls._create_test_bundle_item(target, res_dir, ftrace_coll,
+            yield cls._create_test_bundle_item(target, res_dir, collector,
                     SchedTunePlacementItem, boost, True)
 
     def test_stune_task_placement(self, margin_pct=10) -> AggregatedResultBundle:

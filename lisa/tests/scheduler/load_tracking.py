@@ -27,10 +27,10 @@ from lisa.tests.base import (
     RTATestBundle, CannotCreateError
 )
 from lisa.target import Target
-from lisa.utils import ArtifactPath, groupby, ExekallTaggable, add, memoized
+from lisa.utils import ArtifactPath, groupby, ExekallTaggable, add, memoized, kwargs_forwarded_to
 from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_refit_index, df_split_signals, df_refit_index, series_dereference
 from lisa.wlgen.rta import RTA, RTAPhase, PeriodicWload
-from lisa.trace import FtraceCollector, requires_events, may_use_events, MissingTraceEventError
+from lisa.trace import requires_events, may_use_events, MissingTraceEventError
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
@@ -133,7 +133,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
     """
 
     @classmethod
-    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None) -> 'LoadTrackingBase':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, collector=None) -> 'LoadTrackingBase':
         plat_info = target.plat_info
         rtapp_profile = cls.get_rtapp_profile(plat_info)
 
@@ -147,7 +147,12 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
         # behaviour of the signal on running/not-running tasks.
         with target.disable_idle_states():
             with target.cpufreq.use_governor(**cls.cpufreq_conf):
-                cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
+                cls.run_rtapp(
+                    target=target,
+                    res_dir=res_dir,
+                    profile=rtapp_profile,
+                    collector=collector
+                )
 
         return cls(res_dir, plat_info)
 
@@ -239,7 +244,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         }
 
     @classmethod
-    def _from_target(cls, target: Target, *, cpu: int, freq: int, freq_list=None, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None) -> 'InvarianceItem':
+    def _from_target(cls, target: Target, *, cpu: int, freq: int, freq_list=None, res_dir: ArtifactPath = None, collector=None) -> 'InvarianceItem':
         """
         :meta public:
 
@@ -258,7 +263,12 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         with target.cpufreq.use_governor(**cls.cpufreq_conf):
             target.cpufreq.set_frequency(cpu, freq)
             logger.debug(f'CPU{cpu} frequency: {target.cpufreq.get_frequency(cpu)}')
-            cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll)
+            cls.run_rtapp(
+                target=target,
+                res_dir=res_dir,
+                profile=rtapp_profile,
+                collector=collector
+            )
 
         freq_list = freq_list or [freq]
         return cls(res_dir, plat_info, cpu, freq, freq_list)
@@ -530,7 +540,7 @@ class Invariance(TestBundle, LoadTrackingHelpers):
 
     # Make sure ftrace_conf is available so exekall can find the right settings
     # when building the FtraceCollector
-    ftrace_conf = InvarianceItem.ftrace_conf
+    ftrace_conf = InvarianceItem.FTRACE_CONF
 
     NR_FREQUENCIES = 8
     """
@@ -543,12 +553,14 @@ class Invariance(TestBundle, LoadTrackingHelpers):
         self.invariance_items = invariance_items
 
     @classmethod
-    def _build_invariance_items(cls, target, res_dir, ftrace_coll):
+    def _build_invariance_items(cls, target, res_dir, **kwargs):
         """
         Yield a :class:`InvarianceItem` for a subset of target's
         frequencies, for one CPU of each capacity class.
 
         This is a generator function.
+
+        :Variable keyword arguments: Forwarded to :meth:`InvarianceItem.from_target`
 
         :rtype: Iterator[:class:`InvarianceItem`]
         """
@@ -615,17 +627,29 @@ class Invariance(TestBundle, LoadTrackingHelpers):
 
                 logger.info(f'Running experiment for CPU {cpu}@{freq}')
                 yield InvarianceItem.from_target(
-                    target, cpu=cpu, freq=freq, freq_list=all_freqs, res_dir=item_dir,
-                    ftrace_coll=ftrace_coll,
+                    target,
+                    cpu=cpu,
+                    freq=freq,
+                    freq_list=all_freqs,
+                    res_dir=item_dir,
+                    **kwargs,
                 )
 
     def iter_invariance_items(self) -> InvarianceItem:
         yield from self.invariance_items
 
     @classmethod
-    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None) -> 'Invariance':
+    @kwargs_forwarded_to(
+        InvarianceItem._from_target,
+        ignore=[
+            'cpu',
+            'freq',
+            'freq_list',
+        ]
+    )
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, collector=None, **kwargs) -> 'Invariance':
         return cls(res_dir, target.plat_info,
-            list(cls._build_invariance_items(target, res_dir, ftrace_coll))
+            list(cls._build_invariance_items(target, res_dir, **kwargs))
         )
 
     def get_trace(self, cpu, freq):
@@ -817,14 +841,14 @@ class CPUMigrationBase(LoadTrackingBase):
         pass
 
     @classmethod
-    def run_rtapp(cls, target, res_dir, profile, ftrace_coll, cgroup=None):
+    def run_rtapp(cls, *, profile, **kwargs):
         # Just do some validation on the profile
         for name, task in profile.items():
             for phase in task.phases:
                 if len(phase['cpus']) != 1:
                     raise RuntimeError(f"Each phase must be tied to a single CPU. Task \"{name}\" violates this")
 
-        super().run_rtapp(target, res_dir, profile, ftrace_coll, cgroup)
+        super().run_rtapp(profile=profile, **kwargs)
 
     @property
     def cpus(self):

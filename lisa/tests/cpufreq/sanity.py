@@ -19,7 +19,6 @@ import os
 from lisa.tests.base import Result, ResultBundle, TestBundle, DmesgTestBundle
 from lisa.wlgen.sysbench import Sysbench
 from lisa.target import Target
-from lisa.trace import DmesgCollector
 from lisa.utils import ArtifactPath, groupby, nullcontext
 from lisa.analysis.tasks import TasksAnalysis
 
@@ -37,7 +36,7 @@ class UserspaceSanityItem(TestBundle):
         self.work = work
 
     @classmethod
-    def _from_target(cls, target: Target, *, res_dir: ArtifactPath, cpu, freq, switch_governor=True) -> 'UserspaceSanityItem':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath, cpu, freq, switch_governor=True, collector=None) -> 'UserspaceSanityItem':
         """
         :meta public:
 
@@ -57,7 +56,7 @@ class UserspaceSanityItem(TestBundle):
         sysbench = Sysbench(target, res_dir=res_dir)
 
         cm = target.cpufreq.use_governor('userspace') if switch_governor else nullcontext()
-        with cm:
+        with cm, collector:
             target.cpufreq.set_frequency(cpu, freq)
             output = sysbench(cpus=[cpu], max_duration_s=1).run()
 
@@ -88,7 +87,7 @@ class UserspaceSanity(DmesgTestBundle):
 
     @classmethod
     def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None,
-                     freq_count_limit=5) -> 'UserspaceSanity':
+                     freq_count_limit=5, collector=None) -> 'UserspaceSanity':
         """
         Factory method to create a bundle using a live target
 
@@ -100,11 +99,8 @@ class UserspaceSanity(DmesgTestBundle):
         """
         sanity_items = []
 
-        dmesg_path = ArtifactPath.join(res_dir, cls.DMESG_PATH)
-        dmesg_coll = DmesgCollector(target)
-
         plat_info = target.plat_info
-        with dmesg_coll, target.cpufreq.use_governor("userspace"):
+        with collector, target.cpufreq.use_governor("userspace"):
             for domain in plat_info['freq-domains']:
                 cpu = domain[0]
                 freqs = plat_info['freqs'][cpu]
@@ -128,7 +124,6 @@ class UserspaceSanity(DmesgTestBundle):
                     )
                     sanity_items.append(item)
 
-        dmesg_coll.get_data(dmesg_path)
         return cls(res_dir, plat_info, sanity_items)
 
     def test_performance_sanity(self) -> ResultBundle:

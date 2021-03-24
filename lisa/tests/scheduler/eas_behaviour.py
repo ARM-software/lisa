@@ -32,7 +32,6 @@ from lisa.datautils import series_integrate, df_deduplicate
 from lisa.energy_model import EnergyModel, EnergyModelCapacityError
 from lisa.trace import requires_events
 from lisa.target import Target
-from lisa.trace import FtraceCollector
 from lisa.pelt import PELT_SCALE, pelt_swing
 from lisa.datautils import df_refit_index
 
@@ -125,7 +124,7 @@ class EASBehaviour(RTATestBundle):
             raise CannotCreateError("Energy model not available")
 
     @classmethod
-    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, ftrace_coll: FtraceCollector = None) -> 'EASBehaviour':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, collector=None) -> 'EASBehaviour':
         """
         :meta public:
 
@@ -141,7 +140,7 @@ class EASBehaviour(RTATestBundle):
         # so make sure this is what's being used
         with target.disable_idle_states():
             with target.cpufreq.use_governor("schedutil"):
-                cls.run_rtapp(target, res_dir, rtapp_profile, ftrace_coll=ftrace_coll)
+                cls.run_rtapp(target, res_dir, rtapp_profile, collector=collector)
 
         return cls(res_dir, plat_info)
 
