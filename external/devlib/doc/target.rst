@@ -280,7 +280,7 @@ Target
       command to get predictable output that can be more safely parsed.
       If ``None``, no locale is prepended.
 
-.. method:: Target.background(command [, stdout [, stderr [, as_root]]])
+.. method:: Target.background(command [, stdout [, stderr [, as_root, [, force_locale [, timeout]]])
 
    Execute the command on the target, invoking it via subprocess on the host.
    This will return :class:`subprocess.Popen` instance for the command.
@@ -292,6 +292,12 @@ Target
       this may be used to redirect it to an alternative file handle.
    :param as_root: The command will be executed as root. This will fail on
        unrooted targets.
+   :param force_locale: Prepend ``LC_ALL=<force_locale>`` in front of the
+      command to get predictable output that can be more safely parsed.
+      If ``None``, no locale is prepended.
+   :param timeout: Timeout (in seconds) for the execution of the command. When
+      the timeout expires, :meth:`BackgroundCommand.cancel` is executed to
+      terminate the command.
 
    .. note:: This **will block the connection** until the command completes.
 
