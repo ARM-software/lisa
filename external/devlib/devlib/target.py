@@ -559,9 +559,14 @@ class Target(object):
                 strip_colors=strip_colors, will_succeed=will_succeed)
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False,
-                   force_locale='C'):
+                   force_locale='C', timeout=None):
         command = self._prepare_cmd(command, force_locale)
-        return self.conn.background(command, stdout, stderr, as_root)
+        bg_cmd = self.conn.background(command, stdout, stderr, as_root)
+        if timeout is not None:
+            timer = threading.Timer(timeout, function=bg_cmd.cancel)
+            timer.daemon = True
+            timer.start()
+        return bg_cmd
 
     def invoke(self, binary, args=None, in_directory=None, on_cpus=None,
                redirect_stderr=False, as_root=False, timeout=30):

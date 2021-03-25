@@ -59,7 +59,7 @@ from devlib.connection import (ConnectionBase, ParamikoBackgroundCommand, PopenB
                                SSHTransferManager)
 
 
-DEFAULT_SSH_SUDO_COMMAND = "sudo -p ' ' -S -- sh -c {}"
+DEFAULT_SSH_SUDO_COMMAND = "sudo -k -p ' ' -S -- sh -c {}"
 
 
 ssh = None
