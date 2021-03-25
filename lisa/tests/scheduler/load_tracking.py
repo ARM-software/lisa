@@ -385,6 +385,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         res_bundle.add_metric("cpu", f'{self.cpu}{freq_str}')
         return res_bundle
 
+    @memoized
     @get_simulated_pelt.used_events
     def _test_behaviour(self, signal_name, error_margin_pct):
 
@@ -421,8 +422,8 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         res = self._add_cpu_metric(res)
         return res
 
-    @get_simulated_pelt.used_events
     @memoized
+    @get_simulated_pelt.used_events
     def _test_correctness(self, signal_name, mean_error_margin_pct, max_error_margin_pct):
 
         task = self.task_name
