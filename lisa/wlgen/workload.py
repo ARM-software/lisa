@@ -495,7 +495,10 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
 
         self.deploy()
         with self._run() as x:
-            pass
+            # Wait on the command explicitly, as relying on x.__exit__() will
+            # close its standard streams (stdin/stdout/stderr), leading to an
+            # early termination.
+            x.wait()
 
         # Only there to satisfy a deprecated API, do not rely on that in any
         # new code
