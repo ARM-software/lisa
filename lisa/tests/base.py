@@ -1348,9 +1348,12 @@ class DmesgTestConf(TestConfBase):
     ))
 
 
-class DmesgTestBundle(TestBundleBase):
+class DmesgTestBundleBase(TestBundleBase):
     """
     Abstract Base Class for TestBundles based on dmesg output.
+
+    .. seealso: Test subclasses should inherit from :class:`DmesgTestBundle` in
+        order to require the features.
     """
 
     DMESG_PATH = 'dmesg.log'
@@ -1366,7 +1369,7 @@ class DmesgTestBundle(TestBundleBase):
     }
     """
     Mapping of canned patterns to avoid repetition while defining
-    :attr:`lisa.tests.base.DmesgTestBundle.DMESG_IGNORED_PATTERNS` in
+    :attr:`lisa.tests.base.DmesgTestBundleBase.DMESG_IGNORED_PATTERNS` in
     subclasses.
     """
 
@@ -1419,7 +1422,7 @@ class DmesgTestBundle(TestBundleBase):
 
         :param ignored_patterns: List of regexes to ignore some messages. The
             pattern list is combined with
-            :attr:`~lisa.tests.base.DmesgTestBundle.DMESG_IGNORED_PATTERNS`
+            :attr:`~lisa.tests.base.DmesgTestBundleBase.DMESG_IGNORED_PATTERNS`
             class attribute.
         :type ignored_patterns: list or None
         """
@@ -1457,6 +1460,35 @@ class DmesgTestBundle(TestBundleBase):
         multiline = len(issues) > 1
         res.add_metric('dmesg output', ('\n' if multiline else '') + '\n'.join(str(entry) for entry in issues))
         return res
+
+
+class DmesgTestBundle(DmesgTestBundleBase):
+    """
+    Dummy subclass of :class:`DmesgTestBundleBase` to be inherited from to
+    override :class:`OptionalDmesgTestBundle` in the inheritance tree.
+    """
+    test_dmesg = DmesgTestBundleBase.test_dmesg
+    _make_dmesg_collector = DmesgTestBundleBase._make_dmesg_collector
+
+
+class OptionalDmesgTestBundle(DmesgTestBundleBase, Loggable):
+    @functools.wraps(DmesgTestBundleBase.test_dmesg)
+    def test_dmesg(self, *args, **kwargs):
+        try:
+            return super().test_dmesg(*args, **kwargs)
+        except FileNotFoundError:
+            self.get_logger().warning('Could not check dmesg content, as it was not collected')
+            return ResultBundle(result=Result.UNDECIDED)
+
+    @classmethod
+    @TestBundleBase.collector_factory
+    @kwargs_forwarded_to(DmesgTestBundleBase._make_dmesg_collector)
+    def _make_dmesg_collector(cls, **kwargs):
+        try:
+            return super()._make_dmesg_collector(**kwargs)
+        except Exception as e:
+            cls.get_logger().warning(f'Could not create dmesg collector: {e}')
+            return None
 
 
 class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
@@ -2024,7 +2056,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         return cls(res_dir, plat_info)
 
 
-class TestBundle(FtraceTestBundle, DmesgTestBundle, TestBundleBase):
+class TestBundle(FtraceTestBundle, OptionalDmesgTestBundle, TestBundleBase):
     """
     Dummy class used as a base class for all tests.
     """
