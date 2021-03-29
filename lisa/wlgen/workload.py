@@ -208,10 +208,16 @@ class _WorkloadRunCM(Loggable):
                 action()
             except StopIteration as e:
                 output = e.value
+                excep = None
             except Exception as e:
                 output = _NotSet(e)
+                excep = e
+            else:
+                excep = None
 
             self._output = output
+            if excep is not None:
+                raise excep
 
 
 class _WorkloadBase:
