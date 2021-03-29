@@ -28,7 +28,7 @@ from operator import itemgetter
 from devlib.module.hotplug import HotplugModule
 from devlib.exception import TargetNotRespondingError
 
-from lisa.tests.base import TestMetric, ResultBundle, DmesgTestBundle
+from lisa.tests.base import TestMetric, ResultBundle, TestBundle, DmesgTestBundle
 from lisa.target import Target
 from lisa.utils import ArtifactPath
 
@@ -37,7 +37,7 @@ class CPUHPSequenceError(Exception):
     pass
 
 
-class HotplugBase(DmesgTestBundle):
+class HotplugBase(DmesgTestBundle, TestBundle):
     def __init__(self, res_dir, plat_info, target_alive, hotpluggable_cpus, live_cpus):
         super().__init__(res_dir, plat_info)
         self.target_alive = target_alive

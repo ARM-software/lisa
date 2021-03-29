@@ -25,14 +25,14 @@ from lisa.utils import memoized, ArtifactPath
 from lisa.datautils import df_squash, df_add_delta
 from lisa.trace import Trace, FtraceConf, requires_events
 from lisa.wlgen.rta import RTAPhase, RunWload, SleepWload
-from lisa.tests.base import RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
+from lisa.tests.base import TestBundle, RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
 from lisa.target import Target
 from lisa.analysis.tasks import TasksAnalysis, TaskState
 from lisa.analysis.idle import IdleAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
 
 
-class MisfitMigrationBase(RTATestBundle):
+class MisfitMigrationBase(RTATestBundle, TestBundle):
     """
     Abstract class for Misfit behavioural testing
 

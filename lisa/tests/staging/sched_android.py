@@ -28,7 +28,7 @@ from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.tasks import TasksAnalysis
 
 
-class SchedTuneItemBase(RTATestBundle):
+class SchedTuneItemBase(RTATestBundle, TestBundle):
     """
     Abstract class enabling rtapp execution in a schedtune group
 

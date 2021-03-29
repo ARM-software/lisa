@@ -26,11 +26,11 @@ from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.datautils import df_add_delta, series_mean, df_window
 from lisa.pelt import PELT_SCALE
-from lisa.tests.base import ResultBundle, RTATestBundle, TestMetric
+from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle, TestMetric
 from lisa.wlgen.rta import RTAPhase, PeriodicWload
 
 
-class UtilClamp(RTATestBundle):
+class UtilClamp(RTATestBundle, TestBundle):
     """
     Validate that UtilClamp min values are honoured properly by the kernel.
 

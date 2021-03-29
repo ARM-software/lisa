@@ -23,8 +23,8 @@ from statistics import mean
 import pandas as pd
 
 from lisa.tests.base import (
-    TestMetric, Result, ResultBundle, AggregatedResultBundle, TestBundle,
-    RTATestBundle, CannotCreateError
+    TestMetric, Result, ResultBundle, AggregatedResultBundle, TestBundleBase,
+    TestBundle, RTATestBundle, CannotCreateError
 )
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby, ExekallTaggable, add, memoized, kwargs_forwarded_to
@@ -118,7 +118,7 @@ class LoadTrackingHelpers:
         return signal_value * orig_capacities[cpu] / rtapp_capacities[cpu]
 
 
-class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers):
+class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers, TestBundle):
     """
     Base class for shared functionality of load tracking tests
     """
@@ -520,7 +520,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         return self._test_behaviour('load', error_margin_pct)
 
 
-class Invariance(TestBundle, LoadTrackingHelpers):
+class Invariance(TestBundleBase, LoadTrackingHelpers):
     """
     Basic check for frequency invariant load and utilization tracking
 

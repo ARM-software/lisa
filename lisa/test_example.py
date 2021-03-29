@@ -19,7 +19,7 @@ from lisa.utils import ArtifactPath
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, requires_events
 from lisa.wlgen.rta import RTAPhase, PeriodicWload
-from lisa.tests.base import RTATestBundle, ResultBundle
+from lisa.tests.base import TestBundle, RTATestBundle, ResultBundle
 from lisa.target import Target
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 
@@ -38,7 +38,7 @@ how to use the main APIs.
 ################################################################################
 
 
-class ExampleTestBundle(RTATestBundle):
+class ExampleTestBundle(RTATestBundle, TestBundle):
     """
     The test bundle contains the data the test will work on. See
     :class:`lisa.tests.base.TestBundle` for design notes.
