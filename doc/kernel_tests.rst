@@ -124,14 +124,14 @@ although you'll find more details in the API documentation of these classes.
   ' This forces a longer arrow ------------v
   ResultBundle "1" *- "1..*" TestMetric : "          "
 
-  class TestBundle {
-      # _from_target() : TestBundle
-      + from_target() : TestBundle
-      + from_dir() : TestBundle
+  class TestBundleBase {
+      # _from_target() : TestBundleBase
+      + from_target() : TestBundleBase
+      + from_dir() : TestBundleBase
   }
 
-  note right of TestBundle {
-      Methods returning <b>TestBundle</b>
+  note right of TestBundleBase {
+      Methods returning <b>TestBundleBase</b>
       are alternative constructors
 
       <b>from_target()</b> does some generic
@@ -141,20 +141,20 @@ although you'll find more details in the API documentation of these classes.
   }
 
   class MyTestBundle {
-	# _from_target() : TestBundle
+	# _from_target() : TestBundleBase
 	+ test_foo_is_bar() : ResultBundle
   }
 
   note right of MyTestBundle {
-      Non-abstract <b>TestBundle</b> classes
+      Non-abstract <b>TestBundleBase</b> classes
       must define test methods that return
       a <b>ResultBundle</b>
   }
 
-  TestBundle <|-- MyTestBundle
+  TestBundleBase <|-- MyTestBundle
   MyTestBundle .. ResultBundle
 
-Implementations of :class:`~lisa.tests.base.TestBundle._from_target` can
+Implementations of :class:`~lisa.tests.base.TestBundleBase._from_target` can
 execute any sort of arbitry Python code. This means that you are free to
 manipulate sysfs entries, or to execute arbitray binaries on the target. The
 :class:`~lisa.wlgen.workload.Workload` class has been created to
@@ -206,7 +206,7 @@ EAS tests
 ---------
 
 .. inheritance-diagram:: lisa.tests.scheduler.eas_behaviour
-   :top-classes: lisa.tests.base.TestBundle
+   :top-classes: lisa.tests.base.TestBundleBase
    :parts: 1
 
 |
@@ -218,7 +218,7 @@ Load tracking tests
 -------------------
 
 .. inheritance-diagram:: lisa.tests.scheduler.load_tracking
-   :top-classes: lisa.tests.base.TestBundle
+   :top-classes: lisa.tests.base.TestBundleBase
    :parts: 1
 
 |
@@ -229,7 +229,7 @@ Load tracking tests
 |
 
 .. inheritance-diagram:: lisa.tests.scheduler.util_tracking
-   :top-classes: lisa.tests.base.TestBundle
+   :top-classes: lisa.tests.base.TestBundleBase
    :parts: 1
 
 |
@@ -241,7 +241,7 @@ Misfit tests
 ------------
 
 .. inheritance-diagram:: lisa.tests.scheduler.misfit
-   :top-classes: lisa.tests.base.TestBundle
+   :top-classes: lisa.tests.base.TestBundleBase
    :parts: 1
 
 |
@@ -253,7 +253,7 @@ Sanity tests
 ------------
 
 .. inheritance-diagram:: lisa.tests.scheduler.sanity
-   :top-classes: lisa.tests.base.TestBundle
+   :top-classes: lisa.tests.base.TestBundleBase
    :parts: 1
 
 |
@@ -265,7 +265,7 @@ Hotplug tests
 +++++++++++++
 
 .. inheritance-diagram:: lisa.tests.hotplug.torture
-   :top-classes: lisa.tests.base.TestBundle
+   :top-classes: lisa.tests.base.TestBundleBase
    :parts: 1
 
 |
@@ -277,7 +277,7 @@ Cpufreq tests
 +++++++++++++
 
 .. inheritance-diagram:: lisa.tests.cpufreq.sanity
-   :top-classes: lisa.tests.base.TestBundle
+   :top-classes: lisa.tests.base.TestBundleBase
    :parts: 1
 
 |
