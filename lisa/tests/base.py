@@ -403,7 +403,7 @@ class AggregatedResultBundle(ResultBundleBase):
 
 class CannotCreateError(RuntimeError):
     """
-    Something prevented the creation of a :class:`TestBundle` or
+    Something prevented the creation of a :class:`TestBundleBase` or
     :class:`ResultBundleBase` instance.
     """
     pass
@@ -411,7 +411,7 @@ class CannotCreateError(RuntimeError):
 
 class TestBundleMeta(abc.ABCMeta):
     """
-    Metaclass of :class:`TestBundle`.
+    Metaclass of :class:`TestBundleBase`.
 
     Method with a return annotation of :class:`ResultBundleBase` are wrapped to:
 
@@ -873,7 +873,7 @@ class TestBundleMeta(abc.ABCMeta):
         return new_cls
 
 
-class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMeta):
+class TestBundleBase(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMeta):
     """
     A LISA test bundle.
 
@@ -885,7 +885,7 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         to all tests.
     :type plat_info: :class:`lisa.platforms.platinfo.PlatformInfo`
 
-    The point of a TestBundle is to bundle in a single object all of the
+    The point of a :class:`TestBundleBase` is to bundle in a single object all of the
     required data to run some test assertion (hence the name). When inheriting
     from this class, you can define test methods that use this data, and return
     a :class:`ResultBundle`.
@@ -901,12 +901,12 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
     **Design notes:**
 
       * :meth:`from_target` will collect whatever artifacts are required
-        from a given target, and will then return a :class:`TestBundle`.
+        from a given target, and will then return a :class:`TestBundleBase`.
         Note that a default implementation is provided out of ``_from_target``.
       * :meth:`from_dir` will use whatever artifacts are available in a
         given directory (which should have been created by an earlier call
         to :meth:`from_target` and then :meth:`to_dir`), and will then return
-        a :class:`TestBundle`.
+        a :class:`TestBundleBase`.
       * :attr:`VERIFY_SERIALIZATION` is there to ensure the instances can
         serialized and deserialized without error.
       * ``res_dir`` parameter of ``__init__`` must be stored as an attribute
@@ -1044,10 +1044,10 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         :type custom_collector: lisa.trace.CollectorBase
 
         This is mostly boiler-plate code around
-        :meth:`~lisa.tests.base.TestBundle._from_target`, which lets us
+        :meth:`~lisa.tests.base.TestBundleBase._from_target`, which lets us
         introduce common functionalities for daughter classes. Unless you know
         what you are doing, you should not override this method, but the
-        internal :meth:`lisa.tests.base.TestBundle._from_target` instead.
+        internal :meth:`lisa.tests.base.TestBundleBase._from_target` instead.
         """
         cls.check_from_target(target)
 
@@ -1120,15 +1120,15 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         """
         :meta public:
 
-        List of references to :class:`TestBundle` instances ``self`` relies on
+        List of references to :class:`TestBundleBase` instances ``self`` relies on
         (directly *and* indirectly).
 
         This is used for some post-deserialization fixup that need to walk the
-        whole graph of :class:`TestBundle`.
+        whole graph of :class:`TestBundleBase`.
         """
         objs = set(self._get_referred_objs(
             self,
-            lambda x: isinstance(x, TestBundle)
+            lambda x: isinstance(x, TestBundleBase)
         ))
 
         objs.discard(self)
@@ -1169,7 +1169,7 @@ class TestBundle(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMet
         super().to_path(self._get_filepath(res_dir))
 
 
-class FtraceTestBundle(TestBundle):
+class FtraceTestBundle(TestBundleBase):
     """
     Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
 
@@ -1195,7 +1195,7 @@ class FtraceTestBundle(TestBundle):
           decorator (and equivalents).
 
         * :class:`lisa.trace.FtraceConf` specified by the user and passed to
-          :meth:`lisa.tests.base.TestBundle.from_target` as ``ftrace_conf``
+          :meth:`lisa.tests.base.TestBundleBase.from_target` as ``ftrace_conf``
           parameter.
     """
 
@@ -1258,7 +1258,7 @@ class FtraceTestBundle(TestBundle):
         cls.ftrace_conf = ftrace_conf
 
     @classmethod
-    @TestBundle.collector_factory
+    @TestBundleBase.collector_factory
     def _make_ftrace_collector(cls, *, target: Target, res_dir: ArtifactPath = None, ftrace_conf: FtraceConf = None):
         cls_conf = cls.FTRACE_CONF or FtraceConf()
         user_conf = ftrace_conf or FtraceConf()
@@ -1348,7 +1348,7 @@ class DmesgTestConf(TestConfBase):
     ))
 
 
-class DmesgTestBundle(TestBundle):
+class DmesgTestBundle(TestBundleBase):
     """
     Abstract Base Class for TestBundles based on dmesg output.
     """
@@ -1379,7 +1379,7 @@ class DmesgTestBundle(TestBundle):
     """
 
     @classmethod
-    @TestBundle.collector_factory
+    @TestBundleBase.collector_factory
     def _make_dmesg_collector(cls, *, target: Target, res_dir: ArtifactPath = None):
         path = ArtifactPath.join(res_dir, cls.DMESG_PATH)
         return DmesgCollector(
@@ -1710,7 +1710,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
 
         return df.loc[df['runtime'] > 0]
 
-    @TestBundle.add_undecided_filter
+    @TestBundleBase.add_undecided_filter
     @TasksAnalysis.df_tasks_runtime.used_events
     def test_noisy_tasks(self, *, noise_threshold_pct=None, noise_threshold_ms=None):
         """
@@ -2022,5 +2022,13 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         cls.run_rtapp(target, res_dir, collector=collector)
         plat_info = target.plat_info
         return cls(res_dir, plat_info)
+
+
+class TestBundle(FtraceTestBundle, DmesgTestBundle, TestBundleBase):
+    """
+    Dummy class used as a base class for all tests.
+    """
+    pass
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
