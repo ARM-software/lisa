@@ -38,6 +38,8 @@ The following tests are available. They can be used as:
 .. run-command::
   :capture-stderr:
 
+  # Disable warnings to avoid dependencies to break the reStructuredText output
+  export PYTHONWARNINGS="ignore"
   exekall run lisa.tests --rst-list --inject-empty-target-conf
 
 Running tests
