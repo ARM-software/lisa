@@ -20,7 +20,7 @@ import functools
 
 from devlib.target import KernelVersion
 
-from lisa.tests.base import ResultBundle, RTATestBundle
+from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle
 from lisa.target import Target
 from lisa.utils import ArtifactPath, memoized, namedtuple
 from lisa.wlgen.rta import RTAPhase, PeriodicWload, DutyCycleSweepPhase
@@ -33,7 +33,7 @@ from lisa.datautils import df_window, df_refit_index, series_mean, df_filter_tas
 from lisa.tests.scheduler.load_tracking import LoadTrackingHelpers
 
 
-class UtilTrackingBase(RTATestBundle, LoadTrackingHelpers):
+class UtilTrackingBase(RTATestBundle, LoadTrackingHelpers, TestBundle):
     """
     Base class for shared functionality of utilization tracking tests
     """

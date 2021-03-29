@@ -64,7 +64,7 @@ class UserspaceSanityItem(TestBundle):
         return cls(res_dir, target.plat_info, cpu, freq, work)
 
 
-class UserspaceSanity(DmesgTestBundle):
+class UserspaceSanity(DmesgTestBundle, TestBundle):
     """
     A class for making sure the userspace governor behaves sanely
 

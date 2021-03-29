@@ -16,11 +16,11 @@
 #
 
 from lisa.wlgen.rta import RTAPhase, PeriodicWload
-from lisa.tests.base import ResultBundle, RTATestBundle, TestMetric, CannotCreateError
+from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle, TestMetric, CannotCreateError
 from lisa.datautils import df_deduplicate
 from lisa.analysis.tasks import TasksAnalysis
 
-class NUMABehaviour(RTATestBundle):
+class NUMABehaviour(RTATestBundle, TestBundle):
     """
     Abstract class for NUMA related scheduler testing.
     """

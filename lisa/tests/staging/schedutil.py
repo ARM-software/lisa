@@ -22,7 +22,7 @@ import itertools
 import pandas as pd
 
 from lisa.wlgen.rta import DutyCycleSweepPhase
-from lisa.tests.base import ResultBundle, Result, RTATestBundle
+from lisa.tests.base import ResultBundle, Result, TestBundle, RTATestBundle
 from lisa.target import Target
 from lisa.trace import requires_events
 from lisa.datautils import df_merge, series_mean
@@ -35,7 +35,7 @@ from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.tasks import TasksAnalysis, TaskState
 
 
-class RampBoostTestBase(RTATestBundle):
+class RampBoostTestBase(RTATestBundle, TestBundle):
     """
     Test schedutil's ramp boost feature.
     """

@@ -26,7 +26,7 @@ from devlib.target import KernelVersion
 from lisa.wlgen.rta import RTAPhase, PeriodicWload, DutyCycleSweepPhase
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.tasks import TasksAnalysis
-from lisa.tests.base import ResultBundle, CannotCreateError, RTATestBundle
+from lisa.tests.base import ResultBundle, CannotCreateError, TestBundle, RTATestBundle
 from lisa.utils import ArtifactPath, memoized
 from lisa.datautils import series_integrate, df_deduplicate
 from lisa.energy_model import EnergyModel, EnergyModelCapacityError
@@ -36,7 +36,7 @@ from lisa.pelt import PELT_SCALE, pelt_swing
 from lisa.datautils import df_refit_index
 
 
-class EASBehaviour(RTATestBundle):
+class EASBehaviour(RTATestBundle, TestBundle):
     """
     Abstract class for EAS behavioural testing.
 
