@@ -489,15 +489,19 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
             cgroup=cgroup,
             timeout=timeout,
         )
-        if any(compat.values()):
+        compat = {
+            key: val
+            for key, val in compat.items()
+            if val is not None
+        }
+        if compat:
             params = ', '.join(
                 f'{param}={val}'
                 for param, val in compat.items()
                 if val
             )
             warnings.warn(f'Workload.run({params}) parameters are deprecated, please pass them to the constructor instead', DeprecationWarning)
-
-        self = self(**compat)
+            self = self(**compat)
 
         self.deploy()
         with self._run() as x:
