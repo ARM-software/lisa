@@ -80,7 +80,7 @@ def get_recipe_name(asset):
 def get_asset_recipe(asset, recipe_dir):
     return os.path.join(recipe_dir, get_recipe_name(asset))
 
-def get_asset_property(asset, arch, property, **kwargs):
+def get_asset_property(asset, arch, property, is_array=False, **kwargs):
     # Read asset's recipe to get a property value.
     # Raise a ValueError if property is not set.
     action = f"if [ -z ${{{property}+x}} ]; then exit 1; else printf '%s\\n' ${{{property}[@]}}; fi"
@@ -88,7 +88,11 @@ def get_asset_property(asset, arch, property, **kwargs):
         val = make(asset, arch, [action], **kwargs, get_output=True)
     except subprocess.CalledProcessError:
         raise ValueError(f'The property "{property}" is not set.')
-    return val[action].splitlines()
+    val = val[action]
+    if is_array:
+        return val.splitlines()
+    else:
+        return val
 
 def is_property_set(asset, arch, property, **kwargs):
     try:
@@ -99,7 +103,7 @@ def is_property_set(asset, arch, property, **kwargs):
         return True
 
 def is_alpine_build(asset, arch, native_build, **kwargs):
-    has_native_build = is_property_set(asset, arch, "ALPINE_BUILD_DEPENDENCIES", **kwargs)
+    has_native_build = is_property_set(asset, arch, "ALPINE_VERSION", **kwargs)
     has_broken_cross_build = is_property_set(asset, arch, "BROKEN_CROSS_COMPILATION", **kwargs)
 
     if not has_native_build and has_broken_cross_build:
@@ -128,18 +132,24 @@ def make_chroot(asset, arch, build_dir, recipe_dir, arch_chroot_dir):
         use_musl=bool(arch_chroot_dir),
     )
 
-    # List the required Alpine packages.
-    try:
-        alpine_dependencies = get_asset_property(
-            asset, arch, "ALPINE_BUILD_DEPENDENCIES",
+    def get_prop(prop, is_array=False):
+        return get_asset_property(
+            asset, arch, prop,
             build_dir=build_dir,
             recipe_dir=recipe_dir,
-            arch_chroot_dir=arch_chroot_dir
+            arch_chroot_dir=arch_chroot_dir,
+            is_array=is_array,
         )
+
+    # List the required Alpine packages.
+    try:
+        alpine_dependencies = get_prop('ALPINE_BUILD_DEPENDENCIES', is_array=True)
     except ValueError:
         alpine_dependencies = []
     else:
         alpine_dependencies = ('-p', ' '.join(map(quote, alpine_dependencies)))
+
+    alpine_version = get_prop('ALPINE_VERSION')
 
     # List the required env variables.
     env_args = ('-k', ' '.join(env.keys())) if env else []
@@ -148,6 +158,7 @@ def make_chroot(asset, arch, build_dir, recipe_dir, arch_chroot_dir):
     subprocess.check_call(
         [
             'sudo', os.path.join(get_alpine_dir(), 'alpine-chroot-install'),
+            '-b', alpine_version,
             '-d', arch_chroot_dir,
             '-i', LISA_HOME,
             '-a', QEMU_ARCH_NAMES.get(arch, arch),

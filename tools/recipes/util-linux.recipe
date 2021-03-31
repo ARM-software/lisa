@@ -1,5 +1,6 @@
 #! /bin/bash
 
+ALPINE_VERSION=v3.13/main
 ALPINE_BUILD_DEPENDENCIES=(autoconf automake bash bison gcc gettext-dev gettext-static git libtool linux-headers make musl-dev pkgconf)
 
 download() {
