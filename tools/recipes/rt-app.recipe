@@ -40,7 +40,8 @@ download() {
     git -C numactl checkout 26fba7199c365b55e72e054bb2adba097ce04924
 
     git clone https://github.com/douglas-raillard-arm/rt-app.git
-    git -C rt-app checkout uclamp-reset
+    # Branch: lisa
+    git -C rt-app checkout 5c6e0d8e96487dce8f3fb37e0e9aba995b70998e
 }
 
 build() {
