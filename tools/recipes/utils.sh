@@ -33,7 +33,7 @@ install_readme() {
     cat "$LISA_ASSET_RECIPE" >> "$src_info"
 
     # If compiled with musl-libc, add the COPYRIGHT
-    if [ -n ${USE_MUSL_LIB:+x} ]
+    if [[ $USE_MUSL_LIB == 1 ]]
     then
         printf "\n\nThe sources were compiled with musl-libc (content of COPYRIGHT):\n\n" >> "$src_info"
         wget https://git.musl-libc.org/cgit/musl/plain/COPYRIGHT -O - >> "$src_info"
