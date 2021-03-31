@@ -39,6 +39,13 @@ install_readme() {
     if [[ $USE_MUSL_LIB == 1 ]]
     then
         printf "\n\nThe sources were compiled with musl-libc (content of COPYRIGHT):\n\n" >> "$src_info"
-        wget https://git.musl-libc.org/cgit/musl/plain/COPYRIGHT -O - >> "$src_info"
+
+        # For some reason wget -O - >> "$src_info" does not work. This may be
+        # due to bugs in the VirtualBox driver, when using a chroot inside a
+        # Vagrant VM.
+        musl_license=$(mktemp)
+        wget https://git.musl-libc.org/cgit/musl/plain/COPYRIGHT -O "$musl_license"
+        cat "$musl_license" >> "$src_info"
+        rm "$musl_license"
     fi
 }
