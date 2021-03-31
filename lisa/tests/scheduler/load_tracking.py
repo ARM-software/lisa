@@ -19,6 +19,7 @@ import abc
 import os
 import itertools
 from statistics import mean
+from typing import TypeVar
 
 import pandas as pd
 
@@ -170,7 +171,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers, TestBundle):
         return (equal, delta_pct)
 
 
-class InvarianceItem(LoadTrackingBase, ExekallTaggable):
+class InvarianceItemBase(LoadTrackingBase, ExekallTaggable):
     """
     Basic check for CPU and frequency invariant load and utilization tracking
 
@@ -244,7 +245,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         }
 
     @classmethod
-    def _from_target(cls, target: Target, *, cpu: int, freq: int, freq_list=None, res_dir: ArtifactPath = None, collector=None) -> 'InvarianceItem':
+    def _from_target(cls, target: Target, *, cpu: int, freq: int, freq_list=None, res_dir: ArtifactPath = None, collector=None) -> 'InvarianceItemBase':
         """
         :meta public:
 
@@ -528,14 +529,18 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         return self._test_behaviour('load', error_margin_pct)
 
 
-class Invariance(TestBundleBase, LoadTrackingHelpers):
+class TaskInvarianceItem(InvarianceItemBase):
+    pass
+
+
+class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
     """
     Basic check for frequency invariant load and utilization tracking
 
     This test runs the same workload on one CPU of each capacity available in
     the system at a cross section of available frequencies.
 
-    This class is mostly a wrapper around :class:`InvarianceItem`,
+    This class is mostly a wrapper around :class:`InvarianceItemBase`,
     providing a way to build a list of those for a few frequencies, and
     providing aggregated versions of the tests. Calling the tests methods on
     the items directly is recommended to avoid the unavoidable loss of
@@ -543,8 +548,10 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
     :class:`~lisa.tests.base.Result` of each item.
 
     `invariance_items` instance attribute is a list of instances of
-    :class:`InvarianceItem`.
+    :class:`InvarianceItemBase`.
     """
+
+    ITEM_CLS = TypeVar('ITEM_CLS')
 
     NR_FREQUENCIES = 8
     """
@@ -559,14 +566,14 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
     @classmethod
     def _build_invariance_items(cls, target, res_dir, **kwargs):
         """
-        Yield a :class:`InvarianceItem` for a subset of target's
+        Yield a :class:`InvarianceItemBase` for a subset of target's
         frequencies, for one CPU of each capacity class.
 
         This is a generator function.
 
-        :Variable keyword arguments: Forwarded to :meth:`InvarianceItem.from_target`
+        :Variable keyword arguments: Forwarded to :meth:`InvarianceItemBase.from_target`
 
-        :rtype: Iterator[:class:`InvarianceItem`]
+        :rtype: Iterator[:class:`InvarianceItemBase`]
         """
         plat_info = target.plat_info
 
@@ -626,11 +633,11 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
 
         for cpu, (all_freqs, freq_list) in sorted(cpu_freqs.items()):
             for freq in freq_list:
-                item_dir = ArtifactPath.join(res_dir, f"{InvarianceItem.task_prefix}_{cpu}@{freq}")
+                item_dir = ArtifactPath.join(res_dir, f"{InvarianceItemBase.task_prefix}_{cpu}@{freq}")
                 os.makedirs(item_dir)
 
                 logger.info(f'Running experiment for CPU {cpu}@{freq}')
-                yield InvarianceItem.from_target(
+                yield cls.ITEM_CLS.from_target(
                     target,
                     cpu=cpu,
                     freq=freq,
@@ -639,19 +646,19 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
                     **kwargs,
                 )
 
-    def iter_invariance_items(self) -> InvarianceItem:
+    def iter_invariance_items(self) -> 'ITEM_CLS':
         yield from self.invariance_items
 
     @classmethod
     @kwargs_forwarded_to(
-        InvarianceItem._from_target,
+        InvarianceItemBase._from_target,
         ignore=[
             'cpu',
             'freq',
             'freq_list',
         ]
     )
-    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, collector=None, **kwargs) -> 'Invariance':
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, collector=None, **kwargs) -> 'InvarianceBase':
         return cls(res_dir, target.plat_info,
             list(cls._build_invariance_items(target, res_dir, **kwargs))
         )
@@ -659,7 +666,7 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
     def get_item(self, cpu, freq):
         """
         :returns: The
-            :class:`~lisa.tests.scheduler.load_tracking.InvarianceItem`
+            :class:`~lisa.tests.scheduler.load_tracking.InvarianceItemBase`
             generated when running at a given frequency
         """
         for item in self.invariance_items:
@@ -668,12 +675,12 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
         raise ValueError('No invariance item matching {cpu}@{freq}'.format(cpu, freq))
 
     # Combined version of some other tests, applied on all available
-    # InvarianceItem with the result merged.
+    # InvarianceItemBase with the result merged.
 
-    @InvarianceItem.test_util_correctness.used_events
+    @InvarianceItemBase.test_util_correctness.used_events
     def test_util_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=5) -> AggregatedResultBundle:
         """
-        Aggregated version of :meth:`InvarianceItem.test_util_correctness`
+        Aggregated version of :meth:`InvarianceItemBase.test_util_correctness`
         """
         def item_test(test_item):
             return test_item.test_util_correctness(
@@ -682,10 +689,10 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
             )
         return self._test_all_items(item_test)
 
-    @InvarianceItem.test_load_correctness.used_events
+    @InvarianceItemBase.test_load_correctness.used_events
     def test_load_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=5) -> AggregatedResultBundle:
         """
-        Aggregated version of :meth:`InvarianceItem.test_load_correctness`
+        Aggregated version of :meth:`InvarianceItemBase.test_load_correctness`
         """
         def item_test(test_item):
             return test_item.test_load_correctness(
@@ -694,10 +701,10 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
             )
         return self._test_all_items(item_test)
 
-    @InvarianceItem.test_util_behaviour.used_events
+    @InvarianceItemBase.test_util_behaviour.used_events
     def test_util_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
         """
-        Aggregated version of :meth:`InvarianceItem.test_util_behaviour`
+        Aggregated version of :meth:`InvarianceItemBase.test_util_behaviour`
         """
         def item_test(test_item):
             return test_item.test_util_behaviour(
@@ -705,10 +712,10 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
             )
         return self._test_all_items(item_test)
 
-    @InvarianceItem.test_load_behaviour.used_events
+    @InvarianceItemBase.test_load_behaviour.used_events
     def test_load_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
         """
-        Aggregated version of :meth:`InvarianceItem.test_load_behaviour`
+        Aggregated version of :meth:`InvarianceItemBase.test_load_behaviour`
         """
         def item_test(test_item):
             return test_item.test_load_behaviour(
@@ -719,7 +726,7 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
     def _test_all_items(self, item_test):
         """
         Apply the `item_test` function on all instances of
-        :class:`InvarianceItem` and aggregate the returned
+        :class:`InvarianceItemBase` and aggregate the returned
         :class:`~lisa.tests.base.ResultBundle` into one.
 
         :attr:`~lisa.tests.base.Result.UNDECIDED` is ignored.
@@ -730,7 +737,7 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
         ]
         return AggregatedResultBundle(item_res_bundles, 'cpu')
 
-    @InvarianceItem.test_util_behaviour.used_events
+    @InvarianceItemBase.test_util_behaviour.used_events
     def test_cpu_invariance(self) -> AggregatedResultBundle:
         """
         Check that items using the max freq on each CPU is passing util avg test.
@@ -738,7 +745,7 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
         There could be false positives, but they are expected to be relatively
         rare.
 
-        .. seealso:: :class:`InvarianceItem.test_util_behaviour`
+        .. seealso:: :class:`InvarianceItemBase.test_util_behaviour`
         """
         res_list = []
         for cpu, item_group in groupby(self.invariance_items, key=lambda x: x.cpu):
@@ -760,12 +767,12 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
 
         return AggregatedResultBundle(res_list, 'cpu')
 
-    @InvarianceItem.test_util_behaviour.used_events
+    @InvarianceItemBase.test_util_behaviour.used_events
     def test_freq_invariance(self) -> ResultBundle:
         """
         Check that at least one CPU has items passing for all tested frequencies.
 
-        .. seealso:: :class:`InvarianceItem.test_util_behaviour`
+        .. seealso:: :class:`InvarianceItemBase.test_util_behaviour`
         """
 
         logger = self.get_logger()
@@ -807,4 +814,9 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
             name_metric='cpu',
             result=overall_result
         )
+
+
+class TaskInvariance(InvarianceBase):
+
+    ITEM_CLS = TaskInvarianceItem
  # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
