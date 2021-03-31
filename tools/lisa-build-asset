@@ -35,7 +35,7 @@ def get_used_env_var(recipe, env):
         if var in recipe_content
     }
 
-def get_env(asset=None, arch=None, build_dir=None, toolchain=None, recipe=None):
+def get_env(asset=None, arch=None, build_dir=None, toolchain=None, recipe=None, use_musl=False):
     # Set of env var "leaking" into the build environment. Controlling this set
     # ensures reproducible builds that do not depend on user setup.
     leaked = {'PATH'}
@@ -53,6 +53,7 @@ def get_env(asset=None, arch=None, build_dir=None, toolchain=None, recipe=None):
         'BUILD_DIR': os.path.abspath(build_dir),
         'CROSS_COMPILE': toolchain + '-' if toolchain else None,
         'CONFIGURE_HOST': os.path.basename(toolchain) if toolchain else None,
+        'USE_MUSL_LIB': '1' if use_musl else None,
     })
 
     env = {
@@ -123,7 +124,8 @@ def make_chroot(asset, arch, build_dir, recipe_dir, arch_chroot_dir):
         asset=asset,
         arch=arch,
         recipe=recipe,
-        build_dir=build_dir
+        build_dir=build_dir,
+        use_musl=bool(arch_chroot_dir),
     )
 
     # List the required Alpine packages.
@@ -193,7 +195,8 @@ def make(asset, arch, actions, build_dir, recipe_dir, toolchain=None, arch_chroo
         arch=arch,
         build_dir=build_dir,
         recipe=recipe,
-        toolchain=toolchain
+        toolchain=toolchain,
+        use_musl=bool(arch_chroot_dir),
     )
 
     for action in actions:
@@ -202,8 +205,6 @@ def make(asset, arch, actions, build_dir, recipe_dir, toolchain=None, arch_chroo
         cmd = ['bash', '-c', f'source {recipe} && {action}']
 
         if arch_chroot_dir and action in ('build', 'install'):
-            # Notify the recipe the build is on alpine.
-            env["USE_MUSL_LIB"] = '1'
             cmd = ' '.join(map(quote, cmd))
             cmd = [os.path.join(arch_chroot_dir, 'enter-chroot'), '-u', os.environ['USER'], 'eval', cmd]
 
