@@ -7,7 +7,7 @@ Build host info:
 
 NAME="Alpine Linux"
 ID=alpine
-VERSION_ID=3.13.2
+VERSION_ID=3.13.3
 PRETTY_NAME="Alpine Linux v3.13"
 HOME_URL="https://alpinelinux.org/"
 BUG_REPORT_URL="https://bugs.alpinelinux.org/"
@@ -16,11 +16,12 @@ BUG_REPORT_URL="https://bugs.alpinelinux.org/"
 Build recipe:
 
 export ARCH=arm64
-export BUILD_DIR=/tmp/tmp8z6kutf9/arm64/source
+export BUILD_DIR=/tmp/tmp54q3xh7g/arm64/source
 export LISA_ARCH_ASSETS=/lisa/assets/binaries/arm64
 export LISA_HOME=''
 #! /bin/bash
 
+ALPINE_VERSION=v3.13/main
 ALPINE_BUILD_DEPENDENCIES=(bash bison diffutils findutils flex gcc git linux-headers make musl-dev)
 
 download() {
@@ -80,6 +81,30 @@ build_libelf() {
     ./configure --enable-maintainer-mode --host=$CONFIGURE_HOST CFLAGS="-I$BUILD_DIR/zlib" LDFLAGS="-L$BUILD_DIR/zlib"
     make
 }
+
+
+The sources were distributed under the following licence (content of linux//COPYING):
+
+The Linux Kernel is provided under:
+
+	SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+
+Being under the terms of the GNU General Public License version 2 only,
+according with:
+
+	LICENSES/preferred/GPL-2.0
+
+With an explicit syscall exception, as stated at:
+
+	LICENSES/exceptions/Linux-syscall-note
+
+In addition, other licenses may also apply. Please see:
+
+	Documentation/process/license-rules.rst
+
+for more details.
+
+All contributions to the Linux Kernel are subject to this COPYING file.
 
 
 The sources were compiled with musl-libc (content of COPYRIGHT):
@@ -277,27 +302,3 @@ to be subject to copyright, resulting in confusion over whether it
 negated the permissions granted in the license. In the spirit of
 permissive licensing, and of not having licensing issues being an
 obstacle to adoption, that text has been removed.
-
-
-The sources were distributed under the following licence (content of linux//COPYING):
-
-The Linux Kernel is provided under:
-
-	SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
-
-Being under the terms of the GNU General Public License version 2 only,
-according with:
-
-	LICENSES/preferred/GPL-2.0
-
-With an explicit syscall exception, as stated at:
-
-	LICENSES/exceptions/Linux-syscall-note
-
-In addition, other licenses may also apply. Please see:
-
-	Documentation/process/license-rules.rst
-
-for more details.
-
-All contributions to the Linux Kernel are subject to this COPYING file.
