@@ -171,7 +171,7 @@ class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers, TestBundle):
         return (equal, delta_pct)
 
 
-class InvarianceItemBase(LoadTrackingBase, ExekallTaggable):
+class InvarianceItemBase(LoadTrackingBase, ExekallTaggable, abc.ABC):
     """
     Basic check for CPU and frequency invariant load and utilization tracking
 
@@ -283,6 +283,10 @@ class InvarianceItemBase(LoadTrackingBase, ExekallTaggable):
 
         return capacity
 
+    @abc.abstractmethod
+    def _get_trace_signal(self, task, signal_name):
+        pass
+
     @LoadTrackingAnalysis.df_task_signal.used_events
     @LoadTrackingAnalysis.df_cpus_signal.used_events
     @TasksAnalysis.df_task_activation.used_events
@@ -311,7 +315,7 @@ class InvarianceItemBase(LoadTrackingBase, ExekallTaggable):
             # executing
             preempted_value=0,
         )
-        df = trace.analysis.load_tracking.df_task_signal(task, signal_name)
+        df = self._get_trace_signal(task, signal_name)
         df = df.copy(deep=False)
 
         # Ignore the first activation, as its signals are incorrect
@@ -530,7 +534,9 @@ class InvarianceItemBase(LoadTrackingBase, ExekallTaggable):
 
 
 class TaskInvarianceItem(InvarianceItemBase):
-    pass
+
+    def _get_trace_signal(self, task, signal_name):
+        return self.trace.analysis.load_tracking.df_task_signal(task, signal_name)
 
 
 class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
