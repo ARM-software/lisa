@@ -158,7 +158,15 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         else:
             raise ValueError(f'Signal "{signal}" not supported')
 
-        df = df[['cpu', signal]]
+        if signal in ('util', 'load'):
+            columns = {'cpu', 'update_time', signal}
+        else:
+            columns = {'cpu', signal}
+
+        # Select the available columns among
+        columns = sorted(set(df.columns) & columns)
+        df = df[columns]
+
         if cpus is not None:
             df = df[df['cpu'].isin(cpus)]
         return df
