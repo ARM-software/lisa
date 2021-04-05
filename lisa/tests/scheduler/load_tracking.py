@@ -284,7 +284,7 @@ class InvarianceItemBase(LoadTrackingBase, ExekallTaggable, abc.ABC):
         return capacity
 
     @abc.abstractmethod
-    def _get_trace_signal(self, task, signal_name):
+    def _get_trace_signal(self, task, cpus, signal_name):
         pass
 
     @LoadTrackingAnalysis.df_task_signal.used_events
@@ -315,7 +315,7 @@ class InvarianceItemBase(LoadTrackingBase, ExekallTaggable, abc.ABC):
             # executing
             preempted_value=0,
         )
-        df = self._get_trace_signal(task, signal_name)
+        df = self._get_trace_signal(task, cpus, signal_name)
         df = df.copy(deep=False)
 
         # Ignore the first activation, as its signals are incorrect
@@ -535,8 +535,14 @@ class InvarianceItemBase(LoadTrackingBase, ExekallTaggable, abc.ABC):
 
 class TaskInvarianceItem(InvarianceItemBase):
 
-    def _get_trace_signal(self, task, signal_name):
+    def _get_trace_signal(self, task, cpus, signal_name):
         return self.trace.analysis.load_tracking.df_task_signal(task, signal_name)
+
+
+class RqInvarianceItem(InvarianceItemBase):
+
+    def _get_trace_signal(self, task, cpus, signal_name):
+        return self.trace.analysis.load_tracking.df_cpus_signal(signal_name, cpus)
 
 
 class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
@@ -825,4 +831,9 @@ class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
 class TaskInvariance(InvarianceBase):
 
     ITEM_CLS = TaskInvarianceItem
+
+
+class RqInvariance(InvarianceBase):
+
+    ITEM_CLS = RqInvarianceItem
  # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
