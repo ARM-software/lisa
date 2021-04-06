@@ -745,6 +745,12 @@ class TestBundleMeta(abc.ABCMeta):
                 cm = cls._make_collector_cm(**collector_kwargs)
                 return _real_from_target.__func__(cls, collector=cm, **from_target_kwargs)
 
+            # Make sure to get the return annotation from _real_from_target
+            wrapper.__func__.__signature__ = inspect.signature(wrapper.__func__).replace(
+                return_annotation=inspect.signature(_real_from_target.__func__).return_annotation
+            )
+            wrapper.__func__.__annotations__ = annotations_from_signature(wrapper.__func__.__signature__)
+
             new_cls._from_target = wrapper
             _from_target = new_cls._from_target
 
@@ -771,27 +777,6 @@ class TestBundleMeta(abc.ABCMeta):
 
                     ))
 
-            def merge_signatures(sig1, sig2):
-                parameters = list(sig1.parameters.values())
-                sig1_param_names = {param.name for param in parameters}
-                parameters.extend(
-                    param
-                    for param in sig2.parameters.values()
-                    if (
-                        param.kind is inspect.Parameter.KEYWORD_ONLY
-                        and not param.name in sig1_param_names
-                    )
-                )
-                parameters = [
-                    param
-                    for param in parameters
-                    if param.kind not in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL)
-                ]
-                return sig1.replace(
-                    parameters=parameters,
-                    return_annotation=sig2.return_annotation
-                )
-
             if 'from_target' in dct:
                 # Bind the classmethod object to the class
                 orig_from_target = dct['from_target']
@@ -802,7 +787,10 @@ class TestBundleMeta(abc.ABCMeta):
                     return super(new_cls, cls).from_target
 
             # Make a stub that we can freely update
-            @functools.wraps(_from_target.__func__)
+            # Merge the signatures to get the base signature of
+            # super().from_target.
+            @kwargs_forwarded_to(_from_target.__func__)
+            @functools.wraps(new_cls.from_target.__func__)
             def from_target(cls, *args, **kwargs):
                 from_target = get_orig_from_target(cls)
                 return from_target(*args, **kwargs)
@@ -814,13 +802,6 @@ class TestBundleMeta(abc.ABCMeta):
             # Fixup the names, so it is not displayed as `_from_target`
             from_target.__name__ = 'from_target'
             from_target.__qualname__ = new_cls.__qualname__ + '.' + from_target.__name__
-
-            # Merge the signatures to get the base signature of super().from_target,
-            # and add the keyword-only and return annotation of _from_target.
-            from_target.__signature__ = merge_signatures(
-                signature(new_cls.from_target.__func__),
-                signature(_from_target.__func__),
-            )
 
             # Stich the relevant docstrings
             func = new_cls.from_target.__func__
@@ -838,10 +819,10 @@ class TestBundleMeta(abc.ABCMeta):
             # Since the wrapper's __globals__ (read-only) attribute is not
             # going to contain the necessary keys to resolve that string, we
             # take care of it here.
-
-            # Since we set the signature manually, we also need to update
-            # the annotations in it
-            from_target.__signature__ = from_target.__signature__.replace(return_annotation=new_cls)
+            if inspect.signature(_from_target).return_annotation != inspect.Signature.empty:
+                # Since we set the signature manually, we also need to update
+                # the annotations in it
+                from_target.__signature__ = from_target.__signature__.replace(return_annotation=new_cls)
 
             # Keep the annotations and the signature in sync
             from_target.__annotations__ = annotations_from_signature(from_target.__signature__)
