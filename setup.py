@@ -85,9 +85,7 @@ setup(
     name='LISA',
     license=license_txt,
     version=lisa_version,
-    author='Arm Ltd',
-    # TODO: figure out which email to put here
-    # author_email=
+    maintainer='Arm Ltd.',
     packages=packages,
     url='https://github.com/ARM-software/lisa',
     project_urls={

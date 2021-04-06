@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 #
-# Copyright (C) 2018, Arm Limited and contributors.
+# Copyright (C) 2021, Arm Limited and contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License.
@@ -24,11 +24,14 @@ with open('README.rst') as fh:
 setup(
     name='exekall',
     version='1.0',
-    author='Arm Ltd',
-    # TODO: figure out which email to put here
-    # author_email=
+    maintainer='Arm Ltd.',
     packages=['exekall'],
-    # url='http://pypi.python.org/pypi/TowelStuff/',
+    url='https://github.com/ARM-software/lisa',
+    project_urls={
+        "Bug Tracker": "https://github.com/ARM-software/lisa/issues",
+        "Documentation": "https://lisa-linux-integrated-system-analysis.readthedocs.io/",
+        "Source Code": "https://github.com/ARM-software/lisa",
+    },
     license='LICENSE.txt',
     description='Python expression execution engine',
     long_description=long_description,
