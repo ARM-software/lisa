@@ -61,8 +61,10 @@ extras_require={
         "sphobjinv", # To open intersphinx inventories
     ],
 
-    "test": [
+    "dev": [
         "pytest",
+        "build",
+        "twine",
     ],
 
     "wa": [
