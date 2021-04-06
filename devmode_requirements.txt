@@ -9,6 +9,6 @@
 # WA before LISA
 -e ./external/workload-automation/
 
--e ./[notebook,doc,test,wa]
+-e ./[notebook,doc,dev,wa]
 
 -e ./tools/bisector
