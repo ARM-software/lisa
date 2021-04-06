@@ -666,6 +666,10 @@ class AnalysisHelpers(Loggable, abc.ABC):
             # written for Sphinx using docutils, which only understands
             # plain reStructuredText
             'report_level': 4,
+            # Set the line length to always accept our document, since it has a
+            # large base64-encoded image in it and docutils will otherwise just
+            # replace the document body with an error
+            'line_length_limit': len(rst) + 1,
         }
         parts = docutils.core.publish_parts(
             source=rst, source_path=None,
