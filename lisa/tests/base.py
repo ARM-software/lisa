@@ -606,6 +606,7 @@ class TestBundleMeta(abc.ABCMeta):
 
                 if not filter_res:
                     res.result = Result.UNDECIDED
+                    res.add_metric('undecided-reason', f'{func.__qualname__} failed')
 
                 return res
 
