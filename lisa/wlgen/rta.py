@@ -125,6 +125,7 @@ from textwrap import dedent
 import contextlib
 
 from devlib import TargetStableError
+from devlib.target import KernelConfigTristate
 
 from lisa.pelt import PELT_SCALE
 from lisa.utils import (
@@ -1298,7 +1299,7 @@ class PropertyBase(SimpleHash, metaclass=PropertyMeta):
         return (doc, type_)
 
 
-class ConcretePropertyBase(PropertyBase):
+class ConcretePropertyBase(PropertyBase, Loggable):
     """
     Base class for concrete properties.
 
@@ -1318,9 +1319,48 @@ class ConcretePropertyBase(PropertyBase):
     barrier and the value will be set again, even if it means repeating the
     same value as earlier.
     """
+    REQUIRED_KCONFIG_KEYS = []
+    """
+    List of KCONFIG keys that need to be =Y on the target kernel for this
+    property to be usable.
+    """
 
-    @abc.abstractmethod
-    def to_json(self, plat_info):
+
+    @classmethod
+    def check_kconfig(cls, plat_info, strict=True):
+        """
+        Check whether ``plat_info`` contains the kernel KCONFIG keys contained
+        in :attr:`~ConcretePropertyBase.REQUIRED_KCONFIG_KEYS`.
+
+        :param keys: Kernel config keys to check, e.g. ['CONFIG_FOO_BAR'].
+        :type keys: list(str)
+
+        :param strict: If True, raise an exception if any key is missing.
+                       If False, log a warning if any key is missing.
+        :type strict: bool
+        """
+        def raise_err(msg, exc):
+            if strict:
+                raise exc
+            else:
+                cls.get_logger().warning(msg)
+            return False
+
+        for key in cls.REQUIRED_KCONFIG_KEYS:
+            try:
+                val = plat_info['kernel']['config'][key]
+            except KeyError as e:
+                return raise_err(f'Kernel config does not have key: {key}', e)
+
+            # Dependency could be built as a module, in which case we'd
+            # need to check whether it is loaded. Assert against Y for
+            # now.
+            if val is not KernelConfigTristate.YES:
+                msg = f'Kernel config {key}={val}, expected Y'
+                return raise_err(msg, TargetStableError(msg))
+        return True
+
+    def to_json(self, plat_info, **kwargs):
         """
         Snippet of JSON content for that property as Python objects.
 
@@ -1328,10 +1368,18 @@ class ConcretePropertyBase(PropertyBase):
             default value .
         :type plat_info: lisa.platforms.platinfo.PlatformInfo
         """
+        # Raising an exception at this point is *mandatory*, otherwise the value
+        # of the property in following phases is basically undefined.
+        self.check_kconfig(plat_info, True)
+
+        kwargs['plat_info'] = plat_info
+        return self._to_json(**kwargs)
+
+    @abc.abstractmethod
+    def _to_json(self, plat_info):
         pass
 
     @classmethod
-    @abc.abstractmethod
     def to_default_json(cls, plat_info, properties):
         """
         Similar to :meth:`~ConcretePropertyBase.to_json` but returns the
@@ -1353,6 +1401,13 @@ class ConcretePropertyBase(PropertyBase):
             keys.
         :type properties: collections.OrderedDict(str, object)
         """
+        if not cls.check_kconfig(plat_info, False):
+            return {}
+        return cls._to_default_json(plat_info, properties)
+
+    @classmethod
+    @abc.abstractmethod
+    def _to_default_json(cls, plat_info, properties):
         # Implementation still matters for classmethods, as being an ABC with
         # unimplemented abstractmethod only prevents instances from being
         # created. Classmethods can still be called on the class and are
@@ -1530,7 +1585,7 @@ class DeletedProperty(ContaminatingProperty):
     def val(self):
         return None
 
-    def to_json(self, **kwargs):
+    def _to_json(self, **kwargs):
         return {}
 
     @classmethod
@@ -1616,7 +1671,7 @@ class SimpleConcreteProperty(SimpleProperty, ConcretePropertyBase):
     If ``None``, nothing will be output.
 
     .. note:: If the default value is context-dependent, it should override
-        :meth:`~SimpleConcreteProperty.to_default_json` instead.
+        :meth:`~ConcretePropertyBase.to_default_json` instead.
     """
 
     FILTER_NONE = True
@@ -1635,7 +1690,7 @@ class SimpleConcreteProperty(SimpleProperty, ConcretePropertyBase):
         """
         return self.JSON_KEY or self.key
 
-    def to_json(self, plat_info):
+    def _to_json(self, plat_info):
         val = self.val
         if val is None and self.FILTER_NONE:
             return {}
@@ -1643,7 +1698,7 @@ class SimpleConcreteProperty(SimpleProperty, ConcretePropertyBase):
             return {self.json_key: val}
 
     @classmethod
-    def to_default_json(cls, plat_info, properties):
+    def _to_default_json(cls, plat_info, properties):
         default = cls.DEFAULT_JSON
         if default is None:
             return {}
@@ -1838,7 +1893,7 @@ class TaskGroupProperty(SimpleConcreteProperty):
         return cls(val)
 
     @classmethod
-    def to_default_json(cls, plat_info, properties):
+    def _to_default_json(cls, plat_info, properties):
         policy = properties.get('policy')
         # rt-app only supports taskgroup for some policies
         if policy in ('SCHED_OTHER', 'SCHED_IDLE'):
@@ -1868,7 +1923,7 @@ class PriorityProperty(SimpleConcreteProperty):
         return cls(val)
 
     @classmethod
-    def to_default_json(cls, plat_info, properties):
+    def _to_default_json(cls, plat_info, properties):
         """
         The default value depends on the ``policy`` that is in use.
         """
@@ -1899,7 +1954,7 @@ class _UsecSimpleConcreteProperty(SimpleConcreteProperty):
     def _from_key(cls, key, val):
         return cls(val)
 
-    def to_json(self, **kwargs):
+    def _to_json(self, **kwargs):
         val = self.val
         if val is None:
             return {}
@@ -1921,7 +1976,7 @@ class DeadlineRuntimeProperty(_UsecSimpleConcreteProperty):
     }
 
     @classmethod
-    def to_default_json(cls, plat_info, properties):
+    def _to_default_json(cls, plat_info, properties):
         if properties.get('policy') != 'SCHED_DEADLINE':
             return {}
         else:
@@ -1942,7 +1997,7 @@ class DeadlinePeriodProperty(_UsecSimpleConcreteProperty):
     }
 
     @classmethod
-    def to_default_json(cls, plat_info, properties):
+    def _to_default_json(cls, plat_info, properties):
         if properties.get('policy') != 'SCHED_DEADLINE':
             return {}
 
@@ -1968,7 +2023,7 @@ class DeadlineDeadlineProperty(_UsecSimpleConcreteProperty):
     }
 
     @classmethod
-    def to_default_json(cls, plat_info, properties):
+    def _to_default_json(cls, plat_info, properties):
         if properties.get('policy') != 'SCHED_DEADLINE':
             return {}
 
@@ -1996,7 +2051,7 @@ class _AndSetConcreteProperty(AndProperty, SimpleConcreteProperty):
     def _check_val(self, val):
         pass
 
-    def to_json(self, plat_info):
+    def _to_json(self, plat_info):
         val = self.val
         if val is None:
             return {}
@@ -2034,7 +2089,7 @@ class CPUProperty(_AndSetConcreteProperty):
             raise ValueError(f'CPUs {val} outside of allowed range of CPUs {plat_cpus}')
 
     @classmethod
-    def to_default_json(cls, plat_info, properties):
+    def _to_default_json(cls, plat_info, properties):
         # If no CPU set is given, set the affinity to all CPUs in the system,
         # i.e. do not set any affinity. This is necessary to decouple the phase
         # from any CPU set in a previous phase
@@ -2066,7 +2121,7 @@ class NUMAMembindProperty(_AndSetConcreteProperty):
             raise ValueError(f'NUMA nodes {val} outside of allowed range of NUMA nodes {plat_nodes}')
 
     @classmethod
-    def to_default_json(cls, plat_info, properties):
+    def _to_default_json(cls, plat_info, properties):
         # Sorting is important for deduplication of JSON keys
         nodes = sorted(range(plat_info['numa-nodes-count']))
         return {cls.JSON_KEY: nodes}
@@ -2083,7 +2138,7 @@ class MultiConcreteProperty(MultiProperty, ConcretePropertyBase):
     DEFAULT_JSON = None
 
     @classmethod
-    def to_default_json(cls, plat_info, properties):
+    def _to_default_json(cls, plat_info, properties):
         return cls.DEFAULT_JSON or {}
 
 
@@ -2271,14 +2326,14 @@ class UclampProperty(ComposableMultiConcretePropertyBase):
             return (-1, -1)
 
     @classmethod
-    def to_default_json(cls, plat_info, properties):
+    def _to_default_json(cls, plat_info, properties):
         min_, max_ = cls._get_default(plat_info)
         return {
             'util_min': min_,
             'util_max': max_,
         }
 
-    def to_json(self, plat_info):
+    def _to_json(self, plat_info):
         min_ = self.min_
         max_ = self.max_
         if None not in (min_, max_) and min_ > max_:
@@ -2374,7 +2429,7 @@ class WloadPropertyBase(ConcretePropertyBase):
     def to_events(self, **kwargs):
         pass
 
-    def to_json(self, **kwargs):
+    def _to_json(self, **kwargs):
         """
         Deduplicate the event names and turn the whole workload into a loop if
         possible.
@@ -2408,7 +2463,7 @@ class WloadPropertyBase(ConcretePropertyBase):
         return json_
 
     @classmethod
-    def to_default_json(cls, plat_info, properties):
+    def _to_default_json(cls, plat_info, properties):
         return {}
 
 
