@@ -16,8 +16,10 @@
 # limitations under the License.
 #
 
+import os
 import sys
 import itertools
+
 from setuptools import setup, find_namespace_packages
 
 
@@ -31,6 +33,18 @@ with open("lisa/version.py") as f:
     version_globals = dict()
     exec(f.read(), version_globals)
     lisa_version = version_globals['__version__']
+
+def make_console_script(name):
+    mod_name = name.replace('.py', '')
+    cli_name = mod_name.replace('_', '-')
+    return f'{cli_name}=lisa._cli_tools.{mod_name}:main'
+
+with os.scandir('lisa/_cli_tools/') as scanner:
+    console_scripts = [
+        make_console_script(entry.name)
+        for entry in scanner
+        if entry.name.endswith('.py') and entry.is_file()
+    ]
 
 packages = find_namespace_packages(where='lisa', include=['lisa*'])
 package_data = {
@@ -127,6 +141,9 @@ setup(
         "Topic :: Software Development :: Testing",
         "Intended Audience :: Developers",
     ],
+    entry_points={
+        'console_scripts': console_scripts,
+    },
 )
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
