@@ -1884,6 +1884,7 @@ class TaskGroupProperty(SimpleConcreteProperty):
     OPTIMIZE_JSON_KEYS = {
         JSON_KEY: {'policy'},
     }
+    REQUIRED_KCONFIG_KEYS = ['CONFIG_CGROUP_SCHED']
 
     def __init__(self, path):
         super().__init__(key=self.KEY, val=path)
@@ -2301,6 +2302,7 @@ class UclampProperty(ComposableMultiConcretePropertyBase):
         ('util_min', 'util_max'),
         {'policy', 'priority'}
     )
+    REQUIRED_KCONFIG_KEYS = ['CONFIG_UCLAMP_TASK']
 
     _ATTRIBUTES = {
         'min_': dict(
