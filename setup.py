@@ -20,7 +20,7 @@ import os
 import sys
 import itertools
 
-from setuptools import setup, find_namespace_packages
+from setuptools import setup, find_packages, find_namespace_packages
 
 
 with open('README.rst', 'r') as f:
@@ -46,7 +46,13 @@ with os.scandir('lisa/_cli_tools/') as scanner:
         if entry.name.endswith('.py') and entry.is_file()
     ]
 
-packages = find_namespace_packages(where='lisa', include=['lisa*'])
+packages = ['lisa'] + [
+    f'lisa.{pkg}'
+    for pkg in sorted(set(itertools.chain(
+        find_namespace_packages(where='lisa'),
+        find_packages(where='lisa'),
+    )))
+]
 package_data = {
     package: ['*']
     for package in packages
