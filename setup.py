@@ -64,7 +64,6 @@ extras_require={
     "notebook": [
         "jupyterlab",
         "ipympl", # For %matplotlib widget under jupyter lab
-        "sphobjinv", # To open intersphinx inventories
     ],
 
     "dev": [
@@ -120,6 +119,8 @@ setup(
         "ruamel.yaml >= 0.16.6",
         # For the HTML output of analysis plots
         "docutils",
+        # To open intersphinx inventories
+        "sphobjinv",
         # For pandas.to_parquet() dataframe storage
         "pyarrow",
 
