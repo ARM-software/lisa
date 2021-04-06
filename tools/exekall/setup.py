@@ -32,7 +32,7 @@ setup(
         "Documentation": "https://lisa-linux-integrated-system-analysis.readthedocs.io/",
         "Source Code": "https://github.com/ARM-software/lisa",
     },
-    license='LICENSE.txt',
+    license='Apache License 2.0',
     description='Python expression execution engine',
     long_description=long_description,
     entry_points={
