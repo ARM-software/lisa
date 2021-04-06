@@ -898,6 +898,15 @@ class TestBundleBase(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundl
     Data required by the object to run test assertions should be exposed as
     ``__init__`` parameters.
 
+    .. note:: All subclasses are considered as "application" code, as opposed
+        to most of the rest of :mod:`lisa` which is treated as a library. This
+        means that the classes and their API is subject to change when needs
+        evolve, which is not always backward compatible. It's rarely an issue
+        since these classes are used "manually" mostly for debugging, which is
+        a version-specific activity. Likewise, the set of tests will evolve as
+        existing tests are replaced by more general implementations, that could
+        be organized and named differently.
+
     **Design notes:**
 
       * :meth:`from_target` will collect whatever artifacts are required
