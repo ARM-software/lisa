@@ -44,7 +44,6 @@ setup(
         # This is not a standard classifier, as there is nothing defined for
         # Apache 2.0 yet:
         # https://pypi.org/classifiers/
-        "License :: OSI Approved :: Apache 2.0",
         # It has not been tested under any other OS
         "Operating System :: POSIX :: Linux",
 
