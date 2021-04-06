@@ -535,47 +535,15 @@ class TestBundleMeta(abc.ABCMeta):
             conservative and marked a usable result as UNDECIDED.
 
         """
-        def only_keywords(params):
-            return {
-                param.name
-                # Skip the first param, as it is "self"
-                for param in list(params)[1:]
-                if param.kind in (
-                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                    inspect.Parameter.KEYWORD_ONLY,
-                )
-            }
-
-        def filter_keys(dct, keys):
-            return {k: v for k, v in dct.items() if k in keys}
-
         @optional_kwargs
         def decorator(wrapped_test, **preset_kwargs):
-            keywords_test = only_keywords(inspect.signature(wrapped_test).parameters.values())
-            keywords_filter = only_keywords(inspect.signature(func).parameters.values())
-
-            overlap = keywords_test & keywords_filter
-            if any(overlap):
-                raise TypeError(f'Overlapping argument between {get_sphinx_name(wrapped_test, style=None)} and {get_sphinx_name(func, style=None)}: {overlap}')
-
-            def dispatch_kwargs(kwargs):
-                filter_kwargs = filter_keys(kwargs, keywords_filter)
-                # Merge-in the presets
-                filter_kwargs_ = {
-                    **preset_kwargs,
-                    **filter_kwargs,
-                }
-                return (
-                    filter_keys(kwargs, keywords_test),
-                    filter_kwargs_,
-                )
-
             # Propagate the events used by the filter
             try:
                 used_events = func.used_events
             except AttributeError:
                 used_events = lambda x: x
 
+            @used_events
             @update_wrapper_doc(
                 wrapped_test,
                 added_by=func,
@@ -594,13 +562,25 @@ class TestBundleMeta(abc.ABCMeta):
                         inspect.getdoc(func),
                     ),
             )
-            @used_events
-            def filter_wrapper(self, *args, **kwargs):
+            @kwargs_dispatcher(
+                {
+                    func.__get__(0): 'filter_kwargs',
+                },
+                # Better safe than sorry, there is no guarantee that the tests
+                # won't step on each other's toes
+                allow_overlap=False,
+            )
+            @functools.wraps(wrapped_test)
+            def filter_wrapper(self, *args, filter_kwargs=None, **kwargs):
+                # Merge-in the presets
+                filter_kwargs = {
+                    **preset_kwargs,
+                    **filter_kwargs,
+                }
+
                 # Run the wrapped test no matter what, so we get the metrics
                 # and also the artifacts
-                test_kwargs, filter_kwargs = dispatch_kwargs(kwargs)
-
-                res = wrapped_test(self, *args, **test_kwargs)
+                res = wrapped_test(self, *args, **kwargs)
                 filter_res = func(self, **filter_kwargs)
                 res.metrics.update(filter_res.metrics)
 
