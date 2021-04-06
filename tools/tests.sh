@@ -19,14 +19,6 @@
 
 # Script run by github CI, VM setup check etc.
 
-commit_whitelist='496b859d1a64e5195500aa52040abafb241657ab'
-illegal_location="external/"
-illegal_commits=$(find "$illegal_location" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 git log --no-merges --format='%H %s' | grep -v "$commit_whitelist")
-
-if [[ -n "$illegal_commits" ]]; then
-    echo -e "The following commits are touching $illegal_location, which is not allowed apart from updates:\n$illegal_commits"
-    exit 1
-fi;
 
 # Some commands are allowed to fail in init_env, e.g. to probe for installed
 # tools. However, the overall script has to succeed.
@@ -53,3 +45,16 @@ if ! git diff --exit-code doc/man1/; then
     echo "Please regenerate man pages in doc/man1 and commit them"
     exit 1
 fi
+
+(
+    set +e
+    # Check for commits touching subtrees
+    commit_whitelist='496b859d1a64e5195500aa52040abafb241657ab'
+    illegal_location="external/"
+    illegal_commits=$(find "$illegal_location" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 git log --no-merges --format='%H %s' | grep -v "$commit_whitelist")
+
+    if [[ -n "$illegal_commits" ]]; then
+        echo -e "The following commits are touching $illegal_location, which is not allowed apart from updates:\n$illegal_commits"
+        exit 1
+    fi;
+)
