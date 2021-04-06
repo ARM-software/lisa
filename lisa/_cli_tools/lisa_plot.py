@@ -186,7 +186,10 @@ def get_analysis_listing(plots_map):
         for analysis_name, methods in plots_map.items()
     )
 
-def main(argv):
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
+
     plots_map = get_plots_map()
     analysis_nice_name_map = {
         get_analysis_nice_name(name): name
@@ -359,7 +362,6 @@ Available plots:
             plt.show()
 
 if __name__ == '__main__':
-    ret = main(sys.argv[1:])
-    sys.exit(ret)
+    sys.exit(main())
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
