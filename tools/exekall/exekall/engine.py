@@ -1987,7 +1987,7 @@ class ClassContext:
 
         op_map = OrderedDict()
         for op in op_set:
-            param_map, produced = op.get_prototype()
+            param_map, produced = op.prototype
             is_prebuilt_op = isinstance(op, PrebuiltOperator)
             if is_prebuilt_op or produced not in only_prebuilt_cls:
                 op_map.setdefault(produced, OrderedSet()).add(op)
@@ -2164,7 +2164,7 @@ class ClassContext:
 
         op_stack = new_op_stack
 
-        param_cls_map = op.get_prototype()[0]
+        param_cls_map = op.prototype[0]
         if param_cls_map:
             param_list, cls_list = zip(*param_cls_map.items())
         # When no parameter is needed
@@ -2464,6 +2464,7 @@ class Operator:
         self.callable_ = callable_
 
         self.annotations = copy.copy(self.resolved_callable.__annotations__)
+        self.signature = inspect.signature(self.resolved_callable)
 
         self.ignored_param = {
             param
@@ -2487,10 +2488,9 @@ class Operator:
             )
         }
 
-        self.reusable = self.value_type not in non_reusable_type_set
-
-        # At that point, we can get the prototype safely as the object is
-        # mostly initialized.
+        # Tentative prototype, as it is needed by is_factory_cls_method and
+        # value_type
+        self.prototype = self._get_prototype()
 
         # Special support of return type annotation for factory classmethod
         if self.is_factory_cls_method:
@@ -2499,10 +2499,14 @@ class Operator:
             # subclass That allows implementing factory classmethods
             # easily.
             self.annotations['return'] = self.resolved_callable.__self__
+            # Refresh the prototype
+            self.prototype = self._get_prototype()
+
+        self.reusable = self.value_type not in non_reusable_type_set
 
         # make sure we got some usable type annotations that only consist
         # in classes, rather than things coming from the typing module
-        param_map, value_type = self.get_prototype()
+        param_map, value_type = self.prototype
         if not all(
             isinstance(annot, type)
             for annot in {value_type, *param_map.values()}
@@ -2528,13 +2532,6 @@ class Operator:
             pass
 
         return globals_
-
-    @property
-    def signature(self):
-        """
-        :class:`inspect.Signature` of the callable.
-        """
-        return inspect.signature(self.resolved_callable)
 
     def __repr__(self):
         return '<Operator of ' + str(self.callable_) + '>'
@@ -2712,7 +2709,7 @@ class Operator:
         """
         Annotated return type of the callable.
         """
-        return self.get_prototype()[1]
+        return self.prototype[1]
 
     @property
     def is_genfunc(self):
@@ -2854,7 +2851,7 @@ class Operator:
                 log=log,
             )
 
-    def get_prototype(self):
+    def _get_prototype(self):
         """
         Return the prototype of the callable as a tuple of:
 

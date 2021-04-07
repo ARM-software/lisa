@@ -78,7 +78,7 @@ class AdaptorBase:
             # Only select operators with non-empty parameter list. This
             # rules out all classes __init__ that do not take parameter, as
             # they are typically not interesting to us.
-            if op.get_prototype()[0]
+            if op.prototype[0]
         }
 
     def format_expr_list(self, expr_list, verbose=0):
