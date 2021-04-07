@@ -192,12 +192,12 @@ Installing
 
 Installing the latest released version from PyPI (Python Package Index)::
 
-       sudo -H pip install wa
+       sudo -H pip install wlauto
 
 This will install WA along with its mandatory dependencies. If you would like to
 install all optional dependencies at the same time, do the following instead::
 
-       sudo -H pip install wa[all]
+       sudo -H pip install wlauto[all]
 
 
 Alternatively, you can also install the latest development version from GitHub
