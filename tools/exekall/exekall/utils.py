@@ -118,7 +118,7 @@ def _get_callable_set(module, visited_obj_set, verbose):
         for callable_ in callable_list:
             try:
                 op = engine.Operator(callable_)
-                param_list, return_type = op.get_prototype()
+                param_list, return_type = op.prototype
             # If the callable is partially annotated, warn about it since it is
             # likely to be a mistake.
             except engine.PartialAnnotationError as e:
@@ -186,7 +186,7 @@ def sweep_param(callable_, param, start, stop, step=1):
     """
 
     op = engine.Operator(callable_)
-    annot = op.get_prototype()[0]
+    annot = op.prototype[0]
     try:
         type_ = annot[param]
     except KeyError:
