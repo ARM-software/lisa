@@ -652,9 +652,11 @@ class Invariance(TestBundle, LoadTrackingHelpers):
             list(cls._build_invariance_items(target, res_dir, **kwargs))
         )
 
-    def get_trace(self, cpu, freq):
+    def get_item(self, cpu, freq):
         """
-        :returns: The trace generated when running at a given frequency
+        :returns: The
+            :class:`~lisa.tests.scheduler.load_tracking.InvarianceItem`
+            generated when running at a given frequency
         """
         for item in self.invariance_items:
             if item.cpu == cpu and item.freq == freq:
