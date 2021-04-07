@@ -2472,8 +2472,8 @@ class Operator:
             # Ignore the parameters that have a default value without any
             # annotation
             if (
-                param_spec.default is not inspect.Parameter.empty and
-                param_spec.annotation is inspect.Parameter.empty
+                param_spec.default != inspect.Parameter.empty and
+                param_spec.annotation == inspect.Parameter.empty
             )
         }
 
@@ -2483,8 +2483,8 @@ class Operator:
             # Parameters with a default value and and an annotation are
             # optional.
             if (
-                param_spec.default is not inspect.Parameter.empty and
-                param_spec.annotation is not inspect.Parameter.empty
+                param_spec.default != inspect.Parameter.empty and
+                param_spec.annotation != inspect.Parameter.empty
             )
         }
 
