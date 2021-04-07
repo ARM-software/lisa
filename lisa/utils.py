@@ -595,6 +595,10 @@ def docstring_update(msg):
     return _DocstringAppend
 
 
+class Serializable(
+    Loggable,
+    docstring_update('.. warning:: Arbitrary code can be executed while loading an instance from a YAML or Pickle file.'),
+):
     """
     A helper class for YAML serialization/deserialization
 
