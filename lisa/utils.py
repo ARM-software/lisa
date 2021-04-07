@@ -575,7 +575,26 @@ class UnknownTagPlaceholder:
         return f'<UnknownTagPlaceholder of {self.tag}>'
 
 
-class Serializable(Loggable):
+def docstring_update(msg):
+    """
+    Create a class to inherit from in order to add a snippet of doc at the end
+    of the docstring of all direct and indirect subclasses::
+
+        class C(docstring_update('world')):
+            "hello"
+
+        assert C.__doc__ == 'hello\n\nworld'
+    """
+    class _DocstringAppend:
+        def __init_subclass__(cls, **kwargs):
+            doc = inspect.cleandoc(cls.__doc__ or '')
+            cls.__doc__ = f'{doc}\n\n{msg}'
+            super().__init_subclass__(**kwargs)
+
+    sphinx_register_nitpick_ignore(_DocstringAppend)
+    return _DocstringAppend
+
+
     """
     A helper class for YAML serialization/deserialization
 
