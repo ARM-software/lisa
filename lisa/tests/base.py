@@ -52,6 +52,7 @@ from lisa.utils import (
     update_wrapper_doc, ExekallTaggable, annotations_from_signature,
     nullcontext, get_sphinx_name, optional_kwargs, group_by_value,
     kwargs_dispatcher, dispatch_kwargs, Loggable, kwargs_forwarded_to,
+    docstring_update,
 )
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector, ComposedCollector
@@ -835,7 +836,13 @@ class TestBundleMeta(abc.ABCMeta):
         return new_cls
 
 
-class TestBundleBase(Serializable, ExekallTaggable, abc.ABC, metaclass=TestBundleMeta):
+class TestBundleBase(
+    Serializable,
+    ExekallTaggable,
+    abc.ABC,
+    docstring_update('.. note:: As a subclass of :class:`lisa.tests.base.TestBundleBase`, this class is considered as "application" and its API is therefore more subject to change than other parts of :mod:`lisa`.'),
+    metaclass=TestBundleMeta
+):
     """
     A LISA test bundle.
 
