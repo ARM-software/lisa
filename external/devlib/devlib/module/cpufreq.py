@@ -301,7 +301,7 @@ class CpufreqModule(Module):
         except ValueError:
             raise ValueError('Frequency must be an integer; got: "{}"'.format(frequency))
 
-    def get_frequency(self, cpu):
+    def get_frequency(self, cpu, cpuinfo=False):
         """
         Returns the current frequency currently set for the specified CPU.
 
@@ -309,12 +309,18 @@ class CpufreqModule(Module):
         try to read the current frequency and the following exception will be
         raised ::
 
+        :param cpuinfo: Read the value in the cpuinfo interface that reflects
+                        the actual running frequency.
+
         :raises: TargetStableError if for some reason the frequency could not be read.
 
         """
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
-        sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_cur_freq'.format(cpu)
+
+        sysfile = '/sys/devices/system/cpu/{}/cpufreq/{}'.format(
+                cpu,
+                'cpuinfo_cur_freq' if cpuinfo else 'scaling_cur_freq')
         return self.target.read_int(sysfile)
 
     def set_frequency(self, cpu, frequency, exact=True):
@@ -350,6 +356,10 @@ class CpufreqModule(Module):
                 raise TargetStableError('Can\'t set {} frequency; governor must be "userspace"'.format(cpu))
             sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_setspeed'.format(cpu)
             self.target.write_value(sysfile, value, verify=False)
+            cpuinfo = self.get_frequency(cpu, cpuinfo=True)
+            if cpuinfo != value:
+                self.logger.warning(
+                    'The cpufreq value has not been applied properly cpuinfo={} request={}'.format(cpuinfo, value))
         except ValueError:
             raise ValueError('Frequency must be an integer; got: "{}"'.format(frequency))
 

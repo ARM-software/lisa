@@ -21,6 +21,7 @@ from datetime import timedelta
 from devlib.collector import (CollectorBase, CollectorOutput,
                               CollectorOutputEntry)
 from devlib.target import KernelConfigTristate
+from devlib.exception import TargetStableError
 
 
 class KernelLogEntry(object):
@@ -153,6 +154,10 @@ class DmesgCollector(CollectorBase):
 
     def __init__(self, target, level=LOG_LEVELS[-1], facility='kern'):
         super(DmesgCollector, self).__init__(target)
+
+        if not target.is_rooted:
+            raise TargetStableError('Cannot collect dmesg on non-rooted target')
+
         self.output_path = None
 
         if level not in self.LOG_LEVELS:

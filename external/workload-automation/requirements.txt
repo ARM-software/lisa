@@ -20,10 +20,10 @@ PyNaCl==1.4.0
 pyserial==3.5
 python-dateutil==2.8.1
 pytz==2020.4
-PyYAML==5.3.1
+PyYAML==5.4
 requests==2.25.0
 scp==0.13.3
 six==1.15.0
-urllib3==1.26.3
+urllib3==1.26.4
 wlauto==3.0.0
 wrapt==1.12.1
