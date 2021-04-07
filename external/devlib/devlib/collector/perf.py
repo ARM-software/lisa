@@ -24,8 +24,9 @@ from devlib.collector import (CollectorBase, CollectorOutput,
 from devlib.utils.misc import ensure_file_directory_exists as _f
 
 
-PERF_COMMAND_TEMPLATE = '{binary} {command} {options} {events} sleep 1000 > {outfile} 2>&1 '
+PERF_STAT_COMMAND_TEMPLATE = '{binary} {command} {options} {events} {sleep_cmd} > {outfile} 2>&1 '
 PERF_REPORT_COMMAND_TEMPLATE= '{binary} report {options} -i {datafile} > {outfile} 2>&1 '
+PERF_REPORT_SAMPLE_COMMAND_TEMPLATE= '{binary} report-sample {options} -i {datafile} > {outfile} '
 PERF_RECORD_COMMAND_TEMPLATE= '{binary} record {options} {events} -o {outfile}'
 
 PERF_DEFAULT_EVENTS = [
@@ -90,12 +91,16 @@ class PerfCollector(CollectorBase):
                  events=None,
                  optionstring=None,
                  report_options=None,
+                 run_report_sample=False,
+                 report_sample_options=None,
                  labels=None,
                  force_install=False):
         super(PerfCollector, self).__init__(target)
         self.force_install = force_install
         self.labels = labels
         self.report_options = report_options
+        self.run_report_sample = run_report_sample
+        self.report_sample_options = report_sample_options
         self.output_path = None
 
         # Validate parameters
@@ -138,17 +143,20 @@ class PerfCollector(CollectorBase):
             self.target.remove(filepath)
             filepath = self._get_target_file(label, 'rpt')
             self.target.remove(filepath)
+            filepath = self._get_target_file(label, 'rptsamples')
+            self.target.remove(filepath)
 
     def start(self):
         for command in self.commands:
-            self.target.kick_off(command, as_root=self.target.is_rooted)
+            self.target.background(command, as_root=self.target.is_rooted)
 
     def stop(self):
         self.target.killall(self.perf_type, signal='SIGINT',
                             as_root=self.target.is_rooted)
-        # perf doesn't transmit the signal to its sleep call so handled here:
-        self.target.killall('sleep', as_root=self.target.is_rooted)
-        # NB: we hope that no other "important" sleep is on-going
+        if self.perf_type == "perf" and self.command == "stat":
+            # perf doesn't transmit the signal to its sleep call so handled here:
+            self.target.killall('sleep', as_root=self.target.is_rooted)
+            # NB: we hope that no other "important" sleep is on-going
 
     def set_output(self, output_path):
         self.output_path = output_path
@@ -164,6 +172,9 @@ class PerfCollector(CollectorBase):
                 self._wait_for_data_file_write(label, self.output_path)
                 path = self._pull_target_file_to_host(label, 'rpt', self.output_path)
                 output.append(CollectorOutputEntry(path, 'file'))
+                if self.run_report_sample:
+                    report_samples_path = self._pull_target_file_to_host(label, 'rptsamples', self.output_path)
+                    output.append(CollectorOutputEntry(report_samples_path, 'file'))
             else:
                 path = self._pull_target_file_to_host(label, 'out', self.output_path)
                 output.append(CollectorOutputEntry(path, 'file'))
@@ -188,10 +199,12 @@ class PerfCollector(CollectorBase):
 
     def _build_perf_stat_command(self, options, events, label):
         event_string = ' '.join(['-e {}'.format(e) for e in events])
-        command = PERF_COMMAND_TEMPLATE.format(binary = self.binary,
+        sleep_cmd = 'sleep 1000' if self.perf_type == 'perf' else ''
+        command = PERF_STAT_COMMAND_TEMPLATE.format(binary = self.binary,
                                                command = self.command,
                                                options = options or '',
                                                events = event_string,
+                                               sleep_cmd = sleep_cmd,
                                                outfile = self._get_target_file(label, 'out'))
         return command
 
@@ -200,6 +213,13 @@ class PerfCollector(CollectorBase):
                                                       options=report_options or '',
                                                       datafile=self._get_target_file(label, 'data'),
                                                       outfile=self._get_target_file(label, 'rpt'))
+        return command
+
+    def _build_perf_report_sample_command(self, label):
+        command = PERF_REPORT_SAMPLE_COMMAND_TEMPLATE.format(binary=self.binary,
+                                                      options=self.report_sample_options or '',
+                                                      datafile=self._get_target_file(label, 'data'),
+                                                      outfile=self._get_target_file(label, 'rptsamples'))
         return command
 
     def _build_perf_record_command(self, options, label):
@@ -234,6 +254,9 @@ class PerfCollector(CollectorBase):
                 data_file_finished_writing = True
         report_command = self._build_perf_report_command(self.report_options, label)
         self.target.execute(report_command)
+        if self.run_report_sample:
+            report_sample_command = self._build_perf_report_sample_command(label)
+            self.target.execute(report_sample_command)
 
     def _validate_events(self, events):
         available_events_string = self.target.execute('{} list | {} cat'.format(self.perf_type, self.target.busybox))

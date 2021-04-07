@@ -582,7 +582,7 @@ def adb_background_shell(conn, command,
                          stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE,
                          as_root=False):
-    """Runs the sepcified command in a subprocess, returning the the Popen object."""
+    """Runs the specified command in a subprocess, returning the the Popen object."""
     device = conn.device
     adb_server = conn.adb_server
 
@@ -603,7 +603,7 @@ def adb_background_shell(conn, command,
     p = subprocess.Popen(full_command, stdout=stdout, stderr=stderr, shell=True)
 
     # Out of band PID lookup, to avoid conflicting needs with stdout redirection
-    find_pid = 'ps -A -o pid,args | grep {}'.format(quote(uuid_var))
+    find_pid = '{} ps -A -o pid,args | grep {}'.format(conn.busybox, quote(uuid_var))
     ps_out = conn.execute(find_pid)
     pids = [
         int(line.strip().split(' ', 1)[0])
