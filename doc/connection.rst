@@ -147,7 +147,7 @@ Connection Types
 .. class:: SshConnection(host, username, password=None, keyfile=None, port=22,\
                          timeout=None, platform=None, \
                          sudo_cmd="sudo -- sh -c {}", strict_host_check=True, \
-                         use_scp=False, poll_transfers=False,
+                         use_scp=False, poll_transfers=False, \
                          start_transfer_poll_delay=30, total_transfer_timeout=3600,\
                          transfer_poll_period=30)
 
@@ -177,7 +177,7 @@ Connection Types
     :param platform: Specify the platform to be used. The generic :class:`~devlib.platform.Platform`
                      class is used by default.
     :param sudo_cmd: Specify the format of the command used to grant sudo access.
-    :param strict_host_check: Specify the ssh connection parameter ``StrictHostKeyChecking``,              
+    :param strict_host_check: Specify the ssh connection parameter ``StrictHostKeyChecking``,
     :param use_scp: Use SCP for file transfers, defaults to SFTP.
     :param poll_transfers: Specify whether file transfers should be polled. Polling
                            monitors the progress of file transfers and periodically

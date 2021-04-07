@@ -225,15 +225,16 @@ Target
    If transfer polling is supported (ADB connections and SSH connections),
    ``poll_transfers`` is set in the connection, and a timeout is not specified,
    the push will be polled for activity. Inactive transfers will be
-   cancelled. (See :ref:`connection-types`\ for more information on polling).
+   cancelled. (See :ref:`connection-types` for more information on polling).
 
    :param source: path on the host
    :param dest: path on the target
    :param as_root: whether root is required. Defaults to false.
    :param timeout: timeout (in seconds) for the transfer; if the transfer does
-       not  complete within this period, an exception will be raised.
+       not complete within this period, an exception will be raised. Leave unset
+       to utilise transfer polling if enabled.
    :param globbing: If ``True``, the ``source`` is interpreted as a globbing
-        pattern instead of being take as-is. If the pattern has mulitple
+        pattern instead of being take as-is. If the pattern has multiple
         matches, ``dest`` must be a folder (or will be created as such if it
         does not exists yet).
 
@@ -244,7 +245,7 @@ Target
    If transfer polling is supported (ADB connections and SSH connections),
    ``poll_transfers`` is set in the connection, and a timeout is not specified,
    the pull will be polled for activity. Inactive transfers will be
-   cancelled. (See :ref:`connection-types`\ for more information on polling).
+   cancelled. (See :ref:`connection-types` for more information on polling).
 
    :param source: path on the target
    :param dest: path on the host
@@ -252,7 +253,7 @@ Target
    :param timeout: timeout (in seconds) for the transfer; if the transfer does
        not  complete within this period, an exception will be raised.
    :param globbing: If ``True``, the ``source`` is interpreted as a globbing
-        pattern instead of being take as-is. If the pattern has mulitple
+        pattern instead of being take as-is. If the pattern has multiple
         matches, ``dest`` must be a folder (or will be created as such if it
         does not exists yet).
 
@@ -706,7 +707,7 @@ Android Target
 .. method:: AndroidTarget.get_stay_on_mode()
 
    Returns an integer between ``0`` and ``7`` representing the current
-   stay-on mode of the device. 
+   stay-on mode of the device.
 
 .. method:: AndroidTarget.ensure_screen_is_off(verify=True)
 
