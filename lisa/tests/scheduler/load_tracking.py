@@ -461,6 +461,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         res = self._add_cpu_metric(res)
         return res
 
+    @memoized
     @_test_correctness.used_events
     def test_util_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=5) -> ResultBundle:
         """
@@ -482,6 +483,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
             max_error_margin_pct=max_error_margin_pct,
         )
 
+    @memoized
     @_test_correctness.used_events
     def test_load_correctness(self, mean_error_margin_pct=2, max_error_margin_pct=5) -> ResultBundle:
         """
@@ -493,6 +495,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
             max_error_margin_pct=max_error_margin_pct,
         )
 
+    @memoized
     @_test_behaviour.used_events
     @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_util_behaviour(self, error_margin_pct=5) -> ResultBundle:
@@ -511,6 +514,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
         """
         return self._test_behaviour('util', error_margin_pct)
 
+    @memoized
     @_test_behaviour.used_events
     @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_load_behaviour(self, error_margin_pct=5) -> ResultBundle:
