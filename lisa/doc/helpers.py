@@ -40,10 +40,11 @@ from sphinx.ext.autodoc import exclude_members_option
 import lisa
 import lisa.analysis
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
-from lisa.utils import get_subclasses, import_all_submodules, DEPRECATED_MAP, get_sphinx_name, groupby, get_short_doc
+from lisa.utils import get_subclasses, import_all_submodules, DEPRECATED_MAP, get_sphinx_name, groupby, get_short_doc, order_as
 from lisa.trace import MissingTraceEventError, TraceEventCheckerBase
 from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, KeyDesc, LevelKeyDesc
 from lisa.version import format_version
+import lisa.git
 
 
 class RecursiveDirective(Directive):
@@ -580,5 +581,117 @@ def get_subclasses_bullets(cls, abbrev=True, style=None, only_leaves=False):
             for subcls in get_subclasses(cls, only_leaves=only_leaves)
         )
     )
+
+
+def make_changelog(repo):
+    """
+    Generate a reStructuredText changelog to be included in the documentation.
+
+    .. note:: The git repository cannot be a shallow clone, as the changelog is
+        extracted from the git history.
+    """
+    release_refs = lisa.git.find_tags(repo, 'v*') + ['HEAD']
+    # TODO: remove this hardcoded list and replace with tag lookup
+    release_refs = ['e189103ba144e34db634713fd8a47fc514e0ebec', 'HEAD']
+
+    def update_release_name(name):
+        if name == 'HEAD':
+            return 'Next release'
+        else:
+            return name
+
+    MARKERS = ['FEATURE', 'FIX', 'BREAKING CHANGE']
+
+    # Filtering on the patterns we look for provides a considerable speedup
+    commit_pattern = '(' + '|'.join(map(re.escape, MARKERS)) + ')'
+    release_sha1s = {
+        update_release_name(y): lisa.git.find_commits(
+            repo=repo,
+            ref=f'{x}..{y}',
+            grep=commit_pattern,
+            regex=True,
+        )
+        for x, y in zip(release_refs, release_refs[1:])
+    }
+
+    release_msgs = {
+        release: [
+            lisa.git.get_commit_message(
+                repo=repo,
+                ref=ref,
+                format='%B',
+            ).strip()
+            for ref in refs
+        ]
+        for release, refs in release_sha1s.items()
+    }
+
+    def parse_msg(msg):
+        selected = tuple(sorted({
+            marker
+            for marker in MARKERS
+            if marker in msg
+        }))
+        for marker in selected:
+            pattern = f'^\s*{re.escape(marker)}\s*$'
+            msg = re.sub(pattern, '', msg, flags=re.MULTILINE)
+
+        return (msg, selected)
+
+    def expand(msg, markers):
+        for marker in markers:
+            yield (marker, msg)
+
+    release_msgs = {
+        release: dict(
+            map(
+                lambda x: (x[0], list(map(itemgetter(1), x[1]))),
+                groupby(
+                    (
+                        entry
+                        for msg in msgs
+                        for entry in expand(*parse_msg(msg))
+                    ),
+                    key=itemgetter(0)
+                )
+            )
+        )
+        for release, msgs in release_msgs.items()
+    }
+
+    def indent(level, content):
+        idt = level * ' '
+        return idt + content.replace('\n', f'\n{idt}')
+
+    def format_release(name, sections):
+        title = f'{name}\n{len(name) * "="}\n'
+        body = '\n\n'.join(
+            format_section(marker, _msgs)
+            for marker, _msgs in order_as(
+                sections.items(),
+                order_as=MARKERS,
+                key=itemgetter(0),
+            )
+        )
+
+        return f'{title}\n{body}'
+
+    def format_section(name, msgs):
+        title = f'{name.capitalize()}\n{len(name) * "+"}\n'
+        body = '\n\n'.join(map(format_msg, sorted(msgs)))
+        body = indent(4, body)
+        return f'{title}\n{body}'
+
+    def format_msg(msg):
+        subject = msg.splitlines()[0]
+        return f'- {subject.strip()}'
+
+    rst = '\n'.join(
+        format_release(name, sections)
+        for name, sections in release_msgs.items()
+    )
+
+    return rst
+
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
