@@ -79,7 +79,7 @@ def get_commit_message(repo, ref='HEAD', format='%s'):
 
     return git(repo, 'show', '--format=' + format, '-s', ref)
 
-def find_commits(repo, ref='HEAD', grep=None):
+def find_commits(repo, ref='HEAD', grep=None, regex=False):
     """
     Find git commits.
 
@@ -90,10 +90,17 @@ def find_commits(repo, ref='HEAD', grep=None):
 
     :param grep: Passed to ``git log --grep``
     :type grep: str or None
+
+    :param regex: If ``True``, the ``grep`` pattern will be used as an extended
+        regex. If ``False``, a fixed string will be searched for.
+    :type regex: bool
     """
     opts = []
     if grep:
-        opts += ['--grep', grep]
+        opts += [
+            '--grep', grep,
+            '-E' if regex else '-F'
+        ]
 
     commits = git(repo, 'log', '--format=%H', *opts, ref, '--')
     return commits.splitlines()
