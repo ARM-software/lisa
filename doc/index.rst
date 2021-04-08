@@ -49,9 +49,9 @@ Contents:
    misc_utilities
    stat_comparison
 
-   ==== Guides ==== <self>
+   ==== Changes ==== <self>
 
-   transition_guide
+   changes
    contributors_guide
 
 
