@@ -126,5 +126,12 @@ def log(repo, ref='HEAD', format=None, commits_nr=1):
 
     return git(repo, 'log', *opts, ref, '--')
 
+def find_tags(repo, pattern):
+    """
+    Find the git tags matching the given pattern.
+    """
+    tags = git(repo, 'tag', '--list', '--', pattern)
+    return tags.splitlines()
+
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
