@@ -624,3 +624,37 @@ class CloneTestCase(NoExcepTestCase):
             expr.clone_by_predicate(predicate)
             for expr in super().get_computable_expr_list()
         ]
+
+
+import typing
+
+class AssociatedBase:
+    ASSOCIATED_CLS = typing.TypeVar('ASSOCIATED_CLS')
+
+    def make_associated(self) -> 'AssociatedBase.ASSOCIATED_CLS':
+        return self.X
+
+    @classmethod
+    def make(cls) -> 'AssociatedBase':
+        return cls()
+
+class AssociatedDerived1_CLS:
+    def final(self) -> Final:
+        return Final()
+
+class AssociatedDerived1(AssociatedBase):
+    X = AssociatedDerived1_CLS()
+    ASSOCIATED_CLS = type(X)
+
+class AssociatedTypesTestCase(NoExcepTestCase):
+    CALLABLES = {
+        AssociatedDerived1.make,
+        engine.UnboundMethod(AssociatedBase.make_associated, AssociatedDerived1),
+        AssociatedDerived1_CLS.final,
+    }
+    EXPR_ID = {
+        (('qual', True),): 'exekall.tests.suite.AssociatedDerived1.make:exekall.tests.suite.AssociatedBase.make_associated:exekall.tests.suite.AssociatedDerived1_CLS.final',
+        (('qual', False),): 'AssociatedDerived1.make:AssociatedBase.make_associated:AssociatedDerived1_CLS.final',
+    }
+    # no tags used
+    EXPR_VAL_ID = EXPR_ID

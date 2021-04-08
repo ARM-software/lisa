@@ -264,21 +264,6 @@ def remove_indices(iterable, ignored_indices):
     return [v for i, v in enumerate(iterable) if i not in ignored_indices]
 
 
-def resolve_annotations(annotations, module_vars):
-    """
-    Basic reimplementation of typing.get_type_hints.
-
-    Some Python versions do not have a typing module available, and it also
-    avoids creating ``Optional[]`` when the parameter has a None default value.
-    """
-    return {
-        # If we get a string, evaluate it in the global namespace of the
-        # module in which the callable was defined
-        param: cls if not isinstance(cls, str) else eval(cls, module_vars)
-        for param, cls in annotations.items()
-    }
-
-
 def get_module_basename(path):
     """
     Get the module name of the module defined in source ``path``.

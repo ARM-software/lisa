@@ -259,6 +259,29 @@ expressions ``Conf:Stage1:process_method``, ``Conf:Stage1:process1`` and
 ``Conf:Stage1:process2(conf=Conf)``. The common subexpression ``Conf:Stage1`` would be
 shared between these two by default.
 
+Callables are assumed to not be polymorphic in their return value, as the
+methods that will be called on the resulting value is decided ahead of time. A
+limited form of polymorphism akin to Rust's Generic Associated Types (GATs) or
+Haskell's associated type families is supported::
+
+    import typing
+
+    class Base:
+        ASSOCIATED_CLS = typing.TypeVar('ASSOCIATED_CLS')
+
+        # Methods are allowed to use this polymorphic type as a return type, as
+        # long as all subclasses override ASSOCIATED_CLS class attribute.
+        def foo(self) -> 'Base.ASSOCIATED_CLS':
+            return X
+
+    class Derived1(Base):
+        X = 1
+        ASSOCIATED_CLS = type(X)
+
+    class Derived2(Base):
+        X = 'hello'
+        ASSOCIATED_CLS = type(X)
+
 If a parameter has a default value, its annotation can be omitted. If a
 parameter has both a default value and an annotation, ``exekall`` will try to
 provide a value for it, or use the default value if no subexpression has the right

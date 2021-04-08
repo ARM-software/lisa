@@ -498,6 +498,37 @@ expressions \fBConf:Stage1:process_method\fP, \fBConf:Stage1:process1\fP and
 \fBConf:Stage1:process2(conf=Conf)\fP\&. The common subexpression \fBConf:Stage1\fP would be
 shared between these two by default.
 .sp
+Callables are assumed to not be polymorphic in their return value, as the
+methods that will be called on the resulting value is decided ahead of time. A
+limited form of polymorphism akin to Rust\(aqs Generic Associated Types (GATs) or
+Haskell\(aqs associated type families is supported:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import typing
+
+class Base:
+    ASSOCIATED_CLS = typing.TypeVar(\(aqASSOCIATED_CLS\(aq)
+
+    # Methods are allowed to use this polymorphic type as a return type, as
+    # long as all subclasses override ASSOCIATED_CLS class attribute.
+    def foo(self) \-> \(aqBase.ASSOCIATED_CLS\(aq:
+        return X
+
+class Derived1(Base):
+    X = 1
+    ASSOCIATED_CLS = type(X)
+
+class Derived2(Base):
+    X = \(aqhello\(aq
+    ASSOCIATED_CLS = type(X)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
 If a parameter has a default value, its annotation can be omitted. If a
 parameter has both a default value and an annotation, \fBexekall\fP will try to
 provide a value for it, or use the default value if no subexpression has the right
