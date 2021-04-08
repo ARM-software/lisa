@@ -21,6 +21,8 @@
 # really need to depend on the engine, without being part of it.
 
 import inspect
+import typing
+
 import exekall.engine as engine
 
 # Re-export all _utils here
@@ -118,18 +120,19 @@ def _get_callable_set(module, visited_obj_set, verbose):
         for callable_ in callable_list:
             try:
                 op = engine.Operator(callable_)
-                param_list, return_type = op.prototype
+                # Trigger exceptions if they have to be raised
+                op.prototype
             # If the callable is partially annotated, warn about it since it is
             # likely to be a mistake.
             except engine.PartialAnnotationError as e:
-                log_f('Partially-annotated callable will not be used: {e}'.format(
+                log_f('Partially-annotated callable "{callable}" will not be used: {e}'.format(
                     callable=get_name(callable_),
                     e=e,
                 ))
                 continue
             # If some annotations fail to resolve
             except NameError as e:
-                log_f('callable with unresolvable annotations will not be used: {e}'.format(
+                log_f('callable "{callable}" with unresolvable annotations will not be used: {e}'.format(
                     callable=get_name(callable_),
                     e=e,
                 ))
@@ -139,17 +142,54 @@ def _get_callable_set(module, visited_obj_set, verbose):
             except (AttributeError, ValueError, KeyError, engine.AnnotationError):
                 continue
 
+            def has_typevar(op):
+                return any(
+                    isinstance(x, typing.TypeVar)
+                    for x in {op.value_type, *op.prototype[0].values()}
+                )
+
             # Swap-in a wrapper object, so we keep track on the class on which
             # the function was looked up
             if op.is_method:
                 callable_ = engine.UnboundMethod(callable_, obj)
+                # If the return annotation was a TypeVar, give a chance to
+                # Operator to resolve it in case it was redefined in a
+                # subclass, and we are inspecting that subclass
+                if has_typevar(op):
+                    op = engine.Operator(callable_)
+
+            def check_typevar_name(cls, name, var):
+                if name != var.__name__:
+                    log_f('__name__ of {cls}.{var.__name__} typing.TypeVar differs from the name it is bound to "{name}", which will prevent using it for polymorphic parameters or return annotation'.format(
+                        cls=get_name(cls, full_qual=True),
+                        var=var,
+                        name=name,
+                    ))
+                return name
+
+            type_vars = sorted(
+                check_typevar_name(op.value_type, name, attr)
+                for name, attr in inspect.getmembers(
+                    op.value_type,
+                    lambda x: isinstance(x, typing.TypeVar)
+                )
+            )
 
             # Also make sure we don't accidentally get callables that will
             # return a abstract base class instance, since that would not work
             # anyway.
-            if inspect.isabstract(return_type):
+            if inspect.isabstract(op.value_type):
                 log_f('Instances of {} will not be created since it has non-implemented abstract methods'.format(
-                    get_name(return_type, full_qual=True)
+                    get_name(op.value_type, full_qual=True)
+                ))
+            elif type_vars:
+                log_f('Instances of {} will not be created since it has non-overridden TypeVar class attributes: {}'.format(
+                    get_name(op.value_type, full_qual=True),
+                    ', '.join(type_vars)
+                ))
+            elif has_typevar(op):
+                log_f('callable "{callable}" with non-resolved associated TypeVar annotations will not be used'.format(
+                    callable=get_name(callable_),
                 ))
             else:
                 callable_pool.add(callable_)

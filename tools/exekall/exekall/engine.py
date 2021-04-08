@@ -34,6 +34,7 @@ import sys
 import io
 import datetime
 import io
+import typing
 from operator import attrgetter
 
 import exekall._utils as utils
@@ -2508,10 +2509,10 @@ class Operator:
         # in classes, rather than things coming from the typing module
         param_map, value_type = self.prototype
         if not all(
-            isinstance(annot, type)
+            isinstance(annot, (type, typing.TypeVar))
             for annot in {value_type, *param_map.values()}
         ):
-            raise ValueError('Annotations must be classes')
+            raise ValueError('Annotations must be classes or typing.TypeVar')
 
     @property
     def callable_globals(self):
@@ -2851,6 +2852,49 @@ class Operator:
                 log=log,
             )
 
+    def _resolve_annotations(self, annotations):
+        """
+        Basic reimplementation of typing.get_type_hints.
+
+        Some Python versions do not have a typing module available, and it also
+        avoids creating ``Optional[]`` when the parameter has a None default value.
+        """
+
+        module_vars = self.callable_globals
+
+        def resolve(x):
+            # If we get a string, evaluate it in the global namespace of the
+            # module in which the callable was defined
+            if isinstance(x, str):
+                x = eval(x, module_vars)
+
+            # Handle associated types:
+            # If the annotation is a typing.TypeVar, assume it was defined as a
+            # class attribute, which has been overridden by the subclass, so we
+            # can look it up on the subclass.
+            if (
+                isinstance(x, typing.TypeVar) and
+                isinstance(self.callable_, UnboundMethod)
+            ):
+                cls = self.callable_.cls
+                try:
+                    _x = getattr(cls, x.__name__)
+                except AttributeError:
+                    pass
+                else:
+                    # Only use the class attribute if it turns out to be a
+                    # type, to avoid unfortunate clashes between TypeVar and
+                    # unrelated attributes
+                    if isinstance(_x, type):
+                        x = _x
+
+            return x
+
+        return {
+            param: resolve(cls)
+            for param, cls in annotations.items()
+        }
+
     def _get_prototype(self):
         """
         Return the prototype of the callable as a tuple of:
@@ -2861,7 +2905,7 @@ class Operator:
         sig = self.signature
         first_param = utils.take_first(sig.parameters)
         annotations = self.annotations
-        annotation_map = utils.resolve_annotations(annotations, self.callable_globals)
+        annotation_map = self._resolve_annotations(annotations)
         pristine_annotation_map = copy.copy(annotation_map)
 
         extra_ignored_param = set()
@@ -2903,7 +2947,7 @@ class Operator:
                 produced = type(None)
 
         # Recompute after potentially modifying the annotations
-        annotation_map = utils.resolve_annotations(annotations, self.callable_globals)
+        annotation_map = self._resolve_annotations(annotations)
 
         # Remove the return annotation, since we are handling that separately
         annotation_map.pop('return', None)
