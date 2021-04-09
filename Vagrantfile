@@ -1,7 +1,6 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-
 Vagrant.configure(2) do |config|
   config.vm.box = "ubuntu/focal64"
 
@@ -14,7 +13,9 @@ Vagrant.configure(2) do |config|
   end
 
   # Forward ipython notebook's port to the host
-  config.vm.network "forwarded_port", guest: 8888, host: 8888
+  if !ENV['VAGRANT_FORWARD_JUPYTER'] == '0'
+    config.vm.network "forwarded_port", guest: 8888, host: 8888
+  end
 
   config.vm.provision "shell", inline: <<-SHELL
     set -e
@@ -58,8 +59,9 @@ Vagrant.configure(2) do |config|
     do
         echo unset $LC  >> /home/vagrant/.bashrc
     done
-    echo "export LISA_VENV_PATH=$LISA_VENV_PATH" >> /home/vagrant/.bashrc
-    echo 'source init_env' >> /home/vagrant/.bashrc
+    echo "export LISA_VENV_PATH=$LISA_VENV_PATH" >> /home/vagrant/activate-lisa
+    echo 'source init_env' >> /home/vagrant/activate-lisa
+    echo 'source /home/vagrant/activate-lisa' >> /home/vagrant/.bashrc
 
     # Trigger the creation of a venv and check that everything works well
     if ! su vagrant bash -c 'tools/tests.sh'; then
