@@ -20,10 +20,10 @@ import os.path
 import abc
 
 from lisa.wlgen.rta import RTAPhase, PeriodicWload
-from lisa.tests.base import TestBundle, ResultBundle, RTATestBundle, AggregatedResultBundle
+from lisa.tests.base import TestBundleBase, TestBundle, ResultBundle, RTATestBundle, AggregatedResultBundle
 from lisa.trace import requires_events
 from lisa.target import Target
-from lisa.utils import ArtifactPath
+from lisa.utils import ArtifactPath, kwargs_forwarded_to
 from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.tasks import TasksAnalysis
 
@@ -70,7 +70,7 @@ class SchedTuneItemBase(RTATestBundle, TestBundle):
         return cls(res_dir, plat_info, boost, prefer_idle)
 
 
-class SchedTuneBase(TestBundle):
+class SchedTuneBase(TestBundleBase):
     """
     Abstract class enabling the aggregation of ``SchedTuneItemBase``
 
@@ -85,13 +85,20 @@ class SchedTuneBase(TestBundle):
         self.test_bundles = test_bundles
 
     @classmethod
+    @kwargs_forwarded_to(
+        SchedTuneItemBase._from_target,
+        ignore=[
+            'boost',
+            'prefer_idle',
+        ]
+    )
     def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None,
-            collector=None) -> 'SchedTuneBase':
+        collector=None, **kwargs) -> 'SchedTuneBase':
         """
         Creates a SchedTuneBase bundle from the target.
         """
         return cls(res_dir, target.plat_info,
-            list(cls._create_test_bundles(target, res_dir, collector))
+            list(cls._create_test_bundles(target, res_dir, **kwargs))
         )
 
     @classmethod
