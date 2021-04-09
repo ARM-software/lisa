@@ -90,109 +90,137 @@ def get_callable_set(module_set, verbose=False):
     return callable_set
 
 
-def _get_callable_set(module, visited_obj_set, verbose):
+def _get_callable_set(namespace, visited_obj_set, verbose):
+    """
+    :param namespace: Module or class
+    """
     log_f = info if verbose else debug
     callable_pool = set()
 
-    for name, obj in vars(module).items():
-        # skip internal classes that may end up being exposed as a global
-        if inspect.getmodule(obj) is engine:
-            continue
+    if id(namespace) in visited_obj_set:
+        return callable_pool
+    else:
+        visited_obj_set.add(id(namespace))
 
-        if id(obj) in visited_obj_set:
-            continue
-        else:
-            visited_obj_set.add(id(obj))
+    attributes = [
+        callable_
+        for name, callable_ in inspect.getmembers(
+            namespace,
+            predicate=callable
+        )
+    ]
+    if isinstance(namespace, type):
+        attributes.append(namespace)
 
-        # If it is a class, get the list of methods
-        if isinstance(obj, type):
-            callable_list = [
-                callable_
-                for name, callable_
-                in inspect.getmembers(obj, predicate=callable)
-            ]
-            callable_list.append(obj)
-        else:
-            callable_list = [obj]
+    attributes = [
+        attr
+        for attr in attributes
+        if (
+            id(attr) not in visited_obj_set and
+            # skip internal classes that may end up being exposed as a global
+            inspect.getmodule(attr) is not engine
+        )
+    ]
+    visited_obj_set.update(attributes)
 
-        callable_list = [c for c in callable_list if callable(c)]
-
-        for callable_ in callable_list:
-            try:
-                op = engine.Operator(callable_)
-                # Trigger exceptions if they have to be raised
-                op.prototype
-            # If the callable is partially annotated, warn about it since it is
-            # likely to be a mistake.
-            except engine.PartialAnnotationError as e:
-                log_f('Partially-annotated callable "{callable}" will not be used: {e}'.format(
-                    callable=get_name(callable_),
-                    e=e,
-                ))
-                continue
-            # If some annotations fail to resolve
-            except NameError as e:
-                log_f('callable "{callable}" with unresolvable annotations will not be used: {e}'.format(
-                    callable=get_name(callable_),
-                    e=e,
-                ))
-                continue
-            # If something goes wrong, that means it is not properly annotated
-            # so we just ignore it
-            except (AttributeError, ValueError, KeyError, engine.AnnotationError):
-                continue
-
-            def has_typevar(op):
-                return any(
-                    isinstance(x, typing.TypeVar)
-                    for x in {op.value_type, *op.prototype[0].values()}
-                )
-
-            # Swap-in a wrapper object, so we keep track on the class on which
-            # the function was looked up
-            if op.is_method:
-                callable_ = engine.UnboundMethod(callable_, obj)
-                # If the return annotation was a TypeVar, give a chance to
-                # Operator to resolve it in case it was redefined in a
-                # subclass, and we are inspecting that subclass
-                if has_typevar(op):
-                    op = engine.Operator(callable_)
-
-            def check_typevar_name(cls, name, var):
-                if name != var.__name__:
-                    log_f('__name__ of {cls}.{var.__name__} typing.TypeVar differs from the name it is bound to "{name}", which will prevent using it for polymorphic parameters or return annotation'.format(
-                        cls=get_name(cls, full_qual=True),
-                        var=var,
-                        name=name,
-                    ))
-                return name
-
-            type_vars = sorted(
-                check_typevar_name(op.value_type, name, attr)
-                for name, attr in inspect.getmembers(
-                    op.value_type,
-                    lambda x: isinstance(x, typing.TypeVar)
-                )
+    for callable_ in attributes:
+        # Explore the class attributes as well for nested types
+        if (
+            isinstance(callable_, type) and
+            # Do not recurse into the "_type" class attribute of namedtuple, as
+            # it has broken globals Python 3.6. The crazy checks are a
+            # workaround the fact that there is no direct way to detect if a
+            # class is a namedtuple.
+            not (
+                isinstance(namespace, type) and
+                callable_.__name__ == '_type' and
+                issubclass(callable_, tuple) and
+                hasattr(callable_, '_make') and
+                hasattr(callable_, '_asdict') and
+                hasattr(callable_, '_replace')
+            )
+        ):
+            callable_pool.update(
+                _get_callable_set(callable_, visited_obj_set, verbose)
             )
 
-            # Also make sure we don't accidentally get callables that will
-            # return a abstract base class instance, since that would not work
-            # anyway.
-            if inspect.isabstract(op.value_type):
-                log_f('Instances of {} will not be created since it has non-implemented abstract methods'.format(
-                    get_name(op.value_type, full_qual=True)
+        try:
+            op = engine.Operator(callable_)
+            # Trigger exceptions if they have to be raised
+            op.prototype
+        # If the callable is partially annotated, warn about it since it is
+        # likely to be a mistake.
+        except engine.PartialAnnotationError as e:
+            log_f('Partially-annotated callable "{callable}" will not be used: {e}'.format(
+                callable=get_name(callable_),
+                e=e,
+            ))
+            continue
+        # If some annotations fail to resolve
+        except NameError as e:
+            log_f('callable "{callable}" with unresolvable annotations will not be used: {e}'.format(
+                callable=get_name(callable_),
+                e=e,
+            ))
+            continue
+        # If something goes wrong, that means it is not properly annotated
+        # so we just ignore it
+        except (AttributeError, ValueError, KeyError, engine.AnnotationError):
+            continue
+
+        def has_typevar(op):
+            return any(
+                isinstance(x, typing.TypeVar)
+                for x in {op.value_type, *op.prototype[0].values()}
+            )
+
+        # Swap-in a wrapper object, so we keep track on the class on which
+        # the function was looked up
+        if op.is_method:
+            assert isinstance(namespace, type)
+            callable_ = engine.UnboundMethod(callable_, namespace)
+            # If the return annotation was a TypeVar, give a chance to
+            # Operator to resolve it in case it was redefined in a
+            # subclass, and we are inspecting that subclass
+            if has_typevar(op):
+                op = engine.Operator(callable_)
+
+        def check_typevar_name(cls, name, var):
+            if name != var.__name__:
+                log_f('__name__ of {cls}.{var.__name__} typing.TypeVar differs from the name it is bound to "{name}", which will prevent using it for polymorphic parameters or return annotation'.format(
+                    cls=get_name(cls, full_qual=True),
+                    var=var,
+                    name=name,
                 ))
-            elif type_vars:
-                log_f('Instances of {} will not be created since it has non-overridden TypeVar class attributes: {}'.format(
-                    get_name(op.value_type, full_qual=True),
-                    ', '.join(type_vars)
-                ))
-            elif has_typevar(op):
-                log_f('callable "{callable}" with non-resolved associated TypeVar annotations will not be used'.format(
-                    callable=get_name(callable_),
-                ))
-            else:
-                callable_pool.add(callable_)
+            return name
+
+        type_vars = sorted(
+            check_typevar_name(op.value_type, name, attr)
+            for name, attr in inspect.getmembers(
+                op.value_type,
+                lambda x: isinstance(x, typing.TypeVar)
+            )
+        )
+
+        # Also make sure we don't accidentally get callables that will
+        # return a abstract base class instance, since that would not work
+        # anyway.
+        if inspect.isabstract(op.value_type):
+            log_f('Instances of {} will not be created since it has non-implemented abstract methods'.format(
+                get_name(op.value_type, full_qual=True)
+            ))
+        elif type_vars:
+            log_f('Instances of {} will not be created since it has non-overridden TypeVar class attributes: {}'.format(
+                get_name(op.value_type, full_qual=True),
+                ', '.join(type_vars)
+            ))
+        elif has_typevar(op):
+            log_f('callable "{callable}" with non-resolved associated TypeVar annotations will not be used'.format(
+                callable=get_name(callable_),
+            ))
+        else:
+            callable_pool.add(callable_)
+
     return callable_pool
 
 

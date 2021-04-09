@@ -35,6 +35,7 @@ import io
 import datetime
 import io
 import typing
+import types
 from operator import attrgetter
 
 import exekall._utils as utils
@@ -2519,11 +2520,33 @@ class Operator:
         """
         Returns a dictionnary of global variables as seen by the callable.
         """
+        def make_namespace(name, obj):
+            splitted = name.split('.', 1)
+            try:
+                name, remainder = splitted
+            except ValueError:
+                name = splitted[0]
+                remainder = ''
+
+            if remainder:
+                obj = types.SimpleNamespace(
+                    **make_namespace(remainder, obj)
+                )
+            return {name: obj}
+
         globals_ = self.resolved_callable.__globals__ or {}
         globals_ = globals_.copy()
         # Make sure the class name can be resolved
         if isinstance(self.callable_, UnboundMethod):
-            globals_[self.callable_.cls.__name__] = self.callable_.cls
+            # If we have a nested class, it will need a dummy container that it
+            # can be looked up on
+            ns = make_namespace(
+                name=self.callable_.cls.__qualname__,
+                obj=self.callable_.cls,
+            )
+            # Only update the globals_ if it was not there already
+            if not ns.keys() & globals_.keys():
+                globals_.update(ns)
 
         # Work around this bug:
         # https://bugs.python.org/issue43102
