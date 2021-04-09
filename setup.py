@@ -90,6 +90,11 @@ extras_require["doc"] = [
     *itertools.chain.from_iterable(extras_require.values())
 ]
 
+# "all" extra requires all to install all the optional dependencies
+extras_require['all'] = sorted(set(
+    itertools.chain.from_iterable(extras_require.values())
+))
+
 setup(
     name='lisa-linux',
     license='Apache License 2.0',
