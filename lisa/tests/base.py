@@ -728,7 +728,7 @@ class TestBundleMeta(abc.ABCMeta):
             # Sanity check on _from_target signature
             for name, param in signature(_from_target).parameters.items():
                 if name != 'target' and param.kind is not inspect.Parameter.KEYWORD_ONLY:
-                    raise TypeError(f'Non keyword parameters "{_from_target.__qualname__}" are not allowed in {name} signature')
+                    raise TypeError(f'Non keyword parameters "{name}" are not allowed in {_from_target.__qualname__} signature')
 
             # This is necessary since _from_target is then reassigned, and the
             # closure refers to it by name
