@@ -406,43 +406,6 @@ class InvarianceItemBase(LoadTrackingBase, ExekallTaggable, abc.ABC):
 
     @memoized
     @get_simulated_pelt.used_events
-    def _test_behaviour(self, signal_name, error_margin_pct):
-
-        task = self.task_name
-        phase = self.wlgen_task.phases[0]
-        df = self.get_simulated_pelt(task, signal_name)
-
-        cpus = sorted(phase['cpus'])
-        assert len(cpus) == 1
-        cpu = cpus[0]
-
-        expected_duty_cycle_pct = phase['wload'].unscaled_duty_cycle_pct(self.plat_info)
-        expected_final_util = expected_duty_cycle_pct / 100 * UTIL_SCALE
-        settling_time = pelt_settling_time(10, init=0, final=expected_final_util)
-        settling_time += df.index[0]
-
-        df = df[settling_time:]
-
-        # Instead of taking the mean, take the average between the min and max
-        # values of the settled signal. This avoids the bias introduced by the
-        # fact that the util signal stays high while the task sleeps
-        settled_signal_mean = kernel_util_mean(df[signal_name], plat_info=self.plat_info)
-        expected_signal_mean = expected_final_util
-
-        signal_mean_error_pct = abs(expected_signal_mean - settled_signal_mean) / UTIL_SCALE * 100
-        res = ResultBundle.from_bool(signal_mean_error_pct < error_margin_pct)
-
-        res.add_metric('expected mean', expected_signal_mean)
-        res.add_metric('settled mean', settled_signal_mean)
-        res.add_metric('settled mean error', signal_mean_error_pct, '%')
-
-        self._plot_pelt(task, signal_name, df['simulated'], 'behaviour')
-
-        res = self._add_cpu_metric(res)
-        return res
-
-    @memoized
-    @get_simulated_pelt.used_events
     def _test_correctness(self, signal_name, mean_error_margin_pct, max_error_margin_pct):
 
         task = self.task_name
@@ -503,46 +466,6 @@ class InvarianceItemBase(LoadTrackingBase, ExekallTaggable, abc.ABC):
             mean_error_margin_pct=mean_error_margin_pct,
             max_error_margin_pct=max_error_margin_pct,
         )
-
-    @memoized
-    @_test_behaviour.used_events
-    @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
-    def test_util_behaviour(self, error_margin_pct=5) -> ResultBundle:
-        """
-        Check the utilization mean is linked to the task duty cycle.
-
-
-        .. note:: That is not really the case, as the util of a task is not
-            updated when the task is sleeping, but is fairly close to reality
-            as long as the task period is small enough.
-
-        :param error_margin_pct: Allowed difference in percentage of
-            utilization scale.
-        :type error_margin_pct: float
-
-        """
-        return self._test_behaviour('util', error_margin_pct)
-
-    @memoized
-    @_test_behaviour.used_events
-    @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
-    def test_load_behaviour(self, error_margin_pct=5) -> ResultBundle:
-        """
-        Same as :meth:`test_util_behaviour` but checking the load.
-        """
-        return self._test_behaviour('load', error_margin_pct)
-
-
-class TaskInvarianceItem(InvarianceItemBase):
-
-    def _get_trace_signal(self, task, cpus, signal_name):
-        return self.trace.analysis.load_tracking.df_task_signal(task, signal_name)
-
-
-class RqInvarianceItem(InvarianceItemBase):
-
-    def _get_trace_signal(self, task, cpus, signal_name):
-        return self.trace.analysis.load_tracking.df_cpus_signal(signal_name, cpus)
 
 
 class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
@@ -713,28 +636,6 @@ class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
             )
         return self._test_all_items(item_test)
 
-    @InvarianceItemBase.test_util_behaviour.used_events
-    def test_util_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
-        """
-        Aggregated version of :meth:`InvarianceItemBase.test_util_behaviour`
-        """
-        def item_test(test_item):
-            return test_item.test_util_behaviour(
-                error_margin_pct=error_margin_pct,
-            )
-        return self._test_all_items(item_test)
-
-    @InvarianceItemBase.test_load_behaviour.used_events
-    def test_load_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
-        """
-        Aggregated version of :meth:`InvarianceItemBase.test_load_behaviour`
-        """
-        def item_test(test_item):
-            return test_item.test_load_behaviour(
-                error_margin_pct=error_margin_pct,
-            )
-        return self._test_all_items(item_test)
-
     def _test_all_items(self, item_test):
         """
         Apply the `item_test` function on all instances of
@@ -749,7 +650,105 @@ class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
         ]
         return AggregatedResultBundle(item_res_bundles, 'cpu')
 
-    @InvarianceItemBase.test_util_behaviour.used_events
+
+class TaskInvariance(InvarianceBase):
+    class ITEM_CLS(InvarianceItemBase):
+        """
+        Provide specific :class:`TaskInvariance.ITEM_CLS` methods.
+        The common methods are implemented in :class:`InvarianceItemBase`.
+        """
+
+        def _get_trace_signal(self, task, cpus, signal_name):
+            return self.trace.analysis.load_tracking.df_task_signal(task, signal_name)
+
+        @memoized
+        @InvarianceItemBase.get_simulated_pelt.used_events
+        def _test_behaviour(self, signal_name, error_margin_pct):
+
+            task = self.task_name
+            phase = self.wlgen_task.phases[0]
+            df = self.get_simulated_pelt(task, signal_name)
+
+            cpus = sorted(phase['cpus'])
+            assert len(cpus) == 1
+            cpu = cpus[0]
+
+            expected_duty_cycle_pct = phase['wload'].unscaled_duty_cycle_pct(self.plat_info)
+            expected_final_util = expected_duty_cycle_pct / 100 * UTIL_SCALE
+            settling_time = pelt_settling_time(10, init=0, final=expected_final_util)
+            settling_time += df.index[0]
+
+            df = df[settling_time:]
+
+            # Instead of taking the mean, take the average between the min and max
+            # values of the settled signal. This avoids the bias introduced by the
+            # fact that the util signal stays high while the task sleeps
+            settled_signal_mean = kernel_util_mean(df[signal_name], plat_info=self.plat_info)
+            expected_signal_mean = expected_final_util
+
+            signal_mean_error_pct = abs(expected_signal_mean - settled_signal_mean) / UTIL_SCALE * 100
+            res = ResultBundle.from_bool(signal_mean_error_pct < error_margin_pct)
+
+            res.add_metric('expected mean', expected_signal_mean)
+            res.add_metric('settled mean', settled_signal_mean)
+            res.add_metric('settled mean error', signal_mean_error_pct, '%')
+
+            self._plot_pelt(task, signal_name, df['simulated'], 'behaviour')
+
+            res = self._add_cpu_metric(res)
+            return res
+
+        @memoized
+        @_test_behaviour.used_events
+        @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
+        def test_util_behaviour(self, error_margin_pct=5) -> ResultBundle:
+            """
+            Check the utilization mean is linked to the task duty cycle.
+
+
+            .. note:: That is not really the case, as the util of a task is not
+                updated when the task is sleeping, but is fairly close to reality
+                as long as the task period is small enough.
+
+            :param error_margin_pct: Allowed difference in percentage of
+                utilization scale.
+            :type error_margin_pct: float
+
+            """
+            return self._test_behaviour('util', error_margin_pct)
+
+        @memoized
+        @_test_behaviour.used_events
+        @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
+        def test_load_behaviour(self, error_margin_pct=5) -> ResultBundle:
+            """
+            Same as :meth:`TaskInvariance.ITEM_CLS.test_util_behaviour` but checking the load.
+            """
+            return self._test_behaviour('load', error_margin_pct)
+
+    @ITEM_CLS.test_load_behaviour.used_events
+    def test_util_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
+        """
+        Aggregated version of :meth:`TaskInvariance.ITEM_CLS.test_util_behaviour`
+        """
+        def item_test(test_item):
+            return test_item.test_util_behaviour(
+                error_margin_pct=error_margin_pct,
+            )
+        return self._test_all_items(item_test)
+
+    @ITEM_CLS.test_load_behaviour.used_events
+    def test_load_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
+        """
+        Aggregated version of :meth:`TaskInvariance.ITEM_CLS.test_load_behaviour`
+        """
+        def item_test(test_item):
+            return test_item.test_load_behaviour(
+                error_margin_pct=error_margin_pct,
+            )
+        return self._test_all_items(item_test)
+
+    @ITEM_CLS.test_util_behaviour.used_events
     def test_cpu_invariance(self) -> AggregatedResultBundle:
         """
         Check that items using the max freq on each CPU is passing util avg test.
@@ -757,7 +756,7 @@ class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
         There could be false positives, but they are expected to be relatively
         rare.
 
-        .. seealso:: :class:`InvarianceItemBase.test_util_behaviour`
+        .. seealso:: :class:`TaskInvariance.ITEM_CLS.test_util_behaviour`
         """
         res_list = []
         for cpu, item_group in groupby(self.invariance_items, key=lambda x: x.cpu):
@@ -779,12 +778,12 @@ class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
 
         return AggregatedResultBundle(res_list, 'cpu')
 
-    @InvarianceItemBase.test_util_behaviour.used_events
-    def test_freq_invariance(self) -> ResultBundle:
+    @ITEM_CLS.test_util_behaviour.used_events
+    def test_freq_invariance(self) -> AggregatedResultBundle:
         """
         Check that at least one CPU has items passing for all tested frequencies.
 
-        .. seealso:: :class:`InvarianceItemBase.test_util_behaviour`
+        .. seealso:: :class:`TaskInvariance.ITEM_CLS.test_util_behaviour`
         """
 
         logger = self.get_logger()
@@ -828,12 +827,13 @@ class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
         )
 
 
-class TaskInvariance(InvarianceBase):
-
-    ITEM_CLS = TaskInvarianceItem
-
-
 class RqInvariance(InvarianceBase):
+    class ITEM_CLS(InvarianceItemBase):
+        """
+        Provide specific :class:`RqInvariance.ITEM_CLS` methods.
+        The common methods are implemented in :class:`InvarianceItemBase`.
+        """
 
-    ITEM_CLS = RqInvarianceItem
+        def _get_trace_signal(self, task, cpus, signal_name):
+            return self.trace.analysis.load_tracking.df_cpus_signal(signal_name, cpus)
  # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
