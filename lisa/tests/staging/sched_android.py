@@ -103,7 +103,7 @@ class SchedTuneBase(TestBundleBase):
 
     @classmethod
     @abc.abstractmethod
-    def _create_test_bundles(cls, target, res_dir, collector):
+    def _create_test_bundles(cls, target, res_dir, **kwargs):
         """
         Collects and yields a :class:`lisa.tests.base.ResultBundle` per test
         item.
@@ -111,8 +111,8 @@ class SchedTuneBase(TestBundleBase):
         pass
 
     @classmethod
-    def _create_test_bundle_item(cls, target, res_dir, collector, item_cls,
-                                 boost, prefer_idle):
+    def _create_test_bundle_item(cls, target, res_dir, item_cls,
+                                 boost, prefer_idle, **kwargs):
         """
         Creates and returns a TestBundle for a given item class, and a given
         schedtune configuration
@@ -126,7 +126,7 @@ class SchedTuneBase(TestBundleBase):
             boost=boost,
             prefer_idle=prefer_idle,
             res_dir=item_dir,
-            collector=collector,
+            **kwargs,
         )
 
 
@@ -224,10 +224,16 @@ class SchedTuneFrequencyTest(SchedTuneBase):
     ftrace_conf = SchedTuneFreqItem.FTRACE_CONF
 
     @classmethod
-    def _create_test_bundles(cls, target, res_dir, collector):
+    def _create_test_bundles(cls, target, res_dir, **kwargs):
         for boost in range(20, 101, 20):
-            yield cls._create_test_bundle_item(target, res_dir, collector,
-                    SchedTuneFreqItem, boost, False)
+            yield cls._create_test_bundle_item(
+                target=target,
+                res_dir=res_dir,
+                item_cls=SchedTuneFreqItem,
+                boost=boost,
+                prefer_idle=False,
+                **kwargs
+            )
 
     def test_stune_frequency(self, freq_margin_pct=10) -> AggregatedResultBundle:
         """
@@ -303,11 +309,17 @@ class SchedTunePlacementTest(SchedTuneBase):
     ftrace_conf = SchedTunePlacementItem.FTRACE_CONF
 
     @classmethod
-    def _create_test_bundles(cls, target, res_dir, collector):
+    def _create_test_bundles(cls, target, res_dir, **kwargs):
         # Typically top-app tasks are boosted by 10%, or 50% during touchboost
         for boost in [10, 50]:
-            yield cls._create_test_bundle_item(target, res_dir, collector,
-                    SchedTunePlacementItem, boost, True)
+            yield cls._create_test_bundle_item(
+                target=target,
+                res_dir=res_dir,
+                item_cls=SchedTunePlacementItem,
+                boost=boost,
+                prefer_idle=True,
+                **kwargs
+            )
 
     def test_stune_task_placement(self, margin_pct=10) -> AggregatedResultBundle:
         """
