@@ -220,9 +220,6 @@ class SchedTuneFrequencyTest(SchedTuneBase):
     from 20% to 100%, then checks all succedeed.
     """
 
-    # Make sure exekall will always collect all events required by items
-    ftrace_conf = SchedTuneFreqItem.FTRACE_CONF
-
     @classmethod
     def _create_test_bundles(cls, target, res_dir, **kwargs):
         for boost in range(20, 101, 20):
@@ -304,9 +301,6 @@ class SchedTunePlacementTest(SchedTuneBase):
     Runs multiple ``SchedTunePlacementItem`` tests with prefer_idle set and
     typical top-app boost levels, then checks all succedeed.
     """
-
-    # Make sure exekall will always collect all events required by items
-    ftrace_conf = SchedTunePlacementItem.FTRACE_CONF
 
     @classmethod
     def _create_test_bundles(cls, target, res_dir, **kwargs):

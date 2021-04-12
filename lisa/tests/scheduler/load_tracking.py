@@ -542,10 +542,6 @@ class Invariance(TestBundleBase, LoadTrackingHelpers):
     :class:`InvarianceItem`.
     """
 
-    # Make sure ftrace_conf is available so exekall can find the right settings
-    # when building the FtraceCollector
-    ftrace_conf = InvarianceItem.FTRACE_CONF
-
     NR_FREQUENCIES = 8
     """
     Maximum number of tested frequencies.
