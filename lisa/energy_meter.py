@@ -34,7 +34,7 @@ import psutil
 
 import devlib
 
-from lisa.utils import Loggable, get_subclasses, ArtifactPath, HideExekallID
+from lisa.utils import Loggable, get_subclasses, ArtifactPath, HideExekallID, deprecate
 from lisa.datautils import series_integrate
 from lisa.conf import (
     SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable,
@@ -44,6 +44,12 @@ from lisa.generic import TypedList
 # Default energy measurements for each board
 EnergyReport = namedtuple('EnergyReport',
                           ['channels', 'report_file', 'data_frame'])
+
+_deprecate_emeter = deprecate(
+    'LISA energy meters are deprecated, please use devlib instruments or contribute the instrument to devlib',
+    deprecated_in='2.0',
+    removed_in='2.1',
+)
 
 
 class EnergyMeter(Loggable, Configurable):
@@ -135,6 +141,7 @@ class HWMonConf(SimpleMultiSrcConf, HideExekallID):
     ))
 
 
+@_deprecate_emeter
 class HWMon(EnergyMeter):
     """
     HWMon energy meter
@@ -322,6 +329,7 @@ class AEPConf(SimpleMultiSrcConf, HideExekallID):
     ))
 
 
+@_deprecate_emeter
 class AEP(_DevlibContinuousEnergyMeter):
     """
     Arm Energy Probe energy meter
@@ -366,6 +374,7 @@ class MonsoonConf(SimpleMultiSrcConf, HideExekallID):
     ))
 
 
+@_deprecate_emeter
 class Monsoon(_DevlibContinuousEnergyMeter):
     """
     Monsoon Solutions energy meter
@@ -409,6 +418,7 @@ class ACMEConf(SimpleMultiSrcConf, HideExekallID):
     ))
 
 
+@_deprecate_emeter
 class ACME(EnergyMeter):
     """
     BayLibre's ACME board based EnergyMeter
@@ -611,6 +621,7 @@ class Gem5EnergyMeterConf(SimpleMultiSrcConf, HideExekallID):
     ))
 
 
+@_deprecate_emeter
 class Gem5EnergyMeter(_DevlibContinuousEnergyMeter):
     name = 'gem5'
     CONF_CLASS = Gem5EnergyMeterConf
