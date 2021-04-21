@@ -581,8 +581,8 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
         self.target.remove(self.run_dir)
 
         # Also get rid of empty parent folders
-        path = Path(self.run_dir)
-        self.target.execute(f'rmdir -p {quote(path.parent)}', check_exit_code=False)
+        parent = str(Path(self.run_dir).parent)
+        self.target.execute(f'rmdir -p {quote(parent)}', check_exit_code=False)
 
     def __enter__(self):
         self.deploy()
