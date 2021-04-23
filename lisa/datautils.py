@@ -111,10 +111,11 @@ def series_refit_index(series, start=None, end=None, window=None, method='inclus
     :type window: tuple(float or None, float or None) or None
 
     :param method: Windowing method used to select the first and last values of
-        the series using :func:`series_window`. Defaults to ``pre``, which is
-        suitable for signals where all the value changes have a corresponding
-        row without any fixed sample-rate constraints. If they have been
-        downsampled, ``nearest`` might be a better choice.).
+        the series using :func:`series_window`. Defaults to ``inclusive``,
+        which is suitable for signals where all the value changes have a
+        corresponding row without any fixed sample-rate constraints. If they
+        have been downsampled, ``nearest`` might be a better choice.).
+    :type method: str
 
     .. note:: If ``end`` is past the end of the data, the last row will
         be duplicated so that we can have a start and end index at the right
