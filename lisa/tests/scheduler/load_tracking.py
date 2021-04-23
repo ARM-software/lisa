@@ -347,6 +347,10 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
             capacity = capacity.pivot(columns=['cpu'])
             capacity.columns = capacity.columns.droplevel(0)
             capacity.ffill(inplace=True)
+            capacity = df_refit_index(
+                capacity,
+                window=(df_activation.index[0], df_activation.index[-1])
+            )
             # Make sure we end up with the timestamp at which the capacity
             # changes, rather than the timestamps at which the task is enqueued
             # or dequeued.
