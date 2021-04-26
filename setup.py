@@ -69,9 +69,13 @@ for root, dirs, files in os.walk(devlib_dir):
         filepaths = [os.path.join(root, f) for f in files]
         data_files[package_name].extend([os.path.relpath(f, package_dir) for f in filepaths])
 
+with open("README.rst", "r") as fh:
+    long_description = fh.read()
+
 params = dict(
     name='devlib',
-    description='A framework for automating workload execution and measurment collection on ARM devices.',
+    description='A library for interacting with and instrumentation of remote devices.',
+    long_description=long_description,
     version=__version__,
     packages=packages,
     package_data=data_files,

@@ -136,6 +136,14 @@ class Target(object):
         return KernelVersion(self.execute('{} uname -r -v'.format(quote(self.busybox))).strip())
 
     @property
+    def hostid(self):
+        return int(self.execute('{} hostid'.format(self.busybox)).strip(), 16)
+
+    @property
+    def hostname(self):
+        return self.execute('{} hostname'.format(self.busybox)).strip()
+
+    @property
     def os_version(self):  # pylint: disable=no-self-use
         return {}
 
