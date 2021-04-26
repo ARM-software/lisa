@@ -57,3 +57,23 @@ class HotplugModule(Module):
             return
         value = 1 if online else 0
         self.target.write_value(path, value)
+
+    def _get_path(self, path):
+        return self.target.path.join(self.base_path,
+            path)
+
+    def fail(self, cpu, state):
+        path = self._get_path('cpu{}/hotplug/fail'.format(cpu))
+        return self.target.write_value(path, state)
+
+    def get_state(self, cpu):
+        path = self._get_path('cpu{}/hotplug/state'.format(cpu))
+        return self.target.read_value(path)
+
+    def get_states(self):
+        path = self._get_path('hotplug/states')
+        states_string = self.target.read_value(path)
+        return dict(
+                map(str.strip, string.split(':', 1))
+                for string in states_string.strip().splitlines()
+        )

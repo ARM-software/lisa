@@ -466,6 +466,7 @@ class PopenTransferManager(TransferManagerBase):
         if self.transfer:
             self.transfer.cancel()
             self.transfer = None
+            self.last_sample = None
 
     def isactive(self):
         size_fn = self._push_dest_size if self.direction == 'push' else self._pull_dest_size
@@ -477,6 +478,7 @@ class PopenTransferManager(TransferManagerBase):
 
     def set_transfer_and_wait(self, popen_bg_cmd):
         self.transfer = popen_bg_cmd
+        self.last_sample = None
         ret = self.transfer.wait()
 
         if ret and not self.transfer_aborted.is_set():

@@ -13,7 +13,6 @@ numpy==1.19.4
 pandas==1.1.5
 paramiko==2.7.2
 pexpect==4.8.0
-pkg-resources==0.0.0
 ptyprocess==0.6.0
 pycparser==2.20
 PyNaCl==1.4.0

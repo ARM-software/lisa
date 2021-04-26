@@ -125,10 +125,21 @@ Target
    This is a dict that contains a mapping of OS version elements to their
    values. This mapping is OS-specific.
 
+.. attribute:: Target.hostname
+
+   A string containing the hostname of the target.
+
+.. attribute:: Target.hostid
+
+   A numerical id used to represent the identity of the target.
+
+   .. note:: Currently on 64-bit PowerPC devices this id will always be 0. This is
+             due to the included busybox binary being linked with musl.
+
 .. attribute:: Target.system_id
 
    A unique identifier for the system running on the target. This identifier is
-   intended to be uninque for the combination of hardware, kernel, and file
+   intended to be unique for the combination of hardware, kernel, and file
    system.
 
 .. attribute:: Target.model
