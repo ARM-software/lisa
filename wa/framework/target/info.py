@@ -230,15 +230,14 @@ def get_target_info(target):
     info.is_rooted = target.is_rooted
     info.kernel_version = target.kernel_version
     info.kernel_config = target.config
+    info.hostname = target.hostname
+    info.hostid = target.hostid
+
     try:
         info.sched_features = target.read_value('/sys/kernel/debug/sched_features').split()
     except TargetError:
         # best effort -- debugfs might not be mounted
         pass
-
-    hostid_string = target.execute('{} hostid'.format(target.busybox)).strip()
-    info.hostid = int(hostid_string, 16)
-    info.hostname = target.execute('{} hostname'.format(target.busybox)).strip()
 
     for i, name in enumerate(target.cpuinfo.cpu_names):
         cpu = CpuInfo()

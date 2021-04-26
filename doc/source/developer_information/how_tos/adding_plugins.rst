@@ -183,7 +183,7 @@ allow it to decide whether to keep the file or not.
             # Pull the results file to the host
             self.host_outfile = os.path.join(context.output_directory, 'timing_results')
             self.target.pull(self.target_outfile, self.host_outfile)
-            context.add_artifact('ziptest-results', host_output_file, kind='raw')
+            context.add_artifact('ziptest-results', self.host_outfile, kind='raw')
 
 The ``update_output`` method we can do any generation of metrics that we wish to
 for our workload. In this case we are going to simply convert the times reported
@@ -259,7 +259,7 @@ The full implementation of this workload would look something like:
             # Pull the results file to the host
             self.host_outfile = os.path.join(context.output_directory, 'timing_results')
             self.target.pull(self.target_outfile, self.host_outfile)
-            context.add_artifact('ziptest-results', host_output_file, kind='raw')
+            context.add_artifact('ziptest-results', self.host_outfile, kind='raw')
 
         def update_output(self, context):
             super(ZipTestWorkload, self).update_output(context)

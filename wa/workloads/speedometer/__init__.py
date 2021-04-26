@@ -128,7 +128,7 @@ class Speedometer(Workload):
     @once
     def initialize(self, context):
         super(Speedometer, self).initialize(context)
-        self.archive_server = ArchiveServer()
+        Speedometer.archive_server = ArchiveServer()
         if not self.target.is_rooted:
             raise WorkloadError(
                 "Device must be rooted for the speedometer workload currently"
@@ -148,18 +148,17 @@ class Speedometer(Workload):
 
         # Temporary directory used for storing the Speedometer files, uiautomator
         # dumps, and modified XML chrome config files.
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.document_root = os.path.join(self.temp_dir.name, "document_root")
+        Speedometer.temp_dir = tempfile.TemporaryDirectory()
+        Speedometer.document_root = os.path.join(self.temp_dir.name, "document_root")
 
         # Host a copy of Speedometer locally
         tarball = context.get_resource(File(self, "speedometer_archive.tgz"))
         with tarfile.open(name=tarball) as handle:
             handle.extractall(self.temp_dir.name)
-        self.archive_server.start(self.document_root, self.target)
-        self.webserver_port = self.archive_server.get_port()
+        self.archive_server.start(self.document_root)
 
-        self.speedometer_url = "http://localhost:{}/Speedometer2.0/index.html".format(
-            self.webserver_port
+        Speedometer.speedometer_url = "http://localhost:{}/Speedometer2.0/index.html".format(
+            self.archive_server.get_port()
         )
 
     def setup(self, context):
@@ -231,6 +230,8 @@ class Speedometer(Workload):
     def run(self, context):
         super(Speedometer, self).run(context)
 
+        self.archive_server.expose_to_device(self.target)
+
         # Generate a UUID to search for in the browser's local storage to find out
         # when the workload has ended.
         report_end_id = uuid.uuid4().hex
@@ -244,6 +245,8 @@ class Speedometer(Workload):
         self.target.execute(browser_launch_cmd)
 
         self.wait_for_benchmark_to_complete(report_end_id)
+
+        self.archive_server.hide_from_device(self.target)
 
     def target_file_was_created(self, f):
         """Assume that once self.target.file_exists(f) returns True, it will
@@ -372,7 +375,7 @@ class Speedometer(Workload):
         super(Speedometer, self).finalize(context)
 
         # Shutdown the locally hosted version of Speedometer
-        self.archive_server.stop(self.target)
+        self.archive_server.stop()
 
 
 class ArchiveServerThread(threading.Thread):
@@ -408,7 +411,7 @@ class ArchiveServer(object):
     def __init__(self):
         self._port = None
 
-    def start(self, document_root, target):
+    def start(self, document_root):
         # Create the server, and find out the port we've been assigned...
         self._httpd = HTTPServer(("", 0), DifferentDirectoryHTTPRequestHandler)
         # (This property is expected to be read by the
@@ -419,13 +422,15 @@ class ArchiveServer(object):
         self._thread = ArchiveServerThread(self._httpd)
         self._thread.start()
 
-        adb_command(target.adb_name, "reverse tcp:{0} tcp:{0}".format(self._port))
-
-    def stop(self, target):
-        adb_command(target.adb_name, "reverse --remove tcp:{}".format(self._port))
-
+    def stop(self):
         self._httpd.shutdown()
         self._thread.join()
+
+    def expose_to_device(self, target):
+        adb_command(target.adb_name, "reverse tcp:{0} tcp:{0}".format(self._port))
+
+    def hide_from_device(self, target):
+        adb_command(target.adb_name, "reverse --remove tcp:{}".format(self._port))
 
     def get_port(self):
         return self._port
