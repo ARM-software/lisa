@@ -29,7 +29,7 @@ from lisa.target import Target
     """,
     replaced_by=Target.remote_func,
     deprecated_in='2.0',
-    removed_in='2.1',
+    removed_in='3.0',
 )
 class TargetScript:
     """

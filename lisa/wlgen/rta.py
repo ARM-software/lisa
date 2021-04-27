@@ -573,7 +573,7 @@ class RTA(Workload):
         self._late_init(conf=conf)
         return self
 
-    @deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=from_profile)
+    @deprecate(deprecated_in='2.0', removed_in='3.0', replaced_by=from_profile)
     @classmethod
     def by_profile(cls, *args, **kwargs):
         return cls.from_profile(*args, **kwargs)
@@ -625,7 +625,7 @@ class RTA(Workload):
         self._late_init(conf=conf)
         return self
 
-    @deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=from_str)
+    @deprecate(deprecated_in='2.0', removed_in='3.0', replaced_by=from_str)
     @classmethod
     def by_str(cls, *args, **kwargs):
         return cls.from_profile(*args, **kwargs)
@@ -3899,7 +3899,7 @@ class _RTATask(RTAPhaseTree):
         return self._priority
 
 
-@deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=RTAPhase)
+@deprecate(deprecated_in='2.0', removed_in='3.0', replaced_by=RTAPhase)
 class RTATask(_RTATask):
     """
     Base class for conveniently constructing params to :meth:`RTA.from_profile`
@@ -3971,7 +3971,7 @@ class _Ramp(_RTATask):
         )
 
 
-@deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=DutyCycleSweepPhase)
+@deprecate(deprecated_in='2.0', removed_in='3.0', replaced_by=DutyCycleSweepPhase)
 class Ramp(_Ramp):
     """
     Configure a ramp load.
@@ -4014,7 +4014,7 @@ class Ramp(_Ramp):
     pass
 
 
-@deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=DutyCycleSweepPhase)
+@deprecate(deprecated_in='2.0', removed_in='3.0', replaced_by=DutyCycleSweepPhase)
 class Step(_Ramp):
     """
     Configure a step load.
@@ -4115,7 +4115,7 @@ class _Pulse(_RTATask):
         )
 
 
-@deprecate(deprecated_in='2.0', removed_in='2.1', replaced_by=RTAPhase)
+@deprecate(deprecated_in='2.0', removed_in='3.0', replaced_by=RTAPhase)
 class Pulse(_Pulse):
     """
     Configure a pulse load.
@@ -4161,7 +4161,7 @@ class Pulse(_Pulse):
     pass
 
 
-@deprecate('Replaced by :class:`lisa.wlgen.rta.RTAPhase` along with :class:`lisa.wlgen.rta.PeriodicWload` workload', deprecated_in='2.0', removed_in='2.1', replaced_by=RTAPhase)
+@deprecate('Replaced by :class:`lisa.wlgen.rta.RTAPhase` along with :class:`lisa.wlgen.rta.PeriodicWload` workload', deprecated_in='2.0', removed_in='3.0', replaced_by=RTAPhase)
 class Periodic(_Pulse):
     """
     Configure a periodic load. This is the simplest type of RTA task.
@@ -4216,7 +4216,7 @@ class Periodic(_Pulse):
         )
 
 
-@deprecate('Replaced by :class:`lisa.wlgen.rta.RTAPhase` along with :class:`lisa.wlgen.rta.RunWload` and :class:`lisa.wlgen.rta.BarrierWload` workloads', deprecated_in='2.0', removed_in='2.1', replaced_by=RTAPhase)
+@deprecate('Replaced by :class:`lisa.wlgen.rta.RTAPhase` along with :class:`lisa.wlgen.rta.RunWload` and :class:`lisa.wlgen.rta.BarrierWload` workloads', deprecated_in='2.0', removed_in='3.0', replaced_by=RTAPhase)
 class RunAndSync(_RTATask):
     """
     Configure a task that runs 100% then waits on a barrier
