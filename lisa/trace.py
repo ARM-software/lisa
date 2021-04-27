@@ -365,8 +365,8 @@ class MockTraceParser(TraceParserBase):
                 ]
 
                 return (
-                    int(min(map(itemgetter(0), indices))),
-                    int(max(map(itemgetter(-1), indices))),
+                    float(min(map(itemgetter(0), indices))),
+                    float(max(map(itemgetter(-1), indices))),
                 )
             else:
                 return (0, 0)
