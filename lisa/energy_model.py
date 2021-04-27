@@ -818,7 +818,7 @@ class EnergyModel(Serializable, Loggable):
 
         return em
 
-    @deprecate(replaced_by='lisa.energy_model.LinuxEnergyModel.from_target', deprecated_in='2.0', removed_in='2.1')
+    @deprecate(replaced_by='lisa.energy_model.LinuxEnergyModel.from_target', deprecated_in='2.0', removed_in='3.0')
     @staticmethod
     def from_debugfsEM_target(*args, **kwargs):
         """
@@ -826,7 +826,7 @@ class EnergyModel(Serializable, Loggable):
         """
         return LinuxEnergyModel.from_target(*args, **kwargs)
 
-    @deprecate(replaced_by='lisa.energy_model.LegacyEnergyModel.from_target', deprecated_in='2.0', removed_in='2.1')
+    @deprecate(replaced_by='lisa.energy_model.LegacyEnergyModel.from_target', deprecated_in='2.0', removed_in='3.0')
     @staticmethod
     def from_sd_target(*args, **kwargs):
         """

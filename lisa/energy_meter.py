@@ -48,7 +48,7 @@ EnergyReport = namedtuple('EnergyReport',
 _deprecate_emeter = deprecate(
     'LISA energy meters are deprecated, please use devlib instruments or contribute the instrument to devlib',
     deprecated_in='2.0',
-    removed_in='2.1',
+    removed_in='3.0',
 )
 
 
