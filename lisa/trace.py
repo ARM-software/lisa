@@ -1285,6 +1285,14 @@ class TxtTraceParser(TxtTraceParserBase):
             func_field='ip',
             content_field='str',
         ),
+        'cpuhp_enter': dict(
+            fields={
+                'cpu': _KERNEL_DTYPE['cpu'],
+                'target': 'uint16',
+                'idx': 'uint16',
+                'fun': _KERNEL_DTYPE['pointer'],
+            },
+        ),
         'funcgraph_entry': dict(
             fields={
                 'func': _KERNEL_DTYPE['pointer'],
