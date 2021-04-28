@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Copyright (C) 2018, Arm Limited and contributors.
+# Copyright (C) 2021, Arm Limited and contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License.
@@ -19,17 +19,22 @@ import abc
 import sys
 import random
 import os.path
+import operator
 import collections
 import time
 from time import sleep
 from threading import Thread
-from operator import itemgetter
+from functools import partial
+from itertools import chain
 
+import pandas as pd
 from devlib.module.hotplug import HotplugModule
-from devlib.exception import TargetNotRespondingError
+from devlib.exception import TargetNotRespondingError, TargetStableError
 
-from lisa.tests.base import TestMetric, ResultBundle, TestBundle, DmesgTestBundle
+from lisa.datautils import df_merge
+from lisa.tests.base import TestMetric, ResultBundle, TestBundle, DmesgTestBundle, FtraceTestBundle
 from lisa.target import Target
+from lisa.trace import requires_events
 from lisa.utils import ArtifactPath
 
 
@@ -131,7 +136,7 @@ class HotplugBase(DmesgTestBundle, TestBundle):
         # The main contributor to the execution time are sleeps, so set a
         # timeout to 10 times the total sleep time. This should be enough to
         # take into account sysfs writes too
-        timeout = 10 * sum(map(itemgetter('sleep'), sequence))
+        timeout = 10 * sum(map(operator.itemgetter('sleep'), sequence))
 
         # This function will be executed on the target directly to avoid the
         # overhead of executing the calls one by one, which could mask
@@ -264,4 +269,200 @@ class HotplugTorture(HotplugBase):
         for cpu in cur_off_cpus:
             yield cpu, 1
 
-# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
+
+class HotplugRollback(FtraceTestBundle, DmesgTestBundle):
+
+    @classmethod
+    def _online(cls, target, cpu, online, verify=True):
+        try:
+            if online:
+                target.hotplug.online(cpu)
+            else:
+                target.hotplug.offline(cpu)
+        except TargetStableError as e:
+            if verify:
+                raise e
+
+    @classmethod
+    def _reset_fail(cls, target, cpu):
+        target.hotplug.fail(cpu, -1)
+
+    @classmethod
+    def _state_can_fail(cls, target, cpu, state, up):
+        """
+        There are no way of probing the kernel for a list of hotplug states
+        that can fail and for which we can test the rollback. We need therefore
+        to try:
+        - If we can set the state in the kernel 'fail' interface.
+        - If the hotplug is reset actually failing (some states can fail only
+          when going up or down)
+        """
+        try:
+            target.hotplug.fail(cpu, state)
+        except TargetStableError:
+            return False
+
+        try:
+            cls._online(target, cpu, up)
+            cls._reset_fail(target, cpu)
+            cls._online(target, cpu, not up)
+            #If we can go up/down without a failure, that's because this state
+            #doesn't have a up/down callback and can't fail.
+            return False
+        except TargetStableError:
+            return True
+
+    @classmethod
+    def _prepare_hotplug(cls, target, cpu, up):
+        cls._reset_fail(target, cpu)
+        cls._online(target, cpu, not up)
+
+    @classmethod
+    def _get_states(cls, target, cpu, up):
+        states = target.hotplug.get_states()
+        cls._prepare_hotplug(target, cpu, not up)
+        return [
+                state
+                for state in states
+                if cls._state_can_fail(target, cpu, state, up)
+        ]
+
+    @classmethod
+    def _mark_trace(cls, target, collector, start=True,
+                    expected=False, up=False, failing_state=0):
+        """
+        Convert start, expected and up to int for a lighter trace
+        """
+        target.write_value(
+                collector['ftrace'].marker_file,
+                "hotplug_rollback: test={} expected={} up={} failing_state={}".format(
+                    int(start), int(expected), int(up), failing_state),
+                verify=False
+        )
+
+    @classmethod
+    def _test_rollback(cls, target, collector, cpu, failing_state, up):
+        cls._prepare_hotplug(target, cpu, up=up)
+        target.hotplug.fail(cpu, failing_state)
+        cls._mark_trace(target, collector, up=up,
+                        failing_state=failing_state)
+        cls._online(target, cpu, online=up, verify=False)
+        cls._mark_trace(target, collector, start=False)
+
+    @classmethod
+    def _do_from_target(cls, target, res_dir, collector, cpu):
+        # Get the list of each state that can fail
+        states_down = cls._get_states(target, cpu, up=False)
+        states_up = cls._get_states(target, cpu, up=True)
+
+        cls._prepare_hotplug(target, cpu, up=False)
+        with collector:
+            # Get the expected list of states for a complete Hotplug
+            cls._mark_trace(target, collector, expected=True, up=False)
+            cls._online(target, cpu, online=False)
+            cls._mark_trace(target, collector, expected=True, up=True)
+            cls._online(target, cpu, online=True)
+            cls._mark_trace(target, collector, start=False)
+
+            # Test hotunplug rollback for each possible state failure
+            for failing_state in states_down:
+                cls._test_rollback(target, collector, cpu=cpu,
+                                   failing_state=failing_state, up=False)
+
+            # Test hotplug rollback for each possible state failure
+            for failing_state in states_up:
+                cls._test_rollback(target, collector, cpu=cpu,
+                                   failing_state=failing_state, up=True)
+
+            # TODO: trace-cmd is relying on _SC_NPROCESSORS_CONF to know how
+            # many CPUs are present in the system and what to flush from the
+            # ftrace buffer to the trace.dat file. The problem is that the Musl
+            # libc that we use to build trace-cmd in LISA is returning, for
+            # _SC_NPROCESSORS_CONF, the number of CPUs  _online_. We then need,
+            # until this problem is fixed to set the CPU back online before
+            # collecting the trace, or some data would be missing.
+            cls._online(target, cpu, online=True)
+
+        return cls(res_dir, target.plat_info)
+
+    @classmethod
+    def _from_target(cls, target, *,
+                     res_dir: ArtifactPath = None, collector=None) -> 'HotplugRollback':
+        cpu = min(target.hotplug.list_hotpluggable_cpus())
+        cls._online(target, cpu, online=True)
+
+        try:
+            return cls._do_from_target(target, res_dir, collector, cpu)
+        finally:
+            cls._reset_fail(target, cpu)
+            cls._online(target, cpu, online=True)
+
+    @classmethod
+    def _get_expected_states(cls, df, up):
+        df = df[(df['expected']) & (df['up'] == up)]
+
+        return df['idx'].dropna()
+
+    @requires_events('userspace@hotplug_rollback', 'cpuhp_enter')
+    def test_hotplug_rollback(self) -> ResultBundle:
+        """
+        Test that the hotplug can rollback to its previous state after a
+        failure. All possible steps, up/down combinations will be tested. For
+        each combination, also verify that the hotplug is going through all the
+        steps it is supposed to.
+        """
+        df = df_merge([
+            self.trace.df_event('userspace@hotplug_rollback'),
+            self.trace.df_event('cpuhp_enter')
+        ])
+
+        # Keep only the states delimited by _mark_trace()
+        df['test'].ffill(inplace=True)
+        df = df[df['test'] == 1]
+        df.drop(columns='test', inplace=True)
+
+        df['up'].ffill(inplace=True)
+        df['up'] = df['up'].astype(bool)
+
+        # Read the expected states from full hot(un)plug
+        df['expected'].ffill(inplace=True)
+        df['expected'] = df['expected'].astype(bool)
+        expected_down = self._get_expected_states(df, up=False)
+        expected_up = self._get_expected_states(df, up=True)
+        df = df[~df['expected']]
+        df.drop(columns='expected', inplace=True)
+
+        def _get_expected_rollback(up, failing_state):
+            return list(
+                    filter(
+                        partial(
+                            operator.gt if up else operator.lt,
+                            failing_state,
+                        ),
+                        chain(expected_up, expected_down) if up else
+                        chain(expected_down, expected_up)
+                    )
+            )
+
+        def _verify_rollback(df):
+            failing_state = df['failing_state'].iloc[0]
+            up = df['up'].iloc[0]
+            expected = _get_expected_rollback(up, failing_state)
+
+            return pd.DataFrame(data={
+                'failing_state': df['failing_state'],
+                'up': up,
+                'result': df['idx'].tolist() == expected
+            })
+
+        df['failing_state'].ffill(inplace=True)
+        df.dropna(inplace=True)
+        df = df.groupby(['up', 'failing_state'],
+                        observed=True).apply(_verify_rollback)
+        df.drop_duplicates(inplace=True)
+
+        res = ResultBundle.from_bool(df['result'].all())
+        res.add_metric('Failed rollback states',
+                       df[~df['result']]['failing_state'].tolist())
+
+        return res
