@@ -2890,11 +2890,26 @@ class SimpleHash:
     are equal.
     """
 
-    def HASH_COERCE(self, x):
+    def HASH_COERCE(self, x, coerce):
         """
         Used to coerce the values of ``self.__dict__`` to hashable values.
+
+        :param x: the value to coerce to a hashable value
+        :type x: object
+
+        :param coerce: Function to be used to recurse, rather than
+            ``self.HASH_COERCE``. This takes care of memoization to avoid
+            infinite recursion.
+
+            .. attention:: The ``coerce`` function should only be called on
+                values that will be alive after the call has ended, i.e. it can
+                only be passed parts of the ``x`` structure. If temporary
+                objects are passed, memoization will not work as it relies on
+                :func:`id`, which is only guaranteed to provide unique ID to
+                objects that are alive.
+        :type coerce: collections.abc.Callable
+
         """
-        coerce = self.HASH_COERCE
 
         if isinstance(x, Mapping):
             return tuple(
@@ -2913,6 +2928,18 @@ class SimpleHash:
         else:
             raise TypeError(f'Cannot hash value "{x}" of type {x.__class__.__qualname__}')
 
+    def _hash_coerce(self, x, visited):
+        id_ = id(x)
+        try:
+            return visited[id_]
+        except KeyError:
+            coerced = self.HASH_COERCE(
+                x,
+                functools.partial(self._hash_coerce, visited=visited)
+            )
+            visited[id_] = coerced
+            return coerced
+
     def __eq__(self, other):
         if self is other:
             return True
@@ -2922,7 +2949,7 @@ class SimpleHash:
             return False
 
     def __hash__(self):
-        return hash(tuple(sorted(map(self.HASH_COERCE, self.__dict__.items()))))
+        return hash(tuple(sorted(map(functools.partial(self._hash_coerce, visited={}), self.__dict__.items()))))
 
 
 # Inherit from ABCMeta to avoid the most common metaclass conflict
