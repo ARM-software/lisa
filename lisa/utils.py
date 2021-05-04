@@ -3030,7 +3030,7 @@ class PartialInit(metaclass=_PartialInitMeta):
         # empty instance, e.g. using cls.__new__(cls), in which case we want to
         # allow calling methods on it to initialize it
         initialized, missing_kwargs = dct.get('_initialized', (True, set()))
-        if initialized:
+        if initialized or attr in ('__class__',):
             return get(attr)
         else:
             params = ', '.join(
