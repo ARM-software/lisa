@@ -284,11 +284,16 @@ class TasksAnalysis(TraceAnalysisBase):
         # A) Assemble the sched_switch and sched_wakeup events
         ######################################################
 
-        wk_df = self.trace.df_event('sched_wakeup')
-        sw_df = self.trace.df_event('sched_switch')
+        def get_df(event):
+            # Ignore the end of the window so we can properly compute the
+            # durations
+            return self.trace.df_event(event, window=(self.trace.start, None))
+
+        wk_df = get_df('sched_wakeup')
+        sw_df = get_df('sched_switch')
 
         try:
-            wkn_df = self.trace.df_event('sched_wakeup_new')
+            wkn_df = get_df('sched_wakeup_new')
         except MissingTraceEventError:
             pass
         else:
@@ -339,6 +344,8 @@ class TasksAnalysis(TraceAnalysisBase):
 
             tasks = list(map(resolve_task, tasks))
             df = df_filter_task_ids(df, tasks)
+
+        df = df_window(df, window=self.trace.window)
 
         # Return a unique dataframe with new columns added
         if return_one_df:

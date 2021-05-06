@@ -369,7 +369,7 @@ class TestTrace(TraceTestCase):
     def test_df_tasks_states(self):
         df = self.trace.analysis.tasks.df_tasks_states()
 
-        assert len(df) == 4780
+        assert len(df) == 4779
         # Proxy check for detecting delta computation changes
         assert df.delta.sum() == pytest.approx(134.568219)
 
