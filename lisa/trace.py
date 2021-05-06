@@ -5280,9 +5280,6 @@ class FtraceCollector(CollectorBase, Configurable):
     _COMPOSITION_ORDER = 0
 
     def __init__(self, target, *, events=None, functions=None, buffer_size=10240, output_path=None, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, **kwargs):
-        if not target.plat_info['kernel']['config'].get('FTRACE'):
-            raise ValueError("The target's kernel needs CONFIG_FTRACE=y kconfig enabled")
-
         events = events or []
         functions = functions or []
         trace_clock = trace_clock or 'global'
@@ -5297,6 +5294,13 @@ class FtraceCollector(CollectorBase, Configurable):
             tracer=tracer,
         )
         self.check_init_param(**kwargs)
+
+        kconfig = target.plat_info['kernel']['config']
+        if not kconfig.get('FTRACE'):
+            raise ValueError("The target's kernel needs CONFIG_FTRACE=y kconfig enabled")
+
+        if functions and not kconfig.get('FUNCTION_TRACER'):
+            raise ValueError(f"The target's kernel needs CONFIG_FUNCTION_TRACER=y kconfig enabled in order to trace functions: {functions}")
 
         self.events = events
         kernel_events = set(itertools.chain.from_iterable(
