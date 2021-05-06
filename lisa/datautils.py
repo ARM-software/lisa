@@ -203,7 +203,10 @@ def _data_refit_index(data, window, method, clip_window):
         raise ValueError('Cannot refit the index of an empty dataframe or series')
 
     start, end = window
-    duplicate_last = end > data.index[-1]
+    if end is None:
+        duplicate_last = False
+    else:
+        duplicate_last = end > data.index[-1]
     data = _data_window(data, window, method=method, clip_window=clip_window)
 
     if data.empty:
