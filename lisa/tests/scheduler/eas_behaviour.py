@@ -115,6 +115,14 @@ class EASBehaviour(RTATestBundle, TestBundle):
 
     @classmethod
     def check_from_target(cls, target):
+        kconfig = target.plat_info['kernel']['config']
+        for option in (
+            'CONFIG_ENERGY_MODEL',
+            'CONFIG_CPU_FREQ_GOV_SCHEDUTIL',
+        ):
+            if not kconfig.get(option):
+                raise CannotCreateError(f"The target's kernel needs {option}=y kconfig enabled")
+
         for domain in target.cpufreq.iter_domains():
             if "schedutil" not in target.cpufreq.list_governors(domain[0]):
                 raise CannotCreateError(
