@@ -1013,7 +1013,20 @@ class TasksAnalysis(TraceAnalysisBase):
             if df.empty:
                 return df
             else:
-                return df_refit_index(df, window=(None, df.index[-1]+df['duration'].iat[-1]))
+                start = self.trace.start
+                last_duration = df['duration'].iat[-1]
+                if pd.isna(last_duration):
+                    end = self.trace.end
+                else:
+                    end = df.index[-1] + last_duration
+                # If the rectangle finishes before the beginning of the trace
+                # window, we ignore it
+                if start <= end:
+                    # Clip the beginning so that plots don't extend to the
+                    # left of the trace window.
+                    return df_refit_index(df, window=(start, end))
+                else:
+                    return df.iloc[0:0]
 
         label = ' '.join(map(str, self.trace.get_task_ids(task)))
 
