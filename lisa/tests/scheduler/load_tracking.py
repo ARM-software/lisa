@@ -164,6 +164,17 @@ class InvarianceItemBase(RTATestBundle, LoadTrackingHelpers, TestBundle, Exekall
         assert len(tasks) == 1
         return tasks[0]
 
+    @property
+    def cpus(self):
+        """
+        All CPUs used by RTapp workload.
+        """
+        return set(itertools.chain.from_iterable(
+            phase['cpus']
+            for task in self.rtapp_profile.values()
+            for phase in task.phases
+        ))
+
     def get_tags(self):
         return {'cpu': f'{self.cpu}@{self.freq}'}
 
@@ -279,7 +290,6 @@ class InvarianceItemBase(RTATestBundle, LoadTrackingHelpers, TestBundle, Exekall
         logger = self.get_logger()
         trace = self.trace
         task = trace.get_task_id(task)
-        cpus = trace.analysis.tasks.cpus_of_tasks([task])
 
         df_activation = trace.analysis.tasks.df_task_activation(
             task,
@@ -287,7 +297,11 @@ class InvarianceItemBase(RTATestBundle, LoadTrackingHelpers, TestBundle, Exekall
             # executing
             preempted_value=0,
         )
-        df = self._get_trace_signal(task, cpus, signal_name)
+
+        pinned_cpus = sorted(self.cpus)
+        assert len(pinned_cpus) == 1
+        df = self._get_trace_signal(task, pinned_cpus, signal_name)
+
         df = df.copy(deep=False)
 
         # Ignore the first activation, as its signals are incorrect
@@ -316,6 +330,7 @@ class InvarianceItemBase(RTATestBundle, LoadTrackingHelpers, TestBundle, Exekall
             clock = None
 
         try:
+            cpus = trace.analysis.tasks.cpus_of_tasks([task])
             capacity = trace.analysis.load_tracking.df_cpus_signal('capacity', cpus)
         except MissingTraceEventError:
             capacity = None
