@@ -2183,7 +2183,7 @@ class TraceView(Loggable, TraceBase):
         try:
             window = kwargs['window']
         except KeyError:
-            window = (self.start, self.end)
+            window = self.window
         kwargs['window'] = window
 
         return self.base_trace.df_event(event, **kwargs)
