@@ -5280,6 +5280,9 @@ class FtraceCollector(CollectorBase, Configurable):
     _COMPOSITION_ORDER = 0
 
     def __init__(self, target, *, events=None, functions=None, buffer_size=10240, output_path=None, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, **kwargs):
+        if not target.plat_info['kernel']['config'].get('FTRACE'):
+            raise ValueError("The target's kernel needs CONFIG_FTRACE=y kconfig enabled")
+
         events = events or []
         functions = functions or []
         trace_clock = trace_clock or 'global'
