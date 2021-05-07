@@ -1344,6 +1344,8 @@ class DmesgTestBundleBase(TestBundleBase):
         # On kernel >= 5.6, executable stack will trigger this issue:
     	# kern: warn: [555.927466] process 'root/devlib-target/bin/busybox' started with executable stack
         'executable-stack': 'started with executable stack',
+        'hotplug-irq-affinity': 'no longer affine to',
+        'hotplug-irq-affinity-failed': 'set affinity failed',
     }
     """
     Mapping of canned patterns to avoid repetition while defining
