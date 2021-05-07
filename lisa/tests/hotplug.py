@@ -42,7 +42,15 @@ class CPUHPSequenceError(Exception):
     pass
 
 
-class HotplugBase(DmesgTestBundle, TestBundle):
+class HotplugDmesgTestBundle(DmesgTestBundle):
+    DMESG_IGNORED_PATTERNS = [
+        *DmesgTestBundle.DMESG_IGNORED_PATTERNS,
+        DmesgTestBundle.CANNED_DMESG_IGNORED_PATTERNS['hotplug-irq-affinity'],
+        DmesgTestBundle.CANNED_DMESG_IGNORED_PATTERNS['hotplug-irq-affinity-failed'],
+    ]
+
+
+class HotplugBase(HotplugDmesgTestBundle, TestBundle):
     def __init__(self, res_dir, plat_info, target_alive, hotpluggable_cpus, live_cpus):
         super().__init__(res_dir, plat_info)
         self.target_alive = target_alive
@@ -270,7 +278,7 @@ class HotplugTorture(HotplugBase):
             yield cpu, 1
 
 
-class HotplugRollback(FtraceTestBundle, DmesgTestBundle):
+class HotplugRollback(TestBundle, HotplugDmesgTestBundle, FtraceTestBundle):
 
     @classmethod
     def _online(cls, target, cpu, online, verify=True):
