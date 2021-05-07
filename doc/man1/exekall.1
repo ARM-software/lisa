@@ -388,7 +388,7 @@ The artifact folder contains the following files:
 \fBlogging\fP standard module. Note that standard output is not included in
 this log, as it does not go through the \fBlogging\fP module
 .IP \(bu 2
-\fBValueDB.pickle.xz\fP contains a serialized objects graph for each
+\fBVALUE_DB.pickle.xz\fP contains a serialized objects graph for each
 expression that was executed. The value of each subexpression is included
 if the object was serializable.
 .IP \(bu 2
@@ -434,7 +434,7 @@ Artifact folders allocated by some operators.
 .UNINDENT
 .SS exekall compare
 .sp
-\fBValueDB.pickle.xz\fP can be compared using \fBexekall compare\fP\&. This will call the
+\fBVALUE_DB.pickle.xz\fP can be compared using \fBexekall compare\fP\&. This will call the
 comparison method of the adaptor that was used when \fBexekall run\fP was
 executed. That function is expected to compare the expression values found in
 the databases, by matching values that have the same ID on both databases.

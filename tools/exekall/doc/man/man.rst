@@ -167,7 +167,7 @@ The artifact folder contains the following files:
    * **INFO.log** and **DEBUG.log** contain logs for info and debug levels of the
      ``logging`` standard module. Note that standard output is not included in
      this log, as it does not go through the ``logging`` module
-   * **ValueDB.pickle.xz** contains a serialized objects graph for each
+   * **VALUE_DB.pickle.xz** contains a serialized objects graph for each
      expression that was executed. The value of each subexpression is included
      if the object was serializable.
    * **BY_UUID** contains symlinks named after UUIDs, and pointing to a
@@ -201,7 +201,7 @@ Inside that folder, the following files can be found:
 exekall compare
 ---------------
 
-**ValueDB.pickle.xz** can be compared using ``exekall compare``. This will call the
+**VALUE_DB.pickle.xz** can be compared using ``exekall compare``. This will call the
 comparison method of the adaptor that was used when ``exekall run`` was
 executed. That function is expected to compare the expression values found in
 the databases, by matching values that have the same ID on both databases.
