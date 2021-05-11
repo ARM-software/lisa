@@ -406,6 +406,10 @@ class CannotCreateError(RuntimeError):
     """
     Something prevented the creation of a :class:`TestBundleBase` or
     :class:`ResultBundleBase` instance.
+
+    This is typically used as a way to bail out while indicating to the user
+    that the test has essentially been skipped because the target does not
+    support what the test is testing.
     """
     pass
 

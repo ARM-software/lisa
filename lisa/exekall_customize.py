@@ -21,6 +21,7 @@ import contextlib
 import itertools
 import re
 import os.path
+from operator import attrgetter
 from pathlib import Path
 
 from exekall.utils import get_name, add_argument, NoValue, flatten_seq
@@ -30,7 +31,7 @@ from exekall.customization import AdaptorBase
 from lisa.target import Target, TargetConf
 from lisa.utils import HideExekallID, ArtifactPath, Serializable, get_nested_key, ExekallTaggable
 from lisa.conf import MultiSrcConf
-from lisa.tests.base import TestBundle, ResultBundleBase, Result
+from lisa.tests.base import TestBundle, ResultBundleBase, Result, CannotCreateError
 from lisa.regression import compute_regressions
 
 
@@ -498,7 +499,20 @@ comparison. Can be repeated.""")
     def format_result(self, expr_val):
         val = expr_val.value
         if val is NoValue or val is None:
-            return super().format_result(expr_val)
+            skip_exceps = [
+                excep
+                for excep in map(
+                    attrgetter('excep'),
+                    expr_val.get_excep()
+                )
+                if isinstance(excep, CannotCreateError)
+            ]
+            if skip_exceps:
+                sep = '\n    * ' if len(skip_exceps) > 1 else ' '
+                msg = sep.join(map(str, skip_exceps))
+                return f'SKIPPED:{sep}{msg}'
+            else:
+                return super().format_result(expr_val)
         else:
             if isinstance(val, ResultBundleBase):
                 return val.pretty_format()
