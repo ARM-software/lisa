@@ -16,7 +16,7 @@
 #
 
 from lisa.wlgen.rta import RTAPhase, PeriodicWload
-from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle, TestMetric, CannotCreateError
+from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle, TestMetric
 from lisa.datautils import df_deduplicate
 from lisa.analysis.tasks import TasksAnalysis
 
@@ -27,7 +27,7 @@ class NUMABehaviour(RTATestBundle, TestBundle):
     @classmethod
     def check_from_target(cls, target):
         if target.number_of_nodes < 2:
-            raise CannotCreateError(
+            ResultBundle.raise_skip(
                 "Target doesn't have at least two NUMA nodes")
 
     @TasksAnalysis.df_task_states.used_events

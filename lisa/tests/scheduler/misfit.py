@@ -25,7 +25,7 @@ from lisa.utils import memoized, ArtifactPath
 from lisa.datautils import df_squash, df_add_delta
 from lisa.trace import Trace, FtraceConf, requires_events
 from lisa.wlgen.rta import RTAPhase, RunWload, SleepWload
-from lisa.tests.base import TestBundle, RTATestBundle, Result, ResultBundle, CannotCreateError, TestMetric
+from lisa.tests.base import TestBundle, RTATestBundle, Result, ResultBundle, TestMetric
 from lisa.target import Target
 from lisa.analysis.tasks import TasksAnalysis, TaskState
 from lisa.analysis.idle import IdleAnalysis
@@ -156,7 +156,7 @@ class StaggeredFinishes(MisfitMigrationBase):
     @classmethod
     def check_from_target(cls, target):
         if not cls._has_asym_cpucapacity(target):
-            raise CannotCreateError(
+            ResultBundle.raise_skip(
                 "Target doesn't have asymmetric CPU capacities")
 
     @classmethod

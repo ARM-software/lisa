@@ -24,7 +24,7 @@ import pandas as pd
 
 from lisa.tests.base import (
     TestMetric, Result, ResultBundle, AggregatedResultBundle, TestBundleBase,
-    TestBundle, RTATestBundle, CannotCreateError
+    TestBundle, RTATestBundle
 )
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby, ExekallTaggable, add, memoized, kwargs_forwarded_to
@@ -333,7 +333,7 @@ class InvarianceItem(LoadTrackingBase, ExekallTaggable):
                 for phase in self.wlgen_task.phases
                 for cpu in phase['cpus']
             ):
-                raise CannotCreateError('PELT time scaling can only be simulated when the PELT clock is available from the trace')
+                ResultBundle.raise_skip('PELT time scaling can only be simulated when the PELT clock is available from the trace')
 
             logger.warning('PELT clock is not available, ftrace timestamp will be used at the expense of accuracy')
             clock = None
@@ -874,7 +874,7 @@ class CPUMigrationBase(LoadTrackingBase):
         try:
             target.plat_info["cpu-capacities"]['rtapp']
         except KeyError as e:
-            raise CannotCreateError(str(e))
+            ResultBundle.raise_skip(str(e), from_=e)
 
         # Check that there are enough CPUs of the same capacity
         cls.get_migration_cpus(target.plat_info)
@@ -899,7 +899,7 @@ class CPUMigrationBase(LoadTrackingBase):
             if len(cpus) >= nr_required_cpu:
                 return cpus[:nr_required_cpu]
 
-        raise CannotCreateError(
+        ResultBundle.raise_skip(
             f"This workload requires {nr_required_cpu} CPUs of identical capacity")
 
     # Don't strictly check for cpu_frequency, since there might be no occurence

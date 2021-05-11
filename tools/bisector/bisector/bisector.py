@@ -2015,7 +2015,7 @@ class LISATestStep(ShellStep):
         from exekall.utils import get_name, NoValue
         from exekall.engine import ValueDB
 
-        from lisa.tests.base import CannotCreateError, Result
+        from lisa.tests.base import ResultBundleBase, Result
 
         if verbose:
             show_basic = True
@@ -2092,10 +2092,19 @@ class LISATestStep(ShellStep):
 
                     if excep_froz_val:
                         excep = excep_froz_val.excep
-                        if isinstance(excep, CannotCreateError):
+                        if isinstance(excep, ResultBundleBase):
                             result = 'skipped'
+                            try:
+                                short_msg = excep.metrics['skipped-reason'].data
+                            except KeyError:
+                                short_msg = ''
+                            short_msg = short_msg or ''
+                            msg = ''
                         else:
                             result = 'error'
+                            short_msg = str(excep)
+                            msg = excep_froz_val.excep_tb
+
                         entry['result'] = result
 
                         type_name = get_name(type(excep))
@@ -2107,8 +2116,6 @@ class LISATestStep(ShellStep):
                             for cls in inspect.getmro(type(excep))
                         )
 
-                        short_msg = str(excep)
-                        msg = excep_froz_val.excep_tb
 
                         entry['details'] = (type_name, short_msg, msg)
                     else:

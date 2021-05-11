@@ -173,13 +173,21 @@ class Result(enum.Enum):
     The test data could not be used to decide between :attr:`PASSED` or :attr:`FAILED`
     """
 
+    SKIPPED = 4
+    """
+    The test does not make sense on this platform and should therefore be skipped.
+
+    .. note:: :attr:`UNDECIDED` should be used when the data are inconclusive
+        but the test still makes sense on the target.
+    """
+
     @property
     def lower_name(self):
         """Return the name in lower case"""
         return self.name.lower()
 
 
-class ResultBundleBase:
+class ResultBundleBase(Exception):
     """
     Base class for all result bundles.
 
@@ -279,6 +287,27 @@ class ResultBundle(ResultBundleBase):
         """
         result = Result.PASSED if cond else Result.FAILED
         return cls(result, *args, **kwargs)
+
+    @classmethod
+    def raise_skip(cls, msg, from_=None, **kwargs):
+        """
+        Raise an :class:`ResultBundle` with the :attr:`Result.SKIPPED` result,
+        thereby short-circuiting the rest of the test.
+
+        :param msg: Reason why the test is skipped
+        :type msg: str
+
+        :param from_: Other exception that lead to the test being skipped. It
+            will be used as the ``Y`` in ``raise X from Y``.
+        :type from_: Exception or None
+
+        This is typically used as a way to bail out while indicating to the user
+        that the test has essentially been skipped because the target does not
+        support what the test is testing.
+        """
+        res = cls(Result.SKIPPED, **kwargs)
+        res.add_metric('skipped-reason', msg)
+        raise res from from_
 
 
 class AggregatedResultBundle(ResultBundleBase):
@@ -402,18 +431,6 @@ class AggregatedResultBundle(ResultBundleBase):
         return ChainMap(top, base)
 
 
-class CannotCreateError(RuntimeError):
-    """
-    Something prevented the creation of a :class:`TestBundleBase` or
-    :class:`ResultBundleBase` instance.
-
-    This is typically used as a way to bail out while indicating to the user
-    that the test has essentially been skipped because the target does not
-    support what the test is testing.
-    """
-    pass
-
-
 class TestBundleMeta(abc.ABCMeta):
     """
     Metaclass of :class:`TestBundleBase`.
@@ -444,33 +461,40 @@ class TestBundleMeta(abc.ABCMeta):
         """
         Decorator to intercept returned :class:`ResultBundle` and attach some contextual information.
         """
+        def update_res(res):
+            plat_info = self.plat_info
+            # Map context keys to PlatformInfo nested keys
+            keys = {
+                'board-name': ['name'],
+                'kernel-version': ['kernel', 'version']
+            }
+            context = {}
+            for context_key, plat_info_key in keys.items():
+                try:
+                    val = plat_info.get_nested_key(plat_info_key)
+                except KeyError:
+                    continue
+                else:
+                    context[context_key] = val
+
+            # Only update what is strictly necessary here, so that
+            # AggregatedResultBundle ends up with a minimal context state.
+            res_context = res.context
+            for key, val in context.items():
+                if key not in res_context:
+                    res_context[key] = val
+
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
-            res = func(self, *args, **kwargs)
-            if isinstance(res, ResultBundleBase):
-                plat_info = self.plat_info
-                # Map context keys to PlatformInfo nested keys
-                keys = {
-                    'board-name': ['name'],
-                    'kernel-version': ['kernel', 'version']
-                }
-                context = {}
-                for context_key, plat_info_key in keys.items():
-                    try:
-                        val = plat_info.get_nested_key(plat_info_key)
-                    except KeyError:
-                        continue
-                    else:
-                        context[context_key] = val
-
-                # Only update what is strictly necessary here, so that
-                # AggregatedResultBundle ends up with a minimal context state.
-                res_context = res.context
-                for key, val in context.items():
-                    if key not in res_context:
-                        res_context[key] = val
-
-            return res
+            try:
+                res = func(self, *args, **kwargs)
+            except ResultBundleBase as res:
+                update_res(res)
+                raise
+            else:
+                if isinstance(res, ResultBundleBase):
+                    update_res(res)
+                return res
 
         wrapper = metacls.add_undecided_filter(wrapper)
         return wrapper
@@ -989,7 +1013,8 @@ class TestBundleBase(
         """
         Check whether the given target can be used to create an instance of this class
 
-        :raises: CannotCreateError if the check fails
+        :raises: :class:`lisa.tests.base.ResultBundleBase` with ``result`` as
+            :attr:`lisa.tests.base.Result.SKIPPED` if the check fails
 
         This method should be overriden to check your implementation requirements
         """
@@ -1007,7 +1032,7 @@ class TestBundleBase(
         try:
             cls.check_from_target(target)
             return True
-        except CannotCreateError:
+        except ResultBundleBase:
             return False
 
     @classmethod
@@ -1907,13 +1932,13 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         try:
             cgroups = target.cgroups
         except AttributeError:
-            raise CannotCreateError('cgroups are not available on this target')
+            ResultBundle.raise_skip('cgroups are not available on this target')
 
         kind = cfg['controller']
         try:
             ctrl = cgroups.controllers[kind]
         except KeyError:
-            raise CannotCreateError(f'"{kind}" cgroup controller unavailable')
+            ResultBundle.raise_skip(f'"{kind}" cgroup controller unavailable')
 
         cg = ctrl.cgroup(cfg['name'])
         cg.set(**cfg['attributes'])

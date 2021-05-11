@@ -26,7 +26,7 @@ from devlib.target import KernelVersion
 from lisa.wlgen.rta import RTAPhase, PeriodicWload, DutyCycleSweepPhase
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.tasks import TasksAnalysis
-from lisa.tests.base import ResultBundle, CannotCreateError, TestBundle, RTATestBundle
+from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle
 from lisa.utils import ArtifactPath, memoized
 from lisa.datautils import series_integrate, df_deduplicate
 from lisa.energy_model import EnergyModel, EnergyModelCapacityError
@@ -121,15 +121,15 @@ class EASBehaviour(RTATestBundle, TestBundle):
             'CONFIG_CPU_FREQ_GOV_SCHEDUTIL',
         ):
             if not kconfig.get(option):
-                raise CannotCreateError(f"The target's kernel needs {option}=y kconfig enabled")
+                ResultBundle.raise_skip(f"The target's kernel needs {option}=y kconfig enabled")
 
         for domain in target.cpufreq.iter_domains():
             if "schedutil" not in target.cpufreq.list_governors(domain[0]):
-                raise CannotCreateError(
+                ResultBundle.raise_skip(
                     f"Can't set schedutil governor for domain {domain}")
 
         if 'nrg-model' not in target.plat_info:
-            raise CannotCreateError("Energy model not available")
+            ResultBundle.raise_skip("Energy model not available")
 
     @classmethod
     def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, collector=None) -> 'EASBehaviour':
@@ -329,7 +329,7 @@ class EASBehaviour(RTATestBundle, TestBundle):
             try:
                 expected_utils = nrg_model.get_optimal_placements(task_utils, capacity_margin_pct)[0]
             except EnergyModelCapacityError:
-                raise CannotCreateError(
+                ResultBundle.raise_skip(
                     'The workload will result in overutilized status for all possible task placement, making it unsuitable to test EAS on this platform'
                 )
             power = nrg_model.estimate_from_cpu_util(expected_utils)
@@ -442,7 +442,7 @@ class EASBehaviour(RTATestBundle, TestBundle):
         Check that a valid placement can be found for the tasks.
 
         If no placement can be found, :meth:`test_task_placement` will raise
-        an :exc:`CannotCreateError`.
+        an :class:`ResultBundle`.
         """
         self.test_task_placement()
 
@@ -619,7 +619,7 @@ class EnergyModelWakeMigration(EASBehaviour):
     @classmethod
     def check_from_target(cls, target):
         if len(target.plat_info["capacity-classes"]) < 2:
-           raise CannotCreateError(
+           ResultBundle.raise_skip(
            'Cannot test migration on single capacity group')
 
     @classmethod
