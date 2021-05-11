@@ -32,7 +32,7 @@ from devlib.module.hotplug import HotplugModule
 from devlib.exception import TargetNotRespondingError, TargetStableError
 
 from lisa.datautils import df_merge
-from lisa.tests.base import TestMetric, ResultBundle, TestBundle, DmesgTestBundle, FtraceTestBundle, CannotCreateError
+from lisa.tests.base import TestMetric, ResultBundle, TestBundle, DmesgTestBundle, FtraceTestBundle
 from lisa.target import Target
 from lisa.trace import requires_events
 from lisa.utils import ArtifactPath
@@ -410,7 +410,7 @@ class HotplugRollback(TestBundle, HotplugDmesgTestBundle, FtraceTestBundle):
         try:
             cls._reset_fail(target, 0)
         except TargetStableError:
-            raise CannotCreateError(
+            ResultBundle.raise_skip(
                 "Target can't reset the hotplug fail interface")
 
     @classmethod

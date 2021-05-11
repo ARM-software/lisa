@@ -26,7 +26,7 @@ from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.datautils import df_add_delta, series_mean, df_window
 from lisa.pelt import PELT_SCALE
-from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle, TestMetric, CannotCreateError
+from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle, TestMetric
 from lisa.wlgen.rta import RTAPhase, PeriodicWload
 
 
@@ -64,7 +64,7 @@ class UtilClamp(RTATestBundle, TestBundle):
     def check_from_target(cls, target):
         kconfig = target.plat_info['kernel']['config']
         if not kconfig.get('UCLAMP_TASK'):
-            raise CannotCreateError("The target's kernel needs CONFIG_UCLAMP_TASK=y kconfig enabled")
+            ResultBundle.raise_skip("The target's kernel needs CONFIG_UCLAMP_TASK=y kconfig enabled")
 
     @classmethod
     def _collect_capacities(cls, plat_info):
