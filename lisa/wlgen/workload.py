@@ -387,8 +387,6 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
     def output(self):
         return self._output
 
-    _ZOMBIE_CM_SET = set()
-
     def deploy(self):
         """
         Deploy the workload on the target.
@@ -411,19 +409,6 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
             return
         else:
             cm = self._setup()
-            # We have to hold onto the context manager at the class level, so
-            # that it will survive even if the workload is garbage collected.
-            # This is made necessary by the fact that generator iterators
-            # receive a GeneratorExit exception when they are garbage
-            # collected, meaning the workload would be "automatically cleaned
-            # up". Unfortunately, this can lead to deadlocks in devlib if it
-            # happens during the execution of another command.
-            #
-            # TODO: re-evalute this in light of the (future) discussion and
-            # conclusion of:
-            # https://github.com/ARM-software/devlib/issues/528
-            self._ZOMBIE_CM_SET.add(cm)
-
             self._setup_cm = cm
             cm.__enter__()
 
@@ -439,10 +424,11 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
 
         .. note:: This method should not be overridden, see ``_setup()``.
         """
+        # Since this is called from __del__, we might have to deal with a
+        # partially initialized object
         if getattr(self, '_deployed', False):
             cm = self._setup_cm
             self._setup_cm = None
-            self._ZOMBIE_CM_SET.remove(cm)
             cm.__exit__(None, None, None)
 
     def run_background(self):
@@ -588,11 +574,9 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
         self.deploy()
         return self
 
-    # def __del__(self):
+    def __del__(self):
         # This cannot be relied upon, but might improve things
-        # TODO: reenable that once this issue is cleared out:
-        # https://github.com/ARM-software/devlib/issues/528
-        # self.cleanup()
+        self.cleanup()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """
