@@ -2825,8 +2825,8 @@ class Operator:
         # their class. The method is bound to a class, which is not the case
         # if this is not a class method.
         return (
-            inspect.ismethod(self.unwrapped_callable) and
-            inspect.isclass(self.unwrapped_callable.__self__)
+            inspect.ismethod(self.callable_) and
+            inspect.isclass(self.callable_.__self__)
         )
 
     @property
@@ -2836,7 +2836,7 @@ class Operator:
         classmethod that returns objects of the class it is defined in (or of a
         subclass of it).
         """
-        return self.is_cls_method and issubclass(self.unwrapped_callable.__self__, self.value_type)
+        return self.is_cls_method and issubclass(self.callable_.__self__, self.value_type)
 
     def make_expr_val_iter(self, expr, param_map):
         """
