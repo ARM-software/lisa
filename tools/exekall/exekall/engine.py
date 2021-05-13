@@ -2471,6 +2471,37 @@ class Operator:
             sig_f = callable_.__init__
         else:
             sig_f = callable_
+
+        def has_annotations(x):
+            while True:
+                try:
+                    x.__annotations__
+                except AttributeError:
+                    try:
+                        x = x.__wrapped__
+                    except AttributeError:
+                        return False
+                else:
+                    return True
+
+        # This has functionally no use but provides a massive speedup by
+        # skipping all the callables that have arguments without default values
+        # but no annotation
+        code = sig_f.__code__
+        non_default_args = (
+            code.co_argcount +
+            code.co_kwonlyargcount -
+            # Discount the parameters that have a default value, as they don't
+            # necessarily need an annotation to be useful
+            len(sig_f.__defaults__ or tuple())
+        )
+        if non_default_args and not has_annotations(sig_f):
+            raise AnnotationError(
+                'Missing annotation for operator "{op}"'.format(
+                    op=self.name,
+                )
+            )
+
         signature = inspect.signature(sig_f)
         annotations = {
             param.name: param.annotation
@@ -2479,6 +2510,7 @@ class Operator:
         }
         if signature.return_annotation != signature.empty:
             annotations['return'] = signature.return_annotation
+
         self.annotations = annotations
         self.signature = signature
 
