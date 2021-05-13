@@ -2465,8 +2465,22 @@ class Operator:
         assert callable(callable_)
         self.callable_ = callable_
 
-        self.annotations = copy.copy(self.resolved_callable.__annotations__)
-        self.signature = inspect.signature(self.resolved_callable)
+        if isinstance(callable_, UnboundMethod):
+            sig_f = callable_.__wrapped__
+        elif inspect.isclass(callable_):
+            sig_f = callable_.__init__
+        else:
+            sig_f = callable_
+        signature = inspect.signature(sig_f)
+        annotations = {
+            param.name: param.annotation
+            for param in signature.parameters.values()
+            if param.annotation != param.empty
+        }
+        if signature.return_annotation != signature.empty:
+            annotations['return'] = signature.return_annotation
+        self.annotations = annotations
+        self.signature = signature
 
         self.ignored_param = {
             param
