@@ -2754,7 +2754,15 @@ class Operator:
         """
         ``True`` if the callable is a generator function.
         """
-        return inspect.isgeneratorfunction(self.resolved_callable)
+        x = self.callable_
+        while True:
+            if inspect.isgeneratorfunction(x):
+                return True
+            else:
+                try:
+                    x = x.__wrapped__
+                except AttributeError:
+                    return False
 
     @property
     def is_class(self):
