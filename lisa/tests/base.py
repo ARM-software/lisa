@@ -461,8 +461,8 @@ class TestBundleMeta(abc.ABCMeta):
         """
         Decorator to intercept returned :class:`ResultBundle` and attach some contextual information.
         """
-        def update_res(res):
-            plat_info = self.plat_info
+        def update_res(test_bundle, res):
+            plat_info = test_bundle.plat_info
             # Map context keys to PlatformInfo nested keys
             keys = {
                 'board-name': ['name'],
@@ -489,11 +489,11 @@ class TestBundleMeta(abc.ABCMeta):
             try:
                 res = func(self, *args, **kwargs)
             except ResultBundleBase as res:
-                update_res(res)
+                update_res(self, res)
                 raise
             else:
                 if isinstance(res, ResultBundleBase):
-                    update_res(res)
+                    update_res(self, res)
                 return res
 
         wrapper = metacls.add_undecided_filter(wrapper)
