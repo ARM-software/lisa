@@ -5251,12 +5251,13 @@ class ComposedCollector(Mapping):
         if len(set(map(attrgetter('NAME'), collectors))) != len(collectors):
             raise ValueError('Collectors of the same type cannot be composed together')
 
-        collectors = {
+        _collectors = {
             c.NAME: c
             for c in collectors
+            if hasattr(c, 'NAME')
         }
-        self._collectors = collectors
-        self._cm = ComposedContextManager(collectors.values())
+        self._collectors = _collectors
+        self._cm = ComposedContextManager(collectors)
 
     def __enter__(self):
         self._cm.__enter__()
