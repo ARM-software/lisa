@@ -3537,6 +3537,11 @@ class RTAPhaseTree(_RTAPhaseTreeBase):
         self._children = children
         super().__init__(properties=properties, **kwargs)
 
+        # pre-compute the memoized property ahead of time, as it will
+        # recursively compute its grand-children. This can lead to
+        # RecursionError if it's not done when the object is created.
+        self.children
+
     def __str__(self):
         sep = '\n'
         try:
