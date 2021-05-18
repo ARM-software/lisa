@@ -2923,7 +2923,7 @@ class SimpleHash:
         elif isinstance(x, Iterable):
             return tuple(map(coerce, x))
         # Check at the end, so that we recurse in common structures
-        if isinstance(x, Hashable):
+        elif isinstance(x, Hashable):
             return x
         else:
             raise TypeError(f'Cannot hash value "{x}" of type {x.__class__.__qualname__}')
