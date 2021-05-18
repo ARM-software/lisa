@@ -214,7 +214,7 @@ class UtilClamp(RTATestBundle, TestBundle):
 
             end = end if not np.isnan(end) else df.last_valid_index()
 
-            if (start >= end):
+            if (start > end):
                 raise ValueError('Phase ends before it has even started')
 
             df = df_trace[start:end].copy()
