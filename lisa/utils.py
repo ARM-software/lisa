@@ -2949,7 +2949,12 @@ class SimpleHash:
             return False
 
     def __hash__(self):
-        return hash(tuple(sorted(map(functools.partial(self._hash_coerce, visited={}), self.__dict__.items()))))
+        try:
+            return self.__hash
+        except AttributeError:
+            hash_ = hash(tuple(sorted(map(functools.partial(self._hash_coerce, visited={}), self.__dict__.items()))))
+            self.__hash = hash_
+            return hash_
 
 
 # Inherit from ABCMeta to avoid the most common metaclass conflict
