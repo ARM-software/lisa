@@ -325,6 +325,9 @@ def pelt_swing(period, duty_cycle, window=PELT_WINDOW, half_life=PELT_HALF_LIFE,
         does not take into account the averaging inside a window, but the
         window is small enough in practice for that effect to be negligible.
     """
+    if duty_cycle in (0, 1):
+        return 0
+
     final = duty_cycle * scale
     stable_t = pelt_settling_time(
         margin=1,
