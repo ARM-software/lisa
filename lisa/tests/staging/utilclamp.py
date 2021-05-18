@@ -62,6 +62,7 @@ class UtilClamp(RTATestBundle, TestBundle):
 
     @classmethod
     def check_from_target(cls, target):
+        super().check_from_target(target)
         kconfig = target.plat_info['kernel']['config']
         if not kconfig.get('UCLAMP_TASK'):
             ResultBundle.raise_skip("The target's kernel needs CONFIG_UCLAMP_TASK=y kconfig enabled")

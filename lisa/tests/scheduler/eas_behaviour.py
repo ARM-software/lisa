@@ -115,6 +115,7 @@ class EASBehaviour(RTATestBundle, TestBundle):
 
     @classmethod
     def check_from_target(cls, target):
+        super().check_from_target(target)
         kconfig = target.plat_info['kernel']['config']
         for option in (
             'CONFIG_ENERGY_MODEL',
@@ -618,6 +619,7 @@ class EnergyModelWakeMigration(EASBehaviour):
 
     @classmethod
     def check_from_target(cls, target):
+        super().check_from_target(target)
         if len(target.plat_info["capacity-classes"]) < 2:
            ResultBundle.raise_skip(
            'Cannot test migration on single capacity group')

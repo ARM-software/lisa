@@ -26,6 +26,7 @@ class NUMABehaviour(RTATestBundle, TestBundle):
     """
     @classmethod
     def check_from_target(cls, target):
+        super().check_from_target(target)
         if target.number_of_nodes < 2:
             ResultBundle.raise_skip(
                 "Target doesn't have at least two NUMA nodes")

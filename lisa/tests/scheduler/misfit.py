@@ -155,6 +155,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
     @classmethod
     def check_from_target(cls, target):
+        super().check_from_target(target)
         if not cls._has_asym_cpucapacity(target):
             ResultBundle.raise_skip(
                 "Target doesn't have asymmetric CPU capacities")
