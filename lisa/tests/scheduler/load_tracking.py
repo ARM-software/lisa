@@ -886,6 +886,13 @@ class CPUMigrationBase(LoadTrackingBase):
         """
         # Iterate over descending CPU capacity groups
         nr_required_cpu = cls.get_nr_required_cpu(plat_info)
+
+        # Cap to avoid combinatory explosion
+        max_cpus = 5
+        if nr_required_cpu > max_cpus:
+            cls.get_logger().debug(f'Only using {max_cpus} instead  of {nr_required_cpu} to avoid combinatory explosion')
+            nr_required_cpu = max_cpus
+
         cpu_classes = plat_info["capacity-classes"]
 
         # If the CPU capacities are writeable, it's better to give priority to
