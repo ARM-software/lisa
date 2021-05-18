@@ -832,37 +832,37 @@ class RTA(Workload):
             orig_capacities = plat_info['cpu-capacities']['orig']
         except KeyError:
             return pload
+        else:
+            capa_ploads = {
+                capacity: {cpu: pload[cpu] for cpu in cpus}
+                for capacity, cpus in group_by_value(orig_capacities).items()
+            }
 
-        capa_ploads = {
-            capacity: {cpu: pload[cpu] for cpu in cpus}
-            for capacity, cpus in group_by_value(orig_capacities).items()
-        }
+            # Find the min pload per capacity level, i.e. the fastest detected CPU.
+            # It is more likely to represent the right pload, as it has suffered
+            # from less IRQ slowdown or similar disturbances that might be random.
+            capa_pload = {
+                capacity: min(ploads.values())
+                for capacity, ploads in capa_ploads.items()
+            }
 
-        # Find the min pload per capacity level, i.e. the fastest detected CPU.
-        # It is more likely to represent the right pload, as it has suffered
-        # from less IRQ slowdown or similar disturbances that might be random.
-        capa_pload = {
-            capacity: min(ploads.values())
-            for capacity, ploads in capa_ploads.items()
-        }
+            # Sort by capacity
+            capa_pload_list = sorted(capa_pload.items())
+            # unzip the list of tuples
+            _, pload_list = zip(*capa_pload_list)
 
-        # Sort by capacity
-        capa_pload_list = sorted(capa_pload.items())
-        # unzip the list of tuples
-        _, pload_list = zip(*capa_pload_list)
+            # If sorting according to capa was not equivalent to reverse sorting
+            # according to pload (small pload=fast cpu)
+            if list(pload_list) != sorted(pload_list, reverse=True):
+                raise CalibrationError('Calibration values reports big cores less capable than LITTLE cores')
 
-        # If sorting according to capa was not equivalent to reverse sorting
-        # according to pload (small pload=fast cpu)
-        if list(pload_list) != sorted(pload_list, reverse=True):
-            raise CalibrationError('Calibration values reports big cores less capable than LITTLE cores')
+            # Check that the CPU capacities seen by rt-app are similar to the one
+            # the kernel uses
+            orig_capacities = plat_info['cpu-capacities']['orig']
+            true_capacities = cls.get_cpu_capacities_from_calibrations(orig_capacities, pload)
+            cls.warn_capacities_mismatch(orig_capacities, true_capacities)
 
-        # Check that the CPU capacities seen by rt-app are similar to the one
-        # the kernel uses
-        orig_capacities = plat_info['cpu-capacities']['orig']
-        true_capacities = cls.get_cpu_capacities_from_calibrations(orig_capacities, pload)
-        cls.warn_capacities_mismatch(orig_capacities, true_capacities)
-
-        return pload
+            return pload
 
     @classmethod
     def warn_capacities_mismatch(cls, orig_capacities, new_capacities):
