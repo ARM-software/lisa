@@ -2856,7 +2856,7 @@ class FrozenDict(Mapping):
 
         self._dct = dct
         # We cannot use memoized() since it would create an infinite loop
-        self._hash = hash(tuple(sorted(self._dct.items())))
+        self._hash = hash(tuple(self._dct.items()))
 
     def __getitem__(self, key):
         return self._dct[key]
