@@ -824,6 +824,14 @@ class RTA(Workload):
         })
         logger.info(f'Platform info rt-app calibration configuration:\n{snippet_plat_info.to_yaml_map_str()}')
 
+        zero_pload = sorted(
+            cpu
+            for cpu, load in pload.items()
+            if load == 0
+        )
+        if zero_pload:
+            raise ValueError(f'The pload for the following CPUs is 0, which means the CPU is infinitely fast: {zero_pload}')
+
         plat_info = target.plat_info
 
         # Sanity check calibration values for asymmetric systems if we have
