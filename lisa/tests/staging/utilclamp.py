@@ -166,6 +166,7 @@ class UtilClamp(RTATestBundle, TestBundle):
         df = self.trace.analysis.tasks.df_task_activation(task,
                                                           preempted_value=1)
         df = df[['active', 'cpu']]
+        df['activation_start'] = df['active'] == 1
 
         df_freq = self.trace.analysis.frequency.df_cpus_frequency()
         df_freq = df_freq[['cpu', 'frequency']]
@@ -178,8 +179,7 @@ class UtilClamp(RTATestBundle, TestBundle):
         # Ensures that frequency values are propogated through the entire
         # DataFrame, as it is possible that no frequency event occur
         # during a phase.
-        for cpu in self.plat_info['cpu-capacities']['rtapp']:
-            df[cpu].ffill(inplace=True)
+        df.ffill(inplace=True)
 
         return df
 
@@ -253,7 +253,7 @@ class UtilClamp(RTATestBundle, TestBundle):
 
         def parse_phase(df, phase):
             uclamp_val = phase['uclamp_val']
-            num_activations = df['active'][df['active'] == 1].count()
+            num_activations = df['activation_start'].count()
             cpus = set(map(int, df.cpu.dropna().unique()))
             fitting_cpus = {
                 cpu
@@ -261,8 +261,8 @@ class UtilClamp(RTATestBundle, TestBundle):
                 if (cap == PELT_SCALE) or (cap * capacity_margin) > uclamp_val
             }
 
-            failures = df[(
-                df['active'] == 1) & (df['cpu'].isin(cpus - fitting_cpus))
+            failures = df[
+                df['activation_start'] & (df['cpu'].isin(cpus - fitting_cpus))
             ].index.tolist()
             num_failures = len(failures)
             test_failures.extend(failures)
@@ -341,16 +341,15 @@ class UtilClamp(RTATestBundle, TestBundle):
 
         def parse_phase(df, phase):
             uclamp_val = phase['uclamp_val']
-            num_activations = df['active'][df['active'] == 1].count()
+            num_activations = df['activation_start'].sum()
             expected = schedutil_map_util_cap(df['cpu'].unique()[0],
                                               uclamp_val)
 
             # Activations numbering
-            df['activation'] = df['active'].cumsum()
+            df['activation'] = df['activation_start'].cumsum()
 
             # Only keep the activations
-            df.ffill(inplace=True)
-            df = df[df['active'] == 1]
+            df = df[df['activation_start']]
 
             # Actual capacity at which the task is running
             for cpu, freq_to_capa in cpu_capacities.items():
