@@ -407,6 +407,7 @@ class HotplugRollback(TestBundle, HotplugDmesgTestBundle, FtraceTestBundle):
 
     @classmethod
     def check_from_target(cls, target):
+        super().check_from_target(target)
         try:
             cls._reset_fail(target, 0)
         except TargetStableError:

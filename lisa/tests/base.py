@@ -2069,7 +2069,15 @@ class TestBundle(FtraceTestBundle, OptionalDmesgTestBundle, TestBundleBase):
     """
     Dummy class used as a base class for all tests.
     """
-    pass
+    @classmethod
+    def check_from_target(cls, target):
+        super().check_from_target(target)
+        online = set(target.list_online_cpus())
+        cpus = set(range(target.plat_info['cpus-count']))
+        if not online <= cpus:
+            raise ValueError('Online CPUs ({online}) are not a subset of detected CPUs ({cpus})')
+        elif online != cpus:
+            raise TestBundle.raise_skip('All CPUs must be online (aka not hotplugged) before creating a TestBundle')
 
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
