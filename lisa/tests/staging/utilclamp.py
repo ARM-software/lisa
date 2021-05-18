@@ -24,7 +24,7 @@ import pandas as pd
 
 from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
-from lisa.datautils import df_add_delta, series_mean, df_window
+from lisa.datautils import df_add_delta, series_mean, df_window, df_refit_index
 from lisa.pelt import PELT_SCALE
 from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle, TestMetric
 from lisa.wlgen.rta import RTAPhase, PeriodicWload
@@ -165,6 +165,7 @@ class UtilClamp(RTATestBundle, TestBundle):
         # activation.
         df = self.trace.analysis.tasks.df_task_activation(task,
                                                           preempted_value=1)
+        df = df_refit_index(df, window=self.trace.window)
         df = df[['active', 'cpu']]
         df['activation_start'] = df['active'] == 1
 
