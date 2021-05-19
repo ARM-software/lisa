@@ -2077,7 +2077,7 @@ class TestBundle(FtraceTestBundle, OptionalDmesgTestBundle, TestBundleBase):
         if not online <= cpus:
             raise ValueError('Online CPUs ({online}) are not a subset of detected CPUs ({cpus})')
         elif online != cpus:
-            raise TestBundle.raise_skip('All CPUs must be online (aka not hotplugged) before creating a TestBundle')
+            raise ResultBundle.raise_skip('All CPUs must be online (aka not hotplugged) before creating a TestBundle')
 
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
