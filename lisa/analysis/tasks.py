@@ -20,13 +20,16 @@ import itertools
 
 import numpy as np
 import pandas as pd
+import holoviews as hv
+import bokeh.models
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.utils import memoized
+from lisa.utils import memoized, kwargs_forwarded_to, deprecate
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates
 from lisa.trace import requires_events, may_use_events, TaskID, CPU, MissingTraceEventError
 from lisa.pelt import PELT_SCALE
 from lisa.generic import TypedList
+from lisa.notebook import _hv_neutral, plot_signal, _hv_twinx
 
 
 class StateInt(int):
@@ -628,7 +631,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
         def get_task_df(task):
             try:
-                df = self.trace.analysis.tasks.df_task_total_residency(task)
+                df = self.ana.tasks.df_task_total_residency(task)
             # Not all tasks may be available, e.g. tasks outside the TraceView
             # window
             except Exception:
@@ -746,52 +749,64 @@ class TasksAnalysis(TraceAnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @TraceAnalysisBase.plot_method()
+    def _plot_markers(self, df, label):
+        return hv.Scatter(df, label=label).options(marker='+').options(
+            backend='bokeh',
+            size=5,
+        ).options(
+            backend='matplotlib',
+            s=30,
+        )
+
+    def _plot_overutilized(self):
+        try:
+            return self.ana.status.plot_overutilized()
+        except MissingTraceEventError:
+            return _hv_neutral()
+
+    @TraceAnalysisBase.plot_method
     @requires_events('sched_switch')
-    def plot_task_residency(self, task: TaskID, axis, local_fig):
+    def plot_task_residency(self, task: TaskID):
         """
         Plot on which CPUs the task ran on over time
 
         :param task: Task to track
         :type task: int or str or tuple(int, str)
         """
-
         task_id = self.trace.get_task_id(task, update=False)
 
         sw_df = self.trace.df_event("sched_switch")
         sw_df = df_filter_task_ids(sw_df, [task_id], pid_col='next_pid', comm_col='next_comm')
 
-        if "freq-domains" in self.trace.plat_info:
-            # If we are aware of frequency domains, use one color per domain
-            for domain in self.trace.plat_info["freq-domains"]:
-                series = sw_df[sw_df["__cpu"].isin(domain)]["__cpu"]
-
-                if series.empty:
-                    # Cycle the colours to stay consistent
-                    self.cycle_colors(axis)
-                else:
+        def plot_residency():
+            if "freq-domains" in self.trace.plat_info:
+                # If we are aware of frequency domains, use one color per domain
+                for domain in self.trace.plat_info["freq-domains"]:
+                    series = sw_df[sw_df["__cpu"].isin(domain)]["__cpu"]
                     series = series_refit_index(series, window=self.trace.window)
-                    series.plot(ax=axis, style='+',
-                            label=f"Task running in domain {domain}")
-        else:
-            series = series_refit_index(sw_df['__cpu'], window=self.trace.window)
-            series.plot(ax=axis, style='+')
 
-        plot_overutilized = self.trace.analysis.status.plot_overutilized
-        if self.trace.has_events(plot_overutilized.used_events):
-            plot_overutilized(axis=axis)
+                    if series.empty:
+                        return _hv_neutral()
+                    else:
+                        return self._plot_markers(
+                            series,
+                            label=f"Task running in domain {domain}"
+                        )
+            else:
+                self._plot_markers(
+                    series_refit_index(sw_df['__cpu'], window=self.trace.window)
+                )
 
-        # Add an extra CPU lane to make room for the legend
-        axis.set_ylim(-0.95, self.trace.cpus_count - 0.05)
+        return (
+            plot_residency().options(ylabel='cpu') *
+            self._plot_overutilized()
+        ).options(
+            title=f'CPU residency of task {task}'
+        )
 
-        axis.set_title(f"CPU residency of task \"{task}\"")
-        axis.set_ylabel('CPUs')
-        axis.grid(True)
-        axis.legend()
-
-    @TraceAnalysisBase.plot_method(return_axis=True)
+    @TraceAnalysisBase.plot_method
     @df_task_total_residency.used_events
-    def plot_task_total_residency(self, task: TaskID, axis=None, **kwargs):
+    def plot_task_total_residency(self, task: TaskID):
         """
         Plot a task's total time spent on each CPU
 
@@ -800,19 +815,17 @@ class TasksAnalysis(TraceAnalysisBase):
         """
         df = self.df_task_total_residency(task)
 
-        def plotter(axis, local_fig):
-            df["runtime"].plot.bar(ax=axis)
-            axis.set_title(f"CPU residency of task \"{task}\"")
-            axis.set_xlabel("CPU")
-            axis.set_ylabel("Runtime (s)")
-            axis.grid(True)
+        return hv.Bars(df['runtime']).options(
+            title=f"CPU residency of task {task}",
+            xlabel='CPU',
+            ylabel='Runtime (s)',
+            invert_axes=True,
+        )
 
-        return self.do_plot(plotter, height=8, axis=axis, **kwargs)
-
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @df_tasks_total_residency.used_events
     def plot_tasks_total_residency(self, tasks: TypedList[TaskID]=None, ascending: bool=False,
-                                   count: bool=None, axis=None, local_fig=None):
+                                   count: bool=None):
         """
         Plot the stacked total time spent by each task on each CPU
 
@@ -827,38 +840,82 @@ class TasksAnalysis(TraceAnalysisBase):
         :type count: int
         """
         df = self.df_tasks_total_residency(tasks, ascending, count)
-        df.T.plot.barh(ax=axis, stacked=True)
-        axis.set_title(f"Stacked CPU residency of [{len(df.index)}] selected tasks")
-        axis.set_ylabel("CPU")
-        axis.set_xlabel("Runtime (s)")
-        axis.grid(True)
-        axis.legend(loc='upper left', ncol=5, bbox_to_anchor=(0, -.15))
+        df = df.copy(deep=False)
+        df['task'] = df.index
+        df.columns = list(map(str, df.columns))
+        df = df.melt(id_vars=['task'], var_name='cpu', value_name='Runtime (s)')
+        return hv.Bars(
+            df,
+            kdims=['cpu', 'task']
+        ).options(
+            stacked=True,
+            invert_axes=True,
+            title=f"Stacked CPU residency of [{len(df.index)}] selected tasks",
+        ).sort('cpu')
 
-    def _plot_cpu_heatmap(self, x, y, xbins, colorbar_label, cmap, **kwargs):
+    def _plot_cpu_heatmap(self, event, bins, cmap):
         """
         Plot some data in a heatmap-style 2d histogram
         """
+        df = self.trace.df_event(event)
+        df = df_window(df, window=self.trace.window, method='exclusive', clip_window=False)
+        x = df.index
+        y = df['target_cpu']
+
         nr_cpus = self.trace.cpus_count
-        fig, axis = self.setup_plot(
-            height=min(4, nr_cpus // 2),
-            width=20,
-            **kwargs
+        hist = np.histogram2d(y, x, bins=[nr_cpus, bins])
+        z, _, x = hist
+        y = list(range(nr_cpus))
+        return hv.HeatMap(
+            (x, y, z),
+            kdims=[
+                # Manually set dimension name/label so that shared_axes works
+                # properly.
+                # Also makes hover tooltip better.
+                hv.Dimension('Time'),
+                hv.Dimension('CPU'),
+            ],
+            vdims=[
+                hv.Dimension(event),
+            ]
+        ).options(
+            colorbar=True,
+            xlabel='Time (s)',
+            ylabel='CPU',
+            # Viridis works both on bokeh and matplotlib
+            cmap=cmap or 'Viridis',
+            yticks=[
+                (cpu, f'CPU{cpu}')
+                for cpu in y
+            ]
         )
 
-        # According to this thread, passing Pandas object upsets matplotlib for
-        # some reasons, so we pass numpy arrays instead:
-        # https://stackoverflow.com/questions/34128232/keyerror-when-trying-to-plot-or-histogram-pandas-data-in-matplotlib
-        x = x.values
-        y = y.values
-
-        _, _, _, img = axis.hist2d(x, y, bins=[xbins, nr_cpus])
-        fig.colorbar(img, label=colorbar_label)
-        return fig, axis
-
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @requires_events("sched_wakeup")
-    def plot_tasks_wakeups(self, target_cpus: TypedList[CPU]=None, window: float=0.01, per_sec: bool=False,
-                           axis=None, local_fig=None):
+    def _plot_tasks_X(self, event, name, target_cpus, window, per_sec):
+        df = self.trace.df_event(event)
+
+        if target_cpus:
+            df = df[df['target_cpu'].isin(target_cpus)]
+
+        series = series_rolling_apply(
+            df["target_cpu"],
+            lambda x: x.count() / (window if per_sec else 1),
+            window,
+            window_float_index=False,
+            center=True
+        )
+
+        if per_sec:
+            label = f"Number of task {name} per second ({window}s windows)"
+        else:
+            label = f"Number of task {name} within {window}s windows"
+        series = series_refit_index(series, window=self.trace.window)
+        series.name = name
+        return plot_signal(series, name=label)
+
+    @TraceAnalysisBase.plot_method
+    def plot_tasks_wakeups(self, target_cpus: TypedList[CPU]=None, window: float=1e-2, per_sec: bool=False):
         """
         Plot task wakeups over time
 
@@ -872,55 +929,41 @@ class TasksAnalysis(TraceAnalysisBase):
           within the window
         :type per_sec: bool
         """
+        return self._plot_tasks_X(
+            event='sched_wakeup',
+            name='wakeups',
+            target_cpus=target_cpus,
+            window=window,
+            per_sec=per_sec
+        )
 
-        df = self.trace.df_event("sched_wakeup")
-
-        if target_cpus:
-            df = df[df.target_cpu.isin(target_cpus)]
-
-        series = series_rolling_apply(df["target_cpu"],
-                                      lambda x: x.count() / (window if per_sec else 1),
-                                      window, window_float_index=False, center=True)
-
-        series = series_refit_index(series, window=self.trace.window)
-        series.plot(ax=axis, legend=False)
-
-        if per_sec:
-            axis.set_title(f"Number of task wakeups per second ({window}s windows)")
-        else:
-            axis.set_title(f"Number of task wakeups within {window}s windows")
-
-    @TraceAnalysisBase.plot_method(return_axis=True)
+    @TraceAnalysisBase.plot_method
     @requires_events("sched_wakeup")
-    def plot_tasks_wakeups_heatmap(self, xbins: int=100, colormap=None, axis=None, **kwargs):
+    def plot_tasks_wakeups_heatmap(self, bins: int=100, colormap=None):
         """
         Plot tasks wakeups heatmap
 
-        :param xbins: Number of x-axis bins, i.e. in how many slices should
+        :param bins: Number of x-axis bins, i.e. in how many slices should
           time be arranged
-        :type xbins: int
+        :type bins: int
 
-        :param colormap: The name of a colormap (see
-          https://matplotlib.org/users/colormaps.html), or a Colormap object
-        :type colormap: str or matplotlib.colors.Colormap
+        :param colormap: The name of a colormap:
+
+            * matplotlib backend: https://matplotlib.org/stable/tutorials/colors/colormaps.html
+            * bokeh backend: https://docs.bokeh.org/en/latest/docs/reference/palettes.html
+        :type colormap: str
         """
-
-        df = self.trace.df_event("sched_wakeup")
-        df = df_window(df, window=self.trace.window, method='exclusive', clip_window=False)
-
-        fig, axis = self._plot_cpu_heatmap(
-            df.index, df.target_cpu, xbins, "Number of wakeups",
+        return self._plot_cpu_heatmap(
+            event='sched_wakeup',
+            bins=bins,
             cmap=colormap,
-            **kwargs,
+        ).options(
+            title="Tasks wakeups over time",
         )
-        axis.set_title("Tasks wakeups over time")
 
-        return axis
-
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @requires_events("sched_wakeup_new")
-    def plot_tasks_forks(self, target_cpus: TypedList[CPU]=None, window: float=0.01, per_sec: bool=False,
-                         axis=None, local_fig=None):
+    def plot_tasks_forks(self, target_cpus: TypedList[CPU]=None, window: float=1e-2, per_sec: bool=False):
         """
         Plot task forks over time
 
@@ -934,108 +977,57 @@ class TasksAnalysis(TraceAnalysisBase):
           within the window
         :type per_sec: bool
         """
-
-        df = self.trace.df_event("sched_wakeup_new")
-
-        if target_cpus:
-            df = df[df.target_cpu.isin(target_cpus)]
-
-        series = series_rolling_apply(df["target_cpu"],
-                                      lambda x: x.count() / (window if per_sec else 1),
-                                      window, window_float_index=False, center=True)
-
-        series = series_refit_index(series, window=self.trace.window)
-        series.plot(ax=axis, legend=False)
-
-        if per_sec:
-            axis.set_title(f"Number of task forks per second ({window}s windows)")
-        else:
-            axis.set_title(f"Number of task forks within {window}s windows")
-
-    @TraceAnalysisBase.plot_method(return_axis=True)
-    @requires_events("sched_wakeup_new")
-    def plot_tasks_forks_heatmap(self, xbins: int=100, colormap=None, axis=None, **kwargs):
-        """
-        :param xbins: Number of x-axis bins, i.e. in how many slices should
-          time be arranged
-        :type xbins: int
-
-        :param colormap: The name of a colormap (see
-          https://matplotlib.org/users/colormaps.html), or a Colormap object
-        :type colormap: str or matplotlib.colors.Colormap
-        """
-
-        df = self.trace.df_event("sched_wakeup_new")
-        df = df_window(df, window=self.trace.window, method='exclusive', clip_window=False)
-
-        fig, axis = self._plot_cpu_heatmap(
-            df.index, df.target_cpu, xbins, "Number of forks",
-            cmap=colormap,
-            **kwargs
+        return self._plot_tasks_X(
+            event='sched_wakeup_new',
+            name='forks',
+            target_cpus=target_cpus,
+            window=window,
+            per_sec=per_sec
         )
 
-        axis.set_title("Tasks forks over time")
-        return axis
+    @TraceAnalysisBase.plot_method
+    @requires_events("sched_wakeup_new")
+    def plot_tasks_forks_heatmap(self, bins: int=100, colormap=None):
+        """
+        Plot number of task forks over time as a heatmap.
 
-    @TraceAnalysisBase.plot_method()
+        :param bins: Number of x-axis bins, i.e. in how many slices should
+          time be arranged
+        :type bins: int
+
+        :param colormap: The name of a colormap:
+
+            * matplotlib backend: https://matplotlib.org/stable/tutorials/colors/colormaps.html
+            * bokeh backend: https://docs.bokeh.org/en/latest/docs/reference/palettes.html
+        :type colormap: str
+        """
+
+        return self._plot_cpu_heatmap(
+            event='sched_wakeup_new',
+            bins=bins,
+            cmap=colormap,
+        ).options(
+            title="Tasks forks over time",
+        )
+
+    # Use a class attribute so that there will be only one extra hover tool in
+    # the toolbar rather than one per task when stacking them
+    _BOKEH_TASK_HOVERTOOL = bokeh.models.HoverTool(
+        description='Task activations tooltip',
+        tooltips=[
+            ('Task', '[@pid:@comm]'),
+            ('CPU', '@cpu'),
+            ('#', '$index'),
+            ('Start', '@start'),
+            ('Duration', '@duration'),
+            ('Duty cycle', '@duty_cycle'),
+        ]
+    )
+
     @df_task_activation.used_events
-    def plot_task_activation(self, task: TaskID, cpu: CPU=None, active_value: float=None,
-            sleep_value: float=None, alpha: float=None, overlay: bool=False,
-            duration: bool=False, duty_cycle: bool=False, which_cpu:
-            bool=False, height_duty_cycle: bool=False,
-            axis=None, local_fig=None):
-        """
-        Plot task activations, in a style similar to kernelshark.
-
-        :param task: the task to report activations of
-        :type task: int or str or tuple(int, str)
-
-        :param alpha: transparency level of the plot.
-        :type task: float
-
-        :param overlay: If ``True``, assumes that ``axis`` already contains a
-            plot, so it will adjust automatically the height and transparency of
-            the plot to blend with existing data.
-        :type task: bool
-
-        :param duration: Plot the duration of each sleep/activation.
-        :type duration: bool
-
-        :param duty_cycle: Plot the duty cycle of each pair of sleep/activation.
-        :type duty_cycle: bool
-
-        :param which_cpu: If ``True``, plot the activations on each CPU in a
-            separate row like kernelshark does.
-        :type which_cpu: bool
-
-        :param height_duty_cycle: Height of each activation's rectangle is
-            proportional to the duty cycle during that activation.
-        :type height_duty_cycle: bool
-
-        .. seealso:: :meth:`df_task_activation`
-        """
-        # Adapt the steps height to the existing limits. This allows
-        # re-using an existing axis that already contains some data.
-        min_lim, max_lim = axis.get_ylim()
-
-        df = self.df_task_activation(task, cpu=cpu)
-
-        if overlay:
-            active_default = max_lim / 4
-            _alpha = alpha if alpha is not None else 0.5
-        else:
-            active_default = max_lim
-            _alpha = alpha
-
-        if duration or duty_cycle:
-            active_default = max((
-                1 if duty_cycle else 0,
-                df['duration'].max() * 1.2 if duration else 0
-            ))
-
-        active_value = active_value if active_value is not None else active_default
-        sleep_value = sleep_value if sleep_value is not None else 0
-        preempted_value = sleep_value
+    def _plot_tasks_activation(self, tasks, show_legend=None, cpu: CPU=None, alpha:
+            float=None, overlay: bool=False, duration: bool=False, duty_cycle:
+            bool=False, which_cpu: bool=False, height_duty_cycle: bool=False):
 
         def ensure_last_rectangle(df):
             # Make sure we will draw the last rectangle, which could be
@@ -1058,128 +1050,350 @@ class TasksAnalysis(TraceAnalysisBase):
                 else:
                     return df.iloc[0:0]
 
-        label = ' '.join(map(str, self.trace.get_task_ids(task)))
+        def make_twinx(fig, **kwargs):
+            return _hv_twinx(fig, **kwargs)
 
-        if not df.empty:
-            color = self.get_next_color(axis)
-
-            if which_cpu:
-                cpus_count = self.trace.cpus_count
-                if overlay:
-                    level_height = max_lim / cpus_count
-                else:
-                    level_height = 1
-                    axis.set_yticks(range(cpus_count))
-                    # Reversed limits so 0 is at the top, kernelshark-style
-                    axis.set_ylim((cpus_count, 0))
-
-                for cpu, _label in zip(range(cpus_count), itertools.chain([label], itertools.repeat(None))):
-                    # The y tick is not reversed, so we need to change the
-                    # level manually to match kernelshark behavior
-                    if overlay:
-                        y_level = level_height * (cpus_count - cpu)
-                    else:
-                        y_level = level_height * cpu
-
-                    cpu_df = df[df['cpu'] == cpu]
-                    if not cpu_df.empty:
-                        cpu_df = ensure_last_rectangle(cpu_df)
-                        active = cpu_df['active'].fillna(preempted_value)
-                        if height_duty_cycle:
-                            active *= cpu_df['duty_cycle']
-
-                        axis.fill_between(
-                            x=cpu_df.index,
-                            y1=y_level,
-                            y2=y_level + active * level_height,
-                            step='post',
-                            alpha=_alpha,
-                            color=color,
-                            # Avoid ugly lines striking through sleep times
-                            linewidth=0,
-                            label=_label,
+        if which_cpu:
+            def make_rect_df(df):
+                half_height = df['active'] / 2
+                return pd.DataFrame(
+                    dict(
+                        Time=df.index,
+                        CPU=df['cpu'] - half_height,
+                        x1=df.index + df['duration'],
+                        y1=df['cpu'] + half_height,
+                    ),
+                    index=df.index
+                )
+        else:
+            def make_rect_df(df):
+                if duty_cycle or duration:
+                    max_val = max(
+                        df[col].max()
+                        for select, col in (
+                            (duty_cycle, 'duty_cycle'),
+                            (duration, 'duration')
                         )
+                        if select
+                    )
+                    height_factor = max_val
+                else:
+                    height_factor = 1
 
-                if not overlay:
-                    axis.set_ylabel('CPU')
-            else:
-                df = ensure_last_rectangle(df)
-                axis.fill_between(
-                    x=df.index,
-                    y1=sleep_value,
-                    y2=df['active'].map({1: active_value, 0: sleep_value}).fillna(preempted_value),
-                    step='post',
-                    alpha=_alpha,
-                    color=color,
-                    linewidth=0,
-                    label=label,
+                return pd.DataFrame(
+                    dict(
+                        Time=df.index,
+                        CPU=0,
+                        x1=df.index + df['duration'],
+                        y1=df['active'] * height_factor,
+                    ),
+                    index=df.index,
                 )
 
-            if duty_cycle or duration:
-                if which_cpu and not overlay:
-                    duration_axis = axis.twinx()
-                else:
-                    duration_axis = axis
+        def plot_extra(task, df):
+            figs = []
+            if duty_cycle:
+                figs.append(
+                    plot_signal(df['duty_cycle'], name=f'Duty cycle of {task}')
+                )
 
-                # For some reason fill_between does not advance in the color cycler so let's do that manually.
-                self.cycle_colors(duration_axis)
+            if duration:
+                def plot_duration(active, label):
+                    duration_series = df[df['active'] == active]['duration']
+                    # Add blanks in the plot when the state is not the one we care about
+                    duration_series = duration_series.reindex_like(df)
+                    return plot_signal(duration_series, name=f'{label} duration of {task}')
 
-                if duty_cycle:
-                    df['duty_cycle'].plot(ax=duration_axis, drawstyle='steps-post', label=f'Duty cycle of {task}')
-                    duration_axis.set_ylabel('Duty cycle')
-
-                if duration:
-                    duration_axis.set_ylabel('Duration in seconds')
+                figs.extend(
+                    plot_duration(active, label)
                     for active, label in (
-                            (True, 'Activations'),
-                            (False, 'Sleep')
-                        ):
-                        duration_series = df[df['active'] == active]['duration']
-                        # Add blanks in the plot when the state is not the one we care about
-                        duration_series = duration_series.reindex_like(df)
-                        duration_series.plot(ax=duration_axis, drawstyle='steps-post', label=f'{label} duration of {task}')
+                        (True, 'Activations'),
+                        (False, 'Sleep')
+                    )
+                )
 
-                duration_axis.legend()
+            return figs
 
-        if local_fig:
-            axis.set_title(f'Activations of {task}')
-            axis.grid(True)
-            axis.legend()
+        def check_df(task, df):
+            if df.empty:
+                raise ValueError(f'Could not find events associated to task {task}')
+            else:
+                return ensure_last_rectangle(df)
 
-    @TraceAnalysisBase.plot_method()
-    @plot_task_activation.used_events
-    def plot_tasks_activation(self, hide_tasks: TypedList[TaskID]=None, which_cpu: bool=True, **kwargs):
+        def get_task_data(task, df):
+            df = df.copy()
+
+            # Preempted == sleep for plots
+            df['active'] = df['active'].fillna(0)
+            if height_duty_cycle:
+                df['active'] *= df['duty_cycle']
+
+            data = make_rect_df(df[df['active'] != 0])
+            name_df = self.trace.df_event('sched_switch')
+            name_df = name_df[name_df['next_pid'] == task.pid]
+            names = name_df['next_comm'].reindex(data.index, method='ffill')
+
+            # Use a string for PID so that holoviews interprets it as
+            # categorical variable, rather than continuous. This is important
+            # for correct color mapping
+            data['pid'] = str(task.pid)
+            data['comm'] = names
+            data['start'] = data.index
+            data['cpu'] = df['cpu']
+            data['duration'] = df['duration']
+            data['duty_cycle'] = df['duty_cycle']
+            return data
+
+        def plot_rect(data):
+            if show_legend:
+                opts = {}
+            else:
+                # If there is no legend, we are gonna plot all the rectangles at once so we use colormapping to distinguish the tasks
+                opts = dict(
+                    color='pid',
+                    # Colormap from colorcet with a large number of color, so it is
+                    # suitable for plotting many tasks
+                    cmap='glasbey_hv',
+                )
+
+            return hv.Rectangles(
+                data,
+                kdims=[
+                    hv.Dimension('Time'),
+                    hv.Dimension('CPU'),
+                    hv.Dimension('x1'),
+                    hv.Dimension('y1'),
+                ]
+            ).options(
+                show_legend=show_legend,
+                alpha=alpha,
+                **opts,
+            ).options(
+                backend='matplotlib',
+                linewidth=0,
+            ).options(
+                backend='bokeh',
+                line_width=0,
+                tools=[self._BOKEH_TASK_HOVERTOOL],
+            )
+
+        if alpha is None:
+            if overlay or duty_cycle or duration:
+                alpha = 0.2
+            else:
+                alpha = 1
+
+        # For performance reasons, plot all the tasks as one hv.Rectangles
+        # invocation when we get too many tasks
+        if show_legend is None:
+            if overlay:
+                # TODO: twinx() breaks on hv.Overlay, so we are forced to use a
+                # single hv.Rectangles in that case, meaning no useful legend
+                show_legend = False
+            else:
+                show_legend = len(tasks) < 5
+
+        cpus_count = self.trace.cpus_count
+
+        task_dfs = {
+            task: check_df(
+                task,
+                self.df_task_activation(task, cpu=cpu)
+            )
+            for task in tasks
+        }
+
+        if show_legend:
+            fig = hv.Overlay(
+                [
+                    plot_rect(get_task_data(task, df)).relabel(
+                        f'Activations of {task.pid} (' +
+                        ', '.join(
+                            task_id.comm
+                            for task_id in self.trace.get_task_ids(task)
+                        ) +
+                        ')',
+                    )
+                    for task, df in task_dfs.items()
+                ]
+            ).options(
+                legend_limit=len(tasks) * 100,
+            )
+        else:
+            data = pd.concat(
+                get_task_data(task, df)
+                for task, df in task_dfs.items()
+            )
+            fig = plot_rect(data)
+
+        if overlay:
+            fig = make_twinx(
+                fig,
+                y_range=(-1, cpus_count),
+                display=False
+            )
+        else:
+            if which_cpu:
+                fig = fig.options(
+                    'Rectangles',
+                    ylabel='CPU',
+                    yticks=[
+                        (cpu, f'CPU{cpu}')
+                        for cpu in range(cpus_count)
+                    ],
+                ).redim(
+                    y=hv.Dimension('y', range=(-0.5, cpus_count - 0.5))
+                )
+            elif height_duty_cycle:
+                fig = fig.options(
+                    'Rectangles',
+                    ylabel='Duty cycle',
+                )
+
+        if duty_cycle or duration:
+            if duty_cycle:
+                ylabel = 'Duty cycle'
+            elif duration:
+                ylabel = 'Duration (s)'
+
+            # TODO: twinx() on hv.Overlay does not work, so we unfortunately have a
+            # scaling issue here
+            fig = hv.Overlay(
+                [fig] +
+                [
+                    fig
+                    for task, df in task_dfs.items()
+                    for fig in plot_extra(task, df)
+                ]
+            ).options(
+                ylabel=ylabel,
+            )
+
+        return fig.options(
+            title='Activations of {}'.format(
+                ', '.join(map(str, tasks))
+            ),
+        )
+
+    @TraceAnalysisBase.plot_method
+    @_plot_tasks_activation.used_events
+    @kwargs_forwarded_to(_plot_tasks_activation, ignore=['tasks'])
+    def plot_tasks_activation(self, tasks: TypedList[TaskID]=None, hide_tasks: TypedList[TaskID]=None, which_cpu: bool=True, overlay: bool=False, **kwargs):
         """
         Plot all tasks activations, in a style similar to kernelshark.
 
-        :param hide_tasks: PIDs to hide. Note that PID 0 (idle task) will
+        :param tasks: Tasks to plot. If ``None``, all tasks in the trace will
+            be used.
+        :type tasks: list(TaskID) or None
+
+        :param hide_tasks: Tasks to hide. Note that PID 0 (idle task) will
             always be hidden.
         :type hide_tasks: list(TaskID) or None
 
-        :Variable keyword arguments: Forwarded to :meth:`plot_task_activation`.
+        :param alpha: transparency level of the plot.
+        :type task: float
+
+        :param overlay: If ``True``, adjust the transparency and plot
+            activations on a separate hidden scale so existing scales are not
+            modified.
+        :type task: bool
+
+        :param duration: Plot the duration of each sleep/activation.
+        :type duration: bool
+
+        :param duty_cycle: Plot the duty cycle of each pair of sleep/activation.
+        :type duty_cycle: bool
+
+        :param which_cpu: If ``True``, plot the activations on each CPU in a
+            separate row like kernelshark does.
+        :type which_cpu: bool
+
+        :param height_duty_cycle: Height of each activation's rectangle is
+            proportional to the duty cycle during that activation.
+        :type height_duty_cycle: bool
+
+        .. seealso:: :meth:`df_task_activation`
         """
         trace = self.trace
-        hide_tasks = hide_tasks or []
-        hidden_pids = {
-            trace.get_task_id(task, update=True).pid
-            for task in hide_tasks
-        }
-        # Hide idle task
-        hidden_pids.add(0)
+        hidden = set(itertools.chain.from_iterable(
+            trace.get_task_ids(task)
+            for task in (hide_tasks or [])
+        ))
+        if tasks:
+            task_ids = list(itertools.chain.from_iterable(
+                map(trace.get_task_ids, tasks)
+            ))
+        else:
+            task_ids = trace.task_ids
 
-        # Plot per-PID, to avoid quirks around task renaming
-        for pid, comms in self.trace.get_tasks().items():
-            if pid in hidden_pids:
-                continue
+        full_task_ids = sorted(
+            task
+            for task in task_ids
+            if (
+                task not in hidden and
+                task.pid != 0
+            )
+        )
 
-            try:
-                self.plot_task_activation(TaskID(pid=pid, comm=None), which_cpu=which_cpu, **kwargs)
-            except ValueError:
-                # The task might not be present in that slice, or might only be
-                # visible through events that are not used for the task state
-                # (such as PELT events).
-                continue
+        # Only consider the PIDs in order to:
+        # * get the same color for the same PID during its whole life
+        # * avoid potential issues around task renaming
+        # Note: The task comm will still be displayed in the hover tool
+        task_ids = [
+            TaskID(pid=pid, comm=None)
+            for pid in sorted(set(x.pid for x in full_task_ids))
+        ]
 
-    plot_tasks_activation.__annotations__ = plot_task_activation.__annotations__
+        #TODO: Re-enable the CPU "lanes" once this bug is solved:
+        # https://github.com/holoviz/holoviews/issues/4979
+        if False and which_cpu and not overlay:
+            # Add horizontal lines to delimitate each CPU "lane" in the plot
+            cpu_lanes = [
+                hv.HLine(y - offset).options(
+                    color='grey',
+                    alpha=0.2,
+                ).options(
+                    backend='bokeh',
+                    line_width=0.5,
+                ).options(
+                    backend='matplotlib',
+                    linewidth=0.5,
+                )
+                for y in range(trace.cpus_count + 1)
+                for offset in ((0.5, -0.5) if y == 0 else (0.5,))
+            ]
+        else:
+            cpu_lanes = []
+
+        title = 'Activations of ' + ', '.join(
+            map(str, full_task_ids)
+        )
+        if len(title) > 50:
+            title = 'Task activations'
+
+        return self._plot_tasks_activation(
+            tasks=task_ids,
+            which_cpu=which_cpu,
+            overlay=overlay,
+            **kwargs
+        ).options(
+            title=title
+        )
+
+    @TraceAnalysisBase.plot_method
+    @plot_tasks_activation.used_events
+    @kwargs_forwarded_to(plot_tasks_activation, ignore=['tasks'])
+    @deprecate('Deprecated since it does not provide anything more than plot_tasks_activation', deprecated_in='2.0', removed_in='3.0', replaced_by=plot_tasks_activation)
+    def plot_task_activation(self, task: TaskID, **kwargs):
+        """
+        Plot task activations, in a style similar to kernelshark.
+
+        :param task: the task to report activations of
+        :type task: int or str or tuple(int, str)
+
+        .. seealso:: :meth:`plot_tasks_activation`
+        """
+        return self.plot_tasks_activation(tasks=[task], **kwargs)
+
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

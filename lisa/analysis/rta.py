@@ -21,6 +21,8 @@ from collections import namedtuple
 from operator import attrgetter
 
 import pandas as pd
+import holoviews as hv
+import numpy as np
 
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
 from lisa.datautils import df_filter_task_ids, df_window, df_split_signals
@@ -28,6 +30,7 @@ from lisa.trace import TaskID, requires_events, requires_one_event_of, may_use_e
 from lisa.utils import deprecate, memoized, order_as
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.wlgen.rta import RTA, RTAConf
+from lisa.notebook import plot_signal
 
 
 RefTime = namedtuple("RefTime", ['kernel', 'user'])
@@ -699,10 +702,10 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @AnalysisHelpers.plot_method()
+    @AnalysisHelpers.plot_method
     @df_phases.used_events
     @may_use_events(TasksAnalysis.df_task_states.used_events)
-    def plot_phases(self, task: TaskID, axis, local_fig, wlgen_profile=None):
+    def plot_phases(self, task: TaskID, wlgen_profile=None):
         """
         Draw the task's phases colored bands
 
@@ -715,7 +718,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         phases_df = self.df_phases(task, wlgen_profile=wlgen_profile)
 
         try:
-            states_df = self.trace.analysis.tasks.df_task_states(task)
+            states_df = self.ana.tasks.df_task_states(task)
         except MissingTraceEventError:
             def cpus_of_phase_at(t):
                 return []
@@ -729,33 +732,37 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         def make_band(row):
             t = row.name
             end = t + row['duration']
-            phase = row['phase']
-            if isinstance(phase, float):
-                phase = int(phase)
+            phase = str(row['phase'])
             return (phase, t, end, cpus_of_phase_at(t))
 
         # Compute phases intervals
         bands = phases_df.apply(make_band, axis=1)
 
-        for phase, start, end, cpus in bands:
+        def make_label(cpus, phase):
             if cpus:
                 cpus = f" (CPUs {', '.join(map(str, cpus))})"
             else:
                 cpus = ''
+            return f'rt-app phase {phase}{cpus}'
 
-            label = f'rt-app phase {phase}{cpus}'
-            color = self.get_next_color(axis)
-            axis.axvspan(start, end, alpha=0.1, facecolor=color, label=label)
+        return hv.Overlay(
+            [
+                hv.VSpan(
+                    start,
+                    end,
+                    label=make_label(cpus, phase)
+                ).options(
+                    alpha=0.1,
+                )
+                for phase, start, end, cpus in bands
+            ]
+        ).options(
+            title=f'Task {task} phases'
+        )
 
-        axis.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2,), ncol=8)
-
-        if local_fig:
-            task = self.trace.get_task_id(task)
-            axis.set_title(f"Task {task} phases")
-
-    @AnalysisHelpers.plot_method()
+    @AnalysisHelpers.plot_method
     @df_rtapp_stats.used_events
-    def plot_perf(self, task: TaskID, axis, local_fig):
+    def plot_perf(self, task: TaskID):
         r"""
         Plot the performance index.
 
@@ -792,14 +799,14 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         is negative the more the task is late with respect to its deadline.
         """
         task = self.trace.get_task_id(task)
-        axis.set_title(f'Task {task} Performance Index')
-        data = self.df_rtapp_stats(task)[['perf_index', ]]
-        data.plot(ax=axis, drawstyle='steps-post')
-        axis.set_ylim(0, 2)
+        return plot_signal(
+            self.df_rtapp_stats(task)['perf_index'],
+            name=f'{task} performance index',
+        )
 
-    @AnalysisHelpers.plot_method()
+    @AnalysisHelpers.plot_method
     @df_rtapp_stats.used_events
-    def plot_latency(self, task: TaskID, axis, local_fig):
+    def plot_latency(self, task: TaskID):
         """
         Plot the Latency/Slack and Performance data for the specified task.
 
@@ -809,13 +816,22 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         .. seealso:: :meth:`plot_perf` for metrics definition.
         """
         task = self.trace.get_task_id(task)
-        axis.set_title(f'Task {task} (start) Latency and (completion) Slack')
-        data = self.df_rtapp_stats(task)[['slack', 'wu_lat']]
-        data.plot(ax=axis, drawstyle='steps-post')
 
-    @AnalysisHelpers.plot_method()
+        return hv.Overlay(
+            [
+                plot_signal(
+                    self.df_rtapp_stats(task)[col],
+                    name=f'{task} {col} (us)',
+                )
+                for col in ('slack', 'wu_lat')
+            ]
+        ).options(
+            title=f'Task {task} (start) Latency and (completion) Slack'
+        )
+
+    @AnalysisHelpers.plot_method
     @df_rtapp_stats.used_events
-    def plot_slack_histogram(self, task: TaskID, axis, local_fig, bins: int=30):
+    def plot_slack_histogram(self, task: TaskID, bins: int=30):
         """
         Plot the slack histogram.
 
@@ -828,18 +844,16 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         .. seealso:: :meth:`plot_perf` for the slack definition.
         """
         task = self.trace.get_task_id(task)
-        ylabel = f'slack of "{task}"'
+        name = f'slack of {task} (us)'
         series = self.df_rtapp_stats(task)['slack']
-        series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel, figure=axis.get_figure())
-        axis.axvline(series.mean(), linestyle='--', linewidth=2, label='mean')
-        axis.legend()
+        return hv.Histogram(np.histogram(series, bins=bins)).options(
+            xlabel=name,
+            title=name,
+        )
 
-        if local_fig:
-            axis.set_title(ylabel)
-
-    @AnalysisHelpers.plot_method()
+    @AnalysisHelpers.plot_method
     @df_rtapp_stats.used_events
-    def plot_perf_index_histogram(self, task: TaskID, axis, local_fig, bins: int=30):
+    def plot_perf_index_histogram(self, task: TaskID, bins: int=30):
         """
         Plot the perf index histogram.
 
@@ -853,16 +867,14 @@ class RTAEventsAnalysis(TraceAnalysisBase):
 
         """
         task = self.trace.get_task_id(task)
-        ylabel = f'perf index of "{task}"'
+        name = f'perf index of {task} (us)'
         series = self.df_rtapp_stats(task)['perf_index']
-        mean = series.mean()
-        self.get_logger().info(f'perf index of task "{task}": avg={mean:.2f} std={series.std():.2f}')
-
-        series.hist(bins=bins, ax=axis, alpha=0.4, label=ylabel, figure=axis.get_figure())
-        axis.axvline(mean, linestyle='--', linewidth=2, label='mean')
-        axis.legend()
-
-        if local_fig:
-            axis.set_title(ylabel)
+        return hv.Histogram(
+            np.histogram(series, bins=bins),
+            label=name,
+        ).options(
+            xlabel=name,
+            title=name,
+        )
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

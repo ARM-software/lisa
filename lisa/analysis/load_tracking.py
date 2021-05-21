@@ -18,7 +18,10 @@
 """ Scheduler load tracking analysis module """
 
 import operator
+from functools import partial
 import itertools
+
+import holoviews as hv
 import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
@@ -27,6 +30,7 @@ from lisa.trace import requires_one_event_of, may_use_events, TaskID, CPU, Missi
 from lisa.utils import deprecate
 from lisa.datautils import df_refit_index, series_refit_index, df_filter_task_ids, df_split_signals
 from lisa.generic import TypedList
+from lisa.notebook import plot_signal, _hv_neutral
 
 
 class LoadTrackingAnalysis(TraceAnalysisBase):
@@ -306,13 +310,19 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         return top_df
 
-    @TraceAnalysisBase.plot_method(return_axis=True)
+    def _plot_overutilized(self):
+        try:
+            return self.ana.status.plot_overutilized()
+        except MissingTraceEventError:
+            return _hv_neutral()
+
+    @TraceAnalysisBase.plot_method
     @may_use_events(
         StatusAnalysis.plot_overutilized.used_events,
         'sched_cpu_capacity',
     )
     @df_cpus_signal.used_events
-    def plot_cpus_signals(self, cpus: TypedList[CPU]=None, signals: TypedList[str]=['util', 'load'], axis=None, **kwargs):
+    def plot_cpus_signals(self, cpus: TypedList[CPU]=None, signals: TypedList[str]=['util', 'load']):
         """
         Plot the CPU-related load-tracking signals
 
@@ -325,44 +335,46 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         cpus = cpus or list(range(self.trace.cpus_count))
         window = self.trace.window
 
-        def plotter(axes, local_fig):
-            axes = axes if len(cpus) > 1 else itertools.repeat(axes)
-            for cpu, axis in zip(cpus, axes):
-                # Add CPU utilization
-                axis.set_title(f'CPU{cpu}')
+        def _plot_signal(cpu, signal):
+            df = self.df_cpus_signal(signal, cpus=[cpu])
+            df = df_refit_index(df, window=window)
+            return plot_signal(df[signal], name=signal).options(
+                dict(Curve=dict(alpha=0.5)),
+            )
 
-                for signal in signals:
-                    df = self.df_cpus_signal(signal, cpus=[cpu])
-                    df = df_refit_index(df, window=window)
-                    df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
-
-                self.trace.analysis.cpus.plot_orig_capacity(cpu, axis=axis)
-
-                # Add capacities data if available
-                try:
-                    df = self.df_cpus_signal('capacity', cpus=[cpu])
-                except MissingTraceEventError:
-                    pass
+        def plot_capacity(cpu):
+            try:
+                df = self.df_cpus_signal('capacity', cpus=[cpu])
+            except MissingTraceEventError:
+                return _hv_neutral()
+            else:
+                if df.empty:
+                    return _hv_neutral()
                 else:
-                    if len(df):
-                        data = df[['capacity']]
-                        data = df_refit_index(data, window=window)
-                        data.plot(ax=axis, style=['m', '--y'],
-                                  drawstyle='steps-post')
+                    return plot_signal(
+                        series_refit_index(df['capacity'], window=window),
+                        name='capacity'
+                    )
 
-                # Add overutilized signal to the plot
-                plot_overutilized = self.trace.analysis.status.plot_overutilized
-                if self.trace.has_events(plot_overutilized.used_events):
-                    plot_overutilized(axis=axis)
+        def plot_cpu(cpu):
+            return hv.Overlay(
+                [
+                    _plot_signal(cpu=cpu, signal=signal)
+                    for signal in signals
+                ] + [
+                    self.ana.cpus.plot_orig_capacity(cpu),
+                    plot_capacity(cpu),
+                    self._plot_overutilized()
+                ]
+            ).options(
+                title=f'CPU{cpu} signals',
+            )
 
-                axis.set_ylim(0, 1100)
-                axis.legend()
+        return hv.Layout(list(map(plot_cpu, cpus))).cols(1)
 
-        return self.do_plot(plotter, nrows=len(cpus), sharex=True, axis=axis, **kwargs)
-
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @df_task_signal.used_events
-    def plot_task_signals(self, task: TaskID, axis, local_fig, signals: TypedList[str]=['util', 'load']):
+    def plot_task_signals(self, task: TaskID,  signals: TypedList[str]=['util', 'load']):
         """
         Plot the task-related load-tracking signals
 
@@ -375,22 +387,31 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         window = self.trace.window
         task = self.trace.get_task_id(task, update=False)
 
-        for signal in signals:
+        def _plot_signal(signal):
             df = self.df_task_signal(task, signal)
             df = df_refit_index(df, window=window)
-            df[signal].plot(ax=axis, drawstyle='steps-post', alpha=0.4)
+            return plot_signal(
+                df[signal],
+                name=signal,
+            ).options(
+                dict(Curve=dict(alpha=0.5)),
+            )
 
-        plot_overutilized = self.trace.analysis.status.plot_overutilized
-        if self.trace.has_events(plot_overutilized.used_events):
-            plot_overutilized(axis=axis)
+        return hv.Overlay(
+            [
+                _plot_signal(signal)
+                for signal in signals
+            ] + [
+                self._plot_overutilized()
+            ]
+        ).options(
+            title=f'Load-tracking signals of task {task}',
+            ylabel='/'.join(sorted(signals)),
+        )
 
-        axis.set_title(f'Load-tracking signals of task {task}')
-        axis.legend()
-        axis.grid(True)
-
-    @TraceAnalysisBase.plot_method(return_axis=True)
+    @TraceAnalysisBase.plot_method
     @df_tasks_signal.used_events
-    def plot_task_required_capacity(self, task: TaskID, axis=None, **kwargs):
+    def plot_task_required_capacity(self, task: TaskID):
         """
         Plot the minimum required capacity of a task
 
@@ -407,25 +428,17 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         # Build task names (there could be multiple, during the task lifetime)
         task_name = f"Task ({', '.join(map(str, task_ids))})"
 
-        def plotter(axis, local_fig):
-            df["required_capacity"].plot(
-                drawstyle='steps-post',
-                ax=axis)
+        return plot_signal(
+            df['required_capacity'],
+            name='required_capacity',
+        ).options(
+            title=f'Required CPU capacity for task {task}',
+            ylabel='Utilization',
+        )
 
-            axis.legend()
-            axis.grid(True)
-
-            if local_fig:
-                axis.set_title(task_name)
-                axis.set_ylim(0, 1100)
-                axis.set_ylabel('Utilization')
-                axis.set_xlabel('Time (s)')
-
-        return self.do_plot(plotter, height=8, axis=axis, **kwargs)
-
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @df_task_signal.used_events
-    def plot_task_placement(self, task: TaskID, axis, local_fig):
+    def plot_task_placement(self, task: TaskID):
         """
         Plot the CPU placement of the task
 
@@ -439,6 +452,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         cpu_capacities = self.trace.plat_info["cpu-capacities"]['orig']
 
         df['capacity'] = df['cpu'].map(cpu_capacities)
+        nr_cpus = df['cpu'].max() + 1
 
         def add_placement(df, comp, comp_str):
             placement = f"CPU capacity {comp_str} required capacity"
@@ -449,21 +463,30 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         add_placement(df, operator.gt, '>')
         add_placement(df, operator.eq, '==')
 
-        for cols, placement_df in df_split_signals(df, ['placement']):
+        def plot_placement(cols, placement_df):
             placement = cols['placement']
             series = df["cpu"]
             series = series_refit_index(series, window=self.trace.window)
-            series.plot(ax=axis, style="+", label=placement)
+            series.name = 'cpu'
+            return hv.Scatter(
+                series,
+                label=placement,
+            ).options(
+                marker='+',
+                yticks=list(range(nr_cpus)),
+            )
 
-        plot_overutilized = self.trace.analysis.status.plot_overutilized
-        if self.trace.has_events(plot_overutilized.used_events):
-            plot_overutilized(axis=axis)
-
-        if local_fig:
-            axis.set_title(f'Utilization vs placement of task "{task}"')
-
-            axis.grid(True)
-            axis.legend()
+        return hv.Overlay(
+            list(itertools.starmap(
+                plot_placement,
+                df_split_signals(df, ['placement'])
+            )) + [
+                self._plot_overutilized()
+            ]
+        ).options(
+            title=f'Utilization vs placement of task {task}',
+            ylabel='CPU',
+        )
 
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

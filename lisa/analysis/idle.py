@@ -21,6 +21,7 @@ import warnings
 
 import pandas as pd
 import numpy as np
+import holoviews as hv
 
 from lisa.datautils import series_integrate, df_split_signals, series_combine, df_add_delta, df_refit_index
 from lisa.analysis.base import TraceAnalysisBase
@@ -243,9 +244,9 @@ class IdleAnalysis(TraceAnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @df_cpu_idle_state_residency.used_events
-    def plot_cpu_idle_state_residency(self, cpu: CPU, axis, local_fig, pct: bool=False):
+    def plot_cpu_idle_state_residency(self, cpu: CPU, pct: bool=False):
         """
         Plot the idle state residency of a CPU
 
@@ -256,12 +257,13 @@ class IdleAnalysis(TraceAnalysisBase):
         :type pct: bool
         """
         df = self.df_cpu_idle_state_residency(cpu)
-        self._plot_idle_state_residency(df, axis, pct)
-        axis.set_title(f"CPU{cpu} idle state residency")
+        return self._plot_idle_state_residency(df, pct=pct).options(
+            title=f"CPU{cpu} idle state residency",
+        )
 
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @df_cluster_idle_state_residency.used_events
-    def plot_cluster_idle_state_residency(self, cluster: TypedList[CPU], axis, local_fig, pct: bool=False):
+    def plot_cluster_idle_state_residency(self, cluster: TypedList[CPU], pct: bool=False):
         """
         Plot the idle state residency of a cluster
 
@@ -273,13 +275,13 @@ class IdleAnalysis(TraceAnalysisBase):
         """
 
         df = self.df_cluster_idle_state_residency(cluster)
+        return self._plot_idle_state_residency(df, pct=pct).options(
+            title=f"CPUs {cluster} idle state residency",
+        )
 
-        self._plot_idle_state_residency(df, axis, pct)
-        axis.set_title(f"CPUs {cluster} idle state residency")
-
-    @TraceAnalysisBase.plot_method(return_axis=True)
+    @TraceAnalysisBase.plot_method
     @plot_cluster_idle_state_residency.used_events
-    def plot_clusters_idle_state_residency(self, pct: bool=False, axis=None, **kwargs):
+    def plot_clusters_idle_state_residency(self, pct: bool=False):
         """
         Plot the idle state residency of all clusters
 
@@ -289,33 +291,31 @@ class IdleAnalysis(TraceAnalysisBase):
         .. note:: This assumes clusters == frequency domains, which may
           not hold true...
         """
-        clusters = self.trace.plat_info['freq-domains']
-
-        def plotter(axes, local_fig):
-            for axis, cluster in zip(axes, clusters):
-                self.plot_cluster_idle_state_residency(cluster, pct=pct, axis=axis)
-
-        return self.do_plot(plotter, nrows=len(clusters), sharex=True, axis=axis, **kwargs)
+        return reduce(
+            operator.add,
+            (
+                self.plot_cluster_idle_state_residency(cluster, pct=pct)
+                for cluster in self.trace.plat_info['freq-domains']
+            )
+        ).cols(1)
 
 ###############################################################################
 # Utility Methods
 ###############################################################################
 
-    def _plot_idle_state_residency(self, df, axis, pct):
+    def _plot_idle_state_residency(self, df, pct):
         """
         A convenient helper to plot idle state residency
         """
         if pct:
             df = df * 100 / df.sum()
 
-        df["time"].plot.barh(ax=axis)
+        ylabel = 'Time share (%)' if pct else 'Time (s)'
 
-        if pct:
-            axis.set_xlabel("Time share (%)")
-        else:
-            axis.set_xlabel("Time (s)")
-
-        axis.set_ylabel("Idle state")
-        axis.grid(True)
+        return hv.Bars(df['time']).options(
+            ylabel=ylabel,
+            xlabel='Idle state',
+            invert_axes=True,
+        )
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

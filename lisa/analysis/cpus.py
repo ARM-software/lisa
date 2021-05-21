@@ -18,6 +18,7 @@
 """ CPUs Analysis Module """
 
 import pandas as pd
+import holoviews as hv
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, CPU
@@ -69,32 +70,40 @@ class CpusAnalysis(TraceAnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @df_context_switches.used_events
-    def plot_context_switches(self, axis, local_fig):
+    def plot_context_switches(self):
         """
         Plot histogram of context switches on each CPU.
         """
         ctx_sw_df = self.df_context_switches()
-        ctx_sw_df["context_switch_cnt"].plot.bar(
-            title="Per-CPU Task Context Switches", legend=False, ax=axis)
-        axis.grid()
+        return hv.Bars(
+            ctx_sw_df["context_switch_cnt"]
+        ).options(
+            title='Per-CPU Task Context Switches',
+            xlabel='CPU',
+            ylabel='Number of context switches',
+            invert_axes=True,
+        )
 
-    @TraceAnalysisBase.plot_method()
-    def plot_orig_capacity(self, cpu: CPU, axis, local_fig):
+    @TraceAnalysisBase.plot_method
+    def plot_orig_capacity(self, cpu: CPU):
         """
         Plot the orig capacity of a CPU onto a given axis
 
         :param cpu: The CPU
         :type cpu: int
         """
-        try:
-            orig_capacities = self.trace.plat_info['cpu-capacities']['orig']
-        except KeyError:
-            pass
-        else:
-            axis.axhline(orig_capacities[cpu],
-                         color=self.get_next_color(axis),
-                         linestyle='--', label="orig_capacity")
+        orig_capacities = self.trace.plat_info['cpu-capacities']['orig']
+        return hv.HLine(
+            orig_capacities[cpu],
+            label='orig capacity'
+        ).options(
+            backend='matplotlib',
+            linestyle='--',
+        ).options(
+            backend='bokeh',
+            line_dash='dashed',
+        )
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

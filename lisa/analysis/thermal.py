@@ -23,6 +23,7 @@ from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized
 from lisa.trace import requires_events, CPU
 from lisa.datautils import df_refit_index, series_refit_index
+from lisa.notebook import plot_signal
 
 
 class ThermalAnalysis(TraceAnalysisBase):
@@ -136,9 +137,9 @@ class ThermalAnalysis(TraceAnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @df_thermal_zones_temperature.used_events
-    def plot_thermal_zone_temperature(self, thermal_zone_id: int, axis, local_fig):
+    def plot_thermal_zone_temperature(self, thermal_zone_id: int):
         """
         Plot temperature of thermal zones (all by default)
 
@@ -148,25 +149,22 @@ class ThermalAnalysis(TraceAnalysisBase):
         window = self.trace.window
 
         df = self.df_thermal_zones_temperature()
-        df = df[df.id == thermal_zone_id]
+        df = df[df['id'] == thermal_zone_id]
         df = df_refit_index(df, window=window)
 
         tz_name = df.thermal_zone.unique()[0]
 
-        series = series_refit_index(df['temp'], window=window)
-        series.plot(drawstyle="steps-post", ax=axis,
-                     label=f"Thermal zone \"{tz_name}\"")
+        return plot_signal(
+            series_refit_index(df['temp'], window=window),
+            name=f'Thermal zone "{tz_name}"',
+        ).options(
+            title='Temperature evolution',
+            ylabel='Temperature (°C.10e3)'
+        )
 
-        axis.legend()
-
-        if local_fig:
-            axis.grid(True)
-            axis.set_title("Temperature evolution")
-            axis.set_ylabel("Temperature (°C.10e3)")
-
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @df_cpufreq_cooling_state.used_events
-    def plot_cpu_cooling_states(self, cpu: CPU, axis, local_fig):
+    def plot_cpu_cooling_states(self, cpu: CPU):
         """
         Plot the state evolution of a cpufreq cooling device
 
@@ -179,22 +177,17 @@ class ThermalAnalysis(TraceAnalysisBase):
 
         df = self.df_cpufreq_cooling_state([cpu])
         df = df_refit_index(df, window=window)
-        cdev_name = f"CPUs {mask_to_list(df.cpus.unique()[0])}"
-
         series = series_refit_index(df['cdev_state'], window=window)
-        series.plot(drawstyle="steps-post", ax=axis,
-                           label=f"\"{cdev_name}\"")
+        cdev_name = f"CPUs {mask_to_list(df.cpus.unique()[0])}"
+        return plot_signal(
+            series,
+            name=cdev_name,
+        ).options(
+            title='cpufreq cooling devices status'
+        )
 
-        axis.legend()
-
-        if local_fig:
-            axis.grid(True)
-            axis.set_title("cpufreq cooling devices status")
-            axis.yaxis.set_major_locator(MaxNLocator(integer=True))
-            axis.grid(axis='y')
-
-    @TraceAnalysisBase.plot_method()
-    def plot_dev_freq_cooling_states(self, device: str, axis, local_fig):
+    @TraceAnalysisBase.plot_method
+    def plot_dev_freq_cooling_states(self, device: str):
         """
         Plot the state evolution of a devfreq cooling device
 
@@ -204,16 +197,12 @@ class ThermalAnalysis(TraceAnalysisBase):
         df = self.df_devfreq_cooling_state([device])
         df = df_refit_index(df, window=self.trace.window)
 
-        df['cdev_state'].plot(drawstyle="steps-post", ax=axis,
-                           label=f"Device \"{device}\"")
-
-        axis.legend()
-
-        if local_fig:
-            axis.grid(True)
-            axis.set_title("devfreq cooling devices status")
-            axis.yaxis.set_major_locator(MaxNLocator(integer=True))
-            axis.grid(axis='y')
+        return plot_signal(
+            df['cdev_state'],
+            name=f'Device "{device}"',
+        ).options(
+            title='devfreq cooling devices status'
+        )
 
 ###############################################################################
 # Utility Methods

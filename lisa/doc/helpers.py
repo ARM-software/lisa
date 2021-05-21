@@ -24,6 +24,7 @@ import functools
 import re
 import types
 import abc
+import warnings
 from collections.abc import Mapping
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
@@ -332,12 +333,17 @@ def autodoc_process_analysis_plots(app, what, name, obj, options, lines, plot_co
         return
 
     print(f'Generating plot for {obj.__qualname__}')
-    rst_figure = TraceAnalysisBase.call_on_trace(obj, trace, {
-        'output': 'rst',
-        # avoid memory leaks
-        'interactive': False,
-        **kwargs
-    })
+
+    # Suppress deprecation warnings so we can still have them in the doc
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=DeprecationWarning)
+
+        rst_figure = TraceAnalysisBase.call_on_trace(obj, trace, {
+            'backend': 'bokeh',
+            'output': 'sphinx-rst',
+            'interactive': False,
+            **kwargs
+        })
     rst_figure = f'\n:Example plot:\n\n{rst_figure}'
     lines.extend(rst_figure.splitlines())
 
