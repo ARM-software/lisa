@@ -14,15 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import pandas as pd
 import numpy as np
+import holoviews as hv
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.notebook import COLOR_CYCLE
+from lisa.notebook import COLOR_CYCLE, _hv_neutral
 from lisa.analysis.tasks import TaskState, TasksAnalysis
 from lisa.datautils import df_refit_index
-from lisa.trace import TaskID
+from lisa.trace import TaskID, MissingTraceEventError
 
 
 class LatencyAnalysis(TraceAnalysisBase):
@@ -45,7 +45,7 @@ class LatencyAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.cache
     @TasksAnalysis.df_task_states.used_events
     def _df_latency(self, task, name, curr_state, next_state):
-        df = self.trace.analysis.tasks.df_task_states(task)
+        df = self.ana.tasks.df_task_states(task)
         df = df[
             (df.curr_state == curr_state) &
             (df.next_state == next_state)
@@ -105,7 +105,7 @@ class LatencyAnalysis(TraceAnalysisBase):
 
           * An ``activation_interval`` column (the time since the last activation).
         """
-        wkp_df = self.trace.analysis.tasks.df_task_states(task)
+        wkp_df = self.ana.tasks.df_task_states(task)
         wkp_df = wkp_df[wkp_df.curr_state == TaskState.TASK_WAKING]
 
         index = wkp_df.index.to_series()
@@ -129,7 +129,7 @@ class LatencyAnalysis(TraceAnalysisBase):
           * A ``running_time`` column (the cumulated running time since the
             last activation).
         """
-        df = self.trace.analysis.tasks.df_task_states(task)
+        df = self.ana.tasks.df_task_states(task)
 
         runtimes = []
         spurious_wkp = False
@@ -182,11 +182,40 @@ class LatencyAnalysis(TraceAnalysisBase):
 ###############################################################################
 # Plotting Methods
 ###############################################################################
+    def _plot_threshold(self, y, **kwargs):
+        return hv.HLine(
+            y,
+            group='threshold',
+            **kwargs,
+        ).options(
+            color=self.LATENCY_THRESHOLD_COLOR
+        ).options(
+            backend='matplotlib',
+            linestyle='--',
+        ).options(
+            backend='bokeh',
+            line_dash='dashed',
+        )
 
-    @TraceAnalysisBase.plot_method()
+    def _plot_markers(self, df, label):
+        return hv.Scatter(df, label=label).options(marker='+').options(
+            backend='bokeh',
+            size=5,
+        ).options(
+            backend='matplotlib',
+            s=30,
+        )
+
+    def _plot_overutilized(self):
+        try:
+            return self.ana.status.plot_overutilized()
+        except MissingTraceEventError:
+            return _hv_neutral()
+
+    @TraceAnalysisBase.plot_method
     @df_latency_wakeup.used_events
     @df_latency_preemption.used_events
-    def plot_latencies(self, task: TaskID, axis, local_fig, wakeup: bool=True, preempt: bool=True,
+    def plot_latencies(self, task: TaskID, wakeup: bool=True, preempt: bool=True,
             threshold_ms: float=1):
         """
         Plot the latencies of a task over time
@@ -203,41 +232,47 @@ class LatencyAnalysis(TraceAnalysisBase):
         :param threshold_ms: The latency threshold to plot
         :type threshold_ms: int or float
         """
-
-        axis.axhline(threshold_ms / 1e3, linestyle='--', color=self.LATENCY_THRESHOLD_COLOR,
-                     label=f"{threshold_ms}ms threshold")
-
-        for do_plot, name, label, df_getter in (
-            (wakeup, 'wakeup', 'Wakeup', self.df_latency_wakeup),
-            (preempt, 'preempt', 'Preemption', self.df_latency_preemption),
-        ):
-            if not do_plot:
-                continue
-
+        def make_fig(name, df_getter, label):
             df = df_getter(task)
             if df.empty:
                 self.get_logger().warning(f"No data to plot for {name}")
             else:
                 df = df_refit_index(df, window=self.trace.window)
-                df.plot(ax=axis, style='+', label=label)
+                return self._plot_markers(df, label)
 
-        axis.set_title(f'Latencies of task "{task}"')
-        axis.set_ylabel("Latency (s)")
-        axis.legend()
+        return hv.Overlay(
+            [
+                make_fig(name, df_getter, label)
+                for do_plot, name, label, df_getter in (
+                    (wakeup, 'wakeup', 'Wakeup', self.df_latency_wakeup),
+                    (preempt, 'preempt', 'Preemption', self.df_latency_preemption),
+                )
+                if do_plot
+            ] + [
+                self._plot_threshold(
+                    threshold_ms / 1e3,
+                    label=f"{threshold_ms}ms threshold",
+                )
+            ]
+        ).options(
+            title=f'Latencies of task "{task}"',
+            ylabel='Latency (s)',
+        )
 
     def _get_cdf(self, data, threshold):
         """
         Build the "Cumulative Distribution Function" (CDF) for the given data
         """
-
-        # Build the series of sorted values
-        ser = data.sort_values()
-        df = pd.Series(np.linspace(0., 1., len(ser)), index=ser)
+        index = data.sort_values()
+        index.name = None
+        series = pd.Series(np.linspace(0, 1, len(index)), index=index)
+        series.name = data.name
 
         # Compute percentage of samples above/below the specified threshold
-        below = float(max(df[:threshold]))
+        below = float(max(series[:threshold]))
         above = 1 - below
-        return df, above, below
+        return series, above, below
+
 
     @df_latency_wakeup.used_events
     @df_latency_preemption.used_events
@@ -260,9 +295,9 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         return df
 
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @_get_latencies_df.used_events
-    def plot_latencies_cdf(self, task: TaskID, axis, local_fig, wakeup: bool=True, preempt: bool=True,
+    def plot_latencies_cdf(self, task: TaskID, wakeup: bool=True, preempt: bool=True,
             threshold_ms: float=1):
         """
         Plot the latencies Cumulative Distribution Function of a task
@@ -282,22 +317,30 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         df = self._get_latencies_df(task, wakeup, preempt)
         threshold_s = threshold_ms / 1e3
-        cdf_df, above, below = self._get_cdf(df.latency, threshold_s)
+        cdf, above, below = self._get_cdf(df['latency'], threshold_s)
 
-        cdf_df.plot(ax=axis, xlim=(0, None), label="CDF")
-        axis.axhline(below, linestyle='--', color=self.LATENCY_THRESHOLD_COLOR,
-                     label=f"Latencies below {threshold_ms}ms")
-        axis.axvspan(0, threshold_s, facecolor=self.LATENCY_THRESHOLD_ZONE_COLOR,
-                     alpha=0.5, label=f"{threshold_ms}ms threshold zone")
+        return (
+            hv.Curve(cdf, label='CDF') *
+            self._plot_threshold(
+                below,
+                label=f"Latencies below {threshold_ms}ms",
+            ) *
+            hv.VSpan(
+                0, threshold_s,
+                label=f"{threshold_ms}ms threshold zone",
+            ).options(
+                alpha=0.5,
+                color=self.LATENCY_THRESHOLD_ZONE_COLOR,
+            )
+        ).options(
+            title=f'Latencies CDF of task "{task}"',
+            xlabel="Latency (s)",
+            ylabel="Latencies below the x value (%)",
+        )
 
-        axis.set_title(f'Latencies CDF of task "{task}"')
-        axis.set_xlabel("Latency (s)")
-        axis.set_ylabel("Latencies below the x value (%)")
-        axis.legend()
-
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @_get_latencies_df.used_events
-    def plot_latencies_histogram(self, task: TaskID, axis, local_fig, wakeup: bool=True,
+    def plot_latencies_histogram(self, task: TaskID, wakeup: bool=True,
             preempt: bool=True, threshold_ms: float=1, bins: int=64):
         """
         Plot the latencies histogram of a task
@@ -317,19 +360,28 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         df = self._get_latencies_df(task, wakeup, preempt)
         threshold_s = threshold_ms / 1e3
+        name = f'Latencies histogram of task {task}'
+        return (
+            hv.Histogram(
+                np.histogram(df['latency'], bins=bins),
+                label=name,
+            ) *
+            hv.VSpan(
+                0, threshold_s,
+                label=f"{threshold_ms}ms threshold zone",
+            ).options(
+                color=self.LATENCY_THRESHOLD_ZONE_COLOR,
+                alpha=0.5,
+            )
+        ).options(
+            xlabel='Latency (s)',
+            title=name,
+        )
 
-        df.latency.plot.hist(bins=bins, ax=axis, xlim=(0, 1.1 * df.latency.max()))
-        axis.axvspan(0, threshold_s, facecolor=self.LATENCY_THRESHOLD_ZONE_COLOR, alpha=0.5,
-                     label=f"{threshold_ms}ms threshold zone")
-
-        axis.set_title(f'Latencies histogram of task "{task}"')
-        axis.set_xlabel("Latency (s)")
-        axis.legend()
-
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @df_latency_wakeup.used_events
     @df_latency_preemption.used_events
-    def plot_latency_bands(self, task: TaskID, axis, local_fig):
+    def plot_latency_bands(self, task: TaskID):
         """
         Draw the task wakeup/preemption latencies as colored bands
 
@@ -341,27 +393,31 @@ class LatencyAnalysis(TraceAnalysisBase):
         prt_df = self.df_latency_preemption(task)
 
         def plot_bands(df, column, label):
-            if df.empty:
-                return
-
             df = df_refit_index(df, window=self.trace.window)
-            bands = [(t, df[column][t]) for t in df.index]
-            color = self.get_next_color(axis)
-            for idx, (start, duration) in enumerate(bands):
-                if idx > 0:
-                    label = None
+            if df.empty:
+                return _hv_neutral()
 
-                end = start + duration
-                axis.axvspan(start, end, facecolor=color, alpha=0.5,
-                             label=label)
+            return hv.Overlay(
+                [
+                    hv.VSpan(
+                        start,
+                        start + duration,
+                        label=label,
+                    ).options(
+                        alpha=0.5,
+                    )
+                    for start, duration in df[[column]].itertuples()
+                ]
+            )
 
-        plot_bands(wkl_df, "wakeup_latency", "Wakeup latencies")
-        plot_bands(prt_df, "preempt_latency", "Preemption latencies")
-        axis.legend()
+        return (
+            plot_bands(wkl_df, "wakeup_latency", "Wakeup latencies") *
+            plot_bands(prt_df, "preempt_latency", "Preemption latencies")
+        )
 
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @df_activations.used_events
-    def plot_activations(self, task: TaskID, axis, local_fig):
+    def plot_activations(self, task: TaskID):
         """
         Plot the :meth:`lisa.analysis.latency.LatencyAnalysis.df_activations` of a task
 
@@ -371,17 +427,19 @@ class LatencyAnalysis(TraceAnalysisBase):
 
         wkp_df = self.df_activations(task)
         wkp_df = df_refit_index(wkp_df, window=self.trace.window)
-        wkp_df.plot(style='+', logy=False, ax=axis)
+        name = f'Activation intervals of task {task}'
 
-        plot_overutilized = self.trace.analysis.status.plot_overutilized
-        if self.trace.has_events(plot_overutilized.used_events):
-            plot_overutilized(axis=axis)
+        return (
+            self._plot_markers(wkp_df, name) *
+            self._plot_overutilized()
+        ).options(
+            title=name,
+            ylabel='Activation interval (s)',
+        )
 
-        axis.set_title(f'Activation intervals of task "{task}"')
-
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @df_runtimes.used_events
-    def plot_runtimes(self, task: TaskID, axis, local_fig):
+    def plot_runtimes(self, task: TaskID):
         """
         Plot the :meth:`lisa.analysis.latency.LatencyAnalysis.df_runtimes` of a task
 
@@ -391,13 +449,12 @@ class LatencyAnalysis(TraceAnalysisBase):
         df = self.df_runtimes(task)
         df = df_refit_index(df, window=self.trace.window)
 
-        df.plot(style='+', ax=axis)
-
-        plot_overutilized = self.trace.analysis.status.plot_overutilized
-        if self.trace.has_events(plot_overutilized.used_events):
-            plot_overutilized(axis=axis)
-
-        axis.set_title(f'Per-activation runtimes of task "{task}"')
-
+        name = f'Per-activation runtimes of task {task}'
+        return (
+            self._plot_markers(df, name) *
+            self._plot_overutilized()
+        ).options(
+            title=name,
+        )
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

@@ -180,6 +180,16 @@ pygments_style = 'sphinx'
 # a list of builtin themes.
 html_theme = 'sphinx_rtd_theme'
 
+
+# Allow interactive bokeh plots in the documentation
+try:
+    import bokeh.resources
+except ImportError:
+    pass
+else:
+    html_js_files = bokeh.resources.CDN.js_files
+    html_css_files = bokeh.resources.CDN.css_files
+
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
@@ -337,6 +347,7 @@ intersphinx_mapping = {
     'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None),
     'matplotlib': ('https://matplotlib.org', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
+    'holoviews': ('http://holoviews.org/', None),
     # XXX: Doesn't seem to work, might be due to how devlib doc is generated
     'devlib': ('https://devlib.readthedocs.io/en/latest/', None),
     'wa': ('https://workload-automation.readthedocs.io/en/latest/', None),

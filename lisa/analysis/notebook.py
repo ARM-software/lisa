@@ -17,8 +17,11 @@
 
 """ Notebook Analysis Module """
 
-import pandas as pd
 import functools
+import inspect
+
+import holoviews as hv
+import pandas as pd
 
 import __main__ as main
 
@@ -26,6 +29,7 @@ from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
 from lisa.datautils import df_refit_index, df_filter, SignalDesc, df_update_duplicates
 from lisa.utils import kwargs_forwarded_to
+from lisa.notebook import plot_signal
 
 
 class NotebookAnalysis(TraceAnalysisBase):
@@ -41,16 +45,17 @@ class NotebookAnalysis(TraceAnalysisBase):
 
     example::
 
+        import holoviews as hv
         from lisa.trace import Trace
         trace = Trace('trace.dat', events=['sched_switch'])
 
         # Define a plot method in any cell
-        def plot_foo(trace, y, axis):
+        def plot_foo(trace, y):
             print(f'Plotting horizontal line at level: {y}')
-            axis.axhline(y=y)
+            return hv.HLine(y).options(color='red')
 
         # Just lookup the plot function
-        trace.analysis.notebook.plot_foo(3)
+        trace.ana.notebook.plot_foo(0.5)
 
     """
 
@@ -61,12 +66,19 @@ class NotebookAnalysis(TraceAnalysisBase):
 
         if attr.startswith('plot_'):
             f = val
-            # swallow "local_fig" as it is usually not needed for the notebook
-            # usage and pass the trace directly instead of the analysis
-            @TraceAnalysisBase.plot_method(return_axis=False)
+            first_param = list(inspect.signature(f).parameters)[0]
+
+            @TraceAnalysisBase.plot_method
             @functools.wraps(f)
-            def wrapper(self, *args, local_fig, **kwargs):
-                return f(self.trace, *args, **kwargs)
+            def wrapper(**kwargs):
+                # We cannot capture "self" in the signature directly as we need
+                # to match the name of the first parameter of f, which could be
+                # anything. It's therefore simpler to manually unpack it.
+                #
+                # Note: The lisa.analysis.proxy._AnalysisPreset will turn all
+                # parameters into kwargs.
+                kwargs[first_param] = kwargs[first_param].trace
+                return f(**kwargs)
 
             val = wrapper
 
@@ -165,8 +177,8 @@ class NotebookAnalysis(TraceAnalysisBase):
         return self._df_all_events(events=events, **kwargs)
 
 
-    @TraceAnalysisBase.plot_method(return_axis=False)
-    def plot_event_field(self, event: str, field: str, axis, local_fig, filter_columns=None, filter_f=None):
+    @TraceAnalysisBase.plot_method
+    def plot_event_field(self, event: str, field: str, filter_columns=None, filter_f=None):
         """
         Plot a signal represented by the filtered values of a field of an event.
 
@@ -202,7 +214,7 @@ class NotebookAnalysis(TraceAnalysisBase):
             df = filter_f(df)
 
         df = df_refit_index(df, window=trace.window)
-        df[[field]].plot(ax=axis, drawstyle='steps-post')
+        return plot_signal(df[field], name=field)
 
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

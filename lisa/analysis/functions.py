@@ -18,7 +18,7 @@
 """ Functions Analysis Module """
 import json
 import os
-from operator import itemgetter, attrgetter
+from operator import itemgetter, attrgetter, mul
 from statistics import mean
 from functools import reduce
 from itertools import chain
@@ -29,6 +29,7 @@ from enum import IntEnum
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 import numpy as np
+import holoviews as hv
 
 from lisa.utils import groupby, memoized, FrozenDict, unzip_into
 from lisa.datautils import df_merge
@@ -155,7 +156,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
         # Attempt to get the CPU capacity signal to normalize the results
         capacity_cols = ['__cpu', 'event', 'capacity']
         try:
-            capacity_df = self.trace.analysis.load_tracking.df_cpus_signal('capacity')
+            capacity_df = self.ana.load_tracking.df_cpus_signal('capacity')
         except MissingTraceEventError:
             capacity_df = pd.DataFrame(columns=capacity_cols)
         else:
@@ -302,7 +303,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
             return name
 
         def get_df(trace):
-            df = trace.analysis.functions.df_calls(normalize=normalize)
+            df = self.df_calls(normalize=normalize)
             df = df.copy(deep=False)
             df['trace'] = get_name(trace)
             return df
@@ -841,8 +842,8 @@ class JSONStatsFunctionsAnalysis(AnalysisHelpers):
         else:
             return df
 
-    @AnalysisHelpers.plot_method()
-    def plot_profiling_stats(self, functions: str=None, axis=None, local_fig=None, metrics: str='avg'):
+    @AnalysisHelpers.plot_method
+    def plot_profiling_stats(self, functions: str=None, metrics: str='avg'):
         """
         Plot functions profiling metrics for the specified kernel functions.
 
@@ -866,19 +867,23 @@ class JSONStatsFunctionsAnalysis(AnalysisHelpers):
             msg = f'Metrics {(set(metrics) - set(available_metrics))} not supported, available metrics are {available_metrics}'
             raise ValueError(msg)
 
-        for metric in metrics:
+        def plot_metric(metric):
             if metric.upper() == 'AVG':
-                title = 'Average Completion Time per CPUs'
-                ylabel = 'Completion Time [us]'
+                ylabel = 'Average completion time [us]'
             if metric.upper() == 'TIME':
-                title = 'Total Execution Time per CPUs'
-                ylabel = 'Execution Time [us]'
+                ylabel = 'Total execution time [us]'
             data = df[metric.casefold()].unstack()
-            data.plot(kind='bar',
-                     ax=axis, figsize=(16, 8), legend=True,
-                     title=title, table=True)
-            axis.set_ylabel(ylabel)
-            axis.get_xaxis().set_visible(False)
+
+            return hv.Bars(data).options(
+                title=title,
+                ylabel=ylabel,
+                xlabel='CPU',
+                invert_axes=True,
+            )
+
+        return reduce(mul, map(plot_metric, metrics)).options(
+            title='Execution time stats',
+        )
 
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

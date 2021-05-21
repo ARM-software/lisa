@@ -19,9 +19,12 @@
 
 """ System Status Analaysis Module """
 
+import holoviews as hv
+
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
 from lisa.datautils import df_refit_index, df_add_delta, df_deduplicate
+from lisa.notebook import _hv_neutral
 
 
 class StatusAnalysis(TraceAnalysisBase):
@@ -76,35 +79,34 @@ class StatusAnalysis(TraceAnalysisBase):
 # Plotting Methods
 ###############################################################################
 
-    @TraceAnalysisBase.plot_method()
+    @TraceAnalysisBase.plot_method
     @df_overutilized.used_events
-    def plot_overutilized(self, axis, local_fig):
+    def plot_overutilized(self):
         """
         Draw the system's overutilized status as colored bands
         """
-
         df = self.df_overutilized()
         if not df.empty:
             df = df_refit_index(df, window=self.trace.window)
 
             # Compute intervals in which the system is reported to be overutilized
-            bands = [(t, df['len'][t], df['overutilized'][t]) for t in df.index]
-
-            color = self.get_next_color(axis)
-            label = "Overutilized"
-            for (start, delta, overutilized) in bands:
-                if not overutilized:
-                    continue
-
-                end = start + delta
-                axis.axvspan(start, end, alpha=0.2, facecolor=color, label=label)
-
-                if label:
-                    label = None
-
-            axis.legend()
-
-        if local_fig:
-            axis.set_title("System-wide overutilized status")
+            return hv.Overlay(
+                [
+                    hv.VSpan(
+                        start,
+                        start + delta,
+                        label='Overutilized'
+                    ).options(
+                        color='red',
+                        alpha=0.05,
+                    )
+                    for start, delta, overutilized in df[['len', 'overutilized']].itertuples()
+                    if overutilized
+                ]
+            ).options(
+                title='System-wide overutilized status'
+            )
+        else:
+            return _hv_neutral()
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
