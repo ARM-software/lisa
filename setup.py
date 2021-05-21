@@ -116,6 +116,16 @@ setup(
         # 3.1.0, and that is used for non-interactive plots when building the
         # doc.
         "matplotlib >= 3.1.0",
+        "bokeh",
+        # For bokeh static image exports
+        "selenium",
+        "phantomjs",
+        "pillow",
+
+        "holoviews",
+        "panel",
+        "datashader",
+        "colorcet",
         # Pandas >= 1.0.0 has support for new nullable dtypes
         # Pandas 1.2.0 has broken barplots:
         # https://github.com/pandas-dev/pandas/issues/38947
@@ -133,7 +143,6 @@ setup(
 
         "ipython",
         "ipywidgets",
-        "mplcursors",
 
         # Depdendencies that are shipped as part of the LISA repo as
         # subtree/submodule
