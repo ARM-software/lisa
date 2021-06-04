@@ -155,6 +155,37 @@ class UnboundMethodType(metaclass=_UnboundMethodTypeMeta):
     pass
 
 
+class bothmethod:
+    """
+    Decorator to allow a method to be used both as an instance method and a
+    classmethod.
+
+    If it's called on a class, the first parameter will be bound to the class,
+    otherwise it will be bound to the instance.
+    """
+    def __init__(self, f):
+        self.f = f
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            x = owner
+        else:
+            x = instance
+        return functools.wraps(self.f)(functools.partial(self.f, x))
+
+    def __getattr__(self, attr):
+        return getattr(self.f, attr)
+
+
+class _DummyLogger:
+    def __getattr__(self, attr):
+        x = getattr(logging, attr)
+        if callable(x):
+            return lambda *args, **kwargs: None
+        else:
+            return None
+
+
 class Loggable:
     """
     A simple class for uniformly named loggers
@@ -162,15 +193,21 @@ class Loggable:
 
     @classmethod
     def get_logger(cls, suffix=None):
-        cls_name = cls.__name__
-        module = inspect.getmodule(cls)
-        if module:
-            name = module.__name__ + '.' + cls_name
+        if any (
+            frame.function == '__del__'
+            for frame in inspect.stack()
+        ):
+            return _DummyLogger()
         else:
-            name = cls_name
-        if suffix:
-            name += '.' + suffix
-        return logging.getLogger(name)
+            cls_name = cls.__name__
+            module = inspect.getmodule(cls)
+            if module:
+                name = module.__name__ + '.' + cls_name
+            else:
+                name = cls_name
+            if suffix:
+                name += '.' + suffix
+            return logging.getLogger(name)
 
     @classmethod
     def log_locals(cls, var_names=None, level='debug'):
