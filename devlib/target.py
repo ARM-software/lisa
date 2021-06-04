@@ -76,6 +76,48 @@ GOOGLE_DNS_SERVER_ADDRESS = '8.8.8.8'
 
 installed_package_info = namedtuple('installed_package_info', 'apk_path package')
 
+
+def call_conn(f):
+    """
+    Decorator to be used on all :class:`devlib.target.Target` methods that
+    directly use a method of ``self.conn``.
+
+    This ensures that if a call to any of the decorated method occurs while
+    executing, a new connection will be created in order to avoid possible
+    deadlocks. This can happen if e.g. a target's method is called from
+    ``__del__``, which could be executed by the garbage collector, interrupting
+    another call to a method of the connection instance.
+
+    .. note:: This decorator could be applied directly to all methods with a
+        metaclass or ``__init_subclass__`` but it could create issues when
+        passing target methods as callbacks to connections' methods.
+    """
+
+    @functools.wraps(f)
+    def wrapper(self, *args, **kwargs):
+        reentered = self.conn.is_in_use
+        disconnect = False
+        try:
+            # If the connection was already in use we need to use a different
+            # instance to avoid reentrancy deadlocks. This can happen even in
+            # single threaded code via __del__ implementations that can be
+            # called at any point.
+            if reentered:
+                # Shallow copy so we can use another connection instance
+                _self = copy.copy(self)
+                _self.conn = _self.get_connection()
+                assert self.conn is not _self.conn
+                disconnect = True
+            else:
+                _self = self
+            return f(_self, *args, **kwargs)
+        finally:
+            if disconnect:
+                _self.disconnect()
+
+    return wrapper
+
+
 class Target(object):
 
     path = None
@@ -294,6 +336,14 @@ class Target(object):
         if connect:
             self.connect()
 
+    def __copy__(self):
+        new = self.__class__.__new__(self.__class__)
+        new.__dict__ = self.__dict__.copy()
+        # Avoid sharing the connection instance with the original target, so
+        # that each target can live its own independent life
+        del new.__dict__['_conn']
+        return new
+
     # connection and initialization
 
     def connect(self, timeout=None, check_boot_completed=True):
@@ -433,6 +483,7 @@ class Target(object):
                 dst_mkdir(dest)
 
 
+    @call_conn
     def push(self, source, dest, as_root=False, timeout=None, globbing=False):  # pylint: disable=arguments-differ
         sources = glob.glob(source) if globbing else [source]
         self._prepare_xfer('push', sources, dest)
@@ -488,6 +539,7 @@ class Target(object):
 
         return paths
 
+    @call_conn
     def pull(self, source, dest, as_root=False, timeout=None, globbing=False):  # pylint: disable=arguments-differ
         if globbing:
             sources = self._expand_glob(source, as_root=as_root)
@@ -557,6 +609,7 @@ class Target(object):
 
         return command
 
+    @call_conn
     def execute(self, command, timeout=None, check_exit_code=True,
                 as_root=False, strip_colors=True, will_succeed=False,
                 force_locale='C'):
@@ -566,6 +619,7 @@ class Target(object):
                 check_exit_code=check_exit_code, as_root=as_root,
                 strip_colors=strip_colors, will_succeed=will_succeed)
 
+    @call_conn
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False,
                    force_locale='C', timeout=None):
         command = self._prepare_cmd(command, force_locale)
@@ -691,6 +745,7 @@ class Target(object):
             pass
         self.conn.connected_as_root = None
 
+    @call_conn
     def check_responsive(self, explode=True):
         try:
             self.conn.execute('ls /', timeout=5)
@@ -1005,6 +1060,7 @@ class Target(object):
         os.remove(shutils_ofile)
         os.rmdir(tmp_dir)
 
+    @call_conn
     def _execute_util(self, command, timeout=None, check_exit_code=True, as_root=False):
         command = '{} {}'.format(self.shutils, command)
         return self.conn.execute(command, timeout, check_exit_code, as_root)
@@ -1169,6 +1225,7 @@ class LinuxTarget(Target):
     def wait_boot_complete(self, timeout=10):
         pass
 
+    @call_conn
     def kick_off(self, command, as_root=False):
         command = 'sh -c {} 1>/dev/null 2>/dev/null &'.format(quote(command))
         return self.conn.execute(command, as_root=as_root)
@@ -1711,9 +1768,11 @@ class AndroidTarget(Target):
     def get_logcat_monitor(self, regexps=None):
         return LogcatMonitor(self, regexps)
 
+    @call_conn
     def wait_for_device(self, timeout=30):
         self.conn.wait_for_device()
 
+    @call_conn
     def reboot_bootloader(self, timeout=30):
         self.conn.reboot_bootloader()
 
