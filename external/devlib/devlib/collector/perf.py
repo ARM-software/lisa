@@ -126,6 +126,10 @@ class PerfCollector(CollectorBase):
             self.command = command
         else:
             raise ValueError('Unsupported perf command, must be stat or record')
+        if report_options and (command != 'record'):
+            raise ValueError('report_options specified, but command is not record')
+        if report_sample_options and (command != 'record'):
+            raise ValueError('report_sample_options specified, but command is not record')
 
         self.binary = self.target.get_installed(self.perf_type)
         if self.force_install or not self.binary:

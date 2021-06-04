@@ -23,6 +23,6 @@ PyYAML==5.4
 requests==2.25.0
 scp==0.13.3
 six==1.15.0
-urllib3==1.26.4
+urllib3==1.26.5
 wlauto==3.0.0
 wrapt==1.12.1

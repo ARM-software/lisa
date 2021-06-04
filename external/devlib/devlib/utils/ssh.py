@@ -466,7 +466,13 @@ class SshConnection(SshConnectionBase):
         return self.transfer_mgr.progress_cb if self.transfer_mgr is not None else None
 
     def _get_sftp(self, timeout):
-        sftp = self.client.open_sftp()
+        try:
+            sftp = self.client.open_sftp()
+        except paramiko.ssh_exception.SSHException as e:
+            if 'EOF during negotiation' in str(e):
+                raise TargetStableError('The SSH server does not support SFTP. Please install and enable appropriate module.') from e
+            else:
+                raise
         sftp.get_channel().settimeout(timeout)
         return sftp
 

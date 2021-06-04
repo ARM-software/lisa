@@ -37,6 +37,7 @@ import string
 import subprocess
 import sys
 import threading
+import types
 import wrapt
 import warnings
 
@@ -883,10 +884,14 @@ class _BoundTLSProperty:
 
 class InitCheckpointMeta(type):
     """
-    Metaclass providing an ``initialized`` boolean attributes on instances.
+    Metaclass providing an ``initialized`` and ``is_in_use`` boolean attributes
+    on instances.
 
     ``initialized`` is set to ``True`` once the ``__init__`` constructor has
     returned. It will deal cleanly with nested calls to ``super().__init__``.
+
+    ``is_in_use`` is set to ``True`` when an instance method is being called.
+    This allows to detect reentrance.
     """
     def __new__(metacls, name, bases, dct, **kwargs):
         cls = super().__new__(metacls, name, bases, dct, **kwargs)
@@ -895,6 +900,7 @@ class InitCheckpointMeta(type):
         @wraps(init_f)
         def init_wrapper(self, *args, **kwargs):
             self.initialized = False
+            self.is_in_use = False
 
             # Track the nesting of super()__init__ to set initialized=True only
             # when the outer level is finished
@@ -917,6 +923,45 @@ class InitCheckpointMeta(type):
             return x
 
         cls.__init__ = init_wrapper
+
+        # Set the is_in_use attribute to allow external code to detect if the
+        # methods are about to be re-entered.
+        def make_wrapper(f):
+            if f is None:
+                return None
+
+            @wraps(f)
+            def wrapper(self, *args, **kwargs):
+                f_ = f.__get__(self, self.__class__)
+                initial_state = self.is_in_use
+                try:
+                    self.is_in_use = True
+                    return f_(*args, **kwargs)
+                finally:
+                    self.is_in_use = initial_state
+
+            return wrapper
+
+        # This will not decorate methods defined in base classes, but we cannot
+        # use inspect.getmembers() as it uses __get__ to bind the attributes to
+        # the class, making staticmethod indistinguishible from instance
+        # methods.
+        for name, attr in cls.__dict__.items():
+            # Only wrap the methods (exposed as functions), not things like
+            # classmethod or staticmethod
+            if (
+                name not in ('__init__', '__new__') and
+                isinstance(attr, types.FunctionType)
+            ):
+                setattr(cls, name, make_wrapper(attr))
+            elif isinstance(attr, property):
+                prop = property(
+                    fget=make_wrapper(attr.fget),
+                    fset=make_wrapper(attr.fset),
+                    fdel=make_wrapper(attr.fdel),
+                    doc=attr.__doc__,
+                )
+                setattr(cls, name, prop)
 
         return cls
 
