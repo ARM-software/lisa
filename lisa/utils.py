@@ -177,6 +177,15 @@ class bothmethod:
         return getattr(self.f, attr)
 
 
+class _DummyLogger:
+    def __getattr__(self, attr):
+        x = getattr(logging, attr)
+        if callable(x):
+            return lambda *args, **kwargs: None
+        else:
+            return None
+
+
 class Loggable:
     """
     A simple class for uniformly named loggers
@@ -184,15 +193,21 @@ class Loggable:
 
     @classmethod
     def get_logger(cls, suffix=None):
-        cls_name = cls.__name__
-        module = inspect.getmodule(cls)
-        if module:
-            name = module.__name__ + '.' + cls_name
+        if any (
+            frame.function == '__del__'
+            for frame in inspect.stack()
+        ):
+            return _DummyLogger()
         else:
-            name = cls_name
-        if suffix:
-            name += '.' + suffix
-        return logging.getLogger(name)
+            cls_name = cls.__name__
+            module = inspect.getmodule(cls)
+            if module:
+                name = module.__name__ + '.' + cls_name
+            else:
+                name = cls_name
+            if suffix:
+                name += '.' + suffix
+            return logging.getLogger(name)
 
     @classmethod
     def log_locals(cls, var_names=None, level='debug'):
