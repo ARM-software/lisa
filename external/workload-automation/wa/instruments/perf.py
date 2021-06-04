@@ -21,7 +21,7 @@ import re
 
 from devlib.collector.perf import PerfCollector
 
-from wa import Instrument, Parameter
+from wa import Instrument, Parameter, ConfigError
 from wa.utils.types import list_or_string, list_of_strs, numeric
 
 PERF_COUNT_REGEX = re.compile(r'^(CPU\d+)?\s*(\d+)\s*(.*?)\s*(\[\s*\d+\.\d+%\s*\])?\s*$')
@@ -95,6 +95,11 @@ class PerfInstrument(Instrument):
                   description="""Specifies options to be used to gather report when record command
                   is used. It's highly recommended to use perf_type simpleperf when running on
                   android devices as reporting options are unstable with perf"""),
+        Parameter('run_report_sample', kind=bool, default=False, description="""If true, run
+                  'perf/simpleperf report-sample'. It only works with the record command."""),
+        Parameter('report_sample_options', kind=str, default=None,
+                  description="""Specifies options to pass to report-samples when run_report_sample
+                  is true."""),
         Parameter('labels', kind=list_of_strs, default=None,
                   global_alias='perf_labels',
                   description="""Provides labels for perf/simpleperf output for each optionstring.
@@ -111,13 +116,26 @@ class PerfInstrument(Instrument):
         self.collector = None
         self.outdir = None
 
+    def validate(self):
+        if self.report_option_string and (self.command != "record"):
+            raise ConfigError("report_option_string only works with perf/simpleperf record. Set command to record or remove report_option_string")
+        if self.report_sample_options and (self.command != "record"):
+            raise ConfigError("report_sample_options only works with perf/simpleperf record. Set command to record or remove report_sample_options")
+        if self.run_report_sample and (self.command != "record"):
+            raise ConfigError("run_report_sample only works with perf/simpleperf record. Set command to record or remove run_report_sample")
+
     def initialize(self, context):
+        if self.report_sample_options:
+            self.run_report_sample = True
+
         self.collector = PerfCollector(self.target,
                                        self.perf_type,
                                        self.command,
                                        self.events,
                                        self.optionstring,
                                        self.report_option_string,
+                                       self.run_report_sample,
+                                       self.report_sample_options,
                                        self.labels,
                                        self.force_install)
 
