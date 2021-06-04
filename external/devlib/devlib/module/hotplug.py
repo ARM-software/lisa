@@ -14,6 +14,7 @@
 #
 
 from devlib.module import Module
+from devlib.exception import TargetTransientError
 
 
 class HotplugModule(Module):
@@ -39,9 +40,13 @@ class HotplugModule(Module):
         return [cpu for cpu in range(self.target.number_of_cpus)
                 if self.target.file_exists(self._cpu_path(self.target, cpu))]
 
-    def online_all(self):
+    def online_all(self, verify=True):
         self.target._execute_util('hotplug_online_all',  # pylint: disable=protected-access
                                   as_root=self.target.is_rooted)
+        if verify:
+            offline = set(self.target.list_offline_cpus())
+            if offline:
+                raise TargetTransientError('The following CPUs failed to come back online: {}'.format(offline))
 
     def online(self, *args):
         for cpu in args:
