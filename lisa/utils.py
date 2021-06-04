@@ -155,6 +155,28 @@ class UnboundMethodType(metaclass=_UnboundMethodTypeMeta):
     pass
 
 
+class bothmethod:
+    """
+    Decorator to allow a method to be used both as an instance method and a
+    classmethod.
+
+    If it's called on a class, the first parameter will be bound to the class,
+    otherwise it will be bound to the instance.
+    """
+    def __init__(self, f):
+        self.f = f
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            x = owner
+        else:
+            x = instance
+        return functools.wraps(self.f)(functools.partial(self.f, x))
+
+    def __getattr__(self, attr):
+        return getattr(self.f, attr)
+
+
 class Loggable:
     """
     A simple class for uniformly named loggers
