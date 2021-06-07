@@ -1682,16 +1682,37 @@ def optional_kwargs(func):
            ...
 
     .. note:: This only works for keyword parameters.
+
+    .. note:: When decorating classmethods, :func:`optional_kwargs` must be
+        above ``@classmethod`` so it can handle it properly.
     """
 
-    @functools.wraps(func)
+    is_cls_method = False
+    if isinstance(func, classmethod):
+        f = func.__func__
+        is_cls_method = True
+    if isinstance(func, staticmethod):
+        f = func.__func__
+    else:
+        f = func
+
+    @functools.wraps(f)
     def wrapper(*args, **kwargs):
+        if is_cls_method:
+            cls, *args = args
+            _f = f.__get__(None, cls)
+        else:
+            _f = f
+
         if not kwargs and len(args) == 1 and callable(args[0]):
-            return func(args[0])
+            return _f(args[0])
         else:
             if args:
-                raise TypeError(f'Positional parameters are not allowed when applying {func.__qualname__} decorator, please use keyword arguments')
-            return functools.partial(func, **kwargs)
+                raise TypeError(f'Positional parameters are not allowed when applying {f.__qualname__} decorator, please use keyword arguments')
+            return functools.partial(_f, **kwargs)
+
+    if is_cls_method:
+        wrapper = classmethod(wrapper)
 
     return wrapper
 
