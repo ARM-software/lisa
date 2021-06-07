@@ -119,59 +119,7 @@ class LoadTrackingHelpers:
         return signal_value * orig_capacities[cpu] / rtapp_capacities[cpu]
 
 
-class LoadTrackingBase(RTATestBundle, LoadTrackingHelpers, TestBundle):
-    """
-    Base class for shared functionality of load tracking tests
-    """
-
-    cpufreq_conf = {
-        "governor": "performance"
-    }
-    """
-    The cpufreq configuration used while the synthetic workload is being run.
-    Items are arguments to
-    :meth:`devlib.module.cpufreq.CpufreqModule.use_governor`.
-    """
-
-    @classmethod
-    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, collector=None) -> 'LoadTrackingBase':
-        plat_info = target.plat_info
-        rtapp_profile = cls.get_rtapp_profile(plat_info)
-
-        # After a bit of experimenting, it turns out that on some platforms
-        # misprediction of the idle time (which leads to a shallow idle state,
-        # a wakeup and another idle nap) can mess up the duty cycle of the
-        # rt-app task we're running. In our case, a 50% duty cycle, 16ms period
-        # task would always be active for 8ms, but it would sometimes sleep for
-        # only 5 or 6 ms.
-        # This is fine to do this here, as we only care about the proper
-        # behaviour of the signal on running/not-running tasks.
-        with target.disable_idle_states():
-            with target.cpufreq.use_governor(**cls.cpufreq_conf):
-                cls.run_rtapp(
-                    target=target,
-                    res_dir=res_dir,
-                    profile=rtapp_profile,
-                    collector=collector
-                )
-
-        return cls(res_dir, plat_info)
-
-    @staticmethod
-    def is_almost_equal(target, value, allowed_delta_pct):
-        """
-        Verify that ``value``` is reasonably close to ``target```
-
-        :returns: A tuple (bool, delta_pct)
-        """
-        delta = value - target
-        delta_pct = delta / target * 100
-        equal = abs(delta_pct) <= allowed_delta_pct
-
-        return (equal, delta_pct)
-
-
-class InvarianceItemBase(LoadTrackingBase, ExekallTaggable, abc.ABC):
+class InvarianceItemBase(RTATestBundle, LoadTrackingHelpers, TestBundle, ExekallTaggable, abc.ABC):
     """
     Basic check for CPU and frequency invariant load and utilization tracking
 
@@ -218,6 +166,30 @@ class InvarianceItemBase(LoadTrackingBase, ExekallTaggable, abc.ABC):
 
     def get_tags(self):
         return {'cpu': f'{self.cpu}@{self.freq}'}
+
+    @classmethod
+    def _from_target(cls, target: Target, *, res_dir: ArtifactPath = None, collector=None) -> 'InvarianceItemBase':
+        plat_info = target.plat_info
+        rtapp_profile = cls.get_rtapp_profile(plat_info)
+
+        # After a bit of experimenting, it turns out that on some platforms
+        # misprediction of the idle time (which leads to a shallow idle state,
+        # a wakeup and another idle nap) can mess up the duty cycle of the
+        # rt-app task we're running. In our case, a 50% duty cycle, 16ms period
+        # task would always be active for 8ms, but it would sometimes sleep for
+        # only 5 or 6 ms.
+        # This is fine to do this here, as we only care about the proper
+        # behaviour of the signal on running/not-running tasks.
+        with target.disable_idle_states():
+            with target.cpufreq.use_governor(**cls.cpufreq_conf):
+                cls.run_rtapp(
+                    target=target,
+                    res_dir=res_dir,
+                    profile=rtapp_profile,
+                    collector=collector
+                )
+
+        return cls(res_dir, plat_info)
 
     @classmethod
     def _get_rtapp_profile(cls, plat_info, cpu, freq):
