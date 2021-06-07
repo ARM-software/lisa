@@ -1975,8 +1975,23 @@ class TraceBase(abc.ABC):
         # with lisa.analysis.base
 
         # pylint: disable=import-outside-toplevel
-        from lisa.analysis.proxy import AnalysisProxy
-        self.analysis = AnalysisProxy(self)
+        from lisa.analysis.proxy import AnalysisProxy, _DeprecatedAnalysisProxy
+        # self.analysis is deprecated so we can transition to using holoviews
+        # in all situations, even when the backend is matplotlib
+
+        # In the user-visible analysis, we want to change some defaults that
+        # will improve the immediate experience, at the expense of good
+        # composition. For example, using ui=None means that a user calling a
+        # plot method twice will get 2 toolbars. but it can still be disabled
+        # manually. Since composition can sometimes suffer, the internal
+        # analysis proxy and the default values on plot methods are set to less
+        # friendly but more predictable defaults.
+        params = dict(
+            # Default to displaying a toolbar in notebooks
+            output=None,
+        )
+        self.analysis = _DeprecatedAnalysisProxy(self, params=params)
+        self.ana = AnalysisProxy(self, params=params)
 
     @property
     def trace_state(self):
@@ -2129,7 +2144,7 @@ class TraceView(Loggable, TraceBase):
 
     :Attributes:
         * ``base_trace``: The original :class`:`Trace` this view is based on.
-        * ``analysis``: The analysis proxy on the trimmed down :class`:`Trace`.
+        * ``ana``: The analysis proxy on the trimmed down :class`:`Trace`.
         * ``start``: The timestamp of the first trace event in the view (>=
           ``window[0]``)
         * ``end``: The timestamp of the last trace event in the view (<=
@@ -2146,7 +2161,7 @@ class TraceView(Loggable, TraceBase):
       view = trace[2:4]
 
       # This will only use events in the (2, 4) time window
-      df = view.analysis.tasks.df_tasks_runtime()
+      df = view.ana.tasks.df_tasks_runtime()
 
     **Design notes:**
 
@@ -3295,6 +3310,8 @@ class Trace(Loggable, TraceBase):
         * ``available_events``: Events available in the parsed trace, exposed
           as some kind of set-ish smart container. Querying for event might
           trigger the parsing of it.
+        * ``ana``: The analysis proxy used as an entry point to run analysis
+          methods on the trace. See :class:`lisa.analysis.proxy.AnalysisProxy`.
 
     :Supporting more events:
         Subclasses of :class:`TraceParserBase` can usually auto-detect the
@@ -3363,7 +3380,7 @@ class Trace(Loggable, TraceBase):
         func_prefix = 'func@'
         if meta_event.startswith(func_prefix):
             func_name = meta_event[len(func_prefix):]
-            df = self.analysis.functions.df_resolve_ksym(df, addr_col='ip', name_col='func_name', exact=False)
+            df = self.ana.functions.df_resolve_ksym(df, addr_col='ip', name_col='func_name', exact=False)
             df = df[df['func_name'] == func_name]
             df = df.copy(deep=False)
             # Prepend the meta event name so it will be matched

@@ -701,8 +701,9 @@ class TraceAnalysisBase(AnalysisHelpers):
     :meth:`lisa.trace.requires_events`
     """
 
-    def __init__(self, trace):
+    def __init__(self, trace, proxy=None):
         self.trace = trace
+        self.ana = proxy or trace.ana
 
     @classmethod
     def cache(cls, f):
