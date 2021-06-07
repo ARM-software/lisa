@@ -261,7 +261,7 @@ Analysis function calls must now include their respective module:
 
 **LISA next**::
 
-  trace.analysis.frequency.df_cpu_frequency_transitions(0)
+  trace.ana.frequency.df_cpu_frequency_transitions(0)
 
 To make autocompletion more useful, all methods returning a :class:`pandas.DataFrame`
 will start with ``df_``, whereas all methods rendering a plot will start with ``plot_``.

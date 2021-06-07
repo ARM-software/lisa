@@ -31,8 +31,8 @@ Raw trace events can be accessed like this::
 
 Whereas analysis dataframes can be obtained like that::
 
-  # trace.analysis.<analysis name>.<analysis method>
-  trace.analysis.tasks.df_tasks_states()
+  # trace.ana.<analysis name>.<analysis method>
+  trace.ana.tasks.df_tasks_states()
 
 .. seealso:: See the :class:`~lisa.trace.Trace` documentation for more details.
 

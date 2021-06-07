@@ -357,7 +357,7 @@ def autodoc_process_analysis_methods(app, what, name, obj, options, lines):
     except (KeyError, TypeError):
         return
     else:
-        on_trace_name = f'trace.analysis.{cls.name}.{obj.__name__}'
+        on_trace_name = f'trace.ana.{cls.name}.{obj.__name__}'
         extra_doc = f"\n*Called on* :class:`~lisa.trace.Trace` *instances as* ``{on_trace_name}()``\n\n"
         # prepend
         lines[:0] = extra_doc.splitlines()
