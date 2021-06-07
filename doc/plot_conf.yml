@@ -140,10 +140,6 @@ doc-plot-conf:
         ##########################
 
         # Missing necessary events in trace.dat
-        FrequencyAnalysis.plot_peripheral_clock:
-            hide: True
-
-        # Missing necessary events in trace.dat
         ThermalAnalysis.plot_thermal_zone_temperature:
             hide: True
 
