@@ -28,12 +28,6 @@ from lisa.wlgen.rta import RTA, RTAPhase, PeriodicWload, DutyCycleSweepPhase, Ru
 from .utils import StorageTestCase, create_local_target, ASSET_DIR
 
 
-# Disable DeprecationWarning since PerfAnalysis is deprecated
-from lisa.analysis.rta import PerfAnalysis
-import warnings
-warnings.filterwarnings('ignore', category=DeprecationWarning)
-
-
 class RTABase(StorageTestCase):
     """
     Common functionality for testing RTA
@@ -57,13 +51,6 @@ class RTABase(StorageTestCase):
         path = os.path.join(self.res_dir, path)
         msg = 'No output file {} from rt-app'.format(path)
         assert os.path.isfile(path), msg
-
-    def assert_can_read_logfile(self, exp_tasks):
-        """Assert that the perf_analysis module understands the log output"""
-        with pytest.warns(DeprecationWarning):
-            analysis = PerfAnalysis.from_dir(self.res_dir)
-            exp_tasks = [re.sub(r'-[0-9]+', '', task) for task in exp_tasks]
-            assert set(exp_tasks) == set(analysis.tasks)
 
 
 class TestRTAProfile(RTABase):
@@ -95,7 +82,6 @@ class TestRTAProfile(RTABase):
         self.assert_output_file_exists('stderr.log')
         self.assert_output_file_exists('test.json')
         self.assert_output_file_exists('rt-app-test-0.log')
-        self.assert_can_read_logfile(exp_tasks=['test-0'])
 
     def test_profile_periodic_smoke(self):
         """
