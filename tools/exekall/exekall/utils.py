@@ -144,6 +144,26 @@ def _get_callable_set(namespace, visited_obj_set, verbose):
                 _get_callable_set(callable_, visited_obj_set, verbose)
             )
 
+        # Functions defined in a class are methods, and have to be wrapped so
+        # engine.Operator() can correctly resolve annotations using the class
+        # attributes as a context in which the function was defined.
+        #
+        # Note that we also wrap things like classmethod, as they have the same
+        # needs
+        if (
+            isinstance(namespace, type) and
+            isinstance(
+                callable_,
+                (
+                    # Instance and static methods
+                    types.FunctionType,
+                    # Class methods
+                    types.MethodType,
+                )
+            )
+        ):
+            callable_ = engine.UnboundMethod(callable_, namespace)
+
         try:
             op = engine.Operator(callable_)
             # Trigger exceptions if they have to be raised
@@ -165,7 +185,7 @@ def _get_callable_set(namespace, visited_obj_set, verbose):
             continue
         # If something goes wrong, that means it is not properly annotated
         # so we just ignore it
-        except (AttributeError, ValueError, KeyError, engine.AnnotationError):
+        except (SyntaxError, AttributeError, ValueError, KeyError, engine.AnnotationError):
             continue
 
         def has_typevar(op):
@@ -173,17 +193,6 @@ def _get_callable_set(namespace, visited_obj_set, verbose):
                 isinstance(x, typing.TypeVar)
                 for x in {op.value_type, *op.prototype[0].values()}
             )
-
-        # Swap-in a wrapper object, so we keep track on the class on which
-        # the function was looked up
-        if op.is_method:
-            assert isinstance(namespace, type)
-            callable_ = engine.UnboundMethod(callable_, namespace)
-            # If the return annotation was a TypeVar, give a chance to
-            # Operator to resolve it in case it was redefined in a
-            # subclass, and we are inspecting that subclass
-            if has_typevar(op):
-                op = engine.Operator(callable_)
 
         def check_typevar_name(cls, name, var):
             if name != var.__name__:

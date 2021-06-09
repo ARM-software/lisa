@@ -2401,6 +2401,10 @@ class UnboundMethod:
     .. note:: It is generally assumed that if a given method is wrapped in an
         :class:`UnboundMethod`, all subclasses will also have that method
         wrapped the same way.
+
+    .. note:: :class:`UnboundMethod` can wrap things such as
+        :class:`staticmethod` or :class:`classmethod` as well, it is simply a
+        wrapper used to attach the class of origin.
     """
 
     def __init__(self, callable_, cls):
@@ -2581,7 +2585,14 @@ class Operator:
             return {name: obj}
 
         globals_ = self.resolved_callable.__globals__ or {}
-        globals_ = globals_.copy()
+        if isinstance(self.callable_, UnboundMethod):
+            globals_ = {
+                **globals_,
+                **self.callable_.cls.__dict__,
+            }
+        else:
+            globals_ = globals_.copy()
+
         # Make sure the class name can be resolved
         if isinstance(self.callable_, UnboundMethod):
             # If we have a nested class, it will need a dummy container that it
@@ -2696,7 +2707,7 @@ class Operator:
         Get the name of the callable, or None if no name can be retrieved.
         """
         try:
-            return utils.get_name(self.callable_, *args, **kwargs)
+            return utils.get_name(self._unwrapped_unbound, *args, **kwargs)
         except AttributeError:
             return None
 
@@ -2786,7 +2797,7 @@ class Operator:
         """
         ``True`` if the callable is a generator function.
         """
-        x = self.callable_
+        x = self._unwrapped_unbound
         while True:
             if inspect.isgeneratorfunction(x):
                 return True
@@ -2842,8 +2853,6 @@ class Operator:
         """
         if self.is_cls_method or self.is_static_method:
             return False
-        elif isinstance(self.callable_, UnboundMethod):
-            return True
         else:
             qualname = self.unwrapped_callable.__qualname__
             # Get the rightmost group, in case the callable has been defined in
@@ -2857,6 +2866,14 @@ class Operator:
             return '.' in qualname
 
     @property
+    def _unwrapped_unbound(self):
+        callable_ = self.callable_
+        if isinstance(callable_, UnboundMethod):
+            return callable_.__wrapped__
+        else:
+            return callable_
+
+    @property
     def is_cls_method(self):
         """
         ``True`` if the callable is a ``classmethod``.
@@ -2864,9 +2881,10 @@ class Operator:
         # Class methods appear as a bound method object when referenced through
         # their class. The method is bound to a class, which is not the case
         # if this is not a class method.
+        callable_ = self._unwrapped_unbound
         return (
-            inspect.ismethod(self.callable_) and
-            inspect.isclass(self.callable_.__self__)
+            inspect.ismethod(callable_) and
+            inspect.isclass(callable_.__self__)
         )
 
     @property
@@ -2876,7 +2894,8 @@ class Operator:
         classmethod that returns objects of the class it is defined in (or of a
         subclass of it).
         """
-        return self.is_cls_method and issubclass(self.callable_.__self__, self.value_type)
+        callable_ = self._unwrapped_unbound
+        return self.is_cls_method and issubclass(callable_.__self__, self.value_type)
 
     def make_expr_val_iter(self, expr, param_map):
         """
