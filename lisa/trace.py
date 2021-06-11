@@ -1356,6 +1356,13 @@ class TxtTraceParser(TxtTraceParserBase):
                 # 'success': 'bool',
             },
         ),
+        'task_rename': dict(
+            fields={
+                'pid': _KERNEL_DTYPE['pid'],
+                'oldcomm': _KERNEL_DTYPE['comm'],
+                'newcomm': _KERNEL_DTYPE['comm'],
+            },
+        ),
         'cpu_frequency': dict(
             fields={
                 'cpu_id': _KERNEL_DTYPE['cpu'],
