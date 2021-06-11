@@ -88,6 +88,7 @@ class TaskState(StateInt, Enum):
 
     # Used to differenciate runnable (R) vs running (A)
     TASK_ACTIVE = 0x2000, "A", "Active"
+    TASK_RENAMED = 0x2001, "N", "Renamed"
     # Used when the task state is unknown
     TASK_UNKNOWN = -1, "U", "Unknown"
 
@@ -264,7 +265,7 @@ class TasksAnalysis(TraceAnalysisBase):
         return rt_tasks
 
     @requires_events('sched_switch', 'sched_wakeup')
-    @may_use_events('sched_wakeup_new')
+    @may_use_events('sched_wakeup_new', 'task_rename')
     def _df_tasks_states(self, tasks=None, return_one_df=False):
         """
         Compute tasks states for all tasks.
@@ -288,6 +289,15 @@ class TasksAnalysis(TraceAnalysisBase):
             # Ignore the end of the window so we can properly compute the
             # durations
             return self.trace.df_event(event, window=(self.trace.start, None))
+
+        def filters_comm(task):
+            try:
+                return task.comm is not None
+            except AttributeError:
+                return isinstance(task, str)
+
+        # Add the rename events if we are interested in the comm of tasks
+        add_rename = any(map(filters_comm, tasks or []))
 
         wk_df = get_df('sched_wakeup')
         sw_df = get_df('sched_switch')
@@ -318,6 +328,15 @@ class TasksAnalysis(TraceAnalysisBase):
         next_sw_df.rename(columns={'next_pid': 'pid', 'next_comm': 'comm'}, inplace=True)
 
         all_sw_df = prev_sw_df.append(next_sw_df, sort=False)
+
+        if add_rename:
+            rename_df = get_df('task_rename').rename(
+                columns={
+                    'oldcomm': 'comm',
+                },
+            )[['pid', 'comm']]
+            rename_df['curr_state'] = TaskState.TASK_RENAMED
+            all_sw_df = all_sw_df.append(rename_df, sort=False)
 
         # Integer values are prefered here, otherwise the whole column
         # is converted to float64
