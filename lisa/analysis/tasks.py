@@ -529,6 +529,10 @@ class TasksAnalysis(TraceAnalysisBase):
           * PIDs as index
           * A ``comm`` column (the name of the task)
           * A ``runtime`` column (the time that task spent running)
+
+        .. note:: This function only tracks time spent by each PID. The
+            reported name is the last name associated with the PID in chronological
+            order.
         """
 
         runtimes = {}
