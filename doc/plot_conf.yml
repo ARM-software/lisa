@@ -27,7 +27,7 @@ doc-plot-conf:
             wlgen_profile: &wlgen_profile0 !call:lisa.tests.scheduler.eas_behaviour.TwoBigThreeSmall.get_rtapp_profile
                 plat_info: *plat_info0
 
-            task: &task0 big_0-3
+            task: &task0 big_0-0
             cpu: &cpu0 0
             cluster: &cluster0 [0, 3, 4, 5]
 
