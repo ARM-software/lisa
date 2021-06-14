@@ -269,6 +269,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
             index='Time',
         )
 
+    @df_calls.used_events
     def compare_with_traces(self, others, normalize=True, **kwargs):
         """
         Compare the :class:`~lisa.trace.Trace` it's called on with the other
