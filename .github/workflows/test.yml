@@ -32,8 +32,10 @@ jobs:
           - ubuntu-20.04
         python-version:
           - '3.6'
-          - '3.7'
-          - '3.8'
+          # Speed up the checks by skipping 3.7 and 3.8. Also github seems to
+          # always block 3 jobs these days, so maybe this will avoid that.
+          # - '3.7'
+          # - '3.8'
           - '3.9'
 
     # env:
