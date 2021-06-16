@@ -408,4 +408,15 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True):
     return fig
 
 
+# TODO: revisit when this discussion is solved:
+# https://github.com/holoviz/holoviews/issues/4988
+def _hv_neutral():
+    """
+    Neutral element of holoviews operations such that
+    ``x <op> holoviews_neutral() == x``.
+
+    .. note:: Holoviews currently does not have a perfectly neutral element.
+    """
+    return hv.Curve([])
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
