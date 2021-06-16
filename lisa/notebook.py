@@ -32,8 +32,6 @@ import pandas as pd
 
 from cycler import cycler as make_cycler
 
-import mplcursors
-
 from ipywidgets import widgets, Layout, interact
 from IPython.display import display
 
@@ -71,12 +69,21 @@ class _DataframeLinkMarker(mpl.lines.Line2D):
     pass
 
 
-# Tell mplcursors that we are never selecting the marker line, so that it
-# will still show the coordinates of the data that were plotted, rather
-# than useless coordinates of the marker
-@mplcursors.compute_pick.register(_DataframeLinkMarker)
-def _(artist, event):
-    return None
+# mplcursors is not a dependency anymore as interactive plots are now done with
+# bokeh, but keep this around for compatibility in case someone needs
+# matplotlib to get a better fixed output and wants a bit of interactivity for
+# development as well.
+try:
+    import mplcursors
+except ImportError:
+    pass
+else:
+    # Tell mplcursors that we are never selecting the marker line, so that it
+    # will still show the coordinates of the data that were plotted, rather
+    # than useless coordinates of the marker
+    @mplcursors.compute_pick.register(_DataframeLinkMarker)
+    def _(artist, event):
+        return None
 
 
 def _make_vline(axis, *args, **kwargs):
