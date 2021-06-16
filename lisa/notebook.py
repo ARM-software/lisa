@@ -15,7 +15,8 @@
 # limitations under the License.
 #
 """
-Various utilities for interactive notebooks.
+Various utilities for interactive notebooks, plus some generic plot-related
+functions.
 """
 
 import functools
@@ -26,6 +27,8 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backend_bases import MouseButton
+import holoviews as hv
+import pandas as pd
 
 from cycler import cycler as make_cycler
 
@@ -336,5 +339,66 @@ def make_figure(width, height, nrows, ncols, interactive=None, **kwargs):
         axes = figure.subplots(ncols=ncols, nrows=nrows, **kwargs)
 
     return (figure, axes)
+
+
+def plot_signal(series, name=None, interpolation=None, add_markers=True):
+    """
+    Plot a signal using ``holoviews`` library.
+
+    :param series: Series of values to plot.
+    :type series: pandas.Series
+
+    :param name: Name of the signal. Defaults to the series name.
+    :type name: str or None
+
+    :param interpolation: Interpolate type for the signal. Defaults to
+        ``steps-post`` which is the correct value for signals encoded as a
+        series of updates.
+    :type interpolation: str or None
+
+    :param add_markers: Add markers to the plot.
+    :type add_markers: bool
+    """
+    if isinstance(series, pd.DataFrame):
+        try:
+            col, = series.columns
+        except ValueError:
+            raise ValueError('Can only pass Series or DataFrame with one column')
+        else:
+            series = series[col]
+
+    label = name or series.name
+    interpolation = interpolation or 'steps-post'
+    kdims = [
+        # Ensure shared_axes works well across plots.
+        # We don't set the unit as this will prevent shared_axes to work if
+        # the other plots do not set the unit, which is what usually
+        # happens, since only name/label is taken from pandas index names.
+        hv.Dimension('Time'),
+    ]
+    fig = hv.Curve(
+        series,
+        label=label,
+        kdims=kdims,
+    ).opts(
+        interpolation=interpolation,
+        title=label,
+    ).opts(
+        backend='bokeh',
+        tools=['hover'],
+    )
+    if add_markers:
+        # The "marker" group for Scatter is used to provide marker-specific
+        # styling in generic code..
+        # TODO: use mute_legend=True once this bug is fixed:
+        # https://github.com/holoviz/holoviews/issues/3936
+        fig *= hv.Scatter(
+            series,
+            label=f'{label} (markers)',
+            group='marker',
+            kdims=kdims,
+        )
+    return fig
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
