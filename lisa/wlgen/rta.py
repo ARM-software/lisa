@@ -3340,7 +3340,7 @@ class _RTAPhaseTreeBase(RTAPhaseBase, abc.ABC):
                         # attempt to remove it or not
                         (
                             key not in phase and
-                            key not in phase_defaults
+                            key not in phase_default
                         ) or
                         (
                             # If the key is in phase and not phase_default or
