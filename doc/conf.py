@@ -25,10 +25,6 @@ import importlib
 import types
 import contextlib
 
-from docutils import nodes
-from sphinx.util.docfields import TypedField
-from sphinx import addnodes
-
 # This shouldn't be needed, as using a virtualenv + setup.py should set up the
 # sys.path correctly. However that seems to be half broken on ReadTheDocs, so
 # manually set it here
