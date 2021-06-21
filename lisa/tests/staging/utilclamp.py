@@ -15,12 +15,13 @@
 # limitations under the License.
 #
 
+import os
 import functools
 from operator import itemgetter
 
 import numpy as np
-import os
 import pandas as pd
+import holoviews as hv
 
 from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
@@ -28,6 +29,7 @@ from lisa.datautils import df_add_delta, series_mean, df_window, df_refit_index
 from lisa.pelt import PELT_SCALE
 from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle, TestMetric
 from lisa.wlgen.rta import RTAPhase, PeriodicWload
+from lisa.notebook import plot_signal
 
 
 class UtilClamp(RTATestBundle, TestBundle):
@@ -228,18 +230,37 @@ class UtilClamp(RTATestBundle, TestBundle):
         return df_phases.apply(parse_phase, axis=1)
 
     def _plot_phases(self, test, failures, signal=None):
-        task = self.rtapp_task_ids_map['task'][0]
-        ax = self.trace.analysis.tasks.plot_task_activation(task,
-                                                            which_cpu=True)
-        ax = self.trace.analysis.rta.plot_phases(task, wlgen_profile=self.rtapp_profile, axis=ax)
-        for failure in failures:
-            ax.axvline(failure, alpha=0.5, color='r')
+        task, = self.rtapp_task_ids
+        ana = self.trace.ana(
+            task=task,
+            tasks=[task],
+        )
+        figs = [
+            (
+                ana.tasks.plot_tasks_activation(
+                    overlay=True,
+                    which_cpu=True
+                ) *
+                ana.rta.plot_phases(wlgen_profile=self.rtapp_profile) *
+                hv.Overlay(
+                    [
+                        hv.HLine(failure).options(
+                            alpha=0.5,
+                            color='red'
+                        )
+                        for failure in failures
+                    ]
+                )
+            ),
+        ]
         if signal is not None:
-            signal.plot(ax=ax.twinx(), drawstyle='steps-post')
-        filepath = os.path.join(self.res_dir, f'utilclamp_{test}.png')
-        self.trace.analysis.rta.save_plot(ax.figure, filepath=filepath)
+            figs.append(
+                plot_signal(signal)
+            )
+        fig = hv.Layout(figs).cols(1)
 
-        return ax
+        self._save_debug_plot(fig, name=f'utilclamp_{test}')
+        return fig
 
     @FrequencyAnalysis.df_cpus_frequency.used_events
     @LoadTrackingAnalysis.df_tasks_signal.used_events
@@ -380,7 +401,10 @@ class UtilClamp(RTATestBundle, TestBundle):
         res = ResultBundle.from_bool(self._for_each_phase(parse_phase).all())
         res.add_metric('Phases', metrics)
 
-        self._plot_phases('test_frequency', test_failures,
-                          pd.concat(capacity_dfs))
+        self._plot_phases(
+            'test_frequency',
+            test_failures,
+            signal=pd.concat(capacity_dfs),
+        )
 
         return res

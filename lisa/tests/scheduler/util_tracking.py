@@ -18,6 +18,7 @@
 import os
 import functools
 
+import holoviews as hv
 from devlib.target import KernelVersion
 
 from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle
@@ -156,13 +157,28 @@ class UtilConvergence(UtilTrackingBase):
         return True
 
     def _plot_signals(self, task, test, failures):
-        signals = ['util', 'enqueued', 'ewma']
-        ax = self.trace.analysis.load_tracking.plot_task_signals(task, signals=signals)
-        ax = self.trace.analysis.rta.plot_phases(task, axis=ax)
-        for start in failures:
-            ax.axvline(start, alpha=0.5, color='r')
-        filepath = os.path.join(self.res_dir, f'util_est_{test}.png')
-        self.trace.analysis.rta.save_plot(ax.figure, filepath=filepath)
+        ana = self.trace.ana(
+            task=task,
+            backend='bokeh',
+        )
+        fig = (
+            ana.load_tracking.plot_task_signals(
+                signals=['util', 'enqueued', 'ewma']
+            ) *
+            ana.rta.plot_phases() *
+            hv.Overlay([
+                hv.VLine(x).options(
+                    alpha=0.5,
+                    color='red',
+                )
+                for x in failures
+            ])
+        ).options(
+            title='UtilConvergence debug plot',
+        )
+
+        self._save_debug_plot(fig, name=f'util_est_{test}')
+        return fig
 
     @requires_events('sched_util_est_se')
     @LoadTrackingAnalysis.df_tasks_signal.used_events

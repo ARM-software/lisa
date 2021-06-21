@@ -19,6 +19,7 @@ import os.path
 from math import isnan
 
 import pandas as pd
+import holoviews as hv
 
 from itertools import chain
 from devlib.target import KernelVersion
@@ -34,6 +35,7 @@ from lisa.trace import requires_events
 from lisa.target import Target
 from lisa.pelt import PELT_SCALE, pelt_swing
 from lisa.datautils import df_refit_index
+from lisa.notebook import plot_signal
 
 
 class EASBehaviour(RTATestBundle, TestBundle):
@@ -266,36 +268,45 @@ class EASBehaviour(RTATestBundle, TestBundle):
         :param nrg_model: EnergyModel used to get the CPU from
         :type nrg_model: EnergyModel
         """
-        analysis = self.trace.analysis.tasks
-        fig, ax = analysis.setup_plot(
-            nrows=len(nrg_model.cpus),
-            ncols=1,
-            height=1.8,
+        def plot_cpu(cpu):
+            name = f'CPU{cpu} util'
+            series = util_df[cpu].copy(deep=False)
+            series.index.name = 'Time'
+            series.name = name
+            fig = plot_signal(series).options(
+                'Curve',
+                ylabel='Utilization',
+            )
+
+            # The "y" dimension has the name of the series that we plotted
+            fig = fig.redim.range(**{name: (-10, 1034)})
+
+            times, utils = zip(*series.items())
+            fig *= hv.Overlay(
+                [
+                    hv.VSpan(start, end).options(
+                        alpha=0.1,
+                        color='grey',
+                    )
+                    for util, start, end in zip(
+                        utils,
+                        times,
+                        times[1:],
+                    )
+                    if not util
+                ]
+            )
+            return fig
+
+        cpus = sorted(nrg_model.cpus)
+        fig = hv.Layout(
+            list(map(plot_cpu, cpus))
+        ).cols(1).options(
+            title='Per-CPU expected utilization',
         )
 
-        fig.suptitle('Per-CPU expected utilization')
-
-        for cpu in nrg_model.cpus:
-            tdf = util_df[cpu]
-
-            ax[cpu].set_ylim((0, 1024))
-            tdf.plot(ax=ax[cpu], drawstyle='steps-post', title=f"CPU{cpu}", color='red')
-            ax[cpu].set_ylabel('Utilization')
-
-            # Grey-out areas where utilization == 0
-            ffill = False
-            prev = 0.0
-            for time, util in tdf.items():
-                if ffill:
-                    ax[cpu].axvspan(prev, time, facecolor='gray', alpha=0.1, linewidth=0.0)
-                    ffill = False
-                if util == 0.0:
-                    ffill = True
-
-                prev = time
-
-        filepath = ArtifactPath.join(self.res_dir, 'expected_placement.png')
-        analysis.save_plot(fig, filepath=filepath)
+        self._save_debug_plot(fig, name='expected_placement')
+        return fig
 
     @_get_expected_task_utils_df.used_events
     def _get_expected_power_df(self, nrg_model, capacity_margin_pct):

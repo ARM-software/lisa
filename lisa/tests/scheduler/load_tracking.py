@@ -22,6 +22,7 @@ from statistics import mean
 from typing import TypeVar
 
 import pandas as pd
+import holoviews as hv
 
 from lisa.tests.base import (
     TestMetric, Result, ResultBundle, AggregatedResultBundle, TestBundleBase,
@@ -37,6 +38,7 @@ from lisa.analysis.tasks import TasksAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.pelt import PELT_SCALE, simulate_pelt, pelt_settling_time, kernel_util_mean
+from lisa.notebook import plot_signal
 
 UTIL_SCALE = PELT_SCALE
 
@@ -373,18 +375,26 @@ class InvarianceItemBase(RTATestBundle, LoadTrackingHelpers, TestBundle, Exekall
         return df
 
     def _plot_pelt(self, task, signal_name, simulated, test_name):
-        trace = self.trace
+        ana = self.trace.ana(
+            backend='bokeh',
+            task=task,
+            tasks=[task],
+        )
 
-        axis = trace.analysis.load_tracking.plot_task_signals(task, signals=[signal_name])
-        simulated.plot(ax=axis, drawstyle='steps-post', label=f'simulated {signal_name}')
+        fig = (
+            ana.load_tracking.plot_task_signals(signals=[signal_name]) *
+            plot_signal(simulated, name=f'simulated {signal_name}') *
+            ana.tasks.plot_tasks_activation(
+                alpha=0.2,
+                overlay=True,
+                which_cpu=False,
+                # TODO: reeanble that when we get working twinx
+                # duration=True,
+            )
+        )
 
-        activation_axis = axis.twinx()
-        trace.analysis.tasks.plot_task_activation(task, alpha=0.2, axis=activation_axis, duration=True)
-
-        axis.legend()
-
-        path = ArtifactPath.join(self.res_dir, f'{test_name}_{signal_name}.png')
-        trace.analysis.load_tracking.save_plot(axis.get_figure(), filepath=path)
+        self._save_debug_plot(fig, name=f'{test_name}_{signal_name}')
+        return fig
 
     def _add_cpu_metric(self, res_bundle):
         freq_str = f'@{self.freq}' if self.freq is not None else ''
