@@ -37,6 +37,8 @@ from collections import OrderedDict, ChainMap
 from collections.abc import Mapping
 from inspect import signature
 
+import IPython.display
+
 from devlib.collector.dmesg import KernelLogEntry
 from devlib import TargetStableError
 
@@ -52,7 +54,7 @@ from lisa.utils import (
     update_wrapper_doc, ExekallTaggable, annotations_from_signature,
     nullcontext, get_sphinx_name, optional_kwargs, group_by_value,
     kwargs_dispatcher, dispatch_kwargs, Loggable, kwargs_forwarded_to,
-    docstring_update,
+    docstring_update, is_running_ipython,
 )
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector, ComposedCollector
@@ -1095,6 +1097,30 @@ class TestBundleBase(
         ``res_dir`` folder.
         """
         return ArtifactPath.join(res_dir, f"{cls.__qualname__}.yaml")
+
+    def _save_debug_plot(self, fig, name):
+        """
+        Save a holoviews debug plot using the bokeh backend and show it in the
+        notebook cell.
+        """
+        self.trace.ana.notebook.save_plot(
+            fig,
+            filepath=ArtifactPath.join(
+                self.res_dir,
+                f'{name}.html',
+            ),
+            backend='bokeh',
+        )
+
+        # Check before calling display(), as running it outside a notebook will
+        # just print the structure of the element, which is useless
+        #
+        # TODO: See if we can capture this side effect and re-run it when a
+        # memoized test method is called again.
+        if is_running_ipython():
+            IPython.display.display(fig)
+
+        return fig
 
     @classmethod
     def _get_referred_objs(cls, obj, predicate=lambda x: True):

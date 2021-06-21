@@ -20,6 +20,7 @@ import os
 import itertools
 
 import pandas as pd
+import holoviews as hv
 
 from lisa.wlgen.rta import DutyCycleSweepPhase
 from lisa.tests.base import ResultBundle, Result, TestBundle, RTATestBundle
@@ -28,7 +29,7 @@ from lisa.trace import requires_events
 from lisa.datautils import df_merge, series_mean
 from lisa.utils import ArtifactPath
 
-from lisa.notebook import COLOR_CYCLE
+from lisa.notebook import plot_signal
 from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
@@ -174,32 +175,57 @@ class RampBoostTestBase(RTATestBundle, TestBundle):
         return df.iloc[1:]
 
     @FrequencyAnalysis.plot_cpu_frequencies.used_events
-    @TasksAnalysis.plot_task_activation.used_events
+    @TasksAnalysis.plot_tasks_activation.used_events
     @LoadTrackingAnalysis.plot_task_signals.used_events
     def _plot_test_boost(self, df):
-        task = self.rtapp_tasks[0]
-        analysis = self.trace.analysis.frequency
-        fig, axes = analysis.setup_plot(nrows=2)
-        boost_axis, util_axis = axes
+        task, = self.rtapp_tasks
+        ana = self.trace.ana(
+            task=task,
+        )
 
-        df['cost_margin'].plot(ax=boost_axis, drawstyle='steps-post', color='r')
-        df['boost_points'].astype('int', copy=False).plot(ax=boost_axis, drawstyle='steps-post', color='black')
-        df['expected_cost_margin'].plot(ax=boost_axis, drawstyle='steps-post', color='blue')
-        df['base_cost'].plot(ax=boost_axis, drawstyle='steps-post', color='orange')
-        df['allowed_cost'].plot(ax=boost_axis, drawstyle='steps-post', color='green')
+        fig = hv.Layout(
+            [
+                (
+                    plot_signal(df['cost_margin']).options(
+                        'Curve',
+                        color='red'
+                    ) *
+                    plot_signal(df['boost_points'].astype(int)).options(
+                        'Curve',
+                        color='black'
+                    ) *
+                    plot_signal(df['expected_cost_margin']).options(
+                        'Curve',
+                        color='blue'
+                    ) *
+                    plot_signal(df['base_cost']).options(
+                        'Curve',
+                        color='orange'
+                    ) *
+                    plot_signal(df['allowed_cost']).options(
+                        'Curve',
+                        color='green'
+                    ) *
+                    ana.tasks.plot_tasks_activation(overlay=True)
+                ).options(
+                    title='Ramp boost for 5% => 75% util step',
+                    ylabel='Cost (% of max cost)',
+                ),
 
-        self.trace.analysis.tasks.plot_task_activation(task, axis=boost_axis, overlay=True)
-        freq_axis = boost_axis.twinx()
-        self.trace.analysis.frequency.plot_cpu_frequencies(self.cpu, axis=freq_axis, average=False)
+                ana.frequency.plot_cpu_frequencies(cpu=self.cpu, average=False),
 
-        self.trace.analysis.load_tracking.plot_task_signals(task, axis=util_axis, signals=['util', 'enqueued'], colors=['orange', 'red'])
-        self.trace.analysis.tasks.plot_task_activation(task, axis=util_axis, overlay=True, colors=[COLOR_CYCLE[0]])
+                (
+                    ana.load_tracking.plot_task_signals(
+                        signals=['util', 'enqueued'],
+                        colors=['orange', 'red']
+                    ) *
+                    ana.tasks.plot_tasks_activation(overlay=True)
+                ),
+            ]
+        ).cols(1)
 
-        boost_axis.legend(loc='upper left', bbox_to_anchor=(0.1, 1))
-        boost_axis.set_title('Ramp boost for 5% => 75% util step')
-        boost_axis.set_ylabel('Cost (% of max cost)')
-        analysis.save_plot(fig, filepath=os.path.join(self.res_dir, 'ramp_boost.svg'))
-        return axes
+        self._save_debug_plot(fig, name=f'ramp_boost')
+        return fig
 
     @RTAEventsAnalysis.plot_slack_histogram.used_events
     @RTAEventsAnalysis.plot_perf_index_histogram.used_events
