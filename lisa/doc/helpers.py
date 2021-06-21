@@ -488,27 +488,30 @@ def get_deprecated_table():
         )
 
     def make_table(entries, removed_in):
-        entries = '\n'.join(
-            make_entry(entry)
-            for entry in sorted(entries, key=itemgetter('name'))
-        )
-        if removed_in:
-            if removed_in > lisa.version.version_tuple:
-                remove = 'to be removed'
+        if entries:
+            entries = '\n'.join(
+                make_entry(entry)
+                for entry in sorted(entries, key=itemgetter('name'))
+            )
+            if removed_in:
+                if removed_in > lisa.version.version_tuple:
+                    remove = 'to be removed'
+                else:
+                    remove = 'removed'
+                removed_in = f' {remove} in {format_version(removed_in)}'
             else:
-                remove = 'removed'
-            removed_in = f' {remove} in {format_version(removed_in)}'
+                removed_in = ''
+
+            table = ".. list-table:: Deprecated names{removed_in}\n    :align: left{entries}".format(
+                entries=indent('\n\n' + entries),
+                removed_in=removed_in,
+            )
+            header = f'Deprecated names{removed_in}'
+            header += '\n' + '+' * len(header)
+
+            return header + '\n\n' + table
         else:
-            removed_in = ''
-
-        table = ".. list-table:: Deprecated names{removed_in}\n    :align: left{entries}".format(
-            entries=indent('\n\n' + entries),
-            removed_in=removed_in,
-        )
-        header = f'Deprecated names{removed_in}'
-        header += '\n' + '+' * len(header)
-
-        return header + '\n\n' + table
+            return ''
 
     entries = [
         {'name': name, **info}
