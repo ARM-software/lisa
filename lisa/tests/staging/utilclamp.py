@@ -257,8 +257,11 @@ class UtilClamp(RTATestBundle, TestBundle):
         cpu_max_capacities = self.plat_info['cpu-capacities']['rtapp']
 
         def parse_phase(df, phase):
+            # Only keep the activations
+            df = df[df['activation_start']]
+
             uclamp_val = phase['uclamp_val']
-            num_activations = df['activation_start'].count()
+            num_activations = len(df.index)
             cpus = set(map(int, df.cpu.dropna().unique()))
             fitting_cpus = {
                 cpu
@@ -266,9 +269,7 @@ class UtilClamp(RTATestBundle, TestBundle):
                 if (cap == PELT_SCALE) or (cap * capacity_margin) > uclamp_val
             }
 
-            failures = df[
-                df['activation_start'] & (df['cpu'].isin(cpus - fitting_cpus))
-            ].index.tolist()
+            failures = df[(df['cpu'].isin(cpus - fitting_cpus))].index.tolist()
             num_failures = len(failures)
             test_failures.extend(failures)
 
