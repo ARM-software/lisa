@@ -177,6 +177,10 @@ class UtilClamp(RTATestBundle, TestBundle):
 
         df = df.merge(df_freq, how='outer', left_index=True, right_index=True)
 
+        # Merge with df_freq will bring NaN in the activation column. We do not
+        # want to ffill() them.
+        df['activation_start'].fillna(value=False, inplace=True)
+
         # Ensures that frequency values are propogated through the entire
         # DataFrame, as it is possible that no frequency event occur
         # during a phase.
