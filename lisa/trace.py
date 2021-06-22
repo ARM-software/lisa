@@ -2085,46 +2085,13 @@ class TraceBase(abc.ABC):
     def df_events(self, *args, **kwargs):
         return self.df_event(*args, **kwargs)
 
-    def df_all_events(self, events=None):
-        """
-        Provide a dataframe with an ``info`` column containing the textual
-        human-readable representation of the events fields.
-
-        :param events: List of events to include. If ``None``, all parsed
-            events will be used.
-        :type events: list(str) or None
-        """
-        if events is None:
-            events = sorted(self.available_events)
-
-        if not events:
-            return pd.DataFrame({'info': []})
-
-        max_event_name_len = max(len(event) for event in events)
-
-        def make_info_row(row, event):
-            fields = ' '.join(
-                f'{key}={value}'
-                for key, value in row.iteritems()
-            )
-            return f'{event:<{max_event_name_len}}: {fields}'
-
-        def make_info_series(event):
-            df = self.df_event(event)
-            info = df.apply(make_info_row, axis=1, event=event)
-            info.name = 'info'
-            return info
-
-        series_list = [
-            make_info_series(event)
-            for event in events
-        ]
-
-        series = pd.concat(series_list)
-        series.sort_index(inplace=True)
-        df = pd.DataFrame({'info': series})
-        df_update_duplicates(df, inplace=True)
-        return df
+    @deprecate('This method has been deprecated and is an alias for "trace.ana.notebook.df_all_events()"',
+        deprecated_in='2.0',
+        removed_in='3.0',
+        replaced_by='lisa.analysis.notebook.NotebookAnalysis.df_all_event',
+    )
+    def df_all_events(self, *args, **kwargs):
+        return self.ana.notebook.df_all_events(*args, **kwargs)
 
 
 class TraceView(Loggable, TraceBase):
