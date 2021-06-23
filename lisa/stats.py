@@ -14,19 +14,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import uuid
 import functools
 from operator import itemgetter
 import contextlib
 from math import nan
+import itertools
 from itertools import combinations
+from collections import OrderedDict
 
 import scipy.stats
 import pandas as pd
 import numpy as np
+import holoviews as hv
+import holoviews.operation
+from bokeh.models import HoverTool
 
 from lisa.utils import Loggable, memoized, FrozenDict, deduplicate, fold
 from lisa.datautils import df_split_signals, df_make_empty_clone, df_filter
 from lisa.notebook import make_figure, COLOR_CYCLE
+
+# Ensure hv.extension() is called
+import lisa.notebook
+
+# Expose bokeh option "level" to workaround:
+# https://github.com/holoviz/holoviews/issues/1968
+hv.Store.add_style_opts(
+    hv.ErrorBars,
+    ['level'],
+    backend='bokeh'
+)
 
 
 def series_mean_stats(series, kind, confidence_level=0.95):
@@ -324,11 +341,7 @@ class Stats(Loggable):
 
         ref_group = ref_group or {}
         group_cols = list(ref_group.keys())
-        ref_group = {
-            k: v
-            for k, v in ref_group.items()
-            if v is not None
-        }
+        ref_group = dict(ref_group)
 
         # Columns controlling the behavior of this class, but that are not tags
         # nor values
@@ -499,7 +512,10 @@ class Stats(Loggable):
 
         :param func: Callable called with 3 parameters:
 
-            * ``ref``: Reference subgroup dataframe for comparison purposes.
+            * ``ref``: Reference subgroup dataframe for comparison purposes. In
+              some cases, there is nothing to compare to (the user passed
+              ``None`` for all keys in ``ref_group``) so ``ref`` will be
+              ``None``.
             * ``df``: Dataframe of the subgroup, to compare to ``ref``.
             * ``group``: Dictionary ``dict(column_name, value)`` identifying
               the ``df`` subgroup.
@@ -525,12 +541,7 @@ class Stats(Loggable):
 
         def process_subgroup(df, group, subgroup):
             subgroup = FrozenDict(subgroup)
-
-            try:
-                ref = subref[subgroup]
-            except KeyError:
-                return None
-
+            ref = subref.get(subgroup)
             group = {**group, **subgroup}
 
             # Make sure that the columns/index levels relative to the group are
@@ -547,12 +558,20 @@ class Stats(Loggable):
                 return df
 
             df = remove_cols(df)
-            ref = remove_cols(ref)
+            if ref is not None:
+                ref = remove_cols(ref)
 
             df = func(ref, df, group)
+            if df is None:
+                return None
+
             # Only assign-back subgroup columns if they have not been set by the
             # callback directly.
-            to_assign = group.keys() - set(df.columns)
+            to_assign = group.keys() - set(
+                col
+                for col in df.columns
+                if not df[col].isna().all()
+            )
             df = df.assign(**{
                 col: val
                 for col, val in group.items()
@@ -572,11 +591,20 @@ class Stats(Loggable):
         }
 
         # We elect a comparison reference and split it in subgroups
-        ref = comparison_groups[ref_group]
-        subref = {
-            FrozenDict(subgroup): subdf
-            for subgroup, subdf in df_split_signals(ref, sub_group_cols)
-        }
+        comp_ref_group = FrozenDict(dict(
+            (k, v)
+            for k, v in ref_group.items()
+            if v is not None
+        ))
+        try:
+            ref = comparison_groups[comp_ref_group]
+        except KeyError:
+            subref = {}
+        else:
+            subref = {
+                FrozenDict(subgroup): subdf
+                for subgroup, subdf in df_split_signals(ref, sub_group_cols)
+            }
 
         # For each group, split it further in subgroups
         dfs = [
@@ -584,10 +612,13 @@ class Stats(Loggable):
             for group, df in comparison_groups.items()
             for subgroup, subdf in df_split_signals(df, sub_group_cols)
         ]
-        df = pd.concat((df for df in dfs if df is not None), ignore_index=True, copy=False)
-
-        if melt:
-            df = self._melt(df)
+        dfs = [df for df in dfs if df is not None]
+        if dfs:
+            df = pd.concat(dfs, ignore_index=True, copy=False)
+            if melt:
+                df = self._melt(df)
+        else:
+            df = pd.DataFrame()
 
         return df
 
@@ -624,7 +655,12 @@ class Stats(Loggable):
             df = self._df_compare_pct(df)
 
         if remove_ref:
-            df = df_filter(df, self._ref_group, exclude=True)
+            filter_on = {
+                k: v
+                for k, v in self._ref_group.items()
+                if v is not None
+            }
+            df = df_filter(df, filter_on, exclude=True)
 
         df = self._df_format(df)
         return df
@@ -673,10 +709,7 @@ class Stats(Loggable):
                 group_str = ', '.join(sorted(f'{k}={v}' for k, v in group.items()))
                 self.get_logger().warning(f'Sample size smaller than {min_sample_size} is being used, the mean confidence interval will only be accurate if the data is normally distributed: {series_len} samples for group {group_str}')
 
-            def fixup_nan(x):
-                return 0 if pd.isna(x) else x
             mean, std, sem, ci = series_mean_stats(series, kind=mean_kind, confidence_level=self._mean_ci_confidence)
-            ci = tuple(map(fixup_nan, ci))
 
             # Only display the stats we were asked for
             rows = [
@@ -763,7 +796,10 @@ class Stats(Loggable):
             return p_value
 
         def func(ref, df, group): # pylint: disable=unused-argument
-            return pd.DataFrame({stat_name: [get_pval(ref, df)]})
+            if ref is None:
+                return None
+            else:
+                return pd.DataFrame({stat_name: [get_pval(ref, df)]})
 
         # Summarize each group by the p-value of the test against the reference group
         test_df = self._df_group_apply(self._orig_df, func, melt=True)
@@ -785,7 +821,7 @@ class Stats(Loggable):
         non_normalizable_units = self._non_normalizable_units
 
         def diff_pct(ref, df, group):
-            if group[unit_col] in non_normalizable_units:
+            if ref is None or group[unit_col] in non_normalizable_units:
                 return df
             else:
                 # (val - ref) / ref == (val / ref) - 1
@@ -813,25 +849,41 @@ class Stats(Loggable):
         df[val_col] = df[val_col].round(10)
         return df
 
-    def _plot(self, df, title, plot_func, facet_rows, facet_cols, collapse_cols, filename=None, interactive=None):
+    def _plot(self, df, title, plot_func, facet_rows, facet_cols, collapse_cols, filename=None, backend=None):
+        def fixup_tuple(x):
+            """
+            DataFrame.groupby() return type is "interesting":
+            When grouping on one column only, the group is not a tuple, but the
+            value itself, leading to equally "interesting" bugs.
+            """
+            return x if isinstance(x, tuple) else (x,)
+
+        def plot_subdf(group, subdf):
+            group = fixup_tuple(group)
+            group_dict = OrderedDict(
+                (k, v)
+                for k, v in sorted(
+                    zip(group_on, group),
+                    key=itemgetter(0),
+                )
+                if k in group_keys
+            )
+
+            if subdf.empty:
+                fig = hv.Empty()
+            else:
+                subdf = subdf.drop(columns=group_on)
+                subdf = self._collapse_cols(subdf, collapse_group)
+                fig = plot_func(subdf, collapsed_col, group_dict)
+
+            return (fig, group_dict)
+
         unit_col = self._unit_col
 
         group_on = list(facet_rows) + list(facet_cols)
-        facet_rows_len = len(facet_rows)
-        def split_row_col(group):
-            row = tuple(group[:facet_rows_len])
-            col = tuple(group[facet_rows_len:])
-            return (row, col)
-
-        grouped = df.groupby(group_on, observed=True)
-        # DataFrame.groupby() return type is "interesting":
-        # When grouping on one column only, the group is not a tuple, but the
-        # value itself, leading to equally "interesting" bugs.
-        fixup_tuple = lambda x: x if isinstance(x, tuple) else (x,)
-
-        unzip = lambda x: zip(*x)
-        rows, cols = map(sorted, map(set, unzip(map(split_row_col, map(fixup_tuple, map(itemgetter(0), grouped))))))
-        nrows, ncols = len(rows), len(cols)
+        # Only show the group keys that are not constant in the whole
+        # sub dataframe, to remove a bit of clutter
+        group_keys = self._trim_group(df, group_on)
 
         # Collapse together all the tag columns that are not already in use
         not_collapse = set(group_on) | {unit_col}
@@ -850,48 +902,58 @@ class Stats(Loggable):
             collapsed_col = None
             collapse_group = {}
 
-        figure, axes = make_figure(
-            width=16,
-            height=16,
-            nrows=nrows,
-            ncols=ncols,
-            interactive=interactive,
+        subplots = dict(
+            plot_subdf(group, subdf)
+            for group, subdf in df.groupby(group_on, observed=True)
         )
-        if nrows == 1 and ncols == 1:
-            axes = [[axes]]
-        elif nrows == 1:
-            axes = [axes]
-        elif ncols == 1:
-            axes = [[ax] for ax in axes]
 
-        figure.set_tight_layout(dict(
-            h_pad=3.5,
-        ))
-        figure.suptitle(title, y=1.01, fontsize=30)
+        kdims = sorted(set(itertools.chain.from_iterable(
+            idx.keys()
+            for idx in subplots.values()
+        )))
 
-        for group, subdf in grouped:
-            group = fixup_tuple(group)
+        if facet_cols:
+            ncols = len(df.drop_duplicates(subset=facet_cols, ignore_index=True))
+        else:
+            ncols = 1
 
-            row, col = split_row_col(group)
-            ax = axes[rows.index(row)][cols.index(col)]
-
-            if subdf.empty:
-                figure.delaxes(ax)
-            else:
-                subdf = subdf.drop(columns=group_on)
-                subdf = self._collapse_cols(subdf, collapse_group)
-                group_dict = dict(zip(group_on, group))
-                plot_func(subdf, ax, collapsed_col, group_dict)
+        fig = hv.NdLayout(
+            [
+                (
+                    tuple(
+                        idx.get(key, 'N/A')
+                        for key in kdims
+                    ),
+                    fig
+                )
+                for fig, idx in subplots.items()
+            ],
+            kdims=kdims,
+        ).cols(ncols).options(
+            title=title,
+            shared_axes=False,
+        ).options(
+            backend='bokeh',
+            toolbar='left',
+        ).options(
+            backend='matplotlib',
+            hspace=1.5,
+            vspace=0.7,
+        ).options(
+            # All plots are wrapped in an Overlay, either because they are true
+            # overlays or because NdLayout needs to deal with a single element
+            # type.
+            'Overlay',
+            backend='bokeh',
+            hooks=[lisa.notebook._hv_multi_line_title_hook],
+        )
 
         if filename:
-            # The suptitle is not taken into account by tight layout by default:
-            # https://stackoverflow.com/questions/48917631/matplotlib-how-to-return-figure-suptitle
-            suptitle = figure._suptitle
-            figure.savefig(filename, bbox_extra_artists=[suptitle], bbox_inches='tight')
+            hv.save(fig, filename, backend=backend)
 
-        return figure
+        return fig
 
-    def plot_stats(self, filename=None, remove_ref=None, interactive=None, groups_as_row=True, kind=None, **kwargs):
+    def plot_stats(self, filename=None, remove_ref=None, backend=None, groups_as_row=False, kind=None, **kwargs):
         """
         Returns a :class:`matplotlib.figure.Figure` containing the statistics
         for the class input :class:`pandas.DataFrame`.
@@ -903,8 +965,10 @@ class Stats(Loggable):
             See :meth:`get_df`.
         :type remove_ref: bool or None
 
-        :param interactive: Forwarded to :func:`lisa.notebook.make_figure`
-        :type interactive: bool or None
+        :param backend: Holoviews backend to use: ``bokeh`` or ``matplotlib``.
+            If ``None``, the current holoviews backend selected with
+            ``hv.extension()`` will be used.
+        :type backend: str or None
 
         :param groups_as_row: By default, subgroups are used as rows in the
             subplot matrix so that the values shown on a given graph can be
@@ -923,6 +987,8 @@ class Stats(Loggable):
 
         :Variable keyword arguments: Forwarded to :meth:`get_df`.
         """
+        # Resolve the backend so we can use backend-specific workarounds
+        backend = backend or hv.Store.current_backend
 
         kind = kind if kind is not None else 'horizontal_bar'
         df = self.get_df(
@@ -930,7 +996,7 @@ class Stats(Loggable):
             **kwargs
         )
 
-        mean_suffix = ' (confidence level: {:.1f}%)'.format(
+        mean_suffix = ' (CL: {:.1f}%)'.format(
             self._mean_ci_confidence * 100
         )
         df = df.copy()
@@ -939,19 +1005,63 @@ class Stats(Loggable):
         pretty_ref_group = ' and '.join(
             f'{k}={v}'
             for k, v in self._ref_group.items()
+            if v is not None
         )
         title = 'Statistics{}'.format(
             f' compared against: {pretty_ref_group}' if self._compare else ''
         )
 
-        def plot(df, ax, collapsed_col, group):
+        def make_unique_col(prefix):
+            return prefix + '_' + uuid.uuid4().hex
+
+        # Generate a random name so it does not clash with anything. Also add a
+        # fixed prefix that does not confuse bokeh hovertool.
+        value_str_col = make_unique_col('value_display')
+
+        def plot(df, collapsed_col, group):
+            def format_val(val):
+                return f'{val:.2f}' if abs(val) > 1e-2 else f'{val:.2e}'
+
+            def make_val_hover(show_unit, row):
+                val = row[y_col]
+                unit = row[unit_col] if show_unit else ''
+                try:
+                    ci = [
+                        row[col]
+                        for col in self._ci_cols
+                    ]
+                except AttributeError:
+                    ci = ''
+                else:
+                    if not any(map(pd.isna, ci)):
+                        ci = list(map(format_val, ci))
+                        if ci[0] == ci[1]:
+                            ci = f'\n(±{ci[0]})'
+                        else:
+                            ci = f'\n(+{ci[1]}/-{ci[0]})'
+                    else:
+                        ci = ''
+
+                return f'{format_val(val)} {unit}{ci}'
+
+            # There is only one bar to display, aka nothing to compare against,
+            # so we add a placeholder column so we can still plot on bar per
+            # subplot
+            if collapsed_col is None:
+                collapsed_col = make_unique_col('group')
+                collapsed_col_hover = ''
+                df = df.copy(deep=False)
+                df[collapsed_col] = ''
+            else:
+                collapsed_col_hover = collapsed_col
+
             try:
                 error = [
                     df[col]
                     for col in self._ci_cols
                 ]
             except KeyError:
-                error = None
+                ci_cols = None
             else:
                 # Avoid warning from numpy inside matplotlib when there is no
                 # confidence interval value at all
@@ -959,97 +1069,119 @@ class Stats(Loggable):
                     series.isna().all()
                     for series in error
                 ):
-                    error = None
-
-            if kind == 'horizontal_bar':
-                error_bar = dict(xerr=error)
-            else:
-                error_bar = dict(yerr=error)
+                    ci_cols = None
+                else:
+                    ci_cols = self._ci_cols
 
             y_col = self._val_col
+            unit_col = self._unit_col
 
             if kind == 'horizontal_bar':
-                plot = df.plot.barh
+                invert_axes = True
             elif kind == 'vertical_bar':
-                plot = df.plot.bar
+                invert_axes = False
             else:
                 raise ValueError(f'Unsupported plot kind: {kind}')
 
-            plot(
-                ax=ax,
-                x=collapsed_col,
-                y=y_col,
-                legend=None,
-                color=COLOR_CYCLE,
-                **error_bar,
-                capsize=2,
+            show_unit = True
+            tooltip_val_name = y_col
+            try:
+                unit, = df[unit_col].unique()
+            except ValueError:
+                pass
+            else:
+                unit = unit.strip()
+                if unit:
+                    show_unit = False
+                    tooltip_val_name = unit
+
+            df[value_str_col] = df.apply(
+                functools.partial(make_val_hover, show_unit),
+                axis=1
             )
-            title = ' '.join(
-                f'{k}={v}'
-                for k, v in group.items()
+            hover = HoverTool(
+                tooltips=[
+                    (collapsed_col_hover, f'@{collapsed_col}'),
+                    (tooltip_val_name, f'@{value_str_col}'),
+                ]
             )
-            ax.set_title(title)
 
-            def format_val(val):
-                return f'{val:.2f}' if abs(val) > 1e-2 else f'{val:.2e}'
-
-            # Display the value on the bar
-            for row, patch in zip(df.itertuples(), ax.patches):
-                val = getattr(row, y_col)
-
-                try:
-                    unit = getattr(row, self._unit_col)
-                except AttributeError:
-                    unit = ''
-
-                # 3 chars allow things like 'f/s' or 'ms'
-                if len(unit) > 3:
-                    unit = f'\n{unit}'
-
-                try:
-                    ci = [
-                        getattr(row, col)
-                        for col in self._ci_cols
-                    ]
-                except AttributeError:
-                    ci = ''
-                else:
-                    if not any(map(pd.isna, ci)):
-                        if ci[0] == ci[1]:
-                            ci = '\n(+/-{})'.format(format_val(ci[0]))
-                        else:
-                            ci = '\n(+{}/-{})'.format(*(map(format_val, ci)))
-                    else:
-                        ci = ''
-
-                text = f'{format_val(val)} {unit}{ci}'
-
-                if kind == 'horizontal_bar':
-                    coord = (
-                        patch.get_width(),
-                        patch.get_y() + (
-                            (patch.get_height() / 2)
-                            if ci
-                            else 0
-                        ),
-                    )
-                else:
-                    coord = (
-                        patch.get_x() + (
-                            # Make some room for the error bar
-                            (patch.get_width() / 1.9)
-                            if ci
-                            else 0
-                        ),
-                        patch.get_height()
-                    )
-
-                ax.annotate(
-                    text,
-                    coord,
-                    xytext=(0, 5),
-                    textcoords='offset points',
+            bar_df = df[[collapsed_col, y_col, value_str_col]].dropna(
+                subset=[collapsed_col]
+            )
+            # Holoviews barfs on empty data for Bars
+            if bar_df.empty:
+                # TODO: should be replaced by hv.Empty() but this raises an
+                # exception
+                fig = hv.Curve([]).options(
+                    xlabel='',
+                    ylabel='',
                 )
+            else:
+                fig = hv.Bars(
+                    bar_df[[collapsed_col, y_col, value_str_col]].dropna(subset=[collapsed_col]),
+                ).options(
+                    ylabel='',
+                    xlabel='',
+                    invert_axes=invert_axes,
+                    # The legend is useless since we only have a consistent set of
+                    # bar on each plot, but it can still be displayed in some cases
+                    # when an other element is overlaid, such as the ErrorBars
+                    show_legend=False,
+                ).options(
+                    backend='bokeh',
+                    tools=[hover],
+                    # Color map on the subgroup
+                    cmap='glasbey_hv',
+                    color=collapsed_col,
+                )
+                if ci_cols is not None:
+                    fig *= hv.ErrorBars(
+                        df[[collapsed_col, y_col, *ci_cols]],
+                        vdims=[y_col, *ci_cols],
+                    ).options(
+                        backend='bokeh',
+                        # Workaround error bars being hidden by the bar plot:
+                        # https://github.com/holoviz/holoviews/issues/1968
+                        level='annotation',
+                    )
+
+                # Labels do not work with matplotlib unfortunately:
+                # https://github.com/holoviz/holoviews/issues/4992
+                if backend != 'matplotlib':
+                    df_label = df.copy(deep=False)
+                    # Center the label in the bar
+                    df_label[y_col] = df_label[y_col] / 2
+                    fig *= hv.Labels(
+                        df_label[[collapsed_col, y_col, value_str_col]],
+                        vdims=[value_str_col],
+                        kdims=[collapsed_col, y_col],
+                    ).options(
+                        backend='bokeh',
+                        text_font_size='8pt',
+                    )
+
+                # Label after applying the error bars, so that the whole
+                # Overlay gets the label
+                fig = fig.relabel(
+                    # Provide a short label to allow the user to manipulate
+                    # individual layout elements more easily
+                    '_'.join(map(str, group.values())),
+                )
+
+            # Wrap in an Overlay so we can ensure that NdLayout only has to
+            # deal with a single element type
+            fig = hv.Overlay([fig])
+
+            fig = fig.options(
+                # Set the title on the Overlay, otherwise it will be ignored
+                title='\n'.join(
+                    f'{k}={v}'
+                    for k, v in group.items()
+                )
+            )
+
+            return fig
 
         # Subplot matrix:
         # * one line per sub-group (e.g. metric)
@@ -1075,26 +1207,34 @@ class Stats(Loggable):
             facet_cols=facet_cols,
             collapse_cols=collapse_cols,
             filename=filename,
-            interactive=interactive,
+            backend=backend,
         )
 
     @staticmethod
-    def _collapse_cols(df, groups, hide_constant=True):
-        def trim_group(group):
-            trimmed = [
-                col
-                for col in group
-                # If the column to collapse has a constant value, there is
-                # usually no need to display it in titles and such as it is
-                # just noise
-                if (not hide_constant) or df[col].nunique() > 1
-            ]
-            # If we got rid of all columns, keep them all. Otherwise we will
-            # end up with nothing to display which is problematic
-            return trimmed if trimmed else group
+    def _trim_group(df, group):
+        trimmed = [
+            col
+            for col in group
+            # If the column to collapse has a constant value, there is
+            # usually no need to display it in titles and such as it is
+            # just noise
+            if (
+                col in df.columns and
+                df[col].nunique() > 1
+            )
+        ]
+        # If we got rid of all columns, keep them all. Otherwise we will
+        # end up with nothing to display which is problematic
+        return trimmed if trimmed else group
 
+    @classmethod
+    def _collapse_cols(cls, df, groups, hide_constant=True):
         groups = {
-            leader: trim_group(group)
+            leader: (
+                cls._trim_group(df, group)
+                if hide_constant else
+                group
+            )
             for leader, group in groups.items()
             if group
         }
@@ -1105,7 +1245,7 @@ class Stats(Loggable):
                     sep = ''
                     acc = ''
                 else:
-                    sep = ' '
+                    sep = '\n'
 
                 def make_str(val):
                     # Some columns have empty string to flag there is nothing
@@ -1139,7 +1279,7 @@ class Stats(Loggable):
 
         return df
 
-    def plot_histogram(self, cumulative=False, bins=50, density=True, **kwargs):
+    def plot_histogram(self, cumulative=False, bins=50, density=False, **kwargs):
         """
         Returns a :class:`matplotlib.figure.Figure` with histogram of the values in the
         input :class:`pandas.DataFrame`.
@@ -1153,16 +1293,23 @@ class Stats(Loggable):
         :param filename: Path to the image file to write to.
         :type filename: str or None
         """
-        def plot_func(df, group, ax, x_col, y_col): # pylint: disable=unused-argument
-            df.plot.hist(
-                ax=ax,
-                x=x_col,
-                y=y_col,
-                legend=None,
-                bins=bins,
+        def plot_func(df, group, x_col, y_col): # pylint: disable=unused-argument
+            points = hv.Scatter(df[[x_col, y_col]])
+            fig = hv.operation.histogram(
+                points,
                 cumulative=cumulative,
-                density=density,
+                num_bins=bins,
             )
+            if cumulative:
+                # holoviews defaults to a bar plot for CDF
+                fig = hv.Curve(fig).options(
+                    interpolation='steps-post',
+                )
+
+            if density:
+                return hv.Distribution(fig)
+            else:
+                return fig
 
         return self._plot_values(
             title='Values histogram',
@@ -1172,28 +1319,39 @@ class Stats(Loggable):
 
     def plot_values(self, **kwargs):
         """
-        Returns a :class:`matplotlib.figure.Figure` with the values in the input
+        Returns a holoviews element with the values in the input
         :class:`pandas.DataFrame`.
 
         :param filename: Path to the image file to write to.
         :type filename: str or None
         """
 
-        def plot_func(df, group, ax, x_col, y_col):
-            df.plot.line(
-                ax=ax,
-                x=x_col,
-                y=y_col,
-                legend=None,
-                marker='o',
-            )
+        def plot_func(df, group, x_col, y_col):
             try:
                 unit = group[self._unit_col]
             except KeyError:
-                pass
-            else:
-                if unit:
-                    ax.set_ylabel(unit)
+                unit = None
+
+            data = df[[x_col, y_col]].sort_values(x_col)
+
+            return (
+                hv.Curve(
+                    data,
+                ).options(
+                    ylabel=unit,
+                ) *
+                hv.Scatter(
+                    data,
+                ).options(
+                    backend='bokeh',
+                    marker='circle',
+                    size=10,
+                ).options(
+                    backend='matplotlib',
+                    marker='o',
+                    s=100,
+                )
+            )
 
         return self._plot_values(
             title=f"Values over {', '.join(self._agg_cols)}",
@@ -1217,13 +1375,12 @@ class Stats(Loggable):
             )
         ]
 
-        def plot(df, ax, collapsed_col, group): # pylint: disable=unused-argument
-            title = ' '.join(
+        def plot(df, collapsed_col, group): # pylint: disable=unused-argument
+            title = '\n'.join(
                 f'{k}={v}'
                 for k, v in group.items()
                 if v != ''
             )
-            ax.set_title(title)
 
             if len(agg_cols) > 1:
                 x_col = ''
@@ -1231,20 +1388,36 @@ class Stats(Loggable):
             else:
                 x_col, = agg_cols
 
-            # Increase the width of the figure to the size required by the largest plot
-            needed_width = len(df) / 2
-            fig = ax.get_figure()
-            x, y = fig.get_size_inches()
-            x = max(x, needed_width)
-            fig.set_size_inches((x, y))
-
             y_col = self._val_col
-            plot_func(
+            return plot_func(
                 df,
                 group=group,
-                ax=ax,
                 x_col=x_col,
                 y_col=y_col
+            ).options(
+                title=title,
+            ).options(
+                backend='bokeh',
+                width=800,
+            ).options(
+                'Curve',
+                backend='bokeh',
+                tools=['hover'],
+                hooks=[lisa.notebook._hv_multi_line_title_hook],
+            ).options(
+                'Histogram',
+                backend='bokeh',
+                tools=['hover'],
+                hooks=[lisa.notebook._hv_multi_line_title_hook],
+            ).options(
+                'Distribution',
+                backend='bokeh',
+                tools=['hover'],
+                hooks=[lisa.notebook._hv_multi_line_title_hook],
+            ).options(
+                'Overlay',
+                backend='bokeh',
+                hooks=[lisa.notebook._hv_multi_line_title_hook],
             )
 
         return self._plot(
