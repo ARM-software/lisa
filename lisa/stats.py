@@ -1139,7 +1139,7 @@ class Stats(Loggable):
 
         return df
 
-    def plot_histogram(self, cumulative=False, nbins=50, density=True, **kwargs):
+    def plot_histogram(self, cumulative=False, bins=50, density=True, **kwargs):
         """
         Returns a :class:`matplotlib.figure.Figure` with histogram of the values in the
         input :class:`pandas.DataFrame`.
@@ -1147,8 +1147,8 @@ class Stats(Loggable):
         :param cumulative: Cumulative plot (CDF).
         :type cumulative: bool
 
-        :param nbins: Number of bins for the distribution.
-        :type nbins: int or None
+        :param bins: Number of bins for the distribution.
+        :type bins: int or None
 
         :param filename: Path to the image file to write to.
         :type filename: str or None
@@ -1159,7 +1159,7 @@ class Stats(Loggable):
                 x=x_col,
                 y=y_col,
                 legend=None,
-                bins=nbins,
+                bins=bins,
                 cumulative=cumulative,
                 density=density,
             )
