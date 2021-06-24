@@ -35,7 +35,7 @@ PELT half-life in number of windows.
 PELT_SCALE = 1024
 
 
-def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, windowless=False, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE):
+def simulate_pelt(activations=None, init=0, index=None, clock=None, capacity=None, windowless=False, window=PELT_WINDOW, half_life=PELT_HALF_LIFE, scale=PELT_SCALE, return_sim=False):
     """
     Simulate a PELT signal out of a series of activations.
 
@@ -75,6 +75,15 @@ def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, wi
     :param scale: Scale of the signal, i.e. maximum value it can take.
     :type scale: float
 
+    :param return_sim: If ``True``, return a stateful function that can be
+        called on successive samples and return PELT values. The function
+        expects to be passed a dictionary with the following keys:
+
+            * ``clock``: Value of the PELT clock
+            * ``activations``: ``1`` if the entity was active since the last
+              sample, ``0`` otherwise.
+    :type return_sim: bool
+
     .. note:: PELT windowing is not time-invariant, i.e. it depends on the
         absolute value of the timestamp. This means that the timestamp of the
         activations matters, and it is recommended to use the ``clock``
@@ -95,15 +104,30 @@ def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, wi
         # Output signal
         signal = init / scale
         output = signal
+        prev_clock = math.nan
 
         def pelt(row):
-            nonlocal acc, signal, output
+            nonlocal acc, signal, output, prev_clock
 
             # 1=running 0=sleeping
             running = row['activations']
+
             clock = row['clock']
-            delta = row['delta']
-            windows = row['crossed_windows'].astype('int')
+            try:
+                delta = row['delta']
+            except KeyError:
+                delta = clock - prev_clock
+            prev_clock = clock
+
+            try:
+                windows = row['crossed_windows']
+            except KeyError:
+                # This is an approximation, as the real number of crossed
+                # windows depends on the absolute value of the clock, not just
+                # the delta.
+                windows = delta // window
+            else:
+                windows = int(windows)
 
             # We crossed one or more windows boundaries
             if windows:
@@ -144,6 +168,7 @@ def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, wi
     def make_windowless_pelt_sim(init, scale, window, half_life):
         tau = _pelt_tau(half_life, window)
         signal = init
+        prev_clock = math.nan
 
         def pelt_after(init, t, running):
             # Compute the the response of the 1st order filter at time "t",
@@ -155,10 +180,15 @@ def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, wi
             return non_zero + zero
 
         def pelt(row):
-            nonlocal signal
+            nonlocal signal, prev_clock
             # 1=running 0=sleeping
             running = row['activations']
-            delta = row['delta']
+            try:
+                delta = row['delta']
+            except KeyError:
+                clock = row['clock']
+                delta = clock - prev_clock
+                prev_clock = clock
 
             signal = pelt_after(signal, delta, running)
             return signal
@@ -176,6 +206,11 @@ def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, wi
         half_life=half_life,
         scale=scale,
     )
+
+    if return_sim:
+        return sim
+    elif activations is None:
+        raise ValueError('activations must be provided if return_sim=None')
 
     if index is None:
         index = activations.index
