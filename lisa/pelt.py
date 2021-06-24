@@ -353,7 +353,7 @@ def pelt_swing(period, duty_cycle, window=PELT_WINDOW, half_life=PELT_HALF_LIFE,
     sleep =  period - run
 
     # We only compute one sample per period, so it's as efficient as it can get
-    activations = pd.Series([1, 0] * nr_period)
+    activations = pd.Series([0, 1] * nr_period)
     activations.index = pd.Series([run, sleep] * nr_period).cumsum()
 
     simulated = simulate_pelt(
