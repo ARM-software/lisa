@@ -176,6 +176,10 @@ def simulate_pelt(activations, init=0, index=None, clock=None, capacity=None, wi
     window_series = df['clock'] // window
     df['crossed_windows'] = window_series.diff()
 
+    # We want to have the entity state in the window between the previous
+    # sample and now.
+    df['activations'] = df['activations'].shift()
+
     # First row of "delta" is NaN, and activations reindex may have produced
     # some NaN at the beginning of the dataframe as well
     df.dropna(inplace=True)
