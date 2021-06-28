@@ -483,4 +483,36 @@ def _hv_twinx(fig, display=True, y_range=None):
         hooks=[_hv_backend_twinx('matplotlib', **kwargs)],
     )
 
+def _hv_multi_line_title_hook(plot, element):
+    p = plot.state
+    # Add in reverse since titles will pile upwards
+    lines = list(reversed(plot.title.splitlines()))
+    if len(lines) > 1:
+        for line in lines:
+            title = bokeh.models.Title(
+                text=line,
+                standoff=1,
+            )
+            p.add_layout(title, 'above')
+
+        # Add an empty line at the top to provide visual separation
+        # with other plots
+        p.add_layout(bokeh.models.Title(text=' '), 'above')
+        del p.title
+
+    # Adjust the width of the plot so that the title is not truncated
+    max_len = max(map(len, lines))
+    # Empirical, should probably inspect the title font size instead
+    px_per_char = 12
+    p.width = max(p.width, max_len * px_per_char)
+
+
+def _hv_multi_line_title(fig):
+    """
+    Holoviews hook to allow multiline titles.
+
+    Also enlarges the plot if its too small for its title.
+    """
+    return fig.options(hooks=[_hv_multi_line_title_hook])
+
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
