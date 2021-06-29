@@ -2540,9 +2540,32 @@ class Operator:
             )
         }
 
+        def check_prototype(prototype):
+            # make sure we got some usable type annotations that only consist
+            # in classes, rather than things coming from the typing module
+            param_map, value_type = prototype
+            if not all(
+                isinstance(annot, type) and
+                (
+                    isinstance(annot, typing.TypeVar) or
+                    # Prevent things like typing.Dict[], since it will raise
+                    # exceptions when being used along issubclass()
+                    #
+                    # Note: We cannot use isinstance/issubclass as this would result in:
+                    # TypeError: Class typing.Generic cannot be used with class or instance checks
+                    not typing.Generic in inspect.getmro(annot)
+                )
+                for annot in {value_type, *param_map.values()}
+            ):
+                raise ValueError('Annotations must be classes or typing.TypeVar')
+
         # Tentative prototype, as it is needed by is_factory_cls_method and
         # value_type
         self.prototype = self._get_prototype()
+
+        # Check the prototype before attempting to use it with
+        # is_factory_cls_method or anything else
+        check_prototype(self.prototype)
 
         # Special support of return type annotation for factory classmethod
         if self.is_factory_cls_method:
@@ -2555,15 +2578,7 @@ class Operator:
             self.prototype = self._get_prototype()
 
         self.reusable = self.value_type not in non_reusable_type_set
-
-        # make sure we got some usable type annotations that only consist
-        # in classes, rather than things coming from the typing module
-        param_map, value_type = self.prototype
-        if not all(
-            isinstance(annot, (type, typing.TypeVar))
-            for annot in {value_type, *param_map.values()}
-        ):
-            raise ValueError('Annotations must be classes or typing.TypeVar')
+        check_prototype(self.prototype)
 
     @property
     def callable_globals(self):
