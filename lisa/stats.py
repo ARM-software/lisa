@@ -366,6 +366,13 @@ class Stats(Loggable):
                     except ValueError:
                         pass
 
+        # Check that tags are sufficient to describe the data, so that we don't
+        # end up with 2 different values for the same set of tags
+        duplicated_tags_size = df.groupby(tag_cols, observed=True).size()
+        duplicated_tags_size = duplicated_tags_size[duplicated_tags_size > 1]
+        if not duplicated_tags_size.empty:
+            raise ValueError(f'Same tags applied to more than one value, another tag column is needed to distinguish them:\n{duplicated_tags_size}')
+
         if agg_cols:
             pass
         # Default to "iteration" if there was no ref group nor columns to
