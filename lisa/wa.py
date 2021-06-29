@@ -21,6 +21,7 @@ import os
 import abc
 import contextlib
 import sqlite3
+import pathlib
 
 import pandas as pd
 
@@ -75,7 +76,13 @@ class StatsProp:
     Tag columns commonly used to group plots of WA dataframes.
     """
 
-    def get_stats(self, ensure_default_groups=True, ref_group=None, **kwargs):
+    _AGG_COLS = ['iteration', 'wa_path']
+    """
+    Columns that are guaranteed to be found in the dataframes and will always
+    be used as aggregation columns, in addition to what the user selects.
+    """
+
+    def get_stats(self, ensure_default_groups=True, ref_group=None, agg_cols=None, **kwargs):
         """
         Returns a :class:`lisa.stats.Stats` loaded with the result
         :class:`pandas.DataFrame`.
@@ -100,7 +107,14 @@ class StatsProp:
                 **(ref_group or {}),
             }
 
-        return Stats(self.df, ref_group=ref_group, **kwargs)
+        agg_cols = (agg_cols or []) + self._AGG_COLS
+
+        return Stats(
+            self.df,
+            ref_group=ref_group,
+            agg_cols=agg_cols,
+            **kwargs
+        )
 
     @property
     def stats(self):
@@ -332,9 +346,27 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
             else:
                 return self._df_postprocess(df)
 
-        dfs = [
-            self._add_kernel_version(wa_output, df)
+        wa_outputs = {
+            pathlib.Path(
+                wa_output.basepath
+            ).resolve(): wa_output
             for wa_output in wa_outputs
+        }
+
+        common_prefix = pathlib.Path(
+            os.path.commonpath(wa_outputs.keys())
+            if len(wa_outputs) > 1 else
+            ''
+        )
+
+        wa_outputs = {
+            str(name.relative_to(common_prefix)): wa_output
+            for name, wa_output in wa_outputs.items()
+        }
+
+        dfs = [
+            self._add_output_info(wa_output, name, df)
+            for name, wa_output in wa_outputs.items()
             for df in [
                 load_df(job)
                 for job in wa_output.jobs
@@ -360,10 +392,14 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
         return df
 
     @staticmethod
-    def _add_kernel_version(wa_output, df):
+    def _add_output_info(wa_output, name, df):
+        # Kernel version
         kver = wa_output.target_info.kernel_version
         df['kernel_name'] = kver.release
         df['kernel_sha1'] = kver.sha1
+
+        # Folder of origin
+        df['wa_path'] = name
         return df
 
     def _add_kernel_id(self, df):
