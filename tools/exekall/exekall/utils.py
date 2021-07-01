@@ -22,6 +22,7 @@
 
 import inspect
 import typing
+import warnings
 
 import exekall.engine as engine
 
@@ -89,6 +90,15 @@ def get_callable_set(module_set, verbose=False):
 
     return callable_set
 
+def _get_members(*args, **kwargs):
+    """
+    Same as :func:`inspect.getmembers` except that it will silence warnings,
+    which avoids triggering deprecation warnings just because we are scanning a
+    class
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore')
+        return inspect.getmembers(*args, **kwargs)
 
 def _get_callable_set(namespace, visited_obj_set, verbose):
     """
@@ -104,7 +114,7 @@ def _get_callable_set(namespace, visited_obj_set, verbose):
 
     attributes = [
         callable_
-        for name, callable_ in inspect.getmembers(
+        for name, callable_ in _get_members(
             namespace,
             predicate=callable
         )
@@ -205,7 +215,7 @@ def _get_callable_set(namespace, visited_obj_set, verbose):
 
         type_vars = sorted(
             check_typevar_name(op.value_type, name, attr)
-            for name, attr in inspect.getmembers(
+            for name, attr in _get_members(
                 op.value_type,
                 lambda x: isinstance(x, typing.TypeVar)
             )
