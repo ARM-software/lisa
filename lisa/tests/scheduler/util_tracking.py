@@ -219,10 +219,10 @@ class UtilConvergence(UtilTrackingBase):
 
         ue_df = self.trace.df_event('sched_util_est_se')
         ue_df = df_filter_task_ids(ue_df, [task])
-        ua_df = self.trace.analysis.load_tracking.df_task_signal(task, 'util')
+        ua_df = self.trace.ana.load_tracking.df_task_signal(task, 'util')
 
         failures = []
-        for phase in self.trace.analysis.rta.task_phase_windows(task, wlgen_profile=self.rtapp_profile):
+        for phase in self.trace.ana.rta.task_phase_windows(task, wlgen_profile=self.rtapp_profile):
             if not phase.properties['meta']['from_test']:
                 continue
 
@@ -317,7 +317,7 @@ class UtilConvergence(UtilTrackingBase):
         task = self.rtapp_task_ids_map['test'][0]
 
         # Get list of task's activations
-        df = self.trace.analysis.tasks.df_task_states(task)
+        df = self.trace.ana.tasks.df_task_states(task)
         activations = df[
             (df.curr_state == TaskState.TASK_WAKING) &
             (df.next_state == TaskState.TASK_ACTIVE)
@@ -339,7 +339,7 @@ class UtilConvergence(UtilTrackingBase):
 
             # If we are outside a phase, ignore the activation
             try:
-                phase = self.trace.analysis.rta.task_phase_at(task, activation, wlgen_profile=self.rtapp_profile)
+                phase = self.trace.ana.rta.task_phase_at(task, activation, wlgen_profile=self.rtapp_profile)
             except KeyError:
                 continue
 

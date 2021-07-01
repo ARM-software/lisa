@@ -293,7 +293,7 @@ class InvarianceItemBase(RTATestBundle, LoadTrackingHelpers, TestBundle, Exekall
         trace = self.trace
         task = trace.get_task_id(task)
 
-        df_activation = trace.analysis.tasks.df_task_activation(
+        df_activation = trace.ana.tasks.df_task_activation(
             task,
             # Util only takes into account times where the task is actually
             # executing
@@ -332,8 +332,8 @@ class InvarianceItemBase(RTATestBundle, LoadTrackingHelpers, TestBundle, Exekall
             clock = None
 
         try:
-            cpus = trace.analysis.tasks.cpus_of_tasks([task])
-            capacity = trace.analysis.load_tracking.df_cpus_signal('capacity', cpus)
+            cpus = trace.ana.tasks.cpus_of_tasks([task])
+            capacity = trace.ana.load_tracking.df_cpus_signal('capacity', cpus)
         except MissingTraceEventError:
             capacity = None
         else:
@@ -656,7 +656,7 @@ class TaskInvariance(InvarianceBase):
         """
 
         def _get_trace_signal(self, task, cpus, signal_name):
-            return self.trace.analysis.load_tracking.df_task_signal(task, signal_name)
+            return self.trace.ana.load_tracking.df_task_signal(task, signal_name)
 
         @memoized
         @InvarianceItemBase.get_simulated_pelt.used_events
@@ -832,5 +832,5 @@ class RqInvariance(InvarianceBase):
         """
 
         def _get_trace_signal(self, task, cpus, signal_name):
-            return self.trace.analysis.load_tracking.df_cpus_signal(signal_name, cpus)
+            return self.trace.ana.load_tracking.df_cpus_signal(signal_name, cpus)
  # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab

@@ -3624,7 +3624,7 @@ class Trace(Loggable, TraceBase):
                 target.execute('echo hello world')
                 # DO NOT USE trace object inside the `with` statement
 
-            trace.analysis.tasks.plot_tasks_total_residency(filepath='plot.png')
+            trace.ana.tasks.plot_tasks_total_residency(filepath='plot.png')
 
 
         :param target: Target to connect to.

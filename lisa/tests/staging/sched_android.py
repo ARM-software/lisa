@@ -166,7 +166,7 @@ class SchedTuneFreqItem(SchedTuneItemBase):
         rta_start, rta_stop = super().trace_window(trace)
 
         cpu = self.plat_info['capacity-classes'][-1][0]
-        freq_df = trace.analysis.frequency.df_cpu_frequency(cpu)
+        freq_df = trace.ana.frequency.df_cpu_frequency(cpu)
 
         # Find the frequency events before and after the task runs
         freq_start = freq_df[freq_df.index < rta_start].index[-1]
@@ -203,7 +203,7 @@ class SchedTuneFreqItem(SchedTuneItemBase):
         target_freq = list(filter(lambda f: f >= target_freq, freqs))[0]
 
         # Get the real average frequency
-        avg_freq = self.trace.analysis.frequency.get_average_cpu_frequency(cpu)
+        avg_freq = self.trace.ana.frequency.get_average_cpu_frequency(cpu)
 
         distance = abs(target_freq - avg_freq) * 100 / target_freq
         res = ResultBundle.from_bool(distance < freq_margin_pct)
@@ -272,7 +272,7 @@ class SchedTunePlacementItem(SchedTuneItemBase):
         """
         assert len(self.rtapp_tasks) == 1
         task = self.rtapp_tasks[0]
-        df = self.trace.analysis.tasks.df_task_total_residency(task)
+        df = self.trace.ana.tasks.df_task_total_residency(task)
 
         # Find CPUs without enough capacity to meet the boost
         boost = self.boost
