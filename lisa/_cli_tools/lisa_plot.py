@@ -23,9 +23,10 @@ import argparse
 import inspect
 from collections import OrderedDict
 import contextlib
-
-import matplotlib
-import matplotlib.pyplot as plt
+from tempfile import NamedTemporaryFile
+import webbrowser
+import time
+import types
 
 from lisa.utils import get_short_doc, nullcontext
 from lisa.trace import Trace, MissingTraceEventError, CPU, TaskID
@@ -104,7 +105,7 @@ def meth_usable_args(f):
         for param in parameters.values()
     )
 
-def make_plot_kwargs(meth, file_path, interactive, extra_options):
+def make_plot_kwargs(meth, file_path, extra_options, backend='bokeh'):
     """
     Make a keyword arguments dict for the given plot method.
 
@@ -130,7 +131,7 @@ def make_plot_kwargs(meth, file_path, interactive, extra_options):
     }
     kwargs.update(
         filepath=file_path,
-        interactive=interactive,
+        backend=backend,
     )
     return kwargs
 
@@ -218,7 +219,7 @@ Available plots:
     parser.add_argument('--plot', nargs=2, action='append',
         default=[],
         metavar=('PLOT', 'OUTPUT_PATH'),
-        help='Create the given plot. If OUTPUT_PATH is "interactive", an interactive window will be used',
+        help='Create the given plot. If OUTPUT_PATH is "interactive", the plot will be opened in a window',
     )
 
     parser.add_argument('--plot-analysis', nargs=3, action='append',
@@ -247,18 +248,8 @@ Available plots:
         help='Pass extra parameters to plot methods, e.g. "-X cpu 1". Mismatching names are ignored.',
     )
 
-    parser.add_argument('--matplotlib-backend',
-        default='GTK3Agg',
-        help='matplotlib backend to use for interactive window',
-    )
-
-
     parser.add_argument('--plat-info',
         help='Platform information, necessary for some plots',
-    )
-
-    parser.add_argument('--xkcd', action='store_true',
-        help='Graphs will look like XKCD plots',
     )
 
     args = parser.parse_args(argv)
@@ -342,24 +333,34 @@ Available plots:
 
     for plot_name, file_path in sorted(plot_spec_list):
         interactive = file_path == 'interactive'
-        f = flat_plot_map[plot_name]
         if interactive:
-            matplotlib.use(args.matplotlib_backend)
-            file_path = None
+            outfile_cm = NamedTemporaryFile(suffix='.html')
         else:
+            outfile_cm = nullcontext(
+                types.SimpleNamespace(name=file_path)
+            )
             dirname = os.path.dirname(file_path)
             if dirname:
                 os.makedirs(dirname, exist_ok=True)
 
-        kwargs = make_plot_kwargs(f, file_path, interactive=interactive, extra_options=args.option)
+        with outfile_cm as outfile:
+            _file_path = outfile.name
 
-        xkcd_cm = plt.xkcd() if args.xkcd else nullcontext()
-        with handle_plot_excep(exit_on_error=not args.best_effort):
-            with xkcd_cm:
-                TraceAnalysisBase.call_on_trace(f, trace, kwargs)
+            f = flat_plot_map[plot_name]
+            kwargs = make_plot_kwargs(
+                f,
+                file_path=_file_path,
+                extra_options=args.option
+            )
 
-        if interactive:
-            plt.show()
+            with handle_plot_excep(exit_on_error=not args.best_effort):
+                fig = TraceAnalysisBase.call_on_trace(f, trace, kwargs)
+
+            if interactive:
+                webbrowser.open_new(_file_path)
+                # Wait for the page to load before the file is removed
+                time.sleep(1)
+
 
 if __name__ == '__main__':
     sys.exit(main())
