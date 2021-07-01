@@ -177,7 +177,7 @@ class EASBehaviour(RTATestBundle, TestBundle):
             assert len(task_list) == 1
             task = task_list[0]
 
-            df = self.trace.analysis.rta.df_phases(task, wlgen_profile=rtapp_profile)
+            df = self.trace.ana.rta.df_phases(task, wlgen_profile=rtapp_profile)
             df = df[df['properties'].transform(lambda phase: phase['meta']['from_test'])]
 
             def get_phase_max_util(phase):
@@ -229,7 +229,7 @@ class EASBehaviour(RTATestBundle, TestBundle):
                   CPU that the task was "on" at each moment in time
         """
         def task_cpu(task):
-            return task.comm, self.trace.analysis.tasks.df_task_activation(task=task)['cpu']
+            return task.comm, self.trace.ana.tasks.df_task_activation(task=task)['cpu']
 
         df = pd.DataFrame(dict(
             task_cpu(task_ids[0])
@@ -478,7 +478,7 @@ class EASBehaviour(RTATestBundle, TestBundle):
         bad_activations = {}
         test_tasks = list(chain.from_iterable(self.rtapp_tasks_map.values()))
         for task in test_tasks:
-            slack = self.trace.analysis.rta.df_rtapp_stats(task)["slack"]
+            slack = self.trace.ana.rta.df_rtapp_stats(task)["slack"]
 
             bad_activations_pct = len(slack[slack < 0]) * 100 / len(slack)
             if bad_activations_pct > negative_slack_allowed_pct:

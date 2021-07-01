@@ -233,7 +233,7 @@ class ExampleTestBundle(RTATestBundle, TestBundle):
         # giving df_* methods that return various dataframes, and plot_*
         # functions that can do various plots.
         # https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/trace_analysis.html
-        df = self.trace.analysis.load_tracking.df_tasks_signal('util')
+        df = self.trace.ana.load_tracking.df_tasks_signal('util')
 
         # "resolve" the task names into (pid, comm) tuples. If there is any
         # ambiguity because of the same name is reused in different PIDs, an

@@ -165,13 +165,13 @@ class UtilClamp(RTATestBundle, TestBundle):
         # There is no CPU selection when we're going back from preemption.
         # Setting preempted_value=1 ensures that it won't count as a new
         # activation.
-        df = self.trace.analysis.tasks.df_task_activation(task,
+        df = self.trace.ana.tasks.df_task_activation(task,
                                                           preempted_value=1)
         df = df_refit_index(df, window=self.trace.window)
         df = df[['active', 'cpu']]
         df['activation_start'] = df['active'] == 1
 
-        df_freq = self.trace.analysis.frequency.df_cpus_frequency()
+        df_freq = self.trace.ana.frequency.df_cpus_frequency()
         df_freq = df_freq[['cpu', 'frequency']]
         df_freq = df_freq.pivot(index=None, columns='cpu', values='frequency')
         df_freq.reset_index(inplace=True)
@@ -193,7 +193,7 @@ class UtilClamp(RTATestBundle, TestBundle):
     def _get_phases_df(self):
         task = self.rtapp_task_ids_map['task'][0]
 
-        df = self.trace.analysis.rta.df_phases(task, wlgen_profile=self.rtapp_profile)
+        df = self.trace.ana.rta.df_phases(task, wlgen_profile=self.rtapp_profile)
         df = df.copy()
         df = df[df['properties'].apply(lambda props: props['meta']['from_test'])]
         df.reset_index(inplace=True)

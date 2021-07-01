@@ -50,7 +50,7 @@ class RampBoostTestBase(RTATestBundle, TestBundle):
         return self.plat_info['nrg-model'].estimate_from_trace(self.trace).sum(axis=1)
 
     def get_avg_slack(self, only_negative=False):
-        analysis = self.trace.analysis.rta
+        analysis = self.trace.ana.rta
 
         def get_slack(task):
             series = analysis.df_rtapp_stats(task)['slack']
@@ -65,7 +65,7 @@ class RampBoostTestBase(RTATestBundle, TestBundle):
 
         return {
             task: get_slack(task)
-            for task in self.trace.analysis.rta.rtapp_tasks
+            for task in self.trace.ana.rta.rtapp_tasks
         }
 
     @LoadTrackingAnalysis.df_cpus_signal.used_events
@@ -111,7 +111,7 @@ class RampBoostTestBase(RTATestBundle, TestBundle):
 
         schedutil_df['base_cost'] = schedutil_df.apply(compute_base_cost, axis=1)
 
-        task_active = trace.analysis.tasks.df_task_states(task)['curr_state']
+        task_active = trace.ana.tasks.df_task_states(task)['curr_state']
         task_active = task_active.apply(lambda state: int(state == TaskState.TASK_ACTIVE))
         task_active = task_active.reindex(schedutil_df.index, method='ffill')
         # Assume task active == CPU active, since there is only one task
@@ -122,8 +122,8 @@ class RampBoostTestBase(RTATestBundle, TestBundle):
 
         df_list = [
             schedutil_df,
-            trace.analysis.load_tracking.df_cpus_signal('util'),
-            trace.analysis.load_tracking.df_cpus_signal('enqueued'),
+            trace.ana.load_tracking.df_cpus_signal('util'),
+            trace.ana.load_tracking.df_cpus_signal('enqueued'),
             cpu_active_df,
         ]
 
@@ -280,7 +280,7 @@ class RampBoostTestBase(RTATestBundle, TestBundle):
         res.add_metric('bad boost samples', bad_shape_pct, '%')
 
         # Add some slack metrics and plots
-        analysis = self.trace.analysis.rta
+        analysis = self.trace.ana.rta
         for task in self.rtapp_tasks:
             analysis.plot_slack_histogram(task)
             analysis.plot_perf_index_histogram(task)

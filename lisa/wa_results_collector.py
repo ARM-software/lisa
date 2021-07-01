@@ -419,18 +419,18 @@ class WaResultsCollector(Loggable):
 
         trace = Trace(trace_path, plat_info=self.plat_info, events=events)
 
-        metrics.append(('cpu_wakeup_count', len(trace.analysis.idle.df_cpus_wakeups()), None))
+        metrics.append(('cpu_wakeup_count', len(trace.ana.idle.df_cpus_wakeups()), None))
 
         # Helper to get area under curve of multiple CPU active signals
         def get_cpu_time(trace, cpus):
-            df = pd.DataFrame([trace.analysis.idle.signal_cpu_active(cpu) for cpu in cpus])
+            df = pd.DataFrame([trace.ana.idle.signal_cpu_active(cpu) for cpu in cpus])
             return df.sum(axis=1).sum(axis=0)
 
         domains = trace.plat_info.get('freq-domains', [])
         for domain in domains:
             name = '-'.join(str(c) for c in domain)
 
-            df = trace.analysis.frequency.df_domain_frequency_residency(domain)
+            df = trace.ana.frequency.df_domain_frequency_residency(domain)
             if df is None or df.empty:
                 logger.warning("Can't get cluster freq residency from %s",
                                trace.trace_path)
@@ -440,10 +440,10 @@ class WaResultsCollector(Loggable):
                 metric = f'avg_freq_cluster_{name}'
                 metrics.append((metric, avg_freq, 'MHz'))
 
-            df = trace.analysis.frequency.df_cpu_frequency(domain[0])
+            df = trace.ana.frequency.df_cpu_frequency(domain[0])
             metrics.append((f'freq_transition_count_{name}', len(df), None))
 
-            active_time = series_integrate(trace.analysis.idle.signal_cluster_active(domain))
+            active_time = series_integrate(trace.ana.idle.signal_cluster_active(domain))
             metrics.append((f'active_time_cluster_{name}',
                             active_time, 'seconds'))
 

@@ -1616,7 +1616,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
 
         # Find when the first rtapp phase starts, and take the associated
         # sched_switch that is immediately preceding
-        phase_start_df = trace.analysis.rta.df_rtapp_phases_start(
+        phase_start_df = trace.ana.rta.df_rtapp_phases_start(
             wlgen_profile=profile,
         )
 
@@ -1628,7 +1628,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         rta_start = phase_start_df.apply(get_first_switch, axis=1).min()
 
         # Find when the last rtapp phase ends
-        rta_stop = trace.analysis.rta.df_rtapp_phases_end()['Time'].max()
+        rta_stop = trace.ana.rta.df_rtapp_phases_end()['Time'].max()
 
         return (rta_start, rta_stop)
 
@@ -1743,7 +1743,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         :param with_threshold_exclusion: When set to True, known noisy services
           will be ignored.
         """
-        df = self.trace.analysis.tasks.df_tasks_runtime()
+        df = self.trace.ana.tasks.df_tasks_runtime()
         df = df.copy(deep=False)
 
         # We don't want to account the test tasks

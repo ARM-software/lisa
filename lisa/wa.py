@@ -553,7 +553,7 @@ class WATraceCollector(WAArtifactCollectorBase):
 
         def trace_idle_analysis(trace):
             cpu = 0
-            df = trace.analysis.idle.df_cluster_idle_state_residency([cpu])
+            df = trace.ana.idle.df_cluster_idle_state_residency([cpu])
             df = df.reset_index()
             df['cpu'] = cpu
 

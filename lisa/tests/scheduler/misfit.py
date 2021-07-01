@@ -148,7 +148,7 @@ class StaggeredFinishes(MisfitMigrationBase):
             :meth:`~lisa.tests.base.RTATestBundle.trace_window` here because we
             still need the first wakeups to be visible.
         """
-        phase_df = self.trace.analysis.rta.df_rtapp_phases_start(wlgen_profile=self.rtapp_profile)
+        phase_df = self.trace.ana.rta.df_rtapp_phases_start(wlgen_profile=self.rtapp_profile)
         return phase_df[
             phase_df.index.get_level_values('phase') == 'test/pinned'
         ]['Time'].max()
@@ -213,7 +213,7 @@ class StaggeredFinishes(MisfitMigrationBase):
 
         sdf = self.trace.df_event('sched_switch')
         task_state_dfs = {
-            task: self.trace.analysis.tasks.df_task_states(task)
+            task: self.trace.ana.tasks.df_task_states(task)
             for task in self.rtapp_tasks
         }
 
@@ -252,7 +252,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         :returns: A dataframe that describes the idle status (on/off) of 'cpu'
         """
         active_df = pd.DataFrame(
-            self.trace.analysis.idle.signal_cpu_active(cpu), columns=['state']
+            self.trace.ana.idle.signal_cpu_active(cpu), columns=['state']
         )
         df_add_delta(active_df, inplace=True, window=self.trace.window)
         return active_df
@@ -333,7 +333,7 @@ class StaggeredFinishes(MisfitMigrationBase):
         for task in self.rtapp_tasks:
             # This test is all about throughput: check that every time a task
             # runs on a little it's because bigs are busy
-            df = self.trace.analysis.tasks.df_task_states(task)
+            df = self.trace.ana.tasks.df_task_states(task)
             # Trim first to keep coherent deltas
             df = self._trim_state_df(df)
             task_state_dfs[task] = df[

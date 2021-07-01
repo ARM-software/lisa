@@ -243,9 +243,9 @@ class TestTrace(TraceTestCase):
         """
         trace = self.trace
 
-        overutilized_time = trace.analysis.status.get_overutilized_time()
+        overutilized_time = trace.ana.status.get_overutilized_time()
         expected_pct = overutilized_time / trace.time_range * 100
-        overutilized_pct = trace.analysis.status.get_overutilized_pct()
+        overutilized_pct = trace.ana.status.get_overutilized_pct()
 
         assert overutilized_pct == pytest.approx(expected_pct)
 
@@ -266,7 +266,7 @@ class TestTrace(TraceTestCase):
         """
         trace = self.make_trace(in_data)
 
-        trace.analysis.idle.plot_cpu_idle_state_residency(0)
+        trace.ana.idle.plot_cpu_idle_state_residency(0)
 
     def test_deriving_cpus_count(self):
         """Test that Trace derives cpus_count if it isn't provided"""
@@ -300,7 +300,7 @@ class TestTrace(TraceTestCase):
           <idle>-0     [004]   519.023080: cpu_idle:             state=1 cpu_id=4
         """)
 
-        df = trace.analysis.idle.df_cpus_wakeups()
+        df = trace.ana.idle.df_cpus_wakeups()
 
         exp_index = [519.021928, 519.022641, 519.022642, 519.022643, 519.022867]
         exp_cpus = [4, 4, 1, 2, 3]
@@ -316,7 +316,7 @@ class TestTrace(TraceTestCase):
         """Helper for smoke testing _dfg methods in tasks_analysis"""
         trace = self.get_trace(trace_name)
 
-        lt_df = trace.analysis.load_tracking.df_tasks_signal('util')
+        lt_df = trace.ana.load_tracking.df_tasks_signal('util')
         columns = ['comm', 'pid', 'util', 'cpu']
         for column in columns:
             msg = 'Task signals parsed from {} missing {} column'.format(
@@ -327,7 +327,7 @@ class TestTrace(TraceTestCase):
         pid = lt_df['pid'].unique()[0]
         # Call plot - although we won't check the results we can just check
         # that things aren't totally borken.
-        trace.analysis.load_tracking.plot_task_signals(pid)
+        trace.ana.load_tracking.plot_task_signals(pid)
 
     def test_sched_load_signals(self):
         """Test parsing sched_load_se events from EAS upstream integration"""
@@ -355,7 +355,7 @@ class TestTrace(TraceTestCase):
           <idle>-0 [000] 380335000000: clock_disable: bus_clk state=0 cpu_id=0
           <idle>-0 [004] 380339000000: cpu_idle:             state=1 cpu_id=4
         """)
-        df = trace.analysis.frequency.df_peripheral_clock_effective_rate(clk_name='bus_clk')
+        df = trace.ana.frequency.df_peripheral_clock_effective_rate(clk_name='bus_clk')
         exp_effective_rate = [float('NaN'), 750000000, 0.0, 750000000, 100000000, 0.0]
         effective_rate = df['effective_rate'].tolist()
         assert len(exp_effective_rate) == len(effective_rate)
@@ -367,7 +367,7 @@ class TestTrace(TraceTestCase):
             assert e == r
 
     def test_df_tasks_states(self):
-        df = self.trace.analysis.tasks.df_tasks_states()
+        df = self.trace.ana.tasks.df_tasks_states()
 
         assert len(df) == 4779
         # Proxy check for detecting delta computation changes
@@ -390,16 +390,16 @@ class TestTraceView(TraceTestCase):
 
     def test_lower_slice(self):
         view = self.trace[81:]
-        assert len(view.analysis.status.df_overutilized()) == 2
+        assert len(view.ana.status.df_overutilized()) == 2
 
     def test_upper_slice(self):
         view = self.trace[:80.402065]
-        df = view.analysis.status.df_overutilized()
-        assert len(view.analysis.status.df_overutilized()) == 1
+        df = view.ana.status.df_overutilized()
+        assert len(view.ana.status.df_overutilized()) == 1
 
     def test_full_slice(self):
         view = self.trace[80:81]
-        assert len(view.analysis.status.df_overutilized()) == 2
+        assert len(view.ana.status.df_overutilized()) == 2
 
     def test_time_range(self):
         expected_duration = 4.0
