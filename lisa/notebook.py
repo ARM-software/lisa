@@ -22,6 +22,7 @@ functions.
 import functools
 import collections
 import warnings
+import contextlib
 from uuid import uuid4
 
 import pandas as pd
@@ -514,5 +515,23 @@ def _hv_multi_line_title(fig):
     Also enlarges the plot if its too small for its title.
     """
     return fig.options(hooks=[_hv_multi_line_title_hook])
+
+
+@contextlib.contextmanager
+def _hv_set_backend(backend):
+    """
+    Context manager to work around this issue:
+    https://github.com/holoviz/holoviews/issues/4962
+    """
+    old_backend = hv.Store.current_backend
+    try:
+        # This is safe to do as long as the backend has been
+        # loaded with hv.extension() beforehand, which happens
+        # at import time
+        hv.Store.set_current_backend(backend)
+        yield
+    finally:
+        if old_backend:
+            hv.Store.set_current_backend(old_backend)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
