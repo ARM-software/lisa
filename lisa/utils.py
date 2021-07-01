@@ -1635,9 +1635,12 @@ def non_recursive_property(f):
     return property(wrapper)
 
 
-def get_short_doc(obj):
+def get_short_doc(obj, strip_rst=False):
     """
     Get the short documentation paragraph at the beginning of docstrings.
+
+    :param strip_rst: If ``True``, remove reStructuredText markup.
+    :type strip_rst: bool
     """
     docstring = inspect.getdoc(obj)
     if docstring:
@@ -1647,6 +1650,15 @@ def get_short_doc(obj):
             docstring += '.'
     else:
         docstring = ''
+
+    if strip_rst:
+        # Remove basic reStructuredText markup
+        docstring = re.sub(
+            r':[^:]+:`([^`]+)`',
+            r'\1',
+            docstring,
+        )
+
     return docstring
 
 
