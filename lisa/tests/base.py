@@ -60,7 +60,7 @@ from lisa.conf import (
     SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc,
 )
 from lisa.generic import TypedList
-from lisa.pelt import PELT_SCALE
+from lisa.pelt import PELT_SCALE, pelt_settling_time
 
 
 def _nested_formatter(multiline):
@@ -1533,7 +1533,9 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
       the associated task will be ignored in the noise accounting.
     """
 
-    _BUFFER_PHASE_DURATION_S = 0.5
+    # Roughly 330*2 ms for PELT half life~=32ms
+    # This allows enough time for scheduler signals to converge.
+    _BUFFER_PHASE_DURATION_S = pelt_settling_time() * 2
     """
     Duration of the initial buffer phase; this is a phase that copies the first
     phase of each task, and that is prepended to the relevant task - this means
@@ -1859,8 +1861,6 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                 # maybe due to tracing overhead). Therefore we just replicate
                 # the period.
                 ref_wload = PeriodicWload(
-                    # TODO: compute accurately the convergence time of the
-                    # signal used for placement by the scheduler
                     duration=cls._BUFFER_PHASE_DURATION_S,
                 )
 
