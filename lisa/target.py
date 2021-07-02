@@ -790,23 +790,21 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         :param tools: The list of names of tools to install
         :type tools: list(str)
         """
-        tools = set(tools)
 
-        # Remove duplicates and already-installed tools
-        tools.difference_update(self._installed_tools)
-
-        tools_to_install = set()
-        for tool in tools:
+        def bin_path(tool):
             binary = os.path.join(ASSETS_PATH, 'binaries', self.abi, tool)
             if not os.path.isfile(binary):
                 binary = os.path.join(ASSETS_PATH, 'binaries', 'scripts', tool)
-            tools_to_install.add(binary)
+            return binary
+
+        tools = set(tools) - self._installed_tools
 
         # TODO: compute the checksum of the tool + install location and keep
         # that in _installed_tools, so we are sure to be correct
-        for tool in tools_to_install - self._installed_tools:
+        for tool in map(bin_path, tools):
             self.target.install(tool)
             self._installed_tools.add(tool)
+
 
     @contextlib.contextmanager
     def freeze_userspace(self):
