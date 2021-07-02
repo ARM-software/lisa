@@ -28,7 +28,7 @@ import __main__ as main
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events
 from lisa.datautils import df_refit_index, df_filter, SignalDesc, df_update_duplicates
-from lisa.utils import kwargs_forwarded_to
+from lisa.utils import kwargs_forwarded_to, order_as
 from lisa.notebook import plot_signal
 
 
@@ -101,7 +101,16 @@ class NotebookAnalysis(TraceAnalysisBase):
         trace = self.trace
 
         if not events:
-            return pd.DataFrame({'info': []})
+            return pd.DataFrame(
+                dict.fromkeys(
+                    (
+                        ['info'] +
+                        fields_as_cols +
+                        ['event'] if event_as_col else []
+                    ),
+                    []
+                )
+            )
         else:
             if event_as_col:
                 fmt = '{fields}'
@@ -142,7 +151,18 @@ class NotebookAnalysis(TraceAnalysisBase):
             df = pd.concat(map(make_info_df, events) )
             df.sort_index(inplace=True)
             df_update_duplicates(df, inplace=True)
-            return df
+
+            # Reorder the columns to provide a better kernelshark-like display
+            columns_order = (
+                [
+                    col
+                    for col in df.columns
+                    if col.startswith('__')
+                ] +
+                (['event'] if event_as_col else []) +
+                ['info']
+            )
+            return df[order_as(df.columns, columns_order)]
 
     @kwargs_forwarded_to(_df_all_events)
     def df_all_events(self, events=None, **kwargs):
