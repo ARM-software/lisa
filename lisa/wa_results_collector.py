@@ -36,10 +36,16 @@ from IPython.display import display
 
 from lisa.trace import Trace
 from lisa.git import find_shortest_symref, get_commit_message
-from lisa.utils import Loggable, memoized
+from lisa.utils import Loggable, memoized, deprecate
 from lisa.datautils import series_integrate, series_mean
+import lisa.wa
 
+"""
+.. warning:: This module is deprecated and must not be used anymore. It has
+    been replaced by :mod:`lisa.wa`.
+"""
 
+@deprecate(deprecated_in='2.0', removed_in='3.0', replaced_by=lisa.wa.WAOutput)
 class WaResultsCollector(Loggable):
     """
     Collects, analyses and visualises results from multiple WA3 directories
