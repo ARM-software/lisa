@@ -2240,9 +2240,19 @@ class _AvailableTraceEventsSet:
 
     @property
     def _available_events(self):
+        parseable = lambda: self._trace._parseable_events
+
+        # Get the available events, which will populate the parseable events if
+        # they were empty, which happens when a trace has just been created
+        if not parseable():
+            try:
+                self._trace.get_metadata('available-events')
+            except MissingMetadataError:
+                pass
+
         return {
             event
-            for event, available in self._trace._parseable_events.items()
+            for event, available in parseable().items()
             if available
         }
 
@@ -3531,11 +3541,7 @@ class Trace(Loggable, TraceBase):
         try:
             value = self._cache.get_metadata(key)
         except MissingMetadataError:
-            if parser is None:
-                value = self._get_metadata(key)
-            else:
-                value = parser.get_metadata(key)
-
+            value = self._get_metadata(key, parser=parser)
             self._cache.update_metadata({key: value})
 
         return value
