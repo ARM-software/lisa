@@ -1402,6 +1402,7 @@ class TxtTraceParser(TxtTraceParserBase):
                 'path': _KERNEL_DTYPE['cgroup_path'],
                 'rbl_load': _KERNEL_DTYPE['util'],
                 'util': _KERNEL_DTYPE['util'],
+                'update_time': _KERNEL_DTYPE['timestamp'],
             },
         ),
         'sched_pelt_se': dict(
