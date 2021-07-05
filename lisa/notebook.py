@@ -24,6 +24,7 @@ import collections
 import warnings
 import contextlib
 from uuid import uuid4
+from itertools import starmap
 
 import pandas as pd
 import matplotlib as mpl
@@ -32,13 +33,14 @@ from matplotlib.figure import Figure
 from matplotlib.backend_bases import MouseButton
 import holoviews as hv
 import bokeh.models
+import panel as pn
 
 from cycler import cycler as make_cycler
 
 from ipywidgets import widgets, Layout, interact
 from IPython.display import display
 
-from lisa.utils import is_running_ipython
+from lisa.utils import is_running_ipython, order_as
 
 COLOR_CYCLE = [
     '#377eb8', '#ff7f00', '#4daf4a',
@@ -533,5 +535,129 @@ def _hv_set_backend(backend):
     finally:
         if old_backend:
             hv.Store.set_current_backend(old_backend)
+
+
+def _hv_link_dataframes(fig, dfs):
+    """
+    Link the provided dataframes to the holoviews figure.
+
+    :returns: A panel displaying the dataframes and the figure.
+    """
+    def make_table(i, df):
+        event_header = [
+            col for col in df.columns
+            if (
+                col.startswith('__') or
+                col == 'event'
+            )
+        ]
+        df = df[order_as(df.columns, event_header)]
+
+        if df.index.name in df.columns:
+            df.index = df.index.copy(deep=False)
+            df.index.name = ''
+
+        df_widget = pn.widgets.DataFrame(
+            df,
+            name=df.attrs.get('name', f'dataframe #{i}'),
+            formatters={
+                'bool': {'type': 'tickCross'}
+            },
+            # Disable edition of the dataframe
+            disabled=True,
+            sortable=False,
+            # Ensure some columns are always displayed
+            # Note: Tabulator requires a list of column names instead.
+            frozen_columns=len(event_header) + 1,
+            height=400,
+            autosize_mode='fit_viewport',
+            row_height=25,
+
+            # Only relevant for pn.widgets.Tabulator
+            #theme='simple',
+            #selectable='checkbox',
+            # Avoid transferring too much data at once to the browser
+            #pagination='remote',
+            #page_size=100,
+        )
+        return df_widget
+
+    def mark_table_selection(tables):
+        def plot(*args):
+            xs = [
+                table.value.index[x]
+                for xs, table in zip(args, tables)
+                for x in xs
+            ]
+            return hv.Overlay(
+                [
+                    hv.VLine(x).opts(
+                        backend='bokeh',
+                        line_dash='dashed',
+                    )
+                    for x in xs
+                ]
+            )
+
+        tables = list(tables)
+        streams = [
+            table.param.selection
+            for table in tables
+        ]
+        bound = pn.bind(plot, *streams)
+        dmap = hv.DynamicMap(bound).opts(framewise=True)
+
+        return dmap
+
+    def scroll_table(tables):
+        def record_taps(x, y):
+            for table in tables:
+                if x is not None:
+                    df = table.value
+                    i = df.index.get_loc(x, method='ffill')
+                    # On the pn.widgets.DataFrame, this will automatically scroll in the table.
+                    # On pn.widgets.Tabulator, this will currently not unfortunately
+                    table.selection = [i]
+            return hv.Points([])
+
+        tap = hv.streams.SingleTap(transient=True)
+        dmap = hv.DynamicMap(record_taps, streams=[tap])
+        return dmap
+
+    tables = list(starmap(make_table, enumerate(dfs)))
+    markers = mark_table_selection(tables)
+    scroll = scroll_table(tables)
+
+    # Workaround issue:
+    # https://github.com/holoviz/holoviews/issues/5003
+    if isinstance(fig, hv.Layout):
+        ncols = fig._max_cols
+    else:
+        ncols = None
+
+    fig = fig * (scroll * markers)
+
+    if ncols is not None:
+        fig = fig.cols(ncols)
+
+    if len(tables) > 1:
+        tables_widget = pn.Tabs(
+            *(
+                (table.name, table)
+                for table in tables
+            ),
+            align='center',
+        )
+    else:
+        tables_widget = tables[0]
+        tables_widget.align = 'center'
+
+    return pn.Column(
+        fig,
+        tables_widget,
+        sizing_mode='stretch_both',
+        align='center',
+    )
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
