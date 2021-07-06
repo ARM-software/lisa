@@ -3858,6 +3858,9 @@ class Trace(Loggable, TraceBase):
         # Ensure the event name is set, as this sort of metadata might not be
         # saved in the swap
         df.name = event
+        # This is how it should be done. Keep the previous line in case someone
+        # depends on it.
+        df.attrs['name'] = event
         return df
 
     def _make_raw_pd_desc(self, event):
@@ -4153,7 +4156,7 @@ class Trace(Loggable, TraceBase):
         }
 
         for event, df in df_map.items():
-            df.name = event
+            df.attrs['name'] = event
             df.index.name = 'Time'
 
         # Save some memory by changing values of this column into an category
