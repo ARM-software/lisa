@@ -22,6 +22,7 @@ from math import nan
 import itertools
 from itertools import combinations
 from collections import OrderedDict
+import warnings
 
 import scipy.stats
 import pandas as pd
@@ -1279,7 +1280,7 @@ class Stats(Loggable):
 
         return df
 
-    def plot_histogram(self, cumulative=False, bins=50, density=False, **kwargs):
+    def plot_histogram(self, cumulative=False, bins=50, nbins=None, density=False, **kwargs):
         """
         Returns a :class:`matplotlib.figure.Figure` with histogram of the values in the
         input :class:`pandas.DataFrame`.
@@ -1293,6 +1294,10 @@ class Stats(Loggable):
         :param filename: Path to the image file to write to.
         :type filename: str or None
         """
+        if nbins:
+            warnings.warn('"nbins" parameter is deprecated and will be removed, use "bins" instead', DeprecationWarning)
+            bins = nbins
+
         def plot_func(df, group, x_col, y_col): # pylint: disable=unused-argument
             points = hv.Scatter(df[[x_col, y_col]])
             fig = hv.operation.histogram(
