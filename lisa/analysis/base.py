@@ -589,14 +589,14 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
             width=None,
             height=None,
-            colors: TypedList[str]=None,
-            linestyles: TypedList[str]=None,
-            markers: TypedList[str]=None,
 
-            # Deprecated mpl-specific parameters
+            # Deprecated parameters
             rc_params=None,
             axis=None,
             interactive=None,
+            colors: TypedList[str]=None,
+            linestyles: TypedList[str]=None,
+            markers: TypedList[str]=None,
 
             **kwargs
         ):
@@ -708,7 +708,32 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         extra=extra,
                     )
 
-                # Marker
+                # Deprecated options
+                if colors:
+                    deprecation_warning(
+                        '"colors" is deprecated and has no effect anymore, use .options() on the resulting holoviews object'
+                    )
+
+                if markers:
+                    deprecation_warning(
+                        '"markers" is deprecated and has no effect anymore, use .options() on the resulting holoviews object'
+                    )
+
+                if linestyles:
+                    deprecation_warning(
+                        '"linestyles" is deprecated and has no effect anymore, use .options() on the resulting holoviews object'
+                    )
+
+                if rc_params:
+                    deprecation_warning(
+                        'rc_params deprecated, use holoviews APIs to set matplotlib parameters'
+                    )
+                    if backend == 'matplotlib':
+                        hv_fig = hv_fig.opts(fig_rcparams=rc_params)
+                    else:
+                        self.get_logger().warning('rc_params is only used with matplotlib backend')
+
+                # Markers added by lisa.notebook.plot_signal
                 if backend == 'bokeh':
                     marker_opts = dict(
                         # Disable muted legend for now, as they will mute
@@ -724,6 +749,8 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     marker_opts = dict(
                         visible=False,
                     )
+                else:
+                    marker_opts = {}
 
                 hv_fig = set_options(
                     hv_fig,
@@ -745,88 +772,14 @@ class AnalysisHelpers(Loggable, abc.ABC):
                         toolbar='above',
                     )
 
-                if colors:
-                    hv_fig = set_cycle(
-                        hv_fig,
-                        name='color',
-                        xs=colors,
-                        typs=('Curve', 'Scatter', 'Points', 'Area', 'Bars', 'Histogram', 'Distribution', 'HeatMap', 'Rectangles', 'Area', 'HLine', 'VLine', 'Spikes'),
-                    )
-                else:
-                    # Workaround:
-                    # https://github.com/holoviz/holoviews/issues/4981
-                    hv_fig = set_option(
-                        hv_fig,
-                        name='color',
-                        val=hv.Cycle('default_colors'),
-                        typs=('Rectangles',),
-                    )
-
-                if markers:
-                    marker_map = dict(
-                        matplotlib={},
-                        bokeh={
-                            'x': 'cross',
-                            '*': 'asterisk',
-                            'o': 'circle',
-                        },
-                        plotly={
-                            '*': 'star',
-                            'o': 'circle',
-                        },
-                    )
-                    markers = list(map(
-                        lambda marker: marker_map[backend].get(marker, marker),
-                        markers
-                    ))
-                    if backend == 'matplotlib':
-                        extra=dict(s=100)
-                    else:
-                        extra=dict(size=10)
-                    hv_fig = set_cycle(
-                        hv_fig,
-                        name='marker',
-                        xs=markers,
-                        typs=('Points', 'Scatter'),
-                        extra=extra,
-                    )
-
-                if linestyles:
-                    linestyle_map = dict(
-                        matplotlib={},
-                        bokeh={
-                            '.': 'dotted',
-                            '-': 'dashed',
-                        },
-                        plotly={
-                            '.': 'dot',
-                            '-': 'dash',
-                        },
-                    )
-                    linestyles = list(map(
-                        lambda linestyle: linestyle_map[backend].get(linestyle, linestyle),
-                        linestyles
-                    ))
-                    if backend == 'matplotlib':
-                        name = 'linestyle'
-                    elif backend == 'plotly':
-                        name = 'dash'
-                    else:
-                        name = 'line_dash'
-
-                    hv_fig = set_cycle(
-                        hv_fig,
-                        name=name,
-                        xs=linestyles,
-                        typs=('Curve',)
-                    )
-
-                if rc_params:
-                    warnings.warn('rc_params deprecated, use holoviews APIs to set matplotlib parameters', DeprecationWarning)
-                    if backend == 'matplotlib':
-                        hv_fig = hv_fig.opts(fig_rcparams=rc_params)
-                    else:
-                        self.get_logger().warning('rc_params is only used with matplotlib backend')
+                # Workaround:
+                # https://github.com/holoviz/holoviews/issues/4981
+                hv_fig = set_option(
+                    hv_fig,
+                    name='color',
+                    val=hv.Cycle('default_colors'),
+                    typs=('Rectangles',),
+                )
 
                 # Figure size
                 if backend in ('bokeh', 'plotly'):
