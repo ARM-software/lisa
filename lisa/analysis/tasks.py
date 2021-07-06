@@ -17,6 +17,7 @@
 
 from enum import Enum
 import itertools
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -853,7 +854,7 @@ class TasksAnalysis(TraceAnalysisBase):
             title=f"Stacked CPU residency of [{len(df.index)}] selected tasks",
         ).sort('cpu')
 
-    def _plot_cpu_heatmap(self, event, bins, cmap):
+    def _plot_cpu_heatmap(self, event, bins, xbins, cmap):
         """
         Plot some data in a heatmap-style 2d histogram
         """
@@ -861,6 +862,10 @@ class TasksAnalysis(TraceAnalysisBase):
         df = df_window(df, window=self.trace.window, method='exclusive', clip_window=False)
         x = df.index
         y = df['target_cpu']
+
+        if xbins:
+            warnings.warn('"xbins" parameter is deprecated and will be removed, use "bins" instead', DeprecationWarning)
+            bins = xbins
 
         nr_cpus = self.trace.cpus_count
         hist = np.histogram2d(y, x, bins=[nr_cpus, bins])
@@ -939,7 +944,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method
     @requires_events("sched_wakeup")
-    def plot_tasks_wakeups_heatmap(self, bins: int=100, colormap=None):
+    def plot_tasks_wakeups_heatmap(self, bins: int=100, xbins=None, colormap=None):
         """
         Plot tasks wakeups heatmap
 
@@ -956,6 +961,7 @@ class TasksAnalysis(TraceAnalysisBase):
         return self._plot_cpu_heatmap(
             event='sched_wakeup',
             bins=bins,
+            xbins=xbins,
             cmap=colormap,
         ).options(
             title="Tasks wakeups over time",
@@ -987,7 +993,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method
     @requires_events("sched_wakeup_new")
-    def plot_tasks_forks_heatmap(self, bins: int=100, colormap=None):
+    def plot_tasks_forks_heatmap(self, bins: int=100, xbins=None, colormap=None):
         """
         Plot number of task forks over time as a heatmap.
 
@@ -1005,6 +1011,7 @@ class TasksAnalysis(TraceAnalysisBase):
         return self._plot_cpu_heatmap(
             event='sched_wakeup_new',
             bins=bins,
+            xbins=xbins,
             cmap=colormap,
         ).options(
             title="Tasks forks over time",
