@@ -101,7 +101,7 @@ class NotebookAnalysis(TraceAnalysisBase):
         trace = self.trace
 
         if not events:
-            return pd.DataFrame(
+            df = pd.DataFrame(
                 dict.fromkeys(
                     (
                         ['info'] +
@@ -162,7 +162,10 @@ class NotebookAnalysis(TraceAnalysisBase):
                 (['event'] if event_as_col else []) +
                 ['info']
             )
-            return df[order_as(df.columns, columns_order)]
+            df = df[order_as(df.columns, columns_order)]
+
+        df.attrs['name'] = 'events'
+        return df
 
     @kwargs_forwarded_to(_df_all_events)
     def df_all_events(self, events=None, **kwargs):
