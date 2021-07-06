@@ -19,6 +19,7 @@
 
 import functools
 import inspect
+import warnings
 
 import holoviews as hv
 import pandas as pd
@@ -32,39 +33,14 @@ from lisa.utils import kwargs_forwarded_to, order_as
 from lisa.notebook import plot_signal
 
 
-class NotebookAnalysis(TraceAnalysisBase):
-    """
-    Support for custom Notebook-defined plots
-
-    Attribute lookup will be resolved in ``__main__`` module, which contains
-    all names created in cells of Jupyter notebooks.
-
-    Functions named ``plot_*`` have a special behavior: they are expected to
-    take a :class:`lisa.trace.Trace` as first parameter and a named parameter
-    :class:`matplotlib.axes.Axes` ``axis`` parameter to plot on.
-
-    example::
-
-        import holoviews as hv
-        from lisa.trace import Trace
-        trace = Trace('trace.dat', events=['sched_switch'])
-
-        # Define a plot method in any cell
-        def plot_foo(trace, y):
-            print(f'Plotting horizontal line at level: {y}')
-            return hv.HLine(y).options(color='red')
-
-        # Just lookup the plot function
-        trace.ana.notebook.plot_foo(0.5)
-
-    """
-
-    name = 'notebook'
+class _CustomProxy:
+    def __init__(self, ana):
+        self.ana = ana
 
     def __getattr__(self, attr):
         val = getattr(main, attr)
 
-        if attr.startswith('plot_'):
+        if attr.startswith('plot_') and callable(val):
             f = val
             first_param = list(inspect.signature(f).parameters)[0]
 
@@ -80,13 +56,50 @@ class NotebookAnalysis(TraceAnalysisBase):
                 kwargs[first_param] = kwargs[first_param].trace
                 return f(**kwargs)
 
-            val = wrapper
-
-        if callable(val):
+            ana = self.ana
             # bind the function to the analysis instance to give a bound method
-            return val.__get__(self, type(self))
+            return wrapper.__get__(ana, type(ana))
         else:
-            return val
+            raise AttributeError('Only functions with a name starting with "plot_" are supported')
+
+
+class NotebookAnalysis(TraceAnalysisBase):
+    """
+    Support for custom Notebook-defined plots
+
+    This analysis provides a proxy object that can be used to turn any plot
+    method defined in a notebook into a proper analysis plot method::
+
+        import holoviews as hv
+        from lisa.trace import Trace
+        trace = Trace('trace.dat', events=['sched_switch'])
+
+        # Define a plot method in any cell:
+        # The first parameter will be the trace, other parameters are free-form
+        def plot_foo(trace, y):
+            print(f'Plotting horizontal line at level: {y}')
+            return hv.HLine(y).options(color='red')
+
+        # The plot function becomes available on the "notebook.custom" proxy
+        # object.
+        trace.ana.notebook.custom.plot_foo(0.5)
+
+    """
+
+    name = 'notebook'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.custom = _CustomProxy(self)
+
+    def __getattr__(self, attr):
+        x = getattr(self.custom, attr)
+        warnings.warn(
+            f'Calling plot methods on trace.ana.notebook.{attr}() is deprecated, please use trace.ana.notebook.custom.{attr}() instead',
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return x
 
     @TraceAnalysisBase.cache
     def _df_all_events(self, events, field_sep=' ', fields_as_cols=None, event_as_col=True):
