@@ -1939,7 +1939,7 @@ def series_convert(series, dtype, nullable=None):
             # which is safe since they are immutable. This reduces the memory
             # used by the final series
             new_cat = basic_decode(cat)
-            x.cat.rename_categories(new_cat, inplace=True)
+            x.cat.categories = new_cat
             return astype('string')(x)
 
         pipelines.extend((
