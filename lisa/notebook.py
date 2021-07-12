@@ -23,6 +23,7 @@ import functools
 import collections
 import warnings
 import contextlib
+import inspect
 from uuid import uuid4
 from itertools import starmap
 
@@ -658,6 +659,131 @@ def _hv_link_dataframes(fig, dfs):
         sizing_mode='stretch_both',
         align='center',
     )
+
+
+class _HoloviewsPanelWrapper:
+    """
+    Dummy base class used to identify classes created by
+    :func:`_hv_wrap_fig_cls`.
+    """
+    pass
+
+@functools.lru_cache(maxsize=None)
+def _hv_wrap_fig_cls(cls):
+    """
+    Wrap a holoviews element class so that it is displayed inside a panel but
+    still exhibits the holoviews API.
+
+    .. note:: Due to https://github.com/holoviz/holoviews/issues/3577, ``x <op>
+        y`` will not work if ``x`` is a holoviews object, but the opposit will
+        work.
+    """
+
+    def wrap_fig(self, x):
+        if x.__class__.__module__.startswith('holoviews'):
+            return _hv_fig_to_pane(
+                fig=x,
+                make_pane=self._make_pane,
+            )
+        else:
+            return x
+
+    def make_wrapper(f):
+        @functools.wraps(f)
+        def wrapper(self, *args, **kwargs):
+            x = f(self._fig, *args, **kwargs)
+            return wrap_fig(self, x)
+
+        return wrapper
+
+    def make_op(name):
+        def op(self, other):
+            f = getattr(self._fig, name)
+
+            # Unwrap the holoviews figure to avoid exceptions
+            if isinstance(other, _HoloviewsPanelWrapper):
+                other = other._fig
+
+            x = f(other)
+            return wrap_fig(self, x)
+        return op
+
+    class NewCls(_HoloviewsPanelWrapper):
+        def __init__(self, fig, make_pane):
+            self._fig = fig
+            self._make_pane = make_pane
+
+        def _repr_mimebundle_(self, *args, **kwargs):
+            pane = self._make_pane(self._fig)
+            return pane._repr_mimebundle_(*args, **kwargs)
+
+        def opts(self, *args, **kwargs):
+            return wrap_fig(
+                self,
+                self._fig.opts(*args, **kwargs),
+            )
+
+    for attr, x in inspect.getmembers(cls):
+        if (not attr.startswith('_')) and inspect.isfunction(x):
+            setattr(NewCls, attr, make_wrapper(x))
+
+    for name in (
+        '__add__',
+        '__radd__',
+
+        '__sub__',
+        '__rsub__',
+
+        '__mul__',
+        '__rmul__',
+
+        '__matmul__',
+        '__rmatmul__',
+
+        '__truediv__',
+        '__rtruediv__',
+
+        '__floordiv__',
+        '__rfloordiv__',
+
+        '__mod__',
+        '__rmod__',
+
+        '__divmod__',
+        '__rdivmod__',
+
+        '__pow__',
+        '__rpow__',
+
+        '__and__',
+        '__rand__',
+
+        '__xor__',
+        '__rxor__',
+
+        '__or__',
+        '__ror__',
+
+        '__rshift__',
+        '__rrshift__',
+
+        '__lshift__',
+        '__rlshift__',
+    ):
+        if hasattr(cls, name):
+            setattr(NewCls, name, make_op(name))
+
+    return NewCls
+
+
+def _hv_fig_to_pane(fig, make_pane):
+    """
+    Stop-gap measure until there is a proper solution for:
+    https://discourse.holoviz.org/t/replace-holoviews-notebook-rendering-with-a-panel/2519/12
+    """
+    cls = _hv_wrap_fig_cls(fig.__class__)
+    return cls(fig=fig, make_pane=make_pane)
+
 
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
