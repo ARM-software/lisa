@@ -223,6 +223,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
             # matplotlib complains about some deprecated settings being set, so
             # silence it since we are just restoring the original state
             with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=DeprecationWarning)
                 matplotlib.rcParams.update(orig)
 
     @classmethod
