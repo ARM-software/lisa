@@ -359,10 +359,13 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
             ''
         )
 
-        wa_outputs = {
-            str(name.relative_to(common_prefix.resolve())): wa_output
-            for name, wa_output in wa_outputs.items()
-        }
+        try:
+            wa_outputs = {
+                    str(name.relative_to(common_prefix.resolve())): wa_output
+                    for name, wa_output in wa_outputs.items()
+            }
+        except ValueError:
+            pass
 
         dfs = [
             self._add_output_info(wa_output, name, df)
