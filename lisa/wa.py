@@ -360,7 +360,7 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
         )
 
         wa_outputs = {
-            str(name.relative_to(common_prefix)): wa_output
+            str(name.relative_to(common_prefix.resolve())): wa_output
             for name, wa_output in wa_outputs.items()
         }
 
