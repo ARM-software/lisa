@@ -353,14 +353,22 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
             for wa_output in wa_outputs
         }
 
-        common_prefix = pathlib.Path(
-            os.path.commonpath(wa_outputs.keys())
-            if len(wa_outputs) > 1 else
-            ''
-        )
+        if len(wa_outputs) > 1:
+            common_prefix = pathlib.Path(
+                os.path.commonpath(wa_outputs.keys())
+            )
+        elif wa_outputs:
+            path, = wa_outputs.keys()
+            common_prefix = pathlib.Path(path).parent
+        else:
+            common_prefix = None
 
         wa_outputs = {
-            str(name.relative_to(common_prefix.resolve())): wa_output
+            str(
+                name.relative_to(common_prefix)
+                if common_prefix else
+                name
+            ): wa_output
             for name, wa_output in wa_outputs.items()
         }
 
