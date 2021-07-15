@@ -777,7 +777,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 hv_fig = set_option(
                     hv_fig,
                     name='color',
-                    val=hv.Cycle('default_colors'),
+                    val=hv.Cycle(),
                     typs=('Rectangles',),
                 )
 
