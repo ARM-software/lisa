@@ -1992,6 +1992,40 @@ def df_convert_to_nullable(df):
     return df.apply(_series_convert, raw=False)
 
 
+@DataFrameAccessor.register_accessor
+def df_find_redundant_cols(df, col, cols=None):
+    """
+    Find the columns that are redundant to ``col``, i.e. that can be computed
+    as ``df[x] = df[col].map(dict(...))``.
+
+    :param df: Dataframe to analyse.
+    :type df: pandas.DataFrame
+
+    :param col: Reference column
+    :type col: str
+
+    :param cols: Columns to restrict the analysis to. If ``None``, all columns
+        are used.
+    :type cols: str or None
+    """
+    grouped = df.groupby(col, observed=True)
+    cols = cols or (set(df.columns) - {col})
+    return {
+        _col: dict(map(
+            lambda x: (x[0], x[1][0]),
+            series.iteritems()
+        ))
+        for _col, series in (
+            (
+                _col,
+                grouped[_col].unique()
+            )
+            for _col in cols
+            if (grouped[_col].nunique() == 1).all()
+        )
+    }
+
+
 # Defined outside SignalDesc as it references SignalDesc itself
 _SIGNALS = [
     SignalDesc('sched_switch', ['next_comm', 'next_pid']),
