@@ -32,7 +32,7 @@ import holoviews.operation
 from bokeh.models import HoverTool
 
 from lisa.utils import Loggable, memoized, FrozenDict, deduplicate, fold
-from lisa.datautils import df_split_signals, df_make_empty_clone, df_filter
+from lisa.datautils import df_split_signals, df_make_empty_clone, df_filter, df_find_redundant_cols
 from lisa.notebook import make_figure, COLOR_CYCLE
 
 # Ensure hv.extension() is called
@@ -340,9 +340,7 @@ class Stats(Loggable):
         if filter_rows:
             df = df_filter(df, filter_rows)
 
-        ref_group = ref_group or {}
-        group_cols = list(ref_group.keys())
-        ref_group = dict(ref_group)
+        ref_group = dict(ref_group) or {}
 
         # Columns controlling the behavior of this class, but that are not tags
         # nor values
@@ -351,6 +349,27 @@ class Stats(Loggable):
         tag_cols = sorted(
             (set(df.columns) - {value_col, *ci_cols} - tweak_cols) | {unit_col}
         )
+
+        # Find tag columns that are 100% correlated to ref_group keys, and add
+        # them to the ref_group. Otherwise, it will break the reference
+        # subgroup computation, since the subgroup found in non-ref groups will
+        # not have any equivalent in the reference subgroup.
+        for col, ref in list(ref_group.items()):
+            redundant = df_find_redundant_cols(
+                df,
+                col,
+                cols=sorted(set(tag_cols) - set(agg_cols) - {unit_col} - tweak_cols),
+            )
+            for _col, mapping in redundant.items():
+                _ref = ref_group.get(_col)
+                if _ref == mapping[ref]:
+                    pass
+                elif _ref is None:
+                    ref_group[_col] = mapping[ref]
+                else:
+                    raise ValueError(f'The ref_group key {col}={ref} is incompatible with {_col}={_ref}, as both columns are equivalent')
+
+        group_cols = list(ref_group.keys())
 
         # TODO: see if the grouping machinery can be changed to accomodate redundant tags
         # Having duplicate tags will break various grouping mechanisms, so we
