@@ -124,8 +124,10 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             except MissingTraceEventError as e:
                 missing.append(e.missing_events)
 
-        missing = OrTraceEventChecker.from_events(missing)
-        raise MissingTraceEventError(missing, self.trace.available_events)
+        raise MissingTraceEventError(
+            OrTraceEventChecker(missing),
+            self.trace.available_events
+        )
 
     @may_use_events(
         requires_one_event_of(*_SCHED_PELT_CFS_NAMES),
