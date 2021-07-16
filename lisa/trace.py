@@ -3882,7 +3882,7 @@ class Trace(Loggable, TraceBase):
 
         if df.empty:
             raise MissingTraceEventError(
-                TraceEventChecker(event),
+                [event],
                 available_events=self.available_events,
             )
 
@@ -3912,7 +3912,7 @@ class Trace(Loggable, TraceBase):
         # there. This avoids some OSError in case the trace file has
         # disappeared
         if self._strict_events and not self._is_meta_event(event) and event not in self.available_events:
-            raise MissingTraceEventError(event, available_events=self.available_events)
+            raise MissingTraceEventError([event], available_events=self.available_events)
 
         if write_swap is None:
             write_swap = self._write_swap
@@ -3999,11 +3999,11 @@ class Trace(Loggable, TraceBase):
             self._cache.insert(pd_desc, df, **insert_kwargs)
 
         df_map = {**from_cache, **from_trace}
-        missing_events = set(events) - df_map.keys()
+        missing_events = sorted(set(events) - df_map.keys())
         if missing_events:
             if allow_missing_events:
                 self.get_logger().warning('Events {} not found in the trace: {}'.format(
-                    ', '.join(sorted(missing_events)),
+                    ', '.join(missing_events),
                     self.trace_path,
                 ))
             else:
@@ -5111,11 +5111,21 @@ def may_use_events(*events, **kwargs):
 class MissingTraceEventError(RuntimeError, ValueError):
     """
     :param missing_events: The missing trace events
-    :type missing_events: TraceEventCheckerBase
+    :type missing_events: TraceEventCheckerBase or list(str)
     """
 
     def __init__(self, missing_events, available_events=None):
         # pylint: disable=super-init-not-called
+        if not isinstance(missing_events, TraceEventCheckerBase):
+            missing = sorted(missing_events)
+            try:
+                event, = missing
+            except ValueError:
+                missing_events = AndTraceEventChecker.from_events(
+                    missing
+                )
+            else:
+                missing_events = TraceEventChecker(event)
 
         self.missing_events = missing_events
         # Forcibly turn into a list, to avoid carrying around an
