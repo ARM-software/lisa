@@ -63,6 +63,16 @@ Basic experiment running a workload and analysing the trace:
 
     ipynb/examples/typical_experiment.ipynb
 
+Analysis examples
++++++++++++++++++
+
+Analysis plots on a trace:
+
+.. toctree::
+    :maxdepth: 2
+
+    ipynb/examples/analysis_plots.ipynb
+
 Synthetic test example
 ++++++++++++++++++++++
 
