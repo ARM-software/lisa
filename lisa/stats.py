@@ -362,10 +362,12 @@ class Stats(Loggable):
             )
             for _col, mapping in redundant.items():
                 _ref = ref_group.get(_col)
-                if _ref == mapping[ref]:
+                # If ref is None, we want None as a corresponding value
+                corresponding = mapping.get(ref)
+                if _ref == corresponding:
                     pass
                 elif _ref is None:
-                    ref_group[_col] = mapping[ref]
+                    ref_group[_col] = corresponding
                 else:
                     raise ValueError(f'The ref_group key {col}={ref} is incompatible with {_col}={_ref}, as both columns are equivalent')
 
