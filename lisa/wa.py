@@ -96,21 +96,27 @@ class StatsProp:
         :Variable keyword arguments: Forwarded to :class:`lisa.stats.Stats`
 
         """
+        def filter_cols(cols):
+            return [
+                col
+                for col in cols
+                if col in df.columns
+            ]
+        df = self.df
+
         if ensure_default_groups:
             # Make sure the tags to group on are present in the ref_group, even
             # if the user did not specify them
             ref_group = {
-                **{
-                    k: None
-                    for k in self._STATS_GROUPS
-                },
+                **dict.fromkeys(filter_cols(self._STATS_GROUPS)),
                 **(ref_group or {}),
             }
 
         agg_cols = (agg_cols or []) + self._AGG_COLS
+        agg_cols = filter_cols(agg_cols)
 
         return Stats(
-            self.df,
+            df,
             ref_group=ref_group,
             agg_cols=agg_cols,
             **kwargs
