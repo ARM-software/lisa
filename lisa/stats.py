@@ -340,7 +340,7 @@ class Stats(Loggable):
         if filter_rows:
             df = df_filter(df, filter_rows)
 
-        ref_group = dict(ref_group) or {}
+        ref_group = dict(ref_group or {}) or {}
 
         # Columns controlling the behavior of this class, but that are not tags
         # nor values
