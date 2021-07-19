@@ -431,7 +431,11 @@ class AnalysisHelpers(Loggable, abc.ABC):
             ]
 
         fig = _hv_link_dataframes(fig, dfs=link_dataframes)
-        return pn.Column(toolbar, fig)
+        return pn.Column(
+            toolbar,
+            fig,
+            sizing_mode='stretch_width',
+        )
 
     @classmethod
     def plot_method(cls, f):
