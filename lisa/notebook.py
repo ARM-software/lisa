@@ -428,7 +428,7 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True):
         # https://github.com/holoviz/holoviews/issues/3936
         fig *= hv.Scatter(
             series,
-            label=f'{label} (markers)',
+            label=label,
             group='marker',
             kdims=kdims,
         )
