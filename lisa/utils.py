@@ -2591,6 +2591,7 @@ def guess_format(path):
     """
     if path is None:
         return None
+    path = str(path)
 
     mime_type = mimetypes.guess_type(path, strict=False)[0]
     guessed_format = mime_type.split('/')[1].split('.', 1)[-1].split('+')[0]
