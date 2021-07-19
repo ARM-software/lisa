@@ -660,7 +660,7 @@ class SshConnection(SshConnectionBase):
             # Read are not buffered so we will always get the data as soon as
             # they arrive
             return (
-                channel.makefile_stdin(),
+                channel.makefile_stdin('w', 0),
                 channel.makefile(),
                 channel.makefile_stderr(),
             )
@@ -691,11 +691,11 @@ class SshConnection(SshConnectionBase):
                 w = os.fdopen(w, 'wb')
             # Turn a file descriptor into a file-like object
             elif isinstance(stream_out, int) and stream_out >= 0:
-                r = os.fdopen(stream_out, 'rb')
+                r = os.fdopen(stream_in, 'rb')
                 w = os.fdopen(stream_out, 'wb')
             # file-like object
             else:
-                r = stream_out
+                r = stream_in
                 w = stream_out
 
             return (r, w)

@@ -21,7 +21,7 @@ from past.builtins import basestring
 from devlib.module import Module
 from devlib.utils.misc import memoized
 from devlib.utils.types import boolean
-
+from devlib.exception import TargetStableError
 
 class SchedProcFSNode(object):
     """
@@ -303,19 +303,33 @@ class SchedDomain(SchedProcFSNode):
 
         self.flags = flags
 
+def _select_path(target, paths, name):
+    for p in paths:
+        if target.file_exists(p):
+            return p
+
+    raise TargetStableError('No {} found. Tried: {}'.format(name, ', '.join(paths)))
 
 class SchedProcFSData(SchedProcFSNode):
     """
     Root class for creating & storing SchedProcFSNode instances
     """
     _read_depth = 6
-    sched_domain_root = '/proc/sys/kernel/sched_domain'
+
+    @classmethod
+    def get_data_root(cls, target):
+        # Location differs depending on kernel version
+        paths = ['/sys/kernel/debug/sched/domains/', '/proc/sys/kernel/sched_domain']
+        return _select_path(target, paths, "sched_domain debug directory")
 
     @staticmethod
     def available(target):
-        path = SchedProcFSData.sched_domain_root
-        cpus = target.list_directory(path) if target.file_exists(path) else []
+        try:
+            path = SchedProcFSData.get_data_root(target)
+        except TargetStableError:
+            return False
 
+        cpus = target.list_directory(path)
         if not cpus:
             return False
 
@@ -329,7 +343,7 @@ class SchedProcFSData(SchedProcFSNode):
 
     def __init__(self, target, path=None):
         if path is None:
-            path = self.sched_domain_root
+            path = SchedProcFSData.get_data_root(target)
 
         procfs = target.read_tree_values(path, depth=self._read_depth)
         super(SchedProcFSData, self).__init__(procfs)
@@ -361,6 +375,15 @@ class SchedModule(Module):
                     "found" if dmips else "not found")
 
         return schedproc or debug or dmips
+
+    def __init__(self, target):
+        super().__init__(target)
+
+    @classmethod
+    def get_sched_features_path(cls, target):
+        # Location differs depending on kernel version
+        paths = ['/sys/kernel/debug/sched/features', '/sys/kernel/debug/sched_features']
+        return _select_path(target, paths, "sched_features file")
 
     def get_kernel_attributes(self, matching=None, check_exit_code=True):
         """
@@ -418,12 +441,12 @@ class SchedModule(Module):
     def target_has_debug(cls, target):
         if target.config.get('SCHED_DEBUG') != 'y':
             return False
-        return target.file_exists('/sys/kernel/debug/sched_features')
 
-    @property
-    @memoized
-    def has_debug(self):
-        return self.target_has_debug(self.target)
+        try:
+            cls.get_sched_features_path(target)
+            return True
+        except TargetStableError:
+            return False
 
     def get_features(self):
         """
@@ -431,9 +454,7 @@ class SchedModule(Module):
 
         :returns: a dictionary of features and their "is enabled" status
         """
-        if not self.has_debug:
-            raise RuntimeError("sched_features not available")
-        feats = self.target.read_value('/sys/kernel/debug/sched_features')
+        feats = self.target.read_value(self.get_sched_features_path(self.target))
         features = {}
         for feat in feats.split():
             value = True
@@ -453,13 +474,11 @@ class SchedModule(Module):
         :raise ValueError: if the specified enable value is not bool
         :raise RuntimeError: if the specified feature cannot be set
         """
-        if not self.has_debug:
-            raise RuntimeError("sched_features not available")
         feature = feature.upper()
         feat_value = feature
         if not boolean(enable):
             feat_value = 'NO_' + feat_value
-        self.target.write_value('/sys/kernel/debug/sched_features',
+        self.target.write_value(self.get_sched_features_path(self.target),
                                 feat_value, verify=False)
         if not verify:
             return
@@ -471,10 +490,10 @@ class SchedModule(Module):
 
     def get_cpu_sd_info(self, cpu):
         """
-        :returns: An object view of /proc/sys/kernel/sched_domain/cpu<cpu>/*
+        :returns: An object view of the sched_domain debug directory of 'cpu'
         """
         path = self.target.path.join(
-            SchedProcFSData.sched_domain_root,
+            SchedProcFSData.get_data_root(self.target),
             "cpu{}".format(cpu)
         )
 
@@ -482,7 +501,7 @@ class SchedModule(Module):
 
     def get_sd_info(self):
         """
-        :returns: An object view of /proc/sys/kernel/sched_domain/*
+        :returns: An object view of the entire sched_domain debug directory
         """
         return SchedProcFSData(self.target)
 
