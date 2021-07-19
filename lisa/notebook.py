@@ -417,9 +417,6 @@ def plot_signal(series, name=None, interpolation=None, add_markers=True):
     ).opts(
         interpolation=interpolation,
         title=label,
-    ).opts(
-        backend='bokeh',
-        tools=['hover'],
     )
     if add_markers:
         # The "marker" group for Scatter is used to provide marker-specific
