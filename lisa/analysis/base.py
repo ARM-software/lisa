@@ -767,7 +767,12 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     hv_fig = set_option(
                         hv_fig,
                         name='tools',
-                        val=['hover'],
+                        val=[
+                            'undo',
+                            'redo',
+                            'crosshair',
+                            'hover',
+                        ],
                         typs=('Curve', 'Path', 'Points', 'Scatter', 'Bars', 'Histogram', 'Distribution', 'HeatMap', 'Image', 'Rectangles', 'Area', 'Spikes'),
                     ).options(
                         backend=backend,
