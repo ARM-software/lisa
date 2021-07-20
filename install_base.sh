@@ -296,7 +296,7 @@ for arg in "$@"; do
         handled=1;
         ;;&
 
-    "--install-bisector-dbus" | "--install-all")
+    "--install-bisector-dbus")
         apt_packages+=(
             gobject-introspection
             # Some of that seems to only be needed on some version of Ubuntu.
