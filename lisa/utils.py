@@ -42,6 +42,7 @@ import functools
 import pickle
 import sys
 import os
+import os.path
 import importlib
 import pkgutil
 import operator
@@ -75,7 +76,7 @@ from lisa.version import parse_version, format_version
 # Do not infer the value using __file__, since it will break later on when
 # lisa package is installed in the site-package locations using pip, which
 # are typically not writable.
-LISA_HOME = os.getenv('LISA_HOME')
+LISA_HOME = os.getenv('LISA_HOME', os.path.abspath('.'))
 """
 The detected location of your LISA installation
 """
