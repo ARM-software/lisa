@@ -358,7 +358,7 @@ class Stats(Loggable):
             redundant = df_find_redundant_cols(
                 df,
                 col,
-                cols=sorted(set(tag_cols) - set(agg_cols) - {unit_col} - tweak_cols),
+                cols=sorted(set(tag_cols) - set(agg_cols or []) - {unit_col} - tweak_cols),
             )
             for _col, mapping in redundant.items():
                 _ref = ref_group.get(_col)
