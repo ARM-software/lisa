@@ -58,8 +58,8 @@ install_android_sdk_manager() {
     echo "Installing Android SDK manager ..."
 
     # URL taken from "Command line tools only": https://developer.android.com/studio
-    # Used to be: https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip
-    local url="https://dl.google.com/android/repository/commandlinetools-linux-6858069_latest.zip"
+    # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-6858069_latest.zip"
+    local url="https://dl.google.com/android/repository/commandlinetools-linux-7302050_latest.zip"
     local archive="$ANDROID_HOME/android-sdk-manager.zip"
     rm "$archive" &>/dev/null
 
