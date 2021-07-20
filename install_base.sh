@@ -195,9 +195,7 @@ pacman_packages=(
     python
     python-pip
     python-setuptools
-
-    # These packages can be installed from AUR
-    # kernelshark
+    kernelshark
 )
 
 # ABI-specific packages
