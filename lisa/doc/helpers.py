@@ -600,8 +600,6 @@ def make_changelog(repo):
         extracted from the git history.
     """
     release_refs = lisa.git.find_tags(repo, 'v*') + ['HEAD']
-    # TODO: remove this hardcoded list and replace with tag lookup
-    release_refs = ['e189103ba144e34db634713fd8a47fc514e0ebec', 'HEAD']
 
     def update_release_name(name):
         if name == 'HEAD':
