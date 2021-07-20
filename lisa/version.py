@@ -17,6 +17,7 @@
 
 import os
 import hashlib
+from subprocess import CalledProcessError
 
 from lisa.git import get_sha1, get_uncommited_patch
 
@@ -45,7 +46,7 @@ def _compute_version_token():
             sha1 = get_sha1(repo)
             patch = get_uncommited_patch(repo)
         # Git is not installed, just use the regular version
-        except FileNotFoundError:
+        except (FileNotFoundError, CalledProcessError):
             return plain_version_token
 
         # Dirty tree
