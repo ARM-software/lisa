@@ -285,14 +285,17 @@ Cpufreq tests
 .. automodule:: lisa.tests.cpufreq.sanity
    :members:
 
-Staged tests
+Android tests
++++++++++++++
+
+.. automodule:: lisa.tests.scheduler.sched_android
+   :members:
+
+Staging tests
 +++++++++++++
 
 Those are tests that have been merged into LISA but whose behaviour are being
 actively evaluated.
-
-.. automodule:: lisa.tests.staging.sched_android
-   :members:
 
 .. automodule:: lisa.tests.staging.schedutil
    :members:
