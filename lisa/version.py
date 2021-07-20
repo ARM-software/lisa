@@ -20,7 +20,7 @@ import hashlib
 
 from lisa.git import get_sha1, get_uncommited_patch
 
-version_tuple = (2, 0)
+version_tuple = (2, 0, 0)
 
 def format_version(version):
     return '.'.join(str(part) for part in version)
