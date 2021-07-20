@@ -10,11 +10,31 @@ Installation
 Host installation
 +++++++++++++++++
 
-Native installation
--------------------
+From PyPI
+---------
 
-For now, you will need to clone LISA from `github <https://github.com/ARM-software/lisa>`_ ,
-and then issue these commands:
+LISA is available on `PyPI <https://pypi.org/project/lisa-linux/>`_:
+
+.. code:: shell
+
+   pip install lisa-linux
+
+.. note:: Some dependencies cannot be fulfilled by PyPI, such as ``adb`` when
+    working with Android devices. It is the user's responsability to install
+    them. Alternatively, the installation from the git repository allows setting
+    up a full environment.
+
+From GitHub
+-----------
+
+LISA is hosted at `github <https://github.com/ARM-software/lisa>`_.
+The following references are available:
+
+    * ``master`` branch: Main development branch where pull requests are merged as they
+      come.
+    * ``release`` branch: Branch updated upon release of the ``lisa-linux`` package on
+      PyPI.
+    * ``vX.Y.Z`` tags: One tag per release of ``lisa-linux`` PyPI package.
 
 .. code:: shell
 
