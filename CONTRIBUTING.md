@@ -56,11 +56,6 @@ As for the shape of the commit, nothing out of the ordinary: just follow the
 good old 50/72 rule (it's okay if you bite off a few extra chars).
 
 The header should highlight the impacted files/classes. The 'lisa' prefix can be omitted - for instance,
-if you're modifying the `lisa/wlgen/rta.py` file, we'd expect a header of the shape `wlgen/rta: ...`.
-
-When that path gets a bit verbose, it's alright to shorten it as long as there
-is no confusion as to what you're referencing. In that case, if modifying the
-`lisa/tests/kernel/scheduler/load_tracking.py` file, we'd expect a header of
-the shape `tests: load_tracking: ...`.
+if you're modifying the `lisa/wlgen/rta.py` file, we'd expect a header of the shape `lisa.wlgen.rta: ...`.
 
 When in doubt, have a look at the git log.
