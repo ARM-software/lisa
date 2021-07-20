@@ -63,7 +63,6 @@ package_data['lisa._assets'] = ['*']
 extras_require={
     "notebook": [
         "jupyterlab >= 3",
-        "ipympl", # For %matplotlib widget under jupyter lab
     ],
 
     "dev": [
