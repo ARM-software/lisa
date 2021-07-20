@@ -201,19 +201,8 @@ pacman_packages=(
 # ABI-specific packages
 case $(uname -m) in
     aarch64)
-        # Since scipy does not ship a prebuilt wheel on PyPI for arm64, it needs
-        # to be built from source. That requires BLAS to be available, as well
-        # as a fortran compiler.
-        apt_packages+=(libblas-dev liblapack-dev gfortran libfreetype6)
-        # This will not be enough as of August 2019, since these packages do not
-        # include the dev headers, although they should according to the general
-        # Archlinux policy.
-        pacman_packages+=(lapack blas gcc-fortran freetype2)
-
-
-        # For pyarrow
-        apt_packages+=(cmake)
-        pacman_packages+=(cmake)
+        # apt_packages+=()
+        # pacman_packages+=()
         ;;
 esac
 
