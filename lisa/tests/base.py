@@ -61,7 +61,7 @@ from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector, ComposedColl
 from lisa.conf import (
     SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc,
 )
-from lisa.generic import TypedList
+from lisa._generic import TypedList
 from lisa.pelt import PELT_SCALE, pelt_settling_time
 
 

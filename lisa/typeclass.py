@@ -192,7 +192,7 @@ Note that it's possible to implement a typeclass for a type that has no values,
 but for which ``isinstance(value, thetype)`` will return true. This can be
 achieved using ``__instancecheck__`` or ``__subclasscheck__`` and is used in
 particular by the abstract base classes provided by :mod:`collections.abc`.
-:class:`lisa.generic.TypedList` is another example. Casting values "registered" as
+:class:`lisa._generic.TypedList` is another example. Casting values "registered" as
 instances of these types is expensive though, as validity of the cast depends
 on the value itself. That means it's not possible to memoize the result of the
 cast associated it with the type of the value.
@@ -221,7 +221,7 @@ from devlib.utils.misc import ranges_to_list
 from lisa.utils import deduplicate
 # TODO: revisit pylint annotation once this is solved:
 # https://github.com/PyCQA/pylint/issues/1630
-from lisa.generic import TypedList # pylint: disable=unused-import
+from lisa._generic import TypedList # pylint: disable=unused-import
 
 class TypeClassMeta(type):
     """
@@ -707,7 +707,7 @@ class BuiltinFromStringInstance(FromString, types=(int, float, TypedList[float])
         * ``float``
         * ``str``
 
-    Plus all the :class:`lisa.generic.TypedList` subtypes of the above types.
+    Plus all the :class:`lisa._generic.TypedList` subtypes of the above types.
     """
     @classmethod
     def from_str(cls, string):

@@ -29,7 +29,7 @@ from lisa.analysis.status import StatusAnalysis
 from lisa.trace import requires_one_event_of, may_use_events, TaskID, CPU, MissingTraceEventError, OrTraceEventChecker
 from lisa.utils import deprecate
 from lisa.datautils import df_refit_index, series_refit_index, df_filter_task_ids, df_split_signals
-from lisa.generic import TypedList
+from lisa._generic import TypedList
 from lisa.notebook import plot_signal, _hv_neutral
 
 

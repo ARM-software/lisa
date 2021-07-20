@@ -28,7 +28,7 @@ Utilities
 Generic types
 =============
 
-.. automodule:: lisa.generic
+.. automodule:: lisa._generic
    :members:
 
 Typeclasses
