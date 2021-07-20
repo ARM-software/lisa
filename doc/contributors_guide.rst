@@ -2,10 +2,66 @@
 Contributor's guide
 *******************
 
-Contribution rules
-==================
+First of all, if you’re reading this, thanks for thinking about
+contributing! This project is maintained by us Arm folks, but we welcome
+contributions from anyone.
 
-See `this document <https://github.com/ARM-software/lisa/blob/master/CONTRIBUTING.rst>`__.
+How to reach us
+===============
+
+If you’re hitting an error/bug and need help, it’s best to raise an
+issue on `GitHub <https://github.com/ARM-software/lisa/issues>`__.
+
+Coding style
+============
+
+As a rule of thumb, the code you write should follow the
+`PEP-8 <https://www.python.org/dev/peps/pep-0008/>`__.
+
+We strongly recommend using a code checker such as
+`pylint <https://www.pylint.org/>`__, as it tracks unused
+imports/variables, informs you when you can simplify a statement using
+Python features, and overall just helps you write better code.
+
+Documentation
+=============
+
+Docstring documentation should follow the ReST/Sphinx style. Classes,
+class attributes and public methods must be documented. If deemed
+necessary, private methods can be documented as well.
+
+All in all, it should look like this:
+
+.. code:: python
+
+   def foo(a, b):
+       """
+       A one liner description
+
+       :param a: A description for param a
+       :type a: int
+
+       :param b: A description for param b
+       :type b: str
+
+       Whatever extra description you might over as many lines as you need
+       (but be reasonable)
+       """
+       pass
+
+
+Commits
+=======
+
+As for the shape of the commit, nothing out of the ordinary: just follow
+the good old 50/72 rule (it’s okay if you bite off a few extra chars).
+
+The header should highlight the impacted files/classes. The ‘lisa’
+prefix can be omitted - for instance, if you’re modifying the
+``lisa/wlgen/rta.py`` file, we’d expect a header of the shape
+``lisa.wlgen.rta: ...``.
+
+When in doubt, have a look at the git log.
 
 Subtrees
 ========
