@@ -107,25 +107,6 @@ install_android_tools() {
     yes | call_android_sdkmanager --verbose --channel=0 --install "build-tools;30.0.3"
 }
 
-# Install nodejs from snap packages instead of the main package manager
-install_nodejs_snap() {
-    # sanity check to make sure snap is up and running
-    if ! which snap >/dev/null 2>&1; then
-        echo 'Snap not installed on that system, not installing nodejs'
-        return 1
-    elif ! snap list >/dev/null 2>&1; then
-        echo 'Snap not usable on that system, not installing nodejs'
-        return 1
-    else
-        echo "Installing snap nodejs package ..."
-        # Latest LTS version available on snap:
-        # https://nodejs.org/fr/download/
-        # https://snapcraft.io/node
-        NODEJS_VERSION=12
-        sudo snap install node --classic --channel=$NODEJS_VERSION
-    fi
-}
-
 # Clone alpine-chroot-install repo
 clone_alpine_chroot_install() {
     if [ ! -d ${LISA_HOME}/tools/alpine-chroot-install ]
@@ -233,7 +214,7 @@ if [[ ! -z "$package_manager" ]] && ! test_os_release NAME "$expected_distro"; t
 fi
 
 usage() {
-    echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools] [--install-android-platform-tools] [--install-doc-extras] [--install-nodejs] [--install-bisector-dbus] [--install-toolchains] [--install-vagrant] [--install-all]"
+    echo "Usage: $0 [--help] [--cleanup-android-sdk] [--install-android-tools] [--install-android-platform-tools] [--install-doc-extras] [--install-bisector-dbus] [--install-toolchains] [--install-vagrant] [--install-all]"
     cat << EOF
 
 Install distribution packages and other bits that don't fit in the Python
@@ -283,29 +264,6 @@ for arg in "$@"; do
         apt_packages+=(plantuml graphviz pandoc)
         # plantuml can be installed from the AUR
         pacman_packages+=(graphviz pandoc)
-        handled=1;
-        ;;&
-
-    "--install-nodejs" | "--install-all")
-        # NodeJS v8+ is required, Ubuntu 16.04 LTS supports only an older version.
-        # As a special case we can install it as a snap package
-        if (
-               test_os_release NAME Ubuntu && (
-                   test_os_release VERSION_ID 16.04 ||
-                    # On Ubuntu Bionic 18.04 LTS the nodejs package is broken,
-                    # so use the one from snap instead:
-                    # https://bugs.launchpad.net/ubuntu/+source/nodejs/+bug/1794589
-                   test_os_release VERSION_ID 18.04 ||
-                   # On Ubuntu Focal 20.04 LTS, nodejs version is too old (10.19)
-                   test_os_release VERSION_ID 20.04
-                )
-        ); then
-            apt_packages+=(snapd)
-            install_functions+=(install_nodejs_snap)
-        else
-            apt_packages+=(nodejs npm)
-            pacman_packages+=(nodejs npm)
-        fi
         handled=1;
         ;;&
 
@@ -367,7 +325,6 @@ ordered_functions=(
     # Distro package managers before anything else, so all the basic
     # pre-requisites are there
     install_apt
-    install_nodejs_snap
     install_pacman
 
     find_java_home
