@@ -30,7 +30,7 @@ from wa import discover_wa_outputs, Status
 from lisa.version import VERSION_TOKEN
 from lisa.stats import Stats
 from lisa.utils import Loggable, memoized, get_subclasses
-from lisa.git import find_shortest_symref, get_commit_message
+from lisa._git import find_shortest_symref, get_commit_message
 from lisa.trace import Trace
 
 def _df_concat(dfs):

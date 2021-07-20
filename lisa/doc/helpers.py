@@ -45,7 +45,7 @@ from lisa.utils import get_subclasses, import_all_submodules, DEPRECATED_MAP, ge
 from lisa.trace import MissingTraceEventError, TraceEventCheckerBase
 from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, KeyDesc, LevelKeyDesc
 from lisa.version import format_version
-import lisa.git
+import lisa._git
 
 
 class RecursiveDirective(Directive):
@@ -599,7 +599,7 @@ def make_changelog(repo):
     .. note:: The git repository cannot be a shallow clone, as the changelog is
         extracted from the git history.
     """
-    release_refs = lisa.git.find_tags(repo, 'v*') + ['HEAD']
+    release_refs = lisa._git.find_tags(repo, 'v*') + ['HEAD']
 
     def update_release_name(name):
         if name == 'HEAD':
@@ -612,7 +612,7 @@ def make_changelog(repo):
     # Filtering on the patterns we look for provides a considerable speedup
     commit_pattern = '(' + '|'.join(map(re.escape, MARKERS)) + ')'
     release_sha1s = {
-        update_release_name(y): lisa.git.find_commits(
+        update_release_name(y): lisa._git.find_commits(
             repo=repo,
             ref=f'{x}..{y}',
             grep=commit_pattern,
@@ -623,7 +623,7 @@ def make_changelog(repo):
 
     release_msgs = {
         release: [
-            lisa.git.get_commit_message(
+            lisa._git.get_commit_message(
                 repo=repo,
                 ref=ref,
                 format='%B',

@@ -49,7 +49,7 @@ Here is a list of commits introducing breaking changes in LISA:
 .. exec::
 
     from lisa.utils import LISA_HOME
-    from lisa.git import find_commits, log
+    from lisa._git import find_commits, log
 
     pattern = 'BREAK'
 
