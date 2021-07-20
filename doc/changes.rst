@@ -32,7 +32,7 @@ Changelog
 .. exec::
 
     from lisa.utils import LISA_HOME
-    from lisa.doc.helpers import make_changelog
+    from lisa._doc.helpers import make_changelog
 
     repo = LISA_HOME
     changelog = make_changelog(
@@ -74,7 +74,7 @@ be removed:
 
 .. exec::
 
-    from lisa.doc.helpers import get_deprecated_table
+    from lisa._doc.helpers import get_deprecated_table
     print(get_deprecated_table())
 
 ******************************

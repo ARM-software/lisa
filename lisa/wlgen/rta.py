@@ -35,7 +35,7 @@ The most important classes are:
       given to an :class:`RTAPhase`. It has the following subclasses:
 
         .. exec::
-            from lisa.doc.helpers import get_subclasses_bullets
+            from lisa._doc.helpers import get_subclasses_bullets
             from lisa.wlgen.rta import WloadPropertyBase
 
             print(

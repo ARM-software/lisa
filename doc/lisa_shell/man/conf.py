@@ -16,7 +16,7 @@
 # sys.path.insert(0, os.path.abspath('.'))
 
 # Base Sphinx configuration for manpages
-from lisa.doc.manconf import *
+from lisa._doc.manconf import *
 
 # -- Project information -----------------------------------------------------
 
