@@ -52,6 +52,11 @@ Vagrant.configure(2) do |config|
     # This allows to use LISA both from the host and the VM.
     export LISA_VENV_PATH=/home/vagrant/venv
 
+    # Jupyterlab config
+    mkdir -p /home/vagrant/.jupyter/
+    # Listen on all addresses so that we can connect from outside the VM
+    echo 'c.NotebookApp.ip = "0.0.0.0"' >> /home/vagrant/.jupyter/jupyter_notebook_config.py
+
     # .bashrc setup
     echo "cd /home/vagrant/lisa" >> /home/vagrant/.bashrc
     for LC in $(locale | cut -d= -f1);
