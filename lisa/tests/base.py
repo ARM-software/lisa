@@ -29,7 +29,7 @@ import copy
 import contextlib
 import itertools
 import types
-import textwrap
+import warnings
 from operator import attrgetter, itemgetter
 
 from datetime import datetime
@@ -1139,7 +1139,11 @@ class TestBundleBase(
                 visited.add(obj_id)
                 # Filter-out weird objects that end up in the list and that can
                 # trigger a coredump on the interpreter
-                if hasattr(obj, '__class__') and predicate(obj):
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    has_class = hasattr(obj, '__class__')
+
+                if has_class and predicate(obj):
                     objs.append(obj)
 
                 for sub in gc.get_referents(obj):
@@ -1159,10 +1163,15 @@ class TestBundleBase(
         This is used for some post-deserialization fixup that need to walk the
         whole graph of :class:`TestBundleBase`.
         """
-        objs = set(self._get_referred_objs(
-            self,
-            lambda x: isinstance(x, TestBundleBase)
-        ))
+        # Work around:
+        # https://github.com/pallets/werkzeug/issues/2188
+        def predicate(x):
+            try:
+                return isinstance(x, TestBundleBase)
+            except Exception:
+                return False
+
+        objs = set(self._get_referred_objs(self, predicate))
 
         objs.discard(self)
         return objs
