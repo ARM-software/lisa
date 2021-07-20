@@ -19,7 +19,7 @@ import os
 import hashlib
 from subprocess import CalledProcessError
 
-from lisa.git import get_sha1, get_uncommited_patch
+from lisa._git import get_sha1, get_uncommited_patch
 
 version_tuple = (2, 0, 0)
 

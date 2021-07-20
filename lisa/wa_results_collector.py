@@ -35,7 +35,7 @@ from devlib.target import KernelVersion
 from IPython.display import display
 
 from lisa.trace import Trace
-from lisa.git import find_shortest_symref, get_commit_message
+from lisa._git import find_shortest_symref, get_commit_message
 from lisa.utils import Loggable, memoized, deprecate
 from lisa.datautils import series_integrate, series_mean
 import lisa.wa
