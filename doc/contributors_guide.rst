@@ -5,7 +5,7 @@ Contributor's guide
 Contribution rules
 ==================
 
-See `this document <https://github.com/ARM-software/lisa/blob/master/CONTRIBUTING.md>`__.
+See `this document <https://github.com/ARM-software/lisa/blob/master/CONTRIBUTING.rst>`__.
 
 Subtrees
 ========
