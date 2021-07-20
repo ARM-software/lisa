@@ -124,7 +124,6 @@ setup(
 
         "holoviews",
         "panel",
-        "datashader",
         "colorcet",
         # Pandas >= 1.0.0 has support for new nullable dtypes
         # Pandas 1.2.0 has broken barplots:
