@@ -39,7 +39,7 @@ from lisa.datautils import series_integrate
 from lisa.conf import (
     SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable,
 )
-from lisa.generic import TypedList
+from lisa._generic import TypedList
 
 # Default energy measurements for each board
 EnergyReport = namedtuple('EnergyReport',

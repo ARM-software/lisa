@@ -26,7 +26,7 @@ import holoviews as hv
 from lisa.datautils import series_integrate, df_split_signals, series_combine, df_add_delta, df_refit_index
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, CPU
-from lisa.generic import TypedList
+from lisa._generic import TypedList
 from lisa.analysis.base import TraceAnalysisBase
 
 

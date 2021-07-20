@@ -40,7 +40,7 @@ from devlib.platform.gem5 import Gem5SimulationPlatform
 from lisa.utils import Loggable, HideExekallID, resolve_dotted_name, get_subclasses, import_all_submodules, LISA_HOME, RESULT_DIR, LATEST_LINK, setup_logging, ArtifactPath, nullcontext, ExekallTaggable, memoized
 from lisa._assets import ASSETS_PATH
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, LevelKeyDesc, TopLevelKeyDesc,Configurable
-from lisa.generic import TypedList
+from lisa._generic import TypedList
 
 from lisa.platforms.platinfo import PlatformInfo
 

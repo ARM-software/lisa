@@ -29,7 +29,7 @@ from lisa.utils import memoized, kwargs_forwarded_to, deprecate
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates
 from lisa.trace import requires_events, may_use_events, TaskID, CPU, MissingTraceEventError
 from lisa.pelt import PELT_SCALE
-from lisa.generic import TypedList
+from lisa._generic import TypedList
 from lisa.notebook import _hv_neutral, plot_signal, _hv_twinx
 
 

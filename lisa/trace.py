@@ -53,7 +53,7 @@ import devlib
 
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
-from lisa.generic import TypedList
+from lisa._generic import TypedList
 from lisa.datautils import df_window, df_window_signals, SignalDesc, df_add_delta, series_convert, df_deduplicate, df_update_duplicates
 from lisa.version import VERSION_TOKEN
 from lisa.typeclass import FromString, IntListFromStringInstance

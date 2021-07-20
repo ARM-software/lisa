@@ -51,7 +51,7 @@ from IPython.display import display
 from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython, nullcontext, measure_time, optional_kwargs, deprecate, memoized
 from lisa.trace import MissingTraceEventError, PandasDataDesc
 from lisa.notebook import axis_link_dataframes, axis_cursor_delta, WrappingHBox, make_figure, _hv_link_dataframes, _hv_fig_to_pane
-from lisa.generic import TypedList
+from lisa._generic import TypedList
 
 # Ensure hv.extension() is called
 import lisa.notebook

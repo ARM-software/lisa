@@ -25,7 +25,7 @@ from lisa.conf import (
     DeferredValue, DeferredExcep, MultiSrcConf, KeyDesc, LevelKeyDesc,
     TopLevelKeyDesc, DerivedKeyDesc, ConfigKeyError,
 )
-from lisa.generic import TypedDict, TypedList, SortedTypedList
+from lisa._generic import TypedDict, TypedList, SortedTypedList
 from lisa.energy_model import EnergyModel
 from lisa.wlgen.rta import RTA
 
