@@ -52,7 +52,7 @@ Maintenance commands
 * ``lisa-log-subtree``      - Git log on the squashed commits of the given
   subtree. All other options are passed to `git log`.
 * ``lisa-doc-build``        - Build the documentation
-* ``lisa-build-asset``      - Download and cross-compile the binary assets in `lisa/assets/binaries`
+* ``lisa-build-asset``      - Download and cross-compile the binary assets in `lisa/_assets/binaries`
 
 
 Notebooks commands
