@@ -283,8 +283,15 @@ for arg in "$@"; do
         ;;&
 
     "--install-vagrant" | "--install-all")
-        apt_packages+=(vagrant virtualbox)
-        pacman_packages+=(vagrant virtualbox virtualbox-host-dkms)
+        # Only install the package if we are not already inside the VM to save
+        # some install time
+        vm=$(systemd-detect-virt 2>/dev/null)
+        if [[ $vm == 'oracle' ]] ; then
+            echo "VirtualBox detected, not installing virtualbox apt packages" >&2
+        else
+            apt_packages+=(vagrant virtualbox)
+            pacman_packages+=(vagrant virtualbox virtualbox-host-dkms)
+        fi
 
         handled=1;
         ;;&
