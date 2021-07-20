@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.abspath('../'))
 # Import our packages after modifying sys.path
 import lisa
 from lisa.utils import LISA_HOME, import_all_submodules, sphinx_nitpick_ignore
-from lisa.doc.helpers import (
+from lisa._doc.helpers import (
     autodoc_process_test_method, autodoc_process_analysis_events,
     autodoc_process_analysis_plots, autodoc_process_analysis_methods,
     autodoc_skip_member_handler,

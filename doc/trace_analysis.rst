@@ -47,7 +47,7 @@ be called out in the docstring). This makes it easy to create dataframe slices
 to study specific trace windows.
 
 .. exec::
-    from lisa.doc.helpers import get_analysis_list
+    from lisa._doc.helpers import get_analysis_list
     print(get_analysis_list("df"))
 
 Plots
@@ -57,7 +57,7 @@ When run in a notebook, these plots will be displayed automatically. By default,
 they are also saved in the same directory as your ``trace.dat``
 
 .. exec::
-    from lisa.doc.helpers import get_analysis_list
+    from lisa._doc.helpers import get_analysis_list
     print(get_analysis_list("plot"))
 
 API

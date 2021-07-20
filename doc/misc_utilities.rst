@@ -58,5 +58,5 @@ PELT signals simulations
 Sphinx documentation
 ====================
 
-.. automodule:: lisa.doc.helpers
+.. automodule:: lisa._doc.helpers
    :members:

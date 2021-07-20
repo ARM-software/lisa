@@ -16,7 +16,7 @@
 # sys.path.insert(0, os.path.abspath('.'))
 
 # Get the custom reST directives
-import lisa.doc.helpers
+import lisa._doc.helpers
 
 # -- Project information -----------------------------------------------------
 
