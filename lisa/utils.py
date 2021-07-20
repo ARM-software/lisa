@@ -69,7 +69,6 @@ except ImportError:
     pass
 
 import lisa
-import lisa.assets
 from lisa.version import parse_version, format_version
 
 

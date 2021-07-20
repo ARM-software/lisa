@@ -56,9 +56,9 @@ packages = ['lisa'] + [
 package_data = {
     package: ['*']
     for package in packages
-    if package.startswith('lisa.assets.')
+    if package.startswith('lisa._assets.')
 }
-package_data['lisa.assets'] = ['*']
+package_data['lisa._assets'] = ['*']
 
 extras_require={
     "notebook": [
