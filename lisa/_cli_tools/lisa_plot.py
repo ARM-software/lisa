@@ -33,7 +33,7 @@ from lisa.trace import Trace, MissingTraceEventError, CPU, TaskID
 from lisa.conf import ConfigKeyError
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.platforms.platinfo import PlatformInfo
-from lisa.typeclass import FromString
+from lisa._typeclass import FromString
 
 
 def error(msg, ret=1):
