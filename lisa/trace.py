@@ -1975,7 +1975,7 @@ class TraceBase(abc.ABC):
         # with lisa.analysis.base
 
         # pylint: disable=import-outside-toplevel
-        from lisa.analysis.proxy import AnalysisProxy, _DeprecatedAnalysisProxy
+        from lisa.analysis._proxy import AnalysisProxy, _DeprecatedAnalysisProxy
         # self.analysis is deprecated so we can transition to using holoviews
         # in all situations, even when the backend is matplotlib
 
@@ -3278,7 +3278,7 @@ class Trace(Loggable, TraceBase):
           as some kind of set-ish smart container. Querying for event might
           trigger the parsing of it.
         * ``ana``: The analysis proxy used as an entry point to run analysis
-          methods on the trace. See :class:`lisa.analysis.proxy.AnalysisProxy`.
+          methods on the trace. See :class:`lisa.analysis._proxy.AnalysisProxy`.
 
     :Supporting more events:
         Subclasses of :class:`TraceParserBase` can usually auto-detect the
