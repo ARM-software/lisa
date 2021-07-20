@@ -76,7 +76,7 @@ Trace
 Analysis proxy
 ++++++++++++++
 
-.. automodule:: lisa.analysis.proxy
+.. automodule:: lisa.analysis._proxy
    :members:
 
 Analysis base class

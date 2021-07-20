@@ -51,7 +51,7 @@ class _CustomProxy:
                 # to match the name of the first parameter of f, which could be
                 # anything. It's therefore simpler to manually unpack it.
                 #
-                # Note: The lisa.analysis.proxy._AnalysisPreset will turn all
+                # Note: The lisa.analysis._proxy._AnalysisPreset will turn all
                 # parameters into kwargs.
                 kwargs[first_param] = kwargs[first_param].trace
                 return f(**kwargs)
