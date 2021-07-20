@@ -693,7 +693,7 @@ def make_changelog(repo):
         subject = msg.splitlines()[0]
         return f'- {subject.strip()}'
 
-    rst = '\n'.join(
+    rst = '\n\n'.join(
         format_release(name, sections)
         for name, sections in release_msgs.items()
     )
