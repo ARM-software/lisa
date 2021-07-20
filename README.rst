@@ -10,7 +10,7 @@ management and thermal frameworks. However LISA is generic and can be
 used for other purposes too.
 
 LISA has a *host*/*target* model. LISA itself runs on a *host* machine,
-and uses the `devlib <https://github.com/ARM-software/lisa>`__ toolkit
+and uses the `devlib <https://github.com/ARM-software/devlib>`__ toolkit
 to interact with the *target* via SSH, ADB or telnet. LISA is flexible
 with regard to the target OS; its only expectation is a Linux
 kernel-based system. Android, GNU/Linux and busybox style systems have
