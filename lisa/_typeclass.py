@@ -51,7 +51,7 @@ having to modify their inheritance hierarchy.
 
 Here is an example on how to work with typeclasses as provided by this module::
 
-    from lisa.typeclass import TypeClass
+    from lisa._typeclass import TypeClass
 
     class FooBar(TypeClass):
         "Foobar interface"
@@ -112,7 +112,7 @@ Here is an example on how to work with typeclasses as provided by this module::
 
 Classmethod also work, so typeclasses can be used to define factory interfaces::
 
-    from lisa.typeclass import TypeClass
+    from lisa._typeclass import TypeClass
 
     class FromString(TypeClass):
         "Build a value by parsing a string"
@@ -136,7 +136,7 @@ Classmethod also work, so typeclasses can be used to define factory interfaces::
 
 A more advanced usage can involve a hierarchy of typeclasses that gets combined together::
 
-    from lisa.typeclass import TypeClass
+    from lisa._typeclass import TypeClass
 
     class MyTP1(TypeClass):
         @TypeClass.required
@@ -203,7 +203,7 @@ new value with a synthetic type is returned. That is implemented using a
 shallow copy of the value, and then updating its ``__class__`` attribute. This
 will provide native attribute lookup speed, and casting will be efficient. If
 that is not possible (non-heap types, types using ``__slots__`` etc), an
-instance of :class:`lisa.typeclass.ValueProxy` will be returned for values, and
+instance of :class:`lisa._typeclass.ValueProxy` will be returned for values, and
 a synthetic type will be created for types.
 
 """
@@ -748,7 +748,7 @@ class BoolFromStringInstance(FromString, types=bool):
 
 class IntListFromStringInstance(FromString, types=TypedList[int]):
     """
-    Instance of :class:`lisa.typeclass.FromString` for :class:`int` type.
+    Instance of :class:`lisa._typeclass.FromString` for :class:`int` type.
     """
     @classmethod
     def from_str(cls, string):
@@ -775,7 +775,7 @@ class IntListFromStringInstance(FromString, types=TypedList[int]):
 
 class StrFromStringInstance(FromString, types=str):
     """
-    Instance of :class:`lisa.typeclass.FromString` for :class:`str` type.
+    Instance of :class:`lisa._typeclass.FromString` for :class:`str` type.
     """
     @classmethod
     def from_str(cls, string):
@@ -787,7 +787,7 @@ class StrFromStringInstance(FromString, types=str):
 
 class StrListFromStringInstance(FromString, types=TypedList[str]):
     """
-    Instance of :class:`lisa.typeclass.FromString` for :class:`str` type.
+    Instance of :class:`lisa._typeclass.FromString` for :class:`str` type.
     """
     @classmethod
     def from_str(cls, string):

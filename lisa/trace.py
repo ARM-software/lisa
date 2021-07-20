@@ -56,7 +56,7 @@ from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa._generic import TypedList
 from lisa.datautils import df_window, df_window_signals, SignalDesc, df_add_delta, series_convert, df_deduplicate, df_update_duplicates
 from lisa.version import VERSION_TOKEN
-from lisa.typeclass import FromString, IntListFromStringInstance
+from lisa._typeclass import FromString, IntListFromStringInstance
 
 
 class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
@@ -96,7 +96,7 @@ class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
 
 class TaskIDFromStringInstance(FromString, types=TaskID):
     """
-    Instance of :class:`lisa.typeclass.FromString` for :class:`TaskID` type.
+    Instance of :class:`lisa._typeclass.FromString` for :class:`TaskID` type.
     """
     @classmethod
     def from_str(cls, string):
@@ -130,7 +130,7 @@ class TaskIDFromStringInstance(FromString, types=TaskID):
 
 class TaskIDListFromStringInstance(FromString, types=TypedList[TaskID]):
     """
-    Instance of :class:`lisa.typeclass.FromString` for lists :class:`TaskID` type.
+    Instance of :class:`lisa._typeclass.FromString` for lists :class:`TaskID` type.
     """
     @classmethod
     def from_str(cls, string):

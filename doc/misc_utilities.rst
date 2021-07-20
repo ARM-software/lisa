@@ -34,7 +34,7 @@ Generic types
 Typeclasses
 ===========
 
-.. automodule:: lisa.typeclass
+.. automodule:: lisa._typeclass
    :members:
 
 Dataframe and Series handling utilities
