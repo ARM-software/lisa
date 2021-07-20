@@ -104,7 +104,7 @@ install_android_tools() {
     # SDK starts being annoying
     # Note: recent sdkmanager seem to be installing "platform-tools" by default,
     # so it's not necessary anymore to specify it on the command line
-    yes | call_android_sdkmanager --verbose --channel=0 --install "build-tools;30.0.3"
+    yes | call_android_sdkmanager --verbose --channel=0 --install "build-tools;31.0.0"
 }
 
 # Clone alpine-chroot-install repo
