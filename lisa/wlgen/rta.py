@@ -1344,14 +1344,14 @@ class ConcretePropertyBase(PropertyBase, Loggable):
         :type keys: list(str)
 
         :param strict: If True, raise an exception if any key is missing.
-                       If False, log a warning if any key is missing.
+                       If False, log if any key is missing.
         :type strict: bool
         """
         def raise_err(msg, exc):
             if strict:
                 raise exc
             else:
-                cls.get_logger().warning(msg)
+                cls.get_logger().debug(msg)
             return False
 
         for key in cls.REQUIRED_KCONFIG_KEYS:
