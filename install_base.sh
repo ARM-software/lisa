@@ -109,10 +109,8 @@ install_android_tools() {
 
 # Clone alpine-chroot-install repo
 clone_alpine_chroot_install() {
-    if [ ! -d ${LISA_HOME}/tools/alpine-chroot-install ]
-    then
-        git -C ${LISA_HOME}/tools clone https://github.com/alpinelinux/alpine-chroot-install.git --depth=1
-    fi
+    rm -r "$LISA_HOME/tools/alpine-chroot-install"
+    git -C $LISA_HOME/tools clone https://github.com/alpinelinux/alpine-chroot-install.git --depth=1
 }
 
 install_apt() {
