@@ -158,6 +158,11 @@ apt_packages=(
     python3-venv
     python3-setuptools
     python3-tk
+    # In order to save plots using bokeh, we need a browser usable with
+    # selenium, along with its selenium driver.
+    #
+    # Note: firefox seems to cope well without X11, unlike chromium.
+    firefox-geckodriver
 )
 
 # pacman-based distributions like Archlinux or its derivatives
