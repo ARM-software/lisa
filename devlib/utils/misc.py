@@ -153,7 +153,7 @@ def preexec_function():
 check_output_logger = logging.getLogger('check_output')
 # Popen is not thread safe. If two threads attempt to call it at the same time,
 # one may lock up. See https://bugs.python.org/issue12739.
-check_output_lock = threading.Lock()
+check_output_lock = threading.RLock()
 
 
 def get_subprocess(command, **kwargs):
@@ -784,7 +784,7 @@ class tls_property:
     def __init__(self, factory):
         self.factory = factory
         # Lock accesses to shared WeakKeyDictionary and WeakSet
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
 
     def __get__(self, instance, owner=None):
         return _BoundTLSProperty(self, instance, owner)
