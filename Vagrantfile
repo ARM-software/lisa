@@ -10,7 +10,7 @@ Vagrant.configure(2) do |config|
 
   # Compiling pandas requires 1Gb of memory
   config.vm.provider "virtualbox" do |v|
-    v.memory = 1024
+    v.memory = 2048
   end
 
   # Forward ipython notebook's port to the host
