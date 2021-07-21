@@ -1759,11 +1759,15 @@ class AndroidTarget(Target):
             self.remove(dev_path)
 
     def clear_logcat(self):
-        with self.clear_logcat_lock:
-            if isinstance(self.conn, AdbConnection):
-                adb_command(self.adb_name, 'logcat -c', timeout=30, adb_server=self.adb_server)
-            else:
-                self.execute('logcat -c', timeout=30)
+        locked = self.clear_logcat_lock.acquire(blocking=False)
+        if locked:
+            try:
+                if isinstance(self.conn, AdbConnection):
+                    adb_command(self.adb_name, 'logcat -c', timeout=30, adb_server=self.adb_server)
+                else:
+                    self.execute('logcat -c', timeout=30)
+            finally:
+                self.clear_logcat_lock.release()
 
     def get_logcat_monitor(self, regexps=None):
         return LogcatMonitor(self, regexps)
