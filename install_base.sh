@@ -152,7 +152,6 @@ apt_packages=(
     qemu-user-static
     kernelshark
     python3
-    python3-dev
     python3-pip
     # venv is not installed by default on Ubuntu, even though it is part of the
     # Python standard library
@@ -180,7 +179,9 @@ pacman_packages=(
 # ABI-specific packages
 case $(uname -m) in
     aarch64)
-        # apt_packages+=()
+        # Allows building C extensions from sources, when they do not ship a
+        # prebuilt wheel for that arch
+        apt_packages+=(python3-dev)
         # pacman_packages+=()
         ;;
 esac
