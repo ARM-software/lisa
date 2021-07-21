@@ -234,7 +234,14 @@ function lisa-install {
     # installation source of any package
     local requirements=(custom_requirements.txt)
 
-    if [[ "$LISA_DEVMODE" == 1 ]]; then
+    if [[ $(whoami) == "vagrant" ]]; then
+        # Special set of requirements to workaround vagrant issue:
+        # https://github.com/hashicorp/vagrant/issues/12057
+        requirements+=(
+            vagrant_requirements.txt
+            devmode_extra_requirements.txt
+        )
+    elif [[ "$LISA_DEVMODE" == 1 ]]; then
         # This set of requirements will install all the shipped dependencies
         # in editable mode
         requirements+=(

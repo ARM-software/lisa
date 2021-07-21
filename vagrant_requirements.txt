@@ -1,0 +1,5 @@
+-e ./tools/exekall
+./external/devlib/
+./external/workload-automation/
+-e ./[all]
+-e ./tools/bisector

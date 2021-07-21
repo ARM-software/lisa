@@ -108,6 +108,12 @@ Once the VM installation is complete, you can access that VM with:
 
   vagrant ssh
 
+.. important:: In order to work around a
+  `Vagrant bug <https://github.com/hashicorp/vagrant/issues/12057>`_, all the
+  dependencies of LISA are installed in non-editable mode inside the VM. This
+  means that using `git pull` must be followed by a `lisa-install` if any of the
+  dependencies in `external/` are updated.
+
 
 Target installation
 +++++++++++++++++++
