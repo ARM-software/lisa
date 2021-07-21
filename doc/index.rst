@@ -27,19 +27,19 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-   ==== Getting started ==== <self>
+   ────── Getting started ────── <self>
 
    overview
    setup
    workflows/index
 
-   ==== Tools documentation ==== <self>
+   ──── Tools documentation ──── <self>
 
    lisa_shell/man/man
    bisector/index
    exekall/index
 
-   ==== API documentation ==== <self>
+   ───── API documentation ───── <self>
 
    target
    workloads
@@ -49,7 +49,7 @@ Contents:
    misc_utilities
    stat_comparison
 
-   ==== Changes ==== <self>
+   ──────── Changes ──────── <self>
 
    changes
    contributors_guide
