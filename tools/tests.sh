@@ -28,7 +28,9 @@ source init_env || exit 1
 set -e
 
 echo "Starting self tests ..."
-python3 -m pytest -vv
+# Use timeout to send SIGINT if the test hangs, so we get a proper backtrace
+# before github action kills the whole thing without any useful log
+timeout -s INT 1h python3 -m pytest -vv
 
 echo "Starting exekall self tests"
 exekall run "$LISA_HOME/tools/exekall/exekall/tests"
