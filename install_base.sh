@@ -115,8 +115,16 @@ clone_alpine_chroot_install() {
 
 install_apt() {
     echo "Installing apt packages ..."
-    sudo apt-get update &&
-    sudo apt-get install -y "${apt_packages[@]}"
+    sudo apt-get update
+    if [[ $unsupported_distro == 1 ]]; then
+        for package in "${apt_packages[@]}"; do
+            if ! sudo apt-get install -y "$package"; then
+                echo "Failed to install $package on that distribution" >&2
+            fi
+        done
+    else
+        sudo apt-get install -y "${apt_packages[@]}"
+    fi
 }
 
 install_pacman() {
@@ -212,9 +220,12 @@ else
 fi
 
 if [[ ! -z "$package_manager" ]] && ! test_os_release NAME "$expected_distro"; then
+    unsupported_distro=1
     echo
     echo "INFO: the distribution seems based on $package_manager but is not $expected_distro, some package names might not be right"
     echo
+else
+    unsupported_distro=0
 fi
 
 usage() {
