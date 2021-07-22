@@ -246,7 +246,12 @@ def make_asset(asset, arch_list, build_dir, recipe_dir, toolchains=None, native_
         for arch in arch_list:
             arch_build_dir = os.path.join(build_dir, arch)
             arch_source_dir = os.path.join(arch_build_dir, 'source')
-            shutil.copytree(download_dir, arch_source_dir)
+            shutil.copytree(
+                download_dir,
+                arch_source_dir,
+                symlinks=True,
+                ignore_dangling_symlinks=True,
+            )
 
             builds_on_alpine = is_alpine_build(
                 asset, arch, native_build,
