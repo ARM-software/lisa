@@ -241,9 +241,16 @@ but has the advantage of not needing a Java installation and is quicker to insta
 EOF
 }
 
+# Defaults to --install-all if no option is given
+if [[ -z "$@" ]]; then
+    args=("--install-all")
+else
+    args=($@)
+fi
+
 # Use conditional fall-through ;;& to all matching all branches with
 # --install-all
-for arg in "$@"; do
+for arg in "${args[@]}"; do
     # We need this flag since *) does not play well with fall-through ;;&
     handled=0
     case "$arg" in
