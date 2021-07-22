@@ -123,13 +123,13 @@ install_apt() {
             fi
         done
     else
-        sudo apt-get install -y "${apt_packages[@]}"
+        sudo apt-get install -y "${apt_packages[@]}" || exit $?
     fi
 }
 
 install_pacman() {
     echo "Installing pacman packages ..."
-    sudo pacman -Sy --needed --noconfirm "${pacman_packages[@]}"
+    sudo pacman -Sy --needed --noconfirm "${pacman_packages[@]}" || exit $?
 }
 
 register_pip_extra_requirements() {
