@@ -1,6 +1,6 @@
 #! /bin/bash
 
-ALPINE_VERSION=v3.13/main
+ALPINE_VERSION=v3.13
 ALPINE_BUILD_DEPENDENCIES=(bash gcc git make linux-headers musl-dev pkgconfig)
 BROKEN_CROSS_COMPILATION=1
 

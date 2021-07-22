@@ -1,6 +1,6 @@
 #! /bin/bash
 
-ALPINE_VERSION=v3.13/main
+ALPINE_VERSION=v3.13
 ALPINE_BUILD_DEPENDENCIES=(bash bison diffutils findutils flex gcc git linux-headers make musl-dev)
 
 download() {
