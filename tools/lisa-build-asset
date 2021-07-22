@@ -131,6 +131,9 @@ def make_chroot(asset, arch, build_dir, recipe_dir, arch_chroot_dir):
         build_dir=build_dir,
         use_musl=bool(arch_chroot_dir),
     )
+    # Remove PATH as it can break build, and is not needed inside the chroot
+    # anyway
+    env.pop('PATH', None)
 
     def get_prop(prop, is_array=False):
         return get_asset_property(
