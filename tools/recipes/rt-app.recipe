@@ -1,6 +1,6 @@
 #! /bin/bash
 
-ALPINE_VERSION=v3.13/main
+ALPINE_VERSION=v3.13
 ALPINE_BUILD_DEPENDENCIES=(autoconf automake bash cmake gcc git make libtool linux-headers musl-dev)
 
 build_jsonc() {
