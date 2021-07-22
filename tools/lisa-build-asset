@@ -90,9 +90,9 @@ def get_asset_property(asset, arch, property, is_array=False, **kwargs):
         raise ValueError(f'The property "{property}" is not set.')
     val = val[action]
     if is_array:
-        return val.splitlines()
+        return [x.strip() for x in val.splitlines()]
     else:
-        return val
+        return val.strip()
 
 def is_property_set(asset, arch, property, **kwargs):
     try:
