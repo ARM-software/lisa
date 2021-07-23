@@ -9,6 +9,6 @@ version=$($LISA_PYTHON -c 'import lisa; print(lisa.__version__)')
 
 git tag -f "v$version"
 
-rm -r dist/
+rm -r dist/ || true
 $LISA_PYTHON -m build
-$LISA_PYTHON -m twine upload --repository-url https://test.pypi.org/legacy/ dist/*
+#$LISA_PYTHON -m twine upload --repository-url https://test.pypi.org/legacy/ dist/*
