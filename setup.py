@@ -142,6 +142,9 @@ setup(
         "ipython",
         "ipywidgets",
 
+        # For TPP model simulation
+        "simpy",
+
         # Depdendencies that are shipped as part of the LISA repo as
         # subtree/submodule
         "devlib >= 1.3.1",
