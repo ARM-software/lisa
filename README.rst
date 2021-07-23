@@ -100,7 +100,7 @@ License
 This project is licensed under Apache-2.0.
 
 This project includes some third-party code under other open source
-licenses. For more information, see ``lisa/assets/binaries/*/README.*``.
+licenses. For more information, see ``lisa/_assets/binaries/*/README.*``.
 
 Contributions / Pull Requests
 =============================
