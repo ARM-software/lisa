@@ -1,0 +1,20 @@
+#! /bin/bash
+
+download() {
+    git clone -b 'v1.20' --single-branch --depth 1 git://git.kernel.org/pub/scm/devel/pahole/pahole.git pahole_src
+    echo "Pahole download completed"
+}
+
+build() {
+    cd pahole_src
+    mkdir build
+    cd build
+    cmake -D__LIB=lib ..
+    make
+    echo "Pahole build completed"
+}
+
+install() {
+    cp -v pahole_src/build/pahole "$LISA_ARCH_ASSETS/pahole"
+    echo "Pahole install completed"
+}
