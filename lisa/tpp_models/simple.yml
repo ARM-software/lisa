@@ -1,0 +1,33 @@
+tpp-conf:
+        name: test
+        cpu:
+                capacities:
+                        # CPU/PE maximum compute throughput.
+                        # cpuid: capacity
+                        # Abstract scale [0:1024]
+                        0: 1024
+                        1: 1024
+                        2: 1024
+                        3: 1024
+                freqs:
+                        # CPU/PE supported DVFS freqs (OPPs)
+                        # cpuid: list of compute capacities
+                        0: [256, 512, 768, 1024]
+                        1: [256, 512, 768, 1024]
+                        2: [256, 512, 768, 1024]
+                        3: [256, 512, 768, 1024]
+                perf-domains:
+                        # CPU/PE frequency domains
+                        # lists of cpuids that share frequency.
+                        - [0, 1]
+                        - [2, 3]
+        workload:
+                tasks:
+                        # Periodic task descriptions
+                        # task_name: [activation_time, period, start_delay] in seconds
+                        0: [0.01, 0.1, 0.0]
+                        1: [0.01, 0.05, 0.0]
+                        2: [0.01, 0.1, 0.0]
+                        3: [0.01, 0.1, 0.0]
+                        4: [0.01, 0.05, 0.0]
+                        5: [0.01, 0.1, 0.0]
