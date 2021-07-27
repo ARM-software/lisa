@@ -37,6 +37,12 @@ Typeclasses
 .. automodule:: lisa._typeclass
    :members:
 
+Dependency Injection
+====================
+
+.. automodule:: lisa._di
+   :members:
+
 Dataframe and Series handling utilities
 =======================================
 
