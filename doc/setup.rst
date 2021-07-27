@@ -210,14 +210,6 @@ If you're rebuilding your kernel tree anyway, it might be easier to integrate
 the module into your kernel tree as a built-in module so that it's always
 present.
 
-Integrate using provided patch
-..............................
-
-.. code-block:: sh
-
-  cd path/to/kernel && git am path/to/patch
-
-
 Updating
 ========
 
