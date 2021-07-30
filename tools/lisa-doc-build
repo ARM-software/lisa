@@ -1,3 +1,4 @@
+#!/bin/bash
 # SPDX-License-Identifier: Apache-2.0
 #
 # Copyright (C) 2018, Arm Limited and contributors.
@@ -14,8 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-#!/bin/bash
 
 ret=0
 
