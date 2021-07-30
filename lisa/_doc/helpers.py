@@ -599,7 +599,7 @@ def make_changelog(repo):
     .. note:: The git repository cannot be a shallow clone, as the changelog is
         extracted from the git history.
     """
-    release_refs = lisa._git.find_tags(repo, 'v*') + ['HEAD']
+    release_refs = ['HEAD'] + lisa._git.find_tags(repo, 'v*')
 
     def update_release_name(name):
         if name == 'HEAD':
@@ -618,7 +618,7 @@ def make_changelog(repo):
             grep=commit_pattern,
             regex=True,
         )
-        for x, y in zip(release_refs, release_refs[1:])
+        for x, y in zip(release_refs[1:], release_refs)
     }
 
     release_msgs = {

@@ -130,7 +130,7 @@ def find_tags(repo, pattern):
     """
     Find the git tags matching the given pattern.
     """
-    tags = git(repo, 'tag', '--list', '--', pattern)
+    tags = git(repo, 'tag', '--list', '--sort=-creatordate', '--', pattern)
     return tags.splitlines()
 
 
