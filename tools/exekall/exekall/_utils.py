@@ -657,8 +657,11 @@ def import_file(python_src, module_name=None, is_package=False):
             # Set __path__ for namespace packages
             spec.submodule_search_locations = submodule_search_locations
         else:
-            spec = importlib.util.spec_from_file_location(module_name, str(python_src),
-                submodule_search_locations=submodule_search_locations)
+            spec = importlib.util.spec_from_file_location(
+                module_name,
+                str(python_src),
+                submodule_search_locations=submodule_search_locations,
+            )
             if spec is None:
                 raise ModuleNotFoundError(
                     'Could not find module "{module}" at {path}'.format(
@@ -685,6 +688,21 @@ def import_file(python_src, module_name=None, is_package=False):
                 with contextlib.suppress(KeyError):
                     del sys.modules[module_name]
                 raise
+            else:
+
+                # Set the attribute on the parent package, so that this works:
+                #
+                #    import foo.bar
+                #    print(foo.bar)
+                try:
+                    parent_name, last = module_name.rsplit('.', 1)
+                except ValueError:
+                    pass
+                else:
+                    parent = sys.modules[parent_name]
+                    setattr(parent, last, module)
+
+
 
     #  Python <= v3.4 style
     else:
