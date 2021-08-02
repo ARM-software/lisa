@@ -337,6 +337,13 @@ class InvarianceItemBase(RTATestBundle, LoadTrackingHelpers, TestBundle, Exekall
         except MissingTraceEventError:
             capacity = None
         else:
+            capacity = capacity[['cpu', 'capacity_curr']]
+            # We are interested in the current CPU capacity as seen by CFS.
+            # This takes into account:
+            # * The frequency
+            # * The capacity of other sched classes (RT, IRQ etc)
+            capacity = capacity.rename(columns={'capacity_curr': 'capacity'})
+
             # Reshape the capacity dataframe so that we get one column per CPU
             capacity = capacity.pivot(columns=['cpu'])
             capacity.columns = capacity.columns.droplevel(0)
