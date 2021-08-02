@@ -301,6 +301,33 @@ TRACE_EVENT_CONDITION(uclamp_util_cfs,
 #define trace_uclamp_util_cfs_enabled() false
 #endif /* CONFIG_UCLAMP_TASK */
 
+TRACE_EVENT(sched_cpu_capacity,
+
+	TP_PROTO(struct rq *rq),
+
+	TP_ARGS(rq),
+
+	TP_STRUCT__entry(
+		__field(	int,		cpu		)
+		__field(	unsigned long,	capacity	)
+		__field(	unsigned long,	capacity_orig	)
+		__field(	unsigned long,	capacity_curr	)
+	),
+
+	unsigned long scale_cpu = rq->cpu_capacity_orig;
+	unsigned long scale_freq = arch_scale_freq_capacity(rq->cpu);
+
+	TP_fast_assign(
+		__entry->cpu		= rq->cpu;
+		__entry->capacity	= rq->cpu_capacity;
+		__entry->capacity_orig	= scale_cpu;
+		__entry->capacity_curr	= cap_scale(scale_cpu, scale_freq);
+	),
+
+	TP_printk("cpu=%d capacity=%lu capacity_orig=%lu capacity_curr=%lu",
+		  __entry->cpu, __entry->capacity, __entry->capacity_orig, __entry->capacity_curr)
+);
+
 #endif /* _SCHED_EVENTS_H */
 
 /* This part must be outside protection */
