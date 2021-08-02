@@ -113,6 +113,7 @@ import itertools
 import json
 import math
 import operator
+import os
 import re
 import weakref
 from collections import OrderedDict
@@ -801,7 +802,7 @@ class RTA(Workload):
                 name=f"rta_calib_cpu{cpu}",
                 profile={'task1': calib_task},
                 calibration=f"CPU{cpu}",
-                res_dir=res_dir,
+                res_dir=os.path.join(res_dir, f'CPU{cpu}'),
                 as_root=target.is_rooted,
                 # Disable CPU capacities update, since that leads to infinite
                 # recursion
