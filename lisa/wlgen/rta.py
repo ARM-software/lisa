@@ -773,7 +773,22 @@ class RTA(Workload):
 
         # Create calibration task
         if target.is_rooted:
-            max_rtprio = int(target.execute('ulimit -Hr').splitlines()[0])
+            try:
+                max_rtprio = int(target.execute('ulimit -Hr').splitlines()[0])
+            # Some variants of ulimit (which is a shell builtin) will not
+            # accept -r, notably on Ubuntu 20.04:
+            # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=975326
+            except TargetStableError as e:
+                out = target.execute('ulimit -a')
+                for line in out.splitlines():
+                    m = re.search(r'rtprio *([0-9]+)', line)
+                    if m:
+                        max_rtprio = int(m.group(1))
+                        break
+                # If we could not find anything, re-raise the initial exception
+                else:
+                    raise e
+
             logger.debug(f'Max RT prio: {max_rtprio}')
 
             priority = max_rtprio + 1 if max_rtprio <= 10 else 10
