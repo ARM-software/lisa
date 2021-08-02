@@ -160,6 +160,12 @@ static void sched_util_est_se(void *data, struct sched_entity *se)
 		_trace_se(se, trace_sched_util_est_se);
 }
 
+static void sched_cpu_capacity(void *data, struct rq *rq)
+{
+	if (trace_sched_cpu_capacity_enabled())
+		trace_sched_cpu_capacity(rq);
+}
+
 static int sched_tp_init(void)
 {
 	register_trace_pelt_cfs_tp(sched_pelt_cfs, NULL);
@@ -171,6 +177,7 @@ static int sched_tp_init(void)
 	register_trace_sched_update_nr_running_tp(sched_update_nr_running, NULL);
 	register_trace_sched_util_est_cfs_tp(sched_util_est_cfs, NULL);
 	register_trace_sched_util_est_se_tp(sched_util_est_se, NULL);
+	register_trace_sched_cpu_capacity_tp(sched_cpu_capacity, NULL);
 
 	return 0;
 }
@@ -186,6 +193,7 @@ static void sched_tp_finish(void)
 	unregister_trace_sched_update_nr_running_tp(sched_update_nr_running, NULL);
 	unregister_trace_sched_util_est_cfs_tp(sched_util_est_cfs, NULL);
 	unregister_trace_sched_util_est_se_tp(sched_util_est_se, NULL);
+	unregister_trace_sched_cpu_capacity_tp(sched_cpu_capacity, NULL);
 }
 
 

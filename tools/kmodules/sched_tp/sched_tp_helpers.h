@@ -34,6 +34,8 @@ static inline int cpu_of(struct rq *rq)
 #endif
 }
 
+#define cap_scale(v, s) ((v)*(s) >> SCHED_CAPACITY_SHIFT)
+
 static inline bool task_group_is_autogroup(struct task_group *tg)
 {
 	return !!tg->autogroup;
