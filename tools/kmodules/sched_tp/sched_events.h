@@ -39,6 +39,7 @@ TRACE_EVENT(sched_pelt_cfs,
 		__field(	unsigned long,	load			)
 		__field(	unsigned long,	RBL_LOAD_ENTRY		)
 		__field(	unsigned long,	util			)
+		__field(	unsigned long long, update_time	        )
 	),
 
 	TP_fast_assign(
@@ -47,11 +48,12 @@ TRACE_EVENT(sched_pelt_cfs,
 		__entry->load		= avg->load_avg;
 		__entry->RBL_LOAD_ENTRY	= avg->RBL_LOAD_MEMBER;
 		__entry->util		= avg->util_avg;
+		__entry->update_time    = avg->last_update_time;
 	),
 
-	TP_printk("cpu=%d path=%s load=%lu " RBL_LOAD_STR "=%lu util=%lu",
+	TP_printk("cpu=%d path=%s load=%lu " RBL_LOAD_STR "=%lu util=%lu update_time=%llu",
 		  __entry->cpu, __entry->path, __entry->load,
-		  __entry->RBL_LOAD_ENTRY,__entry->util)
+		  __entry->RBL_LOAD_ENTRY,__entry->util, __entry->update_time)
 );
 
 DECLARE_EVENT_CLASS(sched_pelt_rq_template,
@@ -65,6 +67,7 @@ DECLARE_EVENT_CLASS(sched_pelt_rq_template,
 		__field(	unsigned long,	load			)
 		__field(	unsigned long,	RBL_LOAD_ENTRY		)
 		__field(	unsigned long,	util			)
+		__field(	unsigned long long, update_time	        )
 	),
 
 	TP_fast_assign(
@@ -72,11 +75,12 @@ DECLARE_EVENT_CLASS(sched_pelt_rq_template,
 		__entry->load		= avg->load_avg;
 		__entry->RBL_LOAD_ENTRY	= avg->RBL_LOAD_MEMBER;
 		__entry->util		= avg->util_avg;
+		__entry->update_time    = avg->last_update_time;
 	),
 
-	TP_printk("cpu=%d load=%lu " RBL_LOAD_STR "=%lu util=%lu",
+	TP_printk("cpu=%d load=%lu " RBL_LOAD_STR "=%lu util=%lu update_time=%llu",
 		  __entry->cpu, __entry->load,
-		  __entry->RBL_LOAD_ENTRY,__entry->util)
+		  __entry->RBL_LOAD_ENTRY,__entry->util, __entry->update_time)
 );
 
 DEFINE_EVENT(sched_pelt_rq_template, sched_pelt_rt,
