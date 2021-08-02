@@ -166,6 +166,8 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
 
         if signal in ('util', 'load'):
             columns = {'cpu', 'update_time', signal}
+        elif signal == 'capacity':
+            columns = {'cpu', 'capacity_curr', 'capacity', 'capacity_orig'}
         else:
             columns = {'cpu', signal}
 
