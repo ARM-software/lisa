@@ -38,15 +38,23 @@ static inline int cpu_of(struct rq *rq)
 
 static inline bool task_group_is_autogroup(struct task_group *tg)
 {
+#ifdef CONFIG_SCHED_AUTOGROUP
 	return !!tg->autogroup;
+#else
+	return false;
+#endif
 }
 
 int autogroup_path(struct task_group *tg, char *buf, int buflen)
 {
+#ifdef CONFIG_SCHED_AUTOGROUP
 	if (!task_group_is_autogroup(tg))
 		return 0;
 
 	return snprintf(buf, buflen, "%s-%ld", "/autogroup", tg->autogroup->id);
+#else
+	return 0;
+#endif
 }
 
 static inline void cfs_rq_tg_path(struct cfs_rq *cfs_rq, char *path, int len)
@@ -54,11 +62,13 @@ static inline void cfs_rq_tg_path(struct cfs_rq *cfs_rq, char *path, int len)
 	if (!path)
 		return;
 
+#ifdef CONFIG_FAIR_GROUP_SCHED
 	if (cfs_rq && task_group_is_autogroup(cfs_rq->tg))
 		autogroup_path(cfs_rq->tg, path, len);
 	else if (cfs_rq && cfs_rq->tg->css.cgroup)
 		cgroup_path(cfs_rq->tg->css.cgroup, path, len);
 	else
+#endif
 		strlcpy(path, "(null)", len);
 }
 
@@ -67,6 +77,7 @@ static __always_inline
 unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
 				  struct task_struct *p)
 {
+#ifdef CONFIG_UCLAMP_TASK
 	unsigned long min_util;
 	unsigned long max_util;
 
@@ -77,6 +88,9 @@ unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
 		return min_util;
 
 	return clamp(util, min_util, max_util);
+#else
+	return util;
+#endif
 }
 
 static inline const struct sched_avg *sched_tp_cfs_rq_avg(struct cfs_rq *cfs_rq)
