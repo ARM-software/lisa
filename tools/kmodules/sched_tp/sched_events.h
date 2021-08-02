@@ -11,11 +11,8 @@
 #define __SPAN_SIZE		(round_up(NR_CPUS, 4)/4)
 #define SPAN_SIZE		(__SPAN_SIZE > MAX_SPAN_SIZE ? MAX_SPAN_SIZE : __SPAN_SIZE)
 
-#include <linux/version.h>
 #include <linux/tracepoint.h>
 #include <linux/version.h>
-
-#include "sched_tp_helpers.h"
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5,6,0)
 #define RBL_LOAD_ENTRY		rbl_load
@@ -39,6 +36,7 @@ TRACE_EVENT(sched_pelt_cfs,
 		__field(	unsigned long,	load			)
 		__field(	unsigned long,	RBL_LOAD_ENTRY		)
 		__field(	unsigned long,	util			)
+		__field(	unsigned long long, update_time	        )
 	),
 
 	TP_fast_assign(
@@ -47,11 +45,12 @@ TRACE_EVENT(sched_pelt_cfs,
 		__entry->load		= avg->load_avg;
 		__entry->RBL_LOAD_ENTRY	= avg->RBL_LOAD_MEMBER;
 		__entry->util		= avg->util_avg;
+		__entry->update_time    = avg->last_update_time;
 	),
 
-	TP_printk("cpu=%d path=%s load=%lu " RBL_LOAD_STR "=%lu util=%lu",
+	TP_printk("cpu=%d path=%s load=%lu " RBL_LOAD_STR "=%lu util=%lu update_time=%llu",
 		  __entry->cpu, __entry->path, __entry->load,
-		  __entry->RBL_LOAD_ENTRY,__entry->util)
+		  __entry->RBL_LOAD_ENTRY,__entry->util, __entry->update_time)
 );
 
 DECLARE_EVENT_CLASS(sched_pelt_rq_template,
@@ -65,6 +64,7 @@ DECLARE_EVENT_CLASS(sched_pelt_rq_template,
 		__field(	unsigned long,	load			)
 		__field(	unsigned long,	RBL_LOAD_ENTRY		)
 		__field(	unsigned long,	util			)
+		__field(	unsigned long long, update_time	        )
 	),
 
 	TP_fast_assign(
@@ -72,11 +72,12 @@ DECLARE_EVENT_CLASS(sched_pelt_rq_template,
 		__entry->load		= avg->load_avg;
 		__entry->RBL_LOAD_ENTRY	= avg->RBL_LOAD_MEMBER;
 		__entry->util		= avg->util_avg;
+		__entry->update_time    = avg->last_update_time;
 	),
 
-	TP_printk("cpu=%d load=%lu " RBL_LOAD_STR "=%lu util=%lu",
+	TP_printk("cpu=%d load=%lu " RBL_LOAD_STR "=%lu util=%lu update_time=%llu",
 		  __entry->cpu, __entry->load,
-		  __entry->RBL_LOAD_ENTRY,__entry->util)
+		  __entry->RBL_LOAD_ENTRY,__entry->util, __entry->update_time)
 );
 
 DEFINE_EVENT(sched_pelt_rq_template, sched_pelt_rt,
@@ -144,27 +145,6 @@ TRACE_EVENT(sched_overutilized,
 		  __entry->overutilized, __entry->span)
 );
 
-TRACE_EVENT(sched_update_nr_running,
-
-	    TP_PROTO(int cpu, int change, unsigned int nr_running),
-
-	    TP_ARGS(cpu, change, nr_running),
-
-	    TP_STRUCT__entry(
-			     __field(         int,        cpu           )
-			     __field(         int,        change        )
-			     __field(unsigned int,        nr_running    )
-			     ),
-
-	    TP_fast_assign(
-			   __entry->cpu        = cpu;
-			   __entry->change     = change;
-			   __entry->nr_running = nr_running;
-			   ),
-
-	    TP_printk("cpu=%d change=%d nr_running=%d", __entry->cpu, __entry->change, __entry->nr_running)
-	    );
-
 TRACE_EVENT(sched_util_est_se,
 
 	TP_PROTO(int cpu, char *path, char *comm, int pid,
@@ -226,6 +206,8 @@ TRACE_EVENT(sched_util_est_cfs,
 
 #ifdef CONFIG_UCLAMP_TASK
 
+struct rq;
+
 TRACE_EVENT_CONDITION(uclamp_util_se,
 
 	TP_PROTO(bool is_task, struct task_struct *p, struct rq *rq),
@@ -247,7 +229,7 @@ TRACE_EVENT_CONDITION(uclamp_util_se,
 	TP_fast_assign(
 		__entry->pid            = p->pid;
 		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
-		__entry->cpu            = sched_tp_rq_cpu(rq);
+		__entry->cpu            = rq->cpu;
 		__entry->util_avg       = p->se.avg.util_avg;
 		__entry->uclamp_avg     = uclamp_rq_util_with(rq, p->se.avg.util_avg, NULL);
 		__entry->uclamp_min     = rq->uclamp[UCLAMP_MIN].value;
@@ -263,9 +245,9 @@ TRACE_EVENT_CONDITION(uclamp_util_se,
 
 TRACE_EVENT_CONDITION(uclamp_util_cfs,
 
-	TP_PROTO(bool is_root, struct rq *rq, struct cfs_rq *cfs_rq),
+	TP_PROTO(bool is_root, int cpu, struct cfs_rq *cfs_rq),
 
-	TP_ARGS(is_root, rq, cfs_rq),
+	TP_ARGS(is_root, cpu, cfs_rq),
 
 	TP_CONDITION(is_root),
 
@@ -278,11 +260,11 @@ TRACE_EVENT_CONDITION(uclamp_util_cfs,
 	),
 
 	TP_fast_assign(
-		__entry->cpu            = sched_tp_rq_cpu(rq);
+		__entry->cpu            = cpu;
 		__entry->util_avg       = cfs_rq->avg.util_avg;
-		__entry->uclamp_avg     = uclamp_rq_util_with(rq, cfs_rq->avg.util_avg, NULL);
-		__entry->uclamp_min     = rq->uclamp[UCLAMP_MIN].value;
-		__entry->uclamp_max     = rq->uclamp[UCLAMP_MAX].value;
+		__entry->uclamp_avg     = uclamp_rq_util_with(rq_of(cfs_rq), cfs_rq->avg.util_avg, NULL);
+		__entry->uclamp_min     = rq_of(cfs_rq)->uclamp[UCLAMP_MIN].value;
+		__entry->uclamp_max     = rq_of(cfs_rq)->uclamp[UCLAMP_MAX].value;
 		),
 
 	TP_printk("cpu=%d util_avg=%lu uclamp_avg=%lu "
@@ -296,6 +278,33 @@ TRACE_EVENT_CONDITION(uclamp_util_cfs,
 #define trace_uclamp_util_cfs(is_root, cpu, cfs_rq) while(false) {}
 #define trace_uclamp_util_cfs_enabled() false
 #endif /* CONFIG_UCLAMP_TASK */
+
+TRACE_EVENT(sched_cpu_capacity,
+
+	TP_PROTO(struct rq *rq),
+
+	TP_ARGS(rq),
+
+	TP_STRUCT__entry(
+		__field(	int,		cpu		)
+		__field(	unsigned long,	capacity	)
+		__field(	unsigned long,	capacity_orig	)
+		__field(	unsigned long,	capacity_curr	)
+	),
+
+	unsigned long scale_cpu = arch_scale_cpu_capacity(rq->cpu);
+	unsigned long scale_freq = arch_scale_freq_capacity(rq->cpu);
+
+	TP_fast_assign(
+		__entry->cpu		= rq->cpu;
+		__entry->capacity	= rq->cpu_capacity;
+		__entry->capacity_orig	= scale_cpu;
+		__entry->capacity_curr	= cap_scale(scale_cpu, scale_freq);
+	),
+
+	TP_printk("cpu=%d capacity=%lu capacity_orig=%lu capacity_curr=%lu",
+		  __entry->cpu, __entry->capacity, __entry->capacity_orig, __entry->capacity_curr)
+);
 
 #endif /* _SCHED_EVENTS_H */
 
