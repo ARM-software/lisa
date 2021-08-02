@@ -1394,6 +1394,7 @@ class TxtTraceParser(TxtTraceParserBase):
                 'cpu': _KERNEL_DTYPE['cpu'],
                 'capacity': _KERNEL_DTYPE['util'],
                 'capacity_orig': _KERNEL_DTYPE['util'],
+                'capacity_curr': _KERNEL_DTYPE['util'],
             },
         ),
         'sched_pelt_cfs': dict(
