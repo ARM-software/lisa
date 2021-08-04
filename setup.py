@@ -147,6 +147,8 @@ setup(
         "devlib >= 1.3.1",
 
         'jinja2',
+
+        "cffi", # unshare syscall
     ],
 
     extras_require=extras_require,
