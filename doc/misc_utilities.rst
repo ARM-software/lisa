@@ -25,6 +25,12 @@ Utilities
 .. automodule:: lisa.utils
    :members:
 
+Kernel modules
+==============
+
+.. automodule:: lisa._kmod
+   :members:
+
 Generic types
 =============
 
