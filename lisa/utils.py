@@ -80,6 +80,28 @@ LISA_HOME = os.getenv('LISA_HOME', os.path.abspath('.'))
 The detected location of your LISA installation
 """
 
+def _get_xdg_home(directory):
+    try:
+        base = os.environ['LISA_HOME']
+    except KeyError:
+        try:
+            base = os.environ[f'XDG_{directory.upper()}_HOME']
+        except KeyError:
+            xdg_home = os.path.join(os.environ['HOME'], '.lisa', directory, VERSION_TOKEN)
+        else:
+            xdg_home = os.path.join(base, 'lisa', VERSION_TOKEN)
+    else:
+        xdg_home = os.path.join(base, directory, VERSION_TOKEN)
+
+    os.makedirs(xdg_home, exist_ok=True)
+    return xdg_home
+
+
+LISA_CACHE_HOME = _get_xdg_home('cache')
+"""
+Base folder used for caching files.
+"""
+
 RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
 
