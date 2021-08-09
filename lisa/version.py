@@ -35,9 +35,13 @@ __version__ = format_version(version_tuple)
 def _compute_version_token():
     plain_version_token = f'v{format_version(version_tuple)}'
 
+    forced = os.getenv('_LISA_FORCE_VERSION_TOKEN')
+
     # When in devmode, use the commit SHA1 and the SHA1 of the patch of
     # uncommitted changes
-    if int(os.getenv('LISA_DEVMODE', '0')):
+    if forced:
+        return forced
+    elif int(os.getenv('LISA_DEVMODE', '0')):
         # pylint: disable=import-outside-toplevel
         import lisa
         repo = list(lisa.__path__)[0]
