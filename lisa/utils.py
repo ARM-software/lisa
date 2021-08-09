@@ -3312,6 +3312,59 @@ class ComposedContextManager:
         return self._stack.__exit__(*args, **kwargs)
 
 
+def chain_cm(*fs):
+    """
+    Chain the context managers returned by the given callables.
+
+    This is equivalent to::
+
+        @contextlib.contextmanager
+        def combined(x):
+            fs = list(reversed(fs))
+
+            with fs[0](x) as y:
+                with fs[1](y) as z:
+                    with fs[2](z) as ...:
+                        ...
+                        with ... as final:
+                            yield final
+
+
+    It is typically used instead of regular function composition when the
+    functions return a context manager ::
+
+        @contextlib.contextmanager
+        def f(a, b):
+            print(f'f a={a} b={b}')
+            yield a * 2
+
+        @contextlib.contextmanager
+        def g(x):
+            print(f'g x={x}')
+            yield f'final x={x}'
+
+        combined = chain_cm(g, f)
+        with combined(a=1, b=2) as res:
+            print(res)
+
+        # Would print:
+        #  f a=1 b=2
+        #  g x=2
+        #  final x=2
+    """
+
+    @contextlib.contextmanager
+    def combined(*args, **kwargs):
+        with contextlib.ExitStack() as stack:
+            for f in reversed(fs):
+                x = stack.enter_context(f(*args, **kwargs))
+                kwargs = {}
+                args = [x]
+
+            yield x
+    return combined
+
+
 class DirCache(Loggable):
     """
     Provide a folder-based cache.
