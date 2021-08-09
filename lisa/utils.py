@@ -24,6 +24,7 @@ between modules if they were hosted in their "logical" module. This is mostly
 done for secondary utilities that are not used often.
 """
 
+import numbers
 import hashlib
 import zlib
 import time
@@ -43,6 +44,7 @@ import pickle
 import sys
 import os
 import os.path
+from pathlib import Path
 import importlib
 import pkgutil
 import operator
@@ -56,6 +58,8 @@ import warnings
 import textwrap
 import webbrowser
 import mimetypes
+import tempfile
+import shutil
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -69,7 +73,7 @@ except ImportError:
     pass
 
 import lisa
-from lisa.version import parse_version, format_version
+from lisa.version import parse_version, format_version, VERSION_TOKEN
 
 
 # Do not infer the value using __file__, since it will break later on when
@@ -3306,6 +3310,125 @@ class ComposedContextManager:
 
     def __exit__(self, *args, **kwargs):
         return self._stack.__exit__(*args, **kwargs)
+
+
+class DirCache(Loggable):
+    """
+    Provide a folder-based cache.
+
+    :param category: Unique name for the cache category. This allows an
+        arbitrary number of categories to be used under
+        :const:`lisa.utils.LISA_CACHE_HOME`.
+    :type category: str
+
+    :param populate: Callback to populate a new cache entry if none is found.
+        It will be passed the following parameters:
+
+            * The key that is being looked up
+            * The path to populate
+
+        It must return a subfolder of the passed path to populate, or ``None``,
+        which is the same as returning the passed path.
+    :type populate: collections.abc.Callable
+
+    The cache is managed in a process-safe way, so that there can be no race
+    between concurrent processes or threads.
+    """
+    def __init__(self, category, populate):
+        self._base = Path(LISA_CACHE_HOME, category)
+        self._populate = populate
+        self._category = category
+
+    def get_key_token(self, key):
+        """
+        Return the token associated with the given ``key``.
+        """
+        h = hashlib.sha256()
+        for x in key:
+            h.update(repr(x).encode('utf-8'))
+        token = h.hexdigest()
+        return token
+
+    def _get_path(self, key):
+        token = self.get_key_token(key)
+        return self._base / token
+
+    def has_key(self, key):
+        """
+        Check if the given ``key`` is already present in the cache. If the key
+        is present, return the path, otherwise returns ``None``.
+
+        :param key: Same as for :meth:`get_entry`.
+
+        """
+        path = self._get_path(key)
+        if path.exists():
+            assert path.is_dir()
+            return path
+        else:
+            return None
+
+    def get_entry(self, key):
+        """
+        Return the folder of a cache entry.
+
+        If no entry is found, a new one is created using the
+        ``populate()`` callback.
+
+        :param key: Key of the cache entry. All the components of the key must
+            be isomorphic to their ``repr()``, otherwise the cache will be hit
+            in cases where it should not.
+        :type key: tuple(str)
+
+        .. note:: The return folder must never be modified, as it would lead to
+            races.
+        """
+        logger = self.get_logger()
+        base = self._base
+        path = self.has_key(key)
+
+        def log_found():
+            logger.debug(f'Found {self._category} cache at: {base}')
+
+        if path is None:
+            path = self._get_path(key)
+            logger.debug(f'Populating {self._category} cache at: {path}')
+            base.mkdir(parents=True, exist_ok=True)
+
+            # Create the cache entry under a temp name, so we can
+            # atomically rename it and fix races with other
+            # processes
+            with contextlib.ExitStack() as stack:
+                temp_path = stack.enter_context(
+                    tempfile.TemporaryDirectory(dir=base)
+                )
+                temp_path = Path(temp_path)
+
+                populated_path = self._populate(key, temp_path) or temp_path
+                populated_path = Path(populated_path)
+
+                assert temp_path == populated_path or temp_path in populated_path.parents
+                assert os.path.exists(populated_path)
+
+                # If rename succeeds, it is atomic, to avoid races with
+                # other processes
+                try:
+                    os.rename(populated_path, path)
+                # Renaming failed, because the content already exists,
+                # so we can just discard our new tree and use the
+                # existing one
+                except OSError:
+                    log_found()
+                else:
+                    # Do not cleanup the temp_base, as it has been
+                    # renamed and cleanup would fail.
+                    stack.pop_all()
+        else:
+            log_found()
+
+        return path
+
+
 
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
