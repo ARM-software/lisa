@@ -33,8 +33,8 @@ from devlib.utils.misc import InitCheckpoint
 _KILL_TIMEOUT = 3
 
 
-def _kill_pgid_cmd(pgid, sig):
-    return 'kill -{} -{}'.format(sig.value, pgid)
+def _kill_pgid_cmd(pgid, sig, busybox):
+    return '{} kill -{} -{}'.format(busybox, sig.value, pgid)
 
 
 class ConnectionBase(InitCheckpoint):
@@ -258,7 +258,7 @@ class ParamikoBackgroundCommand(BackgroundCommand):
             return
         # Use -PGID to target a process group rather than just the process
         # itself
-        cmd = _kill_pgid_cmd(self.pid, sig)
+        cmd = _kill_pgid_cmd(self.pid, sig, self.conn.busybox)
         self.conn.execute(cmd, as_root=self.as_root)
 
     @property
@@ -322,7 +322,7 @@ class AdbBackgroundCommand(BackgroundCommand):
 
     def send_signal(self, sig):
         self.conn.execute(
-            _kill_pgid_cmd(self.pid, sig),
+            _kill_pgid_cmd(self.pid, sig, self.conn.busybox),
             as_root=self.as_root,
         )
 
