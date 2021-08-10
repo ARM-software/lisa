@@ -71,7 +71,7 @@ class LocalConnection(ConnectionBase):
             # Behave similarly as cp, scp, adb push, etc. by creating a new
             # folder instead of merging hierarchies
             if os.path.exists(dest):
-                dest = os.path.join(dest, os.path.basename(os.path.normpath(src)))
+                dest = os.path.join(dest, os.path.basename(os.path.normpath(source)))
 
             # Use distutils copy_tree since it behaves the same as
             # shutils.copytree except that it won't fail if some folders

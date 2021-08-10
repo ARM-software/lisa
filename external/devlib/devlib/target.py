@@ -759,7 +759,7 @@ class Target(object):
 
     def kill(self, pid, signal=None, as_root=False):
         signal_string = '-s {}'.format(signal) if signal else ''
-        self.execute('kill {} {}'.format(signal_string, pid), as_root=as_root)
+        self.execute('{} kill {} {}'.format(self.busybox, signal_string, pid), as_root=as_root)
 
     def killall(self, process_name, signal=None, as_root=False):
         for pid in self.get_pids_of(process_name):
