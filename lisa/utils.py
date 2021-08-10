@@ -1018,21 +1018,25 @@ def setup_logging(filepath='logging.conf', level=None):
     # asyncio floods us with debug info we are not interested in
     logging.getLogger('asyncio').setLevel(logging.WARNING)
 
-    # Ensure basicConfig will have effects again by getting rid of the existing
-    # handlers
-    # Note: When we can depend on Python >= 3.8, we can just pass
-    # basicConfig(force=True) for the same effect
-    root_logger = logging.getLogger()
-    for handler in list(root_logger.handlers):
-        root_logger.removeHandler(handler)
-        handler.close()
-
     # Capture the warnings as log entries
     logging.captureWarnings(True)
 
     if level is not None:
+        # Ensure basicConfig will have effects again by getting rid of the existing
+        # handlers
+        # Note: When we can depend on Python >= 3.8, we can just pass
+        # basicConfig(force=True) for the same effect
+        if sys.version_info < (3, 8):
+            root_logger = logging.getLogger()
+            for handler in list(root_logger.handlers):
+                root_logger.removeHandler(handler)
+                handler.close()
+            conf_kwargs = {}
+        else:
+            conf_kwargs = dict(force=True)
+
         log_format = '[%(asctime)s][%(name)s] %(levelname)s  %(message)s'
-        logging.basicConfig(level=resolved_level, format=log_format)
+        logging.basicConfig(level=resolved_level, format=log_format, **conf_kwargs)
     else:
         # Load the specified logfile using an absolute path
         if not os.path.isabs(filepath):
