@@ -46,7 +46,7 @@ class ThermalAnalysis(TraceAnalysisBase):
           * A ``thermal_zone`` column (The thermal zone name)
           * A ``temp`` column (The reported temperature)
         """
-        df = self.trace.df_event("thermal")
+        df = self.trace.df_event("thermal_temperature")
         df = df[['id', 'thermal_zone', 'temp']]
 
         return df
