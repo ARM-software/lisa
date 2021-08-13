@@ -1286,6 +1286,26 @@ class TxtTraceParser(TxtTraceParserBase):
             func_field='ip',
             content_field='str',
         ),
+        'thermal_power_cpu_limit': dict(
+            fields={
+                'cpus': 'bytes',
+                'freq': 'uint32',
+                'cdev_state': 'uint64',
+                'power': 'uint32',
+            },
+            # Allow parsing the cpus bitmask
+            raw=False,
+        ),
+        'thermal_power_cpu_get_power': dict(
+            fields={
+                'cpus': 'bytes',
+                'freq': 'uint32',
+                'load': 'bytes',
+                'dynamic_power': 'uint32',
+            },
+            # Allow parsing the cpus bitmask and load array
+            raw=False,
+        ),
         'cpuhp_enter': dict(
             fields={
                 'cpu': _KERNEL_DTYPE['cpu'],
@@ -1329,7 +1349,7 @@ class TxtTraceParser(TxtTraceParserBase):
             event='ipi_raise',
             fields_regex=r'target_mask=(?P<target_cpus>[0-9,]+) +\((?P<reason>[^)]+)\)',
             fields={
-                'target_cpus': 'string',
+                'target_cpus': 'bytes',
                 'reason': 'string',
             },
             raw=False,
@@ -4632,12 +4652,23 @@ class Trace(Loggable, TraceBase):
     def _sanitize_thermal_power_cpu(self, event, df, aspects):
         # pylint: disable=unused-argument,no-self-use
 
-        def f(mask):
-            # Replace '00000000,0000000f' format in more usable int
-            return int(mask.replace(',', ''), 16)
+        def parse_load(array):
+            # Parse b'{2 3 2 8}'
+            return tuple(map(int, array[1:-1].split()))
 
+        # In-kernel name is "cpumask", "cpus" is just an artifact of the pretty
+        # printing format string of ftrace, that happens to be used by a
+        # specific parser.
+        df = df.rename(columns={'cpus': 'cpumask'}, copy=False)
         df = df.copy(deep=False)
-        df['cpus'] = df['cpus'].apply(f)
+
+        if df['cpumask'].dtype.name == 'object':
+            df['cpumask'] = df['cpumask'].apply(self._expand_bitmask_field)
+
+        if event == 'thermal_power_cpu_get_power':
+            if df['load'].dtype.name == 'object':
+                df['load'] = df['load'].apply(parse_load)
+
         return df
 
     @_sanitize_event('print')
@@ -4688,7 +4719,7 @@ class Trace(Loggable, TraceBase):
         ``mask`` is a string with comma-separated hex numbers like
         "000001,12345,..."
         """
-        numbers = mask.split(',')
+        numbers = mask.split(b',')
 
         # hex number, so 4 bit per digit
         nr_bits = len(numbers[0]) * 4
@@ -4696,20 +4727,20 @@ class Trace(Loggable, TraceBase):
         def bit_pos(number):
             # Little endian
             number = int(number, base=16)
-            return [
+            return (
                 i
                 for i in range(nr_bits)
                 if number & (1 << i)
-            ]
+            )
 
-        return [
+        return tuple(
             i + (nr_bits * offset)
             for offset, positions in enumerate(
                 # LSB is in the number at the end of the list so we reverse it
                 map(bit_pos, reversed(numbers))
             )
             for i in positions
-        ]
+        )
 
     @_sanitize_event('ipi_raise')
     def _sanitize_ipi_raise(self, event, df, aspects):
@@ -4717,7 +4748,6 @@ class Trace(Loggable, TraceBase):
 
         df = df.copy(deep=False)
         df['target_cpus'] = df['target_cpus'].apply(self._expand_bitmask_field)
-        df['reason'] = df['reason'].str.strip('()')
         return df
 
     @_sanitize_event('ipi_entry')
