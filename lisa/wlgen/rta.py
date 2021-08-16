@@ -156,6 +156,7 @@ from lisa.utils import (
     PartialInit,
 )
 from lisa.wlgen.workload import Workload
+from lisa.conf import DeferredValueComputationError
 
 
 def _to_us(x):
@@ -690,7 +691,7 @@ class RTA(Workload):
             try:
                 plat_info['rtapp']['calib']
             # We will get this exception if we are currently trying to compute the calibration
-            except Exception:
+            except (DeferredValueComputationError, RecursionError):
                 pass
 
             if update_cpu_capacities:
@@ -764,8 +765,20 @@ class RTA(Workload):
 
         return {'calib': pload}
 
+    _ONGOING_CALIBRATION = weakref.WeakKeyDictionary()
     @classmethod
     def _calibrate(cls, target, res_dir):
+        if target in cls._ONGOING_CALIBRATION:
+            raise RecursionError('Trying to calibrate rt-app while calibrating rt-app')
+        else:
+            try:
+                cls._ONGOING_CALIBRATION[target] = True
+                return cls._do_calibrate(target, res_dir)
+            finally:
+                cls._ONGOING_CALIBRATION.pop(target, None)
+
+    @classmethod
+    def _do_calibrate(cls, target, res_dir):
         res_dir = res_dir if res_dir else target .get_res_dir(
             "rta_calib", symlink=False
         )
