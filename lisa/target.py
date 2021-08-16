@@ -806,7 +806,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             self._installed_tools.add(tool)
 
 
-    @contextlib.contextmanager
     def freeze_userspace(self):
         """
         Context manager that lets you freeze the userspace.
@@ -845,10 +844,8 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                         logger.info('Un-freezing userspace tasks')
                         self.cgroups.freeze(thaw=True)
 
-        with cm() as x:
-            yield x
+        return cm()
 
-    @contextlib.contextmanager
     def disable_idle_states(self):
         """
         Context manager that lets you disable all idle states
@@ -873,8 +870,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                     for cpu in range(self.plat_info['cpus-count']):
                         cpuidle.enable_all(cpu)
 
-        with cm() as x:
-            yield x
+        return cm()
 
     def get_tags(self):
         return {'board': self.name}
