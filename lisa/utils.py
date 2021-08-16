@@ -60,6 +60,7 @@ import webbrowser
 import mimetypes
 import tempfile
 import shutil
+import platform
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -108,6 +109,9 @@ Base folder used for caching files.
 
 RESULT_DIR = 'results'
 LATEST_LINK = 'results_latest'
+
+LISA_HOST_ABI = platform.machine().lower().replace('aarch64', 'arm64')
+
 
 TASK_COMM_MAX_LEN = 16 - 1
 """
