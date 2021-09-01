@@ -16,7 +16,7 @@ build() {
         x86_64) arch=x86_64;;
     esac
 
-    make -f Makefile ARCH=$arch CROSS_COMPILE=$CROSS_COMPILE NO_SDT=1 LDFLAGS="-static" EXTRA_CFLAGS="-Wno-format-truncation" NO_LIBELF=1
+    make -f Makefile ARCH=$arch CROSS_COMPILE=$CROSS_COMPILE NO_SDT=1 LDFLAGS="-static" EXTRA_CFLAGS="-Wno-format-truncation -Wno-error" NO_LIBELF=1
     "$CROSS_COMPILE"strip perf
 }
 
