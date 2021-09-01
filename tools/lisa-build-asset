@@ -340,6 +340,7 @@ def main():
     parser.add_argument('--build-dir', help='Build director. Defaults to temp folder')
     args = parser.parse_args()
 
+    native_build = args.native_build
     build_dir = os.path.abspath(args.build_dir) if args.build_dir else None
 
     toolchains = {
@@ -347,18 +348,19 @@ def main():
         for arch in ARCHITECTURES
     }
 
-    if args.arch == 'all':
-        missing = sorted(
-            arch
-            for arch, toolchain in toolchains.items()
-            if toolchain is None
-        )
+    if not native_build:
+        if args.arch == 'all':
+            missing = sorted(
+                arch
+                for arch, toolchain in toolchains.items()
+                if toolchain is None
+            )
 
-        if missing:
-            error_missing_toolchains(parser, missing)
+            if missing:
+                error_missing_toolchains(parser, missing)
 
-    elif toolchains[args.arch] is None:
-        error_missing_toolchains(parser, [args.arch])
+        elif toolchains[args.arch] is None:
+            error_missing_toolchains(parser, [args.arch])
 
     if args.asset == 'all':
         assets_to_make = asset_list
@@ -380,7 +382,7 @@ def main():
                 build_dir=build_dir,
                 recipe_dir=recipe_dir,
                 toolchains=toolchains,
-                native_build=args.native_build
+                native_build=native_build
             )
         except Exception as e:
             print(f'\nError while making {asset}: {e}\n')
