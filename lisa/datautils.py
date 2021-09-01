@@ -651,12 +651,15 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
         raise ValueError(f'Unsupported "sign": {sign}')
 
     if method == "rect":
-        dx = x.diff()
+        if len(x) <= 1:
+            raise ValueError('Cannot integrate with less than 2 points')
+        else:
+            dx = x.diff()
 
-        if rect_step == "post":
-            dx = dx.shift(-1)
+            if rect_step == "post":
+                dx = dx.shift(-1)
 
-        return (y * dx).sum()
+            return (y * dx).sum()
 
     # Make a DataFrame to make sure all rows stay aligned when we drop NaN,
     # which is needed by all the below methods
