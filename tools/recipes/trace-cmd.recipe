@@ -35,6 +35,7 @@ build_tracecmd() {
     # Disable libaudit, to limit the amount of dependencies
     cd trace-cmd
     make LDFLAGS="-static" NO_AUDIT=yes
+    strip "$TRACE_CMD_BIN"
 }
 
 # For trace-cmd v2.8.3
