@@ -190,6 +190,14 @@ class Loggable:
     A simple class for uniformly named loggers
     """
 
+    # This cannot be memoized, as we behave differently based on the call stack
+    @property
+    def logger(self):
+        """
+        Convenience short-hand for ``self.get_logger()``.
+        """
+        return self.get_logger()
+
     @classmethod
     def get_logger(cls, suffix=None):
         if any (

@@ -306,10 +306,6 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
         """
 
     @property
-    def logger(self):
-        return self.get_logger()
-
-    @property
     @memoized
     def df(self):
         """
