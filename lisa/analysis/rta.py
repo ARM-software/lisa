@@ -14,11 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
-import re
-import glob
 from collections import namedtuple
-from operator import attrgetter
 
 import pandas as pd
 import holoviews as hv
@@ -27,7 +23,7 @@ import numpy as np
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
 from lisa.datautils import df_filter_task_ids, df_window, df_split_signals
 from lisa.trace import TaskID, requires_events, requires_one_event_of, may_use_events, MissingTraceEventError
-from lisa.utils import deprecate, memoized, order_as
+from lisa.utils import memoized, order_as
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.wlgen.rta import RTA, RTAConf
 from lisa.notebook import plot_signal

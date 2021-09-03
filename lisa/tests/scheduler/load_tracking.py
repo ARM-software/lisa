@@ -21,22 +21,18 @@ import itertools
 from statistics import mean
 from typing import TypeVar
 
-import pandas as pd
-import holoviews as hv
 
 from lisa.tests.base import (
-    TestMetric, Result, ResultBundle, AggregatedResultBundle, TestBundleBase,
-    TestBundle, RTATestBundle
+    Result, ResultBundle, AggregatedResultBundle, TestBundleBase, TestBundle,
+    RTATestBundle
 )
 from lisa.target import Target
-from lisa.utils import ArtifactPath, groupby, ExekallTaggable, add, memoized, kwargs_forwarded_to
-from lisa.datautils import series_mean, df_window, df_filter_task_ids, series_refit_index, df_split_signals, df_refit_index, series_dereference
-from lisa.wlgen.rta import RTA, RTAPhase, PeriodicWload
-from lisa.trace import requires_events, may_use_events, MissingTraceEventError
+from lisa.utils import ArtifactPath, ExekallTaggable, groupby, kwargs_forwarded_to, memoized
+from lisa.datautils import df_refit_index, series_dereference, series_mean
+from lisa.wlgen.rta import PeriodicWload, RTAPhase
+from lisa.trace import MissingTraceEventError
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
 from lisa.analysis.tasks import TasksAnalysis
-from lisa.analysis.rta import RTAEventsAnalysis
-from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.pelt import PELT_SCALE, simulate_pelt, pelt_settling_time, kernel_util_mean
 from lisa.notebook import plot_signal
 

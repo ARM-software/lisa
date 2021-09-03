@@ -19,10 +19,8 @@
 import json
 import os
 from operator import itemgetter, attrgetter, mul
-from statistics import mean
 from functools import reduce
 from itertools import chain
-from copy import copy
 from collections.abc import Mapping
 from enum import IntEnum
 
@@ -31,11 +29,11 @@ from pandas.api.types import is_numeric_dtype
 import numpy as np
 import holoviews as hv
 
-from lisa.utils import groupby, memoized, FrozenDict, unzip_into
+from lisa.utils import FrozenDict, memoized, unzip_into
 from lisa.datautils import df_merge
 from lisa.analysis.base import TraceAnalysisBase, AnalysisHelpers
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
-from lisa.trace import requires_events, requires_one_event_of, MissingTraceEventError
+from lisa.trace import MissingTraceEventError, requires_one_event_of
 from lisa.conf import ConfigKeyError
 from lisa.stats import Stats
 from lisa.pelt import PELT_SCALE

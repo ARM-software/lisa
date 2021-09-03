@@ -16,11 +16,10 @@
 #
 import os
 
-from lisa.tests.base import Result, ResultBundle, TestBundle, DmesgTestBundle
+from lisa.tests.base import DmesgTestBundle, ResultBundle, TestBundle
 from lisa.wlgen.sysbench import Sysbench
 from lisa.target import Target
 from lisa.utils import ArtifactPath, groupby, nullcontext
-from lisa.analysis.tasks import TasksAnalysis
 
 
 class UserspaceSanityItem(TestBundle):

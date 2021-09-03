@@ -21,15 +21,11 @@ import itertools
 import functools
 import operator
 
-import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
 import pandas as pd
 import numpy as np
 import holoviews as hv
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.utils import memoized
 from lisa.trace import requires_events, requires_one_event_of, CPU, MissingTraceEventError
 from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window
 from lisa.notebook import plot_signal, _hv_neutral

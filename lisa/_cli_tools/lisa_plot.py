@@ -29,7 +29,7 @@ import time
 import types
 
 from lisa.utils import get_short_doc, nullcontext
-from lisa.trace import Trace, MissingTraceEventError, CPU, TaskID
+from lisa.trace import Trace
 from lisa.conf import ConfigKeyError
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.platforms.platinfo import PlatformInfo

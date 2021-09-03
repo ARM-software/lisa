@@ -108,7 +108,6 @@ class SchedTuneBase(TestBundleBase):
         Collects and yields a :class:`lisa.tests.base.ResultBundle` per test
         item.
         """
-        pass
 
     @classmethod
     def _create_test_bundle_item(cls, target, res_dir, item_cls,

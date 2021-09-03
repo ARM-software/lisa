@@ -28,10 +28,10 @@ from exekall.utils import get_name, add_argument, NoValue, flatten_seq
 from exekall.engine import ExprData, Consumer, PrebuiltOperator
 from exekall.customization import AdaptorBase
 
-from lisa.target import Target, TargetConf
+from lisa.target import TargetConf
 from lisa.utils import HideExekallID, ArtifactPath, Serializable, get_nested_key, ExekallTaggable
 from lisa.conf import MultiSrcConf
-from lisa.tests.base import TestBundle, ResultBundleBase, Result
+from lisa.tests.base import Result, ResultBundleBase
 from lisa.regression import compute_regressions
 
 

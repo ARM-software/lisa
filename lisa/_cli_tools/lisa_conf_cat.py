@@ -1,13 +1,8 @@
 #! /usr/bin/env python3
 
-import io
-import sys
 import argparse
 
-import lisa
-from lisa.target import TargetConf
 from lisa.conf import MultiSrcConf
-from lisa.utils import get_subclasses, import_all_submodules
 
 def main():
     parser = argparse.ArgumentParser('Interpolate a LISA YAML configuration')

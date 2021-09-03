@@ -30,7 +30,7 @@ import inspect
 
 from devlib.utils.misc import list_to_mask
 
-from lisa.utils import Loggable, ArtifactPath, deprecate, PartialInit, sig_bind
+from lisa.utils import ArtifactPath, Loggable, PartialInit, deprecate
 
 
 class _WorkloadRunCMDecorator:

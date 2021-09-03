@@ -21,13 +21,11 @@ import functools
 import inspect
 import warnings
 
-import holoviews as hv
 import pandas as pd
 
 import __main__ as main
 
 from lisa.analysis.base import TraceAnalysisBase
-from lisa.trace import requires_events
 from lisa.datautils import df_refit_index, df_filter, SignalDesc, df_update_duplicates
 from lisa.utils import kwargs_forwarded_to, order_as
 from lisa.notebook import plot_signal

@@ -19,14 +19,11 @@ from math import ceil
 
 import pandas as pd
 
-from devlib.module.sched import SchedDomain, SchedDomainFlag
-
-from lisa.utils import memoized, ArtifactPath
+from lisa.utils import memoized
 from lisa.datautils import df_squash, df_add_delta
-from lisa.trace import Trace, FtraceConf, requires_events
+from lisa.trace import requires_events
 from lisa.wlgen.rta import RTAPhase, RunWload, SleepWload
 from lisa.tests.base import TestBundle, RTATestBundle, Result, ResultBundle, TestMetric
-from lisa.target import Target
 from lisa.analysis.tasks import TasksAnalysis, TaskState
 from lisa.analysis.idle import IdleAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis

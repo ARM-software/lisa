@@ -111,21 +111,18 @@ class EnergyMeter(Loggable, Configurable):
         """
         Get a sample from the energy meter
         """
-        pass
 
     @abc.abstractmethod
     def reset(self):
         """
         Reset the energy meter
         """
-        pass
 
     @abc.abstractmethod
     def report(self):
         """
         Get total energy consumption since last :meth:`reset`
         """
-        pass
 
 
 class HWMonConf(SimpleMultiSrcConf, HideExekallID):

@@ -68,7 +68,6 @@ def _read_multiple_oneline_files(target, glob_patterns):
 
 class EnergyModelCapacityError(Exception):
     """Used by :meth:`EnergyModel.get_optimal_placements`"""
-    pass
 
 
 class ActiveState(namedtuple('ActiveState', ['capacity', 'power'])):

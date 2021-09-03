@@ -20,10 +20,9 @@ import operator
 import warnings
 
 import pandas as pd
-import numpy as np
 import holoviews as hv
 
-from lisa.datautils import series_integrate, df_split_signals, series_combine, df_add_delta, df_refit_index
+from lisa.datautils import df_add_delta, df_refit_index, df_split_signals
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, CPU
 from lisa._generic import TypedList

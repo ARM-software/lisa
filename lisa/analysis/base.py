@@ -26,15 +26,12 @@ import docutils.core
 import contextlib
 import warnings
 import itertools
-import weakref
 import copy
 from operator import itemgetter, attrgetter
-from collections.abc import Iterable
 
 import numpy
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 # Avoid ambiguity between function name and usual variable name
 from cycler import cycler as make_cycler
 import holoviews as hv
@@ -45,12 +42,10 @@ import bokeh.models.widgets
 import panel as pn
 import panel.widgets
 
-from ipywidgets import widgets
-from IPython.display import display
 
-from lisa.utils import Loggable, get_subclasses, get_doc_url, get_short_doc, split_paragraphs, update_wrapper_doc, guess_format, is_running_ipython, nullcontext, measure_time, optional_kwargs, deprecate, memoized
-from lisa.trace import MissingTraceEventError, PandasDataDesc
-from lisa.notebook import axis_link_dataframes, axis_cursor_delta, WrappingHBox, make_figure, _hv_link_dataframes, _hv_fig_to_pane
+from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc
+from lisa.trace import PandasDataDesc
+from lisa.notebook import _hv_fig_to_pane, _hv_link_dataframes, axis_cursor_delta, axis_link_dataframes, make_figure
 from lisa._generic import TypedList
 
 # Ensure hv.extension() is called
@@ -72,7 +67,6 @@ class AnalysisHelpers(Loggable, abc.ABC):
         """
         Name of the analysis class.
         """
-        pass
 
     @classmethod
     @deprecate('Made irrelevant by the use of holoviews', deprecated_in='2.0', removed_in='3.0')
