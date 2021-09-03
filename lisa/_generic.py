@@ -118,7 +118,6 @@ class TypedDict(GenericContainerBase, dict, metaclass=GenericMappingMeta):
     """
     Subclass of dict providing keys and values type check.
     """
-    pass
 
 
 class GenericSequenceMeta(GenericContainerMetaBase, type(Sequence)):
@@ -144,7 +143,6 @@ class TypedList(GenericContainerBase, list, metaclass=GenericSequenceMeta):
     """
     Subclass of list providing keys and values type check.
     """
-    pass
 
 
 class SortedTypedList(GenericContainerBase, list, metaclass=GenericSortedSequenceMeta):
@@ -152,4 +150,3 @@ class SortedTypedList(GenericContainerBase, list, metaclass=GenericSortedSequenc
     Subclass of list providing keys and values type check, and also check the
     list is sorted in ascending order.
     """
-    pass

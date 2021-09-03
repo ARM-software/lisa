@@ -30,7 +30,7 @@ import contextlib
 import itertools
 import types
 import warnings
-from operator import attrgetter, itemgetter
+from operator import attrgetter
 
 from datetime import datetime
 from collections import OrderedDict, ChainMap
@@ -44,7 +44,7 @@ from devlib import TargetStableError
 
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
-from lisa.trace import requires_events, may_use_events
+from lisa.trace import requires_events
 from lisa.trace import Trace, TaskID
 from lisa.wlgen.rta import RTA, PeriodicWload, RTAPhase
 from lisa.target import Target
@@ -52,9 +52,9 @@ from lisa.target import Target
 from lisa.utils import (
     Serializable, memoized, lru_memoized, ArtifactPath, non_recursive_property,
     update_wrapper_doc, ExekallTaggable, annotations_from_signature,
-    nullcontext, get_sphinx_name, optional_kwargs, group_by_value,
-    kwargs_dispatcher, dispatch_kwargs, Loggable, kwargs_forwarded_to,
-    docstring_update, is_running_ipython,
+    get_sphinx_name, optional_kwargs, group_by_value, kwargs_dispatcher,
+    dispatch_kwargs, Loggable, kwargs_forwarded_to, docstring_update,
+    is_running_ipython,
 )
 from lisa.datautils import df_filter_task_ids
 from lisa.trace import FtraceCollector, FtraceConf, DmesgCollector, ComposedCollector
@@ -62,7 +62,7 @@ from lisa.conf import (
     SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc,
 )
 from lisa._generic import TypedList
-from lisa.pelt import PELT_SCALE, pelt_settling_time
+from lisa.pelt import pelt_settling_time
 
 
 def _nested_formatter(multiline):
@@ -1008,7 +1008,6 @@ class TestBundleBase(
                 def _from_target(cls, target, *, foo=33, bar):
                     ...
         """
-        pass
 
     @classmethod
     def check_from_target(cls, target):
@@ -1020,7 +1019,6 @@ class TestBundleBase(
 
         This method should be overriden to check your implementation requirements
         """
-        pass
 
     @classmethod
     def can_create_from_target(cls, target):
@@ -1934,7 +1932,6 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         This is the method you want to override to specify what is your
         synthetic workload.
         """
-        pass
 
     @classmethod
     def get_cgroup_configuration(cls, plat_info):

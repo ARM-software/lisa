@@ -165,7 +165,6 @@ class KeyDescBase(abc.ABC):
         :param style: When "rst", ResStructuredText formatting may be applied
         :param style: str
         """
-        pass
 
     @abc.abstractmethod
     def validate_val(self, val):
@@ -177,7 +176,6 @@ class KeyDescBase(abc.ABC):
             constraints. Note that constraints should ideally be encoded in the
             type itself, to make help message as straightforward as possible.
         """
-        pass
 
 
 class KeyDesc(KeyDescBase):
@@ -358,7 +356,6 @@ class MissingBaseKeyError(ConfigKeyError):
     """
     Exception raised when a base key needed to compute a derived key is missing.
     """
-    pass
 
 
 class DeferredValueComputationError(ConfigKeyError):
@@ -377,7 +374,6 @@ class KeyComputationRecursionError(ConfigKeyError, RecursionError):
     a given key on a configuration instance, or when a :class:`DeferredValue`
     callback is reentered.
     """
-    pass
 
 
 class DerivedKeyDesc(KeyDesc):
@@ -707,7 +703,6 @@ class NestedTopLevelKeyDesc(TopLevelKeyDescBase):
     """
     Top-level key descriptor, with an arbitrary amount of levels.
     """
-    pass
 
 class MultiSrcConfABC(Serializable, abc.ABC):
     _REGISTERED_TOPLEVEL_KEYS = {}
@@ -1053,7 +1048,6 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         Class attribute defining the structure of the configuration file, as a
         instance of :class:`TopLevelKeyDescBase`
         """
-        pass
 
     DEFAULT_SRC = {}
     """

@@ -686,7 +686,6 @@ class FromString(TypeClass):
         """
         Parse the given string into a value of ``cls``.
         """
-        pass
 
     @TypeClass.required
     @classmethod
@@ -698,7 +697,6 @@ class FromString(TypeClass):
             Otherwise a more more lengthy description is acceptable
         :type short: bool
         """
-        pass
 
 class BuiltinFromStringInstance(FromString, types=(int, float, TypedList[float])):
     """

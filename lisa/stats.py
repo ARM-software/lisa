@@ -33,7 +33,6 @@ from bokeh.models import HoverTool
 
 from lisa.utils import Loggable, memoized, FrozenDict, deduplicate, fold
 from lisa.datautils import df_split_signals, df_make_empty_clone, df_filter, df_find_redundant_cols
-from lisa.notebook import make_figure, COLOR_CYCLE
 
 # Ensure hv.extension() is called
 import lisa.notebook

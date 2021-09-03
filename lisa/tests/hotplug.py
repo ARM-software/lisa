@@ -18,7 +18,6 @@
 import abc
 import sys
 import random
-import os.path
 import operator
 import collections
 import time
@@ -29,10 +28,10 @@ from itertools import chain
 
 import pandas as pd
 from devlib.module.hotplug import HotplugModule
-from devlib.exception import TargetNotRespondingError, TargetStableError
+from devlib.exception import TargetStableError
 
 from lisa.datautils import df_merge
-from lisa.tests.base import TestMetric, ResultBundle, TestBundle, DmesgTestBundle, FtraceTestBundle
+from lisa.tests.base import DmesgTestBundle, FtraceTestBundle, ResultBundle, TestBundle
 from lisa.target import Target
 from lisa.trace import requires_events
 from lisa.utils import ArtifactPath
@@ -115,7 +114,6 @@ class HotplugBase(HotplugDmesgTestBundle, TestBundle):
         plugged-off before (and vice versa). Moreover the state of the CPUs
         once the sequence has completed should the same as it was before.
         """
-        pass
 
     @classmethod
     def _cpuhp_func(cls, target, res_dir, sequence, sleep_min_ms,

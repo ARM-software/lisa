@@ -15,14 +15,12 @@
 # limitations under the License.
 #
 
-import os.path
 from math import isnan
 
 import pandas as pd
 import holoviews as hv
 
 from itertools import chain
-from devlib.target import KernelVersion
 
 from lisa.wlgen.rta import RTAPhase, PeriodicWload, DutyCycleSweepPhase
 from lisa.analysis.rta import RTAEventsAnalysis
@@ -31,7 +29,6 @@ from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle
 from lisa.utils import ArtifactPath, memoized
 from lisa.datautils import series_integrate, df_deduplicate
 from lisa.energy_model import EnergyModel, EnergyModelCapacityError
-from lisa.trace import requires_events
 from lisa.target import Target
 from lisa.pelt import PELT_SCALE, pelt_swing
 from lisa.datautils import df_refit_index

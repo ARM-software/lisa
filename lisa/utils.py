@@ -152,7 +152,6 @@ class UnboundMethodType(metaclass=_UnboundMethodTypeMeta):
         assert     isinstance(C.f_static, UnboundMethodType)
         assert not isinstance(g,          UnboundMethodType)
     """
-    pass
 
 
 class bothmethod:
@@ -444,7 +443,6 @@ class HideExekallID:
     Hiding too many classes may lead to ambiguity, which is exactly what the ID
     is fighting against.
     """
-    pass
 
 
 def memoized(f):

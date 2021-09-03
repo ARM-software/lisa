@@ -18,7 +18,6 @@
 """ Scheduler load tracking analysis module """
 
 import operator
-from functools import partial
 import itertools
 
 import holoviews as hv

@@ -684,7 +684,6 @@ class _HoloviewsPanelWrapper:
     Dummy base class used to identify classes created by
     :func:`_hv_wrap_fig_cls`.
     """
-    pass
 
 @functools.lru_cache(maxsize=None)
 def _hv_wrap_fig_cls(cls):

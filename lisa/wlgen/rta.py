@@ -109,7 +109,6 @@ import abc
 import copy
 import functools
 import inspect
-import itertools
 import json
 import math
 import operator
@@ -119,10 +118,9 @@ import weakref
 from collections import OrderedDict
 from collections.abc import Iterable, Mapping
 from itertools import chain, product, starmap
-from operator import attrgetter, itemgetter
+from operator import itemgetter
 from shlex import quote
 from statistics import mean
-from textwrap import dedent
 import contextlib
 
 from devlib import TargetStableError
@@ -146,9 +144,7 @@ from lisa.utils import (
     memoized,
     nullcontext,
     order_as,
-    unzip_into,
     value_range,
-    get_sphinx_name,
     get_cls_name,
     get_short_doc,
     kwargs_dispatcher,
@@ -205,7 +201,6 @@ class CalibrationError(RuntimeError):
     Exception raised when the ``rt-app`` calibration is not consistent with the
     CPU capacities in a way or another.
     """
-    pass
 
 
 class RTAConf(Loggable, Mapping):
@@ -1218,7 +1213,6 @@ class PropertyBase(SimpleHash, metaclass=PropertyMeta):
         properties that are not isomorphic to a Python basic type (int, tuple
         etc.), ``self`` should be returned.
         """
-        pass
 
     @classmethod
     def _from_key(cls, key, val):
@@ -1250,7 +1244,6 @@ class PropertyBase(SimpleHash, metaclass=PropertyMeta):
         Otherwise, it's probably best to just bail with :exc:`ValueError` with
         a message explaining that there is a conflict.
         """
-        pass
 
     @classmethod
     def _check_key(cls, key):
@@ -1459,7 +1452,6 @@ class MetaPropertyBase(PropertyBase):
     Meta properties are properties that will not be translated into JSON, as
     opposed to concrete properties.
     """
-    pass
 
 
 class ContaminatingProperty(PropertyBase):
@@ -1762,7 +1754,6 @@ class _SemigroupProperty(PropertyBase):
 
         Function used to combine two non-None values.
         """
-        pass
 
     def __and__(self, other):
         """
@@ -2169,7 +2160,6 @@ class MultiProperty(PropertyBase):
     """
     Base class for properties setting multiple JSON keys at once.
     """
-    pass
 
 
 class MultiConcreteProperty(MultiProperty, ConcretePropertyBase):
@@ -2588,7 +2578,6 @@ class _SingleWloadBase(WloadPropertyBase):
         """
         Value to pass to JSON.
         """
-        pass
 
     def to_events(self, **kwargs):
         return [(self._action, self.json_value)]
@@ -3218,7 +3207,6 @@ class RTAPhaseBase(_RTAPhaseBase, SimpleHash, Mapping, abc.ABC):
         :Variable keyword arguments: Forwarded to
             :meth:`RTAPhase.to_json`
         """
-        pass
 
     def __add__(self, other):
         """
@@ -3306,7 +3294,6 @@ class _RTAPhaseTreeBase(RTAPhaseBase, abc.ABC):
         (pre-order traversal). This is important for some classes that are not
         semigroup like :class:`OverridenProperty`.
         """
-        pass
 
     @property
     @abc.abstractmethod
@@ -3315,7 +3302,6 @@ class _RTAPhaseTreeBase(RTAPhaseBase, abc.ABC):
         ``True`` if the phase has no content and will result in an empty JSON
         phase(s).
         """
-        pass
 
     @property
     def phases(self):
@@ -3734,7 +3720,6 @@ class ParametricPhase(RTAPhaseTree):
         Create a list of children :class:`RTAPhaseBase` based on the parameters
         passed from the constructor.
         """
-        pass
 
 
 class SweepPhase(ParametricPhase):
@@ -3966,7 +3951,6 @@ class RTATask(_RTATask):
     executes the default phases for :class:`Ramp` followed by the default phases for
     :class:`Periodic`.
     """
-    pass
 
 
 class _Ramp(_RTATask):
@@ -4053,7 +4037,6 @@ class Ramp(_Ramp):
       * **uclamp_max**
       * **numa_nodes_membind**
     """
-    pass
 
 
 @deprecate(deprecated_in='2.0', removed_in='3.0', replaced_by=DutyCycleSweepPhase)
@@ -4200,7 +4183,6 @@ class Pulse(_Pulse):
       * **uclamp_max**
       * **numa_nodes_membind**
     """
-    pass
 
 
 @deprecate('Replaced by :class:`lisa.wlgen.rta.RTAPhase` along with :class:`lisa.wlgen.rta.PeriodicWload` workload', deprecated_in='2.0', removed_in='3.0', replaced_by=RTAPhase)

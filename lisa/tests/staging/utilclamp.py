@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-import os
 import functools
 from operator import itemgetter
 
@@ -25,7 +24,7 @@ import holoviews as hv
 
 from lisa.analysis.frequency import FrequencyAnalysis
 from lisa.analysis.load_tracking import LoadTrackingAnalysis
-from lisa.datautils import df_add_delta, series_mean, df_window, df_refit_index
+from lisa.datautils import df_refit_index
 from lisa.pelt import PELT_SCALE
 from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle, TestMetric
 from lisa.wlgen.rta import RTAPhase, PeriodicWload

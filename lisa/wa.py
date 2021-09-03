@@ -304,7 +304,6 @@ class WACollectorBase(StatsProp, Loggable, abc.ABC):
               User can inject arbitrary classifier from WA config, so you might
               have some columns that cannot be relied upon.
         """
-        pass
 
     @property
     def logger(self):

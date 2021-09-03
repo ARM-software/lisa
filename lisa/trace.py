@@ -33,7 +33,7 @@ import inspect
 import shlex
 import contextlib
 import tempfile
-from functools import lru_cache, wraps
+from functools import wraps
 from collections.abc import Set, Mapping, Sequence
 from collections import namedtuple
 from operator import itemgetter, attrgetter
@@ -54,7 +54,7 @@ import devlib
 from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager
 from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa._generic import TypedList
-from lisa.datautils import df_window, df_window_signals, SignalDesc, df_add_delta, series_convert, df_deduplicate, df_update_duplicates
+from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString, IntListFromStringInstance
 
@@ -252,7 +252,6 @@ class TraceParserBase(abc.ABC, Loggable, PartialInit):
         .. note:: The caller is free to modify the index of the data, and it
             must not affect other dataframes.
         """
-        pass
 
     def parse_events(self, events, best_effort=False, **kwargs):
         """
@@ -2028,7 +2027,6 @@ class TraceBase(abc.ABC):
 
         :Variable keyword arguments: Forwarded to the contructor of the view.
         """
-        pass
 
     def __getitem__(self, window):
         if not isinstance(window, slice):
@@ -2490,7 +2488,6 @@ class TraceCacheSwapVersionError(ValueError):
     Exception raised when the swap entry was created by another version of LISA
     than the one loading it.
     """
-    pass
 
 
 class TraceCache(Loggable):
@@ -4754,7 +4751,6 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
 
         :raises: MissingTraceEventError if some events are not available
         """
-        pass
 
     @abc.abstractmethod
     def get_all_events(self):
@@ -4764,7 +4760,6 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         That may be a superset of events that are strictly required, when the
         checker checks a logical OR combination of events for example.
         """
-        pass
 
     def __call__(self, f):
         """
@@ -4863,7 +4858,6 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         :type wrapped: bool
         """
 
-        pass
 
     def doc_str(self):
         """

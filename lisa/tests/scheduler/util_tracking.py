@@ -15,15 +15,13 @@
 # limitations under the License.
 #
 
-import os
 import functools
 
 import holoviews as hv
-from devlib.target import KernelVersion
 
 from lisa.tests.base import ResultBundle, TestBundle, RTATestBundle
 from lisa.target import Target
-from lisa.utils import ArtifactPath, memoized, namedtuple
+from lisa.utils import ArtifactPath, namedtuple
 from lisa.wlgen.rta import RTAPhase, PeriodicWload, DutyCycleSweepPhase
 from lisa.trace import requires_events
 from lisa.analysis.rta import RTAEventsAnalysis

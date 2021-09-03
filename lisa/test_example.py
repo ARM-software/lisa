@@ -17,7 +17,7 @@
 
 from lisa.utils import ArtifactPath
 from lisa.datautils import df_filter_task_ids
-from lisa.trace import FtraceCollector, requires_events
+from lisa.trace import requires_events
 from lisa.wlgen.rta import RTAPhase, PeriodicWload
 from lisa.tests.base import TestBundle, RTATestBundle, ResultBundle
 from lisa.target import Target

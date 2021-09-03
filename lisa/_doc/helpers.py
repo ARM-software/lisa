@@ -42,8 +42,8 @@ import lisa
 import lisa.analysis
 from lisa.analysis.base import AnalysisHelpers, TraceAnalysisBase
 from lisa.utils import get_subclasses, import_all_submodules, DEPRECATED_MAP, get_sphinx_name, groupby, get_short_doc, order_as
-from lisa.trace import MissingTraceEventError, TraceEventCheckerBase
-from lisa.conf import SimpleMultiSrcConf, TopLevelKeyDesc, KeyDesc, LevelKeyDesc
+from lisa.trace import TraceEventCheckerBase
+from lisa.conf import KeyDesc, SimpleMultiSrcConf, TopLevelKeyDesc
 from lisa.version import format_version
 import lisa._git
 

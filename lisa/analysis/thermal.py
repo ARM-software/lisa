@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-from matplotlib.ticker import MaxNLocator
 
 from devlib.utils.misc import list_to_mask, mask_to_list
 
