@@ -213,7 +213,7 @@ class WAOutput(StatsProp, Mapping, Loggable):
                 df = collector.df
             except Exception as e: # pylint: disable=broad-except
                 exceps[collector] = e
-                self.get_logger().debug(f'Could not get dataframe of collector {name}: {e}')
+                self.logger.debug(f'Could not get dataframe of collector {name}: {e}')
             else:
                 dfs.append(df)
 

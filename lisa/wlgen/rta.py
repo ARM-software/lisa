@@ -665,7 +665,7 @@ class RTA(Workload):
 
     @contextlib.contextmanager
     def _setup(self):
-        logger = self.get_logger()
+        logger = self.logger
         plat_info = self.target.plat_info
         writeable_capacities = plat_info['cpu-capacities']['writeable']
         update_cpu_capacities = self.update_cpu_capacities

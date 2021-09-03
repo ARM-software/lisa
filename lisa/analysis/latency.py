@@ -235,7 +235,7 @@ class LatencyAnalysis(TraceAnalysisBase):
         def make_fig(name, df_getter, label):
             df = df_getter(task)
             if df.empty:
-                self.get_logger().warning(f"No data to plot for {name}")
+                self.logger.warning(f"No data to plot for {name}")
             else:
                 df = df_refit_index(df, window=self.trace.window)
                 return self._plot_markers(df, label)

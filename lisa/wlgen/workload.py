@@ -129,7 +129,7 @@ class _WorkloadRunCM(Loggable):
     def __exit__(self, *exc_info):
         inner_exit = self._bg_cmd.__exit__
         wload = self.wload
-        logger = self.get_logger()
+        logger = self.logger
 
         try:
             suppress = inner_exit(*exc_info)
@@ -371,7 +371,7 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
         """
         os.makedirs(self.res_dir, exist_ok=True)
         self.target.execute(f'mkdir -p {quote(self.run_dir)}')
-        self.get_logger().info(f"Created workload's run target directory: {self.run_dir}")
+        self.logger.info(f"Created workload's run target directory: {self.run_dir}")
         self.target.install_tools(self.REQUIRED_TOOLS)
         try:
             yield
@@ -562,7 +562,7 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
             sessions. For other purposes, use :class:`Workload` instances as a
             context manager.
         """
-        logger = self.get_logger()
+        logger = self.logger
         logger.info(f"Wiping target run directory: {self.run_dir}")
         self.target.remove(self.run_dir)
 
@@ -593,7 +593,7 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
         by :class:`Workload`'s ``__init__``, but they can all be overridden
         manually with keyword arguments if that is really necessary.
         """
-        logger = self.get_logger()
+        logger = self.logger
         target = self.target
 
         settings = {

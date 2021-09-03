@@ -151,7 +151,7 @@ class HWMon(EnergyMeter):
 
     def __init__(self, target, channel_map, res_dir=None):
         super().__init__(target, res_dir)
-        logger = self.get_logger()
+        logger = self.logger
 
         # Energy readings
         self.readings = {}
@@ -199,7 +199,7 @@ class HWMon(EnergyMeter):
         ))
 
     def sample(self):
-        logger = self.get_logger()
+        logger = self.logger
         samples = self._hwmon.take_measurement()
         for s in samples:
             site = s.channel.site
@@ -225,7 +225,7 @@ class HWMon(EnergyMeter):
         for site in self.readings:
             self.readings[site]['delta'] = 0
             self.readings[site]['total'] = 0
-        self.get_logger().debug(f'RESET: {self.readings}')
+        self.logger.debug(f'RESET: {self.readings}')
 
     def report(self, out_dir, out_file='energy.json'):
         # Retrive energy consumption data
@@ -238,7 +238,7 @@ class HWMon(EnergyMeter):
                     f'hwmon channel "{channel}" not available. Selected channels: {list(nrg.keys())}'
                 )
             nrg_total = nrg[site]['total']
-            self.get_logger().debug(f'Energy [{site:>16}]: {nrg_total:.6f}')
+            self.logger.debug(f'Energy [{site:>16}]: {nrg_total:.6f}')
             clusters_nrg[channel] = nrg_total
 
         # Dump data as JSON file
@@ -338,7 +338,7 @@ class AEP(_DevlibContinuousEnergyMeter):
 
     def __init__(self, target, resistor_values, labels=None, device_entry='/dev/ttyACM0', res_dir=None):
         super().__init__(target, res_dir)
-        logger = self.get_logger()
+        logger = self.logger
 
         # Configure channels for energy measurements
         self._instrument = devlib.EnergyProbeInstrument(
@@ -439,7 +439,7 @@ class ACME(EnergyMeter):
         res_dir=None
     ):
         super().__init__(target, res_dir)
-        logger = self.get_logger()
+        logger = self.logger
 
         self._iiocapturebin = iio_capture_bin
         self._hostname = host
@@ -478,7 +478,7 @@ class ACME(EnergyMeter):
         Reset energy meter and start sampling from channels specified in the
         target configuration.
         """
-        logger = self.get_logger()
+        logger = self.logger
         # Terminate already running iio-capture instance (if any)
         wait_for_termination = 0
         for proc in psutil.process_iter():
@@ -545,7 +545,7 @@ class ACME(EnergyMeter):
         if delta < self.REPORT_DELAY_S:
             sleep(self.REPORT_DELAY_S - delta)
 
-        logger = self.get_logger()
+        logger = self.logger
         channels_nrg = {}
         channels_stats = {}
         for channel, ch_id in self._channels.items():

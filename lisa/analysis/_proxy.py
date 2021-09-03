@@ -161,7 +161,7 @@ class AnalysisProxy(Loggable):
         if attr.startswith('__') and attr.endswith('__'):
             return super().__getattribute__(attr)
 
-        logger = self.get_logger()
+        logger = self.logger
 
         # First, try to get the instance of the Analysis that was built if we
         # used it already on that proxy.
