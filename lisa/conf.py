@@ -1251,7 +1251,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 for key, val in key_val
             }
 
-        logger = self.get_logger()
+        logger = self.logger
         if logger.isEnabledFor(logging.DEBUG):
             caller, filename, lineno = get_call_site(1, exclude_caller_module=True)
             logger.debug('{caller} ({filename}:{lineno}) has set source "{src}":\n{conf}'.format(
@@ -1474,7 +1474,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 if error == 'raise':
                     raise excep from e
                 elif error == 'log':
-                    self.get_logger().error(msg)
+                    self.logger.error(msg)
                     # Setup a bomb that will explode during a later access
                     val = DeferredExcep(excep)
                     validate = False
@@ -1606,7 +1606,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             if eval_deferred:
                 val = self._eval_deferred_val(src, key, error='raise')
 
-        logger = self.get_logger()
+        logger = self.logger
         if not quiet and logger.isEnabledFor(logging.DEBUG):
             caller, filename, lineno = get_call_site(2, exclude_caller_module=True)
             logger.debug('{caller} ({filename}:{lineno}) has used key {key} from source "{src}": {val}'.format(

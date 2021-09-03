@@ -1923,7 +1923,7 @@ class TrappyTraceParser(TraceParserBase):
             else:
                 trace_format = 'FTrace'
 
-        self.get_logger().debug(f'Parsing {trace_format} events from {path}: {sorted(events)}')
+        self.logger.debug(f'Parsing {trace_format} events from {path}: {sorted(events)}')
         if trace_format == 'SysTrace':
             trace_class = trappy.SysTrace
         elif trace_format == 'FTrace':
@@ -2882,7 +2882,7 @@ class TraceCache(Loggable):
                 self.scrub_swap()
 
             def log_error(e):
-                self.get_logger().error(f'Could not write {pd_desc} to swap: {e}')
+                self.logger.error(f'Could not write {pd_desc} to swap: {e}')
 
             # Write the Parquet file and update the write speed
             try:
@@ -3599,7 +3599,7 @@ class Trace(Loggable, TraceBase):
                     for e in checked_events
                 )
                 count = max_cpu + 1
-                self.get_logger().debug(f"Estimated CPU count from trace: {count}")
+                self.logger.debug(f"Estimated CPU count from trace: {count}")
 
             return count
 
@@ -4000,7 +4000,7 @@ class Trace(Loggable, TraceBase):
         missing_events = sorted(set(events) - df_map.keys())
         if missing_events:
             if allow_missing_events:
-                self.get_logger().warning('Events {} not found in the trace: {}'.format(
+                self.logger.warning('Events {} not found in the trace: {}'.format(
                     ', '.join(missing_events),
                     self.trace_path,
                 ))

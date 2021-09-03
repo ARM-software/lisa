@@ -285,7 +285,7 @@ class InvarianceItemBase(RTATestBundle, LoadTrackingHelpers, TestBundle, Exekall
             containing the simulated signal, along with the column of the
             signal as found in the trace.
         """
-        logger = self.get_logger()
+        logger = self.logger
         trace = self.trace
         task = trace.get_task_id(task)
 
@@ -786,7 +786,7 @@ class TaskInvariance(InvarianceBase):
         .. seealso:: :class:`TaskInvariance.ITEM_CLS.test_util_behaviour`
         """
 
-        logger = self.get_logger()
+        logger = self.logger
 
         def make_group_bundle(cpu, item_group):
             bundle = AggregatedResultBundle(

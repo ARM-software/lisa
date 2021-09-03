@@ -728,7 +728,7 @@ class Stats(Loggable):
             series_len = len(series)
             if series_len < min_sample_size:
                 group_str = ', '.join(sorted(f'{k}={v}' for k, v in group.items()))
-                self.get_logger().warning(f'Sample size smaller than {min_sample_size} is being used, the mean confidence interval will only be accurate if the data is normally distributed: {series_len} samples for group {group_str}')
+                self.logger.warning(f'Sample size smaller than {min_sample_size} is being used, the mean confidence interval will only be accurate if the data is normally distributed: {series_len} samples for group {group_str}')
 
             mean, std, sem, ci = series_mean_stats(series, kind=mean_kind, confidence_level=self._mean_ci_confidence)
 

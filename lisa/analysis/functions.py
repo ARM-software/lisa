@@ -122,7 +122,7 @@ class FunctionsAnalysis(TraceAnalysisBase):
         try:
             return self.df_resolve_ksym(df, *args, **kwargs)
         except ConfigKeyError:
-            self.get_logger().warning(f'Missing symbol addresses, function names will not be resolved: {e}')
+            self.logger.warning(f'Missing symbol addresses, function names will not be resolved: {e}')
             return df
 
     @requires_one_event_of('funcgraph_entry', 'funcgraph_exit')

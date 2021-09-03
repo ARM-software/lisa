@@ -729,7 +729,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                     if backend == 'matplotlib':
                         hv_fig = hv_fig.opts(fig_rcparams=rc_params)
                     else:
-                        self.get_logger().warning('rc_params is only used with matplotlib backend')
+                        self.logger.warning('rc_params is only used with matplotlib backend')
 
                 # Markers added by lisa.notebook.plot_signal
                 if backend == 'bokeh':

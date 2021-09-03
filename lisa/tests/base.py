@@ -1476,7 +1476,7 @@ class DmesgTestBundleBase(TestBundleBase):
             (self.DMESG_IGNORED_PATTERNS or [])
         )
 
-        logger = self.get_logger()
+        logger = self.logger
 
         if ignored_patterns:
             logger.info(f'Will ignore patterns in dmesg output: {ignored_patterns}')
@@ -1519,7 +1519,7 @@ class OptionalDmesgTestBundle(DmesgTestBundleBase, Loggable):
         try:
             return super().test_dmesg(*args, **kwargs)
         except FileNotFoundError:
-            self.get_logger().warning('Could not check dmesg content, as it was not collected')
+            self.logger.warning('Could not check dmesg content, as it was not collected')
             return ResultBundle(result=Result.UNDECIDED)
 
     @classmethod
@@ -1779,7 +1779,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                  ignored_ids.extend(task_ids)
 
 
-        self.get_logger().info(f"Ignored PIDs for noise contribution: {', '.join(map(str, ignored_ids))}")
+        self.logger.info(f"Ignored PIDs for noise contribution: {', '.join(map(str, ignored_ids))}")
 
         # Filter out unwanted tasks (rt-app tasks + thresholds)
         df = df_filter_task_ids(df, ignored_ids, invert=True)

@@ -130,7 +130,7 @@ class WaResultsCollector(Loggable):
                  kernel_repo_path=None, parse_traces=True,
                  use_cached_trace_metrics=True, display_charts=True):
 
-        logger = self.get_logger()
+        logger = self.logger
 
         if base_dir:
             base_dir = os.path.expanduser(base_dir)
@@ -191,7 +191,7 @@ class WaResultsCollector(Loggable):
 
     def _list_wa_dirs(self, base_dir, wa_dirs_re):
         dirs = []
-        logger = self.get_logger()
+        logger = self.logger
         logger.info("Processing WA3 dirs matching [%s], rooted at %s",
                     wa_dirs_re, base_dir)
         wa_dirs_re = re.compile(wa_dirs_re)
@@ -235,7 +235,7 @@ class WaResultsCollector(Loggable):
         # |- pelt-wk1-jankbench-2/
         #      [etc]
 
-        logger = self.get_logger()
+        logger = self.logger
 
         # results.csv contains all the metrics reported by WA for all jobs.
         df = pd.read_csv(os.path.join(wa_dir, 'results.csv'))
@@ -405,7 +405,7 @@ class WaResultsCollector(Loggable):
 
         metric,value,units
         """
-        logger = self.get_logger()
+        logger = self.logger
         cache_path = os.path.join(os.path.dirname(trace_path), 'lisa_trace_metrics.csv')
         if self.use_cached_trace_metrics and os.path.exists(cache_path):
             return pd.read_csv(cache_path)
@@ -542,7 +542,7 @@ class WaResultsCollector(Loggable):
 
         metric,value,units
         """
-        logger = self.get_logger()
+        logger = self.logger
         # return
         # value,metric,units
         extra_metric_list = []
@@ -658,7 +658,7 @@ class WaResultsCollector(Loggable):
         """
         Common helper for getting results to plot for a given metric
         """
-        logger = self.get_logger()
+        logger = self.logger
 
         df = self._select(tag, kernel, test)
         if df.empty:
@@ -960,7 +960,7 @@ class WaResultsCollector(Loggable):
         :param tests: regular expression to filter tests that should be plotted
         :type tests: str
         """
-        logger = self.get_logger()
+        logger = self.logger
 
         if not self.display_charts:
             return
@@ -1018,7 +1018,7 @@ class WaResultsCollector(Loggable):
         'kernel' column in the results_df uses). If by='tag' then `base_id`
         should be a WA 'tag id' (as named in the WA agenda).
         """
-        logger = self.get_logger()
+        logger = self.logger
         comparisons = []
 
         # I dunno why I wrote this with a namedtuple instead of just a dict or
@@ -1121,7 +1121,7 @@ class WaResultsCollector(Loggable):
         should be a WA 'tag id' (as named in the WA agenda).
         """
 
-        logger = self.get_logger()
+        logger = self.logger
         if not self.display_charts:
             return
 

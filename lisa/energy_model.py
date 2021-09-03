@@ -177,7 +177,7 @@ class EnergyModelNode(_CpuTree):
     def __init__(self, active_states, idle_states,
                  cpu=None, children=None, name=None):
         super().__init__(cpu, children)
-        logger = self.get_logger()
+        logger = self.logger
 
         def is_monotonic(l, decreasing=False):
             op = operator.ge if decreasing else operator.le
@@ -720,7 +720,7 @@ class EnergyModel(Serializable, Loggable):
 
         num_candidates = len(self.cpus) ** len(tasks)
 
-        logger = self.get_logger()
+        logger = self.logger
         logger.debug(
             f'Searching {num_candidates} configurations for optimal task placement...')
 

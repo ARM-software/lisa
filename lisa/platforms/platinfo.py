@@ -228,7 +228,7 @@ class PlatformInfo(MultiSrcConf, HideExekallID):
         return self._add_info(src, info, only_missing=only_missing, filter_none=True, **kwargs)
 
     def _add_info(self, src, new_info, only_missing, deferred=False, **kwargs):
-        logger = self.get_logger()
+        logger = self.logger
 
         def rename_f(f, name):
             try:

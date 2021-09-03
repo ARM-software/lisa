@@ -246,7 +246,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
     ):
         # pylint: disable=dangerous-default-value
         super().__init__()
-        logger = self.get_logger()
+        logger = self.logger
 
         self.name = name
 
@@ -381,7 +381,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         except AttributeError:
             # Load the module on demand
             if attr in self._devlib_loadable_modules:
-                self.get_logger().info(f'Loading target devlib module {attr}')
+                self.logger.info(f'Loading target devlib module {attr}')
                 self.target.install_module(attr)
                 return get()
             # If it was not in the loadable list, it
@@ -607,7 +607,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         """
         Initialize the Target
         """
-        logger = self.get_logger()
+        logger = self.logger
         conn_settings = {}
         resolved_username = username or 'root'
 
@@ -741,7 +741,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         )
 
     def _get_res_dir(self, root, relative, name, append_time, symlink):
-        logger = self.get_logger()
+        logger = self.logger
         while True:
             time_str = datetime.now().strftime('%Y%m%d_%H%M%S.%f')
             if not name:
@@ -814,7 +814,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
             that happens, a warning is logged but no exception is raised, so
             it's a best-effort approach.
         """
-        logger = self.get_logger()
+        logger = self.logger
         if not self.is_rooted:
             logger.warning('Could not freeze userspace: target is not rooted')
             cm = nullcontext
@@ -850,7 +850,7 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         """
         Context manager that lets you disable all idle states
         """
-        logger = self.get_logger()
+        logger = self.logger
         logger.info('Disabling idle states for all domains')
 
         try:
