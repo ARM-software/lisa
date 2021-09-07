@@ -984,6 +984,9 @@ def setup_logging(filepath='logging.conf', level=None):
     """
     resolved_level = logging.INFO if level is None else level
 
+    # asyncio floods us with debug info we are not interested in
+    logging.getLogger('asyncio').setLevel(logging.WARNING)
+
     # Ensure basicConfig will have effects again by getting rid of the existing
     # handlers
     # Note: When we can depend on Python >= 3.8, we can just pass
