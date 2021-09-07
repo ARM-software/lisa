@@ -337,7 +337,7 @@ def main():
             help=f'Name of the toolchain for {arch} (CROSS_COMPILE without trailing dash)',
         )
 
-    parser.add_argument('--build-dir', help='Build director. Defaults to temp folder')
+    parser.add_argument('--build-dir', help='Build director. Defaults to temp folder. WARNING: Do not simply delete the build directory, as it contains bind mounts for the parent git repository.')
     args = parser.parse_args()
 
     native_build = args.native_build
