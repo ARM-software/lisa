@@ -1,0 +1,72 @@
+#! /bin/bash
+
+ALPINE_VERSION=v3.14
+ALPINE_BUILD_DEPENDENCIES=(bash gcc git make cmake musl-dev zlib-static bzip2-static libelf-static libbpf-dev musl-obstack-dev argp-standalone linux-headers)
+BROKEN_CROSS_COMPILATION=1
+
+# The "lisa" branch can be constructed with:
+# batch-rebase create . --manifest ../pahole-patches/pahole.yaml --create-branch lisa
+#
+# rebase-conf:
+#     rr-cache: ./rr-cache
+#     base:
+#         remote: perso-github
+#         ref: master
+
+# topics:
+#     -
+#         name: static_link
+#         remote: perso-github
+#         base: master
+#         tip: static_link
+#     -
+#         name: btf_alignment
+#         remote: perso-github
+#         base: master
+#         tip: btf_alignment
+#     -
+#         name: anon_struct
+#         remote: perso-github
+#         base: master
+#         tip: anon_struct
+
+#     # This one will trvially conflict with anon_struct because they both
+#     # add a CLI option
+#     -
+#         name: skip_missing
+#         remote: perso-github
+#         base: master
+#         tip: skip_missing
+#
+# remotes:
+#     perso-github:
+#     url: https://github.com/douglas-raillard-arm/pahole.git
+
+
+download() {
+    #git clone https://git.kernel.org/pub/scm/devel/pahole/pahole.git
+    git clone https://github.com/douglas-raillard-arm/pahole.git
+    git -C pahole checkout lisa
+}
+
+build() {
+    cd pahole
+
+    mkdir build
+    (
+      cd build
+      cmake \
+          -DSTATIC_LINK=ON \
+          .. \
+      &&
+      make pahole
+    ) &&
+    strip build/pahole
+}
+
+install() {
+    cp -v pahole/build/pahole "$LISA_ARCH_ASSETS/pahole"
+
+    source "$LISA_HOME/tools/recipes/utils.sh"
+    install_readme pahole pahole COPYING
+}
