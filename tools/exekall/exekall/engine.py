@@ -2364,7 +2364,7 @@ class Expression(ExpressionBase):
 
 class AnnotationError(Exception):
     """
-    Exception raised when there is a missing PEP 484 annotation.
+    Exception raised when there is a missing or invalid PEP 484 annotation.
     """
     pass
 
@@ -2977,7 +2977,10 @@ class Operator:
             # If we get a string, evaluate it in the global namespace of the
             # module in which the callable was defined
             if isinstance(x, str):
-                x = eval(x, module_vars)
+                try:
+                    x = eval(x, module_vars)
+                except Exception as e:
+                    raise AnnotationError(f'Cannot handle annotation "{x}": {e}')
 
             # Handle associated types:
             # If the annotation is a typing.TypeVar, assume it was defined as a
