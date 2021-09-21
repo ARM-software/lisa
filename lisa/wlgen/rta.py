@@ -49,7 +49,7 @@ The most important classes are:
 
 A typical workload would be created this way::
 
-    from lisa.wlgen import RTA, RTAPhase, PeriodicWload
+    from lisa.wlgen.rta import RTA, RTAPhase, PeriodicWload, SleepWload
 
     task = (
         # Phases can be added together so they will be executed in order
