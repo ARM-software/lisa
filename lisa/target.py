@@ -633,9 +633,9 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 device = 'DEFAULT'
 
             conn_settings['device'] = device
-            # If the username was explicitly set to "root", root the target as
-            # early as possible
-            conn_settings['adb_as_root'] = (username == 'root')
+            # If the username was explicitly set to "root", or username is None,
+            # root the target as early as possible
+            conn_settings['adb_as_root'] = (username == 'root' or username is None)
 
         elif kind == 'linux':
             devlib_target_cls = devlib.LinuxTarget
@@ -691,14 +691,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         )
 
         target.connect(check_boot_completed=wait_boot, timeout=wait_boot_timeout)
-
-        # None as username means adb root will be attempted, but failure will
-        # not prevent from connecting to the target.
-        if kind == 'android' and username is None:
-            try:
-                target.adb_root(enable=True)
-            except Exception as e: # pylint: disable=broad-except
-                logger.warning(f'"adb root" failed: {e}')
 
         logger.debug(f'Target info: {dict(abi=target.abi, cpuinfo=target.cpuinfo, workdir=target.working_directory)}')
 
