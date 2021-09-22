@@ -215,6 +215,10 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         ],
         'android': [
             'sh', 'adbd',
+            # AOSP 'mount' command needs to communicate with 'emulated' threads,
+            # the threads are spawn by the process 'rs.media.module', so need to
+            # avoid freezing it to avoid stuck with execute 'mount' command.
+            'rs.media.module',
             'usb', 'transport',
             # We don't actually need this task but on Google Pixel it apparently
             # cannot be frozen, so the cgroup state gets stuck in FREEZING if we
