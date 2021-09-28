@@ -977,7 +977,11 @@ class TxtTraceParserBase(TraceParserBase):
                     event # pylint: disable=pointless-statement
             # The line did not match the skeleton regex, so skip it
             except TypeError:
-                continue
+                if b'EVENTS DROPPED' in line:
+                    raise DroppedTraceEventError('The trace buffer got overridden by new data, increase the buffer size to ensure all events are recorded')
+                # Unknown line, could be coming e.g. from stderr
+                else:
+                    continue
 
             # Do a global deduplication of timestamps, across all
             # events regardless of the one we will parse. This ensures
@@ -1652,7 +1656,7 @@ class TxtTraceParser(TxtTraceParserBase):
         ]
         # A fairly large buffer reduces the interaction overhead
         bufsize = 10 * 1024 * 1024
-        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=bufsize) as p:
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=bufsize) as p:
             # Consume the lines as they come straight from the stdout object to
             # avoid the memory overhead of storing the whole output in one
             # gigantic string
@@ -5131,6 +5135,13 @@ def may_use_events(*events, **kwargs):
     if presents.
     """
     return OptionalTraceEventChecker.from_events(events, **kwargs)
+
+
+class DroppedTraceEventError(Exception):
+    """
+    Raised when some events were dropped from the ftrace ring buffer because of
+    lack of space.
+    """
 
 
 class MissingTraceEventError(RuntimeError, ValueError):
