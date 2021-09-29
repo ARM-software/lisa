@@ -75,7 +75,6 @@ install() {
 # non-necessary dependencies
 download_audit() {
     git clone https://github.com/linux-audit/audit-userspace.git
-    git -C audit-userspace checkout master
 }
 
 build_audit() {
