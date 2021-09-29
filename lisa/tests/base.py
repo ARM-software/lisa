@@ -1384,7 +1384,7 @@ class DmesgTestConf(TestConfBase):
     {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('dmesg', 'Dmesg test configuration', (
-        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries *content* to be whitelisted (see :class:`devlib.collector.dmesg.KernelLogEntry` for how the message is split)', [TypedList[str]]),
+        KeyDesc('ignored-patterns', 'List of Python regex matching dmesg entries *content* to be ignored (see :class:`devlib.collector.dmesg.KernelLogEntry` for how the message is split)', [TypedList[str]]),
     ))
 
 
