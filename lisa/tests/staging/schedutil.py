@@ -132,7 +132,7 @@ class RampBoostTestBase(RTATestBundle, TestBundle):
         df.dropna(inplace=True)
 
         # Reconstitute how schedutil sees signals by subsampling the
-        # "master" dataframe, so we can look at signals coming from other
+        # "main" dataframe, so we can look at signals coming from other
         # dataframes
         df = df[df['from_schedutil'] == True] # pylint: disable=singleton-comparison
         df.drop(columns=['from_schedutil'], inplace=True)
