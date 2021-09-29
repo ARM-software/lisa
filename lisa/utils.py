@@ -694,9 +694,11 @@ class Serializable(
     .. note:: Not to be used on its own - instead, your class should inherit
         from this class to gain serialization superpowers.
     """
-    serialized_whitelist = []
-    serialized_blacklist = []
-    serialized_placeholders = dict()
+    ATTRIBUTES_SERIALIZATION = {
+        'allowed': [],
+        'ignored': [],
+        'placeholders': {},
+    }
 
     YAML_ENCODING = 'utf-8'
     "Encoding used for YAML files"
@@ -919,40 +921,43 @@ class Serializable(
         """
         Filter the instance's attributes upon serialization.
 
-        The following class attributes can be used to customize the serialized
+        The following keys in :attr:`ATTRIBUTES_SERIALIZATION` can be used to customize the serialized
         content:
 
-            * :attr:`serialized_whitelist`: list of attribute names to
-              serialize. All other attributes will be ignored and will not be
-              saved/restored.
+            * ``allowed``: list of attribute names to serialize. All other
+              attributes will be ignored and will not be saved/restored.
 
-            * :attr:`serialized_blacklist`: list of attribute names to not
-              serialize.  All other attributes will be saved/restored.
+            * ``ignored``: list of attribute names to not serialize. All other
+              attributes will be saved/restored.
 
-            * :attr:`serialized_placeholders`: Map of attribute names to
-              placeholder values. These attributes will not be serialized, and
-              the placeholder value will be used upon restoration.
+            * ``placeholders``: Map of attribute names to placeholder values.
+              These attributes will not be serialized, and the placeholder
+              value will be used upon restoration.
 
-        If both :attr:`serialized_whitelist` and :attr:`serialized_blacklist`
-        are specified, :attr:`serialized_blacklist` is ignored.
+        If both ``allowed`` and ``ignored`` are specified, ``ignored`` is
+        ignored.
         """
 
         dct = copy.copy(self.__dict__)
-        if self.serialized_whitelist:
-            dct = {attr: dct[attr] for attr in self.serialized_whitelist}
+        allowed = self.ATTRIBUTES_SERIALIZATION['allowed']
+        ignored = self.ATTRIBUTES_SERIALIZATION['ignored']
+        placeholders = self.ATTRIBUTES_SERIALIZATION['placeholders']
 
-        elif self.serialized_blacklist:
-            for attr in self.serialized_blacklist:
+        if allowed:
+            dct = {attr: dct[attr] for attr in allowed}
+
+        elif ignored:
+            for attr in ignored:
                 dct.pop(attr, None)
 
-        for attr, _ in self.serialized_placeholders.items():
+        for attr in placeholders.keys():
             dct.pop(attr, None)
 
         return dct
 
     def __setstate__(self, dct):
-        if self.serialized_placeholders:
-            dct.update(copy.deepcopy(self.serialized_placeholders))
+        placeholders = self.ATTRIBUTES_SERIALIZATION['placeholders']
+        dct.update(copy.deepcopy(placeholders))
         self.__dict__ = dct
 
     def __copy__(self):
