@@ -2538,7 +2538,7 @@ def get_doc_url(obj):
 # `obj_name` values
 @functools.lru_cache(maxsize=4096)
 def _get_doc_url(obj_name):
-    doc_base_url = 'https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/'
+    doc_base_url = 'https://lisa-linux-integrated-system-analysis.readthedocs.io/en/latest/'
     # Use the inventory built by RTD
     inv_url = urllib.parse.urljoin(doc_base_url, 'objects.inv')
 
