@@ -51,46 +51,46 @@ class LoadTrackingHelpers:
 
     MAX_RTAPP_CALIB_DEVIATION = 3 / 100
     """
-    Blacklist CPUs that have a RTapp calibration value that deviates too much
+    Ignore CPUs that have a RTapp calibration value that deviates too much
     from the average calib value in their capacity class.
     """
 
     @classmethod
-    def _get_blacklisted_cpus(cls, plat_info):
+    def _get_ignored_cpus(cls, plat_info):
         """
         :meta public:
 
-        Consider some CPUs as blacklisted when the load would not be
+        Consider some CPUs as ignored when the load would not be
         proportionnal to utilization on them.
 
         That happens for CPUs that are busy executing other code than the test
         workload, like handling interrupts. It is detect that by looking at the
-        RTapp calibration value and we blacklist outliers.
+        RTapp calibration value and we ignore outliers.
         """
         rtapp_calib = plat_info['rtapp']['calib']
-        blacklisted = set()
+        ignored = set()
         # For each class of CPUs, get the average rtapp calibration value
-        # and blacklist the ones that are deviating too much from that
+        # and ignore the ones that are deviating too much from that
         for cpu_class in plat_info['capacity-classes']:
             calib_mean = mean(rtapp_calib[cpu] for cpu in cpu_class)
             calib_max = (1 + cls.MAX_RTAPP_CALIB_DEVIATION) * calib_mean
-            blacklisted.update(
+            ignored.update(
                 cpu
                 for cpu in cpu_class
                 # exclude outliers that are too slow (i.e. calib value too small)
                 if rtapp_calib[cpu] > calib_max
             )
-        return sorted(blacklisted)
+        return sorted(ignored)
 
     @classmethod
     def filter_capacity_classes(cls, plat_info):
         """
-        Filter out capacity-classes key of ``plat_info`` to remove blacklisted
+        Filter out capacity-classes key of ``plat_info`` to remove ignored
         CPUs provided by:
         """
-        blacklisted_cpus = set(cls._get_blacklisted_cpus(plat_info))
+        ignored_cpus = set(cls._get_ignored_cpus(plat_info))
         return [
-            sorted(set(cpu_class) - blacklisted_cpus)
+            sorted(set(cpu_class) - ignored_cpus)
             for cpu_class in plat_info['capacity-classes']
         ]
 
@@ -516,7 +516,7 @@ class InvarianceBase(TestBundleBase, LoadTrackingHelpers, abc.ABC):
             try:
                 return filtered_class[0]
             except IndexError:
-                raise RuntimeError(f'All CPUs of one capacity class have been blacklisted: {cpu_class}')
+                raise RuntimeError(f'All CPUs of one capacity class have been ignored: {cpu_class}')
 
         # pick one CPU per class of capacity
         cpus = [
