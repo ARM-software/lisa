@@ -632,6 +632,8 @@ class TasksAnalysis(TraceAnalysisBase):
         def get_task_df(task):
             try:
                 df = self.ana.tasks.df_task_total_residency(task)
+            except MissingTraceEventError:
+                raise
             # Not all tasks may be available, e.g. tasks outside the TraceView
             # window
             except Exception:
