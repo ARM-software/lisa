@@ -690,7 +690,7 @@ Workload-specific augmentation
 It is possible to enable or disable (but not configure) augmentations at
 workload or section level, as well as in the global config, in which case, the
 augmentations would only be enabled/disabled for that workload/section. If the
-same augmentation is enabled at one level and disabled at another, as will all
+same augmentation is enabled at one level and disabled at another, as with all
 WA configuration, the more specific settings will take precedence over the less
 specific ones (i.e. workloads override sections that, in turn, override global
 config).

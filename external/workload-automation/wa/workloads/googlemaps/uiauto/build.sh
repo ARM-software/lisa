@@ -46,8 +46,8 @@ fi
 
 # If successful move APK file to workload folder (overwrite previous)
 rm -f ../com.arm.wa.uiauto.googlemaps
-if [[ -f app/build/apk/com.arm.wa.uiauto.googlemaps.apk ]]; then
-    cp app/build/apk/com.arm.wa.uiauto.googlemaps.apk ../com.arm.wa.uiauto.googlemaps.apk
+if [[ -f app/build/outputs/apk/debug/com.arm.wa.uiauto.googlemaps.apk ]]; then
+    cp app/build/outputs/apk/debug/com.arm.wa.uiauto.googlemaps.apk ../com.arm.wa.uiauto.googlemaps.apk
 else
     echo 'ERROR: UiAutomator apk could not be found!'
     exit 9

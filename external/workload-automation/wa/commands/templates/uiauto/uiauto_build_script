@@ -31,8 +31,8 @@ fi
 
 # If successful move APK file to workload folder (overwrite previous)
 rm -f ../$package_name
-if [[ -f app/build/apk/$package_name.apk ]]; then
-    cp app/build/apk/$package_name.apk ../$package_name.apk
+if [[ -f app/build/outputs/apk/debug/$package_name.apk ]]; then
+    cp app/build/outputs/apk/debug/$package_name.apk ../$package_name.apk
 else
     echo 'ERROR: UiAutomator apk could not be found!'
     exit 9

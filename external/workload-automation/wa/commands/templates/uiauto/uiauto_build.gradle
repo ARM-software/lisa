@@ -12,7 +12,7 @@ android {
     buildTypes {
         applicationVariants.all { variant ->
             variant.outputs.each { output ->
-                output.outputFile = file("$$project.buildDir/apk/${package_name}.apk")
+                output.outputFileName = "${package_name}.apk"
             }
         }
     }

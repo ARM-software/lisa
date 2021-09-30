@@ -12,7 +12,7 @@ android {
     buildTypes {
         applicationVariants.all { variant ->
             variant.outputs.each { output ->
-                output.outputFile = file("$project.buildDir/apk/com.arm.wa.uiauto.chrome.apk")
+                output.outputFileName = "com.arm.wa.uiauto.chrome.apk"
             }
         }
     }
