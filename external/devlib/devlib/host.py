@@ -138,6 +138,7 @@ class LocalConnection(ConnectionBase):
             command,
             stdout=stdout,
             stderr=stderr,
+            stdin=subprocess.PIPE,
             shell=True,
             preexec_fn=preexec_fn,
         )

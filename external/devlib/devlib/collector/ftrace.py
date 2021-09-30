@@ -77,7 +77,6 @@ class FtraceCollector(CollectorBase):
         self.tracer = tracer
         self.trace_children_functions = trace_children_functions
         self.buffer_size = buffer_size
-        self.buffer_size_step = buffer_size_step
         self.tracing_path = tracing_path
         self.automark = automark
         self.autoreport = autoreport
@@ -102,13 +101,10 @@ class FtraceCollector(CollectorBase):
         # Setup tracing paths
         self.available_events_file    = self.target.path.join(self.tracing_path, 'available_events')
         self.available_functions_file = self.target.path.join(self.tracing_path, 'available_filter_functions')
-        self.buffer_size_file         = self.target.path.join(self.tracing_path, 'buffer_size_kb')
         self.current_tracer_file      = self.target.path.join(self.tracing_path, 'current_tracer')
         self.function_profile_file    = self.target.path.join(self.tracing_path, 'function_profile_enabled')
         self.marker_file              = self.target.path.join(self.tracing_path, 'trace_marker')
         self.ftrace_filter_file       = self.target.path.join(self.tracing_path, 'set_ftrace_filter')
-        self.trace_clock_file         = self.target.path.join(self.tracing_path, 'trace_clock')
-        self.save_cmdlines_size_file  = self.target.path.join(self.tracing_path, 'saved_cmdlines_size')
         self.available_tracers_file  = self.target.path.join(self.tracing_path, 'available_tracers')
 
         self.host_binary = which('trace-cmd')
@@ -223,8 +219,6 @@ class FtraceCollector(CollectorBase):
         return self.target.read_value(self.available_functions_file).splitlines()
 
     def reset(self):
-        if self.buffer_size:
-            self._set_buffer_size()
         self.target.execute('{} reset'.format(self.target_binary),
                             as_root=True, timeout=TIMEOUT)
         if self.functions:
@@ -248,24 +242,15 @@ class FtraceCollector(CollectorBase):
         with contextlib.suppress(TargetStableError):
             self.target.write_value('/proc/sys/kernel/kptr_restrict', 0)
 
-        self.target.write_value(self.trace_clock_file, self.trace_clock, verify=False)
-        try:
-            self.target.write_value(self.save_cmdlines_size_file, self.saved_cmdlines_nr)
-        except TargetStableError as e:
-            message = 'Could not set "save_cmdlines_size"'
-            if self.strict:
-                self.logger.error(message)
-                raise e
-            else:
-                self.logger.warning(message)
-                self.logger.debug(e)
-
         self.target.execute(
-            '{} start {events} {tracer} {functions}'.format(
+            '{} start {buffer_size} {cmdlines_size} {clock} {events} {tracer} {functions}'.format(
                 self.target_binary,
                 events=self.event_string,
                 tracer=tracer_string,
                 functions=tracecmd_functions,
+                buffer_size='-b {}'.format(self.buffer_size) if self.buffer_size is not None else '',
+                clock='-C {}'.format(self.trace_clock) if self.trace_clock else '',
+                cmdlines_size='--cmdlines-size {}'.format(self.saved_cmdlines_nr) if self.saved_cmdlines_nr is not None else '',
             ),
             as_root=True,
         )
@@ -425,29 +410,6 @@ class FtraceCollector(CollectorBase):
 
     def mark_stop(self):
         self.target.write_value(self.marker_file, TRACE_MARKER_STOP, verify=False)
-
-    def _set_buffer_size(self):
-        target_buffer_size = self.buffer_size
-        attempt_buffer_size = target_buffer_size
-        buffer_size = 0
-        floor = 1000 if target_buffer_size > 1000 else target_buffer_size
-        while attempt_buffer_size >= floor:
-            self.target.write_value(self.buffer_size_file, attempt_buffer_size, verify=False)
-            buffer_size = self.target.read_int(self.buffer_size_file)
-            if buffer_size == attempt_buffer_size:
-                break
-            else:
-                attempt_buffer_size -= self.buffer_size_step
-        if buffer_size == target_buffer_size:
-            return
-        while attempt_buffer_size < target_buffer_size:
-            attempt_buffer_size += self.buffer_size_step
-            self.target.write_value(self.buffer_size_file, attempt_buffer_size, verify=False)
-            buffer_size = self.target.read_int(self.buffer_size_file)
-            if attempt_buffer_size != buffer_size:
-                message = 'Failed to set trace buffer size to {}, value set was {}'
-                self.logger.warning(message.format(target_buffer_size, buffer_size))
-                break
 
 
 def _build_trace_events(events):

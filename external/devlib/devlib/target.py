@@ -61,7 +61,7 @@ from devlib.utils.types import integer, boolean, bitmask, identifier, caseless_s
 
 
 FSTAB_ENTRY_REGEX = re.compile(r'(\S+) on (.+) type (\S+) \((\S+)\)')
-ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn|Display Power: state)=([0-9]+|true|false|ON|OFF|DOZE)',
+ANDROID_SCREEN_STATE_REGEX = re.compile('(?:mPowerState|mScreenOn|mWakefulness|Display Power: state)=([0-9]+|true|false|ON|OFF|DOZE|Asleep|Awake)',
                                         re.IGNORECASE)
 ANDROID_SCREEN_RESOLUTION_REGEX = re.compile(r'cur=(?P<width>\d+)x(?P<height>\d+)')
 ANDROID_SCREEN_ROTATION_REGEX = re.compile(r'orientation=(?P<rotation>[0-3])')
@@ -249,9 +249,9 @@ class Target(object):
         try:
             return KernelConfig(self.execute('zcat /proc/config.gz'))
         except TargetStableError:
-            for path in ['/boot/config', '/boot/config-$(uname -r)']:
+            for path in ['/boot/config-$({} uname -r)'.format(self.busybox), '/boot/config']:
                 try:
-                    return KernelConfig(self.execute('cat {}'.format(quote(path))))
+                    return KernelConfig(self.execute('cat {}'.format(path)))
                 except TargetStableError:
                     pass
         return KernelConfig('')
@@ -485,6 +485,9 @@ class Target(object):
 
     @call_conn
     def push(self, source, dest, as_root=False, timeout=None, globbing=False):  # pylint: disable=arguments-differ
+        source = str(source)
+        dest = str(dest)
+
         sources = glob.glob(source) if globbing else [source]
         self._prepare_xfer('push', sources, dest)
 
@@ -541,6 +544,9 @@ class Target(object):
 
     @call_conn
     def pull(self, source, dest, as_root=False, timeout=None, globbing=False):  # pylint: disable=arguments-differ
+        source = str(source)
+        dest = str(dest)
+
         if globbing:
             sources = self._expand_glob(source, as_root=as_root)
         else:
@@ -1785,6 +1791,10 @@ class AndroidTarget(Target):
         match = ANDROID_SCREEN_STATE_REGEX.search(output)
         if match:
             if 'DOZE' in match.group(1).upper():
+                return True
+            if match.group(1) == 'Asleep':
+                return False
+            if match.group(1) == 'Awake':
                 return True
             return boolean(match.group(1))
         else:

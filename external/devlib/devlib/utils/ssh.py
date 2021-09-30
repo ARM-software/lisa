@@ -303,64 +303,7 @@ class SshConnectionBase(ConnectionBase):
         self.sudo_cmd = sanitize_cmd_template(sudo_cmd)
         self.platform = platform
         self.strict_host_check = strict_host_check
-        self.options = {}
         logger.debug('Logging in {}@{}'.format(username, host))
-
-    def fmt_remote_path(self, path):
-        return '{}@{}:{}'.format(self.username, self.host, path)
-
-    def push(self, sources, dest, timeout=30):
-        # Quote the destination as SCP would apply globbing too
-        dest = self.fmt_remote_path(quote(dest))
-        paths = sources + [dest]
-        return self._scp(paths, timeout)
-
-    def pull(self, sources, dest, timeout=30):
-        # First level of escaping for the remote shell
-        sources = ' '.join(map(quote, sources))
-        # All the sources are merged into one scp parameter
-        sources = self.fmt_remote_path(sources)
-        paths = [sources, dest]
-        self._scp(paths, timeout)
-
-    def _scp(self, paths, timeout=30):
-        # NOTE: the version of scp in Ubuntu 12.04 occasionally (and bizarrely)
-        # fails to connect to a device if port is explicitly specified using -P
-        # option, even if it is the default port, 22. To minimize this problem,
-        # only specify -P for scp if the port is *not* the default.
-        port_string = '-P {}'.format(quote(str(self.port))) if (self.port and self.port != 22) else ''
-        keyfile_string = '-i {}'.format(quote(self.keyfile)) if self.keyfile else ''
-        options = " ".join(["-o {}={}".format(key, val)
-                            for key, val in self.options.items()])
-        paths = ' '.join(map(quote, paths))
-        command = '{} {} -r {} {} {}'.format(scp,
-                                                options,
-                                                keyfile_string,
-                                                port_string,
-                                                paths)
-        command_redacted = command
-        logger.debug(command)
-        if self.password:
-            command, command_redacted = _give_password(self.password, command)
-        try:
-            check_output(command, timeout=timeout, shell=True)
-        except subprocess.CalledProcessError as e:
-            raise_from(HostError("Failed to copy file with '{}'. Output:\n{}".format(
-                command_redacted, e.output)), None)
-        except TimeoutError as e:
-            raise TimeoutError(command_redacted, e.output)
-
-    def _get_default_options(self):
-        if self.strict_host_check:
-            options = {
-                'StrictHostKeyChecking': 'yes',
-            }
-        else:
-            options = {
-                'StrictHostKeyChecking': 'no',
-                'UserKnownHostsFile': '/dev/null',
-            }
-        return options
 
 
 class SshConnection(SshConnectionBase):
@@ -405,8 +348,6 @@ class SshConnection(SshConnectionBase):
 
         if self.use_scp:
             logger.debug('Using SCP for file transfer')
-            _check_env()
-            self.options = self._get_default_options()
         else:
             logger.debug('Using SFTP for file transfer')
 
@@ -650,6 +591,7 @@ class SshConnection(SshConnectionBase):
         return bg_cmd
 
     def _background(self, command, stdout, stderr, as_root):
+        orig_command = command
         stdout, stderr, command = redirect_streams(stdout, stderr, command)
 
         command = "printf '%s\n' $$; exec sh -c {}".format(quote(command))
@@ -737,6 +679,7 @@ class SshConnection(SshConnectionBase):
             # Make sure the writing end are closed proper since we are not
             # going to write anything anymore
             for r, w in out_streams.values():
+                w.flush()
                 if r is not w and w is not None:
                     w.close()
 
@@ -766,6 +709,7 @@ class SshConnection(SshConnectionBase):
             stdout=out_streams['stdout'][0],
             stderr=out_streams['stderr'][0],
             redirect_thread=redirect_thread,
+            cmd=orig_command,
         )
 
     def _close(self):
@@ -860,6 +804,7 @@ class TelnetConnection(SshConnectionBase):
             strict_host_check=strict_host_check,
         )
 
+        _check_env()
         self.options = self._get_default_options()
 
         self.lock = threading.Lock()
@@ -869,6 +814,63 @@ class TelnetConnection(SshConnectionBase):
 
         self.conn = telnet_get_shell(host, username, password, port, timeout, original_prompt)
         atexit.register(self.close)
+
+    def fmt_remote_path(self, path):
+        return '{}@{}:{}'.format(self.username, self.host, path)
+
+    def _get_default_options(self):
+        if self.strict_host_check:
+            options = {
+                'StrictHostKeyChecking': 'yes',
+            }
+        else:
+            options = {
+                'StrictHostKeyChecking': 'no',
+                'UserKnownHostsFile': '/dev/null',
+            }
+        return options
+
+    def push(self, sources, dest, timeout=30):
+        # Quote the destination as SCP would apply globbing too
+        dest = self.fmt_remote_path(quote(dest))
+        paths = sources + [dest]
+        return self._scp(paths, timeout)
+
+    def pull(self, sources, dest, timeout=30):
+        # First level of escaping for the remote shell
+        sources = ' '.join(map(quote, sources))
+        # All the sources are merged into one scp parameter
+        sources = self.fmt_remote_path(sources)
+        paths = [sources, dest]
+        self._scp(paths, timeout)
+
+    def _scp(self, paths, timeout=30):
+        # NOTE: the version of scp in Ubuntu 12.04 occasionally (and bizarrely)
+        # fails to connect to a device if port is explicitly specified using -P
+        # option, even if it is the default port, 22. To minimize this problem,
+        # only specify -P for scp if the port is *not* the default.
+        port_string = '-P {}'.format(quote(str(self.port))) if (self.port and self.port != 22) else ''
+        keyfile_string = '-i {}'.format(quote(self.keyfile)) if self.keyfile else ''
+        options = " ".join(["-o {}={}".format(key, val)
+                            for key, val in self.options.items()])
+        paths = ' '.join(map(quote, paths))
+        command = '{} {} -r {} {} {}'.format(scp,
+                                                options,
+                                                keyfile_string,
+                                                port_string,
+                                                paths)
+        command_redacted = command
+        logger.debug(command)
+        if self.password:
+            command, command_redacted = _give_password(self.password, command)
+        try:
+            check_output(command, timeout=timeout, shell=True)
+        except subprocess.CalledProcessError as e:
+            raise_from(HostError("Failed to copy file with '{}'. Output:\n{}".format(
+                command_redacted, e.output)), None)
+        except TimeoutError as e:
+            raise TimeoutError(command_redacted, e.output)
+
 
     def execute(self, command, timeout=None, check_exit_code=True,
                 as_root=False, strip_colors=True, will_succeed=False): #pylint: disable=unused-argument
