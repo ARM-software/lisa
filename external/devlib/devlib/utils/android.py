@@ -600,7 +600,7 @@ def adb_background_shell(conn, command,
     adb_cmd = get_adb_command(device, 'shell', adb_server)
     full_command = '{} {}'.format(adb_cmd, quote(command))
     logger.debug(full_command)
-    p = subprocess.Popen(full_command, stdout=stdout, stderr=stderr, shell=True)
+    p = subprocess.Popen(full_command, stdout=stdout, stderr=stderr, stdin=subprocess.PIPE, shell=True)
 
     # Out of band PID lookup, to avoid conflicting needs with stdout redirection
     find_pid = '{} ps -A -o pid,args | grep {}'.format(conn.busybox, quote(uuid_var))
