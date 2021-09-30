@@ -16,6 +16,7 @@
 import logging
 import re
 from collections import namedtuple
+from shlex import quote
 
 from devlib.module import Module
 from devlib.exception import TargetStableError
@@ -129,9 +130,13 @@ class Controller(object):
         dstg = self.cgroup(dest)
 
         self.target._execute_util(  # pylint: disable=protected-access
-                    'cgroups_tasks_move {} {} \'{}\''.format(
-                    srcg.directory, dstg.directory, exclude),
-                    as_root=True)
+            'cgroups_tasks_move {src} {dst} {exclude}'.format(
+                src=quote(srcg.directory),
+                dst=quote(dstg.directory),
+                exclude=' '.join(map(quote, exclude))
+            ),
+            as_root=True,
+        )
 
     def move_all_tasks_to(self, dest, exclude=None):
         """
@@ -160,9 +165,10 @@ class Controller(object):
         self.logger.debug('Moving all tasks into %s', dest)
 
         # Build list of tasks to exclude
-        grep_filters = ''
-        for comm in exclude:
-            grep_filters += '-e {} '.format(comm)
+        grep_filters = ' '.join(
+            '-e {}'.format(comm)
+            for comm in exclude
+        )
         self.logger.debug('   using grep filter: %s', grep_filters)
         if grep_filters != '':
             self.logger.debug('   excluding tasks which name matches:')
