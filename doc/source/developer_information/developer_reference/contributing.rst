@@ -47,6 +47,10 @@ submitting a pull request:
           - If significant additions have been made to the framework, unit
             tests should be added to cover the new functionality.
 
+- If modifications have been made to the UI Automation source of a workload, the
+  corresponding APK should be rebuilt and submitted as part of the same pull
+  request. This can be done via the ``build.sh`` script in the relevant
+  ``uiauto`` subdirectory.
 - If modifications have been made to documentation (this includes description
   attributes for Parameters and Extensions), documentation should be built to
   make sure no errors or warning during build process, and a visual inspection
