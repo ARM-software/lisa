@@ -189,8 +189,10 @@ pacman_packages=(
     kernelshark
 )
 
+HOST_ARCH="$(uname -m)"
+
 # ABI-specific packages
-case $(uname -m) in
+case $HOST_ARCH in
     aarch64)
         # Allows building C extensions from sources, when they do not ship a
         # prebuilt wheel for that arch
@@ -310,6 +312,8 @@ for arg in "${args[@]}"; do
         vm=$(systemd-detect-virt 2>/dev/null)
         if [[ $vm == 'oracle' ]] ; then
             echo "VirtualBox detected, not installing virtualbox apt packages" >&2
+        elif [[ $HOST_ARCH == 'aarch64' ]]; then
+            echo "VirtualBox not supported on $HOST_ARCH" >&2
         else
             apt_packages+=(vagrant virtualbox)
             pacman_packages+=(vagrant virtualbox virtualbox-host-dkms)
