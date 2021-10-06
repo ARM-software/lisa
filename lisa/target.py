@@ -18,6 +18,7 @@
 from datetime import datetime
 import os
 import os.path
+from pathlib import Path
 import contextlib
 import shlex
 from collections.abc import Mapping
@@ -29,6 +30,8 @@ import functools
 import inspect
 import pickle
 import tempfile
+import hashlib
+import shutil
 from types import ModuleType, FunctionType
 from operator import itemgetter
 
@@ -326,7 +329,34 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         os.makedirs(rta_calib_res_dir)
         self.plat_info.add_target_src(self, rta_calib_res_dir, deferred=lazy_platinfo, fallback=True)
 
+
         logger.info(f'Effective platform information:\n{self.plat_info}')
+        cache_dir = Path(res_dir).resolve() / '.lisa' / 'cache'
+        cache_dir.mkdir(parents=True)
+        self._cache_dir = cache_dir
+
+    def cached_pull(self, src, dst, **kwargs):
+        """
+        Same as ``lisa.target.Target.pull`` but will cache the file in the
+        ``target.res_dir`` folder, based on the source path.
+
+        :Variable keyword arguments: Forwarded to ``Target.pull``.
+        """
+        cache = (self._cache_dir / 'pull')
+        cache.mkdir(parents=True, exist_ok=True)
+
+        m = hashlib.sha256()
+        m.update(src.encode('utf-8'))
+        key = m.hexdigest()
+        cached_path = cache / key / os.path.basename(src)
+
+        if not cached_path.exists():
+            self.pull(src, cached_path, **kwargs)
+
+        if cached_path.is_dir():
+            shutil.copytree(cached_path, dst)
+        else:
+            shutil.copy2(cached_path, dst)
 
     @property
     @memoized
