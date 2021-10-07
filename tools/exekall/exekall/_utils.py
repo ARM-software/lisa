@@ -924,6 +924,23 @@ def get_subclasses(cls):
     return subcls_set
 
 
+def get_package(module):
+    """
+    Find the package name of a module. If the module has no package, its own
+    name is taken.
+    """
+    # We keep the search local to the packages these modules are defined in, to
+    # avoid getting a huge set of uninteresting callables.
+    package = module.__package__
+    if package:
+        name = package.split('.', 1)[0]
+    else:
+        name = None
+    # Standalone modules that are not inside a package will get "" as
+    # package name
+    return name or module.__name__
+
+
 def get_recursive_module_set(module_set, package_set, visited_module_set=None):
     """
     Retrieve the set of all modules recursively imported from the modules in
@@ -938,7 +955,7 @@ def get_recursive_module_set(module_set, package_set, visited_module_set=None):
         return any(
             # Either a submodule of one of the packages or one of the
             # packages themselves
-            module.__name__.split('.', 1)[0] == package
+            get_package(module) == package
             for package in package_set
         )
 

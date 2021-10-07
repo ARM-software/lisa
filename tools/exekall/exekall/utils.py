@@ -37,11 +37,8 @@ def get_callable_set(module_set, verbose=False):
     :param module_set: Set of modules to scan.
     :type module_set: set(types.ModuleType)
     """
-    # We keep the search local to the packages these modules are defined in, to
-    # avoid getting a huge set of uninteresting callables.
-    package_set = {
-        module.__package__.split('.', 1)[0] for module in module_set
-    }
+
+    package_set = set(map(get_package, module_set))
     callable_set = set()
     visited_obj_set = set()
     visited_module_set = set()
