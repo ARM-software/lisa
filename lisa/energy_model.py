@@ -1282,16 +1282,6 @@ class LegacyEnergyModel(EnergyModel):
             # Again, not strictly necessary, just more pleasant.
             return sorted(ret, key=operator.itemgetter(0))
 
-        # Use cpufreq to figure out the frequency domains
-        freq_domains = []
-        remaining_cpus = cpus.copy()
-        while remaining_cpus:
-            cpu = remaining_cpus.pop()
-            dom = target.cpufreq.get_related_cpus(cpu)
-            freq_domains.append(sorted(dom))
-            remaining_cpus -= set(dom)
-        freq_domains = sorted(freq_domains)
-
         return cls(
             root_node=EnergyModelRoot(
                 children=[
@@ -1325,7 +1315,7 @@ class LegacyEnergyModel(EnergyModel):
                 ],
                 idle_states=[],
             ),
-            freq_domains=freq_domains,
+            freq_domains=sorted(target.cpufreq.iter_domains()),
         )
 
 
