@@ -123,7 +123,7 @@ class EASBehaviour(RTATestBundle, TestBundle):
             if not kconfig.get(option):
                 ResultBundle.raise_skip(f"The target's kernel needs {option}=y kconfig enabled")
 
-        for domain in target.cpufreq.iter_domains():
+        for domain in target.plat_info['freq-domains']:
             if "schedutil" not in target.cpufreq.list_governors(domain[0]):
                 ResultBundle.raise_skip(
                     f"Can't set schedutil governor for domain {domain}")
