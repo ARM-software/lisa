@@ -197,7 +197,7 @@ def check_subprocess_output(process, timeout=None, ignore=None, inputtext=None):
 
     retcode = process.poll()
     if retcode and ignore != 'all' and retcode not in ignore:
-        raise subprocess.CalledProcessError(retcode, process.args, output='\n'.join([output, error]))
+        raise subprocess.CalledProcessError(retcode, process.args, output, error)
 
     return output, error
 
@@ -971,3 +971,16 @@ class InitCheckpoint(metaclass=InitCheckpointMeta):
     Inherit from this class to set the :class:`InitCheckpointMeta` metaclass.
     """
     pass
+
+
+def groupby_value(dct):
+    """
+    Process the input dict such that all keys sharing the same values are
+    grouped in a tuple, used as key in the returned dict.
+    """
+    key = itemgetter(1)
+    items = sorted(dct.items(), key=key)
+    return {
+        tuple(map(itemgetter(0), _items)): v
+        for v, _items in groupby(items, key=key)
+    }
