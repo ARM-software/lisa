@@ -65,7 +65,9 @@ public class UiAutomation extends BaseUiAutomation {
 
     @Test
     public void extractResults() throws Exception{
-        if (version.startsWith("8")){
+        if (version.startsWith("9")){
+            getScoresv9();
+        } else if (version.startsWith("8")){
             getScoresv8();
         } else {
             getScoresv7();
@@ -230,6 +232,128 @@ public class UiAutomation extends BaseUiAutomation {
             list.scrollIntoView(uxscore);
         }
         Log.d(TAG, "User Experience Score " + uxscore.getText());
+        list.scrollToBeginning(10);
+        uxscores.click();
+
+        //Expand, Extract and Close MEM sub scores
+        UiObject memscores =
+            mDevice.findObject(new UiSelector().resourceId("com.antutu.ABenchMark:id/result_details_recyclerView"))
+            .getChild(new UiSelector().index(4))
+            .getChild(new UiSelector().index(4));
+        memscores.click();
+        UiObject ramaccess =
+            mDevice.findObject(new UiSelector().text("RAM Access").fromParent(new UiSelector().index(1)));
+        UiObject romapp =
+            mDevice.findObject(new UiSelector().text("ROM APP IO").fromParent(new UiSelector().index(1)));
+        UiObject romread =
+            mDevice.findObject(new UiSelector().text("ROM Sequential Read").fromParent(new UiSelector().index(1)));
+        UiObject romwrite =
+            mDevice.findObject(new UiSelector().text("ROM Sequential Write").fromParent(new UiSelector().index(1)));
+        UiObject romaccess =
+            mDevice.findObject(new UiSelector().text("ROM Random Access").fromParent(new UiSelector().index(1)));
+       if (!ramaccess.exists() && list.waitForExists(60)) {
+            list.scrollIntoView(ramaccess);
+        }
+        Log.d(TAG, "RAM Access Score " + ramaccess.getText());
+       if (!romapp.exists() && list.waitForExists(60)) {
+            list.scrollIntoView(romapp);
+        }
+        Log.d(TAG, "ROM APP IO Score " + romapp.getText());
+        if (!romread.exists() && list.waitForExists(60)) {
+            list.scrollIntoView(romread);
+        }
+        Log.d(TAG, "ROM Sequential Read Score " + romread.getText());
+        if (!romwrite.exists() && list.waitForExists(60)) {
+            list.scrollIntoView(romwrite);
+        }
+        Log.d(TAG, "ROM Sequential Write Score " + romwrite.getText());
+        if (!romaccess.exists() && list.waitForExists(60)) {
+            list.scrollIntoView(romaccess);
+        }
+        Log.d(TAG, "ROM Random Access Score " + romaccess.getText());
+        list.scrollToBeginning(10);        
+        memscores.click();
+    }
+
+    public void getScoresv9() throws Exception {
+        UiScrollable list = new UiScrollable(new UiSelector().scrollable(true));
+
+        //Expand, Extract and Close CPU sub scores
+        UiObject cpuscores =
+            mDevice.findObject(new UiSelector().resourceId("com.antutu.ABenchMark:id/result_details_recyclerView"))
+            .getChild(new UiSelector().index(2))
+            .getChild(new UiSelector().index(4));
+        cpuscores.click();
+        UiObject cpumaths =
+            mDevice.findObject(new UiSelector().text("CPU Mathematical Operations").fromParent(new UiSelector().index(1)));
+        UiObject cpucommon =
+            mDevice.findObject(new UiSelector().text("CPU Common Algorithms").fromParent(new UiSelector().index(1)));
+        UiObject cpumulti =
+            mDevice.findObject(new UiSelector().text("CPU Multi-Core").fromParent(new UiSelector().index(1)));
+        Log.d(TAG, "CPU Mathematical Operations Score " + cpumaths.getText());
+        Log.d(TAG, "CPU Common Algorithms Score " + cpucommon.getText());
+        Log.d(TAG, "CPU Multi-Core Score " + cpumulti.getText());
+        cpuscores.click();
+
+        //Expand, Extract and Close GPU sub scores
+        UiObject gpuscores =
+            mDevice.findObject(new UiSelector().resourceId("com.antutu.ABenchMark:id/result_details_recyclerView"))
+            .getChild(new UiSelector().index(3))
+            .getChild(new UiSelector().index(4));
+        gpuscores.click();
+        UiObject gputerracotta =
+            mDevice.findObject(new UiSelector().text("Terracotta - Vulkan").fromParent(new UiSelector().index(1)));
+        UiObject gpuswordsman =
+            mDevice.findObject(new UiSelector().text("Swordsman - Vulkan").fromParent(new UiSelector().index(1)));
+        UiObject gpurefinery =
+            mDevice.findObject(new UiSelector().text("Refinery - OpenGL ES3.1+AEP").fromParent(new UiSelector().index(1)));
+        Log.d(TAG, "GPU Terracotta Score " + gputerracotta.getText());
+        Log.d(TAG, "GPU Swordsman Score " + gpuswordsman.getText());
+        Log.d(TAG, "GPU Refinery Score " + gpurefinery.getText());
+        gpuscores.click();
+
+        //Expand, Extract and Close UX sub scores
+        UiObject uxscores =
+            mDevice.findObject(new UiSelector().resourceId("com.antutu.ABenchMark:id/result_details_recyclerView"))
+            .getChild(new UiSelector().index(5))
+            .getChild(new UiSelector().index(4));
+        uxscores.click();
+        UiObject security =
+            mDevice.findObject(new UiSelector().text("Data Security").fromParent(new UiSelector().index(1)));
+        UiObject dataprocessing =
+            mDevice.findObject(new UiSelector().text("Data Processing").fromParent(new UiSelector().index(1)));
+        UiObject imageprocessing =
+            mDevice.findObject(new UiSelector().text("Image Processing").fromParent(new UiSelector().index(1)));
+        UiObject uxscore =
+            mDevice.findObject(new UiSelector().text("User Experience").fromParent(new UiSelector().index(1)));
+        UiObject videocts =
+            mDevice.findObject(new UiSelector().text("Video CTS").fromParent(new UiSelector().index(1)));
+        UiObject videodecode =
+            mDevice.findObject(new UiSelector().text("Video Decode").fromParent(new UiSelector().index(1)));
+        if (!security.exists() && list.waitForExists(60)) {
+            list.scrollIntoView(security);
+        }
+        Log.d(TAG, "Data Security Score " + security.getText());
+        if (!dataprocessing.exists() && list.waitForExists(60)) {
+            list.scrollIntoView(dataprocessing);
+        }
+        Log.d(TAG, "Data Processing Score " + dataprocessing.getText());
+        if (!imageprocessing.exists() && list.waitForExists(60)) {
+            list.scrollIntoView(imageprocessing);
+        }
+        Log.d(TAG, "Image Processing Score " + imageprocessing.getText());
+        if (!uxscore.exists() && list.waitForExists(60)) {
+            list.scrollIntoView(uxscore);
+        }
+        Log.d(TAG, "User Experience Score " + uxscore.getText());
+        if (!videocts.exists() && list.waitForExists(60)) {
+            list.scrollIntoView(videocts);
+        }
+        Log.d(TAG, "Video CTS Score " + videocts.getText());
+        if (!videodecode.exists() && list.waitForExists(60)) {
+            list.scrollIntoView(videodecode);
+        }
+        Log.d(TAG, "Video Decode Score " + videodecode.getText());
         list.scrollToBeginning(10);
         uxscores.click();
 
