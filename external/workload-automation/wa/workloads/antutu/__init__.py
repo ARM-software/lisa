@@ -48,6 +48,23 @@ class Antutu(ApkUiautoWorkload):
                         re.compile(r'ROM Sequential Read Score (.+)'),
                         re.compile(r'ROM Sequential Write Score (.+)'),
                         re.compile(r'ROM Random Access Score (.+)')]
+    regex_matches_v9 = [re.compile(r'CPU Mathematical Operations Score (.+)'),
+                        re.compile(r'CPU Common Algorithms Score (.+)'),
+                        re.compile(r'CPU Multi-Core Score (.+)'),
+                        re.compile(r'GPU Terracotta Score (.+)'),
+                        re.compile(r'GPU Swordsman Score (.+)'),
+                        re.compile(r'GPU Refinery Score (.+)'),
+                        re.compile(r'Data Security Score (.+)'),
+                        re.compile(r'Data Processing Score (.+)'),
+                        re.compile(r'Image Processing Score (.+)'),
+                        re.compile(r'User Experience Score (.+)'),
+                        re.compile(r'Video CTS Score (.+)'),
+                        re.compile(r'Video Decode Score (.+)'),
+                        re.compile(r'RAM Access Score (.+)'),
+                        re.compile(r'ROM APP IO Score (.+)'),
+                        re.compile(r'ROM Sequential Read Score (.+)'),
+                        re.compile(r'ROM Sequential Write Score (.+)'),
+                        re.compile(r'ROM Random Access Score (.+)')]
     description = '''
     Executes Antutu 3D, UX, CPU and Memory tests
 
@@ -58,7 +75,7 @@ class Antutu(ApkUiautoWorkload):
     Known working APK version: 8.0.4
     '''
 
-    supported_versions = ['7.0.4', '7.2.0', '8.0.4', '8.1.9']
+    supported_versions = ['7.0.4', '7.2.0', '8.0.4', '8.1.9', '9.1.6']
 
     parameters = [
         Parameter('version', kind=str, allowed_values=supported_versions, override=True,
@@ -68,6 +85,10 @@ class Antutu(ApkUiautoWorkload):
                       ''')
                   )
     ]
+
+    def __init__(self, device, **kwargs):
+        super(Antutu, self).__init__(device, **kwargs)
+        self.gui.timeout = 1200
 
     def setup(self, context):
         self.gui.uiauto_params['version'] = self.version
@@ -95,6 +116,8 @@ class Antutu(ApkUiautoWorkload):
 
     def update_output(self, context):
         super(Antutu, self).update_output(context)
+        if self.version.startswith('9'):
+            self.extract_scores(context, self.regex_matches_v9)
         if self.version.startswith('8'):
             self.extract_scores(context, self.regex_matches_v8)
         if self.version.startswith('7'):
