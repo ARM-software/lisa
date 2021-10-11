@@ -40,7 +40,7 @@ try:
 except ImportError:
     from pipes import quote
 
-from devlib.exception import TargetTransientError, TargetStableError, HostError
+from devlib.exception import TargetTransientError, TargetStableError, HostError, TargetTransientCalledProcessError, TargetStableCalledProcessError
 from devlib.utils.misc import check_output, which, ABI_MAP, redirect_streams, get_subprocess
 from devlib.connection import ConnectionBase, AdbBackgroundCommand, PopenBackgroundCommand, PopenTransferManager
 
@@ -315,6 +315,7 @@ class AdbConnection(ConnectionBase):
         return self._push_pull('pull', sources, dest, timeout)
 
     def _push_pull(self, action, sources, dest, timeout):
+        sources = list(sources)
         paths = sources + [dest]
 
         # Quote twice to avoid expansion by host shell, then ADB globbing
@@ -335,6 +336,14 @@ class AdbConnection(ConnectionBase):
         try:
             return adb_shell(self.device, command, timeout, check_exit_code,
                              as_root, adb_server=self.adb_server, su_cmd=self.su_cmd)
+        except subprocess.CalledProcessError as e:
+            cls = TargetTransientCalledProcessError if will_succeed else TargetStableCalledProcessError
+            raise cls(
+                e.returncode,
+                command,
+                e.output,
+                e.stderr,
+            )
         except TargetStableError as e:
             if will_succeed:
                 raise TargetTransientError(e)
@@ -558,10 +567,15 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
         exit_code = exit_code.strip()
         re_search = AM_START_ERROR.findall(output)
         if exit_code.isdigit():
-            if int(exit_code):
-                message = ('Got exit code {}\nfrom target command: {}\n'
-                           'OUTPUT: {}\nSTDERR: {}\n')
-                raise TargetStableError(message.format(exit_code, command, output, error))
+            exit_code = int(exit_code)
+            if exit_code:
+                raise subprocess.CalledProcessError(
+                    exit_code,
+                    command,
+                    output,
+                    error,
+                )
+
             elif re_search:
                 message = 'Could not start activity; got the following:\n{}'
                 raise TargetStableError(message.format(re_search[0]))
@@ -575,7 +589,7 @@ def adb_shell(device, command, timeout=None, check_exit_code=False,
                           '-----\nSTDERR:\n-----\n{}\n-----'
                 raise TargetTransientError(message.format(raw_output, error))
 
-    return output + error
+    return '\n'.join(x for x in (output, error) if x)
 
 
 def adb_background_shell(conn, command,

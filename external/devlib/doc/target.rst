@@ -249,7 +249,7 @@ Target
         matches, ``dest`` must be a folder (or will be created as such if it
         does not exists yet).
 
-.. method:: Target.pull(source, dest [, as_root, timeout, globbing])
+.. method:: Target.pull(source, dest [, as_root, timeout, globbing, via_temp])
 
    Transfer a file from the target device to the host machine.
 
@@ -267,6 +267,10 @@ Target
         pattern instead of being take as-is. If the pattern has multiple
         matches, ``dest`` must be a folder (or will be created as such if it
         does not exists yet).
+   :param via_temp: If ``True``, copy the file first to a temporary location on
+        the target, and then pull it. This can avoid issues some filesystems,
+        notably paramiko + OpenSSH combination having performance issues when
+        pulling big files from sysfs.
 
 .. method:: Target.execute(command [, timeout [, check_exit_code [, as_root [, strip_colors [, will_succeed [, force_locale]]]]]])
 
