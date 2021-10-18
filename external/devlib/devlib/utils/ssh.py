@@ -410,8 +410,11 @@ class SshConnection(SshConnectionBase):
     def _get_progress_cb(self):
         return self.transfer_mgr.progress_cb if self.transfer_mgr is not None else None
 
-    @functools.lru_cache()
-    def _get_sftp(self, timeout):
+    # Limit the number of opened channels to a low number, since some servers
+    # will reject more connections request. For OpenSSH, this is controlled by
+    # the MaxSessions config.
+    @functools.lru_cache(maxsize=1)
+    def _cached_get_sftp(self):
         try:
             sftp = self.client.open_sftp()
         except paramiko.ssh_exception.SSHException as e:
@@ -419,6 +422,10 @@ class SshConnection(SshConnectionBase):
                 raise TargetStableError('The SSH server does not support SFTP. Please install and enable appropriate module.') from e
             else:
                 raise
+        return sftp
+
+    def _get_sftp(self, timeout):
+        sftp = self._cached_get_sftp()
         sftp.get_channel().settimeout(timeout)
         return sftp
 
