@@ -591,7 +591,9 @@ def main():
                     create_parser.error('--create-branch or tip/ref key in config file is mandatory')
 
                 new_branch = '{}-{}'.format(new_branch_stem, refs_suffix) if refs_suffix else new_branch_stem
-                persistent_tags = default_from_conf(args.tags, ['tip', 'tags']) or args.tags_suffix
+                persistent_tags = bool(
+                    default_from_conf(args.tags, ['tip', 'tags']) or args.tags_suffix
+                )
 
                 # If the user passed an explicit suffix, use it rather than the date
                 if args.tags_suffix or args.refs_suffix:
