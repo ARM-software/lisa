@@ -621,7 +621,7 @@ def main():
 
                 git = make_git_func(repo)
                 if args.checkout:
-                    git(['checkout', '--', new_branch])
+                    git(['checkout', new_branch, '--'])
 
             elif args.subcommand == 'resume':
                 temp_repo = repo
