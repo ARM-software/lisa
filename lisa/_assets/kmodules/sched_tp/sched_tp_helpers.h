@@ -7,7 +7,6 @@
 
 #include <linux/cgroup.h>
 
-#include "vmlinux_deps.h"
 #include "vmlinux.h"
 
 
@@ -96,7 +95,7 @@ unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
 static inline const struct sched_avg *sched_tp_cfs_rq_avg(struct cfs_rq *cfs_rq)
 {
 #ifdef CONFIG_SMP
-	return cfs_rq ? &cfs_rq->avg : NULL;
+	return cfs_rq ? (struct sched_avg *)&cfs_rq->avg : NULL;
 #else
 	return NULL;
 #endif
@@ -123,7 +122,7 @@ static inline int sched_tp_cfs_rq_cpu(struct cfs_rq *cfs_rq)
 static inline const struct sched_avg *sched_tp_rq_avg_rt(struct rq *rq)
 {
 #ifdef CONFIG_SMP
-	return rq ? &rq->avg_rt : NULL;
+	return rq ? (struct sched_avg *)&rq->avg_rt : NULL;
 #else
 	return NULL;
 #endif
@@ -132,7 +131,7 @@ static inline const struct sched_avg *sched_tp_rq_avg_rt(struct rq *rq)
 static inline const struct sched_avg *sched_tp_rq_avg_dl(struct rq *rq)
 {
 #ifdef CONFIG_SMP
-	return rq ? &rq->avg_dl : NULL;
+	return rq ? (struct sched_avg *)&rq->avg_dl : NULL;
 #else
 	return NULL;
 #endif
@@ -141,7 +140,7 @@ static inline const struct sched_avg *sched_tp_rq_avg_dl(struct rq *rq)
 static inline const struct sched_avg *sched_tp_rq_avg_irq(struct rq *rq)
 {
 #if defined(CONFIG_SMP) && defined(CONFIG_HAVE_SCHED_AVG_IRQ)
-	return rq ? &rq->avg_irq : NULL;
+	return rq ? (struct sched_avg *)&rq->avg_irq : NULL;
 #else
 	return NULL;
 #endif
@@ -166,7 +165,7 @@ static inline int sched_tp_rq_cpu_capacity(struct rq *rq)
 static inline const struct cpumask *sched_tp_rd_span(struct root_domain *rd)
 {
 #ifdef CONFIG_SMP
-	return rd ? rd->span : NULL;
+	return rd ? (struct cpumask *)rd->span : NULL;
 #else
 	return NULL;
 #endif

@@ -68,7 +68,7 @@ static void sched_pelt_cfs(void *data, struct cfs_rq *cfs_rq)
 		_trace_cfs(cfs_rq, trace_sched_pelt_cfs);
 
 	if (trace_uclamp_util_cfs_enabled()) {
-		bool __maybe_unused is_root_rq = (&rq_of(cfs_rq)->cfs == cfs_rq);
+		bool __maybe_unused is_root_rq = ((struct cfs_rq *)&rq_of(cfs_rq)->cfs == cfs_rq);
 
 		trace_uclamp_util_cfs(is_root_rq, rq_of(cfs_rq), cfs_rq);
 	}
@@ -162,8 +162,7 @@ static void sched_util_est_se(void *data, struct sched_entity *se)
 
 static void sched_cpu_capacity(void *data, struct rq *rq)
 {
-	if (trace_sched_cpu_capacity_enabled())
-		trace_sched_cpu_capacity(rq);
+	trace_sched_cpu_capacity(rq);
 }
 
 static int sched_tp_init(void)
@@ -182,7 +181,7 @@ static int sched_tp_init(void)
 	return 0;
 }
 
-static void sched_tp_finish(void)
+static void sched_tp_exit(void)
 {
 	unregister_trace_pelt_cfs_tp(sched_pelt_cfs, NULL);
 	unregister_trace_pelt_rt_tp(sched_pelt_rt, NULL);
@@ -198,6 +197,6 @@ static void sched_tp_finish(void)
 
 
 module_init(sched_tp_init);
-module_exit(sched_tp_finish);
+module_exit(sched_tp_exit);
 
 MODULE_LICENSE("GPL");
