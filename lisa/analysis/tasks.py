@@ -1035,7 +1035,8 @@ class TasksAnalysis(TraceAnalysisBase):
     @df_task_activation.used_events
     def _plot_tasks_activation(self, tasks, show_legend=None, cpu: CPU=None, alpha:
             float=None, overlay: bool=False, duration: bool=False, duty_cycle:
-            bool=False, which_cpu: bool=False, height_duty_cycle: bool=False):
+            bool=False, which_cpu: bool=False, height_duty_cycle: bool=False, best_effort=False):
+        logger = self.logger
 
         def ensure_last_rectangle(df):
             # Make sure we will draw the last rectangle, which could be
@@ -1122,9 +1123,14 @@ class TasksAnalysis(TraceAnalysisBase):
 
             return figs
 
-        def check_df(task, df):
+        def check_df(task, df, empty_is_none):
             if df.empty:
-                raise ValueError(f'Could not find events associated to task {task}')
+                msg = f'Could not find events associated to task {task}'
+                if empty_is_none:
+                    logger.debug(msg)
+                    return None
+                else:
+                    raise ValueError(msg)
             else:
                 return ensure_last_rectangle(df)
 
@@ -1206,10 +1212,18 @@ class TasksAnalysis(TraceAnalysisBase):
         task_dfs = {
             task: check_df(
                 task,
-                self.df_task_activation(task, cpu=cpu)
+                self.df_task_activation(task, cpu=cpu),
+                empty_is_none=best_effort,
             )
             for task in tasks
         }
+        if best_effort:
+            task_dfs = {
+                task: df
+                for task, df in task_dfs.items()
+                if df is not None
+            }
+        tasks = sorted(task_dfs.keys())
 
         if show_legend:
             fig = hv.Overlay(
@@ -1285,7 +1299,7 @@ class TasksAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method
     @_plot_tasks_activation.used_events
-    @kwargs_forwarded_to(_plot_tasks_activation, ignore=['tasks'])
+    @kwargs_forwarded_to(_plot_tasks_activation, ignore=['tasks', 'best_effort'])
     def plot_tasks_activation(self, tasks: TypedList[TaskID]=None, hide_tasks: TypedList[TaskID]=None, which_cpu: bool=True, overlay: bool=False, **kwargs):
         """
         Plot all tasks activations, in a style similar to kernelshark.
@@ -1328,10 +1342,12 @@ class TasksAnalysis(TraceAnalysisBase):
             for task in (hide_tasks or [])
         ))
         if tasks:
+            best_effort = False
             task_ids = list(itertools.chain.from_iterable(
                 map(trace.get_task_ids, tasks)
             ))
         else:
+            best_effort = True
             task_ids = trace.task_ids
 
         full_task_ids = sorted(
@@ -1383,6 +1399,7 @@ class TasksAnalysis(TraceAnalysisBase):
             tasks=task_ids,
             which_cpu=which_cpu,
             overlay=overlay,
+            best_effort=best_effort,
             **kwargs
         ).options(
             title=title
