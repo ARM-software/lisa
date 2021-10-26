@@ -1729,4 +1729,34 @@ class FtraceDynamicKmod(DynamicKmod):
             if m
         ))
 
+
+class LISAFtraceDynamicKmod(FtraceDynamicKmod):
+    """
+    Module providing ftrace events used in various places by :mod:`lisa`.
+    """
+
+    @classmethod
+    def from_target(cls, target, **kwargs):
+        path = Path(ASSETS_PATH) / 'kmodules' / 'sched_tp'
+        btf_path = '/sys/kernel/btf/vmlinux'
+
+        with tempfile.NamedTemporaryFile() as f:
+            try:
+                target.cached_pull(btf_path, f.name, via_temp=True)
+            except FileNotFoundError:
+                raise FileNotFoundError(f'Could not find {btf_path} on the target. Ensure you compiled your kernel using CONFIG_DEBUG_INFO=y CONFIG_DEBUG_INFO_BTF=y CONFIG_DEBUG_INFO_REDUCED=n')
+
+            with open(f.name, 'rb') as f:
+                btf = f.read()
+
+        extra = {
+            'vmlinux': btf
+        }
+        src = KmodSrc.from_path(path, extra=extra)
+        return cls(
+            target=target,
+            src=src,
+            **kwargs,
+        )
+
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
