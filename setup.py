@@ -148,6 +148,7 @@ setup(
 
         'jinja2',
 
+        "pyelftools", # To get symbol names in kernel module
         "cffi", # unshare syscall
     ],
 
