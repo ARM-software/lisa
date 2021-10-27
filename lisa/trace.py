@@ -42,6 +42,7 @@ import multiprocessing
 import textwrap
 import subprocess
 import itertools
+import functools
 
 import numpy as np
 import pandas as pd
@@ -57,6 +58,7 @@ from lisa._generic import TypedList
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert
 from lisa.version import VERSION_TOKEN
 from lisa._typeclass import FromString, IntListFromStringInstance
+from lisa._kmod import LISAFtraceDynamicKmod
 
 
 class TaskID(namedtuple('TaskID', ('pid', 'comm'))):
@@ -5376,6 +5378,11 @@ class FtraceCollector(CollectorBase, Configurable):
     TOOLS = ['trace-cmd']
     _COMPOSITION_ORDER = 0
 
+    _FTRACE_KMOD_CLASSES = [
+        LISAFtraceDynamicKmod,
+    ]
+    "Class for dynamic kernel modules providing ftrace events"
+
     def __init__(self, target, *, events=None, functions=None, buffer_size=10240, output_path=None, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, **kwargs):
         events = events or []
         functions = functions or []
@@ -5421,16 +5428,108 @@ class FtraceCollector(CollectorBase, Configurable):
             tracer=tracer,
         )
 
+        # If some events are not already available on that kernel, look them up
+        # in custom modules
+        available_events = self._target_available_events(target)
+        missing_events = kernel_events - available_events
+        if missing_events:
+            self._kmods = self._get_kmods(target, available_events, missing_events)
+        else:
+            self._kmods = []
+
+        self._cm = None
+
         # Install the tools before creating the collector, as devlib will check
         # for it
         self._install_tools(target)
-        collector = devlib.FtraceCollector(
-            # Prevent devlib from pushing its own trace-cmd since we provide
-            # our own binary
-            no_install=True,
-            **kwargs
-        )
+
+        # We need to install the kmod when initializing the devlib object, so
+        # that the available events are accurate.
+        with self._make_cm(record=False):
+            collector = devlib.FtraceCollector(
+                # Prevent devlib from pushing its own trace-cmd since we provide
+                # our own binary
+                no_install=True,
+                **kwargs
+            )
         super().__init__(collector, output_path=output_path)
+
+    @classmethod
+    def _get_kmods(cls, target, available_events, missing_events):
+        def need_mod(mod_cls):
+            kmod = target.get_kmod(mod_cls)
+            defined_events = set(kmod.defined_events)
+            needed = set(missing_events) & defined_events
+            overlapping = defined_events & available_events
+            if overlapping and needed:
+                raise ValueError(f'Events defined in {mod.src.mod_name} ({", ".join(needed)}) are needed but some events overlap with the ones already provided by the kernel: {", ".join(overlapping)}')
+            kmod = kmod if needed else None
+            return (kmod, needed)
+
+        mods = list(map(need_mod, cls._FTRACE_KMOD_CLASSES))
+        if mods:
+            def check(acc, mod_spec):
+                mods, already_defined = acc
+                mod, defined = mod_spec
+                if mod is None:
+                    return acc
+                else:
+                    overlapping = defined & already_defined.keys()
+                    if overlapping:
+                        already = ', '.join(
+                            f'{event} ({mod.src.mod_name})'
+                            for event in sorted(overlapping)
+                        )
+                        raise ValueError(f'Module {mod.src.mod_name} redefining events already defined in some other modules: {already}')
+                    else:
+                        already_defined = {
+                            **{
+                                event: mod
+                                for event in defined
+                            },
+                            **already_defined,
+                        }
+                        return (mods + [mod], already_defined)
+            mods, _ = functools.reduce(check, mods, ([], {}))
+
+        return mods
+
+    @contextlib.contextmanager
+    def _make_cm(self, record=True):
+        with contextlib.ExitStack() as stack:
+            for kmod in self._kmods:
+                stack.enter_context(kmod.run())
+
+            if record:
+                proxy = super()
+                class RecordCM:
+                    def __enter__(self):
+                        return proxy.__enter__()
+                    def __exit__(self, *args, **kwargs):
+                        return proxy.__exit__(*args, **kwargs)
+
+                stack.enter_context(RecordCM())
+
+            yield
+
+    def __enter__(self):
+        self._cm = self._make_cm()
+        return self._cm.__enter__()
+
+    def __exit__(self, *args, **kwargs):
+        try:
+            x = self._cm.__exit__(*args, **kwargs)
+        finally:
+            self._cm = None
+        return x
+
+    @staticmethod
+    def _target_available_events(target):
+        events = target.read_value('/sys/kernel/debug/tracing/available_events')
+        return set(
+            event.split(':', 1)[1]
+            for event in events.splitlines()
+        )
 
     @classmethod
     @kwargs_forwarded_to(__init__)
