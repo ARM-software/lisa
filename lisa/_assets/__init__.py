@@ -58,5 +58,14 @@ del _get_abi_bin
 
 HOST_BINARIES = ABI_BINARIES[HOST_ABI]
 
+HOST_PATH = ':'.join((
+    os.path.join(ASSETS_PATH, 'binaries', HOST_ABI),
+    os.path.join(ASSETS_PATH, 'scripts'),
+    os.environ['PATH']
+))
+"""
+Value to be used as the ``PATH`` env var on the host.
+"""
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
