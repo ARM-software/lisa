@@ -203,7 +203,6 @@ class FtraceCollector(CollectorBase):
         return self.target.read_value(self.available_tracers_file).split(' ')
 
     @property
-    @memoized
     def available_events(self):
         """
         List of ftrace events supported by the target's kernel.
