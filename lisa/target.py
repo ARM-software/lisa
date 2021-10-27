@@ -786,14 +786,13 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
                 binary = os.path.join(ASSETS_PATH, 'binaries', 'scripts', tool)
             return binary
 
-        tools = set(tools) - self._installed_tools
+        tools = sorted(set(tools) - self._installed_tools)
 
         # TODO: compute the checksum of the tool + install location and keep
         # that in _installed_tools, so we are sure to be correct
-        for tool in map(bin_path, tools):
-            self.target.install(tool)
+        for tool in tools:
+            self.target.install(bin_path(tool))
             self._installed_tools.add(tool)
-
 
     def freeze_userspace(self):
         """
