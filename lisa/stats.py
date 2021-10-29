@@ -951,9 +951,6 @@ class Stats(Loggable):
             ],
             kdims=kdims,
         ).cols(ncols).options(
-            title=title,
-            shared_axes=False,
-        ).options(
             backend='bokeh',
             toolbar='left',
         ).options(
@@ -967,6 +964,9 @@ class Stats(Loggable):
             'Overlay',
             backend='bokeh',
             hooks=[lisa.notebook._hv_multi_line_title_hook],
+        ).options(
+            title=title,
+            shared_axes=False,
         )
 
         if filename:
