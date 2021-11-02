@@ -266,23 +266,6 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         if os.listdir(self._res_dir):
             raise ValueError(f'res_dir must be empty: {self._res_dir}')
 
-        if plat_info is None:
-            plat_info = PlatformInfo()
-        else:
-            # Make a copy of the PlatformInfo so we don't modify the original
-            # one we were passed when adding the target source to it
-            plat_info = copy.copy(plat_info)
-            logger.info(f'User-defined platform information:\n{plat_info}')
-
-        self.plat_info = plat_info
-
-        # Take the board name from the target configuration so it becomes
-        # available for later inspection. That board name is mostly free form
-        # and no specific value should be expected for a given kind of board
-        # (i.e. a Juno board might be named "foo-bar-juno-on-my-desk")
-        if name:
-            self.plat_info.add_src('target-conf', dict(name=name))
-
         # Determine file transfer method. Currently avaliable options
         # are 'sftp' and 'scp', defaults to sftp.
         if devlib_file_xfer and devlib_file_xfer not in ('scp', 'sftp'):
@@ -324,16 +307,41 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
         # Autodetect information from the target, after the Target is
         # initialized. Expensive computations are deferred so they will only be
         # computed when actually needed.
-
-        rta_calib_res_dir = ArtifactPath.join(self._res_dir, 'rta_calib')
-        os.makedirs(rta_calib_res_dir)
-        self.plat_info.add_target_src(self, rta_calib_res_dir, deferred=lazy_platinfo, fallback=True)
-
+        self._init_plat_info(plat_info, name, deferred=lazy_platinfo, fallback=True)
 
         logger.info(f'Effective platform information:\n{self.plat_info}')
         cache_dir = Path(res_dir).resolve() / '.lisa' / 'cache'
         cache_dir.mkdir(parents=True)
         self._cache_dir = cache_dir
+
+    def _init_plat_info(self, plat_info=None, name=None, **kwargs):
+
+        if plat_info is None:
+            plat_info = PlatformInfo()
+        else:
+            # Make a copy of the PlatformInfo so we don't modify the original
+            # one we were passed when adding the target source to it
+            plat_info = copy.copy(plat_info)
+            self.logger.info(f'User-defined platform information:\n{plat_info}')
+
+        # Take the board name from the target configuration so it becomes
+        # available for later inspection. That board name is mostly free form
+        # and no specific value should be expected for a given kind of board
+        # (i.e. a Juno board might be named "foo-bar-juno-on-my-desk")
+        if name:
+            plat_info.add_src('target-conf', dict(name=name))
+
+        rta_calib_res_dir = ArtifactPath.join(self._res_dir, 'rta_calib')
+        os.makedirs(rta_calib_res_dir, exist_ok=True)
+        plat_info.add_target_src(self, rta_calib_res_dir, **kwargs)
+        self.plat_info = plat_info
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, dct):
+        self.__dict__ = dct
+        self._init_plat_info(deferred=True)
 
     def cached_pull(self, src, dst, **kwargs):
         """
@@ -402,6 +410,11 @@ class Target(Loggable, HideExekallID, ExekallTaggable, Configurable):
 
         .. note:: Devlib modules are loaded on demand when accessed.
         """
+        if (
+            attr in ('_devlib_loadable_modules', 'target') or
+            (attr.startswith('__') and attr.endswith('__'))
+        ):
+            raise AttributeError(attr)
 
         def get():
             return getattr(self.target, attr)
