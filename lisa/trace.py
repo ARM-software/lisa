@@ -4070,7 +4070,7 @@ class Trace(Loggable, TraceBase):
         use_mp = self._cache.max_mem_size >= math.inf and nr_processes > 1
 
         if use_mp:
-            with multiprocessing.Pool(processes=nr_processes) as pool:
+            with multiprocessing.get_context('spawn').Pool(processes=nr_processes) as pool:
                 data_list = pool.map(self._mp_parse_worker, events, chunksize=chunk_size)
 
             df_map = {
