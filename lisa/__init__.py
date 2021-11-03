@@ -3,6 +3,13 @@
 import warnings
 import os
 
+########################################################################
+# Note: imports must be limited to the maximum here, and under no circumstances
+# import a package that creates a background thread at import time. Failure to
+# comply will prevent lisa._unshare._do_unshare() to work correctly, as it
+# cannot work if the process is multithreaded when it is called.
+########################################################################
+
 
 from lisa.version import __version__
 
