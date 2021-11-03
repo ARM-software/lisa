@@ -336,13 +336,14 @@ class Target(object):
         if connect:
             self.connect()
 
-    def __copy__(self):
-        new = self.__class__.__new__(self.__class__)
-        new.__dict__ = self.__dict__.copy()
-        # Avoid sharing the connection instance with the original target, so
-        # that each target can live its own independent life
-        del new.__dict__['_conn']
-        return new
+    def __getstate__(self):
+        return {
+            k: v
+            for k, v in self.__dict__.items()
+            # Avoid sharing the connection instance with the original target,
+            # so that each target can live its own independent life
+            if k != '_conn'
+        }
 
     # connection and initialization
 
