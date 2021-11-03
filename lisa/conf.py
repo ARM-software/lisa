@@ -1061,8 +1061,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
             src_prio=[],
             parent=None,
         )
-        if conf is not None:
-            self.add_src(src, conf)
+        self.add_src(src, conf)
 
         # Give some preset in the the lowest prio source
         if self.DEFAULT_SRC and add_default_src:
@@ -1233,6 +1232,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
                 return self
 
         def format_conf(conf):
+            conf = conf or {}
             # Make sure that mappings won't be too long
             max_mapping_len = 10
             key_val = sorted(conf.items())
@@ -1271,6 +1271,7 @@ class MultiSrcConf(MultiSrcConfABC, Loggable, Mapping):
         )
 
     def _add_src(self, src, conf, filter_none=False, fallback=False):
+        conf = conf or {}
         # Filter-out None values, so they won't override actual data from
         # another source
         if filter_none:
