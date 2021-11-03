@@ -1,171 +1,140 @@
-#! /usr/bin/env python3
-# SPDX-License-Identifier: Apache-2.0
+#    Copyright 2013-2015 ARM Limited
 #
-# Copyright (C) 2018, Arm Limited and contributors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
 
+import imp
 import os
 import sys
-import itertools
+import warnings
+from itertools import chain
 
-from setuptools import setup, find_packages, find_namespace_packages
+try:
+    from setuptools import setup
+    from setuptools.command.sdist import sdist as orig_sdist
+except ImportError:
+    from distutils.core import setup
+    from distutils.command.sdist import sdist as orig_sdist
 
 
-with open('README.rst', 'r') as f:
-    long_description = f.read()
+devlib_dir = os.path.join(os.path.dirname(__file__), 'devlib')
 
-with open('LICENSE.txt', 'r') as f:
-    license_txt = f.read()
+sys.path.insert(0, os.path.join(devlib_dir, 'core'))
 
-with open("lisa/version.py") as f:
-    version_globals = dict()
-    exec(f.read(), version_globals)
-    lisa_version = version_globals['__version__']
+# happends if falling back to distutils
+warnings.filterwarnings('ignore', "Unknown distribution option: 'install_requires'")
+warnings.filterwarnings('ignore', "Unknown distribution option: 'extras_require'")
 
-def make_console_script(name):
-    mod_name = name.replace('.py', '')
-    cli_name = mod_name.replace('_', '-')
-    return f'{cli_name}=lisa._cli_tools.{mod_name}:main'
+try:
+    os.remove('MANIFEST')
+except OSError:
+    pass
 
-with os.scandir('lisa/_cli_tools/') as scanner:
-    console_scripts = [
-        make_console_script(entry.name)
-        for entry in scanner
-        if entry.name.endswith('.py') and entry.is_file()
-    ]
 
-packages = ['lisa'] + [
-    f'lisa.{pkg}'
-    for pkg in sorted(set(itertools.chain(
-        find_namespace_packages(where='lisa'),
-        find_packages(where='lisa'),
-    )))
-]
-package_data = {
-    package: ['*']
-    for package in packages
-    if package.startswith('lisa._assets.')
-}
-package_data['lisa._assets'] = ['*']
+vh_path = os.path.join(devlib_dir, 'utils', 'version.py')
+# can load this, as it does not have any devlib imports
+version_helper = imp.load_source('version_helper', vh_path)
+__version__ = version_helper.get_devlib_version()
+commit = version_helper.get_commit()
+if commit:
+    __version__ = '{}+{}'.format(__version__, commit)
 
-extras_require={
-    "notebook": [
-        "jupyterlab >= 3",
-    ],
 
-    "dev": [
-        "pytest",
-        "build",
-        "twine",
-    ],
+packages = []
+data_files = {}
+source_dir = os.path.dirname(__file__)
+for root, dirs, files in os.walk(devlib_dir):
+    rel_dir = os.path.relpath(root, source_dir)
+    data = []
+    if '__init__.py' in files:
+        for f in files:
+            if os.path.splitext(f)[1] not in ['.py', '.pyc', '.pyo']:
+                data.append(f)
+        package_name = rel_dir.replace(os.sep, '.')
+        package_dir = root
+        packages.append(package_name)
+        data_files[package_name] = data
+    else:
+        # use previous package name
+        filepaths = [os.path.join(root, f) for f in files]
+        data_files[package_name].extend([os.path.relpath(f, package_dir) for f in filepaths])
 
-    "wa": [
-        "wlauto",
-    ],
-}
+with open("README.rst", "r") as fh:
+    long_description = fh.read()
 
-extras_require["doc"] = [
-    "sphinx >= 1.8",
-    # Force ReadTheDocs to use a recent version, rather than the defaults used
-    # for old projects.
-    "sphinx_rtd_theme >= 0.5.2",
-    "sphinxcontrib-plantuml",
-    "nbsphinx",
-
-    # Add all the other optional dependencies to ensure all modules from lisa
-    # can safely be imported
-    *itertools.chain.from_iterable(extras_require.values())
-]
-
-# "all" extra requires all to install all the optional dependencies
-extras_require['all'] = sorted(set(
-    itertools.chain.from_iterable(extras_require.values())
-))
-
-setup(
-    name='lisa-linux',
-    license='Apache License 2.0',
-    version=lisa_version,
-    maintainer='Arm Ltd.',
-    packages=packages,
-    url='https://github.com/ARM-software/lisa',
-    project_urls={
-        "Bug Tracker": "https://github.com/ARM-software/lisa/issues",
-        "Documentation": "https://lisa-linux-integrated-system-analysis.readthedocs.io/",
-        "Source Code": "https://github.com/ARM-software/lisa",
-    },
-    description='A stick to probe the kernel with',
+params = dict(
+    name='devlib',
+    description='A library for interacting with and instrumentation of remote devices.',
     long_description=long_description,
-    python_requires='>= 3.6',
+    version=__version__,
+    packages=packages,
+    package_data=data_files,
+    url='https://github.com/ARM-software/devlib',
+    license='Apache v2',
+    maintainer='ARM Ltd.',
     install_requires=[
-        "psutil >= 4.4.2",
-        # Figure.savefig() (without pyplot) does not work in matplotlib <
-        # 3.1.0, and that is used for non-interactive plots when building the
-        # doc.
-        "matplotlib >= 3.1.0",
-        "bokeh",
-        # For bokeh static image exports
-        "selenium",
-        "phantomjs",
-        "pillow",
-
-        "holoviews",
-        "panel",
-        "colorcet",
-        # Pandas >= 1.0.0 has support for new nullable dtypes
-        # Pandas 1.2.0 has broken barplots:
-        # https://github.com/pandas-dev/pandas/issues/38947
-        "pandas >= 1.0.0",
-        "numpy",
-        "scipy",
-        # Earlier versions have broken __slots__ deserialization
-        "ruamel.yaml >= 0.16.6",
-        # For the HTML output of analysis plots
-        "docutils",
-        # To open intersphinx inventories
-        "sphobjinv",
-        # For pandas.to_parquet() dataframe storage
-        "pyarrow",
-
-        "ipython",
-        "ipywidgets",
-
-        # Depdendencies that are shipped as part of the LISA repo as
-        # subtree/submodule
-        "devlib >= 1.3.1",
-
-        'jinja2',
+        'python-dateutil',  # converting between UTC and local time.
+        'pexpect>=3.3',  # Send/recieve to/from device
+        'pyserial',  # Serial port interface
+        'paramiko', # SSH connection
+        'scp', # SSH connection file transfers
+        'wrapt',  # Basic for construction of decorator functions
+        'future', # Python 2-3 compatibility
+        'enum34;python_version<"3.4"', # Enums for Python < 3.4
+        'contextlib2;python_version<"3.0"', # Python 3 contextlib backport for Python 2
+        'numpy<=1.16.4; python_version<"3"',
+        'numpy; python_version>="3"',
+        'pandas<=0.24.2; python_version<"3"',
+        'pandas; python_version>"3"',
+        'lxml', # More robust xml parsing
     ],
-
-    extras_require=extras_require,
-    package_data=package_data,
-    classifiers=[
-        "Programming Language :: Python :: 3 :: Only",
-        # This is not a standard classifier, as there is nothing defined for
-        # Apache 2.0 yet:
-        # https://pypi.org/classifiers/
-        # It has not been tested under any other OS
-        "Operating System :: POSIX :: Linux",
-
-        "Topic :: System :: Operating System Kernels :: Linux",
-        "Topic :: Software Development :: Testing",
-        "Intended Audience :: Developers",
-    ],
-    entry_points={
-        'console_scripts': console_scripts,
+    extras_require={
+        'daq': ['daqpower>=2'],
+        'doc': ['sphinx'],
+        'monsoon': ['python-gflags'],
+        'acme': ['pandas', 'numpy'],
     },
+    # https://pypi.python.org/pypi?%3Aaction=list_classifiers
+    classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'License :: OSI Approved :: Apache Software License',
+        'Operating System :: POSIX :: Linux',
+        'Programming Language :: Python :: 3',
+    ],
 )
 
-# vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
+all_extras = list(chain(iter(params['extras_require'].values())))
+params['extras_require']['full'] = all_extras
+
+
+class sdist(orig_sdist):
+
+    user_options = orig_sdist.user_options + [
+        ('strip-commit', 's',
+         "Strip git commit hash from package version ")
+    ]
+
+    def initialize_options(self):
+        orig_sdist.initialize_options(self)
+        self.strip_commit = False
+
+
+    def run(self):
+        if self.strip_commit:
+            self.distribution.get_version = lambda : __version__.split('+')[0]
+        orig_sdist.run(self)
+
+
+params['cmdclass'] = {'sdist': sdist}
+
+setup(**params)

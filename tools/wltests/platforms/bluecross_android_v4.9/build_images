@@ -1,8 +1,0 @@
-#!/bin/bash
-cd $KERNEL_SRC
-
-# SKIP_MRPROPER=y saves a lot of time
-# SKIP_CP_KERNEL_HDR=y because we don't use them
-SKIP_MRPROPER=y SKIP_CP_KERNEL_HDR=y ./build/build.sh
-ERROR=$?
-[ $ERROR -eq 0 ] || exit -$ERROR
