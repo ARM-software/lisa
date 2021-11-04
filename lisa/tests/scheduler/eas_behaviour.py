@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import abc
 from math import isnan
 
 import pandas as pd
@@ -493,7 +494,56 @@ class EASBehaviour(RTATestBundle, TestBundle):
         return res
 
 
-class OneSmallTask(EASBehaviour):
+class EASBehaviourNoEWMA(EASBehaviour):
+    """
+    Abstract class for EAS behavioural testing, with mitigation for the
+    util_est.ewma influence
+
+    This class provides :meth:`_get_rtapp_profile` which prepend a custom
+    RTAPhase buffer to the rtapp profile. This buffer is composed of a dozen
+    of very short activation. It intends to reset util_est.ewma before starting
+    the test. util_est.ewma is computed for the CFS policy on the utilization
+    ramp down. It holds the utilization value and prevents convergence to a
+    value matching the duty cycle set in the rt-app profile.
+    """
+
+    _BUFFER_PHASE_DURATION_S = 0 # Bypass add_buffer() default RTAPhase buffer
+
+    @abc.abstractmethod
+    def _do_get_rtapp_profile(cls, plat_info):
+        """
+        :meta public:
+
+        Abstract method used by children class to provide the rt-app profile
+        for the test to run.
+        """
+        pass
+
+    @classmethod
+    def _get_rtapp_profile(cls, plat_info):
+        """
+        :meta public:
+
+        Prepends a :class:`lisa.wlgen.rta.RTAPhase` buffer to the children
+        class rt-app profile :meth:`_do_get_rtapp_profile`. This buffer intends
+        to mitigate the util_est.ewma influence.
+        """
+        profile = cls._do_get_rtapp_profile(plat_info)
+
+        return {
+            task: RTAPhase(
+                prop_wload=PeriodicWload(
+                    duty_cycle_pct=0.01,
+                    duration=0.1,
+                    period=cls.TASK_PERIOD
+                ),
+                prop_meta={'from_test': False}
+            ) + phase
+            for task, phase in profile.items()
+        }
+
+
+class OneSmallTask(EASBehaviourNoEWMA):
     """
     A single 'small' task
     """
@@ -501,7 +551,7 @@ class OneSmallTask(EASBehaviour):
     task_name = "small"
 
     @classmethod
-    def _get_rtapp_profile(cls, plat_info):
+    def _do_get_rtapp_profile(cls, plat_info):
         return {
             cls.task_name: RTAPhase(
                 prop_wload=PeriodicWload(
@@ -514,7 +564,7 @@ class OneSmallTask(EASBehaviour):
         }
 
 
-class ThreeSmallTasks(EASBehaviour):
+class ThreeSmallTasks(EASBehaviourNoEWMA):
     """
     Three 'small' tasks
     """
@@ -542,7 +592,7 @@ class ThreeSmallTasks(EASBehaviour):
             capacity_margin_pct=capacity_margin_pct)
 
     @classmethod
-    def _get_rtapp_profile(cls, plat_info):
+    def _do_get_rtapp_profile(cls, plat_info):
         return {
             f"{cls.task_prefix}_{i}": RTAPhase(
                 prop_wload=PeriodicWload(
@@ -556,7 +606,7 @@ class ThreeSmallTasks(EASBehaviour):
         }
 
 
-class TwoBigTasks(EASBehaviour):
+class TwoBigTasks(EASBehaviourNoEWMA):
     """
     Two 'big' tasks
     """
@@ -564,7 +614,7 @@ class TwoBigTasks(EASBehaviour):
     task_prefix = "big"
 
     @classmethod
-    def _get_rtapp_profile(cls, plat_info):
+    def _do_get_rtapp_profile(cls, plat_info):
         duty = cls.get_big_duty_cycle(plat_info)
         return {
             f"{cls.task_prefix}_{i}": RTAPhase(
@@ -578,7 +628,7 @@ class TwoBigTasks(EASBehaviour):
         }
 
 
-class TwoBigThreeSmall(EASBehaviour):
+class TwoBigThreeSmall(EASBehaviourNoEWMA):
     """
     A mix of 'big' and 'small' tasks
     """
@@ -587,7 +637,7 @@ class TwoBigThreeSmall(EASBehaviour):
     big_prefix = "big"
 
     @classmethod
-    def _get_rtapp_profile(cls, plat_info):
+    def _do_get_rtapp_profile(cls, plat_info):
         little = cls.get_little_cpu(plat_info)
         big_duty = cls.get_big_duty_cycle(plat_info)
 
@@ -616,7 +666,7 @@ class TwoBigThreeSmall(EASBehaviour):
         }
 
 
-class EnergyModelWakeMigration(EASBehaviour):
+class EnergyModelWakeMigration(EASBehaviourNoEWMA):
     """
     One task per big CPU, alternating between two phases:
 
@@ -633,7 +683,7 @@ class EnergyModelWakeMigration(EASBehaviour):
            'Cannot test migration on single capacity group')
 
     @classmethod
-    def _get_rtapp_profile(cls, plat_info):
+    def _do_get_rtapp_profile(cls, plat_info):
         little = cls.get_little_cpu(plat_info)
         end_pct = cls.get_big_duty_cycle(plat_info)
         bigs = plat_info["capacity-classes"][-1]
@@ -660,7 +710,7 @@ class EnergyModelWakeMigration(EASBehaviour):
         }
 
 
-class RampUp(EASBehaviour):
+class RampUp(EASBehaviourNoEWMA):
     """
     A single task whose utilization slowly ramps up
     """
@@ -687,7 +737,7 @@ class RampUp(EASBehaviour):
             capacity_margin_pct=capacity_margin_pct)
 
     @classmethod
-    def _get_rtapp_profile(cls, plat_info):
+    def _do_get_rtapp_profile(cls, plat_info):
         little = cls.get_little_cpu(plat_info)
         start_pct = cls.unscaled_utilization(plat_info, little, 10)
         end_pct = cls.get_big_duty_cycle(plat_info)
