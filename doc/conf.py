@@ -480,6 +480,7 @@ nitpick_ignore = nitpick_ignore_modules([
 ])
 
 nitpick_ignore.extend([
+    ('py:class', '_pickle.Pickler'),
     # gi.repository is strangely laid out, and the module in which Variant
     # (claims) to actually be defined in is not actually importable it seems
     ('py:class', 'gi.repository.GLib.Variant'),

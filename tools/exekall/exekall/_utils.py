@@ -230,6 +230,90 @@ def get_src_loc(obj, shorten=True):
     return (str(src_file), src_line)
 
 
+class ExceptionPickler(pickle.Pickler):
+    """
+    Fix pickling of exceptions so they can be reloaded without troubles, even
+    when called with keyword arguments:
+
+    https://bugs.python.org/issue40917
+    """
+
+    class _DispatchTable:
+        """
+        For Python < 3.8 (i.e. before Pickler.reducer_override is available)
+        """
+        def __init__(self, pickler):
+            self.pickler = pickler
+
+        def __getitem__(self, cls):
+            try:
+                return self.pickler._get_reducer(cls)
+            except ValueError:
+                raise KeyError
+
+    def __init__(self, *args, **kwargs):
+        self.dispatch_table = self._DispatchTable(self)
+        super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def _make_excep(excep_cls, dct):
+        new = excep_cls.__new__(excep_cls)
+
+        # "args" is a bit magical: it's not stored in __dict__, and any "arg"
+        # key __dict__ will basically be ignored, so it needs to be restored
+        # manually.
+        dct = copy.copy(dct)
+        try:
+            args = dct.pop('args')
+        except KeyError:
+            pass
+        else:
+            new.args = args
+
+        new.__dict__ = dct
+        return new
+
+    @classmethod
+    def _reduce_excep(cls, obj):
+        # The __dict__ of exceptions does not contain "args", so shoe-horn
+        # it in there so it's passed as a regular attribute.
+        dct = obj.__dict__.copy()
+        try:
+            dct['args'] = obj.args
+        except AttributeError:
+            pass
+        return (cls._make_excep, (obj.__class__, dct))
+
+    # Only for Python >= 3.8, otherwise self.dispatch_table is used
+    def reducer_override(self, obj):
+        try:
+            reducer = self._get_reducer(type(obj))
+        except ValueError:
+            # Fallback to default behaviour
+            return NotImplemented
+        else:
+            return reducer(obj)
+
+    def _get_reducer(self, cls):
+        # Workaround this bug:
+        # https://bugs.python.org/issue43460
+        if issubclass(cls, BaseException):
+            return self._reduce_excep
+        else:
+            raise ValueError('Class not handled')
+
+    @classmethod
+    def dump_bytestring(cls, obj, **kwargs):
+        f = io.BytesIO()
+        cls.dump_file(f, obj, **kwargs)
+        return f.getvalue()
+
+    @classmethod
+    def dump_file(cls, f, obj, **kwargs):
+        pickler = cls(f, **kwargs)
+        return pickler.dump(obj)
+
+
 def is_serializable(obj, raise_excep=False):
     """
     Try to Pickle the object to see if that raises any exception.
