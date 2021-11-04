@@ -26,6 +26,7 @@ done for secondary utilities that are not used often.
 
 import numbers
 import hashlib
+import shlex
 import zlib
 import time
 import re
@@ -61,6 +62,7 @@ import mimetypes
 import tempfile
 import shutil
 import platform
+import subprocess
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -3489,6 +3491,63 @@ class DirCache(Loggable):
 
         return path
 
+
+def subprocess_log(cmd, level=None, name=None, logger=None, **kwargs):
+    """
+    Similar to :func:`subprocess.check_output` but merges stdout and stderr and
+    logs them using the :mod:`logging` module as it goes.
+
+    :param cmd: Command passed to :class:`subprocess.Popen`
+    :type cmd: str or list(str)
+
+    :param level: Log level to use (e.g. ``logging.INFO``).
+    :type level: int or None
+
+    :param name: Name of the logger to use. Defaults the the beginning of the
+        command.
+    :type name: str or None
+
+    :param logger: Logger to use.
+    :type logger: logging.Logger
+
+    :Variable keyword arguments: Forwarded to :class:`subprocess.Popen`.
+    """
+    if isinstance(cmd, str):
+        pretty_cmd = cmd
+    else:
+        pretty_cmd = ' '.join(map(shlex.quote, map(str, cmd)))
+
+    if not name:
+        crop = 20
+        name = pretty_cmd[:crop] + ('...' if len(pretty_cmd) > crop else '')
+
+    logger = logger or logging.getLogger()
+    logger = logger.getChild(name)
+    level = logging.INFO if level is None else level
+    log = lambda x: logger.log(level=level, msg=x)
+
+    log(pretty_cmd)
+    output = []
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs) as p:
+        line = True
+        while True:
+            ret = p.poll()
+            if (ret is not None and line == ''):
+                break
+            line = p.stdout.readline()
+            line = line.decode()
+            output.append(line)
+            # Remove trailing newline
+            line = line[:-1]
+            log(line)
+
+    output = ''.join(output)
+    if ret:
+        raise subprocess.CalledProcessError(
+            ret, cmd, output, None
+        )
+    else:
+        return output
 
 
 
