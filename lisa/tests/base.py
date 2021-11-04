@@ -46,7 +46,7 @@ from lisa.analysis.tasks import TasksAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
 from lisa.trace import requires_events
 from lisa.trace import Trace, TaskID
-from lisa.wlgen.rta import RTA, PeriodicWload, RTAPhase
+from lisa.wlgen.rta import RTA, PeriodicWload, RTAPhase, leaf_precedence
 from lisa.target import Target
 
 from lisa.utils import (
@@ -1878,7 +1878,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         def add_buffer(task):
             template_phase = task.phases[0]
             wload = template_phase['wload']
-            task = task.with_props(meta={'from_test': True})
+            task = task.with_props(meta=leaf_precedence({'from_test': True}))
             if 'name' not in task:
                 task = task.with_props(name='test')
 
