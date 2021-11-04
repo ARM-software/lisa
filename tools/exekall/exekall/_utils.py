@@ -322,7 +322,7 @@ def is_serializable(obj, raise_excep=False):
     try:
         # This may be slow for big objects but it is the only way to be sure
         # it can actually be serialized
-        pickle.dumps(obj)
+        ExceptionPickler.dump_bytestring(obj)
     except (TypeError, pickle.PickleError, AttributeError) as e:
         debug('Cannot serialize instance of {}: {}'.format(
             type(obj).__qualname__, str(e)
