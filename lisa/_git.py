@@ -17,6 +17,7 @@
 
 import os
 import subprocess
+from pathlib import Path
 
 
 def git(repo, *args):
@@ -134,4 +135,10 @@ def find_tags(repo, pattern):
     return tags.splitlines()
 
 
+def find_root(repo):
+    """
+    Find the git repository root.
+    """
+    root = git(repo, 'rev-parse', '--show-toplevel')
+    return Path(root.strip()).resolve()
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
