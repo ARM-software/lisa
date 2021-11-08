@@ -30,6 +30,30 @@ target-conf:
     # password: "mypassword"
     # keyfile: /complete/path/of/your/keyfile
 
+    # Optional kernel module configuration
+    # kernel:
+        # Path to the kernel sources. If left out, a kernel.org tarball will be
+        # used (with varying degree of success)
+        # src: /path/to/kernel/src/tree
+
+        # Module compiling options
+        # modules:
+            # Variables passed to make command line while building modules.
+            # make-variables:
+               # Setting CC to "clang" is a good idea as clang is a cross
+               # compiler by default.
+               # CC: clang
+
+            # Either "host" or "alpine". If "alpine" is used, an Alpine chroot
+            # will be used to build the kernel module in. Works best with "CC:
+            # clang" for reproducible builds regardless of the host.
+            # build-env: host
+
+            # Usually not needed: "overlayfs" will overlay folders using
+            # overlayfs. "copy" will use plain slow copies.
+            # overlay-backend: overlayfs
+
+
     # Optional devlib configuration
     # devlib:
         # Devlib modules names to enable/disbale for all the experiment
