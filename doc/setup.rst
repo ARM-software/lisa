@@ -155,20 +155,23 @@ them.
 
 To help expose these tracepoints (and any additional one we might require in
 the future) as trace events, an external module is required and is provided
-under the name of sched_tp in $LISA_HOME/tools/kmodules/sched_tp
+under the name of sched_tp in $LISA_HOME/lisa/_assets/kmodules/sched_tp
 
 Building a module
 -----------------
 
-The process is standard Linux external module build step. Helper scripts are
-provides too.
+LISA Python package will compile and load the module automatically when required
+for tracing so there is usually no reason to do so manually.
+
+In case this is still required, the process is standard Linux external module
+build step. Helper scripts are provides too.
 
 Build
 .....
 
 .. code-block:: sh
 
-  $LISA_HOME/tools/kmodules/build_module path/to/kernel path/to/kmodule [path/to/install/modules]
+  $LISA_HOME/lisa/_assets/kmodules/build_module path/to/kernel path/to/kmodule [path/to/install/modules]
 
 This will build the module against the provided kernel tree and install it in
 ``path/to/install/module`` if provided otherwise install it in
@@ -179,7 +182,7 @@ Clean
 
 .. code-block:: sh
 
-  $LISA_HOME/tools/kmodules/clean_module path/to/kenrel path/to/kmodule
+  $LISA_HOME/lisa/_assets/kmodules/clean_module path/to/kernel path/to/kmodule
 
 Highly recommended to clean when switching kernel trees to avoid unintentional
 breakage for using stale binaries.
@@ -192,7 +195,7 @@ there or use commands like ``scp`` to copy it into your device.
 
 .. code-block:: sh
 
-  scp -r $LISA_HOME/tools/kmoudles/lib username@ip:/
+  scp -r /path/to/sched_tp.ko username@ip:/
 
 Loading the module
 ..................
