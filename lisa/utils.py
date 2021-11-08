@@ -3550,5 +3550,84 @@ def subprocess_log(cmd, level=None, name=None, logger=None, **kwargs):
         return output
 
 
+# Inherit from ABCMeta to avoid the most common metaclass conflict
+class _SerializeViaConstructorMeta(abc.ABCMeta):
+    def __call__(cls, *args, **kwargs):
+        obj = super().__call__(*args, **kwargs)
+        obj._ctor = functools.partial(cls, *args, **kwargs)
+        return obj
+
+
+class SerializeViaConstructor(metaclass=_SerializeViaConstructorMeta):
+    """
+    Base class providing serialization to objects that typically cannot due to
+    unpicklable attributes.
+
+    This works by recording the constructor that was used and the parameters
+    passed to it in order to recreate an equivalent object, under the
+    assmuption that the constructor arguments will be picklable.
+
+    Alternative constructors (e.g. classmethod) can be decorated with
+    :meth:`SerializeViaConstructor.constructor` in order to record the
+    parameters passed to them if necessary.
+    """
+
+    _SERIALIZE_PRESERVED_ATTRS = tuple()
+    """
+    Attribute names listed in that class attribute will be preserved. This
+    allows some piece of the object state to be serialized as well, in case the
+    constructor arguments are not enough.
+    """
+
+    @classmethod
+    def _make_instance(cls, ctor, dct=None):
+        obj = ctor()
+        if dct:
+            obj.__dict__.update(dct)
+        return obj
+
+    @staticmethod
+    def _call_ctor(x, name, *args, **kwargs):
+        return getattr(x, name)(*args, **kwargs)
+
+    @classmethod
+    def constructor(cls, f):
+        """
+        Decorator to apply on alternative constructors if arguments passed to
+        the class are not serializable, or if the alternative constructor makes
+        necessary initialization.
+
+        **Example**::
+
+            class Foo(SerializeViaConstructor):
+                def __init__(self, x):
+                    self.x = x
+
+                @classmethod
+                @SerializeViaConstructor.constructor
+                def from_path(cls, path):
+                    return cls(x=open(path))
+
+        .. note:: This only works on classmethods. staticmethods are not
+            supported.
+        """
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            obj = f(*args, **kwargs)
+            # Pickle prevents pickling functions that are not the same as the
+            # one gotten by looking up their name, so we do that manually
+            cls, *args = args
+            obj._ctor = functools.partial(cls._call_ctor, cls, f.__name__, *args, **kwargs)
+            return obj
+
+        return wrapper
+
+    def __reduce__(self):
+        dct = {
+            k: v
+            for k, v in self.__dict__.items()
+            if k in self._SERIALIZE_PRESERVED_ATTRS
+        }
+        return (self._make_instance, (self._ctor, dct))
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
