@@ -51,9 +51,9 @@ fi
 (
     set +e
     # Check for commits touching subtrees
-    ignored_commits='496b859d1a64e5195500aa52040abafb241657ab'
+    ignored_commits='496b859d1a64e5195500aa52040abafb241657ab|23670a886eebec46d5ebbf05829771ce86c602dc|4ce0d9eedfe18d69f1fb3ef4c92f416e6ba93fd3'
     illegal_location="external/"
-    illegal_commits=$(find "$illegal_location" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 git log --no-merges --format='%H %s' | grep -v "$ignored_commits")
+    illegal_commits=$(find "$illegal_location" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 git log --no-merges --format='%H %s' | grep -Ev "$ignored_commits")
 
     if [[ -n "$illegal_commits" ]]; then
         echo -e "The following commits are touching $illegal_location, which is not allowed apart from updates:\n$illegal_commits"
