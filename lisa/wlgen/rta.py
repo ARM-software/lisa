@@ -1546,6 +1546,9 @@ class PlaceHolderValue:
         self.val = val
         self.kwargs = kwargs
 
+    def __str__(self):
+        return str(self.val)
+
 
 class OverridenProperty(PropertyWrapper):
     """
