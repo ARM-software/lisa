@@ -1574,6 +1574,44 @@ class OverridenProperty(PropertyWrapper):
         return copy.copy(prop)
 
 
+class LeafPrecedenceProperty(PropertyWrapper):
+    """
+    Invert the usual combination of order (root to leaf) of property values.
+
+    .. seealso:: :func:`leaf_precedence`
+    """
+    def __and__(self, other):
+        # Return __wrapped__ so the effect does not propagate down the tree
+        # more than one level.
+        return other.__and__(self).__wrapped__
+
+
+class _LeafPrecedenceValue(PlaceHolderValue):
+    """
+    Placeholder value for :class:`LeafPrecedenceProperty`.
+    """
+    PROPERTY_CLS = LeafPrecedenceProperty
+
+
+def leaf_precedence(val, **kwargs):
+    """
+    Give precedence to the leaf values when combining with ``&``::
+
+        phase = phase.with_props(prop_meta=({'hello': 'leaf'})
+        phase = phase.with_props(prop_meta=leaf_precedence({'hello': 'root'})
+        assert phase['meta'] == {'hello': 'leaf'}
+
+    This allows setting a property with some kind of default value on a root
+    node in the phase tree while still allowing it to be combined with the
+    children values in such a way that the children values take precedence.
+
+    .. note:: In order to make the result more predictable, the effect will not
+        propagate beyond one level where the property is set. This means it
+        will work best for properties that are only set in leaves only.
+    """
+    return _LeafPrecedenceValue(val, **kwargs)
+
+
 class _OverridingValue(PlaceHolderValue):
     """
     Placeholder value for :class:`OverridenProperty`.
