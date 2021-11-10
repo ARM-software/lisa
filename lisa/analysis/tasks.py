@@ -27,7 +27,7 @@ import bokeh.models
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.utils import memoized, kwargs_forwarded_to, deprecate
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates
-from lisa.trace import requires_events, may_use_events, TaskID, CPU, MissingTraceEventError
+from lisa.trace import requires_events, will_use_events_from, may_use_events, TaskID, CPU, MissingTraceEventError
 from lisa._generic import TypedList
 from lisa.notebook import _hv_neutral, plot_signal, _hv_twinx
 
@@ -268,7 +268,8 @@ class TasksAnalysis(TraceAnalysisBase):
         return rt_tasks
 
     @requires_events('sched_switch', 'sched_wakeup')
-    @may_use_events('sched_wakeup_new', 'task_rename')
+    @will_use_events_from('task_rename')
+    @may_use_events('sched_wakeup_new')
     def _df_tasks_states(self, tasks=None, return_one_df=False):
         """
         Compute tasks states for all tasks.

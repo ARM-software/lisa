@@ -25,7 +25,7 @@ import pandas as pd
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.analysis.status import StatusAnalysis
-from lisa.trace import requires_one_event_of, may_use_events, TaskID, CPU, MissingTraceEventError, OrTraceEventChecker
+from lisa.trace import requires_one_event_of, may_use_events, will_use_events_from, TaskID, CPU, MissingTraceEventError, OrTraceEventChecker
 from lisa.utils import deprecate
 from lisa.datautils import df_refit_index, series_refit_index, df_filter_task_ids, df_split_signals
 from lisa._generic import TypedList
@@ -128,7 +128,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             self.trace.available_events
         )
 
-    @may_use_events(
+    @will_use_events_from(
         requires_one_event_of(*_SCHED_PELT_CFS_NAMES),
         'sched_util_est_cfs',
         'sched_cpu_capacity',
@@ -192,7 +192,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         return self._df_either_event(self._SCHED_PELT_CFS_NAMES)
 
     @TraceAnalysisBase.cache
-    @may_use_events(
+    @will_use_events_from(
         requires_one_event_of(*_SCHED_PELT_SE_NAMES),
         'sched_util_est_se'
     )
@@ -320,10 +320,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             return _hv_neutral()
 
     @TraceAnalysisBase.plot_method
-    @may_use_events(
-        StatusAnalysis.plot_overutilized.used_events,
-        'sched_cpu_capacity',
-    )
+    @may_use_events(StatusAnalysis.plot_overutilized.used_events)
     @df_cpus_signal.used_events
     def plot_cpus_signals(self, cpus: TypedList[CPU]=None, signals: TypedList[str]=['util', 'load']):
         """

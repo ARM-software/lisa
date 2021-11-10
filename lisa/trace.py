@@ -5075,7 +5075,19 @@ class OrTraceEventChecker(AssociativeTraceEventChecker):
             )
 
 
-class OptionalTraceEventChecker(AssociativeTraceEventChecker):
+class _OptionalTraceEventCheckerBase(AssociativeTraceEventChecker):
+    """
+    :meta public:
+    """
+    _PREFIX_STR = None
+    def __init__(self, event_checkers=None, **kwargs):
+        super().__init__(',', event_checkers, prefix_str=self._PREFIX_STR, **kwargs)
+
+    def check_events(self, event_set):
+        return
+
+
+class OptionalTraceEventChecker(_OptionalTraceEventCheckerBase):
     """
     Do not check anything, but exposes the information that the events may be
     used if present.
@@ -5083,12 +5095,22 @@ class OptionalTraceEventChecker(AssociativeTraceEventChecker):
     :param event_checkers: Event checkers that may be used
     :type event_checkers: list(TraceEventCheckerBase)
     """
+    _PREFIX_STR = 'optional: '
 
-    def __init__(self, event_checkers=None, **kwargs):
-        super().__init__(',', event_checkers, prefix_str='optional: ', **kwargs)
 
-    def check_events(self, event_set):
-        return
+class DynamicTraceEventChecker(_OptionalTraceEventCheckerBase):
+    """
+    Do not check anything, but exposes the information that one of the group of
+    events will be used.
+
+    This allows an API to manually decide which group is chosen based on its
+    parameters, but will still convey the information that they are not really
+    optional.
+
+    :param event_checkers: Event checkers that may be used
+    :type event_checkers: list(TraceEventCheckerBase)
+    """
+    _PREFIX_STR = 'one group of: '
 
 
 class AndTraceEventChecker(AssociativeTraceEventChecker):
@@ -5159,6 +5181,14 @@ def may_use_events(*events, **kwargs):
     if presents.
     """
     return OptionalTraceEventChecker.from_events(events, **kwargs)
+
+
+def will_use_events_from(*events, **kwargs):
+    """
+    Same as :func:`requires_events` but just exposes some events groups that
+    will be used, depending on some dynamic factor.
+    """
+    return DynamicTraceEventChecker.from_events(events, **kwargs)
 
 
 class DroppedTraceEventError(Exception):
@@ -5456,6 +5486,9 @@ class FtraceCollector(CollectorBase, Configurable):
         }
         def rewrite(checker):
             if isinstance(checker, TraceEventChecker):
+                # Expand each possibly meta event into the actual underlying
+                # event, while pruning the events we don't want trace-cmd to
+                # see
                 checker = OrTraceEventChecker(
                     TraceEventChecker(event)
                     for _event in Trace.get_event_sources(checker.event)
@@ -5470,6 +5503,12 @@ class FtraceCollector(CollectorBase, Configurable):
                     )
                     if event not in avoided
                 )
+            # Assume that we want to be able to call the functions in all the
+            # ways they support, so we need to collect all the events they are
+            # interested in.
+            elif isinstance(checker, DynamicTraceEventChecker):
+                checker = AndTraceEventChecker(checker.checkers)
+
             return checker
 
         events = events.map(rewrite)
