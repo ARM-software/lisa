@@ -44,7 +44,7 @@ from devlib import TargetStableError
 
 from lisa.analysis.tasks import TasksAnalysis
 from lisa.analysis.rta import RTAEventsAnalysis
-from lisa.trace import requires_events
+from lisa.trace import requires_events, TraceEventCheckerBase, AndTraceEventChecker
 from lisa.trace import Trace, TaskID
 from lisa.wlgen.rta import RTA, PeriodicWload, RTAPhase, leaf_precedence
 from lisa.target import Target
@@ -1250,14 +1250,16 @@ class FtraceTestBundle(TestBundleBase):
 
         # Collect all the events that can be used by all methods available on
         # that class.
-        ftrace_events = set()
+        ftrace_events = []
         for name, obj in inspect.getmembers(cls, callable):
             try:
                 used_events = obj.used_events
             except AttributeError:
                 continue
             else:
-                ftrace_events.update(used_events.get_all_events())
+                ftrace_events.append(used_events)
+
+        ftrace_events = AndTraceEventChecker(ftrace_events)
 
         # Get the ftrace_conf attribute of the class, and make sure it is
         # unique to that class (i.e. not shared with any other parent or
@@ -1287,7 +1289,7 @@ class FtraceTestBundle(TestBundleBase):
         ftrace_conf.add_merged_src(
             src=f'{cls.__qualname__}(required)',
             conf={
-                'events': sorted(ftrace_events),
+                'events': ftrace_events,
             },
         )
 
@@ -1310,6 +1312,7 @@ class FtraceTestBundle(TestBundleBase):
         conf.add_merged_src(
             src=f'user+{cls.__qualname__}',
             conf=user_conf,
+            optional_events=True,
         )
 
         # If there is no event, do not collect the trace unless the user asked
@@ -1352,13 +1355,15 @@ class FtraceTestBundle(TestBundleBase):
         """
         return self.get_trace(events=self.FTRACE_CONF["events"], normalize_time=True)
 
-    def get_trace(self, **kwargs):
+    def get_trace(self, events=None, **kwargs):
         """
         :returns: a :class:`lisa.trace.Trace` collected in the standard location.
 
         :Variable keyword arguments: Forwarded to :class:`lisa.trace.Trace`.
         """
-        return Trace(self.trace_path, self.plat_info, **kwargs)
+        if isinstance(events, TraceEventCheckerBase):
+            events = events.get_all_events()
+        return Trace(self.trace_path, self.plat_info, events=events, **kwargs)
 
 
 class TestConfBase(SimpleMultiSrcConf):

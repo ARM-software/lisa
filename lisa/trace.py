@@ -43,6 +43,7 @@ import textwrap
 import subprocess
 import itertools
 import functools
+import fnmatch
 
 import numpy as np
 import pandas as pd
@@ -4762,6 +4763,7 @@ class Trace(Loggable, TraceBase):
         df['reason'] = df['reason'].str.strip('()')
         return df
 
+
 class TraceEventCheckerBase(abc.ABC, Loggable):
     """
     ABC for events checker classes.
@@ -4785,7 +4787,9 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         Check that certain trace events are available in the given set of
         events.
 
-        :raises: MissingTraceEventError if some events are not available
+        :raises: MissingTraceEventError if some events are not available. The
+            exception must be raised after inspecting children node and combine
+            their missing events so that the resulting exception is accurate.
         """
 
     @abc.abstractmethod
@@ -4795,6 +4799,13 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
 
         That may be a superset of events that are strictly required, when the
         checker checks a logical OR combination of events for example.
+        """
+
+    @abc.abstractmethod
+    def map(self, f):
+        """
+        Apply the given function to all the children and rebuild a new object
+        with the result.
         """
 
     def __call__(self, f):
@@ -4894,7 +4905,6 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         :type wrapped: bool
         """
 
-
     def doc_str(self):
         """
         Top-level function called by Sphinx's autodoc extension to augment
@@ -4934,6 +4944,9 @@ class TraceEventChecker(TraceEventCheckerBase):
     def _str_internal(self, style=None, wrapped=True):
         template = '``{}``' if style == 'rst' else '{}'
         return template.format(self.event)
+
+    def map(self, f):
+        return f(self)
 
 
 class AssociativeTraceEventChecker(TraceEventCheckerBase):
@@ -4983,6 +4996,15 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
         self.checkers = checker_list
         self.op_str = op_str
         self.prefix_str = prefix_str
+
+    def map(self, f):
+        new = copy.copy(self)
+        new = f(new)
+        new.checkers = [
+            checker.map(f)
+            for checker in new.checkers
+        ]
+        return new
 
     def get_all_events(self):
         events = set()
@@ -5189,7 +5211,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
     {yaml_example}
     """
     STRUCTURE = TopLevelKeyDesc('ftrace-conf', 'FTrace configuration', (
-        KeyDesc('events', 'FTrace events to trace', [TypedList[str]]),
+        KeyDesc('events', 'FTrace events to trace', [TypedList[str], TraceEventCheckerBase]),
         KeyDesc('functions', 'FTrace functions to trace', [TypedList[str]]),
         KeyDesc('buffer-size', 'FTrace buffer size', [int]),
         KeyDesc('trace-clock', 'Clock used while tracing (see "trace_clock" in ftrace.txt kernel doc)', [str, None]),
@@ -5200,7 +5222,7 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
         )),
     ))
 
-    def add_merged_src(self, src, conf, **kwargs):
+    def add_merged_src(self, src, conf, optional_events=False, **kwargs):
         """
         Merge-in a configuration source.
 
@@ -5209,6 +5231,12 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
 
         :param conf: Conf to merge in
         :type conf: FtraceConf
+
+        :param optional_events: If ``True``, the events brought by ``conf``
+            will be wrapped in :class:`OptionalTraceEventChecker`. This avoids
+            failing just because the user asked for extra events that are not
+            present in the kernel.
+        :type optional_events: bool
         """
         def merge_conf(key, val, path):
             new = _merge_conf(key, val, path)
@@ -5229,8 +5257,18 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
                 else:
                     raise KeyError(f'Cannot merge key "{key}": incompatible values specified: {self[key]} != {val}')
 
-            if key in ('events', 'functions'):
+            if key == 'functions':
                 return sorted(set(val) | set(self.get(key, [])))
+            elif key == 'events':
+                if not isinstance(val, TraceEventCheckerBase):
+                    val = AndTraceEventChecker.from_events(val)
+                if optional_events:
+                    val = OptionalTraceEventChecker([val])
+
+                self_val = self.get(key, [])
+                if not isinstance(self_val, TraceEventCheckerBase):
+                    self_val = AndTraceEventChecker.from_events(self_val)
+                return AndTraceEventChecker([val, self_val])
             elif key == 'buffer-size':
                 return max(val, self.get(key, 0))
             elif key == 'trace-clock':
@@ -5249,8 +5287,8 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
         def merge_level(conf, path=[]):
             return {
                 k: v
-                for keep, v in (
-                    merge_conf(k, v, path)
+                for k, (keep, v) in (
+                    (k, merge_conf(k, v, path))
                     for k, v in conf.items()
                 )
                 if keep
@@ -5395,12 +5433,70 @@ class FtraceCollector(CollectorBase, Configurable):
     "Class for dynamic kernel modules providing ftrace events"
 
     def __init__(self, target, *, events=None, functions=None, buffer_size=10240, output_path=None, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, kmod_auto_load=True, **kwargs):
-        events = events or []
+        if events is None:
+            events = AndTraceEventChecker([])
+        elif isinstance(events, TraceEventCheckerBase):
+            pass
+        else:
+            events = AndTraceEventChecker.from_events(set(events))
+
+        meta_events = {
+            event
+            for event in events.get_all_events()
+            if Trace._is_meta_event(event)
+        }
+
+        available_events = self._target_available_events(target)
+
+        # trace-cmd start complains if given these events, even though they are
+        # valid
+        avoided = {
+            'funcgraph_entry', 'funcgraph_exit',
+            'print', 'bprint', 'bputs',
+        }
+        def rewrite(checker):
+            if isinstance(checker, TraceEventChecker):
+                checker = OrTraceEventChecker(
+                    TraceEventChecker(event)
+                    for _event in Trace.get_event_sources(checker.event)
+                    # Handle patterns such as "sched_*"
+                    for event in (
+                        fnmatch.filter(
+                            available_events,
+                            _event
+                        # If there is no match, just use the initial name and
+                        # let the rest of the code handle the missing events
+                        ) or [_event]
+                    )
+                    if event not in avoided
+                )
+            return checker
+
+        events = events.map(rewrite)
+        try:
+            events.check_events(available_events)
+        except MissingTraceEventError as e:
+            missing_events_checker = e.missing_events
+        else:
+            missing_events_checker = OptionalTraceEventChecker([])
+
+        missing_events = set(missing_events_checker.get_all_events())
+        events = available_events & events.get_all_events()
+
+        meta_events = {
+            event
+            for event in meta_events
+            if any(
+                event in events or event in avoided
+                for event in Trace.get_event_sources(event)
+            )
+        }
+
         functions = functions or []
         trace_clock = trace_clock or 'global'
         kwargs.update(
             target=target,
-            events=events,
+            events=sorted(events),
             functions=functions,
             buffer_size=buffer_size,
             autoreport=autoreport,
@@ -5417,48 +5513,41 @@ class FtraceCollector(CollectorBase, Configurable):
         if functions and not kconfig.get('FUNCTION_TRACER'):
             raise ValueError(f"The target's kernel needs CONFIG_FUNCTION_TRACER=y kconfig enabled in order to trace functions: {functions}")
 
-        self.events = events
-        kernel_events = set(itertools.chain.from_iterable(
-            Trace.get_event_sources(event)
-            for event in events
-        ))
-
-        # trace-cmd start complains if given these events, even though they are
-        # valid
-        kernel_events -= {
-            'funcgraph_entry', 'funcgraph_exit',
-            'print', 'bprint', 'bputs',
-        }
-
         if 'funcgraph_entry' in events or 'funcgraph_exit' in events:
             tracer = 'function_graph' if tracer is None else tracer
 
-        # Only pass true kernel events to devlib, as it will reject any other.
-        kwargs.update(
-            events=kernel_events,
-            tracer=tracer,
-        )
-
         # If some events are not already available on that kernel, look them up
         # in custom modules
-        available_events = self._target_available_events(target)
-        missing_events = kernel_events - available_events
-        if missing_events:
-            if kmod_auto_load:
-                kmods = self._get_kmods(target, available_events, missing_events)
-            elif kernel_events == missing_events:
-                raise ValueError(f'All events are missing in the kernel. Enable kmod_auto_load=True to attempt setting them up: {", ".join(sorted(missing_events))}')
-            else:
-                kmods = []
+        if missing_events and kmod_auto_load:
+            kmods = self._get_kmods(target, available_events, missing_events)
         else:
             kmods = []
         self._kmods = kmods
+
+        for kmod in kmods:
+            events.update(
+                set(kmod.defined_events) & missing_events
+            )
+
+        try:
+            missing_events_checker.check_events(events)
+        except MissingTraceEventError:
+            raise ValueError(f'Events are missing in the kernel. Enable kmod_auto_load=True to attempt setting them up: {str(missing_events_checker)}')
+
+        self.events = sorted(events | meta_events)
+        events = sorted(events)
 
         self._cm = None
 
         # Install the tools before creating the collector, as devlib will check
         # for it
         self._install_tools(target)
+
+        # Only pass true kernel events to devlib, as it will reject any other.
+        kwargs.update(
+            events=events,
+            tracer=tracer,
+        )
 
         # We need to install the kmod when initializing the devlib object, so
         # that the available events are accurate.
@@ -5476,7 +5565,7 @@ class FtraceCollector(CollectorBase, Configurable):
         def need_mod(mod_cls):
             kmod = target.get_kmod(mod_cls)
             defined_events = set(kmod.defined_events)
-            needed = set(missing_events) & defined_events
+            needed = missing_events & defined_events
             overlapping = defined_events & available_events
             if overlapping and needed:
                 raise ValueError(f'Events defined in {mod.src.mod_name} ({", ".join(needed)}) are needed but some events overlap with the ones already provided by the kernel: {", ".join(overlapping)}')
@@ -5607,6 +5696,7 @@ class FtraceCollector(CollectorBase, Configurable):
         conf.add_merged_src(
             src=merged_src,
             conf=user_conf,
+            optional_events=True,
         )
         return cls.from_conf(target, conf, **kwargs)
 
