@@ -52,8 +52,8 @@ import pyarrow.parquet
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager
-from lisa.conf import SimpleMultiSrcConf, KeyDesc, TopLevelKeyDesc, Configurable
+from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key
+from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa._generic import TypedList
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert
 from lisa.version import VERSION_TOKEN
@@ -5195,6 +5195,9 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('trace-clock', 'Clock used while tracing (see "trace_clock" in ftrace.txt kernel doc)', [str, None]),
         KeyDesc('saved-cmdlines-nr', 'Number of saved cmdlines with associated PID while tracing', [int]),
         KeyDesc('tracer', 'FTrace tracer to use', [str, None]),
+        LevelKeyDesc('modules', 'Kernel modules settings', (
+            KeyDesc('auto-load', 'Compile kernel modules and load them automatically based on the events that are needed.', [bool]),
+        )),
     ))
 
     def add_merged_src(self, src, conf, **kwargs):
@@ -5207,7 +5210,18 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
         :param conf: Conf to merge in
         :type conf: FtraceConf
         """
-        def merge_conf(key, val):
+        def merge_conf(key, val, path):
+            new = _merge_conf(key, val, path)
+            try:
+                existing = get_nested_key(self, path + [key])
+            except KeyError:
+                return (True, new)
+            else:
+                # Only add to the source if the result is different than what
+                # is already set
+                return (existing != new, new)
+
+        def _merge_conf(key, val, path):
 
             def non_mergeable(key):
                 if self.get(key, val) == val:
@@ -5225,33 +5239,27 @@ class FtraceConf(SimpleMultiSrcConf, HideExekallID):
                 return max(val, self.get(key, 0))
             elif key == 'tracer':
                 return non_mergeable(key)
+            elif key == 'modules':
+                return merge_level(val, path + [key])
+            elif key == 'auto-load':
+                return non_mergeable(key)
             else:
                 raise KeyError(f'Cannot merge key "{key}"')
 
-        merged = {
-            key: merge_conf(key, val)
-            for key, val in conf.items()
-        }
+        def merge_level(conf, path=[]):
+            return {
+                k: v
+                for keep, v in (
+                    merge_conf(k, v, path)
+                    for k, v in conf.items()
+                )
+                if keep
+            }
 
-        def is_modified(key, val):
-            try:
-                existing_val = self[key]
-            except KeyError:
-                return True
-            else:
-                return val != existing_val
+        merged = merge_level(conf)
 
         # We merge some keys with their current value in the conf
-        return self.add_src(src,
-            conf={
-                key: val
-                for key, val in merged.items()
-                # Only add to the source if the result is different than what is
-                # already set
-                if is_modified(key, val)
-            },
-            **kwargs,
-        )
+        return self.add_src(src, conf=merged, **kwargs)
 
 
 class CollectorBase(Loggable):
@@ -5375,6 +5383,9 @@ class FtraceCollector(CollectorBase, Configurable):
 
     NAME = 'ftrace'
     CONF_CLASS = FtraceConf
+    INIT_KWARGS_KEY_MAP = {
+        'kmod_auto_load': ['modules', 'auto-load'],
+    }
     TOOLS = ['trace-cmd']
     _COMPOSITION_ORDER = 0
 
@@ -5383,7 +5394,7 @@ class FtraceCollector(CollectorBase, Configurable):
     ]
     "Class for dynamic kernel modules providing ftrace events"
 
-    def __init__(self, target, *, events=None, functions=None, buffer_size=10240, output_path=None, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, **kwargs):
+    def __init__(self, target, *, events=None, functions=None, buffer_size=10240, output_path=None, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, kmod_auto_load=True, **kwargs):
         events = events or []
         functions = functions or []
         trace_clock = trace_clock or 'global'
@@ -5433,9 +5444,15 @@ class FtraceCollector(CollectorBase, Configurable):
         available_events = self._target_available_events(target)
         missing_events = kernel_events - available_events
         if missing_events:
-            self._kmods = self._get_kmods(target, available_events, missing_events)
+            if kmod_auto_load:
+                kmods = self._get_kmods(target, available_events, missing_events)
+            elif kernel_events == missing_events:
+                raise ValueError(f'All events are missing in the kernel. Enable kmod_auto_load=True to attempt setting them up: {", ".join(sorted(missing_events))}')
+            else:
+                kmods = []
         else:
-            self._kmods = []
+            kmods = []
+        self._kmods = kmods
 
         self._cm = None
 
