@@ -1958,7 +1958,7 @@ class LISATestStep(ShellStep):
             upload_service = service_hub.upload
             if upload_service:
                 try:
-                    artifact_path = upload_service.upload(artifact_path)
+                    artifact_path = upload_service.upload(path=artifact_path)
                 except Exception as e:
                     error('Could not upload exekall artifact, will not delete the folder: ' + str(e))
                     # Avoid deleting the artifact if something went wrong, so
@@ -2187,7 +2187,7 @@ class LISATestStep(ShellStep):
                 upload_service = service_hub.upload
                 if upload_service:
                     try:
-                        url = upload_service.upload(step_res.results_path)
+                        url = upload_service.upload(path=step_res.results_path)
                         step_res.results_path = url
                     except Exception as e:
                         error('Could not upload LISA results: ' + str(e))
@@ -2219,13 +2219,18 @@ class LISATestStep(ShellStep):
                         archive_path=archive_path,
                         archive_dst=archive_dst,
                     ))
-                    try:
-                        urlretrieve(archive_path, archive_dst)
-                    except requests.exceptions.RequestException as e:
-                        error('Could not retrieve {archive_path}: {e}'.format(
-                            archive_path=archive_path,
-                            e=e
-                        ))
+                    download_service = service_hub.download
+                    if download_service:
+                        try:
+                            download_service.download(url=archive_path,
+                                                      path=archive_dst)
+                        except Exception as e:
+                            error('Could not retrieve {archive_path}: {e}'.format(
+                                archive_path=archive_path,
+                                e=e
+                            ))
+                    else:
+                        error('No download service available.')
 
                 # Otherwise, assume it is a file and symlink it alongside
                 # the logs.
@@ -2473,13 +2478,6 @@ class StepNotifService:
         self.slave_manager.signal.StepNotif = (step.name, msg, display_time)
 
 
-class UploadService(abc.ABC):
-    @abc.abstractmethod
-    def upload(self, path):
-        """Upload a file"""
-        pass
-
-
 def urlretrieve(url, path):
     response = requests.get(url)
     # Raise an exception is the request failed
@@ -2493,39 +2491,47 @@ def urlretrieve(url, path):
         f.write(response.content)
 
 
-class ArtifactorialService(UploadService):
-    """Upload files to Artifactorial."""
+class ArtifactsService(abc.ABC):
+    @abc.abstractmethod
+    def upload(self, path, url):
+        """Upload a file"""
+        pass
+    @abc.abstractmethod
+    def download(self, url, path):
+        """Download a file"""
+        pass
 
-    def __init__(self, url=None, token=None):
+
+class ArtifactorialService(ArtifactsService):
+    """Upload/download files to/from Artifactorial."""
+
+    def __init__(self, token=None):
         """
-        :param url: URL of the Artifactorial folder to upload to,
-                    or env var ARTIFACTORIAL_FOLDER
-        :param token: Token granting the write access to the folder,
-                      or env var ARTIFACTORIAL_TOKEN
+        :param token: Token granting the read & write access to the url
+                      It is not mandatory for the download service.
         """
 
-        self.url = url or os.getenv('ARTIFACTORIAL_FOLDER')
         self.token = token or os.getenv('ARTIFACTORIAL_TOKEN')
 
-        if not self.token:
-            raise ValueError("An Artifactorial token must be provided through ARTIFACTORIAL_TOKEN env var")
-
-        if not self.url:
-            raise ValueError("An Artifactorial folder URL must be provided through ARTIFACTORIAL_FOLDER env var")
-
-    def upload(self, path):
+    def upload(self, path, url=None):
         """
         Upload a file to Artifactorial.
 
-        :param path: path to the file to Uploading
+        :param path: path to the file to upload
+        :param url: URL of the Artifactorial folder to upload to,
+                    or env var ARTIFACTORIAL_FOLDER
         """
 
-        url = self.url
         token = self.token
+        if not token:
+            raise ValueError("An Artifactorial token must be provided through ARTIFACTORIAL_TOKEN env var")
 
-        dest = url
+        dest = url or os.getenv('ARTIFACTORIAL_FOLDER')
+        if not dest:
+            raise ValueError("An Artifactorial folder URL must be provided through ARTIFACTORIAL_FOLDER env var")
+
         if not os.path.exists(path):
-            info(f'Cannot upload {path} as it does not exists.')
+            warn(f'Cannot upload {path} as it does not exists.')
             return path
 
         info(f'Uploading {path} to {dest} ...')
@@ -2557,6 +2563,15 @@ class ArtifactorialService(UploadService):
             ))
 
         return path
+
+    def download(self, url, path):
+        """
+        Download a file from Artifactorial: anonymous access.
+
+        :param url: URL of the Artifactorial file to download
+        :param path: path to the downloaded file
+        """
+        urlretrieve(url, path)
 
 
 def update_json(path, mapping):
@@ -3822,7 +3837,7 @@ class Report(Serializable):
         url = None
         if upload_service:
             try:
-                url = upload_service.upload(self.path)
+                url = upload_service.upload(path=self.path)
                 info('Uploaded report ({path}) to {url}'.format(
                     path=self.path,
                     url=url
@@ -3932,7 +3947,7 @@ class Report(Serializable):
         return report
 
     @classmethod
-    def load(cls, path, steps_path=None, use_cache=False):
+    def load(cls, path, steps_path=None, use_cache=False, service_hub=None):
         """
         Restore a serialized :class:`Report` from the given file.
 
@@ -3956,9 +3971,16 @@ class Report(Serializable):
             # original name
             suffix = os.path.basename(url.path)
             with tempfile.NamedTemporaryFile(suffix=suffix) as temp_report:
-                path = temp_report.name
-                urlretrieve(url.geturl(), path)
-                return cls._load(path, steps_path, use_cache=False)
+                path=temp_report.name
+                download_service = service_hub.download
+                if download_service:
+                    try:
+                        download_service.download(url=url.geturl(), path=path)
+                        return cls._load(path, steps_path, use_cache=False)
+                    except Exception as e:
+                        error('Could not download report: ' + str(e))
+                else:
+                    error('No download service available.')
         else:
             return cls._load(path, steps_path, use_cache)
 
@@ -5138,10 +5160,13 @@ command line""")
 
     SHOW_TRACEBACK = args.debug
     service_hub = ServiceHub()
+
     try:
-        service_hub.register_service('upload', ArtifactorialService())
+        artifactorial = ArtifactorialService()
+        service_hub.register_service('upload', artifactorial)
+        service_hub.register_service('download', artifactorial)
     except Exception as e:
-        info('Artifactorial upload will not be available: ' + str(e))
+        info('Artifactorial Service is not available: ' + str(e))
 
     # required=True cannot be used in add_argument since it breaks
     # YAMLCLIOptionsAction, so we just handle that manually
@@ -5160,7 +5185,7 @@ command line""")
     step_options = parse_step_options(args.option)
 
     if args.subcommand == 'edit':
-        report = Report.load(report_path, steps_path)
+        report = Report.load(report_path, steps_path, service_hub=service_hub)
         # Partially reinitialize the steps, with the updated command line options
         report.result.step.reinit(step_options=step_options)
         report.save()
@@ -5318,7 +5343,8 @@ command line""")
         export_path = args.export
         use_cache = args.cache
 
-        report = Report.load(report_path, steps_path, use_cache=use_cache)
+        report = Report.load(report_path, steps_path, use_cache=use_cache,
+                            service_hub=service_hub)
 
         out, bisect_ret = report.show(
             service_hub=service_hub,
