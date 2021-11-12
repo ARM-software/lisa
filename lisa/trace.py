@@ -5524,6 +5524,8 @@ class FtraceCollector(CollectorBase, Configurable):
             return checker
 
         events = events.map(rewrite)
+        events_checker = events
+
         try:
             events.check_events(available_events)
         except MissingTraceEventError as e:
@@ -5582,8 +5584,13 @@ class FtraceCollector(CollectorBase, Configurable):
 
         try:
             missing_events_checker.check_events(events)
-        except MissingTraceEventError:
-            raise ValueError(f'Events are missing in the kernel. Enable kmod_auto_load=True to attempt setting them up: {str(missing_events_checker)}')
+        except MissingTraceEventError as e:
+            raise ValueError(f'Events are missing in the kernel. Enable kmod_auto_load=True to attempt setting them up: {str(e.missing_events)}')
+
+        try:
+            events_checker.check_events(events, check_optional=True)
+        except MissingTraceEventError as e:
+            self.logger.info(f'Optional events not found in the kernel: {str(e)}')
 
         self.events = sorted(events | meta_events)
         events = sorted(events)
