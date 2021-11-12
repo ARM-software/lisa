@@ -4782,7 +4782,10 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         self.check = check
 
     @abc.abstractmethod
-    def check_events(self, event_set):
+    def _check_events(self, event_set):
+        pass
+
+    def check_events(self, event_set, check_optional=False):
         """
         Check that certain trace events are available in the given set of
         events.
@@ -4791,6 +4794,15 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
             exception must be raised after inspecting children node and combine
             their missing events so that the resulting exception is accurate.
         """
+        if check_optional:
+            def rewrite(checker):
+                if isinstance(checker, OptionalTraceEventChecker):
+                    checker = AndTraceEventChecker(checker.checkers)
+                return checker
+            checker = self.map(rewrite)
+        else:
+            checker = self
+        return checker._check_events(event_set)
 
     @abc.abstractmethod
     def get_all_events(self):
@@ -4937,7 +4949,7 @@ class TraceEventChecker(TraceEventCheckerBase):
     def get_all_events(self):
         return {self.event}
 
-    def check_events(self, event_set):
+    def _check_events(self, event_set):
         if self.event not in event_set:
             raise MissingTraceEventError(self, available_events=event_set)
 
@@ -5055,7 +5067,7 @@ class OrTraceEventChecker(AssociativeTraceEventChecker):
     def __init__(self, event_checkers=None, **kwargs):
         super().__init__('or', event_checkers, **kwargs)
 
-    def check_events(self, event_set):
+    def _check_events(self, event_set):
         if not self.checkers:
             return
 
@@ -5083,7 +5095,7 @@ class _OptionalTraceEventCheckerBase(AssociativeTraceEventChecker):
     def __init__(self, event_checkers=None, **kwargs):
         super().__init__(',', event_checkers, prefix_str=self._PREFIX_STR, **kwargs)
 
-    def check_events(self, event_set):
+    def _check_events(self, event_set):
         return
 
 
@@ -5124,7 +5136,7 @@ class AndTraceEventChecker(AssociativeTraceEventChecker):
     def __init__(self, event_checkers=None, **kwargs):
         super().__init__('and', event_checkers, **kwargs)
 
-    def check_events(self, event_set):
+    def _check_events(self, event_set):
         if not self.checkers:
             return
 
