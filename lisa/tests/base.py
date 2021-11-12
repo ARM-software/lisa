@@ -1211,7 +1211,7 @@ class TestBundleBase(
 
 class FtraceTestBundle(TestBundleBase):
     """
-    Abstract Base Class for :class:`lisa.wlgen.rta.RTA`-powered TestBundles
+    Base class for test bundles needing ftrace traces.
 
     Optionally, an ``FTRACE_CONF`` class attribute can be defined to hold
     additional FTrace configuration used to record a trace while the synthetic
