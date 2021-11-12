@@ -1209,7 +1209,7 @@ class TestBundleBase(
         super().to_path(self._get_filepath(res_dir))
 
 
-class FtraceTestBundle(TestBundleBase):
+class FtraceTestBundleBase(TestBundleBase):
     """
     Base class for test bundles needing ftrace traces.
 
@@ -1364,6 +1364,26 @@ class FtraceTestBundle(TestBundleBase):
         if isinstance(events, TraceEventCheckerBase):
             events = events.get_all_events()
         return Trace(self.trace_path, self.plat_info, events=events, **kwargs)
+
+
+class FtraceTestBundle(FtraceTestBundleBase):
+    """
+    Dummy subclass of :class:`FtraceTestBundleBase` to be inherited from to
+    override :class:`OptionalFtraceTestBundle` in the inheritance tree.
+    """
+    _make_ftrace_collector = FtraceTestBundleBase._make_ftrace_collector
+
+
+class OptionalFtraceTestBundle(FtraceTestBundleBase, Loggable):
+    @classmethod
+    @TestBundleBase.collector_factory
+    @kwargs_forwarded_to(FtraceTestBundleBase._make_ftrace_collector)
+    def _make_ftrace_collector(cls, **kwargs):
+        try:
+            return super()._make_ftrace_collector(**kwargs)
+        except Exception as e:
+            cls.get_logger().warning(f'Could not create ftrace collector: {e}')
+            return None
 
 
 class TestConfBase(SimpleMultiSrcConf):
@@ -2104,7 +2124,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         return cls(res_dir, plat_info)
 
 
-class TestBundle(FtraceTestBundle, OptionalDmesgTestBundle, TestBundleBase):
+class TestBundle(OptionalFtraceTestBundle, OptionalDmesgTestBundle, TestBundleBase):
     """
     Dummy class used as a base class for all tests.
     """
