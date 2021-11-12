@@ -2058,7 +2058,9 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         logger.info(f'rt-app workload:\n{profile_str}')
         logger.debug(f'rt-app JSON:\n{wload.conf.json}')
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
-        as_root = cgroup is not None or (trace_events and debugfs_needs_root)
+        as_root = bool(
+            cgroup is not None or (trace_events and debugfs_needs_root)
+        )
 
         wload = wload(
             wipe_run_dir=wipe_run_dir,
