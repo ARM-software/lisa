@@ -276,7 +276,7 @@ class HotplugTorture(HotplugBase):
             yield cpu, 1
 
 
-class HotplugRollback(TestBundle, HotplugDmesgTestBundle, FtraceTestBundle):
+class HotplugRollback(HotplugDmesgTestBundle, FtraceTestBundle, TestBundle):
 
     @classmethod
     def _online(cls, target, cpu, online, verify=True):
