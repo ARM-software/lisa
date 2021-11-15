@@ -160,10 +160,12 @@ static void sched_util_est_se(void *data, struct sched_entity *se)
 		_trace_se(se, trace_sched_util_est_se);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0) && defined(CONFIG_ARM64)
 static void sched_cpu_capacity(void *data, struct rq *rq)
 {
 	trace_sched_cpu_capacity(rq);
 }
+#endif
 
 static int sched_tp_init(void)
 {
@@ -176,7 +178,9 @@ static int sched_tp_init(void)
 	register_trace_sched_update_nr_running_tp(sched_update_nr_running, NULL);
 	register_trace_sched_util_est_cfs_tp(sched_util_est_cfs, NULL);
 	register_trace_sched_util_est_se_tp(sched_util_est_se, NULL);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0) && defined(CONFIG_ARM64)
 	register_trace_sched_cpu_capacity_tp(sched_cpu_capacity, NULL);
+#endif
 
 	return 0;
 }
@@ -192,7 +196,9 @@ static void sched_tp_exit(void)
 	unregister_trace_sched_update_nr_running_tp(sched_update_nr_running, NULL);
 	unregister_trace_sched_util_est_cfs_tp(sched_util_est_cfs, NULL);
 	unregister_trace_sched_util_est_se_tp(sched_util_est_se, NULL);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0) && defined(CONFIG_ARM64)
 	unregister_trace_sched_cpu_capacity_tp(sched_cpu_capacity, NULL);
+#endif
 }
 
 
