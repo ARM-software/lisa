@@ -150,7 +150,7 @@ class TargetConf(SimpleMultiSrcConf, HideExekallID):
         KeyDesc('tools', 'List of tools to install on the target', [TypedList[str]]),
         KeyDesc('lazy-platinfo', 'Lazily autodect the platform information to speed up the connection', [bool]),
         LevelKeyDesc('kernel', 'kernel information', (
-            KeyDesc('src', 'Path to kernel source tree matching the kernel running on the target used to build modules', [str]),
+            KeyDesc('src', 'Path to kernel source tree matching the kernel running on the target used to build modules', [str, None]),
             LevelKeyDesc('modules', 'kernel modules', (
                 KeyDesc('build-env', 'Environment used to build modules. Can be any of "alpine" (Alpine Linux chroot, recommended) or "host" (host system)', [str]),
                 KeyDesc('make-variables', 'Extra variables to pass to "make" command, such as "CC"', [TypedDict[str, object]]),
