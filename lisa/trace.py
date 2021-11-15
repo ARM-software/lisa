@@ -4879,6 +4879,10 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
         wrapper.used_events = checker
         return wrapper
 
+    @abc.abstractmethod
+    def __bool__(self):
+        pass
+
     def __and__(self, other):
         """
         Combine two event checkers into one that checks the presence of both.
@@ -4946,6 +4950,9 @@ class TraceEventChecker(TraceEventCheckerBase):
         super().__init__(check=check)
         self.event = event
 
+    def __bool__(self):
+        return True
+
     def get_all_events(self):
         return {self.event}
 
@@ -5008,6 +5015,9 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
         self.checkers = checker_list
         self.op_str = op_str
         self.prefix_str = prefix_str
+
+    def __bool__(self):
+        return any(map(bool, self.checkers))
 
     def map(self, f):
         new = copy.copy(self)
@@ -5593,6 +5603,8 @@ class FtraceCollector(CollectorBase, Configurable):
             self.logger.info(f'Optional events not found in the kernel: {str(e)}')
 
         self.events = sorted(events | meta_events)
+        if not self.events:
+            raise ValueError('No ftrace events selected')
         events = sorted(events)
 
         self._cm = None
