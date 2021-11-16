@@ -44,8 +44,7 @@ class CPUHPSequenceError(Exception):
 class HotplugDmesgTestBundle(DmesgTestBundle):
     DMESG_IGNORED_PATTERNS = [
         *DmesgTestBundle.DMESG_IGNORED_PATTERNS,
-        DmesgTestBundle.CANNED_DMESG_IGNORED_PATTERNS['hotplug-irq-affinity'],
-        DmesgTestBundle.CANNED_DMESG_IGNORED_PATTERNS['hotplug-irq-affinity-failed'],
+        'irq|IRQ',
     ]
 
 
