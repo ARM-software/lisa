@@ -15,6 +15,92 @@
 # limitations under the License.
 #
 
+r"""
+This module provides classes to build kernel modules from source on the fly.
+
+Here is an example of such module::
+
+    import time
+
+    from lisa.target import Target
+    from lisa.trace import DmesgCollector
+    from lisa._kmod import KmodSrc
+
+    from lisa.utils import setup_logging
+    setup_logging()
+
+    target = Target(
+        kind='linux',
+        name='my_board',
+        host='192.158.1.38',
+        username='root',
+        password='root',
+        lazy_platinfo=True,
+        kernel_src='/path/to/kernel/tree/',
+        kmod_build_env='alpine',
+        # kmod_make_vars={'CC': 'clang'},
+    )
+
+    # Example module from: https://tldp.org/LDP/lkmpg/2.6/html/x279.html
+    code = r'''
+    /*
+    *  hello-4.c - Demonstrates module documentation.
+    */
+    #include <linux/module.h> /* Needed by all modules */
+    #include <linux/kernel.h> /* Needed for KERN_INFO */
+    #include <linux/init.h>   /* Needed for the macros */
+    #define DRIVER_AUTHOR "XXX"
+    #define DRIVER_DESC   "A sample driver"
+
+    static int __init init_hello(void)
+    {
+        printk(KERN_INFO "Hello, world\n");
+        return 0;
+    }
+
+    static void __exit cleanup_hello(void)
+    {
+        printk(KERN_INFO "Goodbye, worldn");
+    }
+
+    module_init(init_hello);
+    module_exit(cleanup_hello);
+
+    /*
+    *  You can use strings, like this:
+    */
+
+    /*
+    * Get rid of taint message by declaring code as GPL.
+    */
+    MODULE_LICENSE("GPL");
+
+    /*
+    * Or with defines, like this
+    */
+    MODULE_AUTHOR(DRIVER_AUTHOR);    /* Who wrote this module? */
+    MODULE_DESCRIPTION(DRIVER_DESC); /* What does this module do */
+    '''
+
+    # This object represents the kernel sources, and needs to be turned into a
+    # DynamicKmod to be compiled and run.
+    src = KmodSrc({'hello.c': code})
+
+    # Create a DynamicKmod from the target and the module sources.
+    kmod = target.get_kmod(src=src)
+
+    # Collect the dmesg output while running the module
+    dmesg_coll = DmesgCollector(target, output_path='dmesg.log')
+
+    # kmod.run() will compile the module, install it and then uninstall it at the
+    # end of the "with" statement.
+    with dmesg_coll, kmod.run():
+        time.sleep(1)
+
+    for entry in dmesg_coll.entries:
+        print(entry)
+"""
+
 import abc
 import urllib.request
 import urllib.parse
@@ -900,7 +986,27 @@ class KernelTree(Loggable, SerializeViaConstructor):
         Build the tree from the given :class:`lisa.target.Target`.
 
         This will try multiple strategies in order to get the best kernel tree
-        possible given the input.
+        possible given the input:
+
+            * Using ``/lib/modules/$(uname -r)/build`` path. This is limited by
+              a number of factor since that tree is usually incomplete and can
+              have symlinks pointing outside of it, making it unusable for bind
+              mounts.
+
+            * Using either a source tree or a kernel.org tarball matching
+              kernel version (downloaded automatically).
+
+            * The source tree as above, plus ``/sys/kheaders.tar.xz`` and
+              ``/proc/config.gz``. This is the method that is the most likely
+              to lead to a working kernel module as it allows precisely
+              matching the vermagic. It will require the following configs:
+
+                .. code-block:: sh
+
+                    # For /sys/kheaders.tar.xz
+                    CONFIG_IKHEADERS=y
+                    # For /proc/config.gz
+                    CONFIG_IKCONFIG=y
 
         :param target: Target to use.
         :type target: lisa.target.Target
@@ -1733,6 +1839,15 @@ class FtraceDynamicKmod(DynamicKmod):
 class LISAFtraceDynamicKmod(FtraceDynamicKmod):
     """
     Module providing ftrace events used in various places by :mod:`lisa`.
+
+    The kernel must be compiled with the following options in order for the
+    module to be created successfully:
+
+    .. code-block:: sh
+
+        CONFIG_DEBUG_INFO=y
+        CONFIG_DEBUG_INFO_BTF=y
+        CONFIG_DEBUG_INFO_REDUCED=n
     """
 
     @classmethod
