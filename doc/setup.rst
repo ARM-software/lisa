@@ -161,7 +161,40 @@ Building a module
 -----------------
 
 LISA Python package will compile and load the module automatically when required
-for tracing so there is usually no reason to do so manually.
+for tracing so there is usually no reason to do so manually. The most reliable
+way to configure LISA for building the module is:
+
+  * Kernel config:
+
+    .. code-block:: sh
+
+      CONFIG_IKHEADERS=y
+      CONFIG_IKCONFIG=y
+      CONFIG_DEBUG_INFO=y
+      CONFIG_DEBUG_INFO_BTF=y
+      CONFIG_DEBUG_INFO_REDUCED=n
+
+  * Target configuration (:class:`lisa.target.TargetConf`):
+
+    .. code-block:: yaml
+
+      target-conf:
+          kernel:
+              # If this is omitted, LISA will try to download a kernel.org
+              # released tarball. If the kernel has only minor differences with
+              # upstream, it will work, but can also result in compilation
+              # errors due to mismatching headers.
+              src: /home/foobar/linux/
+              modules:
+                  # This is not mandatory but will use a tested chroot to build
+                  # the module. If that is omitted, ``CROSS_COMPILE`` will be
+                  # used (and inferred if not set).
+                  build-env: alpine
+
+                  # It is advised not to set that, but in case overlayfs is
+                  # unusable (e.g. inside an LXC or docker container for a CI
+                  # system depending on config), this should do the trick.
+                  # overlay-backend: copy
 
 In case this is still required, the process is standard Linux external module
 build step. Helper scripts are provides too.
