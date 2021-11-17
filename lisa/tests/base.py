@@ -1361,8 +1361,6 @@ class FtraceTestBundleBase(TestBundleBase):
 
         :Variable keyword arguments: Forwarded to :class:`lisa.trace.Trace`.
         """
-        if isinstance(events, TraceEventCheckerBase):
-            events = events.get_all_events()
         return Trace(self.trace_path, self.plat_info, events=events, **kwargs)
 
 
