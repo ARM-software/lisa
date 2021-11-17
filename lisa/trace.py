@@ -3229,7 +3229,7 @@ class Trace(Loggable, TraceBase):
         that is optional but still recommended to improve trace parsing speed.
 
         .. seealso:: :meth:`df_event` for event formats accepted.
-    :type events: list(str) or None
+    :type events: TraceEventCheckerBase or list(str) or None
 
     :param strict_events: When ``True``, all the events specified in ``events``
         have to be present, and any other events will be assumed to not be
@@ -3506,8 +3506,13 @@ class Trace(Loggable, TraceBase):
 
         if isinstance(events, str):
             raise ValueError('Events passed to Trace(events=...) must be a list of strings, not a string.')
+        elif events is None:
+            events = AndTraceEventChecker()
+        elif isinstance(events, TraceEventCheckerBase):
+            pass
+        else:
+            events = AndTraceEventChecker.from_events(events)
 
-        events = events if events is not None else []
         self.events = events
         # Pre-load the selected events
         if events:
@@ -3942,7 +3947,7 @@ class Trace(Loggable, TraceBase):
         if write_swap is None:
             write_swap = self._write_swap
 
-        df = self._load_cache_raw_df([event], write_swap=True)[event]
+        df = self._load_cache_raw_df(TraceEventChecker(event), write_swap=True)[event]
 
         if sanitization_f:
             # Evict the raw dataframe once we got the sanitized version, since
@@ -3983,7 +3988,8 @@ class Trace(Loggable, TraceBase):
         self._cache.insert(pd_desc, df, compute_cost=compute_cost, write_swap=write_swap)
         return df
 
-    def _load_cache_raw_df(self, events, write_swap, allow_missing_events=False):
+    def _load_cache_raw_df(self, event_checker, write_swap, allow_missing_events=False):
+        events = event_checker.get_all_events()
         insert_kwargs = dict(
             write_swap=write_swap,
             # For raw dataframe, always write in the swap area if asked for
@@ -4016,7 +4022,7 @@ class Trace(Loggable, TraceBase):
         }
 
         # Load the remaining events from the trace directly
-        events_to_load = sorted(set(events) - from_cache.keys())
+        events_to_load = sorted(events - from_cache.keys())
         from_trace = self._load_raw_df(events_to_load)
 
         for event, df in from_trace.items():
@@ -4024,16 +4030,13 @@ class Trace(Loggable, TraceBase):
             self._cache.insert(pd_desc, df, **insert_kwargs)
 
         df_map = {**from_cache, **from_trace}
-        missing_events = sorted(set(events) - df_map.keys())
-        if missing_events:
+        try:
+            event_checker.check_events(df_map.keys())
+        except MissingTraceEventError as e:
             if allow_missing_events:
-                self.logger.warning('Events {} not found in the trace: {}'.format(
-                    ', '.join(missing_events),
-                    self.trace_path,
-                ))
+                self.logger.warning(f'Events not found in the trace {self.trace_path}: {e}')
             else:
-                raise MissingTraceEventError(missing_events)
-
+                raise
         return df_map
 
     def _apply_normalize_time(self, df, inplace):
