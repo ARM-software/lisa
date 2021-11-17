@@ -1339,7 +1339,12 @@ class FtraceTestBundleBase(TestBundleBase):
     # Guard before the cache, so we don't accidentally start depending on the
     # LRU cache for functionnal correctness.
     @non_recursive_property
-    @memoized
+    # Only cache the trace of N bundles at a time, to avoid running out of memory.
+    # This should not really impact the test when ran with exekall, since they
+    # are sequenced one after another. It would have some speed impact on
+    # scripts/notebooks that try to do something with a bunch of
+    # FtraceTestBundle.
+    @lru_memoized(first_param_maxsize=5)
     def trace(self):
         """
         :returns: a :class:`lisa.trace.TraceView`
@@ -1353,7 +1358,21 @@ class FtraceTestBundleBase(TestBundleBase):
         allows updating the underlying path before it is actually loaded to
         match a different folder structure.
         """
-        return self.get_trace(events=self.FTRACE_CONF["events"], normalize_time=True)
+        return self.get_trace(
+            events=self.FTRACE_CONF["events"],
+            normalize_time=True,
+            # Soft limit on the amount of memory used by dataframes kept around
+            # in memory by Trace, so that we don't blow up the memory when we
+            # have a large-ish number of FTraceTestBundle alive at the same
+            # time.
+            max_mem_size=500e6,
+            # TODO: revisit that. As of pyarrow 2.0.0 and pandas 1.1.4, reading
+            # (and maybe writing) parquet fils seem to leak memory. This can
+            # take the consumption in the order of tens of gigabytes for a few
+            # iterations of the tests with exekall, leading to crashes.
+            # Therefore, disable the on-disk swap.
+            enable_swap=False,
+        )
 
     def get_trace(self, events=None, **kwargs):
         """
@@ -1726,41 +1745,15 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         return self.get_cgroup_configuration(self.plat_info)
 
     @non_recursive_property
-    # Only cache the trace of N bundles at a time, to avoid running out of memory.
-    # This should not really impact the test when ran with exekall, since they
-    # are sequenced one after another. It would have some speed impact on
-    # scripts/notebooks that try to do something with a bunch of
-    # FtraceTestBundle.
     @lru_memoized(first_param_maxsize=5)
     def trace(self):
         """
         :returns: a :class:`lisa.trace.TraceView` cropped to the window given
             by :meth:`trace_window`.
 
-        All events specified in ``FTRACE_CONF`` are parsed from the trace,
-        so it is suitable for direct use in methods.
-
-        Having the trace as a property lets us defer the loading of the actual
-        trace to when it is first used. Also, this prevents it from being
-        serialized when calling :meth:`lisa.utils.Serializable.to_path` and
-        allows updating the underlying path before it is actually loaded to
-        match a different folder structure.
+        .. seealso:: :attr:`FtraceTestBundleBase.trace`
         """
-        trace = self.get_trace(
-            events=self.FTRACE_CONF["events"],
-            normalize_time=True,
-            # Soft limit on the amount of memory used by dataframes kept around
-            # in memory by Trace, so that we don't blow up the memory when we
-            # have a large-ish number of FTraceTestBundle alive at the same
-            # time.
-            max_mem_size=500e6,
-            # TODO: revisit that. As of pyarrow 2.0.0 and pandas 1.1.4, reading
-            # (and maybe writing) parquet fils seem to leak memory. This can
-            # take the consumption in the order of tens of gigabytes for a few
-            # iterations of the tests with exekall, leading to crashes.
-            # Therefore, disable the on-disk swap.
-            enable_swap=False,
-        )
+        trace = super().trace
         return trace.get_view(self.trace_window(trace), clear_base_cache=True)
 
     def df_noisy_tasks(self, with_threshold_exclusion=True):
