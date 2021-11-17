@@ -4764,7 +4764,7 @@ class Trace(Loggable, TraceBase):
         return df
 
 
-class TraceEventCheckerBase(abc.ABC, Loggable):
+class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
     """
     ABC for events checker classes.
 
@@ -4882,6 +4882,18 @@ class TraceEventCheckerBase(abc.ABC, Loggable):
     @abc.abstractmethod
     def __bool__(self):
         pass
+
+    def __iter__(self):
+        return iter(sorted(self.get_all_events()))
+
+    def __getitem__(self, i):
+        return sorted(self.get_all_events())[i]
+
+    def __contains__(self, event):
+        return event in self.get_all_events()
+
+    def __len__(self, event):
+        return len(self.get_all_events())
 
     def __and__(self, other):
         """
@@ -5028,6 +5040,7 @@ class AssociativeTraceEventChecker(TraceEventCheckerBase):
         ]
         return new
 
+    @memoized
     def get_all_events(self):
         events = set()
         for checker in self.checkers:
