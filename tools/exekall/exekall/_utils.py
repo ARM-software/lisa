@@ -253,8 +253,12 @@ class ExceptionPickler(pickle.Pickler):
                 raise KeyError
 
     def __init__(self, *args, **kwargs):
-        self.dispatch_table = self._DispatchTable(self)
+
+        # Due to this issue, it is critical that "dispatch_table" is set after
+        # calling super().__init__
+        # https://bugs.python.org/issue45830
         super().__init__(*args, **kwargs)
+        self.dispatch_table = self._DispatchTable(self)
 
     @staticmethod
     def _make_excep(excep_cls, dct):
