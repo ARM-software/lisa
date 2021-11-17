@@ -319,7 +319,6 @@ def is_serializable(obj, raise_excep=False):
     """
     Try to Pickle the object to see if that raises any exception.
     """
-    stream = io.StringIO()
     try:
         # This may be slow for big objects but it is the only way to be sure
         # it can actually be serialized
