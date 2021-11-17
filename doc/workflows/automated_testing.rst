@@ -253,7 +253,7 @@ bisector
 ========
 
 ``bisector`` allows setting up the steps of a test iteration, repeating
-them an infinite number of times (by default).
+them an infinite number of times (by default), similarly to [#]_.
 
 .. seealso:: :ref:`bisector main documentation<bisector-doc>`
 
