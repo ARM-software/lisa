@@ -318,24 +318,30 @@ class ExceptionPickler(pickle.Pickler):
         pickler = cls(f, **kwargs)
         return pickler.dump(obj)
 
+    @classmethod
+    def is_serializable(cls, obj, raise_excep=False):
+        """
+        Try to Pickle the object to see if that raises any exception.
+        """
+        class DevNull:
+            def write(self, _):
+                pass
+        try:
+            # This may be slow for big objects but it is the only way to be
+            # sure it can actually be serialized
+            cls.dump_file(DevNull(), obj)
+        except (TypeError, pickle.PickleError, AttributeError) as e:
+            debug('Cannot serialize instance of {}: {}'.format(
+                type(obj).__qualname__, str(e)
+            ))
+            if raise_excep:
+                raise NotSerializableError(obj) from e
+            return False
+        else:
+            return True
 
-def is_serializable(obj, raise_excep=False):
-    """
-    Try to Pickle the object to see if that raises any exception.
-    """
-    try:
-        # This may be slow for big objects but it is the only way to be sure
-        # it can actually be serialized
-        ExceptionPickler.dump_bytestring(obj)
-    except (TypeError, pickle.PickleError, AttributeError) as e:
-        debug('Cannot serialize instance of {}: {}'.format(
-            type(obj).__qualname__, str(e)
-        ))
-        if raise_excep:
-            raise NotSerializableError(obj) from e
-        return False
-    else:
-        return True
+
+is_serializable = ExceptionPickler.is_serializable
 
 
 def once(callable_):
