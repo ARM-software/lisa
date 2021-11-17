@@ -2574,6 +2574,96 @@ class ArtifactorialService(ArtifactsService):
         urlretrieve(url, path)
 
 
+class ArtifactoryService(ArtifactsService):
+    """Upload/download files to/from Artifactory. """
+
+    def __init__(self, token=None):
+        """
+        :param token: Token granting the read & write access to the url,
+                      or env var ARTIFACTORY_TOKEN
+        """
+
+        self.token = token or os.getenv('ARTIFACTORY_TOKEN')
+
+        if not self.token:
+            raise ValueError("An Artifactory token must be provided through ARTIFACTORY_TOKEN env var")
+
+    def upload(self, path, url=None):
+        """
+        Upload a file to Artifactory.
+
+        :param path: path to the file to upload
+        :param url: URL of the Artifactory folder to upload to,
+                    or env var ARTIFACTORY_FOLDER
+        """
+
+        token = self.token
+
+        dest = url or os.getenv('ARTIFACTORY_FOLDER')
+        if not dest:
+            raise ValueError("An Artifactory folder URL must be provided through ARTIFACTORY_FOLDER env var")
+
+        dest = dest + "/" + os.path.basename(path)
+
+        if not os.path.exists(path):
+            warn(f'Cannot upload {path} as it does not exists.')
+            return path
+
+        info(f'Uploading {path} to {dest} ...')
+
+        with open(path, 'rb') as f:
+            content = f.read()
+            md5sum = hashlib.md5(content).hexdigest();
+
+        headers = {
+            "X-Checksum-Md5": md5sum,
+            "X-JFrog-Art-Api": token
+        }
+
+        response = requests.put(dest, headers=headers, data=content)
+
+        if response.ok:
+            url = response.json().get("downloadUri")
+            info('{path} uploaded to {url} ...'.format(
+                path=path,
+                url=url
+            ))
+            path = url
+        # Return the path unmodified if it failed
+        else:
+            warn('Failed to upload {path} to {dest} (HTTP {error}/{reason}): {msg}'.format(
+                path=path,
+                dest=dest,
+                error=response.status_code,
+                reason=response.reason,
+                msg=response.text,
+            ))
+
+        return path
+
+    def download(self, url, path):
+        """
+        Download a file from an Artifacts service.
+
+        :param path: path to the file to download
+        """
+
+        headers = {
+            "X-JFrog-Art-Api": self.token
+        }
+
+        response = requests.get(url, headers=headers)
+        # Raise an exception is the request failed
+        response.raise_for_status()
+
+        # If that is a broken symlink, get rid of it
+        if not os.path.exists(path) and os.path.islink(path):
+            os.unlink(path)
+
+        with open(path, 'wb') as f:
+            f.write(response.content)
+
+
 def update_json(path, mapping):
     """
     Update a JSON file with the given mapping.
@@ -5161,12 +5251,22 @@ command line""")
     SHOW_TRACEBACK = args.debug
     service_hub = ServiceHub()
 
+    artifacts_service = None
     try:
-        artifactorial = ArtifactorialService()
-        service_hub.register_service('upload', artifactorial)
-        service_hub.register_service('download', artifactorial)
-    except Exception as e:
-        info('Artifactorial Service is not available: ' + str(e))
+        artifacts_service = ArtifactoryService()
+    except Exception:
+        try:
+            artifacts_service = ArtifactorialService()
+        except Exception:
+            error('No artifacts service could be initialised.')
+        else:
+            info('Artifactorial Service was initialized.')
+    else:
+        info('Artifactory Service was initialized.')
+
+    if artifacts_service:
+        service_hub.register_service('upload', artifacts_service)
+        service_hub.register_service('download', artifacts_service)
 
     # required=True cannot be used in add_argument since it breaks
     # YAMLCLIOptionsAction, so we just handle that manually
