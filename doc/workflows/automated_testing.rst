@@ -562,14 +562,26 @@ Integration in a CI loop
 ++++++++++++++++++++++++
 
 ``bisector run`` has the ability of uploading reports on the fly to
-*Artifactorial* [#]_. *Artifactorial* is convenient since it allows pushing
-large quantities of data to a server, that are automatically cleaned up after a
-period of time. The ``LISA-test`` step can upload compressed exekall
-artifact archives using ``-oupload-artifact`` run option. It will record the
-new HTTP location of the artifacts in the report. In a way, the report becomes
-an index that contains enough information to make a decision on what artifact
-archive to download for further analysis (usually to look at ``trace-cmd``
-traces).
+either Artifactorial or Artifactory.
+
+The ``LISA-test`` step can upload compressed exekall artifact archives using
+``-oupload-artifact`` run option. It will record the new HTTP location of the
+artifacts in the report. In a way, the report becomes an index that contains
+enough information to make a decision on what artifact archive to download
+for further analysis (usually to look at ``trace-cmd`` traces).
+
+.. tip:: ``bisector report`` accepts both local files and HTTP URLs
+
+If the worker is unstable, the latest report can still be used and will contain
+all the steps information collected so far. When using the
+``exekall-LISA-step``, ``-oexport-logs`` will by default download artifact archives
+accessible over HTTP. That can be changed using ``-odownload=false``.
+
+Artifactorial
+-------------
+
+*Artifactorial* [#]_ is convenient since it allows pushing large quantities
+of data to a server, that are automatically cleaned up after a period of time.
 
 .. code-block:: sh
 
@@ -577,11 +589,21 @@ traces).
   export ARTIFACTORIAL_FOLDER='http://instance.of.artifactorial/artifacts/myfolder'
   bisector run --steps steps.yml --report myreport.yml.gz -oupload-artifact --upload-report
 
-.. tip:: ``bisector report`` accept both local files and HTTP URLs
-
-If the worker is unstable, the latest report can still be used and will contain
-all the steps information collected so far. When using the
-``exekall-LISA-step``, ``-oexport-logs`` will by default download artifact archives
-accessible over HTTP. That can be changed using ``-odownload=false``.
-
 .. [#] https://github.com/ivoire/Artifactorial
+
+Artifactory
+-----------
+
+*Artifactory* [#]_ has more complex features and it allows pushing large
+quantities of data to a server, while giving you control over the policy used
+for data cleaning. The pushed data can also be described through properties
+which can be used to drive the cleaning policy and to select the data fetched
+from the server at a later point in time.
+
+.. code-block:: sh
+
+  export ARTIFACTORY_TOKEN='API_KEY'
+  export ARTIFACTORY_FOLDER='http://instance.of.artifactory/mynamespace.myrepo;prop=val'
+  bisector run --steps steps.yml --report myreport.yml.gz -oupload-artifact --upload-report
+
+.. [#] https://jfrog.com/artifactory/

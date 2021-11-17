@@ -188,12 +188,13 @@ optional arguments:
   \-\-early\-bailout       Restart a new iteration if a step marked the commit as
                         bad or non\-testable. Bisect abortion will still take
                         place even without this option.
-  \-\-upload\-report       Continuously upload the report to Artifactorial after
-                        every iteration. This relies on the following
-                        environment variables: ARTIFACTORIAL_FOLDER set to the
-                        folder\(aqs URL and ARTIFACTORIAL_TOKEN set to the token.
-                        Remember to use the right step option to upload the
-                        results as they are computed if desired.
+  \-\-upload\-report       Continuously upload the report to an artifacts service
+                        after every iteration. This relies on the following
+                        environment variables: ARTIFACTORY_FOLDER or
+                        ARTIFACTORIAL_FOLDER set to the folder\(aqs URL and
+                        ARTIFACTORY_TOKEN or ARTIFACTORIAL_TOKEN set to the
+                        token. Remember to use the right step option to upload
+                        the results as they are computed if desired.
   \-\-dbus                Try enable DBus API if the necessary dependencies are
                         installed.
   \-\-no\-dbus             Disable DBus even when pydbus module is available.
@@ -397,10 +398,11 @@ Inherits from: shell
             name
 
       \-o upload\-artifact= (bool) 
-            upload the artifact directory to Artifactorial and update the in\-
-            memory report. Following env var are needed: ARTIFACTORIAL_FOLDER
-            set to the folder URL and ARTIFACTORIAL_TOKEN. Note: \-\-export should
-            be used to save the report with updated paths
+            upload the artifact directory to an artifacts service and update the
+            in\-memory report. Following env var are needed: ARTIFACTORY_FOLDER
+            or ARTIFACTORIAL_FOLDER set to the folder URL, and ARTIFACTORY_TOKEN
+            or ARTIFACTORIAL_TOKEN. Note: \-\-export should be used to save the
+            report with updated paths
 
       \-o verbose= (bool) 
             increase verbosity

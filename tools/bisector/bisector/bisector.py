@@ -1819,7 +1819,7 @@ class LISATestStep(ShellStep):
             export_db=BoolOrStrParam('export a merged exekall ValueDB, merging it with existing ValueDB if the file exists', allow_empty=False),
             export_logs=BoolOrStrParam('export the logs and artifact directory symlink to the given directory'),
             download=BoolParam('Download the exekall artifact archives if necessary'),
-            upload_artifact=BoolParam('upload the artifact directory to Artifactorial and update the in-memory report. Following env var are needed: ARTIFACTORIAL_FOLDER set to the folder URL and ARTIFACTORIAL_TOKEN. Note: --export should be used to save the report with updated paths'),
+            upload_artifact=BoolParam('upload the artifact directory to an artifacts service and update the in-memory report. Following env var are needed: ARTIFACTORY_FOLDER or ARTIFACTORIAL_FOLDER set to the folder URL, and ARTIFACTORY_TOKEN or ARTIFACTORIAL_TOKEN. Note: --export should be used to save the report with updated paths'),
         )
 
     )
@@ -5139,11 +5139,12 @@ command line""")
         option.""")
 
     run_parser.add_argument('--upload-report', action='store_true',
-        help="""Continuously upload the report to Artifactorial after every
-        iteration. This relies on the following environment variables:
-        ARTIFACTORIAL_FOLDER set to the folder's URL and ARTIFACTORIAL_TOKEN
-        set to the token. Remember to use the right step option to upload the
-        results as they are computed if desired.
+        help="""Continuously upload the report to an artifacts service after
+        every iteration. This relies on the following environment variables:
+        ARTIFACTORY_FOLDER or ARTIFACTORIAL_FOLDER set to the folder's URL
+        and ARTIFACTORY_TOKEN or ARTIFACTORIAL_TOKEN set to the token.
+        Remember to use the right step option to upload the results as they
+        are computed if desired.
         """)
 
     dbus_group = run_parser.add_mutually_exclusive_group()
