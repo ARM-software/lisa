@@ -265,6 +265,7 @@ class RTAConf(Loggable, Mapping):
         trace_events=None,
         run_dir=None,
         lock_pages=False,
+        no_force_default_keys=None,
     ):
         """
         Create an rt-app workload using :class:`RTAPhase` instances
@@ -282,6 +283,10 @@ class RTAConf(Loggable, Mapping):
             If ``False``, defaults will be removed from the file (even if they
             were explicitly set by the user).
         :type force_defaults: bool
+
+        :param no_force_default_keys: JSON keys for which no default will be
+            forced by ``force_defaults=True``.
+        :type no_force_default_keys: list(str) or None
 
         :param max_duration_s: Maximum duration of the workload. Will be determined
           by the longest running task if not specified.
@@ -336,6 +341,7 @@ class RTAConf(Loggable, Mapping):
                 task_name=task_name,
                 plat_info=plat_info,
                 force_defaults=force_defaults,
+                no_force_default_keys=no_force_default_keys,
             )
 
         conf = OrderedDict((
@@ -3228,7 +3234,7 @@ class RTAPhaseBase(_RTAPhaseBase, SimpleHash, Mapping, abc.ABC):
         )
 
     @abc.abstractmethod
-    def get_rtapp_repr(self, *, task_name, plat_info, force_defaults=False, **kwargs):
+    def get_rtapp_repr(self, *, task_name, plat_info, force_defaults=False, no_force_default_keys=None, **kwargs):
         """
         rt-app JSON representation of the phase.
 
@@ -3244,6 +3250,10 @@ class RTAPhaseBase(_RTAPhaseBase, SimpleHash, Mapping, abc.ABC):
             will not be provided if the user-provided properties don't touch a
             given JSON key.
         :type force_defaults: bool
+
+        :param no_force_default_keys: List of JSON keys for which no default
+            will be emitted when ``force_defaults=True``.
+        :type no_force_default_keys: list(str) or None
 
         :Variable keyword arguments: Forwarded to
             :meth:`RTAPhase.to_json`
@@ -3352,7 +3362,7 @@ class _RTAPhaseTreeBase(RTAPhaseBase, abc.ABC):
         """
         return self.topo_sort()
 
-    def get_rtapp_repr(self, task_name, plat_info, force_defaults=False, **kwargs):
+    def get_rtapp_repr(self, task_name, plat_info, force_defaults=False, no_force_default_keys=None, **kwargs):
         phases = self.phases
 
         # to_json is expected to apply the defaults itself
@@ -3364,64 +3374,71 @@ class _RTAPhaseTreeBase(RTAPhaseBase, abc.ABC):
             for phase in phases
         ]
 
-        if not force_defaults:
-            defaults = [
-                (
-                    json_phase,
-                    RTAPhaseProperties.get_defaults(
-                        plat_info=plat_info,
-                        properties=json_phase,
-                        trim_defaults=False,
-                    )
-                )
-                for json_phase in json_phases
-            ]
-
-            # All the keys that have a default value somewhere are potentially
-            # removable
-            removable_keys = set(chain.from_iterable(
-                default.keys()
-                for _, default in defaults
-            ))
-
-            keys_to_remove = set(
-                key
-                for key in removable_keys
-                # Remove the key if it is not present at all or set to its
-                # default value in all phases
-                if all(
-                    (
-                        # If the key is neither in the defaults of that phase
-                        # nor in the phase itself, it won't matter if we
-                        # attempt to remove it or not
-                        (
-                            key not in phase and
-                            key not in phase_default
-                        ) or
-                        (
-                            # If the key is in phase and not phase_default or
-                            # the opposite, we treat it as a non-default
-                            # setting.
-                            key in phase and
-                            key in phase_default and
-                            phase[key] == phase_default[key]
-                        )
-                    )
-                    for phase, phase_default in defaults
+        defaults = [
+            (
+                json_phase,
+                RTAPhaseProperties.get_defaults(
+                    plat_info=plat_info,
+                    properties=json_phase,
+                    trim_defaults=False,
                 )
             )
+            for json_phase in json_phases
+        ]
 
-            def remove_keys(dct, keys):
+        # All the keys that have a default value somewhere are potentially
+        # removable
+        removable_keys = set(chain.from_iterable(
+            default.keys()
+            for _, default in defaults
+        ))
+
+        # If we want to force the defaults, we restrict the set of removable
+        # keys to the ones for which we are not going to force the default.
+        if force_defaults:
+            removable_keys &= set(no_force_default_keys or [])
+
+        keys_to_remove = set(
+            key
+            for key in removable_keys
+            # Remove the key if it is not present at all or set to its
+            # default value in all phases
+            if all(
+                (
+                    # If the key is neither in the defaults of that phase
+                    # nor in the phase itself, it won't matter if we
+                    # attempt to remove it or not
+                    (
+                        key not in phase and
+                        key not in phase_default
+                    ) or
+                    (
+                        # If the key is in phase and not phase_default or
+                        # the opposite, we treat it as a non-default
+                        # setting.
+                        key in phase and
+                        key in phase_default and
+                        phase[key] == phase_default[key]
+                    )
+                )
+                for phase, phase_default in defaults
+            )
+        )
+
+        def remove_keys(dct, keys):
+            if keys:
                 return OrderedDict(
                     (key, val)
                     for key, val in dct.items()
                     if key not in keys
                 )
+            else:
+                return dct
 
-            json_phases = [
-                remove_keys(phase, keys_to_remove)
-                for phase in json_phases
-            ]
+        json_phases = [
+            remove_keys(phase, keys_to_remove)
+            for phase in json_phases
+        ]
 
         # All the JSON properties that need to be considered to optimize-away
         # redundant values between phases, except when one of their
