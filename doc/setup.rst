@@ -173,6 +173,7 @@ way to configure LISA for building the module is:
       CONFIG_DEBUG_INFO=y
       CONFIG_DEBUG_INFO_BTF=y
       CONFIG_DEBUG_INFO_REDUCED=n
+      CONFIG_BPF_SYSCALL=y
 
   * Target configuration (:class:`lisa.target.TargetConf`):
 
