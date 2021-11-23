@@ -301,7 +301,7 @@ TRACE_EVENT_CONDITION(uclamp_util_cfs,
 #define trace_uclamp_util_cfs_enabled() false
 #endif /* CONFIG_UCLAMP_TASK */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0) && defined(CONFIG_ARM64)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,10,0) && (defined(CONFIG_ARM64) || defined(CONFIG_ARM))
 TRACE_EVENT(sched_cpu_capacity,
 
 	TP_PROTO(struct rq *rq),
