@@ -7,7 +7,7 @@ Build host info:
 
 NAME="Alpine Linux"
 ID=alpine
-VERSION_ID=3.13.4
+VERSION_ID=3.13.7
 PRETTY_NAME="Alpine Linux v3.13"
 HOME_URL="https://alpinelinux.org/"
 BUG_REPORT_URL="https://bugs.alpinelinux.org/"
@@ -16,12 +16,12 @@ BUG_REPORT_URL="https://bugs.alpinelinux.org/"
 Build recipe:
 
 export ARCH=x86_64
-export BUILD_DIR=/tmp/tmp9j6fbooz/x86_64/source
+export BUILD_DIR=/tmp/tmp9txt3hu4/x86_64/source
 export LISA_ARCH_ASSETS=/lisa/_assets/binaries/x86_64
 export LISA_HOME=''
 #! /bin/bash
 
-ALPINE_VERSION=v3.13/main
+ALPINE_VERSION=v3.13
 ALPINE_BUILD_DEPENDENCIES=(autoconf automake bash cmake gcc git make libtool linux-headers musl-dev)
 
 build_jsonc() {
@@ -62,7 +62,7 @@ download() {
 
     git clone https://github.com/douglas-raillard-arm/rt-app.git
     # Branch: lisa
-    git -C rt-app checkout 5c6e0d8e96487dce8f3fb37e0e9aba995b70998e
+    git -C rt-app checkout a2c9f02f547bc66a34d68be7890214ced60ddbee
 }
 
 build() {
