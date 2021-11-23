@@ -2059,6 +2059,12 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
             # Force the default value for all settings so that the test does
             # not depend on the environment setup.
             force_defaults=True,
+            no_force_default_keys=[
+                # Since "taskgroup" cannot be always expected to work in case
+                # cgroupfs is not mounted at all, we will not force a default
+                # value for it.
+                'taskgroup'
+            ],
         )
 
         profile_str = '\n'.join(
