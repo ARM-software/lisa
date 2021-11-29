@@ -148,6 +148,7 @@ TRACE_EVENT(sched_overutilized,
 		  __entry->overutilized, __entry->span)
 );
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
 TRACE_EVENT(sched_update_nr_running,
 
 	    TP_PROTO(int cpu, int change, unsigned int nr_running),
@@ -227,6 +228,7 @@ TRACE_EVENT(sched_util_est_cfs,
 		  __entry->cpu, __entry->path, __entry->enqueued,
 		 __entry->ewma, __entry->util)
 );
+#endif
 
 #ifdef CONFIG_UCLAMP_TASK
 
