@@ -3065,13 +3065,7 @@ class SimpleHash:
         if self is other:
             return True
         elif self.__class__ is other.__class__:
-            d1 = self.__dict__
-            d2 = other.__dict__
-            # This improves the performance on average
-            if d1.values() != d2.values():
-                return False
-            else:
-                return d1 == d2
+            return self.__dict__ == other.__dict__
         else:
             return False
 
