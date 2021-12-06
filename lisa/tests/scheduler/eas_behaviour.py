@@ -56,6 +56,14 @@ class EASBehaviour(RTATestBundle, TestBundle):
         return self.plat_info['nrg-model']
 
     @classmethod
+    def get_pelt_swing(cls, pct):
+        return pelt_swing(
+            period=cls.TASK_PERIOD,
+            duty_cycle=pct / 100,
+            kind='above',
+        ) / PELT_SCALE * 100
+
+    @classmethod
     def get_big_duty_cycle(cls, plat_info):
         """
         Returns a duty cycle for :class:`lisa.wlgen.rta.PeriodicWload` that
@@ -72,13 +80,6 @@ class EASBehaviour(RTATestBundle, TestBundle):
             cpus = capa_classes[class_]
             return cls.unscaled_utilization(plat_info, cpus[0], pct)
 
-        def get_pelt_swing(pct):
-            return pelt_swing(
-                period=cls.TASK_PERIOD,
-                duty_cycle=pct / 100,
-                kind='above',
-            ) / PELT_SCALE * 100
-
         class_ = -2
 
         # Resolve to an positive index
@@ -91,14 +92,14 @@ class EASBehaviour(RTATestBundle, TestBundle):
             higher_class_capa = get_class_util(class_ + 1, (100 - capacity_margin_pct))
             # If the CPU class and util we picked is too close to the capacity
             # of the next bigger CPU, we need to take a smaller util
-            if (util + get_pelt_swing(util)) >= higher_class_capa:
+            if (util + cls.get_pelt_swing(util)) >= higher_class_capa:
                 # Take a 5% margin for rounding errors
                 util = 0.95 * higher_class_capa
                 return (
                     util -
                     # And take extra margin to take into account the swing of
                     # the PELT value around the average
-                    get_pelt_swing(util)
+                    cls.get_pelt_swing(util)
                 )
             else:
                 return util
@@ -112,6 +113,63 @@ class EASBehaviour(RTATestBundle, TestBundle):
         """
         littles = plat_info["capacity-classes"][0]
         return littles[0]
+
+    @classmethod
+    def get_little_duty_cycle(cls, plat_info):
+        """
+        Returns a duty cycle for :class:`lisa.wlgen.rta.PeriodicWload` that
+        is guaranteed to fit on the little CPUs.
+
+        The duty cycle is chosen to be ~50% of the capacity of the little CPU
+        and to generate a target frequency half-way between two frequencies of
+        that same CPU. This intends to avoid picking a value too close from an
+        OPP which could, for the same duty cycle use an upper OPP or not, depending
+        on the PELT hazard.
+
+        The returned value is a duty cycle in percentage of the full PELT scale.
+        """
+        cpu = cls.get_little_cpu(plat_info)
+        freqs = sorted(plat_info['freqs'][cpu])
+        capa = plat_info['cpu-capacities']['rtapp'][cpu]
+
+        max_freq = max(freqs)
+        target_freq = 0.5 * max_freq # 50% duty cycle
+        schedutil_factor = 1.25
+
+        # Return the PELT swing in pct for a given duty cycle in pct
+        def _get_pelt_swing_dc(dc):
+            return cls.get_pelt_swing(dc) * 100 / PELT_SCALE
+
+        # Duty cycle for a given frequency band
+        def _get_dc(freq_band):
+            minf, maxf = freq_band
+            freq = ((maxf - minf) / 2) + minf
+
+            # freq to dc in pct
+            dc = freq * 100 / max_freq * (capa / PELT_SCALE)
+
+            # Ensure that the max value of util_avg will more or less make
+            # schedutil select the midpoint in the freq_band
+            dc -= _get_pelt_swing_dc(dc)
+            dc /= schedutil_factor
+
+            # Check that the duty cycle we computed still fits in the selected
+            # frequency band
+            real_freq = (dc + _get_pelt_swing_dc(dc)) * schedutil_factor * \
+                max_freq / 100 * PELT_SCALE / capa
+
+            if minf < real_freq < maxf:
+                return dc
+            else:
+                raise ValueError(f'Could not find util fitting the frequency band {freq_band}')
+
+        minf, maxf = min(
+            (freq, next_freq)
+            for freq, next_freq in zip(freqs, freqs[1:])
+            if next_freq > target_freq
+        )
+
+        return _get_dc((minf, maxf))
 
     @classmethod
     def check_from_target(cls, target):
@@ -555,8 +613,7 @@ class OneSmallTask(EASBehaviourNoEWMA):
         return {
             cls.task_name: RTAPhase(
                 prop_wload=PeriodicWload(
-                    duty_cycle_pct=50,
-                    scale_for_cpu=cls.get_little_cpu(plat_info),
+                    duty_cycle_pct=cls.get_little_duty_cycle(plat_info),
                     duration=1,
                     period=cls.TASK_PERIOD,
                 )
@@ -596,8 +653,7 @@ class ThreeSmallTasks(EASBehaviourNoEWMA):
         return {
             f"{cls.task_prefix}_{i}": RTAPhase(
                 prop_wload=PeriodicWload(
-                    duty_cycle_pct=50,
-                    scale_for_cpu=cls.get_little_cpu(plat_info),
+                    duty_cycle_pct=cls.get_little_duty_cycle(plat_info),
                     duration=1,
                     period=cls.TASK_PERIOD,
                 )
@@ -638,15 +694,14 @@ class TwoBigThreeSmall(EASBehaviourNoEWMA):
 
     @classmethod
     def _do_get_rtapp_profile(cls, plat_info):
-        little = cls.get_little_cpu(plat_info)
+        little_duty = cls.get_little_duty_cycle(plat_info)
         big_duty = cls.get_big_duty_cycle(plat_info)
 
         return {
             **{
                 f"{cls.small_prefix}_{i}": RTAPhase(
                     prop_wload=PeriodicWload(
-                        duty_cycle_pct=50,
-                        scale_for_cpu=little,
+                        duty_cycle_pct=little_duty,
                         duration=1,
                         period=cls.TASK_PERIOD
                     )
