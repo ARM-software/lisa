@@ -75,7 +75,7 @@ class EASBehaviour(RTATestBundle, TestBundle):
         def get_pelt_swing(pct):
             return pelt_swing(
                 period=cls.TASK_PERIOD,
-                duty_cycle=util / 100,
+                duty_cycle=pct / 100,
                 kind='above',
             ) / PELT_SCALE * 100
 
