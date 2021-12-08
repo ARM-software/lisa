@@ -43,6 +43,18 @@ Typeclasses
 .. automodule:: lisa._typeclass
    :members:
 
+Monads
+======
+
+.. automodule:: lisa.monad
+   :members:
+
+Fuzzing
+=======
+
+.. automodule:: lisa.fuzz
+   :members:
+
 Dataframe and Series handling utilities
 =======================================
 
