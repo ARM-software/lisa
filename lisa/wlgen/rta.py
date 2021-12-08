@@ -116,7 +116,7 @@ import os
 import re
 import weakref
 from collections import OrderedDict
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Callable
 from itertools import chain, product, starmap
 from operator import itemgetter
 from shlex import quote
@@ -2664,7 +2664,7 @@ class RunWload(DurationWload):
     Workload for the ``run`` event.
 
     :param duration: Duration of the run in seconds.
-    :type duration: int
+    :type duration: float
     """
     _ACTION = 'run'
 
@@ -2674,7 +2674,7 @@ class RunForTimeWload(DurationWload):
     Workload for the ``runtime`` event.
 
     :param duration: Duration of the run in seconds.
-    :type duration: int
+    :type duration: float
     """
     _ACTION = 'runtime'
 
@@ -2684,7 +2684,7 @@ class SleepWload(DurationWload):
     Workload for the ``sleep`` event.
 
     :param duration: Duration of the sleep in seconds.
-    :type duration: int
+    :type duration: float
     """
     _ACTION = 'sleep'
 
@@ -2867,6 +2867,14 @@ class PeriodicWload(WloadPropertyBase, ComposableMultiConcretePropertyBase):
             doc="Workload factory callback used for the running part. It will be called with a single ``duration`` parameter (in seconds) and must return a :class:`WloadPropertyBase`. Note that the passed duration is scaled according to ``scale_for_cpu`` and ``scale_for_freq``",
             type_=type,
         ),
+        'sleep_wload': dict(
+            doc="Workload factory callback used for the sleeping part. It will be called with a ``duration`` parameter and ``period`` parameter (in seconds) and must return a :class:`WloadPropertyBase`. Note that the passed duration is scaled according to ``scale_for_cpu`` and ``scale_for_freq``",
+            type_=Callable,
+        ),
+        'guaranteed_time': dict(
+            doc="Chooses the default 'sleep_wload'. Can be 'period' (guarantee the period is fixed regardless of preemption) or 'sleep' (guarantee the time spent sleeping, stretching the period if the task is preempted)",
+            type_=str,
+        ),
     }
 
     def unscaled_duty_cycle_pct(self, plat_info):
@@ -2892,8 +2900,10 @@ class PeriodicWload(WloadPropertyBase, ComposableMultiConcretePropertyBase):
         period = self.period
         scale_cpu = self.scale_for_cpu
         scale_freq = self.scale_for_freq
-        run_wload = self.run_wload or RunWload.from_duration
+        guaranteed_time = self.guaranteed_time or 'period'
 
+        if period is None or period <= 0:
+            raise ValueError(f'Period outside ]0,+inf[ : {period}')
         if duty_cycle_pct is None:
             raise ValueError('duty_cycle_pct cannot be None')
         if duration is None:
@@ -2910,38 +2920,38 @@ class PeriodicWload(WloadPropertyBase, ComposableMultiConcretePropertyBase):
         if period > duration:
             raise ValueError(f'period={period} cannot be higher than duration={duration}')
 
-        def get_run(duration, run_wload=run_wload):
-            wload = run_wload(duration)
+        def get_run(duration, period, make_wload=None):
+            make_wload = make_wload or self.run_wload or RunWload.from_duration
+            wload = make_wload(duration)
+            return list(wload.to_events(plat_info=plat_info))
+
+        def get_sleep(duration, period):
+            if self.sleep_wload:
+                make_wload = self.sleep_wload
+            elif guaranteed_time == 'period':
+                make_wload = lambda _, period: TimerWload.from_duration(period)
+            elif guaranteed_time == 'sleep':
+                make_wload = lambda duration, _: SleepWload.from_duration(duration)
+            else:
+                raise ValueError(f'Invalid value for guaranteed_time: {guaranteed_time}')
+
+            wload = make_wload(duration, period)
             return list(wload.to_events(plat_info=plat_info))
 
         if duty_cycle_pct == 0:
-            events = get_run(duration, SleepWload.from_duration)
+            events = get_run(duration, period, SleepWload.from_duration)
         elif duty_cycle_pct == 100:
-            events = get_run(duration)
+            events = get_run(duration, period)
         else:
-            if period is None or period <= 0:
-                raise ValueError(f'Period outside ]0,+inf[ : {period}')
-
             run = duty_cycle_pct * period / 100
             # Use math.floor() so we never exceed "duration"
             loop = math.floor(duration / period)
 
-            run_events = get_run(run)
-            timer_event = (
-                # TODO: investigate if we can be interested in other
-                # timer types
-                'timer',
-                {
-                    # This special reference ensures each thread get their
-                    # own timer
-                    'ref': 'unique',
-                    'period': _to_us(period)
-                },
-            )
-
+            run_events = get_run(run, period)
+            sleep_events = get_sleep(period - run, period)
             # run events have to come before "timer" as events are processed in
             # order
-            events = loop * (run_events + [timer_event])
+            events = loop * (run_events + sleep_events)
 
         return events
 
