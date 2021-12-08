@@ -2689,6 +2689,23 @@ class SleepWload(DurationWload):
     _ACTION = 'sleep'
 
 
+class TimerWload(DurationWload):
+    """
+    Workload for the ``timer`` event.
+
+    :param duration: Duration of the timer period in seconds.
+    :type duration: float
+    """
+    _ACTION = 'timer'
+
+    @property
+    def json_value(self):
+        return {
+            # This special reference ensures each thread get their own timer
+            'ref': 'unique',
+            'period': _to_us(self.duration)
+        }
+
 class BarrierWload(_SingleWloadBase):
     """
     Workload for the ``barrier`` event.
