@@ -115,15 +115,16 @@ clone_alpine_chroot_install() {
 
 install_apt() {
     echo "Installing apt packages ..."
-    sudo apt-get update
+    local apt_cmd=(DEBIAN_FRONTEND=noninteractive apt-get)
+    sudo "${apt_cmd[@]}" update
     if [[ $unsupported_distro == 1 ]]; then
         for package in "${apt_packages[@]}"; do
-            if ! sudo apt-get install -y "$package"; then
+            if ! sudo "${apt_cmd[@]}" install -y "$package"; then
                 echo "Failed to install $package on that distribution" >&2
             fi
         done
     else
-        sudo apt-get install -y "${apt_packages[@]}" || exit $?
+        sudo "${apt_cmd[@]}" install -y "${apt_packages[@]}" || exit $?
     fi
 }
 
