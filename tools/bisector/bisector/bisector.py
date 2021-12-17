@@ -4068,9 +4068,9 @@ class Report(Serializable):
                         download_service.download(url=url.geturl(), path=path)
                         return cls._load(path, steps_path, use_cache=False)
                     except Exception as e:
-                        error('Could not download report: ' + str(e))
+                        raise ValueError('Could not download report: ' + str(e)) from e
                 else:
-                    error('No download service available.')
+                    raise ValueError('No download service available.')
         else:
             return cls._load(path, steps_path, use_cache)
 
