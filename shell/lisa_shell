@@ -98,22 +98,6 @@ function lisa-help {
     man lisa
 }
 
-function lisa-version {
-cat <<EOF
-LISA version:
-    $LISA_HOME
-    branch: $(git -C "$LISA_HOME" describe --all)
-    commit: $(git -C "$LISA_HOME" rev-parse --short=11 HEAD)
-
-Python version: $PYTHON_VERSION
-
-EOF
-
-    if which jupyter >/dev/null; then
-        jupyter labextension list 2>&1
-    fi
-}
-
 ################################################################################
 # LISA Install functions
 ################################################################################
