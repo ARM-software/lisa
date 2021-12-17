@@ -25,7 +25,7 @@ LISA version $(python -c 'import lisa; print(lisa.__version__)'):
     commit: $(git -C "$LISA_HOME" rev-parse --short=11 HEAD)
 
 
-Python version: $PYTHON_VERSION
+$($LISA_PYTHON --version)
 
 EOF
 
