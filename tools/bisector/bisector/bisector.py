@@ -3913,11 +3913,11 @@ class Report(Serializable):
                 # availibility of the "exekall" package, but this avoids
                 # copy-pasting a whole class so it should be ok.
                 try:
-                    from exekall.engine import _ExceptionPickler
+                    from exekall._utils import ExceptionPickler
                 except ImportError:
                     pickle.dump(pickle_data, f, protocol=4)
                 else:
-                    _ExceptionPickler.dump_file(f, pickle_data, protocol=4)
+                    ExceptionPickler.dump_file(f, pickle_data, protocol=4)
 
         # Rename the file once we know for sure that writing to the temporary
         # report completed with success
