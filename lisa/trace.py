@@ -53,7 +53,7 @@ import pyarrow.parquet
 
 import devlib
 
-from lisa.utils import Loggable, HideExekallID, memoized, lru_memoized, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key
+from lisa.utils import Loggable, HideExekallID, memoized, once_per_instance, deduplicate, take, deprecate, nullcontext, measure_time, checksum, newtype, groupby, PartialInit, kwargs_forwarded_to, kwargs_dispatcher, ComposedContextManager, get_nested_key
 from lisa.conf import SimpleMultiSrcConf, LevelKeyDesc, KeyDesc, TopLevelKeyDesc, Configurable
 from lisa._generic import TypedList
 from lisa.datautils import SignalDesc, df_add_delta, df_deduplicate, df_window, df_window_signals, series_convert
@@ -3594,7 +3594,7 @@ class Trace(Loggable, TraceBase):
     @property
     # Memoization is necessary to ensure the parser always gets the same name
     # on a given Trace instance when the parser is not a type.
-    @lru_memoized(first_param_maxsize=None, other_params_maxsize=None)
+    @once_per_instance
     def trace_state(self):
         parser = self._parser
         # The parser type will potentially change the exact content in raw

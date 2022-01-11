@@ -570,6 +570,19 @@ def lru_memoized(first_param_maxsize=None, other_params_maxsize=1024):
         return wrapper
     return decorator
 
+
+def once_per_instance(f):
+    """
+    Decorator to ensure a method will only run once per instance.
+
+    .. seealso:: :func:`lisa.utils.lru_memoized`
+    """
+    return lru_memoized(
+        first_param_maxsize=None,
+        other_params_maxsize=None,
+    )(f)
+
+
 def _lru_memoized(first_param_maxsize, other_params_maxsize, sig_f):
     sig = inspect.signature(sig_f)
 
