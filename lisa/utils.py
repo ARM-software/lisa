@@ -33,7 +33,7 @@ import re
 import abc
 import copy
 import collections
-from collections.abc import Mapping, Iterable, Hashable
+from collections.abc import Mapping, Iterable, Hashable, MutableSet
 from collections import OrderedDict
 import contextlib
 import inspect
@@ -3681,6 +3681,36 @@ class SerializeViaConstructor(metaclass=_SerializeViaConstructorMeta):
             if k in self._SERIALIZE_PRESERVED_ATTRS
         }
         return (self._make_instance, (self._ctor, dct))
+
+
+class OrderedSet(MutableSet):
+    """
+    Mutable set preserving insertion order, just like an
+    :class:`collections.OrderedDict`.
+    """
+    def __init__(self, items):
+        self._items = dict.fromkeys(items)
+
+    def __contains__(self, item):
+        return item in self._items
+
+    def __iter__(self):
+        return iter(self._items)
+
+    def __len__(self):
+        return len(self._items)
+
+    def add(self, item):
+        self._items[item] = None
+
+    def discard(self, item):
+        try:
+            del self._items[item]
+        except KeyError:
+            pass
+
+    def __str__(self):
+        return f'{self.__class__.__name__}([{", ".join(map(str, self._items))}])'
 
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
