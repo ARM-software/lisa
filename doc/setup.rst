@@ -51,6 +51,11 @@ The following references are available:
     ``source init_env`` before anything else in order to activate the venv.
     Otherwise, importing lisa will fail, commands will not be available etc.
 
+.. attention:: Only Bash and ZSH are officially supported by ``source
+    init_env``. Mileage may vary for other shells, up to and including failure
+    from the first line.
+
+
 In case the venv becomes unusable for some reason, the ``lisa-install``
 shell command available after sourcing ``init_env`` will allow to create a new
 clean venv from scratch.
