@@ -827,7 +827,7 @@ class Stats(Loggable):
         test_df[self._unit_col] = 'pval'
         test_df = self._df_remove_tweak_cols(test_df)
 
-        return df.append(test_df, ignore_index=True)
+        return pd.concat([df, test_df], ignore_index=True)
 
     @_needs_ref
     def _df_compare_pct(self, df):

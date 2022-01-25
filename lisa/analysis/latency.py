@@ -289,7 +289,7 @@ class LatencyAnalysis(TraceAnalysisBase):
             prt_df = prt_df.rename(columns={'preempt_latency': 'latency'}, copy=False)
 
         if wakeup and preempt:
-            df = wkp_df.append(prt_df)
+            df = pd.concat([wkp_df, prt_df])
         else:
             df = wkp_df or prt_df
 

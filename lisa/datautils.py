@@ -216,7 +216,7 @@ def _data_refit_index(data, window, method, clip_window):
     # can push it to the right as much as we want without changing the point at
     # which the transition to that value happened
     if duplicate_last:
-        data = data.append(data.iloc[-1:])
+        data = pd.concat([data, data.iloc[-1:]])
     else:
         # Shallow copy is enough, we only want to replace the index and not the
         # actual data
@@ -316,7 +316,7 @@ def df_squash(df, start, end, column='delta'):
 
     # Tweak the closest previous event to include it in the slice
     if not prev_df.empty and start not in middle_df.index:
-        res_df = res_df.append(prev_df.tail(1))
+        res_df = pd.concat([res_df, prev_df.tail(1)])
         res_df.index = [start]
         e1 = end
 
@@ -326,7 +326,7 @@ def df_squash(df, start, end, column='delta'):
         res_df[column] = min(e1 - start, end - start)
 
     if not middle_df.empty:
-        res_df = res_df.append(middle_df)
+        res_df = pd.concat([res_df, middle_df])
         if end in res_df.index:
             # e_last and s1 collide, ditch e_last
             res_df = res_df.drop([end])

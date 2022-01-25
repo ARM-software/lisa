@@ -149,14 +149,14 @@ class IdleAnalysis(TraceAnalysisBase):
         """
         cpus = list(range(self.trace.cpus_count))
 
-        sr = pd.Series(dtype='float64')
-        for cpu in cpus:
-            cpu_sr = self.signal_cpu_active(cpu)
-            cpu_sr = cpu_sr[cpu_sr == 1]
-            cpu_sr = cpu_sr.replace(1, cpu)
-            sr = sr.append(cpu_sr)
+        def make_series(cpu):
+            series = self.signal_cpu_active(cpu)
+            series = series[series == 1]
+            return series.replace(1, cpu)
 
-        return pd.DataFrame({'cpu': sr}).sort_index()
+        return pd.DataFrame({
+            'cpu': pd.concat(map(make_series, cpus))
+        }).sort_index()
 
     @df_cpu_idle.used_events
     def df_cpu_idle_state_residency(self, cpu):
