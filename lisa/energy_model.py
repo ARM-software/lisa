@@ -868,7 +868,7 @@ class EnergyModel(Serializable, Loggable):
         idle = trace.ana.idle.df_cpus_idle().pivot(columns='cpu')['state']
         freqs = trace.ana.frequency.df_cpus_frequency().pivot(columns='cpu')['frequency']
 
-        inputs = pandas.concat([idle, freqs], axis=1, keys=['idle', 'freq']).ffill()
+        inputs = pandas.concat([idle, freqs], axis=1, keys=['idle', 'freq'], sort=True).ffill()
 
         # Drop stuff at the beginning where we don't have the inputs
         # (e.g. where we have had our first cpu_idle event but no cpu_frequency)
