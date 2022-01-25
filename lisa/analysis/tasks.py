@@ -331,7 +331,7 @@ class TasksAnalysis(TraceAnalysisBase):
         next_sw_df["curr_state"] = TaskState.TASK_ACTIVE
         next_sw_df.rename(columns={'next_pid': 'pid', 'next_comm': 'comm'}, inplace=True)
 
-        all_sw_df = prev_sw_df.append(next_sw_df, sort=False)
+        all_sw_df = pd.concat([prev_sw_df, next_sw_df], sort=False)
 
         if add_rename:
             rename_df = get_df('task_rename').rename(
@@ -340,13 +340,13 @@ class TasksAnalysis(TraceAnalysisBase):
                 },
             )[['pid', 'comm']]
             rename_df['curr_state'] = TaskState.TASK_RENAMED
-            all_sw_df = all_sw_df.append(rename_df, sort=False)
+            all_sw_df = pd.concat([all_sw_df, rename_df], sort=False)
 
         # Integer values are prefered here, otherwise the whole column
         # is converted to float64
         all_sw_df['target_cpu'] = -1
 
-        df = all_sw_df.append(wk_df, sort=False)
+        df = pd.concat([all_sw_df, wk_df], sort=False)
         df.sort_index(inplace=True)
         df.rename(columns={'__cpu': 'cpu'}, inplace=True)
 
