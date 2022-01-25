@@ -786,9 +786,9 @@ def _data_window(data, window, method, clip_window):
         method = ('ffill', 'bfill')
 
     elif method == 'exclusive':
-        # Default slicing behaviour of pandas' Float64Index is to be exclusive,
+        # Default slicing behaviour of pandas' float index is to be exclusive,
         # so we can use that knowledge to enable a fast path.
-        if isinstance(data.index, pd.Float64Index):
+        if data.index.dtype.kind == 'f':
             return data[slice(*window)]
 
         method = ('bfill', 'ffill')
@@ -968,7 +968,7 @@ def df_window_signals(df, window, signals, compress_init=False, clip_window=True
                 start = extra_df.index[-1]
 
             index = list(smallest_increment(start, len(init_df)))
-            index = pd.Float64Index(reversed(index))
+            index = pd.Index(reversed(index), dtype='float64')
             return index
     else:
         def make_init_df_index(init_df):
@@ -1019,7 +1019,7 @@ def series_align_signal(ref, to_align, max_shift=None):
         return pd.Series(series.index).diff().min()
     period = min(get_period(ref), get_period(to_align))
     num = math.ceil((end - start) / period)
-    new_index = pd.Float64Index(np.linspace(start, end, num))
+    new_index = pd.Index(np.linspace(start, end, num), dtype='float64')
 
     to_align = to_align.reindex(new_index, method='ffill')
     ref = ref.reindex(new_index, method='ffill')
@@ -1175,7 +1175,7 @@ def series_rolling_apply(series, func, window, window_float_index=True, center=F
     :type center: bool
 
     :param window_float_index: If ``True``, the series passed to ``func`` will
-        be of type :class:`pandas.Float64Index`, in nanoseconds. Disabling is
+        be of type :class:`pandas.Index` (float64), in nanoseconds. Disabling is
         recommended if the index is not used by ``func`` since it will remove
         the need for a conversion.
     :type window_float_index: bool
