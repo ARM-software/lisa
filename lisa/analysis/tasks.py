@@ -1148,6 +1148,16 @@ class TasksAnalysis(TraceAnalysisBase):
             name_df = name_df[name_df['next_pid'] == task.pid]
             names = name_df['next_comm'].reindex(data.index, method='ffill')
 
+            # If there was no sched_switch with next_pid matching task.pid, we
+            # simply take the last known name of the task, which could
+            # originate from another field or another event.
+            #
+            # Note: This prevents an <NA> value, which makes bokeh choke.
+            last_comm = self.trace.get_task_pid_names(task.pid)[-1]
+            if last_comm not in names.cat.categories:
+                names = names.cat.add_categories([last_comm])
+            names = names.fillna(last_comm)
+
             # Use a string for PID so that holoviews interprets it as
             # categorical variable, rather than continuous. This is important
             # for correct color mapping
