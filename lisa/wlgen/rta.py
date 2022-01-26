@@ -2112,9 +2112,6 @@ class DeadlineDeadlineProperty(_UsecSimpleConcreteProperty):
 
 
 class _AndSetConcreteProperty(AndProperty, SimpleConcreteProperty):
-    """
-    :meta public:
-    """
     def __init__(self, items):
         if items is None:
             items = None
@@ -2654,9 +2651,7 @@ class DurationWload(WloadPropertyBase):
 
 
 class DurationWload(DurationWload, _SingleWloadBase):
-    """
-    :meta public:
-    """
+    pass
 
 
 class RunWload(DurationWload):
@@ -2797,9 +2792,6 @@ class WaitWload(_SingleWloadBase):
 
 
 class _SizeSingleWload(_SingleWloadBase):
-    """
-    :meta public:
-    """
     def __init__(self, size, **kwargs):
         self.size = size
         super().__init__(**kwargs)
@@ -3149,9 +3141,6 @@ class RTAPhaseProperties(SimpleHash, Mapping):
 
 
 class _RTAPhaseBase:
-    """
-    :meta public:
-    """
     @classmethod
     def __init_subclass__(cls, **kwargs):
         """
@@ -3960,9 +3949,6 @@ class Phase(RTAPhase):
 
 
 class _RTATask(RTAPhaseTree):
-    """
-    :meta public:
-    """
     def __init__(self, delay_s=0, loops=1, sched_policy=None, priority=None, children=None, **kwargs):
         if loops < 0:
             raise ValueError(f'loops={loops} is not supported anymore, only positive values can be used')
@@ -4039,9 +4025,6 @@ class RTATask(_RTATask):
 
 
 class _Ramp(_RTATask):
-    """
-    :meta public:
-    """
     def __init__(self, start_pct=0, end_pct=100, delta_pct=10, time_s=1,
                  period_ms=100, delay_s=0, loops=1, sched_policy=None,
                  priority=None, cpus=None, uclamp_min=None, uclamp_max=None,
@@ -4185,9 +4168,6 @@ class Step(_Ramp):
 
 
 class _Pulse(_RTATask):
-    """
-    :meta public:
-    """
     def __init__(self, start_pct=100, end_pct=0, time_s=1, period_ms=100,
                  delay_s=0, loops=1, sched_policy=None, priority=None, cpus=None,
                  uclamp_min=None, uclamp_max=None, numa_nodes_membind=None, **kwargs):

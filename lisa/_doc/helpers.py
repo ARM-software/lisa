@@ -701,4 +701,11 @@ def make_changelog(repo):
     return rst
 
 
+class PlaceHolderRef:
+    """
+    If you got redirected to here, this means that the reference points to
+    something private and undocumented, or is not expected to be even
+    documentable.
+    """
+
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80

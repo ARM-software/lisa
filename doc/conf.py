@@ -25,6 +25,8 @@ import importlib
 import types
 import contextlib
 
+from sphinx.domains.python import PythonDomain
+
 # This shouldn't be needed, as using a virtualenv + setup.py should set up the
 # sys.path correctly. However that seems to be half broken on ReadTheDocs, so
 # manually set it here
@@ -39,6 +41,7 @@ from lisa._doc.helpers import (
     autodoc_skip_member_handler,
     DocPlotConf, get_xref_type,
 )
+
 
 # This ugly hack is required because by default TestCase.__module__ is
 # equal to 'case', so sphinx replaces all of our TestCase uses to
@@ -397,107 +400,55 @@ autodoc_default_options = {
 }
 autodoc_inherit_docstrings = True
 
-
-def nitpick_ignore_module(module):
-    mod_prefix = (f'{module.__name__}.')
-
-    class ContinueException(Exception):
-        pass
-
-    def get_xref(module, name, x):
-        # We don't want to ignore "foreign" modules
-        if (
-            isinstance(x, types.ModuleType) and
-            not x.__name__.startswith(mod_prefix)
-        ):
-            raise ContinueException
-
-        try:
-            reftype = get_xref_type(x)
-        except ValueError:
-            raise ContinueException
-        else:
-            # Re-exported names would have the __module__ set to the module
-            # they are defined in
-            try:
-                mod = x.__module__
-            # Otherwise, assume it was defined in that module
-            except AttributeError:
-                mod = module.__name__
-            else:
-                # We don't want to ignore "foreign" classes that happened
-                # to be imported there
-                if mod is None or not mod.startswith(mod_prefix):
-                    raise ContinueException
-
-            try:
-                name = x.__qualname__
-            except AttributeError:
-                pass
-
-            name = f'{mod}.{name}'
-            return (reftype, name)
-
-    modules = [module] + import_all_submodules(module, best_effort=True)
-    xrefs = []
-    for module in modules:
-        xrefs.append(('py:mod', module.__name__))
-
-        for name, x in inspect.getmembers(module):
-            with contextlib.suppress(ContinueException):
-                xrefs.append(get_xref(module, name, x))
-
-            if isinstance(x, type):
-                for name, y in inspect.getmembers(x):
-                    with contextlib.suppress(ContinueException):
-                        xrefs.append(
-                            get_xref(module, name, y)
-                        )
-
-    return xrefs
-
-
-def nitpick_ignore_modules(modules):
-    xrefs = []
-    for module in modules:
-        try:
-            module = importlib.import_module(module)
-        except ImportError:
-            pass
-        else:
-            xrefs.extend(nitpick_ignore_module(module))
-    return xrefs
-
-
-# List here all packages/modules that don't have accurate reference targets or
-# don't have an intersphinx inventory available
-nitpick_ignore = nitpick_ignore_modules([
-    # Devlib does not use autodoc (for now) and does not use module.qualname
-    # names, which makes all xref to it fail
-    'devlib',
-    'docutils.parsers',
-    'ipywidgets',
-])
-
-nitpick_ignore.extend([
-    ('py:class', '_pickle.Pickler'),
+ignored_refs = {
     # gi.repository is strangely laid out, and the module in which Variant
     # (claims) to actually be defined in is not actually importable it seems
-    ('py:class', 'gi.repository.GLib.Variant'),
+    r'gi\..*',
+
+    # Devlib does not use autodoc (for now) and does not use module.qualname
+    # names, which makes all xref to it fail
+    r'devlib.*',
+    r'docutils\.parsers.*',
+    r'ipywidgets.*',
 
     # Since trappy is not always installed, just hardcode the references we
     # have since there wont be more in the future.
-    ('py:mod', 'trappy'),
-    ('py:class', 'trappy.plotter.ILinePlot'),
-])
+    r'trappy.*',
 
-nitpick_ignore.extend(
-    (get_xref_type(x), f'{x.__module__}.{x.__qualname__}')
+    # All private "things": either having a ._ somewhere in their full name or
+    # starting with an underscore
+    r'(.*\._.*|_.*)',
+
+    # Various LISA classes that cannot be crossed referenced successfully but
+    # that cannot be fixed because of Sphinx limitations and external
+    # constraints on names.
+    r'ITEM_CLS',
+}
+ignored_refs.update(
+    re.escape(f'{x.__module__}.{x.__qualname__}')
     for x in sphinx_nitpick_ignore()
 )
+ignored_refs = set(map(re.compile, ignored_refs))
+
+
+class CustomPythonDomain(PythonDomain):
+    def find_obj(self, env, modname, classname, name, type, searchmode=0):
+        refs = super().find_obj(env, modname, classname, name, type, searchmode)
+        if len(refs) == 1:
+            return refs
+        elif any(
+            regex.match(name)
+            for regex in ignored_refs
+        ):
+            refs = super().find_obj(env, modname, classname, 'lisa._doc.helpers.PlaceHolderRef', 'class', 0)
+            assert refs
+            return refs
+        else:
+            return refs
 
 
 def setup(app):
+    app.add_domain(CustomPythonDomain, override=True)
 
     plot_conf_path = os.path.join(LISA_HOME, 'doc', 'plot_conf.yml')
     plot_conf = DocPlotConf.from_yaml_map(plot_conf_path)

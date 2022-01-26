@@ -665,8 +665,6 @@ def docstring_update(msg):
             doc = inspect.cleandoc(cls.__doc__ or '')
             cls.__doc__ = f'{doc}\n\n{msg}'
             super().__init_subclass__(**kwargs)
-
-    sphinx_register_nitpick_ignore(_DocstringAppend)
     return _DocstringAppend
 
 
