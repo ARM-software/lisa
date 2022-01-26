@@ -5114,9 +5114,6 @@ class OrTraceEventChecker(AssociativeTraceEventChecker):
 
 
 class _OptionalTraceEventCheckerBase(AssociativeTraceEventChecker):
-    """
-    :meta public:
-    """
     _PREFIX_STR = None
     def __init__(self, event_checkers=None, **kwargs):
         super().__init__(',', event_checkers, prefix_str=self._PREFIX_STR, **kwargs)
