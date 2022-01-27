@@ -43,6 +43,11 @@ docs=(
 for doc in "${docs[@]}"; do
     sphinx-build "$LISA_HOME/$doc" "$LISA_HOME/doc/man1" -Enab man || ret=2
 done
+# In Python >= 3.10, argparse's --help uses "options:" group instead of
+# "optional arguments:", so we convert it back to the old form so that git diff
+# will not find a difference if the doc is up to date, regardless of the version
+# used to build the doc.
+sed -i 's/^options:$/optional arguments:/' "$LISA_HOME"/doc/man1/*.1
 
 echo "Man pages have been updated and the main documentation can be found under: $LISA_HOME/doc/_build/html/index.html"
 
