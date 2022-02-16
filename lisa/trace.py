@@ -1736,6 +1736,9 @@ class SimpleTxtTraceParser(TxtTraceParserBase):
     .. note:: It must *not* capture the event fields, as it will be
         concatenated with the field regex of each event to parse full lines.
     """
+    # Removing default_event_parser_cls restricts the API of __init__, so that
+    # means that inherited alternative constructors such as from_txt_file would
+    # need to be overridden to be strictly accurate too.
     @kwargs_forwarded_to(TxtTraceParserBase.__init__, ignore=['default_event_parser_cls'])
     def __init__(self, header_regex=None, **kwargs):
         header_regex = header_regex or self.HEADER_REGEX
