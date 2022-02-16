@@ -2027,15 +2027,16 @@ def sig_bind(sig, args, kwargs, partial=True, include_defaults=True):
                 if remove:
                     del kwargs[_kwargs_name]
 
-    bindable_parameters = {
+    required_parameters = {
         name
         for name, param in sig.parameters.items()
         if param.kind not in (
             param.VAR_POSITIONAL,
             param.VAR_KEYWORD,
-        )
+        ) and param.default == inspect.Parameter.empty
+
     }
-    missing = bindable_parameters - set(orig_kwargs)
+    missing = required_parameters - set(orig_kwargs)
     return (kwargs, missing)
 
 
