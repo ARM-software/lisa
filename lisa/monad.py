@@ -66,8 +66,8 @@ class StateMonad(abc.ABC):
     """
     The state monad.
 
-    :param f: Callable that takes the state as parameter and returns an
-        instance of the monad.
+    :param f: Callable that takes the state as parameter and returns a tuple
+        ``(value, new_state)``.
     :type f: collections.abc.Callable
 
     """
