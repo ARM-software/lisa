@@ -5610,11 +5610,18 @@ class FtraceCollector(CollectorBase, Configurable):
         # in custom modules
         needed_from_kmod = missing_events | missing_optional_events
         if needed_from_kmod and kmod_auto_load:
-            kmods = self._get_kmods(
-                target,
-                available_events=available_events,
-                needed_events=needed_from_kmod,
-            )
+            try:
+                kmods = self._get_kmods(
+                    target,
+                    available_events=available_events,
+                    needed_events=needed_from_kmod,
+                )
+            except Exception as e:
+                if missing_events:
+                    raise
+                else:
+                    self.logger.error(f'Could not build the kernel module needed for optional events ({", ".join(sorted(missing_optional_events))}): {e}')
+                    kmods = []
         else:
             kmods = []
         self._kmods = kmods
