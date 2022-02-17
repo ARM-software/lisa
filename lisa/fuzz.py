@@ -153,7 +153,7 @@ class Gen(StateMonad, Loggable):
                     self.logger.log(log_level, f'Drawn {val}{trials}from {self}{info}')
                     return x
 
-        self.name = name
+        self.name = name or f.__qualname__
         super().__init__(wrapper)
 
     class _STATE:
