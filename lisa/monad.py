@@ -86,9 +86,15 @@ class StateMonad(abc.ABC):
         return (yield self)
 
     def __call__(self, *args, **kwargs):
-        state = self.make_state(*args, **kwargs)
-        x, _ = self._f(state)
+        x, _ = self.run(*args, **kwargs)
         return x
+
+    def run(self, *args, **kwargs):
+        """
+        Run the state monad and return a tuple of ``(value, state)``.
+        """
+        state = self.make_state(*args, **kwargs)
+        return self._f(state)
 
     def __init_subclass__(cls, **kwargs):
         # The one inheriting directly from StateMonad is the base of the
