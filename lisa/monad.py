@@ -137,6 +137,7 @@ class StateMonad(abc.ABC):
             call = lambda: _f(*args, **kwargs)
             x = call()
             if inspect.iscoroutine(x):
+                @functools.wraps(f)
                 def body(state):
                     if inspect.getcoroutinestate(x) == inspect.CORO_CLOSED:
                         _x = call()
@@ -167,7 +168,7 @@ class StateMonad(abc.ABC):
                     else:
                         return (val, state)
 
-                val = cls.from_f(body, name=f.__qualname__)
+                val = cls.from_f(body)
             else:
                 if isinstance(x, cls):
                     val = x
