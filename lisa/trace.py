@@ -5549,17 +5549,28 @@ class FtraceCollector(CollectorBase, Configurable):
 
             return checker
 
+        def find_all_missing(checker, available_events):
+            try:
+                checker.check_events(available_events, check_optional=True)
+            except MissingTraceEventError as e:
+                return set(e.missing_events.get_all_events())
+            else:
+                return set()
+
         events = events.map(rewrite)
         events_checker = events
 
         try:
-            events.check_events(available_events)
+            events_checker.check_events(available_events)
         except MissingTraceEventError as e:
             missing_events_checker = e.missing_events
         else:
             missing_events_checker = OptionalTraceEventChecker([])
 
         missing_events = set(missing_events_checker.get_all_events())
+        # Find all the missing events, and only keep the ones that were
+        # optional and have been previously ignored
+        missing_optional_events = find_all_missing(events_checker, available_events) - missing_events
         events = available_events & events.get_all_events()
 
         meta_events = {
@@ -5597,15 +5608,20 @@ class FtraceCollector(CollectorBase, Configurable):
 
         # If some events are not already available on that kernel, look them up
         # in custom modules
-        if missing_events and kmod_auto_load:
-            kmods = self._get_kmods(target, available_events, missing_events)
+        needed_from_kmod = missing_events | missing_optional_events
+        if needed_from_kmod and kmod_auto_load:
+            kmods = self._get_kmods(
+                target,
+                available_events=available_events,
+                needed_events=needed_from_kmod,
+            )
         else:
             kmods = []
         self._kmods = kmods
 
         for kmod in kmods:
             events.update(
-                set(kmod.defined_events) & missing_events
+                set(kmod.defined_events) & needed_from_kmod
             )
 
         try:
@@ -5647,11 +5663,11 @@ class FtraceCollector(CollectorBase, Configurable):
         super().__init__(collector, output_path=output_path)
 
     @classmethod
-    def _get_kmods(cls, target, available_events, missing_events):
+    def _get_kmods(cls, target, available_events, needed_events):
         def need_mod(mod_cls):
             kmod = target.get_kmod(mod_cls)
             defined_events = set(kmod.defined_events)
-            needed = missing_events & defined_events
+            needed = needed_events & defined_events
             overlapping = defined_events & available_events
             if overlapping and needed:
                 raise ValueError(f'Events defined in {mod.src.mod_name} ({", ".join(needed)}) are needed but some events overlap with the ones already provided by the kernel: {", ".join(overlapping)}')
