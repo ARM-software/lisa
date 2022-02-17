@@ -60,6 +60,64 @@ This allow composing lifted functions easily
 import abc
 import functools
 import inspect
+import contextlib
+
+from lisa.utils import compose, nullcontext
+
+
+class _StateInitializer:
+    """
+    Wrapper for a state-initializing function, along with the underlying
+    non-lifted coroutine function so that lifted functions can be composed
+    naturally with await.
+    """
+    def __init__(self, f, coro_f):
+        self.f = f
+        self.coro_f = coro_f
+        functools.update_wrapper(wrapper=self, wrapped=f)
+
+    def __call__(self, *args, **kwargs):
+        return self.f(*args, **kwargs)
+
+    def __await__(self):
+        return (yield from self.coro_f().__await__())
+
+    def state_init_decorator(self, f):
+        """
+        Decorator used to decorate wrapper that are initializing the state
+        (i.e. calling :class:`_StateInitializer` instances).
+
+        This is necessary in order for resulting values to be awaitable, so
+        that composition is preserved.
+        """
+        return self.__class__(
+            f,
+            self.coro_f,
+        )
+
+
+def _consume(coro):
+    try:
+        action = coro.send(None)
+    except StopIteration as e:
+        return e.value
+    else:
+        if isinstance(action, StateMonad):
+            extra = f'. The top-level function should be decorated with @{action._MONAD_BASE.__qualname__}.lift'
+        else:
+            extra = ''
+        raise TypeError(f'The coroutine could not be consumed as it contains unhandled action: {action}{extra}')
+    finally:
+        coro.close()
+
+
+class _RestartableCoro:
+    def __init__(self, factory):
+        self._factory = factory
+
+    @property
+    def coro(self):
+        return self._factory()
 
 
 class StateMonad(abc.ABC):
@@ -85,17 +143,30 @@ class StateMonad(abc.ABC):
         #    value it sees fit using coro.send().
         return (yield self)
 
-    def __call__(self, *args, **kwargs):
-        state = self.make_state(*args, **kwargs)
-        x, _ = self._f(state)
-        return x
-
     def __init_subclass__(cls, **kwargs):
         # The one inheriting directly from StateMonad is the base of the
         # hierarchy
         if StateMonad in cls.__bases__:
             cls._MONAD_BASE = cls
         super().__init_subclass__(**kwargs)
+
+    @classmethod
+    def _process_coroutine_val(cls, val, state):
+        """
+        Subclasses can override this method to customize the return value of
+        the user-defined lifted coroutine function.
+
+        This allows subclasses to use the current state to override the value
+        returned by the user.
+
+        :param val: The value actually returned in the user-defined lifted
+            coroutine function.
+        :type val: object
+
+        :param state: The current state.
+        :type state: object
+        """
+        return val
 
     @classmethod
     def from_f(cls, *args, **kwargs):
@@ -123,74 +194,158 @@ class StateMonad(abc.ABC):
         """
         return cls.from_f(lambda state: (x, state))
 
-    @classmethod
-    def lift(cls, f):
-        """
-        Decorator used to lift a function into the monad, such that it can take
-        monadic parameters that will be evaluated in the current state, and
-        returns a monadic value as well.
-        """
 
-        cls = cls._MONAD_BASE
-
-        def run(_f, args, kwargs):
-            call = lambda: _f(*args, **kwargs)
-            x = call()
-            if inspect.iscoroutine(x):
-                @functools.wraps(f)
-                def body(state):
-                    if inspect.getcoroutinestate(x) == inspect.CORO_CLOSED:
-                        _x = call()
-                    else:
-                        _x = x
-
-                    next_ = lambda: _x.send(None)
-                    while True:
-                        try:
-                            future = next_()
-                        except StopIteration as e:
-                            val = e.value
-                            break
-                        else:
-                            assert isinstance(future, cls)
-                            try:
-                                val, state = future._f(state)
-                            except Exception as e:
-                                # We need an intermediate variable here, since
-                                # "e" is not really bound in this scope.
-                                excep = e
-                                next_ = lambda: _x.throw(excep)
-                            else:
-                                next_ = lambda: _x.send(val)
-
-                    if isinstance(val, cls):
-                        return val._f(state)
-                    else:
-                        return (val, state)
-
-                val = cls.from_f(body)
+    @staticmethod
+    def _loop(_coro, *, state, cls, consume):
+        async def factory():
+            if isinstance(_coro, _RestartableCoro):
+                coro = _coro.coro
             else:
-                if isinstance(x, cls):
-                    val = x
+                coro = _coro
+
+            _state = state
+            next_ = lambda: coro.send(None)
+            while True:
+                try:
+                    action = next_()
+                except StopIteration as e:
+                    val = cls._process_coroutine_val(e.value, state)
+                    break
                 else:
-                    val = cls.pure(x)
+                    is_cls = isinstance(action, cls)
+                    try:
+                        if is_cls:
+                            val, _state = action._f(_state)
+                        else:
+                            val = await action
+                    except Exception as e:
+                        # We need an intermediate variable here, since
+                        # "e" is not really bound in this scope.
+                        excep = e
+                        next_ = lambda: coro.throw(excep)
+                    else:
+                        next_ = lambda: coro.send(val)
+
+            if isinstance(val, cls):
+                val, _ = val._f(_state)
 
             return val
 
-        @functools.wraps(f)
-        def wrapper(*args, **kwargs):
-            async def _f(*args, **kwargs):
-                args = [
-                    (await arg) if isinstance(arg, cls) else arg
-                    for arg in args
-                ]
-                kwargs = {
-                    k: (await v) if isinstance(v, cls) else v
-                    for k, v in kwargs.items()
-                }
-                return run(f, args, kwargs)
-            return run(_f, args, kwargs)
+        # Wrap the coroutine in something that can be called to consume it
+        # entirely
+        if consume:
+            return _consume(factory())
+        else:
+            return _RestartableCoro(factory)
 
+    @classmethod
+    def _wrap_coroutine_f(cls, f):
+        """
+        Decorator used to wrap user-defined coroutine-functions.
+
+        This allows subclasses of :class:`StateMonad` to handle exceptions
+        inside user-defined coroutine functions, or do arbitrary other
+        processing.
+        """
+        return f
+
+    @classmethod
+    def lift(cls, f):
+        """
+        Decorator used to lift a coroutine function into the monad.
+
+
+        The decorated coroutine function can be called to set its parameters
+        values, and will return another callable. This callable will take the
+        :meth:`StateMon.make_state` method to initialize the state, and will
+        then run the computation.
+
+        .. note:: If a coroutine function is decorated with
+            :meth:`StateMonad.lift` multiple times for various subclasses, each
+            state-initializing callable will return the state-initializing
+            callable of the next level in the decorator stack, starting from
+            the top.
+        """
+        cls = cls._MONAD_BASE
+
+        @functools.wraps(f)
+        def wrapper(*fargs, **fkwargs):
+            @functools.wraps(cls.make_state)
+            def make_state_wrapper(*sargs, _state_monad_private_wrap_coro=None, **skwargs):
+                _loop = functools.partial(
+                    cls._loop,
+                    cls=cls,
+                    state=cls.make_state(*sargs, **skwargs),
+                    # Only ask _loop to consume the coroutine if we are the
+                    # top-level state monad in the stack
+                    consume=_state_monad_private_wrap_coro is None,
+                )
+
+                if  _state_monad_private_wrap_coro is None:
+                    _state_monad_private_wrap_coro = lambda x: x
+
+                wrap_coro = compose(cls._wrap_coroutine_f, _state_monad_private_wrap_coro)
+
+                # We found the inner user-defined coroutine, so we just wrap it
+                # with the loop
+                if wrapper._state_monad_is_bottom:
+                    return _loop(
+                        _RestartableCoro(
+                            lambda: wrap_coro(f)(*fargs, **fkwargs)
+                        ),
+                    )
+                # If we are lifting an already-lifted function, we wrap with
+                # our loop
+                else:
+                    def loop_wrapper(*args, **kwargs):
+                        return _loop(
+                            f(*fargs, **fkwargs)(
+                                *args,
+                                **kwargs,
+                                _state_monad_private_wrap_coro=wrap_coro,
+                            ),
+                        )
+                    return loop_wrapper
+
+            return _StateInitializer(
+                make_state_wrapper,
+                # Provide the top-most non lifted function in the decorator
+                # stack, so we can use it to await from it directly when
+                # composing lifted functions.
+                functools.partial(
+                    wrapper._state_monad_coro_f,
+                    *fargs,
+                    **fkwargs,
+                )
+            )
+
+        def find_user_f(f):
+            """
+            Find the top-most non lifted function in the decorator stack.
+            """
+            _f = f
+            while True:
+                # If we find a lifted function, we just pick it from there
+                try:
+                    return (_f._state_monad_coro_f, False)
+                except AttributeError:
+                    pass
+
+                try:
+                    _f = _f.__wrapped__
+                except AttributeError:
+                    break
+
+            # If we could not find any lifted function, it means we are the
+            # bottom-most decorator in the stack and we can just take what we
+            # are given directly
+            return (f, True)
+
+        # We wrap the coroutine function so that layers will accumulate and no
+        # _wrap_coroutine_f() will be missed
+        user_f, is_bottom = find_user_f(f)
+        wrapper._state_monad_coro_f = cls._wrap_coroutine_f(user_f)
+        wrapper._state_monad_is_bottom = is_bottom
         return wrapper
 
     @classmethod
