@@ -1606,8 +1606,8 @@ def leaf_precedence(val, **kwargs):
     """
     Give precedence to the leaf values when combining with ``&``::
 
-        phase = phase.with_props(prop_meta=({'hello': 'leaf'})
-        phase = phase.with_props(prop_meta=leaf_precedence({'hello': 'root'})
+        phase = phase.with_props(meta=({'hello': 'leaf'})
+        phase = phase.with_props(meta=leaf_precedence({'hello': 'root'})
         assert phase['meta'] == {'hello': 'leaf'}
 
     This allows setting a property with some kind of default value on a root
@@ -1633,7 +1633,7 @@ def override(val, **kwargs):
     Override a property with the given value, rather than combining it with the
     property-specific ``&`` implementation::
 
-        phase = phase.with_props(prop_cpus=override({1,2}))
+        phase = phase.with_props(cpus=override({1,2}))
     """
     return _OverridingValue(val, **kwargs)
 
@@ -1687,7 +1687,7 @@ def delete():
     """
     Remove the given property from the phase::
 
-        phase = phase.with_props(prop_cpus=delete())
+        phase = phase.with_props(cpus=delete())
     """
     return _DeletingValue()
 
