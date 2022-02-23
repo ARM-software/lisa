@@ -49,7 +49,10 @@ The most important classes are:
 
 A typical workload would be created this way::
 
-    from lisa.wlgen.rta import RTA, RTAPhase, PeriodicWload, SleepWload
+    from lisa.wlgen.rta import RTA, RTAPhase, PeriodicWload, RunWload, SleepWload, override, delete, WithProperties, task_factory, RTAConf
+    from lisa.fuzz import Float, Int
+    from lisa.platforms.platinfo import PlatformInfo
+    from lisa.target import Target
 
     task = (
         # Phases can be added together so they will be executed in order
@@ -73,6 +76,38 @@ A typical workload would be created this way::
         )
     )
 
+    # Alternatively, an async API is available to define tasks.
+    # Each workload awaited will become a new phase, and WithProperties async
+    # context manager can be used to set properties for multiple such phases.
+    #
+    # Additionally, the random data generators from lisa.fuzz can be used as well.
+
+    @task_factory
+    async def make_task(run_duration):
+        async with WithProperties(name='first', uclamp=(256, 512)):
+            await RunWload(run_duration)
+
+        # Create a bounded random value
+        sleep_duration = await Float(min_=1, max_=5)
+        sleep_duration = round(sleep_duration, 2)
+
+        async with WithProperties(name='second'):
+            # We could await once on each workload, but that would lead to 2 phases
+            # instead of one. Whether this is desired or an issue depends on the
+            # use-case.
+            await (
+                SleepWload(sleep_duration) +
+                PeriodicWload(
+                    duty_cycle_pct=20,
+                    period=16e-3,
+                    duration=2,
+                )
+            )
+
+    # "seed" is used to initialize the random number generator. If not
+    # provided, the seed will be random.
+    task = make_task(run_duration=1)(seed=1)
+
     # Important note: all the classes in this module are immutable. Modifying
     # attributes is not allowed, use the RTAPhase.with_props() if you want to
     # get a new object with updated properties.
@@ -85,10 +120,15 @@ A typical workload would be created this way::
 
     # If you want to set the clamp and override any existing value rather than
     # combining it, you can use the override() function
-    task = task.with_props(uclamp=override((300, 800)))
+    task = task.with_props(uclamp=override((400, 700)))
 
     # Similarly, you can delete any property that was already set with delete()
     task = task.with_props(uclamp=delete())
+
+
+    ###################################################
+    # Alternative 1: create a simple profile and run it
+    ###################################################
 
     # Connect to a target
     target = Target.from_default_conf()
@@ -103,6 +143,38 @@ A typical workload would be created this way::
     with wload:
         wload.run()
 
+
+    ###################################################
+    # Alternative 2: a more complex example generating multiple tasks and dumping a JSON.
+    ###################################################
+
+    @task_factory
+    async def make_profile(plat_info, **kwargs):
+        nr_tasks = await Int(1, plat_info['cpus-count'])
+
+        profile = {}
+        for i in range(nr_tasks):
+            async with WithProperties(name=f'task{i}'):
+                profile[f'task{i}'] = await make_task(**kwargs)
+
+        # If we return anything else than None, the return value will not be
+        # replaced by the phase defined in the function.
+        return profile
+
+
+    plat_info = PlatformInfo.from_yaml_map('./doc/traces/plat_info.yml')
+
+    # Display a few randomly generated tasks
+    for _ in range(2):
+        # When called, profile_gen() will create a random profiles
+        profile_gen = make_profile(plat_info, run_duration=1)
+
+        # seed (or rng) can be fixed for reproducible results
+        # profile = profile_gen(seed=1)
+        profile = profile_gen(seed=None)
+
+        conf = RTAConf.from_profile(profile, plat_info=plat_info)
+        print(conf.json)
 """
 
 import abc
@@ -117,7 +189,7 @@ import re
 import weakref
 from collections import OrderedDict
 from collections.abc import Iterable, Mapping, Callable
-from itertools import chain, product, starmap
+from itertools import chain, product, starmap, islice
 from operator import itemgetter
 from shlex import quote
 from statistics import mean
@@ -153,6 +225,8 @@ from lisa.utils import (
 )
 from lisa.wlgen.workload import Workload
 from lisa.conf import DeferredValueComputationError
+from lisa.monad import StateDiscard, TransformerStack
+from lisa.fuzz import GenMonad
 
 
 def _to_us(x):
@@ -2480,6 +2554,9 @@ class WloadPropertyBase(ConcretePropertyBase):
     def val(self):
         return self
 
+    def __await__(self):
+        return (yield from _wload_action(self).__await__())
+
     def __add__(self, other):
         """
         Adding two workloads together concatenates them.
@@ -3153,15 +3230,15 @@ class _RTAPhaseBase:
         docstring = inspect.getdoc(cls)
         if docstring:
             cls.__doc__ = docstring.format(
-                prop_kwargs=cls._get_rst_prop_kwargs_doc()
+                prop_kwargs=cls._get_rst_prop_kwargs_doc(param_prefix='prop_')
             )
 
         super().__init_subclass__(**kwargs)
 
     @classmethod
-    def _get_rst_prop_kwargs_doc(cls):
+    def _get_rst_prop_kwargs_doc(cls, param_prefix=''):
         def make(key, cls):
-            param = f'prop_{key}'
+            param = f'{param_prefix}{key}'
             doc, type_ = cls._get_cls_doc()
             fst = f':param {param}: {doc}'
             snd = f':type {param}: {type_}'
@@ -3174,6 +3251,9 @@ class _RTAPhaseBase:
         }
 
         return '\n\n'.join(starmap(make, sorted(properties.items())))
+
+    def __await__(self):
+        return (yield from _phase_action(self).__await__())
 
 
 class RTAPhaseBase(_RTAPhaseBase, SimpleHash, Mapping, abc.ABC):
@@ -3216,11 +3296,15 @@ class RTAPhaseBase(_RTAPhaseBase, SimpleHash, Mapping, abc.ABC):
         """
         Return a cloned instance with the properties combined with the given
         ``properties`` using :meth:`RTAPhaseProperties.__and__` (``&``). The
-        ``properties`` parameter is the left operand.
+        ``properties`` parameter is the left operand. If ``properties`` is
+        ``None``, just return the phase itself.
         """
-        new = copy.copy(self)
-        new.properties = properties & new.properties
-        return new
+        if properties is None:
+            return self
+        else:
+            new = copy.copy(self)
+            new.properties = properties & new.properties
+            return new
 
     def with_properties_map(self, properties, **kwargs):
         """
@@ -4361,5 +4445,180 @@ class RunAndSync(_RTATask):
             priority=priority,
             **kwargs,
         )
+
+
+class RTAMonad(StateDiscard):
+    """
+    Monad from derived from :class:`lisa.monad.StateDiscard` used to define
+    :class:`RTAPhaseBase` in a more natural way.
+
+    If the function returns ``None``, the return value will be replaced by the
+    :class:`RTAPhaseBase` created while executing the function, with all the
+    currently active properties applied to it.
+
+    .. seealso:: See the :func:`task_factory` decorator to be able to mix these
+        actions with the ones from :class:`lisa.fuzz.Gen`.
+    """
+    class _State:
+        def __init__(self):
+            # Each level is a tuple of:
+            # 1. RTAPhaseProperties applied at this level, or None
+            # 2. A list of phases
+            #
+            # To compute the final phase object, we add the phases together and
+            # then apply the properties on the resulting object.
+            self.levels = [(None, [])]
+
+        @property
+        def curr_level(self):
+            return self.levels[-1]
+
+        def add_phase(self, phase):
+            self.curr_level[1].append(phase)
+
+        def begin_prop(self, props):
+            self.levels.append((props, []))
+
+        def end_prop(self):
+            phase = self.merge_level()
+            self.levels.pop()
+            self.curr_level[1].append(phase)
+            return phase
+
+        def merge_level(self):
+            """
+            Compute the :class:`RTAPhaseBase` instance for that level with the
+            phases added so far in the current ``async with WithProperties``.
+            """
+            props, level = self.curr_level
+
+            if level:
+                phase = functools.reduce(
+                    operator.add,
+                    level,
+                )
+            else:
+                phase = RTAPhase()
+
+            return phase.with_phase_properties(props)
+
+    @classmethod
+    def make_state(cls):
+        """
+        Create a fresh instance of :class:`RTAMonad._State`
+        """
+        return cls._State()
+
+    @classmethod
+    def _decorate_coroutine_function(cls, f):
+        _f = super()._decorate_coroutine_function(f)
+
+        @functools.wraps(_f)
+        async def wrapper(*args, **kwargs):
+            state = await RTAMonad.get_state()
+
+            # For each user function call, we introduce a new level so that we
+            # can track easily the phases that are created under it.
+            state.begin_prop(RTAPhaseProperties(None))
+
+            x = await _f(*args, **kwargs)
+
+            phase = state.end_prop()
+
+            # Replace None return value by the phase created during the call to
+            # this function
+            if x is None:
+                # Compute a phase with all the currently active properties
+                # applied. This is used to provide a value to user-defined
+                # functions returning None.
+                return functools.reduce(
+                    lambda phase, prop: phase.with_phase_properties(prop),
+                    reversed(
+                        list(map(
+                            itemgetter(0),
+                            state.levels,
+                        ))
+                    ),
+                    phase,
+                )
+            else:
+                return x
+
+        return wrapper
+
+
+class _RTAMonadStack(TransformerStack(GenMonad, RTAMonad)):
+    pass
+
+
+def _compute(self, rng=None, seed=None):
+    return RTAMonad.__call__(
+        GenMonad.__call__(
+            self,
+            rng=rng,
+            seed=seed,
+        ),
+    )
+_RTAMonadStack._TOP.__call__ = _compute
+
+
+def task_factory(f):
+    """
+    Coroutine function decorator allowing to create tasks using actions from both
+    :class:`RTAMonad` and :class:`lisa.fuzz.GenMonad`.
+
+    Calling the decorated function will result in another callable that can be
+    called once with:
+
+        * ``seed``: Seed to use to automatically initialize a :class:`random.Random`.
+        * ``rng``: Alternatively, an existing instance of
+          :class:`random.Random` to use.
+
+    If the user-defined coroutine function returns ``None``, the return value
+    will be replaced by an :class:`RTAPhaseBase` representing all the phases
+    that got added while running the function, on which the current active
+    properties set with :class:`WithProperties` are applied.
+
+    .. seealso:: :mod:`lisa.wlgen.rta` for an example.
+    """
+    return _RTAMonadStack.do(f)
+
+
+def _action_from_f(f):
+    @functools.wraps(f)
+    def wrapper(state):
+        f(state)
+        return (None, state)
+    return RTAMonad.from_f(wrapper)
+
+
+def _phase_action(phase):
+    return _action_from_f(lambda state: state.add_phase(phase))
+
+
+def _wload_action(wload):
+    return _phase_action(RTAPhase(prop_wload=wload))
+
+
+class WithProperties:
+    """
+Asynchronous context manager used to set properties on the enclosed phases.
+
+{prop_kwargs}
+    """
+    def __init__(self, **kwargs):
+        self.props = RTAPhaseProperties.from_polymorphic(kwargs)
+
+    async def __aenter__(self):
+        await _action_from_f(lambda state: state.begin_prop(self.props))
+        return
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await _action_from_f(lambda state: state.end_prop())
+        return
+
+WithProperties.__doc__ = WithProperties.__doc__.format(
+    prop_kwargs=_RTAPhaseBase._get_rst_prop_kwargs_doc(),
+)
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
