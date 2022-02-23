@@ -311,7 +311,11 @@ def _make_chroot(make_vars, bind_paths=None, alpine_version='3.14.2', overlay_ba
 
 def _make_chroot_cmd(chroot, cmd):
     chroot = Path(chroot).resolve()
-    return ['chroot', chroot, *cmd]
+    cmd = ' '.join(map(quote, map(str, cmd)))
+    # Source /etc/profile to get sane defaults for e.g. PATH. Otherwise, we
+    # just inherit it from the host, which is broken.
+    cmd = f'source /etc/profile && exec {cmd}'
+    return ['chroot', chroot, 'sh', '-c', cmd]
 
 
 @contextlib.contextmanager
