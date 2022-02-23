@@ -126,49 +126,41 @@ class Gen(StateMonad, Loggable):
     Random generator monad inspired by Haskell's QuickCheck.
     """
     def __init__(self, f, name=None):
-        log_level = logging.DEBUG
-        logger = self.logger
-        if logger.isEnabledFor(log_level):
-            caller_info = inspect.stack()[2]
-        else:
-            caller_info = None
-
-        @functools.wraps(f)
-        def wrapper(state):
-            for i in itertools.count(1):
-                try:
-                    x = f(state)
-                except RetryException:
-                    continue
-                else:
-                    trials = f'after {i} trials ' if i > 1 else ''
-                    if caller_info:
-                        info =  f' ({caller_info.filename}:{caller_info.lineno})'
-                    else:
-                        info = ''
-                    val, _ = x
-                    val = str(val)
-                    sep = '\n' + ' ' * 4
-                    val = sep + val.replace('\n', sep) + '\n' if '\n' in val else val + ' '
-                    self.logger.log(log_level, f'Drawn {val}{trials}from {self}{info}')
-                    return x
-
         self.name = name or f.__qualname__
-        super().__init__(wrapper)
+        super().__init__(f)
 
-    class _STATE:
+    class _State:
         def __init__(self, rng):
             self.rng = rng
 
     @classmethod
     def make_state(cls, *, rng=None, seed=None):
-        return cls._STATE(
+        return cls._State(
             rng=rng or random.Random(seed),
         )
 
     def __str__(self):
         name = self.name or self._f.__qualname__
         return f'{self.__class__.__qualname__}({name})'
+
+    @classmethod
+    def _wrap_coroutine_f(cls, f):
+        @functools.wraps(f)
+        async def wrapper(*args, **kwargs):
+            for i in itertools.count(1):
+                try:
+                    x = await f(*args, **kwargs)
+                except RetryException:
+                    continue
+                else:
+                    trials = f'after {i} trials ' if i > 1 else ''
+                    val = str(x)
+                    sep = '\n' + ' ' * 4
+                    val = sep + val.replace('\n', sep) + '\n' if '\n' in val else val + ' '
+                    cls.get_logger().debug(f'Drawn {val}{trials}from {f.__qualname__}')
+                    return x
+
+        return wrapper
 
 
 class Choices(Gen):
