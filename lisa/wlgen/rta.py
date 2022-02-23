@@ -150,9 +150,11 @@ from lisa.utils import (
     kwargs_dispatcher,
     kwargs_forwarded_to,
     PartialInit,
+    compose,
 )
 from lisa.wlgen.workload import Workload
 from lisa.conf import DeferredValueComputationError
+from lisa.monad import StateMonad
 
 
 def _to_us(x):
@@ -2458,6 +2460,105 @@ class UclampProperty(ComposableMultiConcretePropertyBase):
         )
 
 
+def task_factory(f):
+    from lisa.fuzz import Gen
+
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        decorator = compose(_TaskMonad.lift, Gen.lift)
+        _f = decorator(f)(*args, **kwargs)
+
+        @_f.state_init_decorator
+        def with_state(rng=None, seed=None):
+            # First parameters for the Gen monad
+            # Then parameters for _TaskMonad state
+            return _f(rng=rng, seed=seed)()
+        return with_state
+    return wrapper
+
+
+class _TaskMonad(StateMonad):
+    class _State:
+        def __init__(self):
+            self.levels = [[]]
+
+        @property
+        def curr_level(self):
+            return self.levels[-1]
+
+        def add_phase(self, phase):
+            self.curr_level.append(phase)
+
+        def begin_prop(self):
+            self.levels.append([])
+
+        def end_prop(self, props):
+            phase = self.merge_level()
+            self.levels.pop()
+            phase = phase.with_phase_properties(props)
+            self.curr_level.append(phase)
+
+        def merge_level(self):
+            level = self.levels[-1]
+            if level:
+                return functools.reduce(
+                    operator.add,
+                    level,
+                )
+            else:
+                return RTAPhase()
+
+    @classmethod
+    def make_state(cls):
+        return cls._State()
+
+    @classmethod
+    def _wrap_coroutine_f(cls, f):
+        @functools.wraps(f)
+        async def wrapper(*args, **kwargs):
+            x = await f(*args, **kwargs)
+            assert x is None
+            state = await cls.get_state()
+            # The return value of the coroutine is the phase that corresponds
+            # to the current level, so that the top-level coroutine will return
+            # the top-level phase.
+            return state.merge_level()
+        return wrapper
+
+
+class _DSLTaskMonad(_TaskMonad):
+    def __init__(self, f):
+        @functools.wraps(f)
+        def wrapper(state):
+            f(state)
+            return (None, state)
+        super().__init__(wrapper)
+
+
+class _PhaseMonad(_DSLTaskMonad):
+    def __init__(self, phase):
+        super().__init__(lambda state: state.add_phase(phase))
+
+
+class _WloadMonad(_PhaseMonad):
+    def __init__(self, wload):
+        phase = RTAPhase(prop_wload=wload)
+        super().__init__(phase)
+
+
+class Properties:
+    def __init__(self, **kwargs):
+        self.props = RTAPhaseProperties.from_polymorphic(kwargs)
+
+    async def __aenter__(self):
+        await _DSLTaskMonad(lambda state: state.begin_prop())
+        return
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await _DSLTaskMonad(lambda state: state.end_prop(self.props))
+        return
+
+
 class WloadPropertyBase(ConcretePropertyBase):
     """
     Phase workload.
@@ -2479,6 +2580,9 @@ class WloadPropertyBase(ConcretePropertyBase):
     @property
     def val(self):
         return self
+
+    def __await__(self):
+        return (yield from _WloadMonad(self).__await__())
 
     def __add__(self, other):
         """
@@ -3174,6 +3278,9 @@ class _RTAPhaseBase:
         }
 
         return '\n\n'.join(starmap(make, sorted(properties.items())))
+
+    def __await__(self):
+        return (yield from _PhaseMonad(self).__await__())
 
 
 class RTAPhaseBase(_RTAPhaseBase, SimpleHash, Mapping, abc.ABC):
