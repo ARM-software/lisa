@@ -1504,15 +1504,13 @@ class KmodSrc(Loggable):
         logger = self.logger
 
         def populate_mod(path):
-            mod_path = Path(path)
-
             src = {
                 **self.src,
                 'Kbuild': self.makefile,
             }
 
             for name, content in src.items():
-                with open(mod_path / name, 'wb') as f:
+                with open(path / name, 'wb') as f:
                     f.write(content)
 
         def make_cmd(tree_path, mod_path, make_vars):
@@ -1547,32 +1545,50 @@ class KmodSrc(Loggable):
                     # issues. Since the chroot itself will be entirely
                     # removed it's not a problem.
                     mod_path = Path(tempfile.mkdtemp(dir=chroot / 'tmp'))
-                    cmd = make_cmd(
-                        tree_path=tree_path,
-                        mod_path=f'/{mod_path.relative_to(chroot)}',
-                        make_vars=make_vars,
+                    yield (
+                        lambda cmd: _make_chroot_cmd(chroot, cmd),
+                        lambda path: f'/{Path(path).relative_to(chroot)}',
+                        mod_path,
+                        {}
                     )
-                    yield (mod_path, _make_chroot_cmd(chroot, cmd), {})
         else:
             @contextlib.contextmanager
             def cmd_cm():
                 with tempfile.TemporaryDirectory() as mod_path:
-                    cmd = make_cmd(
-                        tree_path=tree_path,
-                        mod_path=mod_path,
-                        make_vars=make_vars,
+                    yield (
+                        lambda cmd: cmd,
+                        lambda path: path,
+                        mod_path,
+                        {'PATH': HOST_PATH}
                     )
-                    yield (mod_path, cmd, {'PATH': HOST_PATH})
 
-        with cmd_cm() as (mod_path, cmd, env):
-            mod_path = Path(mod_path)
-            populate_mod(mod_path)
+        with cmd_cm() as (wrap_cmd, wrap_path, host_mod_path, env):
+            def run_cmd(cmd):
+                cmd = wrap_cmd(cmd)
+                return _subprocess_log(cmd, logger=logger, level=logging.DEBUG, extra_env=env)
+
+            host_mod_path = Path(host_mod_path)
+
+            cmd = make_cmd(
+                tree_path=tree_path,
+                mod_path=wrap_path(host_mod_path),
+                make_vars=make_vars,
+            )
+
+            populate_mod(host_mod_path)
 
             logger.info(f'Compiling kernel module {self.mod_name}')
-            _subprocess_log(cmd, logger=logger, level=logging.DEBUG, extra_env=env)
+            run_cmd(cmd)
 
-            mod_file = find_mod_file(mod_path)
-            with open(mod_file, 'rb') as f:
+            host_mod_file = find_mod_file(host_mod_path)
+            # TODO: re-evaluate the workaround for the issue reported at:
+            # https://lore.kernel.org/all/YfK18x%2FXrYL4Vw8o@syu-laptop/t/#md877c45455918f8c661dc324719b91a9906dc7a3
+            try:
+                # TODO: we would need to use CROSS_COMPILE and also if llvm, llvm-objcopy for CC=llvm, or e.g. llvm-objcopy-12
+                run_cmd(['llvm-objcopy', '--remove-section', '.BTF', wrap_path(host_mod_file)])
+            except subprocess.CalledProcessError as e:
+                logger.debug(f'Failed to strip BTF info from {host_mod_file}: {e}')
+            with open(host_mod_file, 'rb') as f:
                 return f.read()
 
     @classmethod
