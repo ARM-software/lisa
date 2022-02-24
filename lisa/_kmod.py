@@ -160,6 +160,18 @@ def _url_path(url):
     )
 
 
+def _subprocess_log(*args, env=None, extra_env=None, **kwargs):
+    if env is None:
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k in ('PATH', 'USER', 'TERM')
+        }
+
+    env.update(extra_env or {})
+    return subprocess_log(*args, **kwargs, env=env)
+
+
 @contextlib.contextmanager
 def _make_chroot(make_vars, bind_paths=None, alpine_version='3.14.2', overlay_backend=None):
     """
@@ -177,7 +189,7 @@ def _make_chroot(make_vars, bind_paths=None, alpine_version='3.14.2', overlay_ba
                 cmd = ['mount', '--bind', '--', src, dst]
             else:
                 cmd = ['umount', '-n', '--', dst]
-            subprocess_log(cmd, logger=logger, level=logging.DEBUG)
+            _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
 
     def populate(key, path, init_cache=True):
         version, arch, packages, use_qemu = key
@@ -212,7 +224,7 @@ def _make_chroot(make_vars, bind_paths=None, alpine_version='3.14.2', overlay_ba
 
         if packages:
             cmd = _make_chroot_cmd(path, ['apk', 'add', *packages])
-            subprocess_log(cmd, logger=logger, level=logging.DEBUG)
+            _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
 
     packages = [
         'bash',
@@ -379,7 +391,7 @@ def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
         def do_mount(dirs):
             dirs['lower'] = ':'.join(map(str, reversed(list(lowers))))
             cmd = ['mount', '-t', 'overlay', 'overlay', '-o', 'lowerdir={lower},workdir={work},upperdir={upper}'.format(**dirs), '--', mount_point]
-            subprocess_log(cmd, logger=logger, level=logging.DEBUG)
+            _subprocess_log(cmd, logger=logger, level=logging.DEBUG)
 
             try:
                 yield mount_point
@@ -389,7 +401,7 @@ def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
                 # be removed so an external user working outside of the "with"
                 # statement will have issues, which is expected (and not
                 # supported).
-                subprocess_log(
+                _subprocess_log(
                     ['umount', '-nl', '--', mount_point],
                     logger=logger,
                     level=logging.DEBUG
@@ -824,13 +836,13 @@ class KernelTree(Loggable, SerializeViaConstructor):
             logger.info(f'Preparing kernel tree for modules')
 
             if pre is not None:
-                subprocess_log(pre, logger=logger, level=logging.DEBUG)
+                _subprocess_log(pre, logger=logger, level=logging.DEBUG)
 
             # Apply the overlays before running make, so that it sees the
             # correct headers and conf etc
             apply_overlays()
 
-            subprocess_log(post, logger=logger, level=logging.DEBUG)
+            _subprocess_log(post, logger=logger, level=logging.DEBUG)
             # Re-apply the overlays, since we could have overwritten important
             # things, such as include/linux/vermagic.h
             apply_overlays()
@@ -1557,8 +1569,7 @@ class KmodSrc(Loggable):
             populate_mod(mod_path)
 
             logger.info(f'Compiling kernel module {self.mod_name}')
-            env = {**os.environ, **env}
-            subprocess_log(cmd, logger=logger, level=logging.DEBUG, env=env)
+            _subprocess_log(cmd, logger=logger, level=logging.DEBUG, extra_env=env)
 
             mod_file = find_mod_file(mod_path)
             with open(mod_file, 'rb') as f:
