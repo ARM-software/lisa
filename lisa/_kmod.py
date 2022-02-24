@@ -626,7 +626,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
 
     :param build_env: Build environment to use. Can be one of:
 
-        * ``alpine``: (default) Alpine linux chroot, providing a controlled
+        * ``alpine``: Alpine linux chroot, providing a controlled
           environment
         * ``host``: No specific env is setup, whatever the host is using will
           be picked.
