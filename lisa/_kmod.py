@@ -173,7 +173,7 @@ def _subprocess_log(*args, env=None, extra_env=None, **kwargs):
 
 
 @contextlib.contextmanager
-def _make_chroot(make_vars, bind_paths=None, alpine_version='3.14.2', overlay_backend=None):
+def _make_chroot(make_vars, bind_paths=None, alpine_version='3.15.0', overlay_backend=None):
     """
     Create a chroot folder ready to be used to build a kernel.
     """
