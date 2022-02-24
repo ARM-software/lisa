@@ -807,16 +807,27 @@ class KernelTree(Loggable, SerializeViaConstructor):
         def make(*targets):
             return ['make', f'-j{nr_cpus}', '-C', path, '--', *_make_vars, *targets]
 
-        # We need to clean first, as binaries compiled in e.g. scripts/ will
-        # probably not work inside the Alpine container, since they would be
-        # linked against shared libraries on the host system
-        if build_env == 'host':
-            cmds = [None]
-        else:
-            cmds = [
-                make('mrproper')
-            ]
-        cmds.append(make('olddefconfig', 'modules_prepare'))
+        cmds = [
+            # On non-host build env, we need to clean first, as binaries compiled
+            # in e.g. scripts/ will probably not work inside the Alpine container,
+            # since they would be linked against shared libraries on the host
+            # system.
+            #
+            # On host build env, due to this bug:
+            # https://lore.kernel.org/all/YfK18x%2FXrYL4Vw8o@syu-laptop/t/#md877c45455918f8c661dc324719b91a9906dc7a3
+            # We need to get rid of vmlinux file in order to prevent the kernel
+            # module build from generating split BTF information.
+            #
+            # On top of that, a user-provided kernel tree with modules_prepare
+            # already run would lead to not having e.g. some binaries stored in
+            # the overlay. All would be well until the user does a manual
+            # mrproper, at which point we are left hanging since we would hit
+            # the cache, but would not be ready. "make modules" would probably
+            # fix that but we could still have possibly issues with different
+            # toolchains etc.
+            make('mrproper'),
+            make('olddefconfig', 'modules_prepare'),
+        ]
 
         bind_paths = {path: path}
 
