@@ -18,6 +18,10 @@
 """
 Fuzzing API to build random constrained values.
 
+.. note:: The following example shows a direct use of the :class:`Gen` monad,
+    but be aware that :mod:`lisa.wlgen.rta` API allows mixing both :class:`Gen`
+    and RTA DSL into the same coroutine function.
+
 **Example**::
 
     import operator
@@ -28,9 +32,7 @@ Fuzzing API to build random constrained values.
     from lisa.fuzz import Gen, Choice, Int, Float, retry_until
 
     # The function must be decorated with Gen.lift() so that "await" gains its
-    # special meaning. In addition to that, parameters are automatically awaited if
-    # they are an instance of Gen, and the return value is automatically promoted
-    # to an instance of Gen if it is not already.
+    # special meaning.
     @Gen.lift
     async def make_task(duration=None):
         # Draw a value from an iterable.
