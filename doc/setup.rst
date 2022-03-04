@@ -160,7 +160,7 @@ them.
 
 To help expose these tracepoints (and any additional one we might require in
 the future) as trace events, an external module is required and is provided
-under the name of sched_tp in $LISA_HOME/lisa/_assets/kmodules/sched_tp
+under the name of sched_tp in $LISA_HOME/tools/kmodules/sched_tp
 
 Building a module
 -----------------
@@ -210,18 +210,24 @@ Build
 
 .. code-block:: sh
 
-  $LISA_HOME/lisa/_assets/kmodules/build_module path/to/kernel path/to/kmodule [path/to/install/modules]
+  $LISA_HOME/tools/kmodules/build_module path/to/kernel path/to/kmodule [path/to/install/modules]
 
 This will build the module against the provided kernel tree and install it in
 ``path/to/install/module`` if provided otherwise install it in
 ``$LISA_HOME/tools/kmodules``.
+
+.. warning:: The documentation used to refer to
+  ``$LISA_HOME/lisa/_assets/kmodules`` rather than
+  ``tools/kmodules``. This was an oversight, DO NOT build from
+  ``lisa/_assets``. If you still do, any remaining build artifact
+  could be reused in fresh builds, leading to segfaults and such.
 
 Clean
 .....
 
 .. code-block:: sh
 
-  $LISA_HOME/lisa/_assets/kmodules/clean_module path/to/kernel path/to/kmodule
+  $LISA_HOME/tools/kmodules/clean_module path/to/kernel path/to/kmodule
 
 Highly recommended to clean when switching kernel trees to avoid unintentional
 breakage for using stale binaries.
