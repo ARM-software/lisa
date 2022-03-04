@@ -411,6 +411,10 @@ ignored_refs = {
     r'docutils\.parsers.*',
     r'ipywidgets.*',
 
+    # TODO: revisit depending on outcome of:
+    # https://github.com/matplotlib/matplotlib/issues/22601
+    r'matplotlib.*',
+
     # Since trappy is not always installed, just hardcode the references we
     # have since there wont be more in the future.
     r'trappy.*',
