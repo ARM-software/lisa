@@ -645,3 +645,89 @@ class WAJankbenchCollector(WAArtifactCollectorBase):
             agg_cols=['iteration', 'frame_id'],
             **kwargs,
         )
+
+
+class WASysfsExtractorCollector(WAArtifactCollectorBase):
+    """
+    WA collector for the syfs-extractor augmentation.
+
+    **Example**::
+
+        def pixel6_energy_meter(df):
+            # Keep only CPU's meters
+            df = df[df.value.str.contains('S4M_VDD_CPUCL0|S3M_VDD_CPUCL1|S2M_VDD_CPUCL2')]
+            df[['variable', 'value']] = df.value.str.split(', ', expand=True)
+
+            def _clean_variable(variable):
+                if 'S4M_VDD_CPUCL0' in variable:
+                    return 'little-energy'
+                if 'S3M_VDD_CPUCL1' in variable:
+                    return 'mid-energy'
+                if 'S2M_VDD_CPUCL2' in variable:
+                    return 'big-energy'
+                return ''
+
+            df['variable'] = df['variable'].apply(_clean_variable)
+            df['value'] = df['value'].astype(int)
+            df['unit'] = "bogo-ujoules"
+
+            # Add a total energy variable
+            df = pd.concat([
+                df,
+                pd.DataFrame(data={
+                    'variable': 'total-energy',
+                    'value': [df['value'].sum()]
+                })
+            ])
+            df.ffill(inplace=True)
+
+            return df
+
+        df = WAOutput('.').get_collector(
+                'sysfs-extractor',
+                path='/sys/bus/iio/devices/iio:device0/energy_value',
+                df_postprocess=pixel6_energy_meter
+        ).df
+    """
+    NAME = 'sysfs-extractor'
+
+    def __init__(self, wa_output, path, type='diff', **kwargs):
+        allowed_types = ['diff', 'before', 'after']
+
+        if type not in allowed_types:
+            ValueError(f'{self.__class__.__qualname__} type must be one of {allowed_types}')
+
+        self._ARTIFACT_NAME = f'{path} [{type}]'
+
+        # TODO: WA's sysfs-extractor augmentation can actually use a path
+        # to collect several files not only one...
+        self._filename = os.path.basename(path)
+
+        super().__init__(wa_output, **kwargs)
+
+    def _get_artifact_df(self, path):
+        # WA given path is actually dirname
+        path = os.path.join(path, self._filename)
+
+        # Expects a sysfs/procfs file e.g
+        # $ cat /sys/bus/iio/devices/iio:device0/energy_value
+        # t=199784
+        # CH0(T=199784)[S10M_VDD_TPU], 965182
+        # CH1(T=199784)[VSYS_PWR_MODEM], 23570587
+        # CH2(T=199784)[VSYS_PWR_RFFE], 2850053
+        # CH3(T=199784)[S2M_VDD_CPUCL2], 88055221
+        # CH4(T=199784)[S3M_VDD_CPUCL1], 38098419
+        # CH5(T=199784)[S4M_VDD_CPUCL0], 98955128
+        # CH6(T=199784)[S5M_VDD_INT], 6657870
+        # CH7(T=199784)[S1M_VDD_MIF], 29268952
+        with open(path, 'r') as f:
+            raw_file = f.readlines()
+
+        raw_file = [line.strip() for line in raw_file]
+
+        df = pd.DataFrame(data={
+                'variable': self._filename,
+                'value': raw_file,
+                'unit': ''
+        })
+        return df
