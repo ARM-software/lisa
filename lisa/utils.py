@@ -1372,6 +1372,25 @@ def fold(f, xs, init=None):
     )
 
 
+def foldr(f, xs, init=None):
+    """
+    Right-associative version of :func:`fold`.
+
+    .. note:: This requires reversing `xs`. If reversing is not supported by
+        the iterator, it will be first converted to a tuple.
+    """
+    try:
+        xs = reversed(xs)
+    except TypeError:
+        xs = reversed(tuple(xs))
+
+    return fold(
+        lambda x, y: f(y, x),
+        xs,
+        init,
+    )
+
+
 def add(iterable):
     """
     Same as :func:`sum` but works on any object that defines ``__add__``
