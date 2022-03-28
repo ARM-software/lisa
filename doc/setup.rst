@@ -267,6 +267,12 @@ packages still match those dependencies. Sourcing ``init_env`` from a
 new shell should suffice, which will hint the user if running ``lisa-install``
 again is needed.
 
+.. note:: LISA does not provide any specific mean of keeping a venv up-to-date.
+    Running ``lisa-install`` will destroy the venv it create and create a new
+    one afresh, but doing so is the sole responsibility of the user, it will not
+    happen automatically based on releases of new versions of LISA's
+    dependencies.
+
 
 What next ?
 ===========
