@@ -94,81 +94,85 @@ extras_require['all'] = sorted(set(
     itertools.chain.from_iterable(extras_require.values())
 ))
 
-setup(
-    name='lisa-linux',
-    license='Apache License 2.0',
-    version=lisa_version,
-    maintainer='Arm Ltd.',
-    packages=packages,
-    url='https://github.com/ARM-software/lisa',
-    project_urls={
-        "Bug Tracker": "https://github.com/ARM-software/lisa/issues",
-        "Documentation": "https://lisa-linux-integrated-system-analysis.readthedocs.io/",
-        "Source Code": "https://github.com/ARM-software/lisa",
-    },
-    description='A stick to probe the kernel with',
-    long_description=long_description,
-    python_requires='>= 3.7',
-    install_requires=[
-        "psutil >= 4.4.2",
-        # Figure.savefig() (without pyplot) does not work in matplotlib <
-        # 3.1.0, and that is used for non-interactive plots when building the
-        # doc.
-        "matplotlib >= 3.1.0",
-        "bokeh",
-        # For bokeh static image exports
-        "selenium",
-        "phantomjs",
-        "pillow",
+python_requires = '>= 3.7'
 
-        "holoviews",
-        "panel",
-        "colorcet",
-        # Pandas >= 1.0.0 has support for new nullable dtypes
-        # Pandas 1.2.0 has broken barplots:
-        # https://github.com/pandas-dev/pandas/issues/38947
-        "pandas >= 1.0.0",
-        "numpy",
-        "scipy",
-        # Earlier versions have broken __slots__ deserialization
-        "ruamel.yaml >= 0.16.6",
-        # For the HTML output of analysis plots
-        "docutils",
-        # To open intersphinx inventories
-        "sphobjinv",
-        # For pandas.to_parquet() dataframe storage
-        "pyarrow",
+if __name__ == "__main__":
 
-        "ipython",
-        "ipywidgets",
+    setup(
+        name='lisa-linux',
+        license='Apache License 2.0',
+        version=lisa_version,
+        maintainer='Arm Ltd.',
+        packages=packages,
+        url='https://github.com/ARM-software/lisa',
+        project_urls={
+            "Bug Tracker": "https://github.com/ARM-software/lisa/issues",
+            "Documentation": "https://lisa-linux-integrated-system-analysis.readthedocs.io/",
+            "Source Code": "https://github.com/ARM-software/lisa",
+        },
+        description='A stick to probe the kernel with',
+        long_description=long_description,
+        python_requires=python_requires,
+        install_requires=[
+            "psutil >= 4.4.2",
+            # Figure.savefig() (without pyplot) does not work in matplotlib <
+            # 3.1.0, and that is used for non-interactive plots when building the
+            # doc.
+            "matplotlib >= 3.1.0",
+            "bokeh",
+            # For bokeh static image exports
+            "selenium",
+            "phantomjs",
+            "pillow",
 
-        # Depdendencies that are shipped as part of the LISA repo as
-        # subtree/submodule
-        "devlib >= 1.3.1",
+            "holoviews",
+            "panel",
+            "colorcet",
+            # Pandas >= 1.0.0 has support for new nullable dtypes
+            # Pandas 1.2.0 has broken barplots:
+            # https://github.com/pandas-dev/pandas/issues/38947
+            "pandas >= 1.0.0",
+            "numpy",
+            "scipy",
+            # Earlier versions have broken __slots__ deserialization
+            "ruamel.yaml >= 0.16.6",
+            # For the HTML output of analysis plots
+            "docutils",
+            # To open intersphinx inventories
+            "sphobjinv",
+            # For pandas.to_parquet() dataframe storage
+            "pyarrow",
 
-        'jinja2',
+            "ipython",
+            "ipywidgets",
 
-        "pyelftools", # To get symbol names in kernel module
-        "cffi", # unshare syscall
-    ],
+            # Depdendencies that are shipped as part of the LISA repo as
+            # subtree/submodule
+            "devlib >= 1.3.1",
 
-    extras_require=extras_require,
-    package_data=package_data,
-    classifiers=[
-        "Programming Language :: Python :: 3 :: Only",
-        # This is not a standard classifier, as there is nothing defined for
-        # Apache 2.0 yet:
-        # https://pypi.org/classifiers/
-        # It has not been tested under any other OS
-        "Operating System :: POSIX :: Linux",
+            'jinja2',
 
-        "Topic :: System :: Operating System Kernels :: Linux",
-        "Topic :: Software Development :: Testing",
-        "Intended Audience :: Developers",
-    ],
-    entry_points={
-        'console_scripts': console_scripts,
-    },
-)
+            "pyelftools", # To get symbol names in kernel module
+            "cffi", # unshare syscall
+        ],
+
+        extras_require=extras_require,
+        package_data=package_data,
+        classifiers=[
+            "Programming Language :: Python :: 3 :: Only",
+            # This is not a standard classifier, as there is nothing defined for
+            # Apache 2.0 yet:
+            # https://pypi.org/classifiers/
+            # It has not been tested under any other OS
+            "Operating System :: POSIX :: Linux",
+
+            "Topic :: System :: Operating System Kernels :: Linux",
+            "Topic :: Software Development :: Testing",
+            "Intended Audience :: Developers",
+        ],
+        entry_points={
+            'console_scripts': console_scripts,
+        },
+    )
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
