@@ -36,6 +36,40 @@ The following references are available:
       PyPI.
     * ``vX.Y.Z`` tags: One tag per release of ``lisa-linux`` PyPI package.
 
+
+LISA has a minimum Python version requirement of:
+
+.. exec::
+    import os
+    from lisa._git import find_root
+    cwd = os.getcwd()
+    root = find_root('.')
+    try:
+        os.chdir(root)
+        import setup
+        print('Python', setup.python_requires)
+    finally:
+        os.chdir(cwd)
+
+If your distribution does not natively ship with a high-enough version, you can
+install it manually and provide the name of the Python binary before doing any
+other action:
+
+.. code:: shell
+
+    export LISA_PYTHON=<name of Python 3 binary>
+
+On Ubuntu, the ``deadsnakes`` PPA provides alternative versions of Python. Note
+that Ubuntu splits the Python distribution into multiple packages, which must
+all be installed. The list is available inside ``install_base.sh`` and is more
+or less:
+
+    * python3
+    * python3-pip
+    * python3-venv
+    * python3-setuptools
+    * python3-tk
+
 .. code:: shell
 
     git clone https://github.com/ARM-software/lisa.git
