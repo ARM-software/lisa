@@ -20,21 +20,18 @@ Fuzzing API to build random constrained values.
 
 .. note:: The following example shows a direct use of the :class:`Gen` monad,
     but be aware that :mod:`lisa.wlgen.rta` API allows mixing both :class:`Gen`
-    and RTA DSL into the same coroutine function.
+    and RTA DSL into the same coroutine function using
+    :func:`lisa.wlgen.rta.task_factory`.
 
 **Example**::
 
-    import operator
-    import functools
-
     from lisa.platforms.platinfo import PlatformInfo
-    from lisa.wlgen.rta import RTAPhase, RTAConf, PeriodicWload
     from lisa.fuzz import GenMonad, Choice, Int, Float, retry_until
 
-    # The function must be decorated with GenMonad.do() so that "await" gains its
-    # special meaning.
+    # The function must be decorated with GenMonad.do() so that "await" gains
+    # its special meaning.
     @GenMonad.do
-    async def make_task(duration=None):
+    async def make_data(duration=None):
         # Draw a value from an iterable.
         period = await Choice([16e-3, 8e-3])
         nr = await Choice(range(1, 4))
@@ -44,48 +41,12 @@ Fuzzing API to build random constrained values.
         # function will run again until the condition is true.
         await retry_until(0 < nr <= 2)
 
-        phase = functools.reduce(
-            operator.add,
-            [
-                RTAPhase(
-                    prop_wload=PeriodicWload(
-                        duty_cycle_pct=await Choice(range(100)),
-                        period=period,
-                        duration=duration,
-                    ),
-                )
-                for i in range(nr)
-            ]
-        )
+        return (nr, duration, period)
 
-        return phase
+    # seed (or rng) can be fixed for reproducible results
+    data = make_data(duration=42)(seed=1)
+    print(data)
 
-    @GenMonad.do
-    async def make_profile(plat_info, **kwargs):
-        nr_tasks = await Int(1, plat_info['cpus-count'])
-
-        profile = {}
-        for i in range(nr_tasks):
-            profile[f'task{i}'] = await make_task(**kwargs)
-        return profile
-
-
-    def main():
-        plat_info = PlatformInfo.from_yaml_map('./doc/traces/plat_info.yml')
-
-        # Display a few randomly generated tasks
-        for _ in range(2):
-            # When called, profile_gen() will create a random profiles
-            profile_gen = make_profile(plat_info, duration=1)
-
-            # seed (or rng) can be fixed for reproducible results
-            # profile = profile_gen(seed=1)
-            profile = profile_gen(seed=None)
-
-            conf = RTAConf.from_profile(profile, plat_info=plat_info)
-            print(conf.json)
-
-    main()
 """
 
 import random
