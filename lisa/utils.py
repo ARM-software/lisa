@@ -208,6 +208,33 @@ class bothmethod:
         return getattr(self.f, attr)
 
 
+class instancemethod:
+    """
+    Decorator providing a hybrid of a normal method and a classmethod:
+
+        * Like a classmethod, it can be looked up on the class itself, and the
+          class is passed as first parameter. This allows selecting the class
+          "manually" before applying on an instance.
+
+        * Like a normal method, it can be looked up on an instance. In that
+          case, the first parameter is the class of the instance and the second
+          parameter is the instance itself.
+    """
+    def __init__(self, f):
+        self.__wrapped__ = classmethod(f)
+
+    def __get__(self, instance, owner=None):
+        # Binding to a class
+        if instance is None:
+            return self.__wrapped__.__get__(instance, owner)
+        # Binding to an instance
+        else:
+            return functools.partial(
+                self.__wrapped__.__get__(instance, instance.__class__),
+                instance,
+            )
+
+
 class _DummyLogger:
     def __getattr__(self, attr):
         x = getattr(logging, attr)
@@ -3622,5 +3649,6 @@ class SerializeViaConstructor(metaclass=_SerializeViaConstructorMeta):
             if k in self._SERIALIZE_PRESERVED_ATTRS
         }
         return (self._make_instance, (self._ctor, dct))
+
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
