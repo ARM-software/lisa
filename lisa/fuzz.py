@@ -29,11 +29,11 @@ Fuzzing API to build random constrained values.
 
     from lisa.platforms.platinfo import PlatformInfo
     from lisa.wlgen.rta import RTAPhase, RTAConf, PeriodicWload
-    from lisa.fuzz import Gen, Choice, Int, Float, retry_until
+    from lisa.fuzz import GenMonad, Choice, Int, Float, retry_until
 
-    # The function must be decorated with Gen.lift() so that "await" gains its
+    # The function must be decorated with GenMonad.do() so that "await" gains its
     # special meaning.
-    @Gen.lift
+    @GenMonad.do
     async def make_task(duration=None):
         # Draw a value from an iterable.
         period = await Choice([16e-3, 8e-3])
@@ -42,7 +42,7 @@ Fuzzing API to build random constrained values.
 
         # Arbitrary properties can be enforced. If they are not satisfied, the
         # function will run again until the condition is true.
-        retry_until(0 < nr <= 2)
+        await retry_until(0 < nr <= 2)
 
         phase = functools.reduce(
             operator.add,
@@ -60,7 +60,7 @@ Fuzzing API to build random constrained values.
 
         return phase
 
-    @Gen.lift
+    @GenMonad.do
     async def make_profile(plat_info, **kwargs):
         nr_tasks = await Int(1, plat_info['cpus-count'])
 
@@ -73,11 +73,11 @@ Fuzzing API to build random constrained values.
     def main():
         plat_info = PlatformInfo.from_yaml_map('./doc/traces/plat_info.yml')
 
-        # When called, profile_gen() will create a random profiles
-        profile_gen = make_profile(plat_info, duration=1)
-
         # Display a few randomly generated tasks
         for _ in range(2):
+            # When called, profile_gen() will create a random profiles
+            profile_gen = make_profile(plat_info, duration=1)
+
             # seed (or rng) can be fixed for reproducible results
             # profile = profile_gen(seed=1)
             profile = profile_gen(seed=None)
@@ -93,11 +93,11 @@ import functools
 import itertools
 import inspect
 import logging
-from operator import attrgetter
+from operator import attrgetter, itemgetter
 from collections.abc import Iterable, Mapping
 
-from lisa.monad import StateMonad
-from lisa.utils import Loggable
+from lisa.monad import StateDiscard
+from lisa.utils import Loggable, deprecate
 
 
 class RetryException(Exception):
@@ -110,20 +110,33 @@ class RetryException(Exception):
     pass
 
 
+class _Retrier:
+    def __init__(self, cond):
+        self.cond = cond
+
+    def __await__(self):
+        if self.cond:
+            return
+        else:
+            raise RetryException()
+        # Ensures __await__ is a generator function
+        yield
+
+
 def retry_until(cond):
     """
-    If ``cond`` is ``True``, signify to the :class:`lisa.fuzz.Gen` monad to
-    retry the computation. This is used to enforce constraints on the output.
+    Returns an awaitable that will signify to the :class:`lisa.fuzz.Gen` monad
+    to retry the computation until ``cond`` is ``True``. This is used to
+    enforce arbitrary constraints on generated data.
 
     .. note:: If possible, it's a better idea to generate the data in a way
         that satisfy the constraints, as retrying can happen an arbitrary
         number of time and thus become quite costly.
     """
-    if not cond:
-        raise RetryException()
+    return _Retrier(cond)
 
 
-class Gen(StateMonad, Loggable):
+class GenMonad(StateDiscard, Loggable):
     """
     Random generator monad inspired by Haskell's QuickCheck.
     """
@@ -137,6 +150,15 @@ class Gen(StateMonad, Loggable):
 
     @classmethod
     def make_state(cls, *, rng=None, seed=None):
+        """
+        Initialize the RNG state with either an rng or a seed.
+
+        :param seed: Seed to initialize the :class:`random.Random` instance.
+        :type seed: object
+
+        :param rng: Instance of RNG.
+        :type rng: random.Random
+        """
         return cls._State(
             rng=rng or random.Random(seed),
         )
@@ -146,12 +168,14 @@ class Gen(StateMonad, Loggable):
         return f'{self.__class__.__qualname__}({name})'
 
     @classmethod
-    def _wrap_coroutine_f(cls, f):
-        @functools.wraps(f)
+    def _decorate_coroutine_function(cls, f):
+        _f = super()._decorate_coroutine_function(f)
+
+        @functools.wraps(_f)
         async def wrapper(*args, **kwargs):
             for i in itertools.count(1):
                 try:
-                    x = await f(*args, **kwargs)
+                    x = await _f(*args, **kwargs)
                 except RetryException:
                     continue
                 else:
@@ -159,8 +183,37 @@ class Gen(StateMonad, Loggable):
                     val = str(x)
                     sep = '\n' + ' ' * 4
                     val = sep + val.replace('\n', sep) + '\n' if '\n' in val else val + ' '
-                    cls.get_logger().debug(f'Drawn {val}{trials}from {f.__qualname__}')
+                    cls.get_logger().debug(f'Drawn {val}{trials}from {_f.__qualname__}')
                     return x
+
+        return wrapper
+
+
+class Gen:
+    def __init__(self, *args, **kwargs):
+        self._action = GenMonad(*args, **kwargs)
+
+    def __await__(self):
+        return (yield from self._action.__await__())
+
+    @classmethod
+    @deprecate(deprecated_in='2.0', removed_in='3.0', replaced_by=GenMonad.do,
+        msg='Note that GenMonad.do() will not automatically await on arguments if they are Gen instances, this must be done manually.',
+    )
+    def lift(cls, f):
+
+        @GenMonad.do
+        @functools.wraps(f)
+        async def wrapper(*args, **kwargs):
+            args = [
+                (await arg) if isinstance(arg, cls) else arg
+                for arg in args
+            ]
+            kwargs = {
+                k: (await v) if isinstance(v, cls) else v
+                for k, v in kwargs.items()
+            }
+            return await f(*args, **kwargs)
 
         return wrapper
 
@@ -194,6 +247,7 @@ class Choices(Gen):
 
     def __str__(self):
         return f'{self.__class__.__qualname__}({self._xs_str})'
+
 
 class Set(Choices):
     """
