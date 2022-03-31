@@ -72,9 +72,6 @@ How to reach us
 
 Bug reports should be raised against the `GitHub issue tracker <https://github.com/ARM-software/lisa/issues>`__.
 
-We also have an ``#arm-lisa`` IRC channel on ``freenode.net`` that we monitor
-on a best effort basis.
-
 External Links
 ==============
 
