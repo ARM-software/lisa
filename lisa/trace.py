@@ -3431,6 +3431,7 @@ class Trace(Loggable, TraceBase):
         write_swap=True,
     ):
         super().__init__()
+        trace_path = str(trace_path) if trace_path else None
 
         sanitization_functions = sanitization_functions or {}
         self._sanitization_functions = {
