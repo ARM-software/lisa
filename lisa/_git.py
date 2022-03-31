@@ -67,7 +67,7 @@ def get_uncommited_patch(repo):
     """
     return git(repo, 'diff', 'HEAD')
 
-def get_commit_message(repo, ref='HEAD', format='%s'):
+def get_commit_message(repo, ref='HEAD', notes_ref='refs/notes/commits', format='%s'):
     """
     Get the reference commit message.
 
@@ -75,12 +75,14 @@ def get_commit_message(repo, ref='HEAD', format='%s'):
 
     :param format: Format string passed to ``git show --format``. Default to subject.
     :type format: str
+
+    :param notes_ref: Git notes reference to be displayed (if ``%N`` is in ``format``).
+    :type notes_ref: str
     """
     # pylint: disable=redefined-builtin
+    return git(repo, 'show', '--notes=' + notes_ref, '--format=' + format, '-s', ref)
 
-    return git(repo, 'show', '--format=' + format, '-s', ref)
-
-def find_commits(repo, ref='HEAD', grep=None, regex=False):
+def find_commits(repo, ref='HEAD', notes_ref='refs/notes/commits', grep=None, regex=False):
     """
     Find git commits.
 
@@ -103,7 +105,7 @@ def find_commits(repo, ref='HEAD', grep=None, regex=False):
             '-E' if regex else '-F'
         ]
 
-    commits = git(repo, 'log', '--format=%H', *opts, ref, '--')
+    commits = git(repo, 'log', '--notes=' + notes_ref, '--format=%H', *opts, ref, '--')
     return commits.splitlines()
 
 def log(repo, ref='HEAD', format=None, commits_nr=1):
