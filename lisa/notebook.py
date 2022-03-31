@@ -44,6 +44,8 @@ from IPython.display import display
 
 from lisa.utils import is_running_ipython, order_as
 
+pn.extension('tabulator')
+
 # Enable all backends, finishing with matplotlib so it becomes the default (for
 # backward compat). Since this also corresponds to holoviews default, we are
 # not loosing anything, as the user will need hv.extension('bokeh') anyway.
@@ -576,7 +578,7 @@ def _hv_link_dataframes(fig, dfs):
             df.index = df.index.copy(deep=False)
             df.index.name = ''
 
-        df_widget = pn.widgets.DataFrame(
+        df_widget = pn.widgets.Tabulator(
             df,
             name=df.attrs.get('name', f'dataframe #{i}'),
             formatters={
@@ -584,20 +586,18 @@ def _hv_link_dataframes(fig, dfs):
             },
             # Disable edition of the dataframe
             disabled=True,
-            sortable=False,
+            # sortable=False,
             # Ensure some columns are always displayed
-            # Note: Tabulator requires a list of column names instead.
-            frozen_columns=len(event_header) + 1,
+            frozen_columns=event_header,
+            # For pn.widgets.DataFrame.
+            # frozen_columns=len(event_header) + 1,
             height=400,
-            autosize_mode='fit_viewport',
+            # autosize_mode='fit_viewport',
             row_height=25,
 
             # Only relevant for pn.widgets.Tabulator
-            #theme='simple',
-            #selectable='checkbox',
-            # Avoid transferring too much data at once to the browser
-            #pagination='remote',
-            #page_size=100,
+            theme='simple',
+            selectable='toggle',
         )
         return df_widget
 
@@ -634,8 +634,7 @@ def _hv_link_dataframes(fig, dfs):
                 if x is not None:
                     df = table.value
                     i = df.index.get_loc(x, method='ffill')
-                    # On the pn.widgets.DataFrame, this will automatically scroll in the table.
-                    # On pn.widgets.Tabulator, this will currently not unfortunately
+                    # This will automatically scroll in the table.
                     table.selection = [i]
             return hv.Points([])
 
@@ -665,11 +664,11 @@ def _hv_link_dataframes(fig, dfs):
                 (table.name, table)
                 for table in tables
             ),
-            align='center',
+            align='start',
         )
     else:
         tables_widget = tables[0]
-        tables_widget.align = 'center'
+        tables_widget.align = 'start'
 
     return pn.Column(
         fig,
