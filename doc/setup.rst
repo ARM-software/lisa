@@ -67,8 +67,10 @@ or less:
     * python3
     * python3-pip
     * python3-venv
-    * python3-setuptools
     * python3-tk
+
+You might also find a ``python3.X-full`` package that contains everything you
+need.
 
 .. code:: shell
 
