@@ -161,12 +161,12 @@ apt_packages=(
     qemu-user-static
     kernelshark
     python3
-    python3-pip
     # venv is not installed by default on Ubuntu, even though it is part of the
     # Python standard library
+    python3-pip
     python3-venv
-    python3-setuptools
     python3-tk
+    python3-setuptools
     # In order to save plots using bokeh, we need a browser usable with
     # selenium, along with its selenium driver.
     #
