@@ -75,6 +75,8 @@ need.
 .. code:: shell
 
     git clone https://github.com/ARM-software/lisa.git
+    # This will provide a more accurate changelog when building the doc
+    git fetch origin refs/notes/changelog
     cd lisa
     # A few packages need to be installed, like python3 or kernelshark. Python
     # modules will be installed in a venv at the next step, without touching

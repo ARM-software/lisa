@@ -62,6 +62,11 @@ if RTD:
     # git-based documentation
     subprocess.run(['git', 'fetch', '--unshallow'], check=False)
 
+    # Ensure we have the changelog notes that supplement commit messages, as
+    # sometimes the markers such as FEATURE were forgotten and later added
+    # using git notes.
+    subprocess.run(['git', 'fetch', 'origin', 'refs/notes/changelog'])
+
     source_env = {
         **os.environ,
         # LISA_USE_VENV=0 will avoid re-installing LISA automatically,
