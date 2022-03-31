@@ -598,7 +598,13 @@ def make_changelog(repo):
 
     .. note:: The git repository cannot be a shallow clone, as the changelog is
         extracted from the git history.
+
+    .. note:: The ``refs/notes/changelog`` notes is concatenated at the end of
+        commit messages, and the resulting text is parsed. This allows fixing
+        up changelog entries if markers were forgotten without rewriting the
+        history.
     """
+    notes_ref = 'refs/notes/changelog'
     release_refs = ['HEAD'] + lisa._git.find_tags(repo, 'v*')
 
     def update_release_name(name):
@@ -617,6 +623,7 @@ def make_changelog(repo):
             ref=f'{x}..{y}',
             grep=commit_pattern,
             regex=True,
+            notes_ref=notes_ref,
         )
         for x, y in zip(release_refs[1:], release_refs)
     }
@@ -626,7 +633,8 @@ def make_changelog(repo):
             lisa._git.get_commit_message(
                 repo=repo,
                 ref=ref,
-                format='%B',
+                notes_ref=notes_ref,
+                format='%B%N',
             ).strip()
             for ref in refs
         ]
