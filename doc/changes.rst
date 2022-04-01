@@ -26,6 +26,14 @@ Everything else is private.
     `github issue tracker <https://github.com/ARM-software/lisa/issues>`_
     before relying on that for production.
 
+.. note:: Instance attributes are considered public following the same
+    convention as functions and classes. Only reading from them is expected in
+    user code though, any attempt to modify or delete them is outside of the
+    bounds of what the public API exposes (unless stated explicitly otherwise).
+    This means that a minor version change could swap an instance attribute for
+    a read-only property. It also means that any problem following the
+    modification of an attribute by a user will not be considered as a bug.
+
 **********
 Versioning
 **********
