@@ -2070,7 +2070,7 @@ class TraceBase(abc.ABC):
 
     @deprecate('Prefer adding delta once signals have been extracted from the event dataframe for correctness',
         deprecated_in='2.0',
-        removed_in='3.0',
+        removed_in='4.0',
         replaced_by=df_add_delta,
     )
     def add_events_deltas(self, df, col_name='delta', inplace=True):
@@ -2109,7 +2109,7 @@ class TraceBase(abc.ABC):
 
     @deprecate('This method has been deprecated and is an alias',
         deprecated_in='2.0',
-        removed_in='3.0',
+        removed_in='4.0',
         replaced_by='df_event',
     )
     def df_events(self, *args, **kwargs):
@@ -2117,7 +2117,7 @@ class TraceBase(abc.ABC):
 
     @deprecate('This method has been deprecated and is an alias for "trace.ana.notebook.df_all_events()"',
         deprecated_in='2.0',
-        removed_in='3.0',
+        removed_in='4.0',
         replaced_by='lisa.analysis.notebook.NotebookAnalysis.df_all_event',
     )
     def df_all_events(self, *args, **kwargs):
@@ -4406,7 +4406,7 @@ class Trace(Loggable, TraceBase):
 
     @deprecate('This method has been deprecated and is an alias',
         deprecated_in='2.0',
-        removed_in='3.0',
+        removed_in='4.0',
         replaced_by=get_task_name_pids,
     )
     def get_task_by_name(self, name):
@@ -4431,7 +4431,7 @@ class Trace(Loggable, TraceBase):
 
     @deprecate('This function raises exceptions when faced with ambiguity instead of giving the choice to the user',
         deprecated_in='2.0',
-        removed_in='3.0',
+        removed_in='4.0',
         replaced_by=get_task_pid_names,
     )
     def get_task_by_pid(self, pid):
@@ -4536,7 +4536,7 @@ class Trace(Loggable, TraceBase):
 
         return task_ids[0]
 
-    @deprecate(deprecated_in='2.0', removed_in='3.0', replaced_by=get_task_id)
+    @deprecate(deprecated_in='2.0', removed_in='4.0', replaced_by=get_task_id)
     def get_task_pid(self, task):
         """
         Helper that takes either a name or a PID and always returns a PID
@@ -5425,7 +5425,7 @@ class CollectorBase(Loggable):
         coll.set_output(path)
         return coll.get_data()
 
-    @deprecate(replaced_by=get_data, deprecated_in='2.0', removed_in='3.0')
+    @deprecate(replaced_by=get_data, deprecated_in='2.0', removed_in='4.0')
     def get_trace(self, path):
         """
         Deprecated alias for :meth:`get_data`.

@@ -1419,7 +1419,7 @@ class TasksAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.plot_method
     @plot_tasks_activation.used_events
     @kwargs_forwarded_to(plot_tasks_activation, ignore=['tasks'])
-    @deprecate('Deprecated since it does not provide anything more than plot_tasks_activation', deprecated_in='2.0', removed_in='3.0', replaced_by=plot_tasks_activation)
+    @deprecate('Deprecated since it does not provide anything more than plot_tasks_activation', deprecated_in='2.0', removed_in='4.0', replaced_by=plot_tasks_activation)
     def plot_task_activation(self, task: TaskID, **kwargs):
         """
         Plot task activations, in a style similar to kernelshark.

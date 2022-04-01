@@ -178,7 +178,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
             df = df[df['cpu'].isin(cpus)]
         return df
 
-    @deprecate(replaced_by=df_cpus_signal, deprecated_in='2.0', removed_in='3.0')
+    @deprecate(replaced_by=df_cpus_signal, deprecated_in='2.0', removed_in='4.0')
     @requires_one_event_of(*_SCHED_PELT_CFS_NAMES)
     def df_cpus_signals(self):
         """
@@ -257,7 +257,7 @@ class LoadTrackingAnalysis(TraceAnalysisBase):
         df = self.df_tasks_signal(signal=signal)
         return df_filter_task_ids(df, [task_id])
 
-    @deprecate(replaced_by=df_tasks_signal, deprecated_in='2.0', removed_in='3.0')
+    @deprecate(replaced_by=df_tasks_signal, deprecated_in='2.0', removed_in='4.0')
     @requires_one_event_of(*_SCHED_PELT_SE_NAMES)
     def df_tasks_signals(self):
         """

@@ -1148,7 +1148,7 @@ def series_envelope_mean(series):
         return (maxs_mean - mins_mean) / 2 + mins_mean
 
 # Keep an alias in place for compatibility
-@deprecate(replaced_by=series_envelope_mean, deprecated_in='2.0', removed_in='3.0')
+@deprecate(replaced_by=series_envelope_mean, deprecated_in='2.0', removed_in='4.0')
 def series_tunnel_mean(*args, **kwargs):
     return series_envelope_mean(*args, **kwargs)
 
