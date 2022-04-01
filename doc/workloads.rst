@@ -37,9 +37,3 @@ Sysbench
 
 .. automodule:: lisa.wlgen.sysbench
    :members:
-
-Target script
-+++++++++++++
-
-.. automodule:: lisa.target_script
-   :members:
