@@ -573,4 +573,31 @@ class FrequencyAnalysis(TraceAnalysisBase):
             )
         ).cols(1)
 
+    @TraceAnalysisBase.plot_method
+    @df_peripheral_clock_effective_rate.used_events
+    def plot_peripheral_frequency(self, clk_name, average: bool=True):
+        """
+        Plot frequency for the specified peripheral clock frequency
+
+        :param clk_name: The clock name for which to plot frequency
+        :type clk_name: str
+
+        :param average: If ``True``, add a horizontal line which is the
+            frequency average.
+        :type average: bool
+
+        """
+        df = self.df_peripheral_clock_effective_rate(clk_name)
+
+        freq = series_refit_index(df['effective_rate'], window=self.trace.window)
+        avg = series_mean(freq)
+
+        df = df_refit_index(df, window=self.trace.window)
+        fig = plot_signal(df['effective_rate'], name=f'Frequency of {clk_name} (Hz)')
+
+        if avg > 0:
+            fig *= hv.HLine(avg, group='average').opts(color='red')
+
+        return fig
+
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
