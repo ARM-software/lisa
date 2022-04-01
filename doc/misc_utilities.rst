@@ -78,3 +78,10 @@ Sphinx documentation
 
 .. automodule:: lisa._doc.helpers
    :members:
+
+
+Version
+=======
+
+.. automodule:: lisa.version
+   :members:
