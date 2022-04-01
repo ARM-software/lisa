@@ -107,6 +107,45 @@ be removed:
     from lisa._doc.helpers import get_deprecated_table
     print(get_deprecated_table())
 
+
+***************
+Release Process
+***************
+
+Making a new release involves the following steps:
+
+  1. Update ``version_tuple`` in :mod:`lisa.version`.
+
+  2. Ensure LISA as a whole refers to relevant versions of:
+
+     * Alpine Linux in :mod:`lisa._kmod`
+     * Ubuntu in ``Vagrantfile``
+     * Binary dependencies in :mod:`lisa._assets`
+     * Android SDK installed by ``install_base.sh``
+     * Java version used by Android SDK in ``install_base.sh``
+
+  3. Create a ``vX.Y.Z`` tag.
+
+  4. Make the Python wheel. See ``tools/make-release.sh`` for some
+     indications on that part.
+
+  5. Install that wheel in a _fresh_ :ref:`Vagrant VM<setup-vagrant>`. Ensure
+     that the VM is reinstalled from scratch and that the vagrant box in use is
+     up to date.
+
+  6. Run ``tools/tests.sh`` in the VM and ensure no deprecated item scheduled
+     for removal in the new version is still present in the sources (should
+     result in import-time exceptions).
+
+  7. Ensure all CIs in use are happy.
+
+  8. Push the ``vX.Y.Z`` tag in the main repo
+
+  9. Update the ``release`` branch to be at the same commit as the ``vX.Y.Z`` tag.
+
+  10. Upload the wheel on PyPI.
+
+
 ******************************
 Transitioning from LISA legacy
 ******************************
