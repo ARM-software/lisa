@@ -338,15 +338,19 @@ class FrequencyAnalysis(TraceAnalysisBase):
         return series_mean(freq)
 
     @TraceAnalysisBase.cache
-    @requires_events('clock_set_rate', 'clock_enable', 'clock_disable')
+    @requires_events('clk_set_rate', 'clk_enable', 'clk_disable')
     def df_peripheral_clock_effective_rate(self, clk_name):
-        rate_df = self.trace.df_event('clock_set_rate')
-        enable_df = self.trace.df_event('clock_enable')
-        disable_df = self.trace.df_event('clock_disable')
+        rate_df = self.trace.df_event('clk_set_rate')
+        enable_df = self.trace.df_event('clk_enable')
+        disable_df = self.trace.df_event('clk_disable')
 
-        freq = rate_df[rate_df.clk_name == clk_name]
-        enables = enable_df[enable_df.clk_name == clk_name]
-        disables = disable_df[disable_df.clk_name == clk_name]
+        # Add 'state' for enable and disable events
+        enable_df['state'] = 1
+        disable_df['state'] = 0
+
+        freq = rate_df[rate_df['name'] == clk_name]
+        enables = enable_df[enable_df['name'] == clk_name]
+        disables = disable_df[disable_df['name'] == clk_name]
 
         freq = pd.concat([freq, enables, disables], sort=False).sort_index()
         freq['start'] = freq.index
@@ -357,7 +361,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
         freq.ffill(inplace=True)
         freq['effective_rate'] = np.where(
             freq['state'] == 0, 0,
-            np.where(freq['state'] == 1, freq['state'], float('nan'))
+            np.where(freq['state'] == 1, freq['rate'], float('nan'))
         )
         return freq
 
