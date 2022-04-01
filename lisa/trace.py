@@ -3920,11 +3920,9 @@ class Trace(Loggable, TraceBase):
                 available_events=self.available_events,
             )
 
-        # Ensure the event name is set, as this sort of metadata might not be
-        # saved in the swap
-        df.name = event
-        # This is how it should be done. Keep the previous line in case someone
-        # depends on it.
+        # We used to set a ".name" attribute, but:
+        # 1. There is no central way of saving these metadata when serializing
+        # 2. It conflicts with a "name" column in the dataframe.
         df.attrs['name'] = event
         return df
 
