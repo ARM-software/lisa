@@ -58,8 +58,8 @@ install_android_sdk_manager() {
     echo "Installing Android SDK manager ..."
 
     # URL taken from "Command line tools only": https://developer.android.com/studio
-    # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-6858069_latest.zip"
-    local url="https://dl.google.com/android/repository/commandlinetools-linux-7302050_latest.zip"
+    # Used to be "https://dl.google.com/android/repository/commandlinetools-linux-7302050_latest.zip"
+    local url="https://dl.google.com/android/repository/commandlinetools-linux-8092744_latest.zip"
     local archive="$ANDROID_HOME/android-sdk-manager.zip"
     rm "$archive" &>/dev/null
 
@@ -104,7 +104,8 @@ install_android_tools() {
     # SDK starts being annoying
     # Note: recent sdkmanager seem to be installing "platform-tools" by default,
     # so it's not necessary anymore to specify it on the command line
-    yes | call_android_sdkmanager --verbose --channel=0 --install "build-tools;31.0.0"
+    yes | call_android_sdkmanager --verbose --channel=0 --install "build-tools;32.0.0"
+    yes | call_android_sdkmanager --verbose --channel=0 --install "platform-tools"
 }
 
 # Clone alpine-chroot-install repo

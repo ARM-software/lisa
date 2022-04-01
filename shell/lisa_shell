@@ -48,7 +48,8 @@ export LISA_HOST_ABI=${LISA_HOST_ABI:-$(uname -m | sed 's/aarch64/arm64/')}
 export _DOC_LISA_USE_SYSTEM_BIN="Use the system binaries if 1, will use the ones shipped with LISA if 0"
 export LISA_USE_SYSTEM_BIN=${LISA_USE_SYSTEM_BIN:-0}
 
-_LISA_PATH="$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI:$LISA_HOME/tools/:$ANDROID_HOME/tools/:$ANDROID_HOME/platform-tools/:$ANDROID_HOME/build-tools/"
+_ANDROID_BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools/"* -maxdepth 0 -type d -print -quit)
+_LISA_PATH="$LISA_HOME/shell/:$LISA_HOME/tools/$LISA_HOST_ABI:$LISA_HOME/tools/:$ANDROID_HOME/tools/:$ANDROID_HOME/platform-tools/:$_ANDROID_BUILD_TOOLS"
 if [[ "$LISA_USE_SYSTEM_BIN" == 1 ]]; then
     export PATH=$PATH:$_LISA_PATH
 else
