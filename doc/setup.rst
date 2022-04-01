@@ -12,6 +12,8 @@ Host installation
 
 From PyPI
 ---------
+.. _setup-pypi:
+
 
 LISA is available on `PyPI <https://pypi.org/project/lisa-linux/>`_:
 
