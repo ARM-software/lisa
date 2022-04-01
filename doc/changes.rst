@@ -13,7 +13,8 @@ APIs inside LISA are split between private and public ones:
   * Private APIs can be changed at all points.
 
 Public APIs consist of classes and functions with names not starting with an
-underscore, defined in modules with a name not starting with an underscore.
+underscore, defined in modules with a name not starting with an underscore (or
+any of its parent modules or containing class).
 
 Everything else is private.
 
