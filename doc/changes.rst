@@ -1,6 +1,7 @@
 **************
 APIs stability
 **************
+.. _api-stability:
 
 APIs inside LISA are split between private and public ones:
 
@@ -24,6 +25,26 @@ Everything else is private.
     sync. If for some reason subclassing is required, please get in touch in the
     `github issue tracker <https://github.com/ARM-software/lisa/issues>`_
     before relying on that for production.
+
+**********
+Versioning
+**********
+
+LISA releases on :ref:`PyPI<setup-pypi>` are done following semantic versioning
+as defined in https://semver.org/. As pointed by `api-stability`_, classes are
+split on the following axes for the purpose of semver tracking:
+
+  * A set of methods and attributes in general: Adding a method entails a minor
+    version bump, even though it can technically cause a breaking change in a
+    user subclass that happened to use the same name.
+
+  * Inheritance tree: the MRO of a class is not considered as part of the stable
+    public API and can therefore change at any point. Classes named ``*Base``
+    can usually be relied on for ``issubclass()`` and ``isinstance()`` but that
+    is not a hard rule. The reason behind that is that even adding a class to
+    the hierarchy can break existing uses of ``isinstance()`` so there is
+    essentially no way of making any change to the inheritance tree that is not
+    a breaking change.
 
 *********
 Changelog
