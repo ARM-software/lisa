@@ -128,6 +128,7 @@ still included for convenience).
 
 Virtual machine installation
 ----------------------------
+.. _setup-vagrant:
 
 LISA provides a Vagrant recipe which automates the generation of a
 VirtualBox based virtual machine pre-configured to run LISA. To generate and
