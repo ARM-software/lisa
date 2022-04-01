@@ -69,7 +69,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         """
 
     @classmethod
-    @deprecate('Made irrelevant by the use of holoviews', deprecated_in='2.0', removed_in='3.0')
+    @deprecate('Made irrelevant by the use of holoviews', deprecated_in='2.0', removed_in='4.0')
     def setup_plot(cls, width=16, height=4, ncols=1, nrows=1, interactive=None, link_dataframes=None, cursor_delta=None, **kwargs):
         """
         Common helper for setting up a matplotlib plot
@@ -145,7 +145,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
     @classmethod
     @contextlib.contextmanager
-    @deprecate('Made irrelevant by the use of holoviews', deprecated_in='2.0', removed_in='3.0')
+    @deprecate('Made irrelevant by the use of holoviews', deprecated_in='2.0', removed_in='4.0')
     def set_axis_cycler(cls, axis, *cyclers):
         """
         Context manager to set cyclers on an axis (and the default cycler as
@@ -214,7 +214,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
 
     @classmethod
     @contextlib.contextmanager
-    @deprecate('Made irrelevant by the use of holoviews', deprecated_in='2.0', removed_in='3.0')
+    @deprecate('Made irrelevant by the use of holoviews', deprecated_in='2.0', removed_in='4.0')
     def set_axis_rc_params(cls, axis, rc_params):
         """
         Context manager to set ``matplotlib.rcParams`` while plotting, and then
@@ -233,7 +233,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 matplotlib.rcParams.update(orig)
 
     @classmethod
-    @deprecate('Made irrelevant by the use of holoviews', deprecated_in='2.0', removed_in='3.0')
+    @deprecate('Made irrelevant by the use of holoviews', deprecated_in='2.0', removed_in='4.0')
     def cycle_colors(cls, axis, nr_cycles=1):
         """
         Cycle the axis color cycle ``nr_cycles`` forward
@@ -261,7 +261,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
         axis.set_prop_cycle(make_cycler(color=colors[nr_cycles:] + colors[:nr_cycles]))
 
     @classmethod
-    @deprecate('Made irrelevant by the use of holoviews', deprecated_in='2.0', removed_in='3.0')
+    @deprecate('Made irrelevant by the use of holoviews', deprecated_in='2.0', removed_in='4.0')
     def get_next_color(cls, axis):
         """
         Get the next color that will be used to draw lines on the axis
@@ -356,7 +356,7 @@ class AnalysisHelpers(Loggable, abc.ABC):
                 backend=backend,
             )
 
-    @deprecate('Made irrelevant by the use of holoviews', deprecated_in='2.0', removed_in='3.0')
+    @deprecate('Made irrelevant by the use of holoviews', deprecated_in='2.0', removed_in='4.0')
     def do_plot(self, plotter, axis=None, **kwargs):
         """
         Simple helper for consistent behavior across methods.

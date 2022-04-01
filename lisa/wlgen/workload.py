@@ -383,7 +383,7 @@ class Workload(_WorkloadBase, PartialInit, Loggable):
                 shutil.rmtree(self.res_dir)
 
     @property
-    @deprecate('Processed output is returned by run() or by the ".output" attribute of the value returned by the run_background() context manager', deprecated_in='2.0', removed_in='3.0')
+    @deprecate('Processed output is returned by run() or by the ".output" attribute of the value returned by the run_background() context manager', deprecated_in='2.0', removed_in='4.0')
     def output(self):
         return self._output
 

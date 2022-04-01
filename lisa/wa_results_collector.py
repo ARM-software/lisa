@@ -45,7 +45,7 @@ import lisa.wa
     been replaced by :mod:`lisa.wa`.
 """
 
-@deprecate(deprecated_in='2.0', removed_in='3.0', replaced_by=lisa.wa.WAOutput)
+@deprecate(deprecated_in='2.0', removed_in='4.0', replaced_by=lisa.wa.WAOutput)
 class WaResultsCollector(Loggable):
     """
     Collects, analyses and visualises results from multiple WA3 directories

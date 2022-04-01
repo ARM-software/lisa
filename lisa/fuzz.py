@@ -158,7 +158,7 @@ class Gen:
         return (yield from self._action.__await__())
 
     @classmethod
-    @deprecate(deprecated_in='2.0', removed_in='3.0', replaced_by=GenMonad.do,
+    @deprecate(deprecated_in='2.0', removed_in='4.0', replaced_by=GenMonad.do,
         msg='Note that GenMonad.do() will not automatically await on arguments if they are Gen instances, this must be done manually.',
     )
     def lift(cls, f):
