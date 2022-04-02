@@ -19,6 +19,9 @@ doc-plot-conf:
             plat_info: &plat_info0 !call:lisa.platforms.platinfo.PlatformInfo.from_yaml_map
                 path: !env:interpolate $LISA_HOME/doc/traces/plat_info.yml
 
+            plat_info1: &plat_info1 !call:lisa.platforms.platinfo.PlatformInfo.from_yaml_map
+                path: !env:interpolate $LISA_HOME/doc/traces/juno_r2_plat_info.yml
+
             trace: &trace0 !call:lisa.trace.Trace
                 trace_path: !env:interpolate $LISA_HOME/doc/traces/trace.dat
                 normalize_time: true
@@ -101,6 +104,15 @@ doc-plot-conf:
         FrequencyAnalysis.plot_cpu_frequency_residency:
             kwargs:
                 cpu: *cpu0
+
+        FrequencyAnalysis.plot_peripheral_frequency:
+            trace: !call:lisa.trace.Trace
+                trace_path: !env:interpolate $LISA_HOME/doc/traces/trace_peripheral_clk.dat
+                normalize_time: true
+                # Either refer to the existing anchor, or make a new plat_info for the board that was used
+                plat_info: *plat_info1
+            kwargs:
+                clk_name: juno:uartclk
 
         CpusAnalysis.plot_orig_capacity:
             kwargs:
