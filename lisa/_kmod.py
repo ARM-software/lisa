@@ -245,24 +245,23 @@ def _make_chroot(make_vars, bind_paths=None, alpine_version='3.15.0', overlay_ba
         'bison',
         'flex',
         'python3',
-
-        # TODO: As of october 2021 for some reason, the kernel still needs GCC
-        # to build some tools even when compiling with clang
-        'gcc',
     ]
     make_vars = make_vars or {}
 
-    try:
-        cc = make_vars['CC']
-    except KeyError:
-        cc = 'gcc'
+    def add_compiler(cc):
+        if cc == 'clang':
+            packages.extend([
+                'lld',
+                'llvm',
+            ])
+        packages.append(cc)
 
-    if cc == 'clang':
-        packages.extend([
-            'lld',
-            'llvm',
-        ])
-    packages.append(cc)
+    cc = make_vars.get('CC', 'gcc')
+    add_compiler(cc)
+
+    hostcc = make_vars.get('HOSTCC', cc)
+    if hostcc != cc:
+        add_compiler(hostcc)
 
     devlib_arch = make_vars.get('ARCH', LISA_HOST_ABI)
 
@@ -890,6 +889,10 @@ class KernelTree(Loggable, SerializeViaConstructor):
                 # Disable CROSS_COMPILE as we are going to build in a "native"
                 # Alpine chroot, so there is no need for a cross compiler
                 make_vars.pop('CROSS_COMPILE', None)
+
+            # Avoid requiring another compiler to build the tools used to build
+            # the kernel.
+            make_vars['HOSTCC'] = cc
 
         return (make_vars, cc)
 
