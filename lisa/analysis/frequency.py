@@ -340,6 +340,10 @@ class FrequencyAnalysis(TraceAnalysisBase):
     @TraceAnalysisBase.cache
     @requires_events('clk_set_rate', 'clk_enable', 'clk_disable')
     def df_peripheral_clock_effective_rate(self, clk_name):
+
+        # Note: the kernel still defines a "clock_*" variant for each of these,
+        # but it's not actually used anywhere in the code. The new "clk_*"
+        # events are the ones we are interested about.
         rate_df = self.trace.df_event('clk_set_rate')
         enable_df = self.trace.df_event('clk_enable')
         disable_df = self.trace.df_event('clk_disable')
