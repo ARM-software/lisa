@@ -2047,6 +2047,10 @@ _SIGNALS = [
     SignalDesc('userspace@cpu_frequency_devlib', ['cpu_id']),
     SignalDesc('sched_compute_energy', ['comm', 'pid']),
 
+    SignalDesc('clk_set_rate', ['name']),
+    SignalDesc('clk_enable', ['name']),
+    SignalDesc('clk_disable', ['name']),
+
     SignalDesc('sched_pelt_se', ['comm', 'pid']),
     SignalDesc('sched_load_se', ['comm', 'pid']),
     SignalDesc('sched_util_est_se', ['comm', 'pid']),
