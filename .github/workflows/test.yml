@@ -58,4 +58,5 @@ jobs:
 
       - run: sudo ./install_base.sh --install-all
       - run: echo "$(python3 --version)"
+      - run: sudo chmod o+rx /sys/kernel/debug
       - run: bash ./tools/tests.sh
