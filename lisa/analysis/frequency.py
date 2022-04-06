@@ -27,7 +27,7 @@ import holoviews as hv
 
 from lisa.analysis.base import TraceAnalysisBase
 from lisa.trace import requires_events, requires_one_event_of, CPU, MissingTraceEventError
-from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window
+from lisa.datautils import series_integrate, df_refit_index, series_refit_index, series_deduplicate, df_add_delta, series_mean, df_window, df_merge
 from lisa.notebook import plot_signal, _hv_neutral
 
 
@@ -345,8 +345,8 @@ class FrequencyAnalysis(TraceAnalysisBase):
         # but it's not actually used anywhere in the code. The new "clk_*"
         # events are the ones we are interested about.
         rate_df = self.trace.df_event('clk_set_rate')
-        enable_df = self.trace.df_event('clk_enable')
-        disable_df = self.trace.df_event('clk_disable')
+        enable_df = self.trace.df_event('clk_enable').copy()
+        disable_df = self.trace.df_event('clk_disable').copy()
 
         # Add 'state' for enable and disable events
         enable_df['state'] = 1
@@ -356,16 +356,17 @@ class FrequencyAnalysis(TraceAnalysisBase):
         enables = enable_df[enable_df['name'] == clk_name]
         disables = disable_df[disable_df['name'] == clk_name]
 
-        freq = pd.concat([freq, enables, disables], sort=False).sort_index()
+        freq = df_merge((freq, enables, disables)).ffill()
         freq['start'] = freq.index
-        freq['len'] = (freq.start - freq.start.shift()).fillna(0).shift(-1)
-        # The last value will be NaN, fix to be appropriate length
-        freq.loc[freq.index[-1], 'len'] = self.trace.end - freq.index[-1]
-
-        freq.ffill(inplace=True)
+        df_add_delta(
+            freq,
+            col='len',
+            src_col='start',
+            window=self.trace.window,
+            inplace=True
+        )
         freq['effective_rate'] = np.where(
-            freq['state'] == 0, 0,
-            np.where(freq['state'] == 1, freq['rate'], float('nan'))
+            freq['state'] == 0, 0, freq['rate']
         )
         return freq
 
