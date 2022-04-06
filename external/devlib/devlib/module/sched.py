@@ -329,7 +329,7 @@ class SchedProcFSData(SchedProcFSNode):
         except TargetStableError:
             return False
 
-        cpus = target.list_directory(path)
+        cpus = target.list_directory(path, as_root=target.is_rooted)
         if not cpus:
             return False
 
