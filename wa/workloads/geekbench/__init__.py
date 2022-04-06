@@ -53,8 +53,8 @@ class Geekbench(ApkUiautoWorkload):
     """
     summary_metrics = ['score', 'multicore_score']
 
-    supported_versions = ['4.4.2', '4.4.0', '4.3.4', '4.3.2', '4.3.1', '4.2.0', '4.0.1', '3.4.1', '3.0.0', '2']
-    package_names = ['com.primatelabs.geekbench', 'com.primatelabs.geekbench3', 'ca.primatelabs.geekbench2']
+    supported_versions = ['5', '4.4.2', '4.4.0', '4.3.4', '4.3.2', '4.3.1', '4.2.0', '4.0.1', '3.4.1', '3.0.0', '2']
+    package_names = ['com.primatelabs.geekbench5', 'com.primatelabs.geekbench', 'com.primatelabs.geekbench3', 'ca.primatelabs.geekbench2']
 
     begin_regex = re.compile(r'^\s*D/WebViewClassic.loadDataWithBaseURL\(\s*\d+\s*\)'
                              r'\s*:\s*(?P<content>\<.*)\s*$')

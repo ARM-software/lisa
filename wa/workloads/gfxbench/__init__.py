@@ -20,8 +20,10 @@ from wa.utils.types import list_or_string
 
 class Gfxbench(ApkUiautoWorkload):
 
-    name = 'gfxbench-corporate'
-    package_names = ['net.kishonti.gfxbench.gl.v50000.corporate']
+    name = 'gfxbench'
+    package_names = ['com.glbenchmark.glbenchmark27']
+    supported_versions = ['4', '5']
+    is_corporate = False
     clear_data_on_reset = False
     regex_template = 'name: \((?P<test_name>.*)\).*result: \((?P<result>.*)?\).* sub_result:.*\((?P<sub_result>.*?)?\).*'
     description = '''
@@ -98,3 +100,10 @@ class Gfxbench(ApkUiautoWorkload):
         if failed or detected_results < len(regex_matches):
             msg = "The workload has failed to process all scores. Expected >={} scores, Detected {} scores."
             raise WorkloadError(msg.format(len(regex_matches), detected_results))
+
+
+class GfxbenchCorporate(Gfxbench):  # pylint: disable=too-many-ancestors
+
+    name = 'gfxbench-corporate'
+    package_names = ['net.kishonti.gfxbench.gl.v50000.corporate']
+    is_corporate = True
