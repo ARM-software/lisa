@@ -39,6 +39,7 @@ public class UiAutomation extends BaseUiAutomation {
 
     private int networkTimeoutSecs = 30;
     private long networkTimeout =  TimeUnit.SECONDS.toMillis(networkTimeoutSecs);
+    private Boolean isCorporate;
     public static String TAG = "UXPERF";
     protected Bundle parameters;
     protected String[] testList;
@@ -50,6 +51,7 @@ public class UiAutomation extends BaseUiAutomation {
         parameters = getParams();
         testList = parameters.getStringArray("tests");
         packageID = getPackageID(parameters);
+        isCorporate = parameters.getBoolean("is_corporate");
     }
 
     @Test
@@ -82,7 +84,8 @@ public class UiAutomation extends BaseUiAutomation {
         toggleTest("High-Level Tests");
         toggleTest("Low-Level Tests");
         toggleTest("Special Tests");
-        toggleTest("Fixed Time Test");
+	if (isCorporate)
+		toggleTest("Fixed Time Test");
 
         // Enable selected tests
         for (String test : testList) {

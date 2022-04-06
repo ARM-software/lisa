@@ -126,14 +126,14 @@ public class UiAutomation extends BaseUiAutomation {
             }
         }
         UiObject installed =
-            mDevice.findObject(new UiSelector().text("RUN")
+            mDevice.findObject(new UiSelector().description("RUN")
                     .className("android.view.View"));
             installed.waitForExists(360000);
             if (!installed.exists()){
-                UiObject installeddesc =
-                    mDevice.findObject(new UiSelector().description("RUN")
+                UiObject installedtext =
+                    mDevice.findObject(new UiSelector().text("RUN")
                            .className("android.view.View"));
-                    installeddesc.waitForExists(1000);
+                    installedtext.waitForExists(1000);
             }
     }
 
