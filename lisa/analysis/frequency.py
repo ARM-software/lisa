@@ -579,7 +579,7 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
     @TraceAnalysisBase.plot_method
     @df_peripheral_clock_effective_rate.used_events
-    def plot_peripheral_frequency(self, clk_name, average: bool=True):
+    def plot_peripheral_frequency(self, clk_name: str, average: bool=True):
         """
         Plot frequency for the specified peripheral clock frequency
 
