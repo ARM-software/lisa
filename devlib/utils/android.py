@@ -333,6 +333,8 @@ class AdbConnection(ConnectionBase):
     # pylint: disable=unused-argument
     def execute(self, command, timeout=None, check_exit_code=False,
                 as_root=False, strip_colors=True, will_succeed=False):
+        if as_root and self.connected_as_root:
+            as_root = False
         try:
             return adb_shell(self.device, command, timeout, check_exit_code,
                              as_root, adb_server=self.adb_server, su_cmd=self.su_cmd)
@@ -351,6 +353,8 @@ class AdbConnection(ConnectionBase):
                 raise
 
     def background(self, command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, as_root=False):
+        if as_root and self.connected_as_root:
+            as_root = False
         bg_cmd = self._background(command, stdout, stderr, as_root)
         self._current_bg_cmds.add(bg_cmd)
         return bg_cmd
@@ -413,6 +417,9 @@ class AdbConnection(ConnectionBase):
         logger.debug("ls command is set to {}".format(self.ls_command))
 
     def _setup_su(self):
+        # Already root, nothing to do
+        if self.connected_as_root:
+            return
         try:
             # Try the new style of invoking `su`
             self.execute('ls', timeout=self.timeout, as_root=True,
