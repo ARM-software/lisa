@@ -592,15 +592,15 @@ class FrequencyAnalysis(TraceAnalysisBase):
 
         """
         df = self.df_peripheral_clock_effective_rate(clk_name)
+        freq = df['effective_rate']
+        freq = series_refit_index(freq, window=self.trace.window)
 
-        freq = series_refit_index(df['effective_rate'], window=self.trace.window)
-        avg = series_mean(freq)
+        fig = plot_signal(freq, name=f'Frequency of {clk_name} (Hz)')
 
-        df = df_refit_index(df, window=self.trace.window)
-        fig = plot_signal(df['effective_rate'], name=f'Frequency of {clk_name} (Hz)')
-
-        if avg > 0:
-            fig *= hv.HLine(avg, group='average').opts(color='red')
+        if average:
+            avg = series_mean(freq)
+            if avg > 0:
+                fig *= hv.HLine(avg, group='average').opts(color='red')
 
         return fig
 
