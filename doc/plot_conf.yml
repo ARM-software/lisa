@@ -112,7 +112,7 @@ doc-plot-conf:
                 # Either refer to the existing anchor, or make a new plat_info for the board that was used
                 plat_info: *plat_info1
             kwargs:
-                clk_name: juno:uartclk
+                clk_name: aplclk
 
         CpusAnalysis.plot_orig_capacity:
             kwargs:
