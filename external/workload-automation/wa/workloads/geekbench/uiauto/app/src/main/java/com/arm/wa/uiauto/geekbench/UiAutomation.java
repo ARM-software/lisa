@@ -53,7 +53,8 @@ public class UiAutomation extends BaseUiAutomation {
         params = getParams();
         version = params.getString("version").split("\\.");
         majorVersion = Integer.parseInt(version[0]);
-        minorVersion = Integer.parseInt(version[1]);
+	if (version.length > 1)
+		minorVersion = Integer.parseInt(version[1]);
         isCorporate = params.getBoolean("is_corporate");
         loops = params.getInt("loops");
     }
@@ -140,7 +141,7 @@ public class UiAutomation extends BaseUiAutomation {
         scrollPage();
 
         String packageName = isCorporate ? "com.primatelabs.geekbench.*.corporate"
-                                         : "com.primatelabs.geekbench";
+                                         : "com.primatelabs.geekbench.*";
 
         UiObject runButton =
 	    mDevice.findObject(new UiSelector().resourceIdMatches(packageName + ":id/runCpuBenchmarks"));
