@@ -417,7 +417,7 @@ def df_merge(df_list, drop_columns=None, drop_inplace=False, filter_columns=None
         ]
 
     if any(
-        not (df1.columns & df2.columns).empty
+        not (df1.columns.intersection(df2.columns)).empty
         for (df1, df2)  in itertools.combinations(df_list, 2)
     ):
         df = pd.concat(df_list)
@@ -471,7 +471,7 @@ def df_delta(pre_df, post_df, group_on=None):
     post_df["is_pre"] = False
 
     # Merge on columns common to the two dfs to avoid overlapping of names.
-    on_col = sorted(pre_df.columns & post_df.columns)
+    on_col = sorted(pre_df.columns.intersection(post_df.columns))
 
     # Merging on nullable types converts columns to object.
     # Merging on non-nullable types converts integer/boolean to float.
