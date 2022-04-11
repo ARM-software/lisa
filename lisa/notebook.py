@@ -179,7 +179,7 @@ def axis_link_dataframes(axis, df_list, before=1, after=5, cursor_color='red', f
             elif loc > df.index[-1]:
                 iloc = -1
             else:
-                iloc = df.index.get_loc(loc, method='ffill')
+                iloc = df.index.get_indexer([loc], method='ffill')
             index_loc = df.index[iloc]
 
             begin = max(iloc - before, 0)
@@ -633,7 +633,7 @@ def _hv_link_dataframes(fig, dfs):
             for table in tables:
                 if x is not None:
                     df = table.value
-                    i = df.index.get_loc(x, method='ffill')
+                    i = df.index.get_indexer([x], method='ffill')
                     # This will automatically scroll in the table.
                     table.selection = [i]
             return hv.Points([])

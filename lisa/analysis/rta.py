@@ -615,7 +615,7 @@ class RTAEventsAnalysis(TraceAnalysisBase):
         elif timestamp > last_phase_end:
             raise KeyError(f'timestamp={timestamp} is after last phase end: {last_phase_end}')
 
-        i = df.index.get_loc(timestamp, method='ffill')
+        i = df.index.get_indexer([timestamp], method='ffill')
         return PhaseWindow(*get_info(df.iloc[i]))
 
     ###########################################################################
