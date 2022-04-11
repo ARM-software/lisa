@@ -212,7 +212,7 @@ class ResultBundleBase(Exception):
         metrics_str = format_data(self.metrics)
         if '\n' in metrics_str:
             idt = '\n' + ' ' * 4
-            metrics_str = metrics_str.replace('\n', idt, regex=False)
+            metrics_str = metrics_str.replace('\n', idt)
         else:
             metrics_str = ': ' + metrics_str
 
