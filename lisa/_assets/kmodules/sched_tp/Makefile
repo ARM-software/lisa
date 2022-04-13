@@ -33,14 +33,10 @@ ifneq ($(KERNELRELEASE),)
 
 LISA_KMOD_NAME ?= sched_tp
 obj-m := $(LISA_KMOD_NAME).o
+$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o
+ldflags-y += -T $(M)/features.lds
 
-# Since the module name is determined by the object file name, we need a
-# matching source name. Unfortunately, there does not seem to be a more
-# straightforward way of setting the module's name ...
-MAIN_C_SRC := $(MODULE_SRC)/$(LISA_KMOD_NAME).c
-$(MAIN_C_SRC): $(MODULE_SRC)/sched_tp.c
-	rm $@ 2> /dev/null || true
-	ln -s sched_tp.c $@
+clean-files := vmlinux.h
 
 # -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
 ccflags-y = -I$(MODULE_SRC) -fno-stack-protector
