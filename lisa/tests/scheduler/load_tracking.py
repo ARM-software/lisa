@@ -310,7 +310,7 @@ class InvarianceItemBase(RTATestBundle, LoadTrackingHelpers, TestBundle, Exekall
         df_activation = df_activation[df.index[0]:]
 
         # Get the initial signal value matching the first activation we will care about
-        init_iloc = df.index.get_indexer([df_activation.index[0]], method='ffill')
+        init_iloc = df.index.get_indexer([df_activation.index[0]], method='ffill')[0]
         init = df[signal_name].iloc[init_iloc]
 
         try:
