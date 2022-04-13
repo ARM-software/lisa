@@ -2042,14 +2042,6 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
                 if event.startswith('userspace@rtapp_')
             ]
 
-        # Coarse-grained detection, but that should be enough for our use
-        try:
-            target.execute('ls /sys/kernel/debug/tracing/')
-        except TargetStableError:
-            debugfs_needs_root = True
-        else:
-            debugfs_needs_root = False
-
         wload = RTA.from_profile(
             target=target,
             profile=profile,
@@ -2079,7 +2071,7 @@ class RTATestBundle(FtraceTestBundle, DmesgTestBundle):
         logger.debug(f'rt-app JSON:\n{wload.conf.json}')
         cgroup = cls._target_configure_cgroup(target, cg_cfg)
         as_root = bool(
-            cgroup is not None or (trace_events and debugfs_needs_root)
+            cgroup is not None or trace_events
         )
 
         wload = wload(
