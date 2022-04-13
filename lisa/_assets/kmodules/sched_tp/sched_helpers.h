@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
-#ifndef SCHED_TP_HELPERS_H
-#define SCHED_TP_HELPERS_H
+#ifndef SCHED_HELPERS_H
+#define SCHED_HELPERS_H
 
 /* Required for struct irq_work which is defined in struct root_domain */
 #include <linux/irq_work.h>
@@ -70,6 +70,25 @@ static inline void cfs_rq_tg_path(struct cfs_rq *cfs_rq, char *path, int len)
 #endif
 		strlcpy(path, "(null)", len);
 }
+
+static inline struct cfs_rq *get_group_cfs_rq(struct sched_entity *se)
+{
+#ifdef CONFIG_FAIR_GROUP_SCHED
+	return se->my_q;
+#else
+	return NULL;
+#endif
+}
+
+static inline struct cfs_rq *get_se_cfs_rq(struct sched_entity *se)
+{
+#ifdef CONFIG_FAIR_GROUP_SCHED
+	return se->cfs_rq;
+#else
+	return NULL;
+#endif
+}
+
 
 /* A cut down version of the original. @p MUST be NULL */
 static __always_inline
@@ -176,4 +195,4 @@ static inline int sched_tp_rq_nr_running(struct rq *rq)
 	return rq ? rq->nr_running : -1;
 }
 
-#endif /* SCHED_TP_HELPERS */
+#endif /* SCHED_HELPERS */

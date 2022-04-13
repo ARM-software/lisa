@@ -4,8 +4,8 @@
 
 #define MAX_SPAN_SIZE		128
 
-#if !defined(_SCHED_EVENTS_H) || defined(TRACE_HEADER_MULTI_READ)
-#define _SCHED_EVENTS_H
+#if !defined(_FTRACE_EVENTS_H) || defined(TRACE_HEADER_MULTI_READ)
+#define _FTRACE_EVENTS_H
 
 #define PATH_SIZE		64
 #define __SPAN_SIZE		(round_up(NR_CPUS, 4)/4)
@@ -15,7 +15,7 @@
 #include <linux/tracepoint.h>
 #include <linux/version.h>
 
-#include "sched_tp_helpers.h"
+#include "sched_helpers.h"
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5,6,0)
 #define RBL_LOAD_ENTRY		rbl_load
@@ -332,10 +332,10 @@ TRACE_EVENT(sched_cpu_capacity,
 );
 #endif
 
-#endif /* _SCHED_EVENTS_H */
+#endif /* _FTRACE_EVENTS_H */
 
 /* This part must be outside protection */
 #undef TRACE_INCLUDE_PATH
 #define TRACE_INCLUDE_PATH .
-#define TRACE_INCLUDE_FILE sched_events
+#define TRACE_INCLUDE_FILE ftrace_events
 #include <trace/define_trace.h>
