@@ -827,7 +827,7 @@ def _get_loc(index, x, method):
     # Also, if the index is not sorted, we need to fall back on the slow path
     # as well. Checking is_monotonic is cheap so it's ok to do it here.
     if method == 'nearest' or not index.is_monotonic:
-        return index.get_indexer([x], method=method)
+        return index.get_indexer([x], method=method)[0]
     else:
         if index.empty:
             raise KeyError(x)
