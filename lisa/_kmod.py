@@ -1760,7 +1760,7 @@ class DynamicKmod(Loggable):
                     # checksum, which is not always the case when it's not
                     # coming from a controlled source that is guaranteed to be
                     # immutable.
-                    return get_bin(kernel_tree)
+                    bin_ = get_bin(kernel_tree)
                 else:
                     key = get_key(kernel_tree)
                     bin_ = lookup_cache(kernel_tree, key)
