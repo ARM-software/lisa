@@ -5494,11 +5494,6 @@ class FtraceCollector(CollectorBase, Configurable):
     TOOLS = ['trace-cmd']
     _COMPOSITION_ORDER = 0
 
-    _FTRACE_KMOD_CLASSES = [
-        LISAFtraceDynamicKmod,
-    ]
-    "Class for dynamic kernel modules providing ftrace events"
-
     def __init__(self, target, *, events=None, functions=None, buffer_size=10240, output_path=None, autoreport=False, trace_clock=None, saved_cmdlines_nr=8192, tracer=None, kmod_auto_load=True, **kwargs):
         if events is None:
             events = AndTraceEventChecker([])
@@ -5609,9 +5604,11 @@ class FtraceCollector(CollectorBase, Configurable):
         # If some events are not already available on that kernel, look them up
         # in custom modules
         needed_from_kmod = missing_events | missing_optional_events
+        kmod = None
+        kmod_cm = None
         if needed_from_kmod and kmod_auto_load:
             try:
-                kmods = self._get_kmods(
+                kmod, kmod_cm= self._get_kmod(
                     target,
                     available_events=available_events,
                     needed_events=needed_from_kmod,
@@ -5621,12 +5618,10 @@ class FtraceCollector(CollectorBase, Configurable):
                     raise
                 else:
                     self.logger.error(f'Could not build the kernel module needed for optional events ({", ".join(sorted(missing_optional_events))}): {e}')
-                    kmods = []
-        else:
-            kmods = []
-        self._kmods = kmods
 
-        for kmod in kmods:
+        self._kmod_cm = kmod_cm
+
+        if kmod is not None:
             events.update(
                 set(kmod.defined_events) & needed_from_kmod
             )
@@ -5671,50 +5666,33 @@ class FtraceCollector(CollectorBase, Configurable):
         super().__init__(collector, output_path=output_path)
 
     @classmethod
-    def _get_kmods(cls, target, available_events, needed_events):
-        def need_mod(mod_cls):
-            kmod = target.get_kmod(mod_cls)
-            defined_events = set(kmod.defined_events)
-            needed = needed_events & defined_events
+    def _get_kmod(cls, target, available_events, needed_events):
+        kmod = target.get_kmod(LISAFtraceDynamicKmod)
+        defined_events = set(kmod.defined_events)
+        needed = needed_events & defined_events
+        if needed:
             overlapping = defined_events & available_events
-            if overlapping and needed:
+            if overlapping:
                 raise ValueError(f'Events defined in {mod.src.mod_name} ({", ".join(needed)}) are needed but some events overlap with the ones already provided by the kernel: {", ".join(overlapping)}')
-            kmod = kmod if needed else None
-            return (kmod, needed)
-
-        mods = list(map(need_mod, cls._FTRACE_KMOD_CLASSES))
-        if mods:
-            def check(acc, mod_spec):
-                mods, already_defined = acc
-                mod, defined = mod_spec
-                if mod is None:
-                    return acc
-                else:
-                    overlapping = defined & already_defined.keys()
-                    if overlapping:
-                        already = ', '.join(
-                            f'{event} ({mod.src.mod_name})'
-                            for event in sorted(overlapping)
-                        )
-                        raise ValueError(f'Module {mod.src.mod_name} redefining events already defined in some other modules: {already}')
-                    else:
-                        already_defined = {
-                            **{
-                                event: mod
-                                for event in defined
-                            },
-                            **already_defined,
+            else:
+                return (
+                    kmod,
+                    functools.partial(
+                        kmod.run,
+                        kmod_params={
+                            'features': sorted(kmod._event_features(needed))
                         }
-                        return (mods + [mod], already_defined)
-            mods, _ = functools.reduce(check, mods, ([], {}))
-
-        return mods
+                    )
+                )
+        else:
+            return (None, None)
 
     @contextlib.contextmanager
     def _make_cm(self, record=True):
         with contextlib.ExitStack() as stack:
-            for kmod in self._kmods:
-                stack.enter_context(kmod.run())
+            kmod_cm = self._kmod_cm
+            if kmod_cm is not None:
+                stack.enter_context(kmod_cm())
 
             if record:
                 proxy = super()
