@@ -127,7 +127,9 @@ import datetime
 import pwd
 import glob
 import collections
+import collections.abc
 import hashlib
+from operator import itemgetter
 from shlex import quote
 from io import BytesIO
 
@@ -1769,17 +1771,39 @@ class DynamicKmod(Loggable):
 
         return (bin_, kernel_tree._to_spec())
 
-    def install(self):
+    def install(self, kmod_params=None):
         """
         Install and load the module on the target.
+
+        :param kmod_params: Parameters to pass to the module via ``insmod``.
+            Non-string iterable values will be turned into a comma-separated
+            string following the ``module_param_array()`` kernel API syntax.
+        :type kmod_params: dict(str, object) or None
         """
         def target_mktemp():
             return target.execute(
                 f'mktemp -p {quote(target.working_directory)}'
             ).strip()
 
+        def make_str(x):
+            if isinstance(x, str):
+                return x
+            elif isinstance(x, collections.abc.Iterable):
+                return ','.join(map(make_str, x))
+            else:
+                return str(x)
+
         target = self.target
         content = self._compile()
+
+        kmod_params = kmod_params or {}
+        params = ' '.join(
+            f'{quote(k)}={quote(make_str(v))}'
+            for k, v in sorted(
+                kmod_params.items(),
+                key=itemgetter(0),
+            )
+        )
 
         with tempfile.NamedTemporaryFile('wb', suffix='.ko') as f:
             f.write(content)
@@ -1788,7 +1812,7 @@ class DynamicKmod(Loggable):
             temp_ko = target_mktemp()
             try:
                 target.push(f.name, temp_ko)
-                target.execute(f'insmod {quote(temp_ko)}', as_root=True)
+                target.execute(f'insmod {quote(temp_ko)} {params}', as_root=True)
             finally:
                 target.remove(temp_ko)
 
@@ -1799,16 +1823,18 @@ class DynamicKmod(Loggable):
         self.target.execute(f'rmmod {quote(self.src.mod_name)}')
 
     @contextlib.contextmanager
-    def run(self):
+    def run(self, **kwargs):
         """
         Context manager used to run the module by loading it then unloading it.
+
+        :Variable keyword arguments: Forwarded to :meth:`install`.
         """
         try:
             self.uninstall()
         except Exception:
             pass
 
-        x = self.install()
+        x = self.install(**kwargs)
         try:
             yield x
         finally:
@@ -1899,5 +1925,9 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
             src=src,
             **kwargs,
         )
+
+    @classmethod
+    def _event_features(cls, events):
+        return set(f'event__{event}' for event in events)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
