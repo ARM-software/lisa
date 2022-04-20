@@ -1893,7 +1893,7 @@ class LISAFtraceDynamicKmod(FtraceDynamicKmod):
         extra = {
             'vmlinux': btf
         }
-        src = KmodSrc.from_path(path, extra=extra)
+        src = KmodSrc.from_path(path, extra=extra, name='lisa')
         return cls(
             target=target,
             src=src,
