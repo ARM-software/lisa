@@ -461,7 +461,7 @@ class Target(object):
         once = functools.lru_cache(maxsize=None)
 
         _target_cache = {}
-        def target_paths_kind(paths):
+        def target_paths_kind(paths, as_root=False):
             def process(x):
                 x = x.strip()
                 if x == 'notexist':
@@ -481,7 +481,7 @@ class Target(object):
                     )
                     for path in _paths
                 )
-                res = self.execute(cmd)
+                res = self.execute(cmd, as_root=as_root)
                 _target_cache.update(zip(_paths, map(process, res.split())))
 
             return [
@@ -490,7 +490,7 @@ class Target(object):
             ]
 
         _host_cache = {}
-        def host_paths_kind(paths):
+        def host_paths_kind(paths, as_root=False):
             def path_kind(path):
                 if os.path.isdir(path):
                     return 'dir'
@@ -535,9 +535,9 @@ class Target(object):
         def rewrite_dst(src, dst):
             new_dst = dst_path_join(dst, os.path.basename(src))
 
-            src_kind, = src_path_kind([src])
+            src_kind, = src_path_kind([src], as_root)
             # Batch both checks to avoid a costly extra execute()
-            dst_kind, new_dst_kind = dst_paths_kind([dst, new_dst])
+            dst_kind, new_dst_kind = dst_paths_kind([dst, new_dst], as_root)
 
             if src_kind == 'file':
                 if dst_kind == 'dir':

@@ -10,6 +10,8 @@ SED=${SED:-$BUSYBOX sed}
 CAT=${CAT:-$BUSYBOX cat}
 AWK=${AWK:-$BUSYBOX awk}
 PS=${PS:-$BUSYBOX ps}
+MOUNT=${MOUNT:-$BUSYBOX mount}
+PRINTF=${PRINTF:-$BUSYBOX printf}
 
 ################################################################################
 # CPUFrequency Utility Functions
@@ -40,9 +42,10 @@ cpufreq_get_all_governors() {
 }
 
 cpufreq_trace_all_frequencies() {
-	FREQS=$($CAT /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq)
-	CPU=0; for F in $FREQS; do
-		echo "cpu_frequency_devlib:        state=$F cpu_id=$CPU" > /sys/kernel/debug/tracing/trace_marker
+	local TRACEFS=$(get_tracefs_mount_point)
+	local FREQS=$($CAT /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq)
+	local CPU=0; for F in $FREQS; do
+		printf "%s\n" "cpu_frequency_devlib: state=$F cpu_id=$CPU" > $TRACEFS/trace_marker
 		CPU=$((CPU + 1))
 	done
 }
@@ -94,10 +97,15 @@ cpuidle_wake_all_cpus() {
 # FTrace Utility Functions
 ################################################################################
 
+get_tracefs_mount_point() {
+    get_fs_mount_point tracefs || $PRINTF "%s" '/sys/kernel/debug/tracing'
+}
+
 ftrace_get_function_stats() {
-    for CPU in $(ls /sys/kernel/debug/tracing/trace_stat | sed 's/function//'); do
+    local TRACEFS=$(get_tracefs_mount_point)
+    for CPU in $(ls $TRACEFS/trace_stat | sed 's/function//'); do
         REPLACE_STRING="s/  Function/\n  Function (CPU$CPU)/"
-        $CAT /sys/kernel/debug/tracing/trace_stat/function$CPU \
+        $CAT $TRACEFS/trace_stat/function$CPU \
             | sed "$REPLACE_STRING"
     done
 }
@@ -319,80 +327,28 @@ get_android_system_id() {
 	echo "$hardware/$kernel/$filesystem"
 }
 
+get_fs_mount_point() {
+    local path=$(LC_ALL=C $MOUNT -t "$1" | $SED -n "s/$1 on \(.*\) type $1 .*/\1/p;q")
+    if [ "$path" == "" ]; then
+        return 1
+    else
+        $PRINTF "%s" "$path"
+        return 0
+    fi
+}
+
 ################################################################################
 # Main Function Dispatcher
 ################################################################################
 
-case $CMD in
-cpufreq_set_all_frequencies)
-    cpufreq_set_all_frequencies $*
-    ;;
-cpufreq_get_all_frequencies)
-    cpufreq_get_all_frequencies
-    ;;
-cpufreq_set_all_governors)
-    cpufreq_set_all_governors $*
-    ;;
-cpufreq_get_all_governors)
-    cpufreq_get_all_governors
-    ;;
-cpufreq_trace_all_frequencies)
-    cpufreq_trace_all_frequencies $*
-    ;;
-devfreq_set_all_frequencies)
-    devfreq_set_all_frequencies $*
-    ;;
-devfreq_get_all_frequencies)
-    devfreq_get_all_frequencies
-    ;;
-devfreq_set_all_governors)
-    devfreq_set_all_governors $*
-    ;;
-devfreq_get_all_governors)
-    devfreq_get_all_governors
-    ;;
-cpuidle_wake_all_cpus)
-    cpuidle_wake_all_cpus $*
-    ;;
-cgroups_get_attributes)
-	cgroups_get_attributes $*
-	;;
-cgroups_run_into)
-    cgroups_run_into $*
-    ;;
-cgroups_tasks_move)
-	cgroups_tasks_move $*
-	;;
-cgroups_tasks_in)
-	cgroups_tasks_in $*
-	;;
-cgroups_freezer_set_state)
-	cgroups_freezer_set_state $*
-	;;
-ftrace_get_function_stats)
-    ftrace_get_function_stats
-    ;;
-hotplug_online_all)
-	hotplug_online_all
-    ;;
-read_tree_values)
-	read_tree_values $*
-    ;;
-read_tree_tgz_b64)
-	read_tree_tgz_b64 $*
-    ;;
-get_linux_system_id)
-	get_linux_system_id $*
-    ;;
-get_android_system_id)
-	get_android_system_id $*
-    ;;
-sched_get_kernel_attributes)
-	sched_get_kernel_attributes $*
-	;;
-*)
+# Use a function instead of a subshell so "exit 1" works as expected
+_command_not_found() {
     echo "Command [$CMD] not supported"
-    exit -1
-esac
+    exit 1
+}
+# Check the command exists
+type "$CMD" 2>&1 >/dev/null || _command_not_found
+
+"$CMD" "$@"
 
 # vim: tabstop=4 shiftwidth=4
