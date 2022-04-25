@@ -61,7 +61,7 @@ class FtraceCollector(CollectorBase):
                  trace_children_functions=False,
                  buffer_size=None,
                  buffer_size_step=1000,
-                 tracing_path='/sys/kernel/debug/tracing',
+                 tracing_path=None,
                  automark=True,
                  autoreport=True,
                  autoview=False,
@@ -77,7 +77,7 @@ class FtraceCollector(CollectorBase):
         self.tracer = tracer
         self.trace_children_functions = trace_children_functions
         self.buffer_size = buffer_size
-        self.tracing_path = tracing_path
+        self.tracing_path = self._resolve_tracing_path(target, tracing_path)
         self.automark = automark
         self.autoreport = autoreport
         self.autoview = autoview
@@ -193,6 +193,25 @@ class FtraceCollector(CollectorBase):
 
         self.event_string = _build_trace_events(selected_events)
 
+    @classmethod
+    def _resolve_tracing_path(cls, target, path):
+        if path is None:
+            return cls.find_tracing_path(target)
+        else:
+            return path
+
+    @classmethod
+    def find_tracing_path(cls, target):
+        fs_list = [
+            fs.mount_point
+            for fs in target.list_file_systems()
+            if fs.fs_type == 'tracefs'
+        ]
+        try:
+            return fs_list[0]
+        except IndexError:
+            # Default legacy value, when the kernel did not have a tracefs yet
+            return '/sys/kernel/debug/tracing'
 
     @property
     @memoized
