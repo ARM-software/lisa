@@ -9,15 +9,12 @@ version: 2
 sphinx:
   builder: html
   configuration: doc/conf.py
-  # intersphinx is broken for some dependencies like devlib
-  fail_on_warning: false
 
+# Build the docs in additional formats such as PDF and ePub
+formats: all
 
-# Only build default HTML to save some build time
-formats: []
-
-# Optionally set the version of Python and requirements required to build your docs
+# Set the version of Python and requirements required to build your docs
 python:
-  version: 3.7
-  install:
-    - requirements: doc/doc_requirements.txt
+   version: 3.7
+   install:
+     - requirements: doc/requirements.txt
