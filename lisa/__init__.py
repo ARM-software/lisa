@@ -22,6 +22,16 @@ warnings.filterwarnings(
     module=fr'{__name__}\..*',
 )
 
+try:
+    from cryptography.utils import CryptographyDeprecationWarning
+except ImportError:
+    pass
+else:
+    warnings.filterwarnings(
+        action='ignore',
+        category=CryptographyDeprecationWarning,
+    )
+
 # When the deprecated APIs are used from __main__ (script or notebook), always
 # show the warning
 warnings.filterwarnings(
