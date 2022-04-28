@@ -1525,7 +1525,9 @@ class KmodSrc(Loggable):
             }
 
             for name, content in src.items():
-                with open(mod_path / name, 'wb') as f:
+                file_path = mod_path / name
+                file_path.parent.mkdir(exist_ok=True)
+                with open(file_path, 'wb') as f:
                     f.write(content)
 
         def make_cmd(tree_path, mod_path, make_vars):
