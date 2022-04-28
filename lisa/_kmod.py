@@ -1591,7 +1591,7 @@ class KmodSrc(Loggable):
                 return f.read()
 
     @classmethod
-    def from_path(cls, path, extra=None):
+    def from_path(cls, path, extra=None, **kwargs):
         """
         Build an instance from the path to the sources.
 
@@ -1611,7 +1611,7 @@ class KmodSrc(Loggable):
         }
         src.update(extra or {})
 
-        return cls(src=src)
+        return cls(src=src, **kwargs)
 
 
 class DynamicKmod(Loggable):
