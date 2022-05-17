@@ -517,7 +517,7 @@ class Target(object):
             src_excep = HostError
             src_path_kind = host_paths_kind
 
-            dst_mkdir = once(self.makedirs)
+            _dst_mkdir = once(self.makedirs)
             dst_path_join = self.path.join
             dst_paths_kind = target_paths_kind
             dst_remove_file = once(functools.partial(self.remove, as_root=as_root))
@@ -525,12 +525,17 @@ class Target(object):
             src_excep = TargetStableError
             src_path_kind = target_paths_kind
 
-            dst_mkdir = once(functools.partial(os.makedirs, exist_ok=True))
+            _dst_mkdir = once(functools.partial(os.makedirs, exist_ok=True))
             dst_path_join = os.path.join
             dst_paths_kind = host_paths_kind
             dst_remove_file = once(os.remove)
         else:
             raise ValueError('Unknown action "{}"'.format(action))
+
+        # Handle the case where path is None
+        def dst_mkdir(path):
+            if path:
+                _dst_mkdir(path)
 
         def rewrite_dst(src, dst):
             new_dst = dst_path_join(dst, os.path.basename(src))
@@ -927,8 +932,8 @@ fi
 
     # files
 
-    def makedirs(self, path):
-        self.execute('mkdir -p {}'.format(quote(path)))
+    def makedirs(self, path, as_root=False):
+        self.execute('mkdir -p {}'.format(quote(path)), as_root=as_root)
 
     def file_exists(self, filepath):
         command = 'if [ -e {} ]; then echo 1; else echo 0; fi'
@@ -1265,7 +1270,7 @@ fi
             try:
                 mod.install(self, **params)
             except Exception as e:
-                self.logger.error('Module "{}" failed to install on target'.format(name))
+                self.logger.error('Module "{}" failed to install on target: {}'.format(name, e))
                 raise
             self._installed_modules[name] = mod
             if name not in self.modules:

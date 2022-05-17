@@ -36,7 +36,7 @@ _KILL_TIMEOUT = 3
 
 
 def _kill_pgid_cmd(pgid, sig, busybox):
-    return '{} kill -{} -{}'.format(busybox, sig.value, pgid)
+    return '{} kill -{} -- -{}'.format(busybox, sig.value, pgid)
 
 def _popen_communicate(bg, popen, input, timeout):
     try:

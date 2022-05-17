@@ -17,6 +17,8 @@ import logging
 import re
 from collections import namedtuple
 from shlex import quote
+import itertools
+import warnings
 
 from devlib.module import Module
 from devlib.exception import TargetStableError
@@ -123,8 +125,19 @@ class Controller(object):
         return cgroups
 
     def move_tasks(self, source, dest, exclude=None):
+        if isinstance(exclude, str):
+            warnings.warn("Controller.move_tasks() takes needs a _list_ of exclude patterns, not a string", DeprecationWarning)
+            exclude = [exclude]
+
         if exclude is None:
             exclude = []
+
+        exclude = ' '.join(
+            itertools.chain.from_iterable(
+                ('-e', quote(pattern))
+                for pattern in exclude
+            )
+        )
 
         srcg = self.cgroup(source)
         dstg = self.cgroup(dest)
@@ -133,7 +146,7 @@ class Controller(object):
             'cgroups_tasks_move {src} {dst} {exclude}'.format(
                 src=quote(srcg.directory),
                 dst=quote(dstg.directory),
-                exclude=' '.join(map(quote, exclude))
+                exclude=exclude,
             ),
             as_root=True,
         )
@@ -165,18 +178,11 @@ class Controller(object):
         self.logger.debug('Moving all tasks into %s', dest)
 
         # Build list of tasks to exclude
-        grep_filters = ' '.join(
-            '-e {}'.format(comm)
-            for comm in exclude
-        )
-        self.logger.debug('   using grep filter: %s', grep_filters)
-        if grep_filters != '':
-            self.logger.debug('   excluding tasks which name matches:')
-            self.logger.debug('   %s', ', '.join(exclude))
+        self.logger.debug('   using grep filter: %s', exclude)
 
         for cgroup in self.list_all():
             if cgroup != dest:
-                self.move_tasks(cgroup, dest, grep_filters)
+                self.move_tasks(cgroup, dest, exclude)
 
     # pylint: disable=too-many-locals
     def tasks(self, cgroup,
