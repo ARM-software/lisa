@@ -583,7 +583,20 @@ class SshConnection(SshConnectionBase):
             timeout=None,
             executor=executor,
         )
-        pid = int(stdout_in.readline())
+        pid = stdout_in.readline()
+        if not pid:
+            stderr = stderr_in.read()
+            if channel.exit_status_ready():
+                ret = channel.recv_exit_status()
+            else:
+                ret = 126
+            raise subprocess.CalledProcessError(
+                ret,
+                command,
+                b'',
+                stderr,
+            )
+        pid = int(pid)
 
         def create_out_stream(stream_in, stream_out):
             """
