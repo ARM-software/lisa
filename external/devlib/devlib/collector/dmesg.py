@@ -22,6 +22,7 @@ from devlib.collector import (CollectorBase, CollectorOutput,
                               CollectorOutputEntry)
 from devlib.target import KernelConfigTristate
 from devlib.exception import TargetStableError
+from devlib.utils.misc import memoized
 
 
 class KernelLogEntry(object):
@@ -39,20 +40,26 @@ class KernelLogEntry(object):
 
     :param msg: Content of the entry
     :type msg: str
+
+    :param line_nr: Line number at which this entry appeared in the ``dmesg``
+        output. Note that this is not guaranteed to be unique across collectors, as
+        the buffer can be cleared. The timestamp is the only reliable index.
+    :type line_nr: int
     """
 
     _TIMESTAMP_MSG_REGEX = re.compile(r'\[(.*?)\] (.*)')
     _RAW_LEVEL_REGEX = re.compile(r'<([0-9]+)>(.*)')
     _PRETTY_LEVEL_REGEX = re.compile(r'\s*([a-z]+)\s*:([a-z]+)\s*:\s*(.*)')
 
-    def __init__(self, facility, level, timestamp, msg):
+    def __init__(self, facility, level, timestamp, msg, line_nr=0):
         self.facility = facility
         self.level = level
         self.timestamp = timestamp
         self.msg = msg
+        self.line_nr = line_nr
 
     @classmethod
-    def from_str(cls, line):
+    def from_str(cls, line, line_nr=0):
         """
         Parses a "dmesg --decode" output line, formatted as following:
         kern  :err   : [3618282.310743] nouveau 0000:01:00.0: systemd-logind[988]: nv50cal_space: -16
@@ -99,6 +106,7 @@ class KernelLogEntry(object):
             level=level,
             timestamp=timestamp,
             msg=msg.strip(),
+            line_nr=line_nr,
         )
 
     @classmethod
@@ -110,9 +118,9 @@ class KernelLogEntry(object):
         .. note:: The same restrictions on the dmesg output format as for
             :meth:`from_str` apply.
         """
-        for line in dmesg_out.splitlines():
+        for i, line in enumerate(dmesg_out.splitlines()):
             if line.strip():
-                yield cls.from_str(line)
+                yield cls.from_str(line, line_nr=i)
 
     def __str__(self):
         facility = self.facility + ': ' if self.facility else ''
@@ -135,6 +143,11 @@ class DmesgCollector(CollectorBase):
     :param facility: Facility to record, see dmesg --help for the list.
     :type level: str
 
+    :param empty_buffer: If ``True``, the kernel dmesg ring buffer will be
+        emptied before starting. Note that this will break nesting of collectors,
+        so it's not recommended unless it's really necessary.
+    :type empty_buffer: bool
+
     .. warning:: If BusyBox dmesg is used, facility and level will be ignored,
         and the parsed entries will also lack that information.
     """
@@ -152,7 +165,7 @@ class DmesgCollector(CollectorBase):
         "debug",        # debug-level messages
     ]
 
-    def __init__(self, target, level=LOG_LEVELS[-1], facility='kern'):
+    def __init__(self, target, level=LOG_LEVELS[-1], facility='kern', empty_buffer=False):
         super(DmesgCollector, self).__init__(target)
 
         if not target.is_rooted:
@@ -175,19 +188,72 @@ class DmesgCollector(CollectorBase):
         self.facility = facility
         self.needs_root = bool(target.config.typed_config.get(
             'CONFIG_SECURITY_DMESG_RESTRICT', KernelConfigTristate.NO))
-        self.reset()
+
+        self._begin_timestamp = None
+        self.empty_buffer = empty_buffer
+        self._dmesg_out = None
+
+    @property
+    def dmesg_out(self):
+        out = self._dmesg_out
+        if out is None:
+            return None
+        else:
+            try:
+                entry = self.entries[0]
+            except IndexError:
+                i = 0
+            else:
+                i = entry.line_nr
+            return '\n'.join(out.splitlines()[i:])
 
     @property
     def entries(self):
-        return KernelLogEntry.from_dmesg_output(self.dmesg_out)
+        return self._get_entries(self._dmesg_out, self._begin_timestamp)
+
+    @memoized
+    def _get_entries(self, dmesg_out, timestamp):
+        entries = KernelLogEntry.from_dmesg_output(dmesg_out)
+        entries = list(entries)
+        if timestamp is None:
+            return entries
+        else:
+            try:
+                first = entries[0]
+            except IndexError:
+                pass
+            else:
+                if first.timestamp > timestamp:
+                    msg = 'The dmesg ring buffer has ran out of memory or has been cleared and some entries have been lost'
+                    raise ValueError(msg)
+
+            return [
+                entry
+                for entry in entries
+                # Only select entries that are more recent than the one at last
+                # reset()
+                if entry.timestamp > timestamp
+            ]
 
     def reset(self):
-        self.dmesg_out = None
+        # If the buffer is emptied on start(), it does not matter as we will
+        # not end up with entries dating from before start()
+        if self.empty_buffer:
+            # Empty the dmesg ring buffer. This requires root in all cases
+            self.target.execute('dmesg -c', as_root=True)
+        else:
+            self.stop()
+            try:
+                entry = self.entries[-1]
+            except IndexError:
+                pass
+            else:
+                self._begin_timestamp = entry.timestamp
+
+        self._dmesg_out = None
 
     def start(self):
         self.reset()
-        # Empty the dmesg ring buffer. This requires root in all cases
-        self.target.execute('dmesg -c', as_root=True)
 
     def stop(self):
         levels_list = list(takewhile(
@@ -203,7 +269,7 @@ class DmesgCollector(CollectorBase):
                 facility=self.facility,
             )
 
-        self.dmesg_out = self.target.execute(cmd, as_root=self.needs_root)
+        self._dmesg_out = self.target.execute(cmd, as_root=self.needs_root)
 
     def set_output(self, output_path):
         self.output_path = output_path
