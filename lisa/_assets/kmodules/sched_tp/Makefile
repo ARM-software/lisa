@@ -54,9 +54,9 @@ else
 endif
 
 $(VMLINUX_H): $(VMLINUX_TXT) $(VMLINUX)
-# --inner_anonymous and --skip_missing are not upstream yet, but they have been
-# --submitted on the mailing list
-	pahole --inner_anonymous -E --skip_missing -C file://$(VMLINUX_TXT) $(VMLINUX) > _header
+# Some options are not upstream (yet) but they have all be published on the
+# dwarves mailing list
+	pahole -E --suppress_force_paddings --skip_missing --forward_decl --expand_types_once --expanded_prefix "KERNEL_PRIVATE_" -C file://$(VMLINUX_TXT) $(VMLINUX) > _header
 # Create forward declaration of every type
 	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' _header | sort -u > _fwd_decl
 # Create TYPED_DEFINED_struct_foo macros for every type, so the client code can
