@@ -21,6 +21,7 @@ build() {
       cd build
       cmake \
           -DSTATIC_LINK=ON \
+          -DCMAKE_BUILD_TYPE=Release \
           .. \
       &&
       make pahole
