@@ -1,5 +1,3 @@
-cpupri
-cfs_bandwidth
 cfs_rq
 rq
 root_domain
