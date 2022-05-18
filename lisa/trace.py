@@ -5513,7 +5513,8 @@ class FtraceCollector(CollectorBase, Configurable):
             if Trace._is_meta_event(event)
         }
 
-        available_events = self._target_available_events(target)
+        tracing_path = devlib.FtraceCollector.find_tracing_path(target)
+        available_events = self._target_available_events(target, tracing_path)
 
         # trace-cmd start complains if given these events, even though they are
         # valid
@@ -5664,6 +5665,7 @@ class FtraceCollector(CollectorBase, Configurable):
                 # Prevent devlib from pushing its own trace-cmd since we provide
                 # our own binary
                 no_install=True,
+                tracing_path=tracing_path,
                 **kwargs
             )
         super().__init__(collector, output_path=output_path)
@@ -5738,8 +5740,8 @@ class FtraceCollector(CollectorBase, Configurable):
         return x
 
     @staticmethod
-    def _target_available_events(target):
-        events = target.read_value('/sys/kernel/debug/tracing/available_events')
+    def _target_available_events(target, tracing_path):
+        events = target.read_value(target.path.join(tracing_path, 'available_events'))
         return set(
             event.split(':', 1)[1]
             for event in events.splitlines()
