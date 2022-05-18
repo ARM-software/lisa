@@ -1637,7 +1637,14 @@ class DynamicKmod(Loggable):
     def __init__(self, target, src, kernel_tree=None):
         self.src = src
         self.target = target
-        self._user_kernel_tree = kernel_tree
+
+        if not isinstance(kernel_tree, KernelTree):
+            kernel_tree = KernelTree.from_target(
+                target=self.target,
+                tree_path=kernel_tree,
+            )
+
+        self._kernel_tree = kernel_tree
 
     @classmethod
     def from_target(cls, target, **kwargs):
@@ -1650,39 +1657,10 @@ class DynamicKmod(Loggable):
         """
         return cls(target=target, **kwargs)
 
-    @staticmethod
-    def _resolve_tree_spec(tree):
-        if isinstance(tree, KernelTree):
-            spec = {
-                'build_env': tree.build_env,
-                'overlay_backend': tree.overlay_backend,
-            }
-        else:
-            spec = {
-                'tree_path': tree,
-                'build_env': KernelTree._resolve_build_env(
-                    spec.get('build_env')
-                ),
-                'overlay_backend': KernelTree._resolve_overlay_backend(
-                    spec.get('overlay_backend')
-                )
-            }
-
-        return spec
-
     @property
     @memoized
     def kernel_tree(self):
-        tree = self._user_kernel_tree
-        if isinstance(tree, KernelTree):
-            pass
-        else:
-            spec = self._resolve_tree_spec(tree)
-            tree = KernelTree.from_target(
-                target=self.target,
-                **self._resolve_tree_spec(tree),
-            )
-
+        tree = self._kernel_tree
         arch = _any_abi_to_kernel_arch(
             self.target.plat_info['abi']
         )
@@ -1694,10 +1672,10 @@ class DynamicKmod(Loggable):
 
     @property
     def _compile_needs_root(self):
-        spec = self._resolve_tree_spec(self._user_kernel_tree)
+        tree = self.kernel_tree
         return (
-            spec['build_env'] != 'host' or
-            spec['overlay_backend'] == 'overlayfs'
+            tree.build_env != 'host' or
+            tree.overlay_backend == 'overlayfs'
         )
 
     # Dummy memoized wrapper. The only reason we need one is that _do_compile()
