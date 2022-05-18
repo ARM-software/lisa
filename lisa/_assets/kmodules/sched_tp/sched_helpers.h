@@ -65,7 +65,7 @@ static inline void cfs_rq_tg_path(struct cfs_rq *cfs_rq, char *path, int len)
 	if (cfs_rq && task_group_is_autogroup(cfs_rq->tg))
 		autogroup_path(cfs_rq->tg, path, len);
 	else if (cfs_rq && cfs_rq->tg->css.cgroup)
-		cgroup_path(cfs_rq->tg->css.cgroup, path, len);
+		cgroup_path((struct cgroup *)cfs_rq->tg->css.cgroup, path, len);
 	else
 #endif
 		strlcpy(path, "(null)", len);
