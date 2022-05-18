@@ -1614,6 +1614,13 @@ class KmodSrc(Loggable):
         return cls(src=src, **kwargs)
 
 
+class CannotLoadModuleError(Exception):
+    """
+    Raised when a kernel module cannot be loaded (or will not be loaded because
+    of nasty side effects).
+    """
+
+
 class DynamicKmod(Loggable):
     """
     Dynamic kernel module that can be compiled on the go by LISA.
@@ -1843,11 +1850,20 @@ class DynamicKmod(Loggable):
             self.uninstall()
 
 
-
 class FtraceDynamicKmod(DynamicKmod):
     """
     Dynamic module providing some custom ftrace events.
     """
+
+    def install(self, *args, **kwargs):
+        config = self.target.plat_info['kernel']['config']
+
+        # Check for CFI as registering tracepoint probes apparently results in
+        # violations
+        if config.get('CFI_CLANG', False) and not config.get('CFI_PERMISSIVE', False):
+            raise CannotLoadModuleError('CFI (Control-flow integrity) is enabled and loading the module will crash the kernel. Setting CONFIG_CFI_PERMISSIVE=y will turn the crash into a warning')
+        else:
+            return super().install(*args, **kwargs)
 
     def _get_symbols(self, section=None):
         content = self._compile()
