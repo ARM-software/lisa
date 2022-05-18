@@ -202,10 +202,10 @@ class DmesgCollector(CollectorBase):
             try:
                 entry = self.entries[0]
             except IndexError:
-                i = 0
+                return ''
             else:
                 i = entry.line_nr
-            return '\n'.join(out.splitlines()[i:])
+                return '\n'.join(out.splitlines()[i:])
 
     @property
     def entries(self):
@@ -278,5 +278,5 @@ class DmesgCollector(CollectorBase):
         if self.output_path is None:
             raise RuntimeError("Output path was not set.")
         with open(self.output_path, 'wt') as f:
-            f.write(self.dmesg_out + '\n')
+            f.write((self.dmesg_out or '') + '\n')
         return CollectorOutput([CollectorOutputEntry(self.output_path, 'file')])
