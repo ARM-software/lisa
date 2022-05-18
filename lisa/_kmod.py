@@ -796,7 +796,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
 
 
     @classmethod
-    def _prepare_tree(cls, path, make_vars, build_env, apply_overlays):
+    def _prepare_tree(cls, path, make_vars, build_env, apply_overlays, overlay_backend):
         logger = cls.get_logger()
         _make_vars = [
             f'{name}={val}'
@@ -836,7 +836,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
         if build_env == 'alpine':
             @contextlib.contextmanager
             def cmd_cm(cmds):
-                with _make_chroot(bind_paths=bind_paths, make_vars=make_vars) as chroot:
+                with _make_chroot(bind_paths=bind_paths, make_vars=make_vars, overlay_backend=overlay_backend) as chroot:
                     yield [
                         _make_chroot_cmd(chroot, cmd) if cmd else None
                         for cmd in cmds
@@ -1274,6 +1274,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
                 make_vars=make_vars,
                 build_env=build_env,
                 apply_overlays=functools.partial(apply_overlays, path),
+                overlay_backend=overlay_backend,
             )
 
         @contextlib.contextmanager
@@ -1509,6 +1510,7 @@ class KmodSrc(Loggable):
         :type make_vars: dict(str, object) or None
         """
         make_vars = dict(make_vars or {})
+        overlay_backend = kernel_tree.overlay_backend
         tree_path = Path(kernel_tree.path)
         # "inherit" the build env from the KernelTree as we must use the same
         # environment as what was used for "make modules_prepare"
@@ -1557,7 +1559,7 @@ class KmodSrc(Loggable):
         if build_env == 'alpine':
             @contextlib.contextmanager
             def cmd_cm():
-                with _make_chroot(bind_paths=bind_paths, make_vars=make_vars) as chroot:
+                with _make_chroot(bind_paths=bind_paths, make_vars=make_vars, overlay_backend=overlay_backend) as chroot:
                     # Do not use a CM here to avoid choking on permission
                     # issues. Since the chroot itself will be entirely
                     # removed it's not a problem.
