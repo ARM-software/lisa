@@ -932,11 +932,14 @@ class KernelTree(Loggable, SerializeViaConstructor):
 
                     logger.debug(f'CROSS_COMPILE env var not set, assuming "{toolchain}"')
 
+        def test_cmd(cc):
+            return [cc, *([f'--target={toolchain}'] if toolchain else []), '-x' 'c', '-c', '-', '-o', '/dev/null']
+
         commands = {
             # Try clang first so we can use the "musttail" return attribute
             # when possible
             **{
-                cc: [cc, *([f'--target={toolchain}'] if toolchain else []), '-x' 'c', '-c', '-', '-o', '/dev/null']
+                cc: test_cmd(cc)
                 # Try the default "clang" name first in case it's good enough
                 for cc in ['clang'] + [
                     f'clang-{i}'
@@ -963,6 +966,15 @@ class KernelTree(Loggable, SerializeViaConstructor):
         # avoid having to use QEMU userspace emulation which is really slow.
         elif build_env == 'alpine':
             cc = 'clang'
+
+        if 'LLVM' in make_vars:
+            cc = cc or 'clang'
+            llvm = make_vars['LLVM']
+            version = llvm if llvm.startswith('-') else ''
+            if cc == 'clang' and version:
+                commands = {
+                    cc: test_cmd(cc + version),
+                }
 
         # Only run the check on host build env, as other build envs are
         # expected to be correctly configured.
