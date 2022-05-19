@@ -953,7 +953,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
         cc = None
 
         if 'CC' in make_vars:
-            cc = make_vars['CC'] or 'gcc'
+            cc = make_vars['CC']
             try:
                 commands = {cc: commands[cc]}
             except KeyError:
