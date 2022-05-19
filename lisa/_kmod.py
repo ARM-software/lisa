@@ -624,7 +624,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
 
     :param make_vars: Variables passed on ``make`` command line when preparing
         the kernel tree.
-    :type make_vars: dict(str, object)
+    :type make_vars: dict(str, str)
 
     :param build_env: Build environment to use. Can be one of:
 
@@ -864,7 +864,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
     @classmethod
     def _process_make_vars(cls, build_env, make_vars, abi=None):
         env = {
-            k: v
+            k: str(v)
             for k, v in (
                 (k, os.getenv(k)) for k in {
                     'CROSS_COMPILE',
