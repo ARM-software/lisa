@@ -57,8 +57,20 @@ $(VMLINUX_H): $(VMLINUX_TXT) $(VMLINUX)
 # Some options are not upstream (yet) but they have all be published on the
 # dwarves mailing list
 #
-# Use BTF first, as there seems to be some duplicated fields issues with DWARF (at least with Android's clang)
-	pahole -F btf,dwarf -E --suppress_force_paddings --skip_missing --forward_decl --expand_types_once --expanded_prefix "KERNEL_PRIVATE_" -C file://$(VMLINUX_TXT) $(VMLINUX) > _header
+# Options:
+# -F btf,dwarf: Use BTF first
+# -E: Expand nested type definitions
+# --suppress_force_paddings: Remove the "artificial" padding members pahole adds
+#   to make padding more visible. They are not always valid C syntax and can
+#   break build
+# --skip_missing: Keep going if one of the types is not found
+# --forward_decl: (non upstream) Include forward declaration of union and struct
+# --expand_types_once: Only expand a given type once, to avoid type redefinition
+#   (C does not care about nesting types, there is a single namespace).
+# --expanded_prefix: Add a prefix to all the types that are expanded by -E. This
+#   avoids conflicting with type definitions that would come from public kernel
+#   headers, while still allowing easy attribute access, anonymous types etc.
+	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --forward_decl --expand_types_once --expanded_prefix "KERNEL_PRIVATE_" -C file://$(VMLINUX_TXT) $(VMLINUX) > _header
 # Create forward declaration of every type
 	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' _header | sort -u > _fwd_decl
 # Create TYPED_DEFINED_struct_foo macros for every type, so the client code can
