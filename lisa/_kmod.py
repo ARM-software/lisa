@@ -1003,7 +1003,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
         if cc is None:
             raise ValueError(f'Could not detect which compiler to use')
 
-        logger.info(f'CROSS_COMPILE not set by user, detected CROSS_COMPILE={toolchain} and CC={cc}')
+        logger.info(f'Detected CROSS_COMPILE={toolchain} and CC={cc}')
 
         detected = {}
         if toolchain:
