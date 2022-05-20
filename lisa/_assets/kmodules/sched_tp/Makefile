@@ -64,18 +64,25 @@ $(VMLINUX_H): $(VMLINUX_TXT) $(VMLINUX)
 #   to make padding more visible. They are not always valid C syntax and can
 #   break build
 # --skip_missing: Keep going if one of the types is not found
-# --forward_decl: (non upstream) Include forward declaration of union and struct
+# --forward_decl: (non upstream) Include forward declaration of union and
+#   struct. Note that it is not currently used as it dumps the declaration of
+#   all types. Unfortunately, some android kernels have multiple definitions of
+#   the same type (struct map_info/union map_info) which renders the header
+#   invalid. Since it's not a type we are interested in, we don't ask pahole to
+#   generate forward_decl and instead do it manually with sed.
 # --expand_types_once: Only expand a given type once, to avoid type redefinition
 #   (C does not care about nesting types, there is a single namespace).
 # --expanded_prefix: Add a prefix to all the types that are expanded by -E. This
 #   avoids conflicting with type definitions that would come from public kernel
 #   headers, while still allowing easy attribute access, anonymous types etc.
-	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --forward_decl --expand_types_once --expanded_prefix "KERNEL_PRIVATE_" -C file://$(VMLINUX_TXT) $(VMLINUX) > _header
+	pahole -F btf,dwarf -E --suppress_force_paddings --show_only_data_members --skip_missing --expand_types_once --expanded_prefix "KERNEL_PRIVATE_" -C file://$(VMLINUX_TXT) $(VMLINUX) > _header
+# Strip comments to avoid matching them with the sed regex.
+	$(CC) -P -E - < _header > _header_no_comment
 # Create forward declaration of every type
-	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' _header | sort -u > _fwd_decl
+	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/\1 \2;/p' _header_no_comment | sort -u > _fwd_decl
 # Create TYPED_DEFINED_struct_foo macros for every type, so the client code can
 # check whether a given type exists before making use of it
-	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/#define TYPE_DEFINED_\1_\2/p' _header | sort -u >> _fwd_decl
+	sed -r -n 's/.*(struct|union|enum) ([0-9a-zA-Z_]*) .*/#define TYPE_DEFINED_\1_\2/p' _header_no_comment | sort -u >> _fwd_decl
 	cat _fwd_decl _header > $@
 # cat $@
 
