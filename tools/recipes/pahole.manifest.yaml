@@ -22,6 +22,11 @@ rebase-conf:
             base: master
             tip: anon_struct
 
+        -
+            name: fix_btf_ptr_size
+            remote: github
+            base: master
+            tip: fix_btf_ptr_size
 
     remotes:
         github:
