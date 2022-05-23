@@ -49,7 +49,7 @@ class BatchRebaseManifest(SimpleMultiSrcConf):
     STRUCTURE = TopLevelKeyDesc('rebase-conf', 'Batch rebase configuration', (
         KeyDesc('topics', 'List of topics. Each topic is described by a mapping with "name", "remote", "base" and "tip" git references keys. Also, a tag can be added between topics with "action: tag" key and "name: tag-name".', [list]),
         KeyDesc('remotes', 'Git remotes. Keys are remote name, values are a mapping with an "url" key', [Mapping]),
-        KeyDesc('rr-cache', 'Path to git rr-cache. Relative paths are relative to that manifest file', [str]),
+        KeyDesc('rr-cache', 'Path to git rr-cache. Relative paths are relative to that manifest file', [str, None]),
         LevelKeyDesc('base', 'Base branche spec', [
             KeyDesc('remote', 'remote where the base branch is located', [str]),
             KeyDesc('ref', 'Name of the base branch', [str]),
@@ -67,7 +67,7 @@ class BatchRebaseManifest(SimpleMultiSrcConf):
             ]),
             KeyDesc('repo', 'Path to the main repo', [str]),
             KeyDesc('branch', 'Branch that is being created', [str]),
-            KeyDesc('rr-cache', 'Source of the rr-cache', [str]),
+            KeyDesc('rr-cache', 'Source of the rr-cache', [str, None]),
         ])
     ))
 
@@ -150,10 +150,15 @@ def do_create(conf_folder, repo, temp_repo, new_branch, conf, persistent_tags, t
     git = make_git_func(temp_repo)
 
     # rr-cache
-    rr_cache = Path(conf['rr-cache'])
-    if not rr_cache.is_absolute():
-        rr_cache = conf_folder/rr_cache
-    rr_cache = rr_cache.resolve()
+    rr_cache = conf.get('rr-cache')
+    if rr_cache is not None:
+        rr_cache = Path(conf.get('rr-cache'))
+        if not rr_cache.is_absolute():
+            rr_cache = conf_folder / rr_cache
+        rr_cache = rr_cache.resolve()
+
+        # Copy the rr-cache content
+        copy_content(rr_cache, temp_repo/ '.git' / 'rr-cache')
 
     git_config = {
         'rerere.enabled': 'true',
@@ -163,9 +168,6 @@ def do_create(conf_folder, repo, temp_repo, new_branch, conf, persistent_tags, t
 
     for opt, val in git_config.items():
         git(['config', opt, val], silent_stderr=True)
-
-    # Copy the rr-cache content
-    copy_content(rr_cache, temp_repo/'.git'/'rr-cache')
 
     # Add all relevant remotes and fetch them
     conf['remotes']['localrepo'] = {
@@ -187,7 +189,7 @@ def do_resume(temp_repo, conf):
     persistent_tags = conf['resume']['tags']['persistent']
     tags_suffix = conf['resume']['tags']['suffix']
     branch = conf['resume']['branch']
-    rr_cache = Path(conf['resume']['rr-cache'])
+    rr_cache = Path(conf['resume'].get('rr-cache'))
 
     try:
         return do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, branch, rr_cache)
@@ -201,14 +203,15 @@ def do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, branch, 
     if has_conflict:
         conf['resume'].add_src('conflict', {
             'repo': str(repo),
-            'rr-cache': str(rr_cache),
+            'rr-cache': str(rr_cache) if rr_cache else rr_cache,
             'branch': branch,
         })
         # Save the augmented manifest for later resumption
         conf.to_yaml_map(temp_repo/RESUME_MANIFEST_NAME)
     else:
         # Copy back the rr-cache
-        copy_content(temp_repo/'.git'/'rr-cache', rr_cache)
+        if rr_cache:
+            copy_content(temp_repo / '.git' / 'rr-cache', rr_cache)
 
         # Push back the persistent references
         persistent_refs.add(branch)

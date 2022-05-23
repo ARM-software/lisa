@@ -5,7 +5,6 @@
 # batch-rebase create . --manifest "$LISA_HOME/external/devlib.manifest.yaml" --create-branch lisa
 
 rebase-conf:
-    rr-cache: ./rr-cache
     base:
         remote: github
         ref: master
