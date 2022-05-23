@@ -242,6 +242,9 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
     persistent_refs = set()
     topics = conf['topics']
 
+    for topic in topics:
+        topic.setdefault('name', topic['tip'])
+
     # If we are resuming after a conflict
     if 'conflict-topic' in conf['resume']:
         resume_topic = conf['resume']['conflict-topic']

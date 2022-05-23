@@ -5,25 +5,23 @@
 # batch-rebase create . --manifest "$LISA_HOME/external/devlib.manifest.yaml" --create-branch lisa
 
 rebase-conf:
+    rr-cache: ./rr-cache
     base:
         remote: github
         ref: master
 
     topics:
         -
-            name: async
             remote: github
             base: master
             tip: async
 
         -
-            name: fix_target_pickle
             remote: github
             base: master
             tip: fix_target_pickle
 
         -
-            name: fix_shutils_invocation
             remote: github
             base: master
             tip: fix_shutils_invocation
