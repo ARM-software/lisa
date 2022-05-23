@@ -19,11 +19,13 @@ from collections import namedtuple
 from shlex import quote
 import itertools
 import warnings
+import asyncio
 
 from devlib.module import Module
 from devlib.exception import TargetStableError
 from devlib.utils.misc import list_to_ranges, isiterable
 from devlib.utils.types import boolean
+from devlib.utils.asyn import asyncf
 
 
 class Controller(object):
@@ -55,7 +57,8 @@ class Controller(object):
         self.mount_point = None
         self._cgroups = {}
 
-    def mount(self, target, mount_root):
+    @asyncf
+    async def mount(self, target, mount_root):
 
         mounted = target.list_file_systems()
         if self.mount_name in [e.device for e in mounted]:
@@ -68,16 +71,16 @@ class Controller(object):
         else:
             # Mount the controller if not already in use
             self.mount_point = target.path.join(mount_root, self.mount_name)
-            target.execute('mkdir -p {} 2>/dev/null'\
+            await target.execute.asyn('mkdir -p {} 2>/dev/null'\
                     .format(self.mount_point), as_root=True)
-            target.execute('mount -t cgroup -o {} {} {}'\
+            await target.execute.asyn('mount -t cgroup -o {} {} {}'\
                     .format(','.join(self.clist),
                             self.mount_name,
                             self.mount_point),
                             as_root=True)
 
         # Check if this controller uses "noprefix" option
-        output = target.execute('mount | grep "{} "'.format(self.mount_name))
+        output = await target.execute.asyn('mount | grep "{} "'.format(self.mount_name))
         if 'noprefix' in output:
             self._noprefix = True
             # self.logger.debug('Controller %s using "noprefix" option',
@@ -394,17 +397,26 @@ class CgroupsModule(Module):
         # Initialize controllers
         self.logger.info('Available controllers:')
         self.controllers = {}
-        for ss in subsys:
+
+        async def register_controller(ss):
             hid = ss.hierarchy
             controller = Controller(ss.name, hid, hierarchy[hid])
             try:
-                controller.mount(self.target, self.cgroup_root)
+                await controller.mount.asyn(self.target, self.cgroup_root)
             except TargetStableError:
                 message = 'Failed to mount "{}" controller'
                 raise TargetStableError(message.format(controller.kind))
             self.logger.info('  %-12s : %s', controller.kind,
                              controller.mount_point)
             self.controllers[ss.name] = controller
+
+        asyncio.run(
+            target.async_manager.map_concurrently(
+                register_controller,
+                subsys,
+            )
+        )
+
 
     def list_subsystems(self):
         subsystems = []

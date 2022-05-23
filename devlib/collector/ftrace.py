@@ -28,6 +28,7 @@ from devlib.collector import (CollectorBase, CollectorOutput,
 from devlib.host import PACKAGE_BIN_DIRECTORY
 from devlib.exception import TargetStableError, HostError
 from devlib.utils.misc import check_output, which, memoized
+from devlib.utils.asyn import asyncf
 
 
 TRACE_MARKER_START = 'TRACE_MARKER_START'
@@ -243,7 +244,8 @@ class FtraceCollector(CollectorBase):
             self.target.write_value(self.function_profile_file, 0, verify=False)
         self._reset_needed = False
 
-    def start(self):
+    @asyncf
+    async def start(self):
         self.start_time = time.time()
         if self._reset_needed:
             self.reset()
@@ -282,14 +284,17 @@ class FtraceCollector(CollectorBase):
             self.target.cpuidle.perturb_cpus()
         # Enable kernel function profiling
         if self.functions and self.tracer is None:
-            self.target.execute('echo nop > {}'.format(self.current_tracer_file),
-                                as_root=True)
-            self.target.execute('echo 0 > {}'.format(self.function_profile_file),
-                                as_root=True)
-            self.target.execute('echo {} > {}'.format(self.function_string, self.ftrace_filter_file),
-                                as_root=True)
-            self.target.execute('echo 1 > {}'.format(self.function_profile_file),
-                                as_root=True)
+            target = self.target
+            await target.async_manager.concurrently(
+                execute.asyn('echo nop > {}'.format(self.current_tracer_file),
+                                    as_root=True),
+                execute.asyn('echo 0 > {}'.format(self.function_profile_file),
+                                    as_root=True),
+                execute.asyn('echo {} > {}'.format(self.function_string, self.ftrace_filter_file),
+                                    as_root=True),
+                execute.asyn('echo 1 > {}'.format(self.function_profile_file),
+                                    as_root=True),
+            )
 
 
     def stop(self):
