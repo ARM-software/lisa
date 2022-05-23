@@ -17,6 +17,7 @@
 # limitations under the License.
 #
 
+import os
 import shlex
 import argparse
 import subprocess
@@ -73,10 +74,16 @@ class BatchRebaseManifest(SimpleMultiSrcConf):
 
 RESUME_MANIFEST_NAME = '.batch-rebase-state'
 
-def call_git(git_args, silent_stderr=False, capture=False, quiet=False):
+def call_git(git_args, silent_stderr=False, capture=False, merge_stderr=False, quiet=False):
     git_args = [str(arg) for arg in git_args]
 
     cmd = ('git', *git_args)
+
+    env = {
+        **os.environ,
+        # Allow inspecting the output more robustly against i18n
+        'LC_ALL': 'C',
+    }
 
     if not quiet:
         info(' '.join(shlex.quote(x) for x in cmd))
@@ -85,8 +92,10 @@ def call_git(git_args, silent_stderr=False, capture=False, quiet=False):
         def run(cmd):
             return subprocess.check_output(
                 cmd,
+                stderr=subprocess.STDOUT if merge_stderr else None,
                 encoding='utf-8',
                 universal_newlines=True,
+                env=env,
             ).strip()
     else:
         if silent_stderr:
@@ -95,7 +104,12 @@ def call_git(git_args, silent_stderr=False, capture=False, quiet=False):
             stdout = None
         stderr = stdout
         def run(cmd):
-            return subprocess.check_call(cmd, stdout=stdout, stderr=stderr)
+            return subprocess.check_call(
+                cmd,
+                stdout=stdout,
+                stderr=stderr,
+                env=env,
+            )
 
     return run(cmd)
 
@@ -260,8 +274,13 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
         # Finish cherry picking the topic with the conflict.
         # If the commit was the last in the topic, this will fail as the `git
         # commit` issued by the user finished the cherry-picking session.
-        with contextlib.suppress(subprocess.CalledProcessError):
-            git(['cherry-pick', '--continue'])
+        try:
+            git(['cherry-pick', '--continue'], capture=True, merge_stderr=True)
+        except subprocess.CalledProcessError as e:
+            if 'no cherry-pick or revert in progress' in e.output:
+                pass
+            else:
+                raise
 
         tag_name = add_tag(resume_topic)
         persistent_refs.add(tag_name)
@@ -331,9 +350,12 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
                     In order to fix it, please:
                         1. Resolve the conflict in:
                         {repo}
-                        Make sure modified files are committed.
 
-                        2. Run:
+                        2. Finish cherry picking the topic and fix any
+                           remaining conflicts using:
+                        git -C {repo} cherry-pick --continue
+
+                        3. Run:
                         batch-rebase resume {repo}
                     """.format(
                         topic=name,
