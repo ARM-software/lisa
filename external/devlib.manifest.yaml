@@ -1,0 +1,31 @@
+
+# batch-rebase manifest used to create the devlib branch for LISA
+
+# The "lisa" branch in the devlib repo can be constructed with:
+# batch-rebase create . --manifest "$LISA_HOME/external/devlib.manifest.yaml" --create-branch lisa
+
+rebase-conf:
+    rr-cache: ./rr-cache
+    base:
+        remote: github
+        ref: master
+
+    topics:
+        -
+            remote: github
+            base: master
+            tip: async
+
+        -
+            remote: github
+            base: master
+            tip: fix_target_pickle
+
+        -
+            remote: github
+            base: master
+            tip: fix_shutils_invocation
+
+    remotes:
+        github:
+          url: https://github.com/douglas-raillard-arm/devlib.git

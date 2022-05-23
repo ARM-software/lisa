@@ -13,10 +13,12 @@
 # limitations under the License.
 #
 from contextlib import contextmanager
+from operator import itemgetter
 
 from devlib.module import Module
 from devlib.exception import TargetStableError
 from devlib.utils.misc import memoized
+import devlib.utils.asyn as asyn
 
 
 # a dict of governor name and a list of it tunables that can't be read
@@ -30,44 +32,52 @@ class CpufreqModule(Module):
     name = 'cpufreq'
 
     @staticmethod
-    def probe(target):
+    @asyn.asyncf
+    async def probe(target):
+        paths = [
+            # x86 with Intel P-State driver
+            (target.abi == 'x86_64', '/sys/devices/system/cpu/intel_pstate'),
+            # Generic CPUFreq support (single policy)
+            (True, '/sys/devices/system/cpu/cpufreq/policy0'),
+            # Generic CPUFreq support (per CPU policy)
+            (True, '/sys/devices/system/cpu/cpu0/cpufreq'),
+        ]
+        paths = [
+            path[1] for path in paths
+            if path[0]
+        ]
 
-        # x86 with Intel P-State driver
-        if target.abi == 'x86_64':
-            path = '/sys/devices/system/cpu/intel_pstate'
-            if target.file_exists(path):
-                return True
+        exists = await target.async_manager.map_concurrently(
+            target.file_exists.asyn,
+            paths,
+        )
 
-        # Generic CPUFreq support (single policy)
-        path = '/sys/devices/system/cpu/cpufreq/policy0'
-        if target.file_exists(path):
-            return True
-
-        # Generic CPUFreq support (per CPU policy)
-        path = '/sys/devices/system/cpu/cpu0/cpufreq'
-        return target.file_exists(path)
+        return any(exists.values())
 
     def __init__(self, target):
         super(CpufreqModule, self).__init__(target)
         self._governor_tunables = {}
 
     @memoized
-    def list_governors(self, cpu):
+    @asyn.asyncf
+    async def list_governors(self, cpu):
         """Returns a list of governors supported by the cpu."""
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
         sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_available_governors'.format(cpu)
-        output = self.target.read_value(sysfile)
+        output = await self.target.read_value.asyn(sysfile)
         return output.strip().split()
 
-    def get_governor(self, cpu):
+    @asyn.asyncf
+    async def get_governor(self, cpu):
         """Returns the governor currently set for the specified CPU."""
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
         sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_governor'.format(cpu)
-        return self.target.read_value(sysfile)
+        return await self.target.read_value.asyn(sysfile)
 
-    def set_governor(self, cpu, governor, **kwargs):
+    @asyn.asyncf
+    async def set_governor(self, cpu, governor, **kwargs):
         """
         Set the governor for the specified CPU.
         See https://www.kernel.org/doc/Documentation/cpu-freq/governors.txt
@@ -90,15 +100,15 @@ class CpufreqModule(Module):
         """
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
-        supported = self.list_governors(cpu)
+        supported = await self.list_governors.asyn(cpu)
         if governor not in supported:
             raise TargetStableError('Governor {} not supported for cpu {}'.format(governor, cpu))
         sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_governor'.format(cpu)
-        self.target.write_value(sysfile, governor)
-        self.set_governor_tunables(cpu, governor, **kwargs)
+        await self.target.write_value.asyn(sysfile, governor)
+        return await self.set_governor_tunables.asyn(cpu, governor, **kwargs)
 
-    @contextmanager
-    def use_governor(self, governor, cpus=None, **kwargs):
+    @asyn.asynccontextmanager
+    async def use_governor(self, governor, cpus=None, **kwargs):
         """
         Use a given governor, then restore previous governor(s)
 
@@ -111,66 +121,97 @@ class CpufreqModule(Module):
         :Keyword Arguments: Governor tunables, See :meth:`set_governor_tunables`
         """
         if not cpus:
-            cpus = self.target.list_online_cpus()
+            cpus = await self.target.list_online_cpus.asyn()
 
-        # Setting a governor & tunables for a cpu will set them for all cpus
-        # in the same clock domain, so only manipulating one cpu per domain
-        # is enough
-        domains = set(self.get_affected_cpus(cpu)[0] for cpu in cpus)
-        prev_governors = {cpu : (self.get_governor(cpu), self.get_governor_tunables(cpu))
-                          for cpu in domains}
+        async def get_cpu_info(cpu):
+            return await self.target.async_manager.concurrently((
+                self.get_affected_cpus.asyn(cpu),
+                self.get_governor.asyn(cpu),
+                self.get_governor_tunables.asyn(cpu),
+                # We won't always use the frequency, but it's much quicker to
+                # do concurrently anyway so do it now
+                self.get_frequency.asyn(cpu),
+            ))
 
-        # Special case for userspace, frequency is not seen as a tunable
-        userspace_freqs = {}
-        for cpu, (prev_gov, _) in prev_governors.items():
-            if prev_gov == "userspace":
-                userspace_freqs[cpu] = self.get_frequency(cpu)
+        cpus_infos = await self.target.async_manager.map_concurrently(get_cpu_info, cpus)
 
-        for cpu in domains:
-            self.set_governor(cpu, governor, **kwargs)
+        # Setting a governor & tunables for a cpu will set them for all cpus in
+        # the same cpufreq policy, so only manipulating one cpu per domain is
+        # enough
+        domains = set(
+            info[0][0]
+            for info in cpus_infos.values()
+        )
+
+        await self.target.async_manager.concurrently(
+            self.set_governor.asyn(cpu, governor, **kwargs)
+            for cpu in domains
+        )
 
         try:
             yield
-
         finally:
-            for cpu, (prev_gov, tunables) in prev_governors.items():
-                self.set_governor(cpu, prev_gov, **tunables)
+            async def set_gov(cpu):
+                domain, prev_gov, tunables, freq = cpus_infos[cpu]
+                await self.set_governor.asyn(cpu, prev_gov, **tunables)
+                # Special case for userspace, frequency is not seen as a tunable
                 if prev_gov == "userspace":
-                    self.set_frequency(cpu, userspace_freqs[cpu])
+                    await self.set_frequency.asyn(cpu, freq)
 
-    def list_governor_tunables(self, cpu):
+            await self.target.async_manager.concurrently(
+                set_gov(cpu)
+                for cpu in domains
+            )
+
+    @asyn.asyncf
+    async def list_governor_tunables(self, cpu):
         """Returns a list of tunables available for the governor on the specified CPU."""
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
-        governor = self.get_governor(cpu)
+        governor = await self.get_governor.asyn(cpu)
         if governor not in self._governor_tunables:
             try:
                 tunables_path = '/sys/devices/system/cpu/{}/cpufreq/{}'.format(cpu, governor)
-                self._governor_tunables[governor] = self.target.list_directory(tunables_path)
+                self._governor_tunables[governor] = await self.target.list_directory.asyn(tunables_path)
             except TargetStableError:  # probably an older kernel
                 try:
                     tunables_path = '/sys/devices/system/cpu/cpufreq/{}'.format(governor)
-                    self._governor_tunables[governor] = self.target.list_directory(tunables_path)
+                    self._governor_tunables[governor] = await self.target.list_directory.asyn(tunables_path)
                 except TargetStableError:  # governor does not support tunables
                     self._governor_tunables[governor] = []
         return self._governor_tunables[governor]
 
-    def get_governor_tunables(self, cpu):
+    @asyn.asyncf
+    async def get_governor_tunables(self, cpu):
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
-        governor = self.get_governor(cpu)
+        governor, tunable_list = await self.target.async_manager.concurrently((
+            self.get_governor.asyn(cpu),
+            self.list_governor_tunables.asyn(cpu)
+        ))
+
+        write_only = set(WRITE_ONLY_TUNABLES.get(governor, []))
+        tunable_list = [
+            tunable
+            for tunable in tunable_list
+            if tunable not in write_only
+        ]
+
         tunables = {}
-        for tunable in self.list_governor_tunables(cpu):
-            if tunable not in WRITE_ONLY_TUNABLES.get(governor, []):
-                try:
-                    path = '/sys/devices/system/cpu/{}/cpufreq/{}/{}'.format(cpu, governor, tunable)
-                    tunables[tunable] = self.target.read_value(path)
-                except TargetStableError:  # May be an older kernel
-                    path = '/sys/devices/system/cpu/cpufreq/{}/{}'.format(governor, tunable)
-                    tunables[tunable] = self.target.read_value(path)
+        async def get_tunable(tunable):
+            try:
+                path = '/sys/devices/system/cpu/{}/cpufreq/{}/{}'.format(cpu, governor, tunable)
+                x = await self.target.read_value.asyn(path)
+            except TargetStableError:  # May be an older kernel
+                path = '/sys/devices/system/cpu/cpufreq/{}/{}'.format(governor, tunable)
+                x = await self.target.read_value.asyn(path)
+            return x
+
+        tunables = await self.target.async_manager.map_concurrently(get_tunable, tunable_list)
         return tunables
 
-    def set_governor_tunables(self, cpu, governor=None, **kwargs):
+    @asyn.asyncf
+    async def set_governor_tunables(self, cpu, governor=None, **kwargs):
         """
         Set tunables for the specified governor. Tunables should be specified as
         keyword arguments. Which tunables and values are valid depends on the
@@ -191,34 +232,35 @@ class CpufreqModule(Module):
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
         if governor is None:
-            governor = self.get_governor(cpu)
-        valid_tunables = self.list_governor_tunables(cpu)
+            governor = await self.get_governor.asyn(cpu)
+        valid_tunables = await self.list_governor_tunables.asyn(cpu)
         for tunable, value in kwargs.items():
             if tunable in valid_tunables:
                 path = '/sys/devices/system/cpu/{}/cpufreq/{}/{}'.format(cpu, governor, tunable)
                 try:
-                    self.target.write_value(path, value)
+                    await self.target.write_value.asyn(path, value)
                 except TargetStableError:
-                    if self.target.file_exists(path):
+                    if await self.target.file_exists.asyn(path):
                         # File exists but we did something wrong
                         raise
                     # Expected file doesn't exist, try older sysfs layout.
                     path = '/sys/devices/system/cpu/cpufreq/{}/{}'.format(governor, tunable)
-                    self.target.write_value(path, value)
+                    await self.target.write_value.asyn(path, value)
             else:
                 message = 'Unexpected tunable {} for governor {} on {}.\n'.format(tunable, governor, cpu)
                 message += 'Available tunables are: {}'.format(valid_tunables)
                 raise TargetStableError(message)
 
     @memoized
-    def list_frequencies(self, cpu):
+    @asyn.asyncf
+    async def list_frequencies(self, cpu):
         """Returns a sorted list of frequencies supported by the cpu or an empty list
         if not could be found."""
         if isinstance(cpu, int):
             cpu = 'cpu{}'.format(cpu)
         try:
             cmd = 'cat /sys/devices/system/cpu/{}/cpufreq/scaling_available_frequencies'.format(cpu)
-            output = self.target.execute(cmd)
+            output = await self.target.execute.asyn(cmd)
             available_frequencies = list(map(int, output.strip().split()))  # pylint: disable=E1103
         except TargetStableError:
             # On some devices scaling_frequencies  is not generated.
@@ -226,7 +268,7 @@ class CpufreqModule(Module):
             # Fall back to parsing stats/time_in_state
             path = '/sys/devices/system/cpu/{}/cpufreq/stats/time_in_state'.format(cpu)
             try:
-                out_iter = iter(self.target.read_value(path).split())
+                out_iter = (await self.target.read_value.asyn(path)).split()
             except TargetStableError:
                 if not self.target.file_exists(path):
                     # Probably intel_pstate. Can't get available freqs.
@@ -301,7 +343,8 @@ class CpufreqModule(Module):
         except ValueError:
             raise ValueError('Frequency must be an integer; got: "{}"'.format(frequency))
 
-    def get_frequency(self, cpu, cpuinfo=False):
+    @asyn.asyncf
+    async def get_frequency(self, cpu, cpuinfo=False):
         """
         Returns the current frequency currently set for the specified CPU.
 
@@ -321,9 +364,10 @@ class CpufreqModule(Module):
         sysfile = '/sys/devices/system/cpu/{}/cpufreq/{}'.format(
                 cpu,
                 'cpuinfo_cur_freq' if cpuinfo else 'scaling_cur_freq')
-        return self.target.read_int(sysfile)
+        return await self.target.read_int.asyn(sysfile)
 
-    def set_frequency(self, cpu, frequency, exact=True):
+    @asyn.asyncf
+    async def set_frequency(self, cpu, frequency, exact=True):
         """
         Set's the minimum value for CPU frequency. Actual frequency will
         depend on the Governor used and may vary during execution. The value should be
@@ -347,16 +391,16 @@ class CpufreqModule(Module):
         try:
             value = int(frequency)
             if exact:
-                available_frequencies = self.list_frequencies(cpu)
+                available_frequencies = await self.list_frequencies.asyn(cpu)
                 if available_frequencies and value not in available_frequencies:
                     raise TargetStableError('Can\'t set {} frequency to {}\nmust be in {}'.format(cpu,
                                                                                             value,
                                                                                             available_frequencies))
-            if self.get_governor(cpu) != 'userspace':
+            if await self.get_governor.asyn(cpu) != 'userspace':
                 raise TargetStableError('Can\'t set {} frequency; governor must be "userspace"'.format(cpu))
             sysfile = '/sys/devices/system/cpu/{}/cpufreq/scaling_setspeed'.format(cpu)
-            self.target.write_value(sysfile, value, verify=False)
-            cpuinfo = self.get_frequency(cpu, cpuinfo=True)
+            await self.target.write_value.asyn(sysfile, value, verify=False)
+            cpuinfo = await self.get_frequency.asyn(cpu, cpuinfo=True)
             if cpuinfo != value:
                 self.logger.warning(
                     'The cpufreq value has not been applied properly cpuinfo={} request={}'.format(cpuinfo, value))
@@ -495,7 +539,8 @@ class CpufreqModule(Module):
         # pylint: disable=protected-access
         return self.target._execute_util('cpufreq_trace_all_frequencies', as_root=True)
 
-    def get_affected_cpus(self, cpu):
+    @asyn.asyncf
+    async def get_affected_cpus(self, cpu):
         """
         Get the online CPUs that share a frequency domain with the given CPU
         """
@@ -504,7 +549,8 @@ class CpufreqModule(Module):
 
         sysfile = '/sys/devices/system/cpu/{}/cpufreq/affected_cpus'.format(cpu)
 
-        return [int(c) for c in self.target.read_value(sysfile).split()]
+        content = await self.target.read_value.asyn(sysfile)
+        return [int(c) for c in content.split()]
 
     @memoized
     def get_related_cpus(self, cpu):

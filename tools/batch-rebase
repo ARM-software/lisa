@@ -17,6 +17,7 @@
 # limitations under the License.
 #
 
+import os
 import shlex
 import argparse
 import subprocess
@@ -49,7 +50,7 @@ class BatchRebaseManifest(SimpleMultiSrcConf):
     STRUCTURE = TopLevelKeyDesc('rebase-conf', 'Batch rebase configuration', (
         KeyDesc('topics', 'List of topics. Each topic is described by a mapping with "name", "remote", "base" and "tip" git references keys. Also, a tag can be added between topics with "action: tag" key and "name: tag-name".', [list]),
         KeyDesc('remotes', 'Git remotes. Keys are remote name, values are a mapping with an "url" key', [Mapping]),
-        KeyDesc('rr-cache', 'Path to git rr-cache. Relative paths are relative to that manifest file', [str]),
+        KeyDesc('rr-cache', 'Path to git rr-cache. Relative paths are relative to that manifest file', [str, None]),
         LevelKeyDesc('base', 'Base branche spec', [
             KeyDesc('remote', 'remote where the base branch is located', [str]),
             KeyDesc('ref', 'Name of the base branch', [str]),
@@ -67,16 +68,22 @@ class BatchRebaseManifest(SimpleMultiSrcConf):
             ]),
             KeyDesc('repo', 'Path to the main repo', [str]),
             KeyDesc('branch', 'Branch that is being created', [str]),
-            KeyDesc('rr-cache', 'Source of the rr-cache', [str]),
+            KeyDesc('rr-cache', 'Source of the rr-cache', [str, None]),
         ])
     ))
 
 RESUME_MANIFEST_NAME = '.batch-rebase-state'
 
-def call_git(git_args, silent_stderr=False, capture=False, quiet=False):
+def call_git(git_args, silent_stderr=False, capture=False, merge_stderr=False, quiet=False):
     git_args = [str(arg) for arg in git_args]
 
     cmd = ('git', *git_args)
+
+    env = {
+        **os.environ,
+        # Allow inspecting the output more robustly against i18n
+        'LC_ALL': 'C',
+    }
 
     if not quiet:
         info(' '.join(shlex.quote(x) for x in cmd))
@@ -85,8 +92,10 @@ def call_git(git_args, silent_stderr=False, capture=False, quiet=False):
         def run(cmd):
             return subprocess.check_output(
                 cmd,
+                stderr=subprocess.STDOUT if merge_stderr else None,
                 encoding='utf-8',
                 universal_newlines=True,
+                env=env,
             ).strip()
     else:
         if silent_stderr:
@@ -95,7 +104,12 @@ def call_git(git_args, silent_stderr=False, capture=False, quiet=False):
             stdout = None
         stderr = stdout
         def run(cmd):
-            return subprocess.check_call(cmd, stdout=stdout, stderr=stderr)
+            return subprocess.check_call(
+                cmd,
+                stdout=stdout,
+                stderr=stderr,
+                env=env,
+            )
 
     return run(cmd)
 
@@ -150,10 +164,15 @@ def do_create(conf_folder, repo, temp_repo, new_branch, conf, persistent_tags, t
     git = make_git_func(temp_repo)
 
     # rr-cache
-    rr_cache = Path(conf['rr-cache'])
-    if not rr_cache.is_absolute():
-        rr_cache = conf_folder/rr_cache
-    rr_cache = rr_cache.resolve()
+    rr_cache = conf.get('rr-cache')
+    if rr_cache is not None:
+        rr_cache = Path(conf.get('rr-cache'))
+        if not rr_cache.is_absolute():
+            rr_cache = conf_folder / rr_cache
+        rr_cache = rr_cache.resolve()
+
+        # Copy the rr-cache content
+        copy_content(rr_cache, temp_repo/ '.git' / 'rr-cache')
 
     git_config = {
         'rerere.enabled': 'true',
@@ -163,9 +182,6 @@ def do_create(conf_folder, repo, temp_repo, new_branch, conf, persistent_tags, t
 
     for opt, val in git_config.items():
         git(['config', opt, val], silent_stderr=True)
-
-    # Copy the rr-cache content
-    copy_content(rr_cache, temp_repo/'.git'/'rr-cache')
 
     # Add all relevant remotes and fetch them
     conf['remotes']['localrepo'] = {
@@ -187,7 +203,7 @@ def do_resume(temp_repo, conf):
     persistent_tags = conf['resume']['tags']['persistent']
     tags_suffix = conf['resume']['tags']['suffix']
     branch = conf['resume']['branch']
-    rr_cache = Path(conf['resume']['rr-cache'])
+    rr_cache = Path(conf['resume'].get('rr-cache'))
 
     try:
         return do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, branch, rr_cache)
@@ -201,14 +217,15 @@ def do_cherry_pick(repo, temp_repo, conf, persistent_tags, tags_suffix, branch, 
     if has_conflict:
         conf['resume'].add_src('conflict', {
             'repo': str(repo),
-            'rr-cache': str(rr_cache),
+            'rr-cache': str(rr_cache) if rr_cache else rr_cache,
             'branch': branch,
         })
         # Save the augmented manifest for later resumption
         conf.to_yaml_map(temp_repo/RESUME_MANIFEST_NAME)
     else:
         # Copy back the rr-cache
-        copy_content(temp_repo/'.git'/'rr-cache', rr_cache)
+        if rr_cache:
+            copy_content(temp_repo / '.git' / 'rr-cache', rr_cache)
 
         # Push back the persistent references
         persistent_refs.add(branch)
@@ -239,6 +256,9 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
     persistent_refs = set()
     topics = conf['topics']
 
+    for topic in topics:
+        topic.setdefault('name', topic['tip'])
+
     # If we are resuming after a conflict
     if 'conflict-topic' in conf['resume']:
         resume_topic = conf['resume']['conflict-topic']
@@ -254,8 +274,13 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
         # Finish cherry picking the topic with the conflict.
         # If the commit was the last in the topic, this will fail as the `git
         # commit` issued by the user finished the cherry-picking session.
-        with contextlib.suppress(subprocess.CalledProcessError):
-            git(['cherry-pick', '--continue'])
+        try:
+            git(['cherry-pick', '--continue'], capture=True, merge_stderr=True)
+        except subprocess.CalledProcessError as e:
+            if 'no cherry-pick or revert in progress' in e.output:
+                pass
+            else:
+                raise
 
         tag_name = add_tag(resume_topic)
         persistent_refs.add(tag_name)
@@ -325,9 +350,12 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
                     In order to fix it, please:
                         1. Resolve the conflict in:
                         {repo}
-                        Make sure modified files are committed.
 
-                        2. Run:
+                        2. Finish cherry picking the topic and fix any
+                           remaining conflicts using:
+                        git -C {repo} cherry-pick --continue
+
+                        3. Run:
                         batch-rebase resume {repo}
                     """.format(
                         topic=name,

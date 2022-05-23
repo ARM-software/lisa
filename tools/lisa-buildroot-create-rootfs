@@ -88,7 +88,8 @@ function br_post_patch {
 	# Enable root login on sshd
 	sed -i 's/#PermitRootLogin.*/PermitRootLogin	yes/' "$BUILDROOT_DIR/output/target/etc/ssh/sshd_config"
   # Increase the number of available channels so that devlib async code can exploit concurrency better
-	sed -i 's/#MaxSessions.*/MaxSessions	30/' "$BUILDROOT_DIR/output/target/etc/ssh/sshd_config"
+	sed -i 's/#MaxSessions.*/MaxSessions	100/' "$BUILDROOT_DIR/output/target/etc/ssh/sshd_config"
+	sed -i 's/#MaxStartups.*/MaxStartups	100/' "$BUILDROOT_DIR/output/target/etc/ssh/sshd_config"
 	# run udhcpc by default at startup
 	echo "null::once:/sbin/udhcpc # PATCHED BY LISA" >> "$BUILDROOT_DIR/output/target/etc/inittab"
 	# setup mdev rule to auto bringup ethernet devices
