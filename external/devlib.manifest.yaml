@@ -16,16 +16,6 @@ rebase-conf:
             base: master
             tip: async
 
-        -
-            remote: github
-            base: master
-            tip: fix_target_pickle
-
-        -
-            remote: github
-            base: master
-            tip: fix_shutils_invocation
-
     remotes:
         github:
           url: https://github.com/douglas-raillard-arm/devlib.git
