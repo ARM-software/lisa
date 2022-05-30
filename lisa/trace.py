@@ -5215,6 +5215,42 @@ class TraceEventCheckerBase(abc.ABC, Loggable, Sequence):
         return self._str_internal()
 
 
+class UncheckedTraceEventChecker(TraceEventCheckerBase):
+    """
+    Wrap a :class:`TraceEventCheckerBase` such that it is only used for
+    documentation purposes but will not actually check the events in the trace
+    when used as a decorator.
+
+    This is useful when the decorated function will access the events in
+    another way than calling :meth:`Trace.df_event` and therefore potentially
+    triggering the parsing of the event would be costly and unnecessary.
+
+    :param event_checker: Wrapped event checker
+    :type event_checker: TraceEventCheckerBase
+    """
+    def __init__(self, event_checker):
+        super().__init__(check=False)
+        self.event_checker = event_checker
+
+    def __bool__(self):
+        return bool(self.event_checker)
+
+    def _check_events(self, event_set):
+        pass
+
+    def _str_internal(self, *args, **kwargs):
+        return self.event_checker._str_internal(*args, **kwargs)
+
+    def get_all_events(self):
+        return self.event_checker.get_all_events()
+
+    def map(self, f):
+        new = copy.copy(self)
+        new = f(new)
+        new.event_checker = new.event_checker.map(f)
+        return new
+
+
 class TraceEventChecker(TraceEventCheckerBase):
     """
     Check for one single event.
@@ -5540,6 +5576,20 @@ def will_use_events_from(*events, **kwargs):
     will be used, depending on some dynamic factor.
     """
     return DynamicTraceEventChecker.from_events(events, **kwargs)
+
+
+def doc_events(*events, **kwargs):
+    """
+    Decorator for methods that require some given trace events but disable the
+    actual runtime check.
+
+    The events are therefore only listed for documentation purposes.
+
+    :param events: The list of required events
+    :type events: list(str or TraceEventCheckerBase)
+    """
+    checker = AndTraceEventChecker.from_events(events)
+    return UncheckedTraceEventChecker(checker, **kwargs)
 
 
 class DroppedTraceEventError(Exception):

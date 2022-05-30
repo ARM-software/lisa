@@ -169,6 +169,9 @@ if __name__ == "__main__":
             "cffi", # unshare syscall
 
             "typeguard",
+
+            "regex",
+            "ujson",
         ],
 
         extras_require=extras_require,

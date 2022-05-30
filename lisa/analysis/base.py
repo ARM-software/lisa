@@ -1181,6 +1181,9 @@ class TraceAnalysisBase(AnalysisHelpers):
                 with measure_time() as measure:
                     data = f(**kwargs)
 
+                if inspect.iscoroutine(data):
+                    raise TypeError('Attempted to cache a coroutine. Did you apply @TraceAnalysisBase.cache below @rust_analysis ? Ensure the cache decorator is at the top of the stack')
+
                 if memory_cache:
                     write_swap = trace._write_swap
                     compute_cost = measure.exclusive_delta

@@ -26,6 +26,7 @@ import holoviews as hv
 import bokeh.models
 
 from lisa.analysis.base import TraceAnalysisBase
+from lisa.analysis.rust import rust_analysis, Run
 from lisa.utils import memoized, kwargs_forwarded_to, deprecate
 from lisa.datautils import df_filter_task_ids, series_rolling_apply, series_refit_index, df_refit_index, df_deduplicate, df_split_signals, df_add_delta, df_window, df_update_duplicates, df_combine_duplicates
 from lisa.trace import requires_events, will_use_events_from, may_use_events, TaskID, CPU, MissingTraceEventError
@@ -267,10 +268,8 @@ class TasksAnalysis(TraceAnalysisBase):
 
         return rt_tasks
 
-    @requires_events('sched_switch', 'sched_wakeup')
-    @will_use_events_from('task_rename')
-    @may_use_events('sched_wakeup_new')
-    def _df_tasks_states(self, tasks=None, return_one_df=False):
+    @rust_analysis(analyses=['tasks::tasks_states'])
+    async def _df_tasks_states(self, tasks=None, return_one_df=False):
         """
         Compute tasks states for all tasks.
 
@@ -285,70 +284,16 @@ class TasksAnalysis(TraceAnalysisBase):
             the new columns.
         :type return_one_df: bool
         """
-        ######################################################
-        # A) Assemble the sched_switch and sched_wakeup events
-        ######################################################
-
-        def get_df(event):
-            # Ignore the end of the window so we can properly compute the
-            # durations
-            return self.trace.df_event(event, window=(self.trace.start, None))
-
-        def filters_comm(task):
+        def filter_comm(task):
             try:
                 return task.comm is not None
             except AttributeError:
                 return isinstance(task, str)
 
         # Add the rename events if we are interested in the comm of tasks
-        add_rename = any(map(filters_comm, tasks or []))
+        add_rename = any(map(filter_comm, tasks or []))
 
-        wk_df = get_df('sched_wakeup')
-        sw_df = get_df('sched_switch')
-
-        try:
-            wkn_df = get_df('sched_wakeup_new')
-        except MissingTraceEventError:
-            pass
-        else:
-            wk_df = pd.concat([wk_df, wkn_df])
-
-        wk_df = wk_df[["pid", "comm", "target_cpu", "__cpu"]].copy(deep=False)
-        wk_df["curr_state"] = TaskState.TASK_WAKING
-
-        prev_sw_df = sw_df[["__cpu", "prev_pid", "prev_state", "prev_comm"]].copy()
-        next_sw_df = sw_df[["__cpu", "next_pid", "next_comm"]].copy()
-
-        prev_sw_df.rename(
-            columns={
-                "prev_pid": "pid",
-                "prev_state": "curr_state",
-                "prev_comm": "comm",
-            },
-            inplace=True
-        )
-
-        next_sw_df["curr_state"] = TaskState.TASK_ACTIVE
-        next_sw_df.rename(columns={'next_pid': 'pid', 'next_comm': 'comm'}, inplace=True)
-
-        all_sw_df = pd.concat([prev_sw_df, next_sw_df], sort=False)
-
-        if add_rename:
-            rename_df = get_df('task_rename').rename(
-                columns={
-                    'oldcomm': 'comm',
-                },
-            )[['pid', 'comm']]
-            rename_df['curr_state'] = TaskState.TASK_RENAMED
-            all_sw_df = pd.concat([all_sw_df, rename_df], sort=False)
-
-        # Integer values are prefered here, otherwise the whole column
-        # is converted to float64
-        all_sw_df['target_cpu'] = -1
-
-        df = pd.concat([all_sw_df, wk_df], sort=False)
-        df.sort_index(inplace=True)
-        df.rename(columns={'__cpu': 'cpu'}, inplace=True)
+        df = await Run(name='tasks::tasks_states')
 
         # Restrict the set of data we will process to a given set of tasks
         if tasks is not None:
@@ -367,8 +312,94 @@ class TasksAnalysis(TraceAnalysisBase):
 
             tasks = list(map(resolve_task, tasks))
             df = df_filter_task_ids(df, tasks)
+        else:
+            df = df.copy(deep=True)
 
-        df = df_window(df, window=self.trace.window)
+
+        df.index.name = 'Time'
+        df = df.rename(
+            columns={
+                'state.Waking.target_cpu': 'target_cpu',
+            },
+            copy=False,
+        )
+        df['target_cpu'] = df['target_cpu'].fillna(-1).astype('int32')
+
+        # TODO: move to datautils
+        def df_merge_columns(df, out, cols):
+            if cols:
+                fst, *cols = cols
+                merged = df[fst]
+                for col in cols:
+                    merged = merged.fillna(df[col])
+                df = df.copy(deep=False)
+                df[out] = merged
+            return df
+
+        df = df_merge_columns(df, 'cpu', ['state.Active.cpu', 'state.Inactive.cpu', 'state.Waking.src_cpu'])
+
+        curr_state_dtype = 'Int16'
+        df['curr_state'] = int(TaskState.TASK_UNKNOWN)
+
+        # Use a Series to map so that we can set the dtype
+        df['curr_state'] = df['state'].map(
+            pd.Series(
+                {
+                    'Waking': int(TaskState.TASK_WAKING),
+                    'Active': int(TaskState.TASK_ACTIVE),
+                },
+                dtype=curr_state_dtype,
+            )
+        )
+
+        finished_loc = df['state'] == 'Finished'
+        df.loc[finished_loc, 'curr_state'] = df.loc[finished_loc, 'state.Finished.reason'].map(
+            pd.Series(
+                {
+                    'Dead': int(TaskState.EXIT_DEAD),
+                    'Zombie': int(TaskState.EXIT_ZOMBIE),
+                },
+                dtype=curr_state_dtype,
+            )
+        )
+
+        inactive_loc = df['state'] == 'Inactive'
+        df.loc[inactive_loc, 'curr_state'] = df.loc[inactive_loc, 'state.Inactive.kernel_state'].map(
+            pd.Series(
+                {
+                    'Interruptible': int(TaskState.TASK_INTERRUPTIBLE),
+                    'Uninterruptible': int(TaskState.TASK_UNINTERRUPTIBLE),
+                    'Running': int(TaskState.TASK_RUNNING),
+                },
+                dtype=curr_state_dtype,
+            )
+        )
+
+        df = df[[
+            'cpu', 'pid', 'curr_state', 'comm', 'target_cpu'
+        ]]
+
+        if add_rename:
+            def flag_rename(df):
+                # The idle task "changes name" all the time, as there is one
+                # per CPU but they all have the same PID=0
+                if df.name == 0:
+                    return df
+                else:
+                    shifted_comm = df['comm'].shift()
+                    rename_loc = df['comm'] != shifted_comm
+                    df.loc[rename_loc, 'curr_state'] = int(TaskState.TASK_RENAMED)
+                    # Set the comm to the old comm, so that calling code can
+                    # interpret TASK_RENAMED similarly to EXIT_DEAD
+                    df.loc[rename_loc, 'comm'] = shifted_comm
+                    return df
+
+            df = df.groupby('pid', group_keys=False).apply(flag_rename)
+
+        # Add a cpu for rows corresponding to dead tasks. This technically does
+        # not make much sense as the task is dequeued by that point but keep it
+        # for backward compatibilty of the dataframe format.
+        df['cpu'] = df.groupby('pid', group_keys=False)['cpu'].ffill()
 
         # Return a unique dataframe with new columns added
         if return_one_df:
