@@ -687,6 +687,7 @@ class TxtTraceParserBase(TraceParserBase):
         'pointer': 'uint64',
         'cpu': 'uint16',
         'pid': 'uint32',
+        'signed_pid': 'int32',
         'comm': 'string',
         'cgroup_path': 'string',
         # prio in [-1, 140]
@@ -1439,7 +1440,7 @@ class TxtTraceParser(TxtTraceParserBase):
                 'cpu': _KERNEL_DTYPE['cpu'],
                 'load': _KERNEL_DTYPE['util'],
                 'path': _KERNEL_DTYPE['cgroup_path'],
-                'pid': _KERNEL_DTYPE['pid'],
+                'pid': _KERNEL_DTYPE['signed_pid'],
                 'rbl_load': _KERNEL_DTYPE['util'],
                 'util': _KERNEL_DTYPE['util'],
                 'update_time': _KERNEL_DTYPE['timestamp'],
@@ -1504,7 +1505,7 @@ class TxtTraceParser(TxtTraceParserBase):
             fields={
                 'cpu': _KERNEL_DTYPE['cpu'],
                 'comm': _KERNEL_DTYPE['comm'],
-                'pid': _KERNEL_DTYPE['pid'],
+                'pid': _KERNEL_DTYPE['signed_pid'],
                 'path': _KERNEL_DTYPE['cgroup_path'],
                 'enqueued': _KERNEL_DTYPE['util'],
                 'ewma': _KERNEL_DTYPE['util'],
