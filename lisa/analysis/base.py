@@ -43,7 +43,7 @@ import panel as pn
 import panel.widgets
 
 
-from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc
+from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc, _import_all_submodules
 from lisa.trace import PandasDataDesc
 from lisa.notebook import _hv_fig_to_pane, _hv_link_dataframes, axis_cursor_delta, axis_link_dataframes, make_figure
 from lisa._generic import TypedList
@@ -1175,6 +1175,11 @@ class TraceAnalysisBase(AnalysisHelpers):
 
     @classmethod
     def get_analysis_classes(cls):
+        # Import all the submodules so that we have full visibility over the
+        # subclasses.
+        import lisa.analysis as ana
+        _import_all_submodules(ana.__name__, ana.__path__)
+
         return {
             subcls.name: subcls
             for subcls in get_subclasses(cls)
