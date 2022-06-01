@@ -315,7 +315,7 @@ def autodoc_process_analysis_plots(app, what, name, obj, options, lines, plot_co
 
     plot_methods = set(itertools.chain.from_iterable(
         subclass.get_plot_methods()
-        for subclass in get_subclasses(TraceAnalysisBase)
+        for subclass in TraceAnalysisBase.get_analysis_classes().values()
     ))
 
     if obj not in plot_methods:
@@ -354,7 +354,7 @@ def autodoc_process_analysis_methods(app, what, name, obj, options, lines):
     """
     methods = {
         func: subclass
-        for subclass in get_subclasses(TraceAnalysisBase)
+        for subclass in TraceAnalysisBase.get_analysis_classes().values()
         for name, func in inspect.getmembers(subclass, callable)
     }
 
@@ -376,6 +376,9 @@ def get_analysis_list(meth_type):
         entry['obj']
         for entry in get_deprecated_map().values()
     }
+
+    # Ensure all the submodules have been imported
+    TraceAnalysisBase.get_analysis_classes()
 
     for subclass in get_subclasses(AnalysisHelpers):
         class_path = f"{subclass.__module__}.{subclass.__qualname__}"
