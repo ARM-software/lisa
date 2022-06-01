@@ -63,6 +63,7 @@ import tempfile
 import shutil
 import platform
 import subprocess
+import multiprocessing
 
 import ruamel.yaml
 from ruamel.yaml import YAML
@@ -77,6 +78,7 @@ except ImportError:
 
 import lisa
 from lisa.version import parse_version, format_version, VERSION_TOKEN
+from lisa._unshare import _empty_main
 
 
 # Do not infer the value using __file__, since it will break later on when
@@ -3889,5 +3891,26 @@ class LazyMapping(Mapping):
     def __len__(self):
         return len(self._closures)
 
+
+def mp_spawn_pool(import_main=False, **kwargs):
+    """
+    Create a context manager wrapping :class:`multiprocessing.Pool` using the
+    ``spawn`` method, which is safe even in multithreaded applications.
+
+    :param import_main: If ``True``, let the spawned process import the
+        ``__main__`` module. This is usually not necessary when the functions
+        executed in the pool are small and not importing ``__main__`` saves a
+        *lot* of time (actually, unbounded amount of time).
+    :type import_main: bool
+
+    :Variable keyword arguments: Forwarded to :meth:`multiprocessing.Pool`.
+    """
+    ctx = multiprocessing.get_context(method='spawn')
+    empty_main = nullcontext if import_main else _empty_main
+
+    with empty_main():
+        pool = ctx.Pool(**kwargs)
+
+    return pool
 
 # vim :set tabstop=4 shiftwidth=4 textwidth=80 expandtab
