@@ -338,7 +338,8 @@ def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
     Overlay folders on top of each other.
 
     :param lowers: List of read-only lower layers. The end of the list takes
-        precedence.
+        precedence. Apart from the first item in the list, all items must have
+        been populated as an "upper" of its preceding lowers.
     :type lowers: list(str)
 
     :param upper: Read-write upper layer taking all the changes made to the
@@ -349,11 +350,12 @@ def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
 
         * ``overlayfs``: Uses Linux overlayfs mounts. This is the fastest and
           most space efficient method.
-        * ``copy``: This uses plain copies to simulate overlayfs. Note that the
-          simulation is not entirely transparent, as a higher layer is not able
-          to hide files in lower layers like it can do with overlayfs and
-          whiteout files.
+        * ``copy``: This uses plain copies to simulate overlayfs.
         * ``None``: defaults to ``overlayfs``.
+
+        Note that mixing lowers created with different backends is not
+        supported. Stick with the same backend when creating all the lowers in
+        the stack.
     :type backend: str or None
     """
     logger = logging.getLogger(f'{__name__}.overlay')
@@ -467,8 +469,15 @@ def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
                     _python_copytree(src, dst)
 
             logger.debug(f'Copying trees instead of overlayfs for {mount_point}')
-            for src in lowers:
-                _copytree(src=src, dst=mount_point)
+
+            # Apart from the first one in the list, all lowers are expected to
+            # have been populated as an "upper" of the preceding lowers.
+            # Therefore, we can simply make a copy of the top-most lower.
+            #
+            # This is the only way we can let the user delete a file in an
+            # upper and subsequently restore that state.
+            src = lowers[-1]
+            _copytree(src=src, dst=mount_point)
 
             try:
                 yield mount_point
@@ -1323,6 +1332,7 @@ class KernelTree(Loggable, SerializeViaConstructor):
                     ) + [
                         str(tree_key),
                         str(build_env),
+                        str(overlay_backend),
                     ] + [
                         # We need to take checksum the make variables
                         # as well, as it can influence the kernel tree
