@@ -235,13 +235,36 @@ class instancemethod:
             )
 
 
-class _DummyLogger:
+class _WrappedLogger:
+    def __init__(self, logger):
+        self.logger = logger
+
     def __getattr__(self, attr):
-        x = getattr(logging, attr)
+        x = getattr(self.logger, attr)
+
         if callable(x):
-            return lambda *args, **kwargs: None
+            @functools.wraps(x)
+            def wrapper(*args, **kwargs):
+                try:
+                    return x(*args, **kwargs)
+                except Exception as e:
+                    # If we are invoked inside a destructor, the world may be
+                    # broken and problems are expected, so exceptions can be
+                    # silenced.
+                    #
+                    # Note: We only do the check if a problem occurs as
+                    # inspect.stack() is very costly (150ms for 25 frames)
+                    if any (
+                        frame.function == '__del__'
+                        for frame in inspect.stack()
+                    ):
+                        return None
+                    else:
+                        raise
+
+            return wrapper
         else:
-            return None
+            return x
 
 
 class Loggable:
@@ -259,21 +282,16 @@ class Loggable:
 
     @classmethod
     def get_logger(cls, suffix=None):
-        if any (
-            frame.function == '__del__'
-            for frame in inspect.stack()
-        ):
-            return _DummyLogger()
+        cls_name = cls.__name__
+        module = inspect.getmodule(cls)
+        if module:
+            name = module.__name__ + '.' + cls_name
         else:
-            cls_name = cls.__name__
-            module = inspect.getmodule(cls)
-            if module:
-                name = module.__name__ + '.' + cls_name
-            else:
-                name = cls_name
-            if suffix:
-                name += '.' + suffix
-            return logging.getLogger(name)
+            name = cls_name
+        if suffix:
+            name += '.' + suffix
+        logger = logging.getLogger(name)
+        return _WrappedLogger(logger)
 
     @classmethod
     def log_locals(cls, var_names=None, level='debug'):
