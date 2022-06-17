@@ -434,8 +434,8 @@ def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
                     else:
                         try:
                             dst_mtime = os.path.getmtime(dst)
-                        except OSError:
-                            if os.path.lexists(dst):
+                        except OSError as e:
+                            if not isinstance(e, FileNotFoundError):
                                 os.remove(dst)
                             return shutil.copy2(src=src, dst=dst)
                         else:
