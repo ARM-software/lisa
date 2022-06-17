@@ -313,9 +313,7 @@ class TestRTACalibrationConf(RTABase):
             self.target, name='test', res_dir=self.res_dir, profile=profile,
             calibration=calibration)
 
-        rtapp.deploy()
-
-        with open(rtapp.local_json) as fh:
+        with rtapp, open(rtapp.local_json) as fh:
             return json.load(fh)['global']['calibration']
 
     def test_calibration_conf_pload_nodata(self):
