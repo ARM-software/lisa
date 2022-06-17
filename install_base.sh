@@ -158,6 +158,7 @@ apt_packages=(
     openssh-client
     sshpass
     wget
+    rsync
     unzip
     qemu-user-static
     kernelshark
@@ -179,6 +180,7 @@ apt_packages=(
 pacman_packages=(
     coreutils
     git
+    rsync
     openssh
     sshpass
     base-devel
