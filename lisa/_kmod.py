@@ -414,7 +414,7 @@ def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
 
         @contextlib.contextmanager
         def do_copy(dirs):
-            def _copytree(src, dst):
+            def _python_copytree(src, dst):
                 base_src = Path(src)
                 base_dst = Path(dst)
                 def copy_file(src, dst):
@@ -446,7 +446,6 @@ def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
                                 return shutil.copy2(src=src, dst=dst)
                             else:
                                 return dst
-
                 shutil.copytree(
                     src=str(src),
                     dst=str(dst),
@@ -455,6 +454,18 @@ def _overlay_folders(lowers, upper=None, backend=None, copy_filter=None):
                     dirs_exist_ok=True,
                     copy_function=copy_file,
                 )
+
+            def _rsync_copytree(src, dst):
+                subprocess.check_call(['rsync', '-au', '--', f'{src}/', dst])
+
+            def _copytree(src, dst):
+                try:
+                    _rsync_copytree(src, dst)
+                # rsync not installed
+                except FileNotFoundError:
+                    logger.debug('rsync not installed, falling back on python copy')
+                    _python_copytree(src, dst)
+
             logger.debug(f'Copying trees instead of overlayfs for {mount_point}')
             for src in lowers:
                 _copytree(src=src, dst=mount_point)
