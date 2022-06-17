@@ -148,7 +148,7 @@ if __name__ == "__main__":
 
             # Depdendencies that are shipped as part of the LISA repo as
             # subtree/submodule
-            "devlib >= 1.3.1",
+            "devlib >= 1.3.4",
 
             'jinja2',
 
