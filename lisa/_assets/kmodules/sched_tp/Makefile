@@ -33,13 +33,13 @@ ifneq ($(KERNELRELEASE),)
 
 LISA_KMOD_NAME ?= sched_tp
 obj-m := $(LISA_KMOD_NAME).o
-$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o
+$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o
 ldflags-y += -T $(M)/features.lds
 
 clean-files := vmlinux.h
 
 # -fno-stack-protector is needed to possibly undefined __stack_chk_guard symbol
-ccflags-y = -I$(MODULE_SRC) -fno-stack-protector
+ccflags-y = -I$(MODULE_SRC) -std=gnu11 -fno-stack-protector -Wno-declaration-after-statement
 
 VMLINUX_TXT = $(MODULE_SRC)/private_types.txt
 
