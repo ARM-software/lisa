@@ -44,7 +44,7 @@ static inline bool task_group_is_autogroup(struct task_group *tg)
 #endif
 }
 
-int autogroup_path(struct task_group *tg, char *buf, int buflen)
+static int autogroup_path(struct task_group *tg, char *buf, int buflen)
 {
 #ifdef CONFIG_SCHED_AUTOGROUP
 	if (!task_group_is_autogroup(tg))
