@@ -522,7 +522,7 @@ def main():
 
             topics:
                 -
-                    name: foo
+                    name: foo # The name will default to the value of "tip" if not provided
                     remote: myremote
                     base: mybase
                     tip: mytip
