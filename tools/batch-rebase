@@ -253,11 +253,26 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
         git(['tag', '-f', '--', tag_name])
         return tag_name
 
+    def resolve_action(topic):
+        return topic.get('action', 'cherry-pick')
+
+    def resolve_name(topic):
+        action = resolve_action(topic)
+        if action == 'tag':
+            return topic['name']
+        elif action == 'cherry-pick':
+            return topic.get('name', topic['tip'])
+        else:
+            raise ValueError(f'Could not handle action={action} in topic: {topic}')
+
     persistent_refs = set()
-    topics = conf['topics']
+    topics = conf['topics'].copy()
 
     for topic in topics:
-        topic.setdefault('name', topic['tip'])
+        topic.update(
+            action=resolve_action(topic),
+            name=resolve_name(topic),
+        )
 
     # If we are resuming after a conflict
     if 'conflict-topic' in conf['resume']:
@@ -296,7 +311,7 @@ def _do_cherry_pick(repo, conf, persistent_tags, tags_suffix):
 
     # Cherry pick topic branches in the specified order
     for topic in topics:
-        action = topic.get('action', 'cherry-pick')
+        action = topic['action']
         name = topic['name']
 
         if action == 'tag':
