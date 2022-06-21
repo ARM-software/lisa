@@ -78,9 +78,7 @@ static int __process_features(char **selected, size_t selected_len, feature_proc
 	int ret = 0;
 
 	for (feature=__lisa_features_start; feature < __lisa_features_stop; feature++) {
-		ret = __select_feature(feature, selected, selected_len, process);
-		if (ret)
-			return ret;
+		ret |= __select_feature(feature, selected, selected_len, process);
 	}
 	return ret;
 }
@@ -100,6 +98,8 @@ static int __enable_feature_explicitly(struct feature* feature) {
 }
 
 int init_features(char **selected, size_t selected_len) {
+	BUG_ON(MAX_FEATURES < ((__lisa_features_stop - __lisa_features_start) / sizeof(struct feature)));
+
 	pr_info("Available features: ");
 	__process_features(NULL, 0, __list_feature);
 	pr_info("\n");
@@ -108,16 +108,14 @@ int init_features(char **selected, size_t selected_len) {
 
 static int __disable_explicitly_enabled_feature(struct feature* feature) {
 	bool selected;
-
-	BUG_ON(MAX_FEATURES < ((__lisa_features_stop - __lisa_features_start) / sizeof(struct feature)));
+	int ret = 0;
 
 	mutex_lock(feature->lock);
 	selected = feature->__explicitly_enabled;
 	mutex_unlock(feature->lock);
 	if (selected)
-		__disable_feature(feature);
-	/* Always return 0 to avoid the early return of __process_features() */
-	return 0;
+		ret |= __disable_feature(feature);
+	return ret;
 }
 
 int deinit_features(void) {

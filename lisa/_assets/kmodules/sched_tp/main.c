@@ -11,7 +11,8 @@ module_param_array(features, charp, &features_len, 0);
 MODULE_PARM_DESC(features, "Comma-separated list of features to enable. Available features are printed when loading the module");
 
 static void modexit(void) {
-	deinit_features();
+	if (deinit_features())
+		pr_err("Some errors happened while unloading LISA kernel module\n");
 }
 
 static int __init modinit(void) {
