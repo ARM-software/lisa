@@ -13,13 +13,15 @@ int __enable_feature(struct feature* feature) {
 
 	mutex_lock(feature->lock);
 	if (feature->enabled) {
-		ret = 0;
+		ret = feature->__enable_ret;
 	} else {
 		pr_info("Enabling lisa feature %s\n", feature->name);
 		if (feature->enable)
 			ret = feature->enable(feature);
 		else
 			ret = 0;
+		feature->__enable_ret = ret;
+
 		if (ret)
 			pr_err("Failed to enable feature %s: %i", feature->name, ret);
 	}

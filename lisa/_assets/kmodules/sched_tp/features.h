@@ -31,6 +31,9 @@ struct feature {
 	int (*enable)(struct feature*);
 	int (*disable)(struct feature*);
 
+	/* Return code of the enable() function */
+	int __enable_ret;
+
 	/* true if the feature has been explicitly enabled by the user */
 	bool __explicitly_enabled;
 	/* true if the feature is internal, i.e. not exposed to the user.
@@ -68,6 +71,7 @@ int __placeholder_deinit(struct feature *feature);
 		.disable = __placeholder_deinit,			\
 		.lock = &__lisa_mutex_feature_##feature_name,		\
 		.__internal = true,					\
+		.__enable_ret = 0,					\
 	};
 
 #define __DEFINE_FEATURE_STRONG(feature_name, enable_f, disable_f, internal)	\
@@ -81,6 +85,7 @@ int __placeholder_deinit(struct feature *feature);
 		.disable = disable_f,					\
 		.lock = &__lisa_mutex_feature_##feature_name,		\
 		.__internal = internal,					\
+		.__enable_ret = 0,					\
 	};
 
 /**
