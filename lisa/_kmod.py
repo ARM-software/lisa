@@ -898,6 +898,12 @@ class KernelTree(Loggable, SerializeViaConstructor):
             **env,
             **dict(make_vars or {})
         }
+
+        make_vars = {
+            str(k): str(v)
+            for k, v in make_vars.items()
+        }
+
         if abi is None:
             abi = make_vars.get('ARCH', LISA_HOST_ABI)
 
