@@ -16,23 +16,31 @@ static void modexit(void) {
 }
 
 static int __init modinit(void) {
-	int ret = 0;
-	ret |= init_features(features, features_len);
+	int ret = init_features(features, features_len);
 
-	/* Use one of the standard error code */
-	if (ret)
-		ret = -EINVAL;
-
-	/* Call modexit() explicitly, since it will not be called when ret != 0.
-	 * Not calling modexit() can (and will) result in kernel panic handlers
-	 * installed by the module are not deregistered before the module code
-	 * vanishes.
-	 */
 	if (ret) {
 		pr_err("Some errors happened while loading LISA kernel module\n");
-		modexit();
+
+		/* Use one of the standard error code */
+		ret = -EINVAL;
+
+		/* If the user selected features manually, make module loading fail so
+		 * that they are aware that things went wrong. Otherwise, just
+		 * keep going as the user just wanted to enable as many features
+		 * as possible.
+		 */
+		if (features_len) {
+			/* Call modexit() explicitly, since it will not be called when ret != 0.
+			 * Not calling modexit() can (and will) result in kernel panic handlers
+			 * installed by the module are not deregistered before the module code
+			 * vanishes.
+			 */
+			modexit();
+			return ret;
+
+		}
 	}
-	return ret;
+	return 0;
 }
 
 module_init(modinit);
