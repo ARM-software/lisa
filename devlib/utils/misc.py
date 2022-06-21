@@ -748,7 +748,8 @@ def batch_contextmanager(f, kwargs_list):
         yield
 
 
-class nullcontext:
+@contextmanager
+def nullcontext(enter_result=None):
     """
     Backport of Python 3.7 ``contextlib.nullcontext``
 
@@ -760,20 +761,7 @@ class nullcontext:
         statement, or `None` if nothing is specified.
     :type enter_result: object
     """
-    def __init__(self, enter_result=None):
-        self.enter_result = enter_result
-
-    def __enter__(self):
-        return self.enter_result
-
-    async def __aenter__(self):
-        return self.enter_result
-
-    def __exit__(*_):
-        return
-
-    async def __aexit__(*_):
-        return
+    yield enter_result
 
 
 class tls_property:

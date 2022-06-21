@@ -82,7 +82,6 @@ params = dict(
     url='https://github.com/ARM-software/devlib',
     license='Apache v2',
     maintainer='ARM Ltd.',
-    python_requires='>= 3.7',
     install_requires=[
         'python-dateutil',  # converting between UTC and local time.
         'pexpect>=3.3',  # Send/recieve to/from device
@@ -91,10 +90,13 @@ params = dict(
         'scp', # SSH connection file transfers
         'wrapt',  # Basic for construction of decorator functions
         'future', # Python 2-3 compatibility
-        'numpy',
-        'pandas',
+        'enum34;python_version<"3.4"', # Enums for Python < 3.4
+        'contextlib2;python_version<"3.0"', # Python 3 contextlib backport for Python 2
+        'numpy<=1.16.4; python_version<"3"',
+        'numpy; python_version>="3"',
+        'pandas<=0.24.2; python_version<"3"',
+        'pandas; python_version>"3"',
         'lxml', # More robust xml parsing
-        'nest_asyncio', # Allows running nested asyncio loops
     ],
     extras_require={
         'daq': ['daqpower>=2'],
