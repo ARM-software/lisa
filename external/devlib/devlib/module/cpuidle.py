@@ -20,7 +20,6 @@ from pprint import pformat
 
 from devlib.module import Module
 from devlib.utils.types import integer, boolean
-import devlib.utils.asyn as asyn
 
 
 class CpuidleState(object):
@@ -58,23 +57,19 @@ class CpuidleState(object):
         self.id = self.target.path.basename(self.path)
         self.cpu = self.target.path.basename(self.target.path.dirname(path))
 
-    @asyn.asyncf
-    async def enable(self):
-        await self.set.asyn('disable', 0)
+    def enable(self):
+        self.set('disable', 0)
 
-    @asyn.asyncf
-    async def disable(self):
-        await self.set.asyn('disable', 1)
+    def disable(self):
+        self.set('disable', 1)
 
-    @asyn.asyncf
-    async def get(self, prop):
+    def get(self, prop):
         property_path = self.target.path.join(self.path, prop)
-        return await self.target.read_value.asyn(property_path)
+        return self.target.read_value(property_path)
 
-    @asyn.asyncf
-    async def set(self, prop, value):
+    def set(self, prop, value):
         property_path = self.target.path.join(self.path, prop)
-        await self.target.write_value.asyn(property_path, value)
+        self.target.write_value(property_path, value)
 
     def __eq__(self, other):
         if isinstance(other, CpuidleState):
@@ -99,9 +94,8 @@ class Cpuidle(Module):
     root_path = '/sys/devices/system/cpu/cpuidle'
 
     @staticmethod
-    @asyn.asyncf
-    async def probe(target):
-        return await target.file_exists.asyn(Cpuidle.root_path)
+    def probe(target):
+        return target.file_exists(Cpuidle.root_path)
 
     def __init__(self, target):
         super(Cpuidle, self).__init__(target)
@@ -152,43 +146,32 @@ class Cpuidle(Module):
                     return s
             raise ValueError('Cpuidle state {} does not exist'.format(state))
 
-    @asyn.asyncf
-    async def enable(self, state, cpu=0):
-        await self.get_state(state, cpu).enable.asyn()
+    def enable(self, state, cpu=0):
+        self.get_state(state, cpu).enable()
 
-    @asyn.asyncf
-    async def disable(self, state, cpu=0):
-        await self.get_state(state, cpu).disable.asyn()
+    def disable(self, state, cpu=0):
+        self.get_state(state, cpu).disable()
 
-    @asyn.asyncf
-    async def enable_all(self, cpu=0):
-        await self.target.async_manager.concurrently(
-            state.enable.asyn()
-            for state in self.get_states(cpu)
-        )
+    def enable_all(self, cpu=0):
+        for state in self.get_states(cpu):
+            state.enable()
 
-    @asyn.asyncf
-    async def disable_all(self, cpu=0):
-        await self.target.async_manager.concurrently(
-            state.disable.asyn()
-            for state in self.get_states(cpu)
-        )
+    def disable_all(self, cpu=0):
+        for state in self.get_states(cpu):
+            state.disable()
 
-    @asyn.asyncf
-    async def perturb_cpus(self):
+    def perturb_cpus(self):
         """
         Momentarily wake each CPU. Ensures cpu_idle events in trace file.
         """
         # pylint: disable=protected-access
-        await self.target._execute_util.asyn('cpuidle_wake_all_cpus')
+        self.target._execute_util('cpuidle_wake_all_cpus')
 
-    @asyn.asyncf
-    async def get_driver(self):
-        return await self.target.read_value.asyn(self.target.path.join(self.root_path, 'current_driver'))
+    def get_driver(self):
+        return self.target.read_value(self.target.path.join(self.root_path, 'current_driver'))
 
-    @asyn.asyncf
-    async def get_governor(self):
+    def get_governor(self):
         path = self.target.path.join(self.root_path, 'current_governor_ro')
-        if not await self.target.file_exists.asyn(path):
+        if not self.target.file_exists(path):
             path = self.target.path.join(self.root_path, 'current_governor')
-        return await self.target.read_value.asyn(path)
+        return self.target.read_value(path)

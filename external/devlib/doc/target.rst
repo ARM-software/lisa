@@ -3,7 +3,7 @@
 Target
 ======
 
-.. class:: Target(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=None, max_async=50)
+.. class:: Target(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=None)
 
     :class:`~devlib.target.Target` is the primary interface to the remote
     device. All interactions with the device are performed via a
@@ -75,9 +75,6 @@ Target
 
     :param conn_cls: This is the type of connection that will be used to
         communicate with the device.
-
-    :param max_async: Maximum number of opened connections to the target used to
-                      issue non-blocking commands when using the async API.
 
 .. attribute:: Target.core_names
 
@@ -609,7 +606,7 @@ Target
 Linux Target
 ------------
 
-.. class:: LinuxTarget(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=SshConnection, is_container=False, max_async=50)
+.. class:: LinuxTarget(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=SshConnection, is_container=False,)
 
     :class:`LinuxTarget` is a subclass of :class:`~devlib.target.Target`
     with customisations specific to a device running linux.
@@ -618,7 +615,7 @@ Linux Target
 Local Linux Target
 ------------------
 
-.. class:: LocalLinuxTarget(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=SshConnection, is_container=False, max_async=50)
+.. class:: LocalLinuxTarget(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=SshConnection, is_container=False,)
 
     :class:`LocalLinuxTarget` is a subclass of
     :class:`~devlib.target.LinuxTarget` with customisations specific to using
@@ -628,7 +625,7 @@ Local Linux Target
 Android Target
 ---------------
 
-.. class:: AndroidTarget(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=AdbConnection, package_data_directory="/data/data", max_async=50)
+.. class:: AndroidTarget(connection_settings=None, platform=None, working_directory=None, executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, conn_cls=AdbConnection, package_data_directory="/data/data")
 
     :class:`AndroidTarget` is a subclass of :class:`~devlib.target.Target` with
     additional features specific to a device running Android.
@@ -776,7 +773,7 @@ Android Target
 ChromeOS Target
 ---------------
 
-.. class:: ChromeOsTarget(connection_settings=None, platform=None, working_directory=None, executables_directory=None, android_working_directory=None, android_executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, package_data_directory="/data/data", max_async=50)
+.. class:: ChromeOsTarget(connection_settings=None, platform=None, working_directory=None, executables_directory=None, android_working_directory=None, android_executables_directory=None, connect=True, modules=None, load_default_modules=True, shell_prompt=DEFAULT_SHELL_PROMPT, package_data_directory="/data/data")
 
     :class:`ChromeOsTarget` is a subclass of :class:`LinuxTarget` with
     additional features specific to a device running ChromeOS for example,
