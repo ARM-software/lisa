@@ -4,6 +4,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// TODO: remove that, comes from the kernel
+#define min(x, y) (x < y ? x : y)
+typedef unsigned char unchar;
+typedef unsigned short ushort;
+typedef unsigned int uint;
+typedef unsigned long ulong;
+
+
 struct string {
 	char *start;
 	char *end;
@@ -25,6 +33,21 @@ size_t string_length(string *str)
 	return (str->end - str->start);
 }
 
+string charp2string(char *s)
+{
+	return (string){ .start = s,
+			 .end = (char *)((uintptr_t)s + strlen(s)) };
+}
+
+size_t string2charp(string *src, char *dst, size_t max)
+{
+	size_t n = min(max, string_length(src));
+	memcpy(dst, src->start, n);
+	dst[n] = '\0';
+	return n;
+}
+
+
 enum tag {
 	SUCCESS,
 	FAILURE,
@@ -42,8 +65,6 @@ enum tag {
 #define IS_SUCCESS(res) (res.tag == SUCCESS)
 
 MAKE_PARSE_RESULT_TYPE(string);
-MAKE_PARSE_RESULT_TYPE(int);
-MAKE_PARSE_RESULT_TYPE(long);
 MAKE_PARSE_RESULT_TYPE(char);
 
 PARSE_RESULT(string) parse_string(string *input, char *match)
@@ -78,12 +99,12 @@ PARSE_RESULT(string) parse_string(string *input, char *match)
 	}
 }
 
-inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
+PARSE_RESULT(char) __parse_char(string *input, char *allowed, bool revert)
 {
 	char input_char = *input->start;
 	char c;
 	for (c = *allowed; c != '\0'; c = *allowed++) {
-		if (input_char == c) {
+		if (revert ? input_char != c : input_char == c) {
 			return (PARSE_RESULT(char)){
 				.tag = SUCCESS,
 				.remainder =
@@ -97,25 +118,35 @@ inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 	return (PARSE_RESULT(char)){ .tag = FAILURE, .remainder = *input };
 }
 
+PARSE_RESULT(char) parse_char(string *input, char *allowed)
+{
+	return __parse_char(input, allowed, false);
+}
+
+PARSE_RESULT(char) parse_char_not_in(string *input, char *disallowed)
+{
+	return __parse_char(input, disallowed, true);
+}
+
 #define APPLY(type, name, parser, ...)                                         \
-	inline PARSE_RESULT(type) name(string *input)                          \
+	PARSE_RESULT(type) name(string *input)                                 \
 	{                                                                      \
 		return parser(input, __VA_ARGS__);                             \
 	}
 
-#define OR(type, name, p1, p2)                                                 \
-	inline PARSE_RESULT(type) name(string *input)                          \
+#define OR(type, name, parser1, parser2)                                       \
+	PARSE_RESULT(type) name(string *input)                                 \
 	{                                                                      \
-		PARSE_RESULT(type) res1 = p1(input);                           \
+		PARSE_RESULT(type) res1 = parser1(input);                      \
 		if (IS_SUCCESS(res1)) {                                        \
 			return res1;                                           \
 		} else {                                                       \
-			return p2(input);                                      \
+			return parser2(input);                                 \
 		}                                                              \
 	}
 
 #define PURE(type, name, _value)                                               \
-	inline PARSE_RESULT(type) name(string *input)                          \
+	PARSE_RESULT(type) name(string *input)                                 \
 	{                                                                      \
 		return (PARSE_RESULT(type)){ .tag = SUCCESS,                   \
 					     .remainder = *input,              \
@@ -139,7 +170,7 @@ inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 	}
 
 #define MAP_STRING(f_type, parser_type, name, parser, f)                       \
-	inline typeof(f(NULL)) __map_string_##f(string str)                    \
+	typeof(f(NULL)) __map_string_##f(string str)                           \
 	{                                                                      \
 		return WITH_NULL_TERMINATED(&str, f);                          \
 	}                                                                      \
@@ -225,7 +256,7 @@ inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 						     .remainder = *input };    \
 	}
 
-#define DISCARD_THEN(parser1_type, parser2_type, name, parser1, parser2)       \
+#define RIGHT(parser1_type, parser2_type, name, parser1, parser2)              \
 	PARSE_RESULT(parser2_type)                                             \
 	__discard_then_##parser2(string *input, parser1_type _)                \
 	{                                                                      \
@@ -233,6 +264,19 @@ inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 	}                                                                      \
 	THEN(parser1_type, parser2_type, name, parser1,                        \
 	     __discard_then_##parser2)
+
+#define LEFT(parser1_type, parser2_type, name, parser1, parser2)               \
+	PARSE_RESULT(parser1_type)                                             \
+	__forward_then_discard_##parser2(string *input, parser1_type value)    \
+	{                                                                      \
+		PARSE_RESULT(parser2_type) res = parser2(input);               \
+		return (PARSE_RESULT(parser1_type)){ .tag = SUCCESS,           \
+						     .value = value,           \
+						     .remainder =              \
+							     res.remainder };  \
+	}                                                                      \
+	THEN(parser1_type, parser1_type, name, parser1,                        \
+	     __forward_then_discard_##parser2)
 
 #define PARSE(parser, ...)                                                     \
 	({                                                                     \
@@ -262,82 +306,24 @@ inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 		};                                                             \
 	}
 
-/* char curr; */
+/* TEST */
 
-/* while (1) { */
-/* 	curr = str->start; */
-/* 	str->start++; */
-/* 	if (str->start > str->end) */
-/* 		break; */
-/* } */
+MAKE_PARSE_RESULT_TYPE(int);
+MAKE_PARSE_RESULT_TYPE(long);
+MAKE_PARSE_RESULT_TYPE(ulong);
+MAKE_PARSE_RESULT_TYPE(uint);
 
-int myf(char *s)
-{
-	printf("got %s\n", s);
-	return 44;
-}
-
-int make_int(string str)
-{
-	return WITH_NULL_TERMINATED(&str, myf);
-}
+APPLY(char, parse_space, parse_char, " \n");
+COUNT_MANY(char, count_spaces, parse_space);
 
 long tolong(char *s)
 {
 	char *ptr;
 	return strtol(s, &ptr, 10);
 }
-
-APPLY(char, parse_space, parse_char, " \n");
-COUNT_MANY(char, count_spaces, parse_space);
-
-APPLY(string, parse_hello, parse_string, "hello");
-APPLY(string, parse_bar, parse_string, "bar");
-OR(string, parse_hello_or_bar, parse_hello, parse_bar);
-
-MAP(int, string, parse_hello_or_bar_int, parse_hello_or_bar, make_int);
-
-PURE(int, make_45, 45);
-OR(int, parse_hello_or_bar_or_else_45, parse_hello_or_bar_int, make_45);
-
-int mymany(int acc, int parsed)
-{
-	printf("parsed %i, adding\n", parsed);
-	return acc + parsed;
-}
-MANY(int, parse_hello_or_bar_int_many, parse_hello_or_bar_int, mymany, 41);
-DISCARD_THEN(int, int, spaces_then_parse_hello_or_bar_int_many, count_spaces,
-	     parse_hello_or_bar_int_many)
-
-/* TEST */
-
 APPLY(char, parse_digit, parse_char, "0123456789");
 TAKEWHILE_AT_LEAST(char, parse_number_string, parse_digit, 1);
 MAP_STRING(long, string, parse_long, parse_number_string, tolong);
-
-typedef struct data {
-	long x;
-	long y;
-} data;
-MAKE_PARSE_RESULT_TYPE(data);
-
-SEQUENCE(data, parse_data, ({
-		 long x = PARSE(parse_long);
-		 printf("spaces: %i\n", PARSE(count_spaces));
-		 long y = PARSE(parse_long);
-		 (data){ .x = x, .y = y };
-	 }))
-
-/* #define SAMPLE "t=123456789 CH11(T=123456789)[CPU_HELLO], 42\nt=123456789 CH11(T=123456789)[RAM], 43" */
-/* #define SAMPLE "1   2 66   \n    hellobar" */
-
-typedef unsigned char unchar;
-typedef unsigned short ushort;
-typedef unsigned int uint;
-typedef unsigned long ulong;
-
-MAKE_PARSE_RESULT_TYPE(ulong);
-MAKE_PARSE_RESULT_TYPE(uint);
 
 #define PIXEL6_EMETER_CHAN_NAME_MAX_SIZE 64
 typedef struct sample {
@@ -350,12 +336,47 @@ MAKE_PARSE_RESULT_TYPE(sample_t);
 
 SEQUENCE(sample_t, parse_sample, ({
 		 sample_t value;
+
+		 /* CH42 */
+		 APPLY(string, parse_ch, parse_string, "CH");
+		 PARSE(parse_ch);
+		 value.chan = PARSE(parse_long);
+
+		 /* (T=42) */
+		 APPLY(string, parse_paren_T_eq, parse_string, "(T=");
+		 PARSE(parse_paren_T_eq);
+		 value.ts = PARSE(parse_long);
+		 APPLY(string, parse_lparen, parse_string, ")");
+		 PARSE(parse_lparen);
+
+		 /* [CHAN_NAME] */
+		 APPLY(string, parse_lbracket, parse_string, "[");
+		 PARSE(parse_lbracket);
+
+		 APPLY(char, parse_name_char, parse_char_not_in, "]");
+		 TAKEWHILE(char, parse_name, parse_name_char);
+		 string _name = PARSE(parse_name);
+		 string2charp(&_name, value.chan_name,
+				   PIXEL6_EMETER_CHAN_NAME_MAX_SIZE);
+		 APPLY(string, parse_rbracket, parse_string, "]");
+		 PARSE(parse_rbracket);
+
+		 /* , */
+		 APPLY(string, parse_comma, parse_string, ", ");
+		 PARSE(parse_comma);
+
+		 /* 12345 */
+		 value.value = PARSE(parse_long);
+
 		 value;
 	 }))
 
+LEFT(sample_t, int, parse_sample_line, parse_sample, count_spaces)
+
 int process_sample(int nr, sample_t sample)
 {
-	printf("sample: ts=%lu\n", sample.ts);
+	printf("hello chan=%u, ts=%li chan_name=%s value=%li\n", sample.chan,
+	       sample.ts, sample.chan_name, sample.value);
 }
 
 SEQUENCE(int, parse_content, ({
@@ -363,55 +384,20 @@ SEQUENCE(int, parse_content, ({
 		 APPLY(string, parse_teq, parse_string, "t=");
 		 PARSE(parse_teq);
 		 long x = PARSE(parse_long);
-		 MANY(sample_t, parse_all_samples, parse_sample, process_sample, 0);
+		 PARSE(count_spaces);
+		 MANY(sample_t, parse_all_samples, parse_sample_line,
+		      process_sample, 0);
 		 PARSE(parse_all_samples);
 		 0;
 	 }))
 
 #define SAMPLE                                                                 \
-	"t=473848\nCH0(T=473848)[S10M_VDD_TPU], 3161249\nCH1(T=473848)[VSYS_PWR_MODEM], 48480309\nCH2(T=473848)[VSYS_PWR_RFFE], 9594393\nCH3(T=473848)[S2M_VDD_CPUCL2], 28071872\nCH4(T=473848)[S3M_VDD_CPUCL1], 17477139\nCH5(T=473848)[S4M_VDD_CPUCL0], 113447446\nCH6(T=473848)[S5M_VDD_INT], 12543588\nCH7(T=473848)[S1M_VDD_MIF], 25901660\n"
+	"t=473848\nCH42(T=473848)[S10M_VDD_TPU], 3161249\nCH1(T=473848)[VSYS_PWR_MODEM], 48480309\nCH2(T=473848)[VSYS_PWR_RFFE], 9594393\nCH3(T=473848)[S2M_VDD_CPUCL2], 28071872\nCH4(T=473848)[S3M_VDD_CPUCL1], 17477139\nCH5(T=473848)[S4M_VDD_CPUCL0], 113447446\nCH6(T=473848)[S5M_VDD_INT], 12543588\nCH7(T=473848)[S1M_VDD_MIF], 25901660\n"
 
 int main()
 {
 	char *content = strdup(SAMPLE);
-	string input = (string){ .start = content,
-				 .end = (char *)((uintptr_t)content +
-						 strlen(content)) };
-
-	/* PARSE_RESULT(int) res = spaces_then_parse_hello_or_bar_int_many(&input); */
-	/* PARSE_RESULT(int) res = count_spaces(&input); */
-	/* PARSE_RESULT(long) res = parse_long(&input); */
-	/* printf("%s: %li\n", res.tag == SUCCESS ? "SUCCESS" : "FAILURE", */
-	/*        res.value); */
-
-	PARSE_RESULT(data) res = parse_data(&input);
-	printf("%s: x=%li y=%li\n", res.tag == SUCCESS ? "SUCCESS" : "FAILURE",
-	       res.value.x, res.value.y);
-	return 0;
-}
-
-int main2()
-{
-	const char sep[] = "\n";
-	char *token;
-
-	unsigned long long ts;
-	unsigned long chan;
-	unsigned long cpu;
-	char chan_name[40] = { '\0' };
-	unsigned long long value;
-
-	char *content = strdup(SAMPLE);
-
-	while (token) {
-		token = strsep(&content, sep);
-		if (!token)
-			break;
-		sscanf(token, "t=%llu CH%lu(T=%llu)[%s%llu", &ts, &chan, &ts,
-		       (char *)&chan_name, &value);
-		printf("result: t=%llu CH%lu(T=%llu)[%s %llu\n", ts, chan, ts,
-		       chan_name, value);
-	}
-
+	string input = charp2string(content);
+	PARSE_RESULT(int) res = parse_content(&input);
 	return 0;
 }
