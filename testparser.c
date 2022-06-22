@@ -11,7 +11,6 @@ typedef unsigned short ushort;
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
-
 struct string {
 	char *start;
 	char *end;
@@ -46,7 +45,6 @@ size_t string2charp(string *src, char *dst, size_t max)
 	dst[n] = '\0';
 	return n;
 }
-
 
 enum tag {
 	SUCCESS,
@@ -101,20 +99,21 @@ PARSE_RESULT(string) parse_string(string *input, char *match)
 
 PARSE_RESULT(char) __parse_char(string *input, char *allowed, bool revert)
 {
-	char input_char = *input->start;
-	char c;
-	for (c = *allowed; c != '\0'; c = *allowed++) {
-		if (revert ? input_char != c : input_char == c) {
-			return (PARSE_RESULT(char)){
-				.tag = SUCCESS,
-				.remainder =
-					(string){ .start = input->start + 1,
-						  .end = input->end },
-				.value = c,
-			};
+	if (input->start < input->end) {
+		char input_char = *input->start;
+		char c;
+		for (c = *allowed; c != '\0'; c = *allowed++) {
+			if (revert ? input_char != c : input_char == c) {
+				return (PARSE_RESULT(char)){
+					.tag = SUCCESS,
+					.remainder =
+						(string){ .start = input->start + 1,
+							.end = input->end },
+					.value = c,
+				};
+			}
 		}
 	}
-
 	return (PARSE_RESULT(char)){ .tag = FAILURE, .remainder = *input };
 }
 
@@ -133,6 +132,12 @@ PARSE_RESULT(char) parse_char_not_in(string *input, char *disallowed)
 	{                                                                      \
 		return parser(input, __VA_ARGS__);                             \
 	}
+
+#define APPLY_AND_PARSE(type, name, parser, ...)                               \
+	({                                                                     \
+		APPLY(type, name, parser, __VA_ARGS__);                        \
+		PARSE(name);                                                   \
+	})
 
 #define OR(type, name, parser1, parser2)                                       \
 	PARSE_RESULT(type) name(string *input)                                 \
@@ -180,8 +185,8 @@ PARSE_RESULT(char) parse_char_not_in(string *input, char *disallowed)
 	PARSE_RESULT(type) name(string *input)                                 \
 	{                                                                      \
 		typeof(init) acc = init;                                       \
-		PARSE_RESULT(type)                                             \
-		res = (PARSE_RESULT(type)){ .remainder = *input };             \
+		typeof(parser(NULL)) res =                                     \
+			(typeof(parser(NULL))){ .remainder = *input };         \
 		for (size_t i = 0;; i++) {                                     \
 			res = parser(&res.remainder);                          \
 			if (IS_SUCCESS(res)) {                                 \
@@ -338,32 +343,25 @@ SEQUENCE(sample_t, parse_sample, ({
 		 sample_t value;
 
 		 /* CH42 */
-		 APPLY(string, parse_ch, parse_string, "CH");
-		 PARSE(parse_ch);
+		 APPLY_AND_PARSE(string, parse_ch, parse_string, "CH");
 		 value.chan = PARSE(parse_long);
 
 		 /* (T=42) */
-		 APPLY(string, parse_paren_T_eq, parse_string, "(T=");
-		 PARSE(parse_paren_T_eq);
+		 APPLY_AND_PARSE(string, parse_paren_T_eq, parse_string, "(T=");
 		 value.ts = PARSE(parse_long);
-		 APPLY(string, parse_lparen, parse_string, ")");
-		 PARSE(parse_lparen);
+		 APPLY_AND_PARSE(string, parse_lparen, parse_string, ")");
 
 		 /* [CHAN_NAME] */
-		 APPLY(string, parse_lbracket, parse_string, "[");
-		 PARSE(parse_lbracket);
-
+		 APPLY_AND_PARSE(string, parse_lbracket, parse_string, "[");
 		 APPLY(char, parse_name_char, parse_char_not_in, "]");
 		 TAKEWHILE(char, parse_name, parse_name_char);
 		 string _name = PARSE(parse_name);
 		 string2charp(&_name, value.chan_name,
-				   PIXEL6_EMETER_CHAN_NAME_MAX_SIZE);
-		 APPLY(string, parse_rbracket, parse_string, "]");
-		 PARSE(parse_rbracket);
+			      PIXEL6_EMETER_CHAN_NAME_MAX_SIZE);
+		 APPLY_AND_PARSE(string, parse_rbracket, parse_string, "]");
 
 		 /* , */
-		 APPLY(string, parse_comma, parse_string, ", ");
-		 PARSE(parse_comma);
+		 APPLY_AND_PARSE(string, parse_comma, parse_string, ", ");
 
 		 /* 12345 */
 		 value.value = PARSE(parse_long);
@@ -377,6 +375,7 @@ int process_sample(int nr, sample_t sample)
 {
 	printf("hello chan=%u, ts=%li chan_name=%s value=%li\n", sample.chan,
 	       sample.ts, sample.chan_name, sample.value);
+	return nr + 1;
 }
 
 SEQUENCE(int, parse_content, ({
@@ -385,10 +384,11 @@ SEQUENCE(int, parse_content, ({
 		 PARSE(parse_teq);
 		 long x = PARSE(parse_long);
 		 PARSE(count_spaces);
-		 MANY(sample_t, parse_all_samples, parse_sample_line,
-		      process_sample, 0);
+
+		 /* Parse all the following sample lines */
+		 MANY(int, parse_all_samples, parse_sample_line, process_sample,
+		      0);
 		 PARSE(parse_all_samples);
-		 0;
 	 }))
 
 #define SAMPLE                                                                 \
@@ -399,5 +399,10 @@ int main()
 	char *content = strdup(SAMPLE);
 	string input = charp2string(content);
 	PARSE_RESULT(int) res = parse_content(&input);
+	if (IS_SUCCESS(res)) {
+		printf("parsed %i samples\n", res.value);
+	} else {
+		printf("Failed to parse content\n");
+	}
 	return 0;
 }
