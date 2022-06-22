@@ -78,7 +78,7 @@ PARSE_RESULT(string) parse_string(string *input, char *match)
 	}
 }
 
-static inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
+inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 {
 	char input_char = *input->start;
 	char c;
@@ -103,11 +103,8 @@ static inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 		return parser(input, __VA_ARGS__);                             \
 	}
 
-#define STATIC_APPLY(type, name, parser, args...)                              \
-	static APPLY(type, name, parser, args)
-
 #define OR(type, name, p1, p2)                                                 \
-	static inline PARSE_RESULT(type) name(string *input)                   \
+	inline PARSE_RESULT(type) name(string *input)                          \
 	{                                                                      \
 		PARSE_RESULT(type) res1 = p1(input);                           \
 		if (IS_SUCCESS(res1)) {                                        \
@@ -118,7 +115,7 @@ static inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 	}
 
 #define PURE(type, name, _value)                                               \
-	static inline PARSE_RESULT(type) name(string *input)                   \
+	inline PARSE_RESULT(type) name(string *input)                          \
 	{                                                                      \
 		return (PARSE_RESULT(type)){ .tag = SUCCESS,                   \
 					     .remainder = *input,              \
@@ -126,7 +123,7 @@ static inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 	}
 
 #define MAP(f_type, parser_type, name, parser, f)                              \
-	static PARSE_RESULT(f_type) name(string *input)                        \
+	PARSE_RESULT(f_type) name(string *input)                               \
 	{                                                                      \
 		PARSE_RESULT(parser_type) res = parser(input);                 \
 		if (IS_SUCCESS(res)) {                                         \
@@ -142,14 +139,14 @@ static inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 	}
 
 #define MAP_STRING(f_type, parser_type, name, parser, f)                       \
-	static inline typeof(f(NULL)) __map_string_##f(string str)             \
+	inline typeof(f(NULL)) __map_string_##f(string str)                    \
 	{                                                                      \
 		return WITH_NULL_TERMINATED(&str, f);                          \
 	}                                                                      \
 	MAP(f_type, parser_type, name, parser, __map_string_##f)
 
 #define AT_LEAST(type, name, parser, f, init, n)                               \
-	static PARSE_RESULT(type) name(string *input)                          \
+	PARSE_RESULT(type) name(string *input)                                 \
 	{                                                                      \
 		typeof(init) acc = init;                                       \
 		PARSE_RESULT(type)                                             \
@@ -172,7 +169,7 @@ static inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 	AT_LEAST(type, name, parser, f, init, 0)
 
 #define TAKEWHILE_AT_LEAST(type, name, parser, n)                                        \
-	static PARSE_RESULT(string) name(string *input)                                  \
+	PARSE_RESULT(string) name(string *input)                                         \
 	{                                                                                \
 		char *start = input->start;                                              \
 		PARSE_RESULT(type)                                                       \
@@ -202,11 +199,11 @@ static inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 #define TAKEWHILE(type, name, parser) TAKEWHILE_AT_LEAST(type, name, parser, 0)
 
 #define COUNT_MANY(parser_type, name, parser)                                  \
-	static int __count_fold_##name(int acc, int x)                         \
+	int __count_fold_##name(int acc, int x)                                \
 	{                                                                      \
 		return acc + x;                                                \
 	}                                                                      \
-	static int __count_one_f_##name(parser_type _)                         \
+	int __count_one_f_##name(parser_type _)                                \
 	{                                                                      \
 		return 1;                                                      \
 	}                                                                      \
@@ -215,7 +212,7 @@ static inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 	MANY(int, name, __count_one_##name, __count_fold_##name, 0)
 
 #define THEN(parser1_type, parser2_type, name, parser1, parser2)               \
-	static PARSE_RESULT(parser2_type) name(string *input)                  \
+	PARSE_RESULT(parser2_type) name(string *input)                         \
 	{                                                                      \
 		PARSE_RESULT(parser1_type) res = parser1(input);               \
 		PARSE_RESULT(parser2_type) res2;                               \
@@ -229,8 +226,8 @@ static inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 	}
 
 #define DISCARD_THEN(parser1_type, parser2_type, name, parser1, parser2)       \
-	static PARSE_RESULT(parser2_type)                                      \
-		__discard_then_##parser2(string *input, parser1_type _)        \
+	PARSE_RESULT(parser2_type)                                             \
+	__discard_then_##parser2(string *input, parser1_type _)                \
 	{                                                                      \
 		return parser2(input);                                         \
 	}                                                                      \
@@ -248,7 +245,7 @@ static inline PARSE_RESULT(char) parse_char(string *input, char *allowed)
 	})
 
 #define SEQUENCE(type, name, body, params...)                                  \
-	static PARSE_RESULT(type) name(string *input, ##params)                \
+	PARSE_RESULT(type) name(string *input, ##params)                       \
 	{                                                                      \
 		string __seq_remainder = *input;                               \
 		string __seq_unmodified_input = *input;                        \
@@ -285,17 +282,17 @@ int make_int(string str)
 	return WITH_NULL_TERMINATED(&str, myf);
 }
 
-static long tolong(char *s)
+long tolong(char *s)
 {
 	char *ptr;
 	return strtol(s, &ptr, 10);
 }
 
-STATIC_APPLY(char, parse_space, parse_char, " \n");
+APPLY(char, parse_space, parse_char, " \n");
 COUNT_MANY(char, count_spaces, parse_space);
 
-STATIC_APPLY(string, parse_hello, parse_string, "hello");
-STATIC_APPLY(string, parse_bar, parse_string, "bar");
+APPLY(string, parse_hello, parse_string, "hello");
+APPLY(string, parse_bar, parse_string, "bar");
 OR(string, parse_hello_or_bar, parse_hello, parse_bar);
 
 MAP(int, string, parse_hello_or_bar_int, parse_hello_or_bar, make_int);
@@ -314,7 +311,7 @@ DISCARD_THEN(int, int, spaces_then_parse_hello_or_bar_int_many, count_spaces,
 
 /* TEST */
 
-STATIC_APPLY(char, parse_digit, parse_char, "0123456789");
+APPLY(char, parse_digit, parse_char, "0123456789");
 TAKEWHILE_AT_LEAST(char, parse_number_string, parse_digit, 1);
 MAP_STRING(long, string, parse_long, parse_number_string, tolong);
 
@@ -324,49 +321,56 @@ typedef struct data {
 } data;
 MAKE_PARSE_RESULT_TYPE(data);
 
-/* data make_x(long x) */
-/* { */
-/* 	return (data){ .x = x }; */
-/* } */
-/* MAP(data, long, parse_x, parse_long, make_x); */
-
-/* // TODO: abstract over that builder pattern */
-/* PARSE_RESULT(data) parse_y(string *input, data partial) */
-/* { */
-/* 	PARSE_RESULT(long) res = parse_long(input); */
-/* 	if (IS_SUCCESS(res)) { */
-/* 		partial.y = res.value; */
-/* 		return (PARSE_RESULT(data)){ .tag = SUCCESS, */
-/* 					     .value = partial, */
-/* 					     .remainder = res.remainder }; */
-/* 	} else { */
-/* 		return (PARSE_RESULT(data)){ .tag = FAILURE, */
-/* 					     .remainder = res.remainder }; */
-/* 	} */
-/* } */
-
-/* THEN(data, data, parse_data, parse_x, parse_y); */
-
 SEQUENCE(data, parse_data, ({
 		 long x = PARSE(parse_long);
-		 PARSE(count_spaces);
+		 printf("spaces: %i\n", PARSE(count_spaces));
 		 long y = PARSE(parse_long);
 		 (data){ .x = x, .y = y };
 	 }))
 
 /* #define SAMPLE "t=123456789 CH11(T=123456789)[CPU_HELLO], 42\nt=123456789 CH11(T=123456789)[RAM], 43" */
-#define SAMPLE "1 2 66   \n    hellobar"
+/* #define SAMPLE "1   2 66   \n    hellobar" */
 
-void foo(int hell)
+typedef unsigned char unchar;
+typedef unsigned short ushort;
+typedef unsigned int uint;
+typedef unsigned long ulong;
+
+MAKE_PARSE_RESULT_TYPE(ulong);
+MAKE_PARSE_RESULT_TYPE(uint);
+
+#define PIXEL6_EMETER_CHAN_NAME_MAX_SIZE 64
+typedef struct sample {
+	unsigned long ts;
+	unsigned long value;
+	unsigned int chan;
+	char chan_name[PIXEL6_EMETER_CHAN_NAME_MAX_SIZE];
+} sample_t;
+MAKE_PARSE_RESULT_TYPE(sample_t);
+
+SEQUENCE(sample_t, parse_sample, ({
+		 sample_t value;
+		 value;
+	 }))
+
+int process_sample(int nr, sample_t sample)
 {
-	inline void bar(void)
-	{
-		printf("xxx %i\n", hell);
-	};
-	bar();
-};
+	printf("sample: ts=%lu\n", sample.ts);
+}
 
-/* string -> (val, string) */
+SEQUENCE(int, parse_content, ({
+		 /* t=12345 */
+		 APPLY(string, parse_teq, parse_string, "t=");
+		 PARSE(parse_teq);
+		 long x = PARSE(parse_long);
+		 MANY(sample_t, parse_all_samples, parse_sample, process_sample, 0);
+		 PARSE(parse_all_samples);
+		 0;
+	 }))
+
+#define SAMPLE                                                                 \
+	"t=473848\nCH0(T=473848)[S10M_VDD_TPU], 3161249\nCH1(T=473848)[VSYS_PWR_MODEM], 48480309\nCH2(T=473848)[VSYS_PWR_RFFE], 9594393\nCH3(T=473848)[S2M_VDD_CPUCL2], 28071872\nCH4(T=473848)[S3M_VDD_CPUCL1], 17477139\nCH5(T=473848)[S4M_VDD_CPUCL0], 113447446\nCH6(T=473848)[S5M_VDD_INT], 12543588\nCH7(T=473848)[S1M_VDD_MIF], 25901660\n"
+
 int main()
 {
 	char *content = strdup(SAMPLE);
