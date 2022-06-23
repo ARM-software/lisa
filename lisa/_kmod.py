@@ -1582,7 +1582,9 @@ class KmodSrc(Loggable):
                 for name, value in sorted(make_vars.items())
                 if value is not None
             ]
-            cmd = ['make', '-C', tree_path, *make_vars, 'modules']
+
+            nr_cpus = int(os.cpu_count() * 1.5)
+            cmd = ['make', f'-j{nr_cpus}', '-C', tree_path, *make_vars, 'modules']
             return cmd
 
         def find_mod_file(path):
