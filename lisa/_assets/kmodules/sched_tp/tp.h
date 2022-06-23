@@ -22,22 +22,9 @@ __attribute__((unused)) static struct tracepoint *__find_tracepoint(const char *
 	return res.found;
 }
 
-/**
- * DEFINE_EXTENDED_TP_FEATURE() - Define a feature linked to a tracepoint.
- * @feature_name: Name of the feature.
- * @tp_name: Name of the tracepoint to attach to.
- * @probe: Probe function passed to the relevant tracepoint registering function register_trace_*().
- * @enable_f: Additional enable function for the feature. It must take a struct
- * feature * and return a non-zero int in case of failure.
- * @disable_f: Additional disable function for the feature. Same signature as enable_f().
- *
- * Define a feature with a probe attached to a tracepoint, with additional
- * user-defined enable/disable functions. If the tracepoint is not found, the
- * user functions will not be called.
- */
-#define DEFINE_EXTENDED_TP_FEATURE(feature_name, tp_name, probe, enable_f, disable_f) \
+#define DEFINE_TP_ENABLE_DISABLE(feature_name, tp_name, probe, enable_name, enable_f, disable_name, disable_f) \
 	static bool __feature_tp_registered_##feature_name = false;	\
-	static int __tp_feature_enable_##feature_name(struct feature* feature) { \
+	static int enable_name(struct feature* feature) {		\
 		int ret = 0;						\
 		int __ret;						\
 		struct tracepoint *tp;					\
@@ -63,7 +50,7 @@ __attribute__((unused)) static struct tracepoint *__find_tracepoint(const char *
 		}							\
 		return ret;						\
 	}								\
-	static int __tp_feature_disable_##feature_name(struct feature* feature) { \
+	static int disable_name(struct feature* feature) {		\
 		int ret = 0;						\
 		int __ret;						\
 		int (*_disable_f)(struct feature*) = disable_f;		\
@@ -81,6 +68,22 @@ __attribute__((unused)) static struct tracepoint *__find_tracepoint(const char *
 		ret |= DISABLE_FEATURE(__tp);				\
 		return ret;						\
 	}								\
+
+/**
+ * DEFINE_EXTENDED_TP_FEATURE() - Define a feature linked to a tracepoint.
+ * @feature_name: Name of the feature.
+ * @tp_name: Name of the tracepoint to attach to.
+ * @probe: Probe function passed to the relevant tracepoint registering function register_trace_*().
+ * @enable_f: Additional enable function for the feature. It must take a struct
+ * feature * and return a non-zero int in case of failure.
+ * @disable_f: Additional disable function for the feature. Same signature as enable_f().
+ *
+ * Define a feature with a probe attached to a tracepoint, with additional
+ * user-defined enable/disable functions. If the tracepoint is not found, the
+ * user functions will not be called.
+ */
+#define DEFINE_EXTENDED_TP_FEATURE(feature_name, tp_name, probe, enable_f, disable_f) \
+	DEFINE_TP_ENABLE_DISABLE(feature_name, tp_name, probe, __tp_feature_enable_##feature_name, enable_f, __tp_feature_disable_##feature_name, disable_f); \
 	DEFINE_FEATURE(feature_name, __tp_feature_enable_##feature_name, __tp_feature_disable_##feature_name);
 
 /**
