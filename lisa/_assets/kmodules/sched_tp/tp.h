@@ -29,24 +29,31 @@ __attribute__((unused)) static struct tracepoint *__find_tracepoint(const char *
 		int __ret;						\
 		struct tracepoint *tp;					\
 		int (*_enable_f)(struct feature*) = enable_f;		\
-		ret |= ENABLE_FEATURE(__tp);				\
-		tp = __find_tracepoint(#tp_name);			\
-		if (tp) {						\
-			if (_enable_f) {				\
-				__ret = _enable_f(feature);		\
-				ret |= __ret;				\
-				if (__ret)				\
-					pr_err(#feature_name ": init function " #enable_f "() failed with error: %i\n", __ret); \
+		__ret = ENABLE_FEATURE(__tp);				\
+		ret |= __ret;						\
+		if (ret) {						\
+			pr_err(#feature_name ": could not enable tracepoint support: %i\n", __ret); \
+		} else { 						\
+			tp = __find_tracepoint(#tp_name);		\
+			if (tp) {					\
+				if (_enable_f) {			\
+					__ret = _enable_f(feature);	\
+					ret |= __ret;			\
+					if (__ret)			\
+						pr_err(#feature_name ": init function " #enable_f "() failed with error: %i\n", __ret); \
+				}					\
+				if (!ret) {				\
+					__ret = tracepoint_probe_register(tp, (void *)probe, feature); \
+					ret |= __ret;			\
+					if (__ret)			\
+						pr_err(#feature_name ": could not attach " #probe "() to tracepoint " #tp_name "\n"); \
+				}					\
+				__feature_tp_registered_##feature_name = !ret; \
+				return ret;				\
+			} else {					\
+				pr_err(#feature_name ": could not attach " #probe "() to undefined tracepoint " #tp_name "\n"); \
+				ret |= 1;				\
 			}						\
-			__ret = tracepoint_probe_register(tp, (void *)probe, feature); \
-			ret |= __ret;					\
-			if (__ret) 					\
-				pr_err(#feature_name ": could not attach " #probe "() to tracepoint " #tp_name "\n"); \
-			__feature_tp_registered_##feature_name = !__ret; \
-			return ret;					\
-		} else {						\
-			pr_err(#feature_name ": could not attach " #probe "() to undefined tracepoint " #tp_name "\n"); \
-			ret |= 1;					\
 		}							\
 		return ret;						\
 	}								\
