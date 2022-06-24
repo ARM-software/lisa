@@ -263,15 +263,8 @@ This will build the module against the provided kernel tree and install it in
   ``lisa/_assets``. If you still do, any remaining build artifact
   could be reused in fresh builds, leading to segfaults and such.
 
-Clean
-.....
-
-.. code-block:: sh
-
-  $LISA_HOME/tools/kmodules/clean_module path/to/kernel path/to/kmodule
-
-Highly recommended to clean when switching kernel trees to avoid unintentional
-breakage for using stale binaries.
+.. note:: It is highly recommended to do a clean build when switching kernel
+  trees to avoid unintentional breakage for using stale binaries.
 
 Pushing the module into the target
 ..................................
