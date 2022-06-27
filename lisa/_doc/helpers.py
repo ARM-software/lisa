@@ -701,8 +701,8 @@ def make_changelog(repo):
         return f'{title}\n{body}'
 
     def format_msg(msg):
-        subject = msg.splitlines()[0]
-        return f'- {subject.strip()}'
+        subject = escape(msg.splitlines()[0].strip())
+        return f'- {subject}'
 
     rst = '\n\n'.join(
         format_release(name, sections)
@@ -718,5 +718,14 @@ class PlaceHolderRef:
     something private and undocumented, or is not expected to be even
     documentable.
     """
+
+def escape(s):
+    """
+    Escape the string so that it's considered plain reStructuredText input,
+    without any markup even if it contains some. This avoids having to use a
+    literal block that is displayed differently.
+    """
+    # https://docutils.sourceforge.io/docs/ref/rst/restructuredtext.html#escaping-mechanism
+    return re.sub(r'(?=[^\s])([^\\])', r'\\\1', s)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab textwidth=80
