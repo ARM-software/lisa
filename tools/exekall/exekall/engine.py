@@ -3696,9 +3696,24 @@ class FrozenExprVal(ExprValBase):
             return AttributeError(f'Producer of {self} not found')
 
         qualname = self.callable_qualname[len(mod_name):].lstrip('.')
+        qualname = qualname.split('.')
         attr = mod
-        for name in qualname.split('.'):
-            attr = getattr(attr, name)
+        attr_path = list(functools.accumulate(getattr))
+
+        if (
+                len(attr_path) > 1 and
+                isinstance(
+                    attr,
+                    (
+                        # Instance and static methods
+                        types.FunctionType,
+                        # Class methods
+                        types.MethodType,
+                    )
+                )
+        ):
+            attr = UnboundMethod(attr, attr_path[-2])
+
         return attr
 
     @property
