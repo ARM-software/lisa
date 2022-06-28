@@ -44,7 +44,7 @@ import panel.widgets
 
 
 from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc, _import_all_submodules
-from lisa.trace import PandasDataDesc
+from lisa.trace import _CacheDataDesc
 from lisa.notebook import _hv_fig_to_pane, _hv_link_dataframes, axis_cursor_delta, axis_link_dataframes, make_figure
 from lisa._generic import TypedList
 
@@ -1129,7 +1129,7 @@ class TraceAnalysisBase(AnalysisHelpers):
                 # Include the trace window in the spec since that influences
                 # what the analysis was seeing
                 trace_state=trace.trace_state,
-                # Make a deepcopy as it is critical that the PandasDataDesc is
+                # Make a deepcopy as it is critical that the _CacheDataDesc is
                 # not modified under the hood once inserted in the cache
                 kwargs=copy.deepcopy({
                     k: v
@@ -1137,17 +1137,17 @@ class TraceAnalysisBase(AnalysisHelpers):
                     if k not in ignored_kwargs
                 }),
             )
-            pd_desc = PandasDataDesc(spec=spec)
+            cache_desc = _CacheDataDesc(spec=spec, fmt='parquet')
 
             cache = trace._cache
             write_swap = trace._write_swap
             try:
-                df = cache.fetch(pd_desc)
+                df = cache.fetch(cache_desc)
             except KeyError:
                 with measure_time() as measure:
                     df = f(**kwargs)
                 compute_cost = measure.exclusive_delta
-                cache.insert(pd_desc, df, compute_cost=compute_cost, write_swap=write_swap)
+                cache.insert(cache_desc, df, compute_cost=compute_cost, write_swap=write_swap)
 
             return df
 
