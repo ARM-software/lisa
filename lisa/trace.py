@@ -2357,9 +2357,9 @@ class _AvailableTraceEventsSet:
         return str(self._available_events)
 
 
-class PandasDataDesc(Mapping):
+class _CacheDataDesc(Mapping):
     """
-    Pandas data descriptor.
+    Cached data descriptor.
 
     :param spec: Specification of the data as a key/value mapping.
 
@@ -2378,9 +2378,10 @@ class PandasDataDesc(Mapping):
           implemented by comparing this attribute.
     """
 
-    def __init__(self, spec):
+    def __init__(self, spec, fmt):
+        self.fmt = fmt
         self.spec = spec
-        self.normal_form = PandasDataDescNF.from_spec(self.spec)
+        self.normal_form = _CacheDataDescNF.from_spec(self.spec, fmt)
 
     def __getitem__(self, key):
         return self.spec[key]
@@ -2390,14 +2391,6 @@ class PandasDataDesc(Mapping):
 
     def __len__(self):
         return len(self.spec)
-
-    @classmethod
-    def from_kwargs(cls, **kwargs):
-        """
-        Build a :class:`PandasDataDesc` with the specifications as keyword
-        arguments.
-        """
-        return cls(spec=kwargs)
 
     def __repr__(self):
         return '{}({})'.format(
@@ -2418,23 +2411,25 @@ class PandasDataDesc(Mapping):
         return hash(self.normal_form)
 
 
-class PandasDataDescNF:
+class _CacheDataDescNF:
     """
-    Normal form of :class:`PandasDataDesc`.
+    Normal form of :class:`_CacheDataDesc`.
 
     The normal form of the descriptor allows removing any possible differences
     in shape of values, and is serializable to JSON. The serialization is
     allowed to destroy some information (type mainly), as long as it does make
     two descriptors wrongly equal.
     """
-    def __init__(self, nf):
+    def __init__(self, nf, fmt):
+        assert fmt != _CacheDataSwapEntry.META_EXTENSION
+        self._fmt = fmt
         self._nf = nf
         # Since it's going to be inserted in dict for sure, precompute the hash
         # once and for all.
         self._hash = hash(self._nf)
 
     @classmethod
-    def from_spec(cls, spec):
+    def from_spec(cls, spec, fmt):
         """
         Build from a spec that can include any kind of Python objects.
         """
@@ -2442,7 +2437,7 @@ class PandasDataDescNF:
             (key, cls._coerce(val))
             for key, val in spec.items()
         ))
-        return cls(nf=nf)
+        return cls(nf=nf, fmt=fmt)
 
     @classmethod
     def _coerce(cls, val):
@@ -2478,7 +2473,7 @@ class PandasDataDescNF:
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
-            return self._nf == other._nf
+            return self._fmt == other._fmt and self._nf == other._nf
         else:
             return False
 
@@ -2486,7 +2481,10 @@ class PandasDataDescNF:
         return self._hash
 
     def to_json_map(self):
-        return dict(self._nf)
+        return dict(
+            fmt=self._fmt,
+            data=self._nf,
+        )
 
     @classmethod
     def _coerce_json(cls, x):
@@ -2509,47 +2507,54 @@ class PandasDataDescNF:
         JSON does not preserve tuples for example, so they need to be converted
         back.
         """
+        fmt = mapping['fmt']
+        data = dict(mapping['data'])
         nf = tuple(sorted(
             (key, cls._coerce_json(val))
-            for key, val in mapping.items()
+            for key, val in data.items()
         ))
-        return cls(nf=nf)
+        return cls(nf=nf, fmt=fmt)
 
-class PandasDataSwapEntry:
+
+class _CacheDataSwapEntry:
     """
-    Entry in the pandas data swap area of :class:`Trace`.
+    Entry in the data swap area of :class:`Trace`.
 
-    :param pd_desc_nf: Normal form descriptor describing what the entry
+    :param cache_desc_nf: Normal form descriptor describing what the entry
         contains.
-    :type pd_desc_nf: PandasDataDescNF
+    :type cache_desc_nf: _CacheDataDescNF
 
     :param name: Name of the entry. If ``None``, a random UUID will be
         generated.
     :type name: str or None
+
+    :param written: ``True`` if the swap entry is already written on-disk.
+    :type written: bool
     """
 
-    META_EXTENSION = '.meta'
+    META_EXTENSION = 'meta'
     """
     Extension used by the metadata file of the swap entry in the swap.
     """
 
-    def __init__(self, pd_desc_nf, name=None):
-        self.pd_desc_nf = pd_desc_nf
+    def __init__(self, cache_desc_nf, name=None, written=False):
+        self.cache_desc_nf = cache_desc_nf
         self.name = name or uuid.uuid4().hex
+        self.written = written
 
     @property
     def meta_filename(self):
         """
         Filename of the metadata file in the swap.
         """
-        return f'{self.name}{self.META_EXTENSION}'
+        return f'{self.name}.{self.META_EXTENSION}'
 
     @property
     def data_filename(self):
         """
-        Filename of the pandas data file in the swap.
+        Filename of the data file in the swap.
         """
-        return f'{self.name}{TraceCache.DATAFRAME_SWAP_EXTENSION}'
+        return f'{self.name}.{self.cache_desc_nf._fmt}'
 
     def to_json_map(self):
         """
@@ -2558,20 +2563,20 @@ class PandasDataSwapEntry:
         return {
             'version-token': VERSION_TOKEN,
             'name': self.name,
-            'desc': self.pd_desc_nf.to_json_map(),
+            'desc': self.cache_desc_nf.to_json_map(),
         }
 
     @classmethod
-    def from_json_map(cls, mapping):
+    def from_json_map(cls, mapping, written=False):
         """
         Create an instance with a mapping created using :meth:`to_json_map`.
         """
         if mapping['version-token'] != VERSION_TOKEN:
             raise TraceCacheSwapVersionError('Version token differ')
 
-        pd_desc_nf = PandasDataDescNF.from_json_map(mapping['desc'])
+        cache_desc_nf = _CacheDataDescNF.from_json_map(mapping['desc'])
         name = mapping['name']
-        return cls(pd_desc_nf=pd_desc_nf, name=name)
+        return cls(cache_desc_nf=cache_desc_nf, name=name, written=written)
 
     def to_path(self, path):
         """
@@ -2590,7 +2595,7 @@ class PandasDataSwapEntry:
         with open(path) as f:
             mapping = json.load(f)
 
-        return cls.from_json_map(mapping)
+        return cls.from_json_map(mapping, written=True)
 
 
 class TraceCacheSwapVersionError(ValueError):
@@ -2629,11 +2634,12 @@ class TraceCache(Loggable):
     :type metadata: dict or None
 
     :param swap_content: Initial content of the swap area.
-    :type swap_content: dict(PandasDataDescNF, PandasDataSwapEntry) or None
+    :type swap_content: dict(_CacheDataDescNF, _CacheDataSwapEntry) or None
 
     The cache manages both the :class:`pandas.DataFrame` and
     :class:`pandas.Series` generated in memory and a swap area used to evict
-    them, and to reload them quickly.
+    them, and to reload them quickly. Some other data (typically JSON) can also
+    be stored in the cache by analysis method.
     """
 
     INIT_SWAP_COST = 1e-7
@@ -2654,16 +2660,11 @@ class TraceCache(Loggable):
     Data storage format used to swap.
     """
 
-    DATAFRAME_SWAP_EXTENSION = f'.{DATAFRAME_SWAP_FORMAT}'
-    """
-    File extension of the data swap format.
-    """
-
     def __init__(self, max_mem_size=None, trace_path=None, trace_md5=None, swap_dir=None, max_swap_size=None, swap_content=None, metadata=None):
         self._cache = {}
         self._data_cost = {}
         self._swap_content = swap_content or {}
-        self._pd_desc_swap_filename = {}
+        self._cache_desc_swap_filename = {}
         self.swap_cost = self.INIT_SWAP_COST
         self.swap_dir = swap_dir
         self.max_swap_size = max_swap_size if max_swap_size is not None else math.inf
@@ -2688,7 +2689,7 @@ class TraceCache(Loggable):
         def get_size(nr_col):
             df = make_df(nr_col)
             buffer = io.BytesIO()
-            self._write_data(df, buffer)
+            self._write_data('parquet', df, buffer)
             return buffer.getbuffer().nbytes
 
         size1 = get_size(1)
@@ -2710,16 +2711,19 @@ class TraceCache(Loggable):
 
         .. note:: This model seems to work pretty well for parquet format.
         """
-        file_overhead, col_overhead = self._swap_size_overhead
-        # DataFrame
-        try:
-            nr_columns = data.shape[1]
-        # Series
-        except IndexError:
-            nr_columns = 1
+        if isinstance(data, (pd.DataFrame, pd.Series)):
+            file_overhead, col_overhead = self._swap_size_overhead
+            # DataFrame
+            try:
+                nr_columns = data.shape[1]
+            # Series
+            except IndexError:
+                nr_columns = 1
 
-        size = size - file_overhead - nr_columns * col_overhead
-        return size
+            size = size - file_overhead - nr_columns * col_overhead
+            return size
+        else:
+            return self._data_mem_usage(data)
 
     @property
     def trace_md5(self):
@@ -2820,19 +2824,19 @@ class TraceCache(Loggable):
                 swap_entry_filenames = {
                     filename
                     for filename in os.listdir(swap_dir)
-                    if filename.endswith(PandasDataSwapEntry.META_EXTENSION)
+                    if filename.endswith(f'.{_CacheDataSwapEntry.META_EXTENSION}')
                 }
 
                 for filename in swap_entry_filenames:
                     path = os.path.join(swap_dir, filename)
                     try:
-                        swap_entry = PandasDataSwapEntry.from_path(path)
+                        swap_entry = _CacheDataSwapEntry.from_path(path)
                     # If there is any issue with that entry, just ignore it
                     # pylint: disable=broad-except
                     except Exception:
                         continue
                     else:
-                        yield (swap_entry.pd_desc_nf, swap_entry)
+                        yield (swap_entry.cache_desc_nf, swap_entry)
 
             swap_content = dict(load_swap_content(swap_dir))
 
@@ -2890,22 +2894,46 @@ class TraceCache(Loggable):
 
     @staticmethod
     def _data_mem_usage(data):
-        mem = data.memory_usage()
-        try:
-            return mem.sum()
-        except AttributeError:
-            return mem
+        if data is None:
+            return 1
+        elif isinstance(data, (pd.DataFrame, pd.Series)):
+            mem = data.memory_usage()
+            try:
+                return mem.sum()
+            except AttributeError:
+                return mem
+        else:
+            return sys.getsizeof(data)
 
-    def _should_evict_to_swap(self, pd_desc, data):
+    def _should_evict_to_swap(self, cache_desc, data):
         # If we don't have any cost info, assume it is expensive to compute
-        compute_cost = self._data_cost.get(pd_desc, math.inf)
+        compute_cost = self._data_cost.get(cache_desc, math.inf)
         swap_cost = self._estimate_data_swap_cost(data)
         return swap_cost <= compute_cost
 
-    def _swap_path_of(self, pd_desc):
+    def _path_of_swap_entry(self, swap_entry):
+        return os.path.join(self.swap_dir, swap_entry.meta_filename)
+
+    def _cache_desc_swap_path(self, cache_desc, create=False):
         if self.swap_dir:
-            pd_desc_nf = pd_desc.normal_form
-            swap_entry = self._swap_content[pd_desc_nf]
+            cache_desc_nf = cache_desc.normal_form
+
+            if create and not self._is_written_to_swap(cache_desc):
+                self.insert(
+                    cache_desc,
+                    data=None,
+                    compute_cost=None,
+                    write_swap=True,
+                    force_write_swap=True,
+                    # We do not write the swap_entry meta file, so that the
+                    # user can write the data file before the swap entry is
+                    # added. This way, another process will not be tricked into
+                    # believing the data is available whereas in fact it's in
+                    # the process of being populated.
+                    write_meta=False,
+                )
+
+            swap_entry = self._swap_content[cache_desc_nf]
             filename = swap_entry.data_filename
             return os.path.join(self.swap_dir, filename)
         else:
@@ -2916,7 +2944,10 @@ class TraceCache(Loggable):
         # Take out from the swap cost the time it took to write the overhead
         # that comes with the file format, assuming the cost is
         # proportional to amount of data written in the swap.
-        swap_cost *= unbiased_swap_size / swap_size
+        if swap_size:
+            swap_cost *= unbiased_swap_size / swap_size
+        else:
+            swap_cost = 0
 
         new_cost = swap_cost / mem_usage
 
@@ -2924,8 +2955,13 @@ class TraceCache(Loggable):
         # EWMA to keep a relatively stable cost
         self._update_ewma('swap_cost', new_cost, override=override)
 
-    def _is_written_to_swap(self, pd_desc):
-        return pd_desc.normal_form in self._swap_content
+    def _is_written_to_swap(self, cache_desc):
+        try:
+            swap_entry = self._swap_content[cache_desc.normal_form]
+        except KeyError:
+            return False
+        else:
+            return swap_entry.written
 
     @staticmethod
     def _data_to_parquet(data, path, **kwargs):
@@ -2968,50 +3004,89 @@ class TraceCache(Loggable):
         return data
 
     @classmethod
-    def _write_data(cls, data, path):
-        if cls.DATAFRAME_SWAP_FORMAT == 'parquet':
+    def _write_data(cls, fmt, data, path):
+        if fmt == 'disk-only':
+            return
+        elif fmt == 'parquet':
             # Snappy compression seems very fast
             cls._data_to_parquet(data, path, compression='snappy')
+        elif fmt == 'json':
+            with open(path, 'wt') as f:
+                try:
+                    json.dump(data, f, separators=(',', ':'))
+                except Exception as e:
+                    raise ValueError(f'Does not know how to write data type {data.__class__} to the cache: {e}') from e
         else:
-            raise ValueError(f'Dataframe swap format "{cls.DATAFRAME_SWAP_FORMAT}" not handled')
+            raise ValueError(f'Does not know how to dump to disk format: {fmt}')
 
-    def _write_swap(self, pd_desc, data):
+
+    @classmethod
+    def _load_data(cls, fmt, path):
+        if fmt == 'disk-only':
+            data = None
+        elif fmt == 'parquet':
+            data = cls._data_from_parquet(path)
+        elif fmt == 'json':
+            with open(path, 'rt') as f:
+                data = json.load(f)
+        else:
+            raise ValueError(f'File format not supported "{fmt}" at path: {path}')
+
+        return data
+
+    def _write_swap(self, cache_desc, data, write_meta=True):
         if not self.swap_dir:
             return
         else:
-            if self._is_written_to_swap(pd_desc):
+            # TODO: this is broken for disk-only format, as we have the swap
+            # entry in _swap_content[] in order to match it again but the meta
+            # file has not been written to the disk yet.
+            if self._is_written_to_swap(cache_desc):
                 return
 
-            pd_desc_nf = pd_desc.normal_form
-            swap_entry = PandasDataSwapEntry(pd_desc_nf)
+            cache_desc_nf = cache_desc.normal_form
+            # We may already have a swap entry if we used the None data
+            # placeholder. This would have allowed the user to reserve the swap
+            # data file in advance so they can write to it directly, instead of
+            # managing the data in the memory cache.
+            try:
+                swap_entry = self._swap_content[cache_desc_nf]
+            except KeyError:
+                swap_entry = _CacheDataSwapEntry(cache_desc_nf)
 
-            df_path = os.path.join(self.swap_dir, swap_entry.data_filename)
+            data_path = os.path.join(self.swap_dir, swap_entry.data_filename)
 
             # If that would make the swap dir too large, try to do some cleanup
             if self._estimate_data_swap_size(data) + self._swap_size > self.max_swap_size:
                 self.scrub_swap()
 
             def log_error(e):
-                self.logger.error(f'Could not write {pd_desc} to swap: {e}')
+                self.logger.error(f'Could not write {cache_desc} to swap: {e}')
 
             # Write the Parquet file and update the write speed
             try:
                 with measure_time() as measure:
-                    self._write_data(data, df_path)
+                    self._write_data(cache_desc.fmt, data, data_path)
             # PyArrow fails to save dataframes containing integers > 64bits
             except OverflowError as e:
                 log_error(e)
             else:
-                # Update the swap
-                swap_entry_path = os.path.join(self.swap_dir, swap_entry.meta_filename)
-                swap_entry.to_path(swap_entry_path)
-                self._swap_content[swap_entry.pd_desc_nf] = swap_entry
+                # Update the swap entry on disk
+                if write_meta:
+                    swap_entry.to_path(
+                        self._path_of_swap_entry(swap_entry)
+                    )
+                    swap_entry.written = True
+                self._swap_content[swap_entry.cache_desc_nf] = swap_entry
 
                 # Assume that reading from the swap will take as much time as
                 # writing to it. We cannot do better anyway, but that should
                 # mostly bias to keeping things in memory if possible.
                 swap_cost = measure.exclusive_delta
-                data_swapped_size = os.stat(df_path).st_size
+                try:
+                    data_swapped_size = os.stat(data_path).st_size
+                except FileNotFoundError:
+                    data_swapped_size = 0
 
                 mem_usage = self._data_mem_usage(data)
                 if mem_usage:
@@ -3027,7 +3102,7 @@ class TraceCache(Loggable):
                 for dir_entry in os.scandir(self.swap_dir)
             )
         else:
-            return 0
+            return 1
 
     def scrub_swap(self):
         """
@@ -3055,9 +3130,12 @@ class TraceCache(Loggable):
             non_stale_files = data_files.keys() | metadata_files
             stale_files = stats.keys() - non_stale_files
             for filename in stale_files:
-                del stats[filename]
+                stats.pop(filename, None)
                 path = os.path.join(self.swap_dir, filename)
-                os.unlink(path)
+                try:
+                    os.unlink(path)
+                except Exception:
+                    pass
 
             def by_mtime(path_stat):
                 _, stat = path_stat
@@ -3079,64 +3157,60 @@ class TraceCache(Loggable):
 
             # Update the swap content
             for swap_entry in discarded_swap_entries:
-                del self._swap_content[swap_entry.pd_desc_nf]
-                del stats[swap_entry.data_filename]
+                del self._swap_content[swap_entry.cache_desc_nf]
+                stats.pop(swap_entry.data_filename, None)
 
                 for filename in (swap_entry.meta_filename, swap_entry.data_filename):
                     path = os.path.join(self.swap_dir, filename)
-                    os.unlink(path)
+                    try:
+                        os.unlink(path)
+                    except Exception:
+                        pass
 
             self._swap_size = sum(
                 stats[swap_entry.data_filename].st_size
                 for swap_entry in self._swap_content.values()
+                if swap_entry.data_filename in stats
             )
 
-    def fetch(self, pd_desc, insert=True):
+    def fetch(self, cache_desc, insert=True):
         """
         Fetch an entry from the cache or the swap.
 
-        :param pd_desc: Descriptor to look for.
-        :type pd_desc: PandasDataDesc
+        :param cache_desc: Descriptor to look for.
+        :type cache_desc: _CacheDataDesc
 
         :param insert: If ``True`` and if the fetch succeeds by loading the
             swap, the data is inserted in the cache.
         :type insert: bool
         """
         try:
-            return self._cache[pd_desc]
+            return self._cache[cache_desc]
         except KeyError as e:
             # pylint: disable=raise-missing-from
             try:
-                path = self._swap_path_of(pd_desc)
+                path = self._cache_desc_swap_path(cache_desc)
             # If there is no swap, bail out
             except (ValueError, KeyError):
-                raise e
+                raise KeyError(f'Could not find swap entry for: {cache_desc}')
             else:
-                # Try to load the dataframe from that path
-                try:
-                    if self.DATAFRAME_SWAP_FORMAT == 'parquet':
-                        data = self._data_from_parquet(path)
-                    else:
-                        raise ValueError(f'Dataframe swap format "{self.DATAFRAME_SWAP_FORMAT}" not handled')
-                except (OSError, pyarrow.lib.ArrowIOError):
-                    raise e
-                else:
-                    if insert:
-                        # We have no idea of the cost of something coming from
-                        # the cache
-                        self.insert(pd_desc, data, write_swap=False, compute_cost=None)
+                data = self._load_data(cache_desc.fmt, path)
+                if insert:
+                    # We have no idea of the cost of something coming from
+                    # the cache
+                    self.insert(cache_desc, data, write_swap=False, compute_cost=None)
 
-                    return data
+                return data
 
-    def insert(self, pd_desc, data, compute_cost=None, write_swap=False, force_write_swap=False):
+    def insert(self, cache_desc, data, compute_cost=None, write_swap=False, force_write_swap=False, write_meta=True):
         """
         Insert an entry in the cache.
 
-        :param pd_desc: Descriptor of the data to insert.
-        :type pd_desc: PandasDataDesc
+        :param cache_desc: Descriptor of the data to insert.
+        :type cache_desc: _CacheDataDesc
 
-        :param data: Pandas data to insert.
-        :type data: pandas.DataFrame or pandas.Series
+        :param data: data to insert.
+        :type data: object
 
         :param compute_cost: Time spent to compute the data in seconds.
         :type compute_cost: float or None
@@ -3150,13 +3224,21 @@ class TraceCache(Loggable):
         :param force_write_swap: If ``True``, bypass the computation vs swap
             cost comparison.
         :type force_write_swap: bool
+
+        :param write_meta: If ``True``, the swap entry metadata will be written
+            on disk if the data are. Otherwise, no swap entry is written to disk.
+        :type write_meta: bool
         """
-        self._cache[pd_desc] = data
+        self._cache[cache_desc] = data
         if compute_cost is not None:
-            self._data_cost[pd_desc] = compute_cost
+            self._data_cost[cache_desc] = compute_cost
 
         if write_swap:
-            self.write_swap(pd_desc, force=force_write_swap)
+            self.write_swap(
+                cache_desc,
+                force=force_write_swap,
+                write_meta=write_meta
+            )
 
         self._scrub_mem()
 
@@ -3175,17 +3257,17 @@ class TraceCache(Loggable):
             # accurate refcount possible
             gc.collect()
             refcounts = {
-                pd_desc: sys.getrefcount(data)
-                for pd_desc, data in self._cache.items()
+                cache_desc: sys.getrefcount(data)
+                for cache_desc, data in self._cache.items()
             }
             min_refcount = min(refcounts.values())
 
             # Low retention score means it's more likely to be evicted
-            def retention_score(pd_desc_and_data):
-                pd_desc, data = pd_desc_and_data
+            def retention_score(cache_desc_and_data):
+                cache_desc, data = cache_desc_and_data
 
                 # If we don't know the computation cost, assume it can be evicted cheaply
-                compute_cost = self._data_cost.get(pd_desc, 0)
+                compute_cost = self._data_cost.get(cache_desc, 0)
 
                 if not compute_cost:
                     score = 0
@@ -3193,7 +3275,7 @@ class TraceCache(Loggable):
                     swap_cost = self._estimate_data_swap_cost(data)
                     # If it's already written back, make it cheaper to evict since
                     # the eviction itself is going to be cheap
-                    if self._is_written_to_swap(pd_desc):
+                    if self._is_written_to_swap(cache_desc):
                         swap_cost /= 2
 
                     if swap_cost:
@@ -3208,57 +3290,61 @@ class TraceCache(Loggable):
                 #
                 # Normalize to the minimum refcount, so that the _cache and other
                 # structures where references are stored are discounted for sure.
-                return (refcounts[pd_desc] - min_refcount + 1) * score
+                return (refcounts[cache_desc] - min_refcount + 1) * score
 
             new_mem_usage = 0
-            for pd_desc, data in sorted(self._cache.items(), key=retention_score):
+            for cache_desc, data in sorted(self._cache.items(), key=retention_score):
                 new_mem_usage += self._data_mem_usage(data)
                 if new_mem_usage > self.max_mem_size:
-                    self.evict(pd_desc)
+                    self.evict(cache_desc)
 
-    def evict(self, pd_desc):
+    def evict(self, cache_desc):
         """
         Evict the given descriptor from memory.
 
-        :param pd_desc: Descriptor to evict.
-        :type pd_desc: PandasDataDesc
+        :param cache_desc: Descriptor to evict.
+        :type cache_desc: _CacheDataDesc
 
         If it would be cheaper to reload the data than to recompute them, they
         will be written to the swap area.
         """
-        self.write_swap(pd_desc)
+        self.write_swap(cache_desc)
 
         try:
-            del self._cache[pd_desc]
+            del self._cache[cache_desc]
         except KeyError:
             pass
 
-    def write_swap(self, pd_desc, force=False):
+    def write_swap(self, cache_desc, force=False, write_meta=True):
         """
         Write the given descriptor to the swap area if that would be faster to
         reload the data rather than recomputing it. If the descriptor is not in
         the cache or if there is no swap area, ignore it.
 
-        :param pd_desc: Descriptor of the data to write to swap.
-        :type pd_desc: PandasDataDesc
+        :param cache_desc: Descriptor of the data to write to swap.
+        :type cache_desc: _CacheDataDesc
 
         :param force: If ``True``, bypass the compute vs swap cost comparison.
         :type force: bool
+
+        :param write_meta: If ``True``, the swap entry metadata will be written
+            on disk if the data are. Otherwise, no swap entry is written to disk.
+        :type write_meta: bool
         """
         try:
-            data = self._cache[pd_desc]
+            data = self._cache[cache_desc]
         except KeyError:
             pass
         else:
-            if force or self._should_evict_to_swap(pd_desc, data):
-                self._write_swap(pd_desc, data)
+            if force or self._should_evict_to_swap(cache_desc, data):
+                self._write_swap(cache_desc, data, write_meta)
 
     def write_swap_all(self):
         """
         Attempt to write all cached data to the swap.
         """
-        for pd_desc in self._cache.keys():
-            self.write_swap(pd_desc)
+        for cache_desc in self._cache.keys():
+            self.write_swap(cache_desc)
 
     def clear_event(self, event, raw=None):
         """
@@ -3273,13 +3359,13 @@ class TraceCache(Loggable):
         :type raw: bool or None
         """
         self._cache = {
-            pd_desc: data
-            for pd_desc, data in self._cache.items()
+            cache_desc: data
+            for cache_desc, data in self._cache.items()
             if not (
-                pd_desc.get('event') == event
+                cache_desc.get('event') == event
                 and (
                     raw is None
-                    or pd_desc.get('raw') == raw
+                    or cache_desc.get('raw') == raw
                 )
             )
         }
@@ -3289,14 +3375,14 @@ class TraceCache(Loggable):
         Same as :meth:`clear_event` but works on all events at once.
         """
         self._cache = {
-            pd_desc: data
-            for pd_desc, data in self._cache.items()
+            cache_desc: data
+            for cache_desc, data in self._cache.items()
             if (
                 # Cache entries can be associated to something else than events
-                'event' not in pd_desc or
+                'event' not in cache_desc or
                 # Either we care about raw and we check, or blanket clear
                 raw is None or
-                pd_desc.get('raw') == raw
+                cache_desc.get('raw') == raw
             )
         }
 
@@ -4042,7 +4128,7 @@ class Trace(Loggable, TraceBase):
         if raw:
             # Make sure all raw descriptors are made the same way, to avoid
             # missed sharing opportunities
-            spec = self._make_raw_pd_desc_spec(event)
+            spec = self._make_raw_cache_desc_spec(event)
         else:
             spec = dict(
                 event=event,
@@ -4069,12 +4155,12 @@ class Trace(Loggable, TraceBase):
                 sanitization=sanitization_f.__qualname__ if sanitization_f else None,
             )
 
-        pd_desc = PandasDataDesc(spec=spec)
+        cache_desc = _CacheDataDesc(spec=spec, fmt=TraceCache.DATAFRAME_SWAP_FORMAT)
 
         try:
-            df = self._cache.fetch(pd_desc, insert=True)
+            df = self._cache.fetch(cache_desc, insert=True)
         except KeyError:
-            df = self._load_df(pd_desc, sanitization_f=sanitization_f, write_swap=write_swap)
+            df = self._load_df(cache_desc, sanitization_f=sanitization_f, write_swap=write_swap)
 
         if df.empty:
             raise MissingTraceEventError(
@@ -4088,19 +4174,19 @@ class Trace(Loggable, TraceBase):
         df.attrs['name'] = event
         return df
 
-    def _make_raw_pd_desc(self, event):
-        spec = self._make_raw_pd_desc_spec(event)
-        return PandasDataDesc(spec=spec)
+    def _make_raw_cache_desc(self, event):
+        spec = self._make_raw_cache_desc_spec(event)
+        return _CacheDataDesc(spec=spec, fmt=TraceCache.DATAFRAME_SWAP_FORMAT)
 
-    def _make_raw_pd_desc_spec(self, event):
+    def _make_raw_cache_desc_spec(self, event):
         return dict(
             event=event,
             raw=True,
             trace_state=self.trace_state,
         )
 
-    def _load_df(self, pd_desc, sanitization_f=None, write_swap=None):
-        event = pd_desc['event']
+    def _load_df(self, cache_desc, sanitization_f=None, write_swap=None):
+        event = cache_desc['event']
 
         # Do not even bother loading the event if we know it cannot be
         # there. This avoids some OSError in case the trace file has
@@ -4116,14 +4202,14 @@ class Trace(Loggable, TraceBase):
         if sanitization_f:
             # Evict the raw dataframe once we got the sanitized version, since
             # we are unlikely to reuse it again
-            self._cache.evict(self._make_raw_pd_desc(event))
+            self._cache.evict(self._make_raw_cache_desc(event))
 
             # We can ask to sanitize various aspects of the dataframe.
             # Adding a new aspect can be done without modifying existing
             # sanitization functions, as long as the default is the
             # previous behavior
             aspects = dict(
-                rename_cols=pd_desc['rename_cols'],
+                rename_cols=cache_desc['rename_cols'],
             )
             with measure_time() as measure:
                 df = sanitization_f(self, event, df, aspects=aspects)
@@ -4131,11 +4217,11 @@ class Trace(Loggable, TraceBase):
         else:
             sanitization_time = 0
 
-        window = pd_desc.get('window')
+        window = cache_desc.get('window')
         if window is not None:
-            signals_init = pd_desc['signals_init']
-            compress_signals_init = pd_desc['compress_signals_init']
-            cols_list = pd_desc['signals']
+            signals_init = cache_desc['signals_init']
+            compress_signals_init = cache_desc['compress_signals_init']
+            cols_list = cache_desc['signals']
             signals = [SignalDesc(event, cols) for cols in cols_list]
 
             with measure_time() as measure:
@@ -4149,7 +4235,7 @@ class Trace(Loggable, TraceBase):
             windowing_time = 0
 
         compute_cost = sanitization_time + windowing_time
-        self._cache.insert(pd_desc, df, compute_cost=compute_cost, write_swap=write_swap)
+        self._cache.insert(cache_desc, df, compute_cost=compute_cost, write_swap=write_swap)
         return df
 
     def _load_cache_raw_df(self, event_checker, write_swap, allow_missing_events=False):
@@ -4163,15 +4249,15 @@ class Trace(Loggable, TraceBase):
 
         # Get the raw dataframe from the cache if possible
         def try_from_cache(event):
-            pd_desc = self._make_raw_pd_desc(event)
+            cache_desc = self._make_raw_cache_desc(event)
             try:
                 # The caller is responsible of inserting in the cache if
                 # necessary
-                df = self._cache.fetch(pd_desc, insert=False)
+                df = self._cache.fetch(cache_desc, insert=False)
             except KeyError:
                 return None
             else:
-                self._cache.insert(pd_desc, df, **insert_kwargs)
+                self._cache.insert(cache_desc, df, **insert_kwargs)
                 return df
 
         from_cache = {
@@ -4190,8 +4276,8 @@ class Trace(Loggable, TraceBase):
         from_trace = self._load_raw_df(events_to_load)
 
         for event, df in from_trace.items():
-            pd_desc = self._make_raw_pd_desc(event)
-            self._cache.insert(pd_desc, df, **insert_kwargs)
+            cache_desc = self._make_raw_cache_desc(event)
+            self._cache.insert(cache_desc, df, **insert_kwargs)
 
         df_map = {**from_cache, **from_trace}
         try:
