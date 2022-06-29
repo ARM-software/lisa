@@ -43,7 +43,7 @@ import panel as pn
 import panel.widgets
 
 
-from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc, _import_all_submodules
+from lisa.utils import Loggable, deprecate, get_doc_url, get_short_doc, get_subclasses, guess_format, is_running_ipython, measure_time, memoized, update_wrapper_doc, _import_all_submodules, optional_kwargs
 from lisa.trace import _CacheDataDesc
 from lisa.notebook import _hv_fig_to_pane, _hv_link_dataframes, axis_cursor_delta, axis_link_dataframes, make_figure
 from lisa._generic import TypedList
@@ -1100,23 +1100,49 @@ class TraceAnalysisBase(AnalysisHelpers):
         self.trace = trace
         self.ana = proxy or trace.ana
 
+    @optional_kwargs
     @classmethod
-    def cache(cls, f):
+    def cache(cls, f, fmt='parquet', ignored_params=None):
         """
         Decorator to enable caching of the output of dataframe getter function
         in the trace cache.
 
-        This will write the dataframe to the swap as well, so processing can be
+        This will write the return data to the swap as well, so processing can be
         skipped completely when possible.
+
+        :param fmt: Format of the data to write to the cache. This will
+            influence the extension of the cache file created. If ``disk-only``
+            format is chosen, the data is not retained in memory and the path
+            to the allocated cache file is passed as first parameter to the
+            wrapped function. This allows manual management of the file's
+            content, as well having a path to a file to pass to external tools
+            if they can consume the data directly.
+        :type fmt: str
+
+        :param ignored_params: Parameters to ignore when trying to hit the
+            cache.
+        :type ignored_params: list(str)
         """
         sig = inspect.signature(f)
+        parameter_names = list(sig.parameters.keys())
         ignored_kwargs = {
             # self
-            list(sig.parameters.keys())[0],
+            parameter_names[0],
+            *(ignored_params or []),
         }
+
+        memory_cache = fmt != 'disk-only'
+
+        if not memory_cache:
+            path_param = parameter_names[1]
+            ignored_kwargs.add(path_param)
 
         @functools.wraps(f)
         def wrapper(self, *args, **kwargs):
+            # Make some room for the argument we will fill later
+            if not memory_cache:
+                args = (None,) + args
+
             # Express the arguments as kwargs-only
             params = sig.bind(self, *args, **kwargs)
             params.apply_defaults()
@@ -1137,19 +1163,39 @@ class TraceAnalysisBase(AnalysisHelpers):
                     if k not in ignored_kwargs
                 }),
             )
-            cache_desc = _CacheDataDesc(spec=spec, fmt='parquet')
-
+            cache_desc = _CacheDataDesc(spec=spec, fmt=fmt)
             cache = trace._cache
-            write_swap = trace._write_swap
-            try:
-                df = cache.fetch(cache_desc)
-            except KeyError:
-                with measure_time() as measure:
-                    df = f(**kwargs)
-                compute_cost = measure.exclusive_delta
-                cache.insert(cache_desc, df, compute_cost=compute_cost, write_swap=write_swap)
 
-            return df
+            def call_f():
+                if not memory_cache:
+                    try:
+                        swap_path = cache._cache_desc_swap_path(cache_desc, create=True)
+                    except Exception as e:
+                        swap_path = None
+                    kwargs[path_param] = swap_path
+
+                with measure_time() as measure:
+                    data = f(**kwargs)
+
+                if memory_cache:
+                    write_swap = trace._write_swap
+                    compute_cost = measure.exclusive_delta
+                else:
+                    write_swap = True
+                    compute_cost = None
+
+                cache.insert(cache_desc, data, compute_cost=compute_cost, write_swap=write_swap)
+                return data
+
+            if memory_cache:
+                try:
+                    data = cache.fetch(cache_desc)
+                except KeyError:
+                    data = call_f()
+            else:
+                data = call_f()
+
+            return data
 
         return wrapper
 
