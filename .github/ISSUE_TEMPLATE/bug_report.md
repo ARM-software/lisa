@@ -12,6 +12,9 @@ A clear and concise description of what the bug is.
 
 **To Reproduce**
 Steps to reproduce the behavior:
+* how LISA was installed:
+  * source of the LISA code: pip (PyPI), github (what sha1 ?)
+  * what environment: on your host (what distro/version ?), in a VM, etc
 * what part of LISA is being used (synthetic tests, WA-related features, etc.)
 * what kind of target is being used (linux, android, etc.)
 * what code is being run if that is a custom script using LISA APIs
