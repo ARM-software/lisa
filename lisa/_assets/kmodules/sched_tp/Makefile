@@ -86,7 +86,8 @@ $(VMLINUX_H): $(VMLINUX_TXT) $(VMLINUX)
 	cat _fwd_decl _header > $@
 # cat $@
 
-$(MODULE_OBJ)/$(LISA_KMOD_NAME).o: $(VMLINUX_H)
+# Make all object files depend on the generated sources
+$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(VMLINUX_H)
 
 # Non-Kbuild part
 else
