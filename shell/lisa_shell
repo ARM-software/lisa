@@ -105,11 +105,17 @@ function lisa-help {
 
 # major.minor version number
 PYTHON_VERSION=$(_lisa-python -c 'import sys; print("{}.{}".format(*sys.version_info))')
+
 export _DOC_LISA_USE_VENV="1 to make lisa-install use a venv specified in
 LISA_VENV_PATH, 0 otherwise"
 export LISA_USE_VENV=${LISA_USE_VENV:-1}
+
 export _DOC_LISA_VENV_PATH="Path to venv to be used by lisa-install"
 export LISA_VENV_PATH=${LISA_VENV_PATH:-"$LISA_HOME/.lisa-venv-$PYTHON_VERSION"}
+
+export _DOC_LISA_UPGRADE_VENV="1 to make lisa-install upgrade the venv specified in
+LISA_VENV_PATH. If 0, lisa-install will destroy the venv and re-create anew"
+export LISA_UPGRADE_VENV=${LISA_UPGRADE_VENV:-0}
 
 
 # Force the shell to rescan the folders listed in $PATH
@@ -124,9 +130,13 @@ function _lisa-venv-create {
         # otherwise it will fail with a symlink levels errors
         lisa-venv-deactivate || return 1
 
-        echo "Creating LISA venv from scratch ($LISA_VENV_PATH) ..."
+        local venv_options=()
+        if [[ "$LISA_UPGRADE_VENV" != 1 ]]; then
+            echo "Creating LISA venv from scratch ($LISA_VENV_PATH) ..."
+            venv_options+=(--clear)
+        fi
         # With --clear, the folder is emptied to create a fresh environment
-        _lisa-python -m venv --clear "$LISA_VENV_PATH"
+        _lisa-python -m venv "${venv_options[@]}" "$LISA_VENV_PATH"
     fi
 }
 
@@ -165,7 +175,6 @@ function _lisa-upgrade-pip {
     # Only upgrade pip when using the venv, so we don't touch the system-wide
     # install
     if [[ "$LISA_USE_VENV" == 1 ]]; then
-        lisa-venv-activate || return 1
         echo "Upgrading pip ..."
         _lisa-python -m pip install --upgrade pip setuptools wheel
     fi
@@ -209,8 +218,9 @@ function _lisa-install-git-hooks {
 function lisa-install {
     _lisa-install-system-check
 
-    _lisa-venv-create &&
-    _lisa-upgrade-pip || return 1
+    _lisa-venv-create || return 1
+    lisa-venv-activate || return 1
+    _lisa-upgrade-pip
 
     # Record the point in time when we ran that install command
     (cd "$LISA_HOME" && check-setuppy --update-recorded-commit HEAD)
@@ -247,6 +257,10 @@ function lisa-install {
         f="$LISA_HOME/$f"
         [[ -e "$f" ]] && pip_options+=(-r "$f")
     done
+
+    if [[ "$LISA_UPGRADE_VENV" == 1 ]]; then
+        pip_options+=(--upgrade --upgrade-strategy eager)
+    fi
 
     echo
     echo "Installing LISA packages ..."
