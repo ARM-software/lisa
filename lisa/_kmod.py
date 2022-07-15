@@ -1226,8 +1226,15 @@ class KernelTree(Loggable, SerializeViaConstructor):
                     logger.debug(f'Loaded kernel tree using loader {loader.__name__}')
 
             else:
+                def format_excep(e):
+                    # We expect stderr to be merged in stdout
+                    if isinstance(e, subprocess.CalledProcessError) and e.stdout:
+                        return f'{e}:\n{e.stdout}'
+                    else:
+                        return str(e)
+
                 excep_str = "\n".join(
-                    f"{loader.__name__}: {e.__class__.__name__}: {e}"
+                    f"{loader.__name__}: {e.__class__.__name__}: {format_excep(e)}"
                     for loader, e in exceps
                 )
                 raise ValueError(f'Could not load kernel trees:\n{excep_str}')
