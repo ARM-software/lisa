@@ -5484,6 +5484,12 @@ class FtraceCollector(CollectorBase, Configurable):
     """
     Thin wrapper around :class:`devlib.collector.ftrace.FtraceCollector`.
 
+    .. note:: Events are expected to be provided by the target's kernel, but if
+        they are not :class:`lisa._kmod.LISAFtraceDynamicKmod` will build a
+        kernel module to attempt to satisfy the missing events. This will
+        typically require correct target setup, see
+        :class:`lisa.target.TargetConf` ``kernel/src`` configurations.
+
     {configurable_params}
     """
 
