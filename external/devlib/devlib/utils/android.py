@@ -385,9 +385,18 @@ class AdbConnection(ConnectionBase):
 
     def adb_root(self, enable=True):
         cmd = 'root' if enable else 'unroot'
-        output = adb_command(self.device, cmd, timeout=30, adb_server=self.adb_server)
-        if 'cannot run as root in production builds' in output:
-            raise TargetStableError(output)
+        try:
+            output = adb_command(self.device, cmd, timeout=30, adb_server=self.adb_server)
+        except subprocess.CalledProcessError as e:
+            # Ignore if we're already root
+            if 'adbd is already running as root' in e.output:
+                pass
+            else:
+                raise
+        else:
+            # Check separately as this does not cause a error exit code.
+            if 'cannot run as root in production builds' in output:
+                raise TargetStableError(output)
         AdbConnection._connected_as_root[self.device] = enable
 
     def wait_for_device(self, timeout=30):
