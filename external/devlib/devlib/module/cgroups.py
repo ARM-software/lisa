@@ -411,7 +411,7 @@ class CgroupsModule(Module):
         for line in self.target.execute('{} cat /proc/cgroups'\
                 .format(self.target.busybox), as_root=self.target.is_rooted).splitlines()[1:]:
             line = line.strip()
-            if not line or line.startswith('#'):
+            if not line or line.startswith('#') or line.endswith('0'):
                 continue
             name, hierarchy, num_cgroups, enabled = line.split()
             subsystems.append(CgroupSubsystemEntry(name,

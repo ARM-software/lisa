@@ -19,7 +19,9 @@ from operator import attrgetter
 from pprint import pformat
 
 from devlib.module import Module
+from devlib.exception import TargetStableError
 from devlib.utils.types import integer, boolean
+from devlib.utils.misc import memoized
 
 
 class CpuidleState(object):
@@ -170,8 +172,32 @@ class Cpuidle(Module):
     def get_driver(self):
         return self.target.read_value(self.target.path.join(self.root_path, 'current_driver'))
 
+    @memoized
+    def list_governors(self):
+        """Returns a list of supported idle governors."""
+        sysfile = self.target.path.join(self.root_path, 'available_governors')
+        output = self.target.read_value(sysfile)
+        return output.strip().split()
+
     def get_governor(self):
+        """Returns the currently selected idle governor."""
         path = self.target.path.join(self.root_path, 'current_governor_ro')
         if not self.target.file_exists(path):
             path = self.target.path.join(self.root_path, 'current_governor')
         return self.target.read_value(path)
+
+    def set_governor(self, governor):
+        """
+        Set the idle governor for the system.
+
+        :param governor: The name of the governor to be used. This must be
+        supported by the specific device.
+
+        :raises TargetStableError if governor is not supported by the CPU, or
+        if, for some reason, the governor could not be set.
+        """
+        supported = self.list_governors()
+        if governor not in supported:
+            raise TargetStableError('Governor {} not supported'.format(governor))
+        sysfile = self.target.path.join(self.root_path, 'current_governor')
+        self.target.write_value(sysfile, governor)
