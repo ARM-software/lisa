@@ -727,6 +727,7 @@ class TaskInvariance(InvarianceBase):
             return self._test_behaviour('load', error_margin_pct)
 
     @ITEM_CLS.test_load_behaviour.used_events
+    @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_util_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
         """
         Aggregated version of :meth:`TaskInvariance.ITEM_CLS.test_util_behaviour`
@@ -738,6 +739,7 @@ class TaskInvariance(InvarianceBase):
         return self._test_all_items(item_test)
 
     @ITEM_CLS.test_load_behaviour.used_events
+    @RTATestBundle.test_noisy_tasks.undecided_filter(noise_threshold_pct=1)
     def test_load_behaviour(self, error_margin_pct=5) -> AggregatedResultBundle:
         """
         Aggregated version of :meth:`TaskInvariance.ITEM_CLS.test_load_behaviour`
