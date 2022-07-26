@@ -20,6 +20,7 @@ from collections import namedtuple, OrderedDict
 from itertools import product
 import operator
 import re
+from contextlib import nullcontext
 
 import pandas
 
@@ -29,7 +30,7 @@ from devlib.exception import TargetStableError
 from lisa.utils import Loggable, Serializable, memoized, groupby, get_subclasses, deprecate, grouper
 from lisa.datautils import df_deduplicate
 from lisa.analysis.frequency import FrequencyAnalysis
-
+from lisa._kmod import LISAFtraceDynamicKmod
 
 
 def _read_multiple_oneline_files(target, glob_patterns):
@@ -279,6 +280,11 @@ class PowerDomain(_CpuTree):
             raise ValueError('idle_states cannot be None (but may be empty)')
         super().__init__(cpu, children)
         self.idle_states = idle_states
+
+
+class EnergyModelNotFoundError(TargetStableError):
+    def __init__(self):
+        super().__init__('Unable to probe for energy model on target.')
 
 
 class EnergyModel(Serializable, Loggable):
@@ -770,7 +776,7 @@ class EnergyModel(Serializable, Loggable):
         """
         try:
             cls._find_subcls(target)
-        except TargetStableError:
+        except EnergyModelNotFoundError:
             return False
         else:
             return True
@@ -786,7 +792,7 @@ class EnergyModel(Serializable, Loggable):
             if subcls.probe_target(target):
                 return subcls
 
-        raise TargetStableError('Unable to probe for energy model on target.')
+        raise EnergyModelNotFoundError()
 
     @classmethod
     def from_target(cls, target):
@@ -803,9 +809,24 @@ class EnergyModel(Serializable, Loggable):
         """
         logger = cls.get_logger('from_target')
 
-        subcls = cls._find_subcls(target)
-        logger.info(f'Attempting to load EM using {subcls.__name__}')
-        em = subcls.from_target(target)
+        try:
+            subcls = cls._find_subcls(target)
+        except EnergyModelNotFoundError:
+            # If we could not find a suitable EM description in sysfs, load the
+            # LISA kernel module with the feature that will expose the EM as a
+            # directory tree and retry.
+            @contextmanager
+            def _cm():
+                kmod = target.get_kmod(LISAFtraceDynamicKmod)
+                with kmod.run(kmod_params={'features': ['em_sysfs']}):
+                    yield cls._find_subcls(target)
+            cm = _cm()
+        else:
+            cm = nullcontext(subcls)
+
+        with cm as subcls:
+            logger.info(f'Attempting to load EM using {subcls.__name__}')
+            em = subcls.from_target(target)
 
         cpu_missing_idle_states = sorted(
             node.cpu
