@@ -23,8 +23,9 @@ All monads share the following API::
     # for a given monad Monad
 
     # Turns a regular function into a function returning an instance of Monad,
-    # and able to consume monadic values. Similar to liftM in Haskell.
-    @Monad.lift
+    # and able to await on monadic values. Similar to the "do notation" in
+    # Haskell.
+    @Monad.do
     async def foo(x, y):
         # Inside a decorated function, await can be used to "extract" the value
         # contained in the monad, like ``<-`` in Haskell.
@@ -32,7 +33,7 @@ All monads share the following API::
         return x
 
     # Equivalent to
-    @Monad.lift
+    @Monad.do
     async def foo(x, y):
         # note: await is used automatically if x is an instance of Monad
         x_ = await x
@@ -40,7 +41,7 @@ All monads share the following API::
         # Monad.pure() is called if x_ is not an instance of Monad
         return Monad.pure(x_)
 
-This allow composing lifted functions easily
+This allow composing decorated functions easily
 
 .. note:: There currently is no overridable ``bind`` operation, since nothing
     in Python currently allows getting a proper continuation without explicit
