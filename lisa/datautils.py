@@ -547,7 +547,7 @@ def series_derivate(y, x=None, order=1):
 
     :param x: Series with the `x` data. If ``None``, the index of `y` will be
         used. Note that `y` and `x` are expected to have the same index.
-    :type y: pandas.DataFrame or None
+    :type x: pandas.DataFrame or None
 
     :param order: Order of the derivative (1 is speed, 2 is acceleration etc).
     :type order: int
@@ -573,7 +573,7 @@ def series_integrate(y, x=None, sign=None, method='rect', rect_step='post'):
 
     :param x: Series with the `x` data. If ``None``, the index of `y` will be
         used. Note that `y` and `x` are expected to have the same index.
-    :type y: pandas.DataFrame or None
+    :type x: pandas.DataFrame or None
 
     :param sign: Clip the data for the area in positive
         or negative regions. Can be any of:
@@ -691,7 +691,7 @@ def series_mean(y, x=None, **kwargs):
 
     :param x: Series with the `x` data. If ``None``, the index of `y` will be
         used. Note that `y` and `x` are expected to have the same index.
-    :type y: pandas.DataFrame or None
+    :type x: pandas.DataFrame or None
 
     :Variable keyword arguments: Forwarded to :func:`series_integrate`.
     """
