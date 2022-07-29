@@ -33,7 +33,7 @@ ifneq ($(KERNELRELEASE),)
 
 LISA_KMOD_NAME ?= sched_tp
 obj-m := $(LISA_KMOD_NAME).o
-$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o
+$(LISA_KMOD_NAME)-y := main.o tp.o wq.o features.o pixel6.o em_sysfs.o
 ldflags-y += -T $(M)/features.lds
 
 clean-files := vmlinux.h
