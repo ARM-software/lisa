@@ -6,12 +6,18 @@
 #include <linux/slab.h>
 #include <linux/fs.h>
 #include <linux/types.h>
+#include <linux/sysfs.h>
+#include <linux/kobject.h>
 
 #include "main.h"
 #include "features.h"
 #include "wq.h"
 #include "ftrace_events.h"
 
+struct em_cpus_info {
+	struct cpumask *cpus;
+	struct kobj_attribute attr;
+};
 
 struct em_ps_info {
 	struct em_perf_state *ps;
@@ -27,6 +33,7 @@ struct em_info {
 	struct kobject *kobj;
 	struct em_perf_domain *em;
 	struct em_ps_group *psg;
+	struct em_cpus_info *cpui;
 	int num_psg;
 };
 
@@ -94,6 +101,46 @@ static void em_sysfs_create_file(struct kobject *kobj, struct attribute *attr,
 			kobj->name, name, ret);
 	else
 		pr_info("EM_INFO: Created %s/%s\n", kobj->name, name);
+}
+
+static ssize_t em_cpus_show(struct kobject *kobj, struct kobj_attribute *attr,
+			char *buf)
+{
+	struct em_cpus_info *cpui = container_of(attr, struct em_cpus_info, attr);
+
+	int ret = -EINVAL;
+	ret = snprintf(buf, PAGE_SIZE, "%*pbl\n", cpumask_pr_args(cpui->cpus));
+	return ret;
+}
+
+static int em_create_cpus(struct cpumask *cpus, struct kobject *kobj) {
+	int ret;
+	struct em_info *emi;
+	mutex_lock(&em_lock);
+
+	emi = &em_info[em_id];
+	emi->cpui = kmalloc(sizeof(*emi->cpui), GFP_KERNEL);
+	if (!emi->cpui) {
+		mutex_unlock(&em_lock);
+		return -ENOMEM;
+	}
+
+	emi->cpui->cpus = cpus;
+	emi->cpui->attr.attr.name = "cpus";
+	emi->cpui->attr.attr.mode = 0644;
+	sysfs_attr_init(emi->cpui->attr.attr);
+	emi->cpui->attr.show = em_cpus_show;
+
+	ret = sysfs_create_file(kobj, &emi->cpui->attr.attr);
+	if (ret)
+		pr_warn("EM_INFO: Creating %s/%s failed %d\n",
+			kobj->name, "cpus", ret);
+	else
+		pr_info("EM_INFO: Created %s/%s\n", kobj->name, "cpus");
+
+	mutex_unlock(&em_lock);
+
+	return 0;
 }
 
 static int em_create_ps(struct em_ps_group *psg,
@@ -189,6 +236,7 @@ static int init_em_sysfs(struct feature *_)
 			return -ENOMEM;
 
 		pr_info("EM_INFO: creating for cpu%d\n", cpu);
+		em_create_cpus(cpus, kobj);
 		em_create_ps_files(em, kobj);
 	}
 
@@ -219,6 +267,7 @@ static int deinit_em_sysfs(struct feature *_)
 
 	for (i = 0; i < em_id; i++) {
 		kfree(em_info[i].psg);
+		kfree(em_info[i].cpui);
 	}
 
 	mutex_unlock(&em_lock);
