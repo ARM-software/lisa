@@ -458,6 +458,7 @@ class WAResultsCollector(WACollectorBase):
     def _get_job_df(cls, job):
         df = pd.DataFrame.from_records(
             {
+                **metric.classifiers,
                 'metric': metric.name,
                 'value': metric.value,
                 'unit': metric.units or '',
