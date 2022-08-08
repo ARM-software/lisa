@@ -267,15 +267,19 @@ class PerfInstrument(Instrument):
     def _process_simpleperf_stat_from_raw(stat_file, context, label):
         with open(stat_file) as fh:
             for line in fh:
-                if '#' in line:
+                if '#' in line and not line.startswith('#'):
+                    units = 'count'
+                    if "(ms)" in line:
+                        line = line.replace("(ms)", "")
+                        units = 'ms'
                     tmp_line = line.split('#')[0]
                     tmp_line = line.strip()
                     count, metric = tmp_line.split(' ')[0], tmp_line.split(' ')[2]
-                    count = int(count.replace(',', ''))
+                    count = float(count) if "." in count else int(count.replace(',', ''))
                     scaled_percentage = line.split('(')[1].strip().replace(')', '').replace('%', '')
                     scaled_percentage = int(scaled_percentage)
                     metric = '{}_{}'.format(label, metric)
-                    context.add_metric(metric, count, 'count', classifiers={'scaled from(%)': scaled_percentage})
+                    context.add_metric(metric, count, units, classifiers={'scaled from(%)': scaled_percentage})
 
     def _process_simpleperf_record_output(self, context):
         for host_file in os.listdir(self.outdir):
