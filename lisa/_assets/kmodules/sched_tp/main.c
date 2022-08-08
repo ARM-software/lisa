@@ -3,6 +3,10 @@
 
 #include "main.h"
 #include "features.h"
+/* Import all the symbol namespaces that appear to be defined in the kernel
+ * sources so that we won't trigger any warning
+ */
+#include "symbol_namespaces.h"
 
 static char *features[MAX_FEATURES];
 unsigned int features_len = 0;
