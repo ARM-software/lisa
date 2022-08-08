@@ -1,113 +1,79 @@
-Introduction |CI status| |Documentation Status|
-===================================================
+Workload Automation
++++++++++++++++++++
 
-The LISA project provides a toolkit that supports regression testing and
-interactive analysis of Linux kernel behavior. LISA stands for Linux
-Integrated/Interactive System Analysis. LISA's goal is to help Linux
-kernel developers to measure the impact of modifications in core parts
-of the kernel. The focus is on the scheduler (e.g. EAS), power
-management and thermal frameworks. However LISA is generic and can be
-used for other purposes too.
+Workload Automation (WA) is a framework for executing workloads and collecting
+measurements on Android and Linux devices. WA includes automation for nearly 40
+workloads and supports some common instrumentation (ftrace, hwmon) along with a
+number of output formats.
 
-LISA has a *host*/*target* model. LISA itself runs on a *host* machine,
-and uses the `devlib <https://github.com/ARM-software/devlib>`__ toolkit
-to interact with the *target* via SSH, ADB or telnet. LISA is flexible
-with regard to the target OS; its only expectation is a Linux
-kernel-based system. Android, GNU/Linux and busybox style systems have
-all been used.
+WA is designed primarily as a developer tool/framework to facilitate data driven
+development by providing a method of collecting measurements from a device in a
+repeatable way.
 
-LISA provides features to describe workloads (notably using `rt-app
-<https://github.com/scheduler-tools/rt-app>`__) and run them on targets. It can
-collect trace files from the target OS (e.g. systrace and ftrace traces). These
-traces can then be parsed and analysed in order to examine detailed target
-behaviour during the workload's execution.
+WA is highly extensible. Most of the concrete functionality is implemented via
+plug-ins, and it is easy to write new plug-ins to support new device types,
+workloads, instruments or output processing.
 
-Some LISA features may require modifying the target OS. For example, in
-order to collect ftrace files the target kernel must have
-CONFIG_DYNAMIC_FTRACE enabled.
 
-There are two "entry points" for running LISA:
+Requirements
+============
 
--  Via the `Jupyter/IPython notebook framework <http://jupyter.org/>`__.
-   This allows LISA to be used interactively and supports visualisation
-   of trace data. Some notebooks are provided with example and
-   ready-made LISA use-cases.
+- Python 3.5+
+- Linux (should work on other Unixes, but untested)
+- Latest Android SDK (ANDROID_HOME must be set) for Android devices, or
+- SSH for Linux devices
 
--  Via the automated test framework. This framework allows the
-   development of automated pass/fail regression tests for kernel behaviour.
-   LISA provides some ready-made automated tests under the ``lisa/tests/``
-   directory.
 
-Motivations
+Installation
+============
+
+To install::
+
+        git clone git@github.com:ARM-software/workload-automation.git workload-automation
+        sudo -H python setup [install|develop]
+
+Note: A `requirements.txt` is included however this is designed to be used as a
+reference for known working versions rather than as part of a standard
+installation.
+
+Please refer to the `installation section <http://workload-automation.readthedocs.io/en/latest/user_information.html#install>`_
+in the documentation for more details.
+
+
+Basic Usage
 ===========
 
-The main goals of LISA are:
+Please see the `Quickstart <http://workload-automation.readthedocs.io/en/latest/user_information.html#user-guide>`_
+section of the documentation.
 
--  Support study of existing behaviours (i.e. *"how does PELT work?"*)
--  Support analysis of new code being developed (i.e. *"what is the
-   impact on existing code?"*)
--  Get insights on what's not working and possibly chase down why
--  Share reproducible experiments by means of a **common language**
-   that:
-
-   -  is **flexible enough** to reproduce the same experiment on
-      different targets
-   -  **simplifies** generation and execution of well defined workloads
-   -  **defines** a set of metrics to evaluate kernel behaviours
-   -  **enables** kernel developers to easily post process data to
-      produce statistics and plots
 
 Documentation
 =============
 
-You should find everything on
-`ReadTheDocs <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/>`__.
-Here are some noteworthy sections:
+You can view pre-built HTML documentation `here <http://workload-automation.readthedocs.io/en/latest/>`_.
 
-   * `Installation <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/setup.html>`__
-   * `Kernel tests <https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/kernel_tests.html>`__
+Documentation in reStructuredText format may be found under ``doc/source``. To
+compile it into cross-linked HTML, make sure you have `Sphinx
+<http://sphinx-doc.org/install.html>`_ installed, and then ::
 
-How to reach us
-===============
+        cd doc
+        make html
 
-Bug reports should be raised against the `GitHub issue tracker <https://github.com/ARM-software/lisa/issues>`__.
-
-External Links
-==============
-
--  Linux Integrated System Analysis (LISA) & Friends
-   `Slides <http://events17.linuxfoundation.org/sites/events/files/slides/ELC16_LISA_20160326.pdf>`__
-   and `Video <https://www.youtube.com/watch?v=zRlqwurYq5Y>`__
-
-   ..
-     video title: LAS16-TR04: Using Tracing to tune and optimize EAS English
-
-   Note: the LISA classes referred by the slides are outdated, but all
-   the other concepts and the overall architecture stays the same.
-
--  Some insights on what it takes to have reliable tests:
-   `Video <https://www.youtube.com/watch?v=I_MZ9XS3_zc>`__
-
-    ..
-      video title: Scheduler behavioural testing
 
 License
 =======
 
-This project is licensed under Apache-2.0.
+Workload Automation is distributed under `Apache v2.0 License
+<http://www.apache.org/licenses/LICENSE-2.0>`_. Workload automation includes
+binaries distributed under different licenses (see LICENSE files in specific
+directories).
 
-This project includes some third-party code under other open source
-licenses. For more information, see ``lisa/_assets/binaries/*/README.*``.
 
-Contributions / Pull Requests
-=============================
+Feedback, Contributions and Support
+===================================
 
-Contributions are accepted under Apache-2.0. Only submit contributions
-where you have authored all of the code. If you do this on work time
-make sure your employer is cool with this. We also have a `Contributor Guide
-<https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/contributors_guide.html>`__
-
-.. |CI status| image:: https://github.com/ARM-software/lisa/workflows/test/badge.svg?branch=master
-   :target: https://github.com/ARM-software/lisa/actions
-.. |Documentation Status| image:: https://readthedocs.org/projects/lisa-linux-integrated-system-analysis/badge/?version=master
-   :target: https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/
+- Please use the GitHub Issue Tracker associated with this repository for
+  feedback.
+- ARM licensees may contact ARM directly via their partner managers.
+- We welcome code contributions via GitHub Pull requests. Please see
+  "Contributing Code" section of the documentation for details.
