@@ -26,6 +26,7 @@ else
 endif
 
 VMLINUX_H = $(MODULE_OBJ)/vmlinux.h
+SYMBOL_NAMESPACES_H = $(MODULE_OBJ)/symbol_namespaces.h
 
 # kbuild part of makefile. Only Kbuild-related targets should be used here to
 # avoid any sort of clash.
@@ -86,8 +87,20 @@ $(VMLINUX_H): $(VMLINUX_TXT) $(VMLINUX)
 	cat _fwd_decl _header > $@
 # cat $@
 
+# Some kernels require the use of MODULE_IMPORT_NS() before using symbols that are part of the given namespace:
+# https://docs.kernel.org/core-api/symbol-namespaces.html
+# Unfortunately, Android kernels seem to define their own namespaces for GKI, so
+# in order to avoid issues and work on any kernel, we simply attempt to list all
+# of the namespaces this kernel seems to rely on by looking at the sources.
+# We could use Module.symvers file, but it can only be generated when building a
+# kernel so it would be way to slow.
+# There does not seem to be any other source for the info in e.g. sysfs or
+# procfs, so we rely on that hack for now.
+$(SYMBOL_NAMESPACES_H):
+	find $(KERNEL_SRC) '(' -name '*.c' -o -name '*.h' ')' -print0 | xargs -P0 -n4096 -0 sed -n 's/MODULE_IMPORT_NS([^;]*;/\0/p' | sort -u > $@
+
 # Make all object files depend on the generated sources
-$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(VMLINUX_H)
+$(addprefix $(MODULE_OBJ)/,$($(LISA_KMOD_NAME)-y)): $(VMLINUX_H) $(SYMBOL_NAMESPACES_H)
 
 # Non-Kbuild part
 else
@@ -103,6 +116,6 @@ install: build
 	$(MAKE) -C $(KERNEL_SRC) M=$(MODULE_SRC) modules_install
 
 clean:
-	rm -f $(VMLINUX_H)
+	rm -f $(VMLINUX_H) $(SYMBOL_NAMESPACES_H)
 
 endif
